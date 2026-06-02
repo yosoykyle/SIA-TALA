@@ -30,6 +30,7 @@ dont access
 /GEMINI.md
 /.agents/
 /.ai/
+/.codex/
 /.qwen/
 /.serena/
 /app/BoostAgents/
