@@ -1,0 +1,172 @@
+<?php
+
+namespace App\Filament\Resources\ImportBatches\Tables;
+
+use App\Models\ImportBatch;
+use App\Models\User;
+use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
+use Throwable;
+
+class ImportBatchesTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['importer', 'committer']))
+            ->columns([
+                TextColumn::make('import_type')
+                    ->badge()
+                    ->searchable(),
+                TextColumn::make('file_name')
+                    ->searchable(),
+                TextColumn::make('status')
+                    ->badge()
+                    ->colors([
+                        'warning' => 'pending_review',
+                        'success' => 'committed',
+                        'gray' => 'cancelled',
+                    ]),
+                TextColumn::make('total_rows')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('valid_rows')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('error_rows')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('skipped_rows')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('importer.name')
+                    ->label('Uploaded By')
+                    ->placeholder('-'),
+                TextColumn::make('committer.name')
+                    ->label('Committed By')
+                    ->placeholder('-'),
+                TextColumn::make('committed_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->placeholder('-'),
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                SelectFilter::make('import_type')
+                    ->options([
+                        'student_data' => 'Student Data',
+                        'legacy_grades' => 'Legacy Grades',
+                        'legacy_financial' => 'Legacy Financial',
+                        'enrollment_records' => 'Enrollment Records',
+                        'curriculum' => 'Curriculum',
+                    ]),
+                SelectFilter::make('status')
+                    ->options([
+                        'pending_review' => 'Pending Review',
+                        'committed' => 'Committed',
+                        'cancelled' => 'Cancelled',
+                    ]),
+            ])
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
+                        && $record->status === 'pending_review'),
+                self::commitAction(),
+                self::cancelAction(),
+            ])
+            ->toolbarActions([]);
+    }
+
+    private static function commitAction(): Action
+    {
+        return Action::make('commit')
+            ->label('Commit')
+            ->icon(Heroicon::OutlinedArrowUpTray)
+            ->color('success')
+            ->requiresConfirmation()
+            ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
+                && $record->status === 'pending_review')
+            ->action(fn (ImportBatch $record) => self::transition($record, 'committed', 'import_batch_committed', 'Import batch committed'));
+    }
+
+    private static function cancelAction(): Action
+    {
+        return Action::make('cancel')
+            ->label('Cancel')
+            ->icon(Heroicon::OutlinedXCircle)
+            ->color('gray')
+            ->requiresConfirmation()
+            ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
+                && $record->status === 'pending_review')
+            ->action(fn (ImportBatch $record) => self::transition($record, 'cancelled', 'import_batch_cancelled', 'Import batch cancelled'));
+    }
+
+    private static function transition(ImportBatch $record, string $status, string $event, string $successTitle): void
+    {
+        $actor = auth()->user();
+
+        if (! $actor instanceof User) {
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($record, $status, $event, $actor): void {
+                $timestamp = CarbonImmutable::now(config('app.timezone'));
+
+                $record->forceFill([
+                    'status' => $status,
+                    'committed_by' => $status === 'committed' ? $actor->id : $record->committed_by,
+                    'committed_at' => $status === 'committed' ? $timestamp : $record->committed_at,
+                ])->save();
+
+                DB::table('activity_log')->insert([
+                    'log_name' => 'imports',
+                    'description' => 'Import batch state changed.',
+                    'subject_type' => ImportBatch::class,
+                    'subject_id' => null,
+                    'event' => $event,
+                    'causer_type' => User::class,
+                    'causer_id' => $actor->id,
+                    'properties' => json_encode([
+                        'import_batch_id' => $record->id,
+                        'status_after' => $status,
+                    ], JSON_UNESCAPED_SLASHES),
+                    'created_at' => $timestamp->toDateTimeString(),
+                    'updated_at' => $timestamp->toDateTimeString(),
+                ]);
+            });
+
+            Notification::make()
+                ->title($successTitle)
+                ->success()
+                ->send();
+        } catch (Throwable $exception) {
+            Notification::make()
+                ->title('Import batch action failed')
+                ->body($exception->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    private static function registrarCanManageImports(): bool
+    {
+        $user = auth()->user();
+
+        return ($user?->can('manage-curricula') ?? false)
+            || ($user?->can('manage-schedules') ?? false)
+            || ($user?->can('evaluate-transferees') ?? false);
+    }
+}

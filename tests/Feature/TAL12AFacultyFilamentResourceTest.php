@@ -1,0 +1,62 @@
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+
+class TAL12AFacultyFilamentResourceTest extends TestCase
+{
+    public function test_faculty_navigation_contains_class_list_and_correction_resources_only_for_faculty_context(): void
+    {
+        $enrollmentSubjects = $this->resourceSource('EnrollmentSubjects/EnrollmentSubjectResource.php');
+        $gradeCorrections = $this->resourceSource('GradeCorrections/GradeCorrectionResource.php');
+        $sectionMeetings = $this->resourceSource('SectionMeetings/SectionMeetingResource.php');
+
+        $this->assertStringContainsString("'Faculty'", $enrollmentSubjects);
+        $this->assertStringContainsString("'Faculty'", $gradeCorrections);
+        $this->assertStringContainsString("hasRole('faculty')", $enrollmentSubjects);
+        $this->assertStringContainsString("hasRole('faculty')", $gradeCorrections);
+        $this->assertStringContainsString("hasRole('faculty')", $sectionMeetings);
+    }
+
+    public function test_faculty_grade_actions_are_policy_scoped_to_encoding_incomplete_and_finalization(): void
+    {
+        $table = $this->resourceSource('EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php');
+        $policy = file_get_contents(app_path('Policies/EnrollmentSubjectPolicy.php'));
+
+        $this->assertIsString($policy);
+
+        foreach (['encodeGrade', 'markIncomplete', 'finalizeGrade'] as $action) {
+            $this->assertStringContainsString($action, $table);
+            $this->assertStringContainsString($action, $policy);
+        }
+
+        $this->assertStringContainsString('encode-grades', $policy);
+        $this->assertStringContainsString('finalize-grades', $policy);
+        $this->assertStringContainsString('isAssignedToFaculty', $policy);
+    }
+
+    public function test_grade_correction_actions_follow_registrar_review_and_resolution_flow(): void
+    {
+        $table = $this->resourceSource('GradeCorrections/Tables/GradeCorrectionsTable.php');
+        $policy = file_get_contents(app_path('Policies/GradeCorrectionPolicy.php'));
+
+        $this->assertIsString($policy);
+
+        foreach (['startReview', 'reject', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $action) {
+            $this->assertStringContainsString($action, $table);
+            $this->assertStringContainsString($action, $policy);
+        }
+
+        $this->assertStringContainsString('manage-grade-corrections', $policy);
+    }
+
+    private function resourceSource(string $relativePath): string
+    {
+        $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));
+
+        $this->assertIsString($source);
+
+        return $source;
+    }
+}

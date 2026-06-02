@@ -1,0 +1,88 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\Enrollment;
+use App\Models\User;
+
+class EnrollmentPolicy
+{
+    public function viewAny(User $user): bool
+    {
+        return $this->canAny($user, [
+            'approve-documents',
+            'evaluate-transferees',
+            'create-assessments',
+            'process-payments',
+            'view-global-records',
+        ]);
+    }
+
+    public function view(User $user, Enrollment $enrollment): bool
+    {
+        return $this->viewAny($user);
+    }
+
+    public function create(User $user): bool
+    {
+        return $this->canAny($user, [
+            'approve-documents',
+            'evaluate-transferees',
+        ]);
+    }
+
+    public function update(User $user, Enrollment $enrollment): bool
+    {
+        return $this->canAny($user, [
+            'approve-documents',
+            'evaluate-transferees',
+        ]);
+    }
+
+    public function delete(User $user, Enrollment $enrollment): bool
+    {
+        return false;
+    }
+
+    public function restore(User $user, Enrollment $enrollment): bool
+    {
+        return false;
+    }
+
+    public function forceDelete(User $user, Enrollment $enrollment): bool
+    {
+        return false;
+    }
+
+    public function assess(User $user, Enrollment $enrollment): bool
+    {
+        return $user->can('create-assessments');
+    }
+
+    public function confirmPayment(User $user, Enrollment $enrollment): bool
+    {
+        return $user->can('process-payments');
+    }
+
+    public function markHardCopyReceived(User $user, Enrollment $enrollment): bool
+    {
+        return $this->canAny($user, [
+            'approve-documents',
+            'evaluate-transferees',
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     */
+    private function canAny(User $user, array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

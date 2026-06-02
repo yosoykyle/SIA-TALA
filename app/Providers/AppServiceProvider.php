@@ -1,0 +1,92 @@
+<?php
+
+namespace App\Providers;
+
+use App\Actions\Integrations\Ocr\GoogleVisionDocumentTextClient;
+use App\Actions\Integrations\Ocr\GoogleVisionImageAnnotatorDocumentTextClient;
+use App\Actions\Integrations\Ocr\GoogleVisionOcrTextExtractor;
+use App\Actions\Integrations\Ocr\MockOcrTextExtractor;
+use App\Actions\Integrations\Ocr\OcrTextExtractor;
+use App\Actions\Integrations\Payments\MockPaymentGateway;
+use App\Actions\Integrations\Payments\PaymentGateway;
+use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
+use App\Support\DecimalMoney;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        $this->app->singleton(GoogleVisionDocumentTextClient::class, function (): GoogleVisionDocumentTextClient {
+            return new GoogleVisionImageAnnotatorDocumentTextClient(
+                credentialsPath: config('tala_integrations.ocr.google_vision.credentials_path') !== null
+                    ? (string) config('tala_integrations.ocr.google_vision.credentials_path')
+                    : null,
+                projectId: config('tala_integrations.ocr.google_vision.project_id') !== null
+                    ? (string) config('tala_integrations.ocr.google_vision.project_id')
+                    : null,
+            );
+        });
+
+        $this->app->singleton(OcrTextExtractor::class, function ($app): OcrTextExtractor {
+            return match (config('tala_integrations.ocr.driver', 'mock')) {
+                'mock' => new MockOcrTextExtractor(
+                    engine: (string) config('tala_integrations.ocr.mock.engine', 'mock_vision'),
+                    text: (string) config('tala_integrations.ocr.mock.text', 'Mock OCR text extracted from the uploaded document.'),
+                    confidence: config('tala_integrations.ocr.mock.confidence') !== null
+                        ? (string) config('tala_integrations.ocr.mock.confidence')
+                        : null,
+                    confidenceThreshold: (string) config('tala_integrations.ocr.confidence_threshold', '80.00'),
+                ),
+                'google_vision' => new GoogleVisionOcrTextExtractor(
+                    client: $app->make(GoogleVisionDocumentTextClient::class),
+                    filesystem: $app->make(FilesystemFactory::class),
+                    cache: $app->make('cache.store'),
+                    confidenceThreshold: (string) config('tala_integrations.ocr.confidence_threshold', '80.00'),
+                    monthlyCallLimit: (int) config('tala_integrations.ocr.google_vision.monthly_call_limit', 2000),
+                ),
+                default => throw new InvalidArgumentException('Unsupported TALA OCR driver configured.'),
+            };
+        });
+
+        $this->app->singleton(PayMongoPaymentGateway::class, function ($app): PayMongoPaymentGateway {
+            return new PayMongoPaymentGateway(
+                money: $app->make(DecimalMoney::class),
+                baseUrl: (string) config('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com/v1'),
+                secretKey: config('tala_integrations.payments.paymongo.secret_key') !== null
+                    ? (string) config('tala_integrations.payments.paymongo.secret_key')
+                    : null,
+                paymentMethodTypes: (array) config('tala_integrations.payments.paymongo.payment_method_types', ['gcash', 'card']),
+            );
+        });
+
+        $this->app->singleton(PaymentGateway::class, function ($app): PaymentGateway {
+            return match (config('tala_integrations.payments.driver', 'mock')) {
+                'mock' => new MockPaymentGateway(
+                    provider: (string) config('tala_integrations.payments.mock.provider', 'mock'),
+                    checkoutBaseUrl: (string) config('tala_integrations.payments.mock.checkout_base_url', 'https://mock-payments.test/checkout'),
+                ),
+                'paymongo' => $app->make(PayMongoPaymentGateway::class),
+                default => throw new InvalidArgumentException('Unsupported TALA payment gateway driver configured.'),
+            };
+        });
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        Blade::component('layouts.guest', 'guest-layout');
+        Blade::component('layouts.app', 'app-layout');
+        Blade::component('components.guest-navbar', 'guest-navbar');
+        Blade::component('components.student-navbar', 'student-navbar');
+
+    }
+}

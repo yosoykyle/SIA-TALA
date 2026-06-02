@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+@import '../../vendor/tallstackui/tallstackui/dist/tallstackui.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
