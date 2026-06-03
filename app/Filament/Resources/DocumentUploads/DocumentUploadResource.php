@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\DocumentUploads;
 
-use App\Filament\Resources\DocumentUploads\Pages\CreateDocumentUpload;
-use App\Filament\Resources\DocumentUploads\Pages\EditDocumentUpload;
 use App\Filament\Resources\DocumentUploads\Pages\ListDocumentUploads;
 use App\Filament\Resources\DocumentUploads\Pages\ViewDocumentUpload;
 use App\Filament\Resources\DocumentUploads\Schemas\DocumentUploadForm;
@@ -64,9 +62,7 @@ class DocumentUploadResource extends Resource
     {
         return [
             'index' => ListDocumentUploads::route('/'),
-            'create' => CreateDocumentUpload::route('/create'),
             'view' => ViewDocumentUpload::route('/{record}'),
-            'edit' => EditDocumentUpload::route('/{record}/edit'),
         ];
     }
 }

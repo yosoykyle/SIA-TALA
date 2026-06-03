@@ -68,6 +68,43 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('cancel', $table);
     }
 
+    public function test_document_uploads_are_review_only_not_generic_create_edit_crud(): void
+    {
+        $resource = $this->resourceSource('DocumentUploads/DocumentUploadResource.php');
+        $listPage = $this->resourceSource('DocumentUploads/Pages/ListDocumentUploads.php');
+        $viewPage = $this->resourceSource('DocumentUploads/Pages/ViewDocumentUpload.php');
+        $table = $this->resourceSource('DocumentUploads/Tables/DocumentUploadsTable.php');
+
+        $this->assertStringNotContainsString("CreateDocumentUpload::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditDocumentUpload::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentUploads/Pages/CreateDocumentUpload.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentUploads/Pages/EditDocumentUpload.php'));
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString('approveAction', $table);
+        $this->assertStringContainsString('needsCorrectionAction', $table);
+        $this->assertStringContainsString('rejectAction', $table);
+    }
+
+    public function test_schedule_change_form_uses_typed_fields_not_raw_json_textareas(): void
+    {
+        $form = $this->resourceSource('ScheduleChanges/Schemas/ScheduleChangeForm.php');
+        $createPage = $this->resourceSource('ScheduleChanges/Pages/CreateScheduleChange.php');
+        $editPage = $this->resourceSource('ScheduleChanges/Pages/EditScheduleChange.php');
+        $table = $this->resourceSource('ScheduleChanges/Tables/ScheduleChangesTable.php');
+
+        foreach (['new_faculty_id', 'new_room', 'new_day_of_week', 'new_starts_at', 'new_ends_at', 'new_modality'] as $field) {
+            $this->assertStringContainsString($field, $form);
+        }
+
+        $this->assertStringNotContainsString("Textarea::make('old_payload')", $form);
+        $this->assertStringNotContainsString("Textarea::make('new_payload')", $form);
+        $this->assertStringContainsString('ScheduleChangePayload::fromSectionMeeting', $createPage);
+        $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $createPage);
+        $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);
+        $this->assertStringContainsString('forceFill(ScheduleChangePayload::normalize($record->new_payload))->save()', $table);
+    }
+
     private function resourceSource(string $relativePath): string
     {
         $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ScheduleChanges\Tables;
 
 use App\Models\ScheduleChange;
 use App\Models\User;
+use App\Support\Scheduling\ScheduleChangePayload;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -126,6 +127,10 @@ class ScheduleChangesTable
         try {
             DB::transaction(function () use ($record, $status, $event, $actor, $setApprover): void {
                 $timestamp = CarbonImmutable::now(config('app.timezone'));
+
+                if ($status === 'applied' && $record->sectionMeeting !== null && is_array($record->new_payload)) {
+                    $record->sectionMeeting->forceFill(ScheduleChangePayload::normalize($record->new_payload))->save();
+                }
 
                 $record->forceFill([
                     'status' => $status,

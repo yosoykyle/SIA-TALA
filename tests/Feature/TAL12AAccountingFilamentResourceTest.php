@@ -63,6 +63,21 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         }
     }
 
+    public function test_payment_records_are_read_only_surfaces_created_by_services_and_webhooks(): void
+    {
+        foreach ([
+            'Payments/Pages/ListPayments.php',
+            'Payments/Pages/ViewPayment.php',
+            'PaymentAttempts/Pages/ListPaymentAttempts.php',
+            'PaymentAttempts/Pages/ViewPaymentAttempt.php',
+        ] as $relativePath) {
+            $source = $this->resourceSource($relativePath);
+
+            $this->assertStringNotContainsString('CreateAction::make()', $source);
+            $this->assertStringNotContainsString('EditAction::make()', $source);
+        }
+    }
+
     private function resourceSource(string $relativePath): string
     {
         $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));
