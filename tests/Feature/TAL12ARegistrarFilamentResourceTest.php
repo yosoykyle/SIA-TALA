@@ -50,6 +50,24 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString("can('confirmPayment'", $source);
     }
 
+    public function test_import_batches_are_read_only_audit_surface_until_dedicated_import_pages_exist(): void
+    {
+        $resource = $this->resourceSource('ImportBatches/ImportBatchResource.php');
+        $listPage = $this->resourceSource('ImportBatches/Pages/ListImportBatches.php');
+        $viewPage = $this->resourceSource('ImportBatches/Pages/ViewImportBatch.php');
+        $table = $this->resourceSource('ImportBatches/Tables/ImportBatchesTable.php');
+
+        $this->assertStringContainsString('Import Batch Audit', $resource);
+        $this->assertStringContainsString('public static function canCreate(): bool', $resource);
+        $this->assertStringNotContainsString("CreateImportBatch::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditImportBatch::route('/{record}/edit')", $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringContainsString('commit', $table);
+        $this->assertStringContainsString('cancel', $table);
+    }
+
     private function resourceSource(string $relativePath): string
     {
         $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));

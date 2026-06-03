@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\ImportBatches;
 
-use App\Filament\Resources\ImportBatches\Pages\CreateImportBatch;
-use App\Filament\Resources\ImportBatches\Pages\EditImportBatch;
 use App\Filament\Resources\ImportBatches\Pages\ListImportBatches;
 use App\Filament\Resources\ImportBatches\Pages\ViewImportBatch;
 use App\Filament\Resources\ImportBatches\Schemas\ImportBatchForm;
@@ -25,7 +23,7 @@ class ImportBatchResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Import Batches';
+    protected static ?string $navigationLabel = 'Import Batch Audit';
 
     protected static ?int $navigationSort = 23;
 
@@ -53,6 +51,11 @@ class ImportBatchResource extends Resource
         return ImportBatchesTable::configure($table);
     }
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function getRelations(): array
     {
         return [
@@ -64,9 +67,7 @@ class ImportBatchResource extends Resource
     {
         return [
             'index' => ListImportBatches::route('/'),
-            'create' => CreateImportBatch::route('/create'),
             'view' => ViewImportBatch::route('/{record}'),
-            'edit' => EditImportBatch::route('/{record}/edit'),
         ];
     }
 }

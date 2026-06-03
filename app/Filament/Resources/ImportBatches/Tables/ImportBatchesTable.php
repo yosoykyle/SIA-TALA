@@ -6,7 +6,6 @@ use App\Models\ImportBatch;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -80,9 +79,6 @@ class ImportBatchesTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()
-                    ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
-                        && $record->status === 'pending_review'),
                 self::commitAction(),
                 self::cancelAction(),
             ])

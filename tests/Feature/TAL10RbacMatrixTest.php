@@ -3,6 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Policies\ActivityPolicy;
+use App\Policies\RolePolicy;
+use Illuminate\Support\Facades\Gate;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TAL10RbacMatrixTest extends TestCase
@@ -60,6 +65,29 @@ class TAL10RbacMatrixTest extends TestCase
         $this->assertStringNotContainsString('return $user->can(\'manage-settings\')', $systemSettingsPolicy);
     }
 
+    public function test_vendor_backed_system_administration_resources_are_policy_registered(): void
+    {
+        $this->assertInstanceOf(RolePolicy::class, Gate::getPolicyFor(Role::class));
+        $this->assertInstanceOf(ActivityPolicy::class, Gate::getPolicyFor(Activity::class));
+    }
+
+    public function test_roles_and_audit_logs_are_guarded_by_system_admin_permissions(): void
+    {
+        $rolePolicy = Gate::getPolicyFor(Role::class);
+        $activityPolicy = Gate::getPolicyFor(Activity::class);
+
+        $this->assertInstanceOf(RolePolicy::class, $rolePolicy);
+        $this->assertInstanceOf(ActivityPolicy::class, $activityPolicy);
+
+        $ordinaryStaff = new PermissionProbeUser;
+        $systemSuperAdmin = new PermissionProbeUser(['manage-users', 'view-audit-logs']);
+
+        $this->assertFalse($rolePolicy->viewAny($ordinaryStaff));
+        $this->assertFalse($activityPolicy->viewAny($ordinaryStaff));
+        $this->assertTrue($rolePolicy->viewAny($systemSuperAdmin));
+        $this->assertTrue($activityPolicy->viewAny($systemSuperAdmin));
+    }
+
     private function source(string $class): string
     {
         $reflection = new \ReflectionClass($class);
@@ -73,5 +101,31 @@ class TAL10RbacMatrixTest extends TestCase
     private function resourceClass(string $resource): string
     {
         return str($resource)->singular()->toString().'Resource';
+    }
+}
+
+class PermissionProbeUser extends User
+{
+    /**
+     * @param  list<string>  $allowedPermissions
+     */
+    public function __construct(private array $allowedPermissions = [])
+    {
+        parent::__construct();
+    }
+
+    /**
+     * @param  string|iterable<string>  $abilities
+     * @param  mixed  $arguments
+     */
+    public function can($abilities, $arguments = []): bool
+    {
+        foreach ((array) $abilities as $ability) {
+            if (in_array((string) $ability, $this->allowedPermissions, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

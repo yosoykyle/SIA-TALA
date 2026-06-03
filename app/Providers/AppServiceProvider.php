@@ -10,11 +10,16 @@ use App\Actions\Integrations\Ocr\OcrTextExtractor;
 use App\Actions\Integrations\Payments\MockPaymentGateway;
 use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
+use App\Policies\ActivityPolicy;
+use App\Policies\RolePolicy;
 use App\Support\DecimalMoney;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Role;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -83,10 +88,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Activity::class, ActivityPolicy::class);
+
         Blade::component('layouts.guest', 'guest-layout');
         Blade::component('layouts.app', 'app-layout');
         Blade::component('components.guest-navbar', 'guest-navbar');
         Blade::component('components.student-navbar', 'student-navbar');
-
     }
 }

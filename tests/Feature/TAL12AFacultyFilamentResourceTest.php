@@ -48,6 +48,9 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
             $this->assertStringContainsString($action, $policy);
         }
 
+        $this->assertStringContainsString('Record Approved Grade Change', $table);
+        $this->assertStringContainsString('Academic Head who approved offline', $table);
+        $this->assertStringContainsString('Use only after the Academic Head has already approved', $table);
         $this->assertStringContainsString('manage-grade-corrections', $policy);
     }
 

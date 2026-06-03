@@ -189,15 +189,16 @@ class GradeCorrectionsTable
     private static function resolveWithGradeChangeAction(): Action
     {
         return Action::make('resolveWithGradeChange')
-            ->label('Resolve - Grade Override')
+            ->label('Resolve - Record Approved Grade Change')
             ->icon(Heroicon::OutlinedShieldCheck)
             ->color('warning')
             ->schema([
                 Select::make('academic_head_id')
-                    ->label('Academic Head Authorizer')
+                    ->label('Academic Head who approved offline')
                     ->options(fn (): array => User::role('academic-head')->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
-                    ->required(),
+                    ->required()
+                    ->helperText('Use only after the Academic Head has already approved the official grade change outside this screen. This action records that approval and the Registrar resolution in the audit trail.'),
                 TextInput::make('prelim_grade')
                     ->label('Prelim/Q1')
                     ->numeric()
@@ -221,15 +222,16 @@ class GradeCorrectionsTable
                 TextInput::make('remarks')
                     ->maxLength(255),
                 Textarea::make('approval_reason')
-                    ->label('Academic Head Approval Reason')
+                    ->label('Recorded Academic Head Approval Reason')
                     ->required()
-                    ->maxLength(500),
+                    ->maxLength(500)
+                    ->helperText('Record the approval reason exactly as approved by the Academic Head.'),
                 Textarea::make('resolution_notes')
                     ->label('Resolution Notes')
                     ->required()
                     ->maxLength(500),
             ])
-            ->modalSubmitActionLabel('Resolve With Override')
+            ->modalSubmitActionLabel('Record Approved Change')
             ->visible(fn (GradeCorrection $record): bool => auth()->user()?->can('resolveWithGradeChange', $record) ?? false)
             ->action(function (GradeCorrection $record, array $data): void {
                 $actor = auth()->user();
