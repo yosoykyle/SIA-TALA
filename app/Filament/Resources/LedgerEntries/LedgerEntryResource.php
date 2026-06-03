@@ -4,7 +4,6 @@ namespace App\Filament\Resources\LedgerEntries;
 
 use App\Filament\Resources\LedgerEntries\Pages\ListLedgerEntries;
 use App\Filament\Resources\LedgerEntries\Pages\ViewLedgerEntry;
-use App\Filament\Resources\LedgerEntries\Schemas\LedgerEntryForm;
 use App\Filament\Resources\LedgerEntries\Schemas\LedgerEntryInfolist;
 use App\Filament\Resources\LedgerEntries\Tables\LedgerEntriesTable;
 use App\Models\LedgerEntry;
@@ -34,11 +33,6 @@ class LedgerEntryResource extends Resource
         }
 
         return 'Accounting';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return LedgerEntryForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema

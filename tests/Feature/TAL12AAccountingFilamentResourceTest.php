@@ -99,6 +99,34 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         }
     }
 
+    public function test_ledger_entries_are_immutable_evidence_not_generic_crud(): void
+    {
+        foreach ([
+            'LedgerEntries/Pages/CreateLedgerEntry.php',
+            'LedgerEntries/Pages/EditLedgerEntry.php',
+            'LedgerEntries/Schemas/LedgerEntryForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('LedgerEntries/LedgerEntryResource.php');
+
+        $this->assertStringNotContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+
+        foreach ([
+            'LedgerEntries/Pages/ListLedgerEntries.php',
+            'LedgerEntries/Pages/ViewLedgerEntry.php',
+        ] as $relativePath) {
+            $source = $this->resourceSource($relativePath);
+
+            $this->assertStringNotContainsString('CreateAction::make()', $source);
+            $this->assertStringNotContainsString('EditAction::make()', $source);
+            $this->assertStringNotContainsString('DeleteAction::make()', $source);
+        }
+    }
+
     private function resourceSource(string $relativePath): string
     {
         $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));

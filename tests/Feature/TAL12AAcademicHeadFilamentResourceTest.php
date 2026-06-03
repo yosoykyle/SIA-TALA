@@ -44,6 +44,32 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
         $this->assertStringContainsString('Only the Academic Head can authorize grade finalization overrides.', $finalizationService);
     }
 
+    public function test_grade_oversight_is_not_generic_grade_crud(): void
+    {
+        foreach ([
+            'Grades/Pages/CreateGrade.php',
+            'Grades/Pages/EditGrade.php',
+            'Grades/Schemas/GradeForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('Grades/GradeResource.php');
+
+        $this->assertStringNotContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+
+        $table = $this->resourceSource('Grades/Tables/GradesTable.php');
+
+        $this->assertStringContainsString('forceFinalize', $table);
+        $this->assertStringContainsString('reopen', $table);
+        $this->assertStringContainsString('Override Reason', $table);
+        $this->assertStringNotContainsString("TextInput::make('finalized_by')", $table);
+        $this->assertStringNotContainsString("TextInput::make('reopened_by')", $table);
+        $this->assertStringNotContainsString("Toggle::make('is_finalized')", $table);
+    }
+
     public function test_academic_head_finance_visibility_is_read_only_summary_not_accounting_mutation(): void
     {
         foreach ([

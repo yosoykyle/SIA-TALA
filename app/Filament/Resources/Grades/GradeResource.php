@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Grades;
 
 use App\Filament\Resources\Grades\Pages\ListGrades;
 use App\Filament\Resources\Grades\Pages\ViewGrade;
-use App\Filament\Resources\Grades\Schemas\GradeForm;
 use App\Filament\Resources\Grades\Schemas\GradeInfolist;
 use App\Filament\Resources\Grades\Tables\GradesTable;
 use App\Models\Grade;
@@ -28,11 +27,6 @@ class GradeResource extends Resource
     protected static ?string $navigationLabel = 'Grade Oversight';
 
     protected static ?int $navigationSort = 10;
-
-    public static function form(Schema $schema): Schema
-    {
-        return GradeForm::configure($schema);
-    }
 
     public static function infolist(Schema $schema): Schema
     {
