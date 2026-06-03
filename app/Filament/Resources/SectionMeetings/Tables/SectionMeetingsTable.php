@@ -4,7 +4,6 @@ namespace App\Filament\Resources\SectionMeetings\Tables;
 
 use App\Models\SectionMeeting;
 use App\Models\User;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -60,22 +59,14 @@ class SectionMeetingsTable
                     ->searchable(),
                 TextColumn::make('day_of_week')
                     ->label('Day')
-                    ->formatStateUsing(fn (?int $state): string => match ($state) {
-                        1 => 'Monday',
-                        2 => 'Tuesday',
-                        3 => 'Wednesday',
-                        4 => 'Thursday',
-                        5 => 'Friday',
-                        6 => 'Saturday',
-                        7 => 'Sunday',
-                        default => '-',
-                    }),
+                    ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-')),
                 TextColumn::make('starts_at')
                     ->label('Start'),
                 TextColumn::make('ends_at')
                     ->label('End'),
                 TextColumn::make('modality')
-                    ->badge(),
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionMeeting::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
                 TextColumn::make('committer.name')
                     ->label('Committed By')
                     ->placeholder('-')
@@ -87,17 +78,10 @@ class SectionMeetingsTable
             ])
             ->filters([
                 SelectFilter::make('modality')
-                    ->options([
-                        'on_site' => 'On-site',
-                        'online' => 'Online',
-                        'modular' => 'Modular',
-                        'blended' => 'Blended',
-                    ]),
+                    ->options(SectionMeeting::modalityOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()
-                    ->visible(fn (SectionMeeting $record): bool => auth()->user()?->can('manage-schedules') ?? false),
             ])
             ->toolbarActions([]);
     }

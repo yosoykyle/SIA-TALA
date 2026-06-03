@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleChanges\Tables;
 
+use App\Actions\Scheduling\SectionMeetingAssignmentService;
 use App\Models\ScheduleChange;
 use App\Models\User;
 use App\Support\Scheduling\ScheduleChangePayload;
@@ -129,7 +130,12 @@ class ScheduleChangesTable
                 $timestamp = CarbonImmutable::now(config('app.timezone'));
 
                 if ($status === 'applied' && $record->sectionMeeting !== null && is_array($record->new_payload)) {
-                    $record->sectionMeeting->forceFill(ScheduleChangePayload::normalize($record->new_payload))->save();
+                    $record->sectionMeeting
+                        ->forceFill(app(SectionMeetingAssignmentService::class)->prepareForScheduleChange(
+                            $record->sectionMeeting,
+                            ScheduleChangePayload::normalize($record->new_payload),
+                        ))
+                        ->save();
                 }
 
                 $record->forceFill([

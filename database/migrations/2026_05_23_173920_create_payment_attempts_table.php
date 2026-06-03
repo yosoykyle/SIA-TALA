@@ -11,7 +11,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payment_attempts', function (Blueprint $table) {
+        $webhookIdempotencyExpression = Schema::getConnection()->getDriverName() === 'sqlite'
+            ? "
+                CASE
+                    WHEN provider_event_id IS NULL THEN NULL
+                    WHEN provider_checkout_session_id IS NOT NULL AND provider_checkout_session_id <> '' THEN provider_event_id || ':' || provider_checkout_session_id
+                    WHEN provider_payment_id IS NOT NULL AND provider_payment_id <> '' THEN provider_event_id || ':' || provider_payment_id
+                    ELSE NULL
+                END
+            "
+            : "
+                CASE
+                    WHEN provider_event_id IS NULL THEN NULL
+                    WHEN provider_checkout_session_id IS NOT NULL AND provider_checkout_session_id <> '' THEN CONCAT(provider_event_id, ':', provider_checkout_session_id)
+                    WHEN provider_payment_id IS NOT NULL AND provider_payment_id <> '' THEN CONCAT(provider_event_id, ':', provider_payment_id)
+                    ELSE NULL
+                END
+            ";
+
+        Schema::create('payment_attempts', function (Blueprint $table) use ($webhookIdempotencyExpression) {
             $table->id();
             $table->foreignId('student_profile_id')->constrained()->cascadeOnDelete();
             $table->foreignId('term_id')->nullable()->constrained()->nullOnDelete();
@@ -24,14 +42,7 @@ return new class extends Migration
             $table->string('provider_checkout_session_id')->nullable();
             $table->string('provider_payment_id')->nullable();
             $table->string('provider_payment_intent_id')->nullable();
-            $table->string('webhook_idempotency_key')->nullable()->storedAs("
-                CASE
-                    WHEN provider_event_id IS NULL THEN NULL
-                    WHEN provider_checkout_session_id IS NOT NULL AND provider_checkout_session_id <> '' THEN CONCAT(provider_event_id, ':', provider_checkout_session_id)
-                    WHEN provider_payment_id IS NOT NULL AND provider_payment_id <> '' THEN CONCAT(provider_event_id, ':', provider_payment_id)
-                    ELSE NULL
-                END
-            ");
+            $table->string('webhook_idempotency_key')->nullable()->storedAs($webhookIdempotencyExpression);
             $table->decimal('amount', 12, 2);
             $table->json('meta')->nullable();
             $table->timestamp('paid_at')->nullable();

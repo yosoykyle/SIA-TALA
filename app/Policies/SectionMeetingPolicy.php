@@ -57,7 +57,7 @@ class SectionMeetingPolicy
      */
     public function update(User $user, SectionMeeting $sectionMeeting): bool
     {
-        return $user->can('manage-schedules');
+        return false;
     }
 
     /**

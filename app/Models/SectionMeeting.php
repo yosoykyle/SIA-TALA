@@ -35,6 +35,35 @@ class SectionMeeting extends Model
         ];
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public static function dayOptions(): array
+    {
+        return [
+            1 => 'Monday',
+            2 => 'Tuesday',
+            3 => 'Wednesday',
+            4 => 'Thursday',
+            5 => 'Friday',
+            6 => 'Saturday',
+            7 => 'Sunday',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function modalityOptions(): array
+    {
+        return [
+            'on_site' => 'On-site',
+            'online' => 'Online',
+            'modular' => 'Modular',
+            'blended' => 'Blended',
+        ];
+    }
+
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);

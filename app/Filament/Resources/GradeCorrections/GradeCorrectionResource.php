@@ -4,7 +4,6 @@ namespace App\Filament\Resources\GradeCorrections;
 
 use App\Filament\Resources\GradeCorrections\Pages\ListGradeCorrections;
 use App\Filament\Resources\GradeCorrections\Pages\ViewGradeCorrection;
-use App\Filament\Resources\GradeCorrections\Schemas\GradeCorrectionForm;
 use App\Filament\Resources\GradeCorrections\Schemas\GradeCorrectionInfolist;
 use App\Filament\Resources\GradeCorrections\Tables\GradeCorrectionsTable;
 use App\Models\GradeCorrection;
@@ -42,11 +41,6 @@ class GradeCorrectionResource extends Resource
         }
 
         return 'Faculty';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return GradeCorrectionForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema

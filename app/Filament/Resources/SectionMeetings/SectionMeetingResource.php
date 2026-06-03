@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\SectionMeetings;
 
 use App\Filament\Resources\SectionMeetings\Pages\CreateSectionMeeting;
-use App\Filament\Resources\SectionMeetings\Pages\EditSectionMeeting;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\SectionMeetings\Pages\ViewSectionMeeting;
 use App\Filament\Resources\SectionMeetings\Schemas\SectionMeetingForm;
@@ -72,7 +71,6 @@ class SectionMeetingResource extends Resource
             'index' => ListSectionMeetings::route('/'),
             'create' => CreateSectionMeeting::route('/create'),
             'view' => ViewSectionMeeting::route('/{record}'),
-            'edit' => EditSectionMeeting::route('/{record}/edit'),
         ];
     }
 }

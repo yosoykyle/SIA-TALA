@@ -13,6 +13,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
             'DocumentRequests/DocumentRequestResource.php' => ['Registrar', 'manage-document-requests'],
             'DocumentUploads/DocumentUploadResource.php' => ['Registrar', 'approve-documents'],
             'ImportBatches/ImportBatchResource.php' => ['Registrar', 'manage-curricula'],
+            'SectionMeetings/SectionMeetingResource.php' => ['Registrar', 'manage-schedules'],
             'ScheduleGenerationRuns/ScheduleGenerationRunResource.php' => ['Registrar', 'manage-schedules'],
             'ScheduleChanges/ScheduleChangeResource.php' => ['Registrar', 'manage-schedules'],
             'CorVerifications/CorVerificationResource.php' => ['Registrar', 'manage-lis'],
@@ -130,6 +131,61 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('commitAction', $table);
     }
 
+    public function test_section_meetings_use_typed_manual_assignment_without_raw_commit_fields_or_direct_edit(): void
+    {
+        $resource = $this->resourceSource('SectionMeetings/SectionMeetingResource.php');
+        $form = $this->resourceSource('SectionMeetings/Schemas/SectionMeetingForm.php');
+        $createPage = $this->resourceSource('SectionMeetings/Pages/CreateSectionMeeting.php');
+        $listPage = $this->resourceSource('SectionMeetings/Pages/ListSectionMeetings.php');
+        $viewPage = $this->resourceSource('SectionMeetings/Pages/ViewSectionMeeting.php');
+        $table = $this->resourceSource('SectionMeetings/Tables/SectionMeetingsTable.php');
+        $policy = file_get_contents(app_path('Policies/SectionMeetingPolicy.php'));
+
+        $this->assertIsString($policy);
+        $this->assertStringContainsString("CreateSectionMeeting::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditSectionMeeting::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/SectionMeetings/Pages/EditSectionMeeting.php'));
+
+        foreach ([
+            "Select::make('term_id')",
+            "Select::make('section_id')",
+            "Select::make('subject_id')",
+            "Select::make('faculty_id')",
+            "Select::make('day_of_week')",
+            "TimePicker::make('starts_at')",
+            "TimePicker::make('ends_at')",
+            "Select::make('modality')",
+            "TextInput::make('room')",
+        ] as $typedField) {
+            $this->assertStringContainsString($typedField, $form);
+        }
+
+        foreach ([
+            "TextInput::make('term_id')",
+            "TextInput::make('section_id')",
+            "TextInput::make('subject_id')",
+            "TextInput::make('faculty_id')",
+            "TextInput::make('day_of_week')",
+            "TextInput::make('modality')",
+            "TextInput::make('schedule_generation_run_id')",
+            "TextInput::make('committed_by')",
+            "DateTimePicker::make('committed_at')",
+        ] as $rawField) {
+            $this->assertStringNotContainsString($rawField, $form);
+        }
+
+        $this->assertStringContainsString('SectionMeetingAssignmentService', $createPage);
+        $this->assertStringContainsString('prepareForCreate', $createPage);
+        $this->assertStringContainsString('Manual Assignment', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringNotContainsString('DeleteAction::make()', $table);
+        $this->assertStringContainsString('public function create', $policy);
+        $this->assertStringContainsString("can('manage-schedules')", $policy);
+        $this->assertStringContainsString('public function update', $policy);
+        $this->assertStringContainsString('return false;', $policy);
+    }
+
     public function test_service_requests_are_lifecycle_action_surfaces_not_generic_crud(): void
     {
         $resource = $this->resourceSource('ServiceRequests/ServiceRequestResource.php');
@@ -167,7 +223,8 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('ScheduleChangePayload::fromSectionMeeting', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);
-        $this->assertStringContainsString('forceFill(ScheduleChangePayload::normalize($record->new_payload))->save()', $table);
+        $this->assertStringContainsString('SectionMeetingAssignmentService', $table);
+        $this->assertStringContainsString('prepareForScheduleChange', $table);
     }
 
     private function resourceSource(string $relativePath): string

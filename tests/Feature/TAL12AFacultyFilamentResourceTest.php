@@ -54,6 +54,49 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringContainsString('manage-grade-corrections', $policy);
     }
 
+    public function test_grade_correction_resource_is_lifecycle_surface_not_generic_crud(): void
+    {
+        foreach ([
+            'GradeCorrections/Pages/CreateGradeCorrection.php',
+            'GradeCorrections/Pages/EditGradeCorrection.php',
+            'GradeCorrections/Schemas/GradeCorrectionForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('GradeCorrections/GradeCorrectionResource.php');
+
+        $this->assertStringNotContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+
+        $table = $this->resourceSource('GradeCorrections/Tables/GradeCorrectionsTable.php');
+        $listPage = $this->resourceSource('GradeCorrections/Pages/ListGradeCorrections.php');
+        $viewPage = $this->resourceSource('GradeCorrections/Pages/ViewGradeCorrection.php');
+
+        foreach (['CreateAction::make', 'EditAction::make', 'DeleteAction::make'] as $genericAction) {
+            $this->assertStringNotContainsString($genericAction, $table);
+            $this->assertStringNotContainsString($genericAction, $listPage);
+            $this->assertStringNotContainsString($genericAction, $viewPage);
+        }
+
+        foreach ([
+            "TextInput::make('user_id')",
+            "TextInput::make('current_grade')",
+            "TextInput::make('attachment_paths')",
+            "Select::make('status')",
+            "TextInput::make('assigned_to')",
+            "Select::make('creator_id')",
+        ] as $rawField) {
+            $this->assertStringNotContainsString($rawField, $resource);
+            $this->assertStringNotContainsString($rawField, $table);
+        }
+
+        foreach (['startReview', 'reject', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $lifecycleAction) {
+            $this->assertStringContainsString($lifecycleAction, $table);
+        }
+    }
+
     private function resourceSource(string $relativePath): string
     {
         $source = file_get_contents(app_path("Filament/Resources/{$relativePath}"));
