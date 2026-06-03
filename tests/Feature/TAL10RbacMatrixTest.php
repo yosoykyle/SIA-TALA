@@ -23,7 +23,6 @@ class TAL10RbacMatrixTest extends TestCase
     {
         $expectations = [
             'UserPolicy.php' => 'manage-users',
-            'SystemSettingPolicy.php' => 'manage-settings',
             'FaqEntryPolicy.php' => 'manage-faqs',
             'EnrollmentPolicy.php' => 'approve-documents',
             'EnrollmentPolicy.php::assessment' => 'create-assessments',
@@ -45,12 +44,20 @@ class TAL10RbacMatrixTest extends TestCase
 
     public function test_system_super_admin_resources_are_separated_from_academic_and_finance_domains(): void
     {
-        foreach (['Users', 'Roles', 'SystemSettings', 'FaqEntries', 'Activities'] as $resource) {
+        foreach (['Users', 'Roles', 'FaqEntries', 'Activities'] as $resource) {
             $source = file_get_contents(app_path("Filament/Resources/{$resource}/{$this->resourceClass($resource)}.php"));
 
             $this->assertIsString($source);
             $this->assertStringContainsString("'System Administration'", $source);
         }
+
+        $systemSettingsResource = file_get_contents(app_path('Filament/Resources/SystemSettings/SystemSettingResource.php'));
+        $systemSettingsPolicy = file_get_contents(app_path('Policies/SystemSettingPolicy.php'));
+
+        $this->assertIsString($systemSettingsResource);
+        $this->assertIsString($systemSettingsPolicy);
+        $this->assertStringContainsString('protected static bool $shouldRegisterNavigation = false;', $systemSettingsResource);
+        $this->assertStringNotContainsString('return $user->can(\'manage-settings\')', $systemSettingsPolicy);
     }
 
     private function source(string $class): string

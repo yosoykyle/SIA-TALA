@@ -48,9 +48,9 @@ class SystemSetting extends Model
             'category' => 'Admissions',
             'description' => 'Versioned JSON object for public admission checklist sections.',
             'value_type' => self::ValueTypeJson,
-            'editable' => true,
+            'editable' => false,
             'default' => '{"version":"1.0","items":[]}',
-            'helper' => 'Spec-backed JSON only. This powers the public admission requirements content.',
+            'helper' => 'Internal seeded JSON only for this phase. Build a typed Admission Requirements workflow before exposing this to admins.',
         ],
         'installment_policy_defaults' => [
             'label' => 'Installment Policy Defaults',

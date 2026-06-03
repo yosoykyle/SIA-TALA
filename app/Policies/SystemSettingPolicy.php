@@ -9,12 +9,12 @@ class SystemSettingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('manage-settings');
+        return false;
     }
 
     public function view(User $user, SystemSetting $model): bool
     {
-        return $user->can('manage-settings');
+        return false;
     }
 
     public function create(User $user): bool
@@ -24,7 +24,7 @@ class SystemSettingPolicy
 
     public function update(User $user, SystemSetting $model): bool
     {
-        return $user->can('manage-settings') && $model->isEditable();
+        return false;
     }
 
     public function delete(User $user, SystemSetting $model): bool

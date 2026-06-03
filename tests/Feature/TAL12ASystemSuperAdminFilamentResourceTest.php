@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\SystemSetting;
+use App\Models\User;
+use App\Policies\SystemSettingPolicy;
 use Tests\TestCase;
 
 class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
@@ -22,19 +25,43 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         $this->assertStringContainsString('System Super Admin creates staff accounts only', $source);
     }
 
-    public function test_system_settings_are_edit_only_documented_settings_not_generic_create_delete_crud(): void
+    public function test_system_settings_are_internal_runtime_registry_not_generic_admin_crud(): void
     {
         $resource = $this->source('SystemSettings/SystemSettingResource.php');
-        $form = $this->source('SystemSettings/Schemas/SystemSettingForm.php');
-        $table = $this->source('SystemSettings/Tables/SystemSettingsTable.php');
+        $policy = file_get_contents(app_path('Policies/SystemSettingPolicy.php'));
+        $model = file_get_contents(app_path('Models/SystemSetting.php'));
 
-        $this->assertStringContainsString('manage-settings', file_get_contents(app_path('Policies/SystemSettingPolicy.php')));
+        $this->assertIsString($policy);
+        $this->assertIsString($model);
+
+        $this->assertStringContainsString('protected static bool $shouldRegisterNavigation = false;', $resource);
         $this->assertStringContainsString('return false;', $resource);
-        $this->assertStringContainsString('Documented Setting', $form);
-        $this->assertStringContainsString('helperText', $form);
-        $this->assertStringContainsString('EditAction', $table);
-        $this->assertStringContainsString('toolbarActions([])', $table);
-        $this->assertStringNotContainsString('DeleteAction', $table);
+        $this->assertStringContainsString('public function viewAny(User $user): bool', $policy);
+        $this->assertStringContainsString('public function update(User $user, SystemSetting $model): bool', $policy);
+        $this->assertStringNotContainsString('return $user->can(\'manage-settings\')', $policy);
+        $this->assertStringContainsString('Internal seeded JSON only for this phase', $model);
+
+        $policyInstance = app(SystemSettingPolicy::class);
+        $user = new User;
+        $setting = new SystemSetting(['key' => 'maintenance_mode']);
+
+        $this->assertFalse($policyInstance->viewAny($user));
+        $this->assertFalse($policyInstance->view($user, $setting));
+        $this->assertFalse($policyInstance->update($user, $setting));
+
+        foreach ([
+            'maintenance_mode',
+            'admission_requirements',
+            'installment_policy_defaults',
+            'shs_cutover_effective_term',
+            'shs_cutover_effective_datetime',
+            'college_cutover_effective_term',
+            'college_cutover_effective_datetime',
+        ] as $key) {
+            $this->assertArrayHasKey($key, SystemSetting::SettingDefinitions);
+        }
+
+        $this->assertFalse(SystemSetting::SettingDefinitions['admission_requirements']['editable']);
     }
 
     public function test_faq_entries_use_fixed_categories_and_super_admin_owned_authoring_fields(): void
