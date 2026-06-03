@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\ServiceRequests;
 
-use App\Filament\Resources\ServiceRequests\Pages\CreateServiceRequest;
-use App\Filament\Resources\ServiceRequests\Pages\EditServiceRequest;
 use App\Filament\Resources\ServiceRequests\Pages\ListServiceRequests;
 use App\Filament\Resources\ServiceRequests\Pages\ViewServiceRequest;
-use App\Filament\Resources\ServiceRequests\Schemas\ServiceRequestForm;
 use App\Filament\Resources\ServiceRequests\Schemas\ServiceRequestInfolist;
 use App\Filament\Resources\ServiceRequests\Tables\ServiceRequestsTable;
 use App\Models\ServiceRequest;
@@ -38,11 +35,6 @@ class ServiceRequestResource extends Resource
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
-    {
-        return ServiceRequestForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return ServiceRequestInfolist::configure($schema);
@@ -64,9 +56,7 @@ class ServiceRequestResource extends Resource
     {
         return [
             'index' => ListServiceRequests::route('/'),
-            'create' => CreateServiceRequest::route('/create'),
             'view' => ViewServiceRequest::route('/{record}'),
-            'edit' => EditServiceRequest::route('/{record}/edit'),
         ];
     }
 }

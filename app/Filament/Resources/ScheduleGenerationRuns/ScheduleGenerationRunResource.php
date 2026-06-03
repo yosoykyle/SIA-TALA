@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns;
 
-use App\Filament\Resources\ScheduleGenerationRuns\Pages\CreateScheduleGenerationRun;
-use App\Filament\Resources\ScheduleGenerationRuns\Pages\EditScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
-use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunForm;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
 use App\Filament\Resources\ScheduleGenerationRuns\Tables\ScheduleGenerationRunsTable;
 use App\Models\ScheduleGenerationRun;
@@ -38,11 +35,6 @@ class ScheduleGenerationRunResource extends Resource
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
-    {
-        return ScheduleGenerationRunForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return ScheduleGenerationRunInfolist::configure($schema);
@@ -64,9 +56,7 @@ class ScheduleGenerationRunResource extends Resource
     {
         return [
             'index' => ListScheduleGenerationRuns::route('/'),
-            'create' => CreateScheduleGenerationRun::route('/create'),
             'view' => ViewScheduleGenerationRun::route('/{record}'),
-            'edit' => EditScheduleGenerationRun::route('/{record}/edit'),
         ];
     }
 }

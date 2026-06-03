@@ -4,7 +4,6 @@ namespace App\Filament\Resources\ImportBatches;
 
 use App\Filament\Resources\ImportBatches\Pages\ListImportBatches;
 use App\Filament\Resources\ImportBatches\Pages\ViewImportBatch;
-use App\Filament\Resources\ImportBatches\Schemas\ImportBatchForm;
 use App\Filament\Resources\ImportBatches\Schemas\ImportBatchInfolist;
 use App\Filament\Resources\ImportBatches\Tables\ImportBatchesTable;
 use App\Models\ImportBatch;
@@ -34,11 +33,6 @@ class ImportBatchResource extends Resource
         }
 
         return 'Registrar';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return ImportBatchForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema

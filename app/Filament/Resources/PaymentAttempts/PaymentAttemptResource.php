@@ -4,7 +4,6 @@ namespace App\Filament\Resources\PaymentAttempts;
 
 use App\Filament\Resources\PaymentAttempts\Pages\ListPaymentAttempts;
 use App\Filament\Resources\PaymentAttempts\Pages\ViewPaymentAttempt;
-use App\Filament\Resources\PaymentAttempts\Schemas\PaymentAttemptForm;
 use App\Filament\Resources\PaymentAttempts\Schemas\PaymentAttemptInfolist;
 use App\Filament\Resources\PaymentAttempts\Tables\PaymentAttemptsTable;
 use App\Models\PaymentAttempt;
@@ -34,11 +33,6 @@ class PaymentAttemptResource extends Resource
         }
 
         return 'Accounting';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return PaymentAttemptForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema

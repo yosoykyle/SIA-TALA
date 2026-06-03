@@ -6,7 +6,6 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -65,9 +64,6 @@ class ScheduleGenerationRunsTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()
-                    ->visible(fn (ScheduleGenerationRun $record): bool => self::registrarCanSchedule()
-                        && $record->status !== 'committed'),
                 self::commitAction(),
             ])
             ->toolbarActions([]);

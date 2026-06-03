@@ -61,6 +61,10 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('public static function canCreate(): bool', $resource);
         $this->assertStringNotContainsString("CreateImportBatch::route('/create')", $resource);
         $this->assertStringNotContainsString("EditImportBatch::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ImportBatches/Pages/CreateImportBatch.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ImportBatches/Pages/EditImportBatch.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ImportBatches/Schemas/ImportBatchForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
         $this->assertStringNotContainsString('CreateAction::make()', $listPage);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);
@@ -79,11 +83,72 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString("EditDocumentUpload::route('/{record}/edit')", $resource);
         $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentUploads/Pages/CreateDocumentUpload.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentUploads/Pages/EditDocumentUpload.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentUploads/Schemas/DocumentUploadForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
         $this->assertStringNotContainsString('CreateAction::make()', $listPage);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringContainsString('approveAction', $table);
         $this->assertStringContainsString('needsCorrectionAction', $table);
         $this->assertStringContainsString('rejectAction', $table);
+    }
+
+    public function test_cor_controls_are_token_evidence_with_lifecycle_actions_not_generic_crud(): void
+    {
+        $resource = $this->resourceSource('CorVerifications/CorVerificationResource.php');
+        $listPage = $this->resourceSource('CorVerifications/Pages/ListCorVerifications.php');
+        $viewPage = $this->resourceSource('CorVerifications/Pages/ViewCorVerification.php');
+        $table = $this->resourceSource('CorVerifications/Tables/CorVerificationsTable.php');
+
+        $this->assertStringNotContainsString("CreateCorVerification::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditCorVerification::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/CorVerifications/Pages/CreateCorVerification.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/CorVerifications/Pages/EditCorVerification.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/CorVerifications/Schemas/CorVerificationForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString('supersedeAction', $table);
+        $this->assertStringContainsString('revokeAction', $table);
+    }
+
+    public function test_schedule_generation_runs_are_service_created_drafts_not_generic_crud(): void
+    {
+        $resource = $this->resourceSource('ScheduleGenerationRuns/ScheduleGenerationRunResource.php');
+        $listPage = $this->resourceSource('ScheduleGenerationRuns/Pages/ListScheduleGenerationRuns.php');
+        $viewPage = $this->resourceSource('ScheduleGenerationRuns/Pages/ViewScheduleGenerationRun.php');
+        $table = $this->resourceSource('ScheduleGenerationRuns/Tables/ScheduleGenerationRunsTable.php');
+
+        $this->assertStringNotContainsString("CreateScheduleGenerationRun::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditScheduleGenerationRun::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ScheduleGenerationRuns/Pages/CreateScheduleGenerationRun.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ScheduleGenerationRuns/Pages/EditScheduleGenerationRun.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ScheduleGenerationRuns/Schemas/ScheduleGenerationRunForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringContainsString('commitAction', $table);
+    }
+
+    public function test_service_requests_are_lifecycle_action_surfaces_not_generic_crud(): void
+    {
+        $resource = $this->resourceSource('ServiceRequests/ServiceRequestResource.php');
+        $listPage = $this->resourceSource('ServiceRequests/Pages/ListServiceRequests.php');
+        $viewPage = $this->resourceSource('ServiceRequests/Pages/ViewServiceRequest.php');
+        $table = $this->resourceSource('ServiceRequests/Tables/ServiceRequestsTable.php');
+
+        $this->assertStringNotContainsString("CreateServiceRequest::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditServiceRequest::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Pages/CreateServiceRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Pages/EditServiceRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Schemas/ServiceRequestForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString('startReviewAction', $table);
+        $this->assertStringContainsString('resolveAction', $table);
+        $this->assertStringContainsString('rejectAction', $table);
+        $this->assertStringContainsString('cancelAction', $table);
     }
 
     public function test_schedule_change_form_uses_typed_fields_not_raw_json_textareas(): void

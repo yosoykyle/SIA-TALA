@@ -48,7 +48,6 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
     {
         $checks = [
             'FeeTemplates/Schemas/FeeTemplateForm.php' => ['tuition_fee', 'laboratory_fee', 'misc_fee', 'other_fee', 'minimum_downpayment_percentage'],
-            'Payments/Schemas/PaymentForm.php' => ['amount', 'channel', 'status', 'payment_reference'],
             'PromissoryNotes/Schemas/PromissoryNoteForm.php' => ['status', 'due_date', 'reason'],
             'InstallmentPolicies/Schemas/InstallmentPolicyForm.php' => ['max_months', 'grace_days', 'penalty_rate', 'penalty_frequency', 'due_day_rule'],
             'InstallmentPolicyMilestones/Schemas/InstallmentPolicyMilestoneForm.php' => ['sequence', 'month_offset', 'required_percentage', 'status'],
@@ -65,6 +64,28 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
 
     public function test_payment_records_are_read_only_surfaces_created_by_services_and_webhooks(): void
     {
+        foreach ([
+            'Payments/Pages/CreatePayment.php',
+            'Payments/Pages/EditPayment.php',
+            'Payments/Schemas/PaymentForm.php',
+            'PaymentAttempts/Pages/CreatePaymentAttempt.php',
+            'PaymentAttempts/Pages/EditPaymentAttempt.php',
+            'PaymentAttempts/Schemas/PaymentAttemptForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        foreach ([
+            'Payments/PaymentResource.php',
+            'PaymentAttempts/PaymentAttemptResource.php',
+        ] as $relativePath) {
+            $source = $this->resourceSource($relativePath);
+
+            $this->assertStringNotContainsString("'create'", $source);
+            $this->assertStringNotContainsString("'edit'", $source);
+            $this->assertStringNotContainsString('function form(', $source);
+        }
+
         foreach ([
             'Payments/Pages/ListPayments.php',
             'Payments/Pages/ViewPayment.php',

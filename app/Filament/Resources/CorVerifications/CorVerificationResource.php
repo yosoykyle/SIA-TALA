@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\CorVerifications;
 
-use App\Filament\Resources\CorVerifications\Pages\CreateCorVerification;
-use App\Filament\Resources\CorVerifications\Pages\EditCorVerification;
 use App\Filament\Resources\CorVerifications\Pages\ListCorVerifications;
 use App\Filament\Resources\CorVerifications\Pages\ViewCorVerification;
-use App\Filament\Resources\CorVerifications\Schemas\CorVerificationForm;
 use App\Filament\Resources\CorVerifications\Schemas\CorVerificationInfolist;
 use App\Filament\Resources\CorVerifications\Tables\CorVerificationsTable;
 use App\Models\CorVerification;
@@ -38,11 +35,6 @@ class CorVerificationResource extends Resource
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
-    {
-        return CorVerificationForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return CorVerificationInfolist::configure($schema);
@@ -64,9 +56,7 @@ class CorVerificationResource extends Resource
     {
         return [
             'index' => ListCorVerifications::route('/'),
-            'create' => CreateCorVerification::route('/create'),
             'view' => ViewCorVerification::route('/{record}'),
-            'edit' => EditCorVerification::route('/{record}/edit'),
         ];
     }
 }

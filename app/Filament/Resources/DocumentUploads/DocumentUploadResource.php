@@ -4,7 +4,6 @@ namespace App\Filament\Resources\DocumentUploads;
 
 use App\Filament\Resources\DocumentUploads\Pages\ListDocumentUploads;
 use App\Filament\Resources\DocumentUploads\Pages\ViewDocumentUpload;
-use App\Filament\Resources\DocumentUploads\Schemas\DocumentUploadForm;
 use App\Filament\Resources\DocumentUploads\Schemas\DocumentUploadInfolist;
 use App\Filament\Resources\DocumentUploads\Tables\DocumentUploadsTable;
 use App\Models\DocumentUpload;
@@ -34,11 +33,6 @@ class DocumentUploadResource extends Resource
         }
 
         return 'Registrar';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return DocumentUploadForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema
