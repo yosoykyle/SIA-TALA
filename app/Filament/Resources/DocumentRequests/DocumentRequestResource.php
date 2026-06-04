@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\DocumentRequests;
 
-use App\Filament\Resources\DocumentRequests\Pages\CreateDocumentRequest;
-use App\Filament\Resources\DocumentRequests\Pages\EditDocumentRequest;
 use App\Filament\Resources\DocumentRequests\Pages\ListDocumentRequests;
 use App\Filament\Resources\DocumentRequests\Pages\ViewDocumentRequest;
-use App\Filament\Resources\DocumentRequests\Schemas\DocumentRequestForm;
 use App\Filament\Resources\DocumentRequests\Schemas\DocumentRequestInfolist;
 use App\Filament\Resources\DocumentRequests\Tables\DocumentRequestsTable;
 use App\Models\DocumentRequest;
@@ -44,11 +41,6 @@ class DocumentRequestResource extends Resource
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
-    {
-        return DocumentRequestForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return DocumentRequestInfolist::configure($schema);
@@ -70,9 +62,7 @@ class DocumentRequestResource extends Resource
     {
         return [
             'index' => ListDocumentRequests::route('/'),
-            'create' => CreateDocumentRequest::route('/create'),
             'view' => ViewDocumentRequest::route('/{record}'),
-            'edit' => EditDocumentRequest::route('/{record}/edit'),
         ];
     }
 }

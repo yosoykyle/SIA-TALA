@@ -39,6 +39,29 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('confirmShippingPayment', $source);
     }
 
+    public function test_document_requests_are_lifecycle_action_surfaces_not_generic_crud(): void
+    {
+        $resource = $this->resourceSource('DocumentRequests/DocumentRequestResource.php');
+        $listPage = $this->resourceSource('DocumentRequests/Pages/ListDocumentRequests.php');
+        $viewPage = $this->resourceSource('DocumentRequests/Pages/ViewDocumentRequest.php');
+        $table = $this->resourceSource('DocumentRequests/Tables/DocumentRequestsTable.php');
+
+        $this->assertStringNotContainsString("CreateDocumentRequest::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditDocumentRequest::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Pages/CreateDocumentRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Pages/EditDocumentRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Schemas/DocumentRequestForm.php'));
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString('confirmDocumentFeeAction', $table);
+        $this->assertStringContainsString('confirmShippingPaymentAction', $table);
+        $this->assertStringContainsString('markReadyForPickupAction', $table);
+        $this->assertStringContainsString('completePickupAction', $table);
+        $this->assertStringContainsString('markShippedAction', $table);
+        $this->assertStringContainsString('cancelAction', $table);
+    }
+
     public function test_enrollment_table_keeps_registrar_and_accounting_actions_permission_scoped(): void
     {
         $source = $this->resourceSource('Enrollments/Tables/EnrollmentsTable.php');
