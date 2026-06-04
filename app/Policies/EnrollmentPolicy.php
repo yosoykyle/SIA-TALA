@@ -25,18 +25,12 @@ class EnrollmentPolicy
 
     public function create(User $user): bool
     {
-        return $this->canAny($user, [
-            'approve-documents',
-            'evaluate-transferees',
-        ]);
+        return false;
     }
 
     public function update(User $user, Enrollment $enrollment): bool
     {
-        return $this->canAny($user, [
-            'approve-documents',
-            'evaluate-transferees',
-        ]);
+        return false;
     }
 
     public function delete(User $user, Enrollment $enrollment): bool

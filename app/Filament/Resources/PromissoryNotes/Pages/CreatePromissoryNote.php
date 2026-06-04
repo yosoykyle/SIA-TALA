@@ -16,10 +16,9 @@ class CreatePromissoryNote extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (in_array($data['status'] ?? null, ['approved', 'active'], true)) {
-            $data['approved_by'] = Auth::id();
-            $data['approved_at'] = now();
-        }
+        $data['status'] = 'approved';
+        $data['approved_by'] = Auth::id();
+        $data['approved_at'] = now();
 
         return $data;
     }

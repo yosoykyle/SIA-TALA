@@ -36,16 +36,6 @@ class PromissoryNoteForm
                     ->minValue(0.01),
                 DatePicker::make('due_date')
                     ->required(),
-                Select::make('status')
-                    ->options([
-                        'approved' => 'Approved',
-                        'active' => 'Active',
-                        'expired' => 'Expired',
-                        'settled' => 'Settled',
-                        'rejected' => 'Rejected',
-                    ])
-                    ->required()
-                    ->default('approved'),
                 Textarea::make('reason')
                     ->maxLength(2000)
                     ->columnSpanFull(),

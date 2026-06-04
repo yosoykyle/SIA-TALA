@@ -8,7 +8,6 @@ use App\Models\Enrollment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -107,7 +106,6 @@ class EnrollmentsTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make(),
                 self::markHardCopyReceivedAction(),
                 self::assessAction(),
                 self::confirmPaymentAction(),

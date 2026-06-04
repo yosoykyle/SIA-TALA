@@ -28,7 +28,7 @@ class PromissoryNotePolicy
 
     public function update(User $user, PromissoryNote $promissoryNote): bool
     {
-        return $user->can('approve-promissory-notes');
+        return false;
     }
 
     public function delete(User $user, PromissoryNote $promissoryNote): bool

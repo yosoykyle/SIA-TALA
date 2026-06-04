@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\PromissoryNotes;
 
 use App\Filament\Resources\PromissoryNotes\Pages\CreatePromissoryNote;
-use App\Filament\Resources\PromissoryNotes\Pages\EditPromissoryNote;
 use App\Filament\Resources\PromissoryNotes\Pages\ListPromissoryNotes;
 use App\Filament\Resources\PromissoryNotes\Pages\ViewPromissoryNote;
 use App\Filament\Resources\PromissoryNotes\Schemas\PromissoryNoteForm;
@@ -66,7 +65,6 @@ class PromissoryNoteResource extends Resource
             'index' => ListPromissoryNotes::route('/'),
             'create' => CreatePromissoryNote::route('/create'),
             'view' => ViewPromissoryNote::route('/{record}'),
-            'edit' => EditPromissoryNote::route('/{record}/edit'),
         ];
     }
 }

@@ -74,6 +74,37 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString("can('confirmPayment'", $source);
     }
 
+    public function test_enrollments_are_lifecycle_action_surfaces_not_generic_crud(): void
+    {
+        foreach ([
+            'Enrollments/Pages/CreateEnrollment.php',
+            'Enrollments/Pages/EditEnrollment.php',
+            'Enrollments/Schemas/EnrollmentForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('Enrollments/EnrollmentResource.php');
+        $listPage = $this->resourceSource('Enrollments/Pages/ListEnrollments.php');
+        $viewPage = $this->resourceSource('Enrollments/Pages/ViewEnrollment.php');
+        $table = $this->resourceSource('Enrollments/Tables/EnrollmentsTable.php');
+        $policy = file_get_contents(app_path('Policies/EnrollmentPolicy.php'));
+
+        $this->assertIsString($policy);
+        $this->assertStringNotContainsString("CreateEnrollment::route('/create')", $resource);
+        $this->assertStringNotContainsString("EditEnrollment::route('/{record}/edit')", $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringContainsString('markHardCopyReceivedAction', $table);
+        $this->assertStringContainsString('assessAction', $table);
+        $this->assertStringContainsString('confirmPaymentAction', $table);
+        $this->assertStringContainsString('public function create', $policy);
+        $this->assertStringContainsString('public function update', $policy);
+        $this->assertStringContainsString('return false;', $policy);
+    }
+
     public function test_import_batches_are_read_only_audit_surface_until_dedicated_import_pages_exist(): void
     {
         $resource = $this->resourceSource('ImportBatches/ImportBatchResource.php');

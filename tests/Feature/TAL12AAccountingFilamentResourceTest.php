@@ -48,7 +48,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
     {
         $checks = [
             'FeeTemplates/Schemas/FeeTemplateForm.php' => ['tuition_fee', 'laboratory_fee', 'misc_fee', 'other_fee', 'minimum_downpayment_percentage'],
-            'PromissoryNotes/Schemas/PromissoryNoteForm.php' => ['status', 'due_date', 'reason'],
+            'PromissoryNotes/Schemas/PromissoryNoteForm.php' => ['amount', 'due_date', 'reason'],
             'InstallmentPolicies/Schemas/InstallmentPolicyForm.php' => ['max_months', 'grace_days', 'penalty_rate', 'penalty_frequency', 'due_day_rule'],
             'InstallmentPolicyMilestones/Schemas/InstallmentPolicyMilestoneForm.php' => ['sequence', 'month_offset', 'required_percentage', 'status'],
         ];
@@ -60,6 +60,32 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
                 $this->assertStringContainsString("'{$field}'", $source, "{$relativePath} should contain {$field}.");
             }
         }
+    }
+
+    public function test_promissory_notes_are_recorded_without_generic_status_editing(): void
+    {
+        foreach ([
+            'PromissoryNotes/Pages/EditPromissoryNote.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('PromissoryNotes/PromissoryNoteResource.php');
+        $form = $this->resourceSource('PromissoryNotes/Schemas/PromissoryNoteForm.php');
+        $table = $this->resourceSource('PromissoryNotes/Tables/PromissoryNotesTable.php');
+        $createPage = $this->resourceSource('PromissoryNotes/Pages/CreatePromissoryNote.php');
+        $viewPage = $this->resourceSource('PromissoryNotes/Pages/ViewPromissoryNote.php');
+        $policy = file_get_contents(app_path('Policies/PromissoryNotePolicy.php'));
+
+        $this->assertIsString($policy);
+        $this->assertStringContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString("Select::make('status')", $form);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString("\$data['status'] = 'approved';", $createPage);
+        $this->assertStringContainsString("\$data['approved_by'] = Auth::id();", $createPage);
+        $this->assertStringContainsString('return false;', $policy);
     }
 
     public function test_payment_records_are_read_only_surfaces_created_by_services_and_webhooks(): void

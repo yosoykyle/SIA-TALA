@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\Enrollments;
 
-use App\Filament\Resources\Enrollments\Pages\CreateEnrollment;
-use App\Filament\Resources\Enrollments\Pages\EditEnrollment;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
-use App\Filament\Resources\Enrollments\Schemas\EnrollmentForm;
 use App\Filament\Resources\Enrollments\Schemas\EnrollmentInfolist;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\Enrollment;
@@ -44,11 +41,6 @@ class EnrollmentResource extends Resource
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
-    {
-        return EnrollmentForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return EnrollmentInfolist::configure($schema);
@@ -68,9 +60,7 @@ class EnrollmentResource extends Resource
     {
         return [
             'index' => ListEnrollments::route('/'),
-            'create' => CreateEnrollment::route('/create'),
             'view' => ViewEnrollment::route('/{record}'),
-            'edit' => EditEnrollment::route('/{record}/edit'),
         ];
     }
 }
