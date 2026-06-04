@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\InstallmentPolicyMilestones;
 
-use App\Filament\Resources\InstallmentPolicyMilestones\Pages\CreateInstallmentPolicyMilestone;
-use App\Filament\Resources\InstallmentPolicyMilestones\Pages\EditInstallmentPolicyMilestone;
 use App\Filament\Resources\InstallmentPolicyMilestones\Pages\ListInstallmentPolicyMilestones;
 use App\Filament\Resources\InstallmentPolicyMilestones\Pages\ViewInstallmentPolicyMilestone;
-use App\Filament\Resources\InstallmentPolicyMilestones\Schemas\InstallmentPolicyMilestoneForm;
 use App\Filament\Resources\InstallmentPolicyMilestones\Schemas\InstallmentPolicyMilestoneInfolist;
 use App\Filament\Resources\InstallmentPolicyMilestones\Tables\InstallmentPolicyMilestonesTable;
 use App\Models\InstallmentPolicyMilestone;
@@ -29,20 +26,6 @@ class InstallmentPolicyMilestoneResource extends Resource
 
     protected static ?int $navigationSort = 41;
 
-    public static function getNavigationGroup(): string|UnitEnum|null
-    {
-        if (auth()->user()?->hasRole('academic-head')) {
-            return 'Academic Head';
-        }
-
-        return 'Accounting';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return InstallmentPolicyMilestoneForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return InstallmentPolicyMilestoneInfolist::configure($schema);
@@ -64,9 +47,7 @@ class InstallmentPolicyMilestoneResource extends Resource
     {
         return [
             'index' => ListInstallmentPolicyMilestones::route('/'),
-            'create' => CreateInstallmentPolicyMilestone::route('/create'),
             'view' => ViewInstallmentPolicyMilestone::route('/{record}'),
-            'edit' => EditInstallmentPolicyMilestone::route('/{record}/edit'),
         ];
     }
 }

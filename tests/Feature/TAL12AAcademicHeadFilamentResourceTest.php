@@ -89,6 +89,15 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
             $this->assertIsString($source);
             $this->assertStringNotContainsString("hasRole('academic-head') && \$user->can('process-payments')", $source);
         }
+
+        $milestonePolicy = file_get_contents(app_path('Policies/InstallmentPolicyMilestonePolicy.php'));
+        $milestoneResource = $this->resourceSource('InstallmentPolicyMilestones/InstallmentPolicyMilestoneResource.php');
+        $policyInfolist = $this->resourceSource('InstallmentPolicies/Schemas/InstallmentPolicyInfolist.php');
+
+        $this->assertIsString($milestonePolicy);
+        $this->assertStringNotContainsString('view-global-records', $milestonePolicy);
+        $this->assertStringNotContainsString('academic-head', $milestoneResource);
+        $this->assertStringContainsString("RepeatableEntry::make('milestones')", $policyInfolist);
     }
 
     private function resourceSource(string $relativePath): string

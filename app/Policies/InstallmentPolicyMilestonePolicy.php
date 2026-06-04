@@ -23,12 +23,12 @@ class InstallmentPolicyMilestonePolicy
 
     public function create(User $user): bool
     {
-        return $user->can('create-assessments');
+        return false;
     }
 
     public function update(User $user, InstallmentPolicyMilestone $installmentPolicyMilestone): bool
     {
-        return $user->can('create-assessments');
+        return false;
     }
 
     public function delete(User $user, InstallmentPolicyMilestone $installmentPolicyMilestone): bool

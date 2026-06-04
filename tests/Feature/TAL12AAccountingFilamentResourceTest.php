@@ -15,13 +15,17 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'LedgerEntries/LedgerEntryResource.php',
             'PromissoryNotes/PromissoryNoteResource.php',
             'InstallmentPolicies/InstallmentPolicyResource.php',
-            'InstallmentPolicyMilestones/InstallmentPolicyMilestoneResource.php',
         ] as $relativePath) {
             $source = $this->resourceSource($relativePath);
 
             $this->assertStringContainsString("'Accounting'", $source);
             $this->assertStringContainsString('academic-head', $source);
         }
+
+        $milestoneResource = $this->resourceSource('InstallmentPolicyMilestones/InstallmentPolicyMilestoneResource.php');
+
+        $this->assertStringContainsString("'Accounting'", $milestoneResource);
+        $this->assertStringNotContainsString('academic-head', $milestoneResource);
     }
 
     public function test_accounting_write_actions_are_guarded_by_assessment_payment_or_promissory_permissions(): void
@@ -33,7 +37,6 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'LedgerEntryPolicy.php' => 'process-payments',
             'PromissoryNotePolicy.php' => 'approve-promissory-notes',
             'InstallmentPolicyPolicy.php' => 'create-assessments',
-            'InstallmentPolicyMilestonePolicy.php' => 'create-assessments',
         ];
 
         foreach ($expectations as $policyFile => $permission) {
@@ -50,7 +53,6 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'FeeTemplates/Schemas/FeeTemplateForm.php' => ['tuition_fee', 'laboratory_fee', 'misc_fee', 'other_fee', 'minimum_downpayment_percentage'],
             'PromissoryNotes/Schemas/PromissoryNoteForm.php' => ['amount', 'due_date', 'reason'],
             'InstallmentPolicies/Schemas/InstallmentPolicyForm.php' => ['max_months', 'grace_days', 'penalty_rate', 'penalty_frequency', 'due_day_rule'],
-            'InstallmentPolicyMilestones/Schemas/InstallmentPolicyMilestoneForm.php' => ['sequence', 'month_offset', 'required_percentage', 'status'],
         ];
 
         foreach ($checks as $relativePath => $fields) {
@@ -60,6 +62,44 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
                 $this->assertStringContainsString("'{$field}'", $source, "{$relativePath} should contain {$field}.");
             }
         }
+    }
+
+    public function test_installment_policy_milestones_are_child_schedule_rows_not_generic_crud(): void
+    {
+        foreach ([
+            'InstallmentPolicyMilestones/Pages/CreateInstallmentPolicyMilestone.php',
+            'InstallmentPolicyMilestones/Pages/EditInstallmentPolicyMilestone.php',
+            'InstallmentPolicyMilestones/Schemas/InstallmentPolicyMilestoneForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $policyForm = $this->resourceSource('InstallmentPolicies/Schemas/InstallmentPolicyForm.php');
+        $policyInfolist = $this->resourceSource('InstallmentPolicies/Schemas/InstallmentPolicyInfolist.php');
+        $milestoneResource = $this->resourceSource('InstallmentPolicyMilestones/InstallmentPolicyMilestoneResource.php');
+        $milestoneTable = $this->resourceSource('InstallmentPolicyMilestones/Tables/InstallmentPolicyMilestonesTable.php');
+        $listPage = $this->resourceSource('InstallmentPolicyMilestones/Pages/ListInstallmentPolicyMilestones.php');
+        $viewPage = $this->resourceSource('InstallmentPolicyMilestones/Pages/ViewInstallmentPolicyMilestone.php');
+        $policy = file_get_contents(app_path('Policies/InstallmentPolicyMilestonePolicy.php'));
+
+        $this->assertIsString($policy);
+        $this->assertStringContainsString("Repeater::make('milestones')", $policyForm);
+        $this->assertStringContainsString('->relationship()', $policyForm);
+        $this->assertStringContainsString("TextInput::make('sequence')", $policyForm);
+        $this->assertStringContainsString("TextInput::make('month_offset')", $policyForm);
+        $this->assertStringContainsString("TextInput::make('required_percentage')", $policyForm);
+        $this->assertStringContainsString("Toggle::make('status')", $policyForm);
+        $this->assertStringNotContainsString("Select::make('status')", $policyForm);
+        $this->assertStringContainsString("RepeatableEntry::make('milestones')", $policyInfolist);
+        $this->assertStringNotContainsString("'create'", $milestoneResource);
+        $this->assertStringNotContainsString("'edit'", $milestoneResource);
+        $this->assertStringNotContainsString('function form(', $milestoneResource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $milestoneTable);
+        $this->assertStringContainsString('public function create(User $user): bool', $policy);
+        $this->assertStringContainsString('public function update(User $user, InstallmentPolicyMilestone $installmentPolicyMilestone): bool', $policy);
+        $this->assertStringContainsString('return false;', $policy);
     }
 
     public function test_promissory_notes_are_recorded_without_generic_status_editing(): void

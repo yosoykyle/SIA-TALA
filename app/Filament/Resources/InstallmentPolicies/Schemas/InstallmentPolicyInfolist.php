@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\InstallmentPolicies\Schemas;
 
 use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -33,6 +34,21 @@ class InstallmentPolicyInfolist
                     ->boolean(),
                 IconEntry::make('is_active')
                     ->boolean(),
+                RepeatableEntry::make('milestones')
+                    ->schema([
+                        TextEntry::make('sequence')
+                            ->numeric(),
+                        TextEntry::make('month_offset')
+                            ->label('Month Offset')
+                            ->numeric(),
+                        TextEntry::make('required_percentage')
+                            ->label('Required')
+                            ->suffix('%')
+                            ->numeric(),
+                        TextEntry::make('status')
+                            ->badge(),
+                    ])
+                    ->columns(4),
                 TextEntry::make('created_at')
                     ->dateTime()
                     ->placeholder('-'),
