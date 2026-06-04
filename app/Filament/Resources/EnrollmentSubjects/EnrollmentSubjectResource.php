@@ -4,7 +4,6 @@ namespace App\Filament\Resources\EnrollmentSubjects;
 
 use App\Filament\Resources\EnrollmentSubjects\Pages\ListEnrollmentSubjects;
 use App\Filament\Resources\EnrollmentSubjects\Pages\ViewEnrollmentSubject;
-use App\Filament\Resources\EnrollmentSubjects\Schemas\EnrollmentSubjectForm;
 use App\Filament\Resources\EnrollmentSubjects\Schemas\EnrollmentSubjectInfolist;
 use App\Filament\Resources\EnrollmentSubjects\Tables\EnrollmentSubjectsTable;
 use App\Models\EnrollmentSubject;
@@ -36,11 +35,6 @@ class EnrollmentSubjectResource extends Resource
         }
 
         return 'Faculty';
-    }
-
-    public static function form(Schema $schema): Schema
-    {
-        return EnrollmentSubjectForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema

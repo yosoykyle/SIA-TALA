@@ -36,6 +36,50 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringContainsString('isAssignedToFaculty', $policy);
     }
 
+    public function test_faculty_class_list_is_grade_lifecycle_surface_not_enrollment_subject_crud(): void
+    {
+        foreach ([
+            'EnrollmentSubjects/Pages/CreateEnrollmentSubject.php',
+            'EnrollmentSubjects/Pages/EditEnrollmentSubject.php',
+            'EnrollmentSubjects/Schemas/EnrollmentSubjectForm.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('EnrollmentSubjects/EnrollmentSubjectResource.php');
+
+        $this->assertStringNotContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString('EnrollmentSubjectForm', $resource);
+
+        $table = $this->resourceSource('EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php');
+
+        foreach (['CreateAction::make', 'EditAction::make', 'DeleteAction::make'] as $genericAction) {
+            $this->assertStringNotContainsString($genericAction, $table);
+        }
+
+        foreach ([
+            "TextInput::make('enrollment_id')",
+            "TextInput::make('subject_id')",
+            "TextInput::make('status')",
+            "TextInput::make('section_meeting_id')",
+            "Toggle::make('is_dropped')",
+            "DateTimePicker::make('dropped_at')",
+        ] as $rawField) {
+            $this->assertStringNotContainsString($rawField, $resource);
+            $this->assertStringNotContainsString($rawField, $table);
+        }
+
+        $this->assertStringContainsString('Encode College Grade', $table);
+        $this->assertStringContainsString('Encode SHS Grade', $table);
+        $this->assertStringContainsString('usesShsGrading()', $table);
+        $this->assertStringContainsString("TextInput::make('prelim')", $table);
+        $this->assertStringContainsString("TextInput::make('q1')", $table);
+        $this->assertStringContainsString('GradeEncodingService', $table);
+        $this->assertStringContainsString('GradeFinalizationService', $table);
+    }
+
     public function test_grade_correction_actions_follow_registrar_review_and_resolution_flow(): void
     {
         $table = $this->resourceSource('GradeCorrections/Tables/GradeCorrectionsTable.php');
