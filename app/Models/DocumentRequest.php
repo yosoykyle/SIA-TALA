@@ -46,6 +46,8 @@ class DocumentRequest extends Model
 
     public const TypeOther = 'other';
 
+    public const CourierReceiptDirectory = 'document-request-receipts';
+
     /**
      * @var list<string>
      */

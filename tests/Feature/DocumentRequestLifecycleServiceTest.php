@@ -41,6 +41,16 @@ class DocumentRequestLifecycleServiceTest extends TestCase
         $this->assertStringContainsString('confirmShippingPayment', $source);
     }
 
+    public function test_shipping_receipt_path_must_use_private_document_request_receipt_directory(): void
+    {
+        $source = $this->source(DocumentRequestLifecycleService::class);
+
+        $this->assertSame('document-request-receipts', DocumentRequest::CourierReceiptDirectory);
+        $this->assertStringContainsString('DocumentRequest::CourierReceiptDirectory', $source);
+        $this->assertStringContainsString('str_starts_with($receiptPath, DocumentRequest::CourierReceiptDirectory.\'/\')', $source);
+        $this->assertStringContainsString('private document request receipt field', $source);
+    }
+
     private function source(string $class): string
     {
         $reflection = new \ReflectionClass($class);

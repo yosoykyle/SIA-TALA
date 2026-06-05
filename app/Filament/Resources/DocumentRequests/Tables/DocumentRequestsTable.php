@@ -7,6 +7,7 @@ use App\Models\DocumentRequest;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -211,10 +212,20 @@ class DocumentRequestsTable
                     ->required()
                     ->numeric()
                     ->minValue(0.01),
-                TextInput::make('courier_receipt_path')
-                    ->label('Private receipt path')
+                FileUpload::make('courier_receipt_path')
+                    ->label('Courier receipt')
                     ->required()
-                    ->maxLength(500),
+                    ->disk('local')
+                    ->directory(DocumentRequest::CourierReceiptDirectory)
+                    ->visibility('private')
+                    ->acceptedFileTypes([
+                        'application/pdf',
+                        'image/jpeg',
+                        'image/png',
+                        'image/webp',
+                    ])
+                    ->maxSize(5120)
+                    ->helperText('Upload the courier receipt image or PDF. It is stored on the private disk.'),
             ])
             ->modalSubmitActionLabel('Record Shipment')
             ->visible(fn (DocumentRequest $record): bool => self::registrarCanManage()

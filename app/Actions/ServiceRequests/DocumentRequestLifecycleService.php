@@ -582,8 +582,10 @@ class DocumentRequestLifecycleService
             $errors['tracking_number'] = 'Tracking number is required and must not exceed 100 characters.';
         }
 
-        if ($receiptPath === '' || mb_strlen($receiptPath) > 500) {
-            $errors['courier_receipt_path'] = 'Courier receipt path is required and must not exceed 500 characters.';
+        if ($receiptPath === ''
+            || mb_strlen($receiptPath) > 500
+            || ! str_starts_with($receiptPath, DocumentRequest::CourierReceiptDirectory.'/')) {
+            $errors['courier_receipt_path'] = 'Courier receipt file is required and must be uploaded through the private document request receipt field.';
         }
 
         if (! is_string($shippingFee) || ! preg_match('/^\d+(\.\d{1,2})?$/', $shippingFee)) {

@@ -65,6 +65,19 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('cancelAction', $table);
     }
 
+    public function test_document_request_shipping_receipt_uses_private_file_upload_not_raw_path_input(): void
+    {
+        $table = $this->resourceSource('DocumentRequests/Tables/DocumentRequestsTable.php');
+
+        $this->assertStringContainsString("FileUpload::make('courier_receipt_path')", $table);
+        $this->assertStringContainsString("->disk('local')", $table);
+        $this->assertStringContainsString('DocumentRequest::CourierReceiptDirectory', $table);
+        $this->assertStringContainsString("->visibility('private')", $table);
+        $this->assertStringContainsString('acceptedFileTypes', $table);
+        $this->assertStringNotContainsString("TextInput::make('courier_receipt_path')", $table);
+        $this->assertStringNotContainsString('Private receipt path', $table);
+    }
+
     public function test_enrollment_table_keeps_registrar_and_accounting_actions_permission_scoped(): void
     {
         $source = $this->resourceSource('Enrollments/Tables/EnrollmentsTable.php');
