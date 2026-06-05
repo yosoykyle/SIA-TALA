@@ -112,13 +112,24 @@ class ServiceRequestsTable
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->requiresConfirmation()
+            ->schema([
+                Textarea::make('resolution_note')
+                    ->label('Resolution note')
+                    ->helperText('Optional context for the student notification and audit trail.')
+                    ->maxLength(1000)
+                    ->columnSpanFull(),
+            ])
             ->visible(fn (ServiceRequest $record): bool => self::registrarCanManage()
                 && in_array($record->status, [
                     ServiceRequest::StatusSubmitted,
                     ServiceRequest::StatusUnderReview,
                 ], true))
-            ->action(fn (ServiceRequest $record) => self::handleLifecycleAction(
-                fn (ServiceRequestLifecycleService $service, User $actor) => $service->resolve($record, $actor),
+            ->action(fn (array $data, ServiceRequest $record) => self::handleLifecycleAction(
+                fn (ServiceRequestLifecycleService $service, User $actor) => $service->resolve(
+                    $record,
+                    $actor,
+                    (string) ($data['resolution_note'] ?? ''),
+                ),
                 'Service request resolved',
             ));
     }
@@ -130,13 +141,26 @@ class ServiceRequestsTable
             ->icon(Heroicon::OutlinedXCircle)
             ->color('danger')
             ->requiresConfirmation()
+            ->schema([
+                Textarea::make('rejection_reason')
+                    ->label('Rejection reason')
+                    ->helperText('Required context for the student notification and audit trail.')
+                    ->required()
+                    ->minLength(10)
+                    ->maxLength(1000)
+                    ->columnSpanFull(),
+            ])
             ->visible(fn (ServiceRequest $record): bool => self::registrarCanManage()
                 && in_array($record->status, [
                     ServiceRequest::StatusSubmitted,
                     ServiceRequest::StatusUnderReview,
                 ], true))
-            ->action(fn (ServiceRequest $record) => self::handleLifecycleAction(
-                fn (ServiceRequestLifecycleService $service, User $actor) => $service->reject($record, $actor),
+            ->action(fn (array $data, ServiceRequest $record) => self::handleLifecycleAction(
+                fn (ServiceRequestLifecycleService $service, User $actor) => $service->reject(
+                    $record,
+                    $actor,
+                    (string) ($data['rejection_reason'] ?? ''),
+                ),
                 'Service request rejected',
             ));
     }
@@ -148,17 +172,25 @@ class ServiceRequestsTable
             ->icon(Heroicon::OutlinedNoSymbol)
             ->color('gray')
             ->schema([
-                Textarea::make('note')
-                    ->label('Internal note')
-                    ->maxLength(500),
+                Textarea::make('cancellation_reason')
+                    ->label('Cancellation reason')
+                    ->helperText('Required context for the student notification and audit trail.')
+                    ->required()
+                    ->minLength(10)
+                    ->maxLength(1000)
+                    ->columnSpanFull(),
             ])
             ->visible(fn (ServiceRequest $record): bool => self::registrarCanManage()
                 && in_array($record->status, [
                     ServiceRequest::StatusSubmitted,
                     ServiceRequest::StatusUnderReview,
                 ], true))
-            ->action(fn (ServiceRequest $record) => self::handleLifecycleAction(
-                fn (ServiceRequestLifecycleService $service, User $actor) => $service->cancel($record, $actor),
+            ->action(fn (array $data, ServiceRequest $record) => self::handleLifecycleAction(
+                fn (ServiceRequestLifecycleService $service, User $actor) => $service->cancel(
+                    $record,
+                    $actor,
+                    (string) ($data['cancellation_reason'] ?? ''),
+                ),
                 'Service request cancelled',
             ));
     }

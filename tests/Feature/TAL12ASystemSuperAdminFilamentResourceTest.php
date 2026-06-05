@@ -78,6 +78,7 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
     public function test_role_permissions_are_read_only_seeded_matrix_not_generic_multi_select_editor(): void
     {
         $resource = $this->source('Roles/RoleResource.php');
+        $listPage = $this->source('Roles/Pages/ListRoles.php');
         $table = $this->source('Roles/Tables/RolesTable.php');
         $policy = app(RolePolicy::class);
         $admin = new class extends User
@@ -89,8 +90,13 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         };
 
         $this->assertFileDoesNotExist(app_path('Filament/Resources/Roles/Schemas/RoleForm.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/Roles/Pages/CreateRole.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/Roles/Pages/EditRole.php'));
         $this->assertStringContainsString("'System Administration'", $resource);
+        $this->assertStringContainsString('public static function canCreate(): bool', $resource);
+        $this->assertStringContainsString('return false;', $resource);
+        $this->assertStringNotContainsString("CreateRole::route('/create')", $resource);
+        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
         $this->assertStringContainsString("TextColumn::make('permissions.name')", $table);
         $this->assertStringNotContainsString('function form(', $resource);
         $this->assertStringNotContainsString("'edit'", $resource);

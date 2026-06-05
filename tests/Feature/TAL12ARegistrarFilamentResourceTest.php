@@ -262,6 +262,10 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('resolveAction', $table);
         $this->assertStringContainsString('rejectAction', $table);
         $this->assertStringContainsString('cancelAction', $table);
+        $this->assertStringContainsString("Textarea::make('resolution_note')", $table);
+        $this->assertStringContainsString("Textarea::make('rejection_reason')", $table);
+        $this->assertStringContainsString("Textarea::make('cancellation_reason')", $table);
+        $this->assertStringNotContainsString("Textarea::make('note')", $table);
     }
 
     public function test_schedule_change_form_uses_typed_fields_not_raw_json_textareas(): void

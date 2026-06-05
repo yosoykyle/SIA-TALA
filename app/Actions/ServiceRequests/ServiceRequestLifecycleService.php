@@ -78,55 +78,76 @@ class ServiceRequestLifecycleService
         });
     }
 
-    public function resolve(ServiceRequest $request, User $registrar): ServiceRequest
+    public function resolve(ServiceRequest $request, User $registrar, ?string $resolutionNote = null): ServiceRequest
     {
         $this->authorizeRegistrar($registrar);
 
-        return $this->finish($request, $registrar, ServiceRequest::StatusResolved);
+        return $this->finish($request, $registrar, ServiceRequest::StatusResolved, $resolutionNote);
     }
 
-    public function reject(ServiceRequest $request, User $registrar): ServiceRequest
+    public function reject(ServiceRequest $request, User $registrar, string $rejectionReason): ServiceRequest
     {
         $this->authorizeRegistrar($registrar);
 
-        return $this->finish($request, $registrar, ServiceRequest::StatusRejected);
+        return $this->finish($request, $registrar, ServiceRequest::StatusRejected, $rejectionReason);
     }
 
-    public function cancel(ServiceRequest $request, User $actor): ServiceRequest
+    public function cancel(ServiceRequest $request, User $actor, ?string $cancellationReason = null): ServiceRequest
     {
         if (! $this->actorOwnsRequest($request, $actor) && ! $actor->can('manage-document-requests')) {
             throw new AuthorizationException('Only the requesting student or Registrar can cancel this service request.');
         }
 
-        return DB::transaction(function () use ($request, $actor): ServiceRequest {
+        return DB::transaction(function () use ($request, $actor, $cancellationReason): ServiceRequest {
             $locked = $this->lockRequest($request);
             $this->assertStatus($locked, [
                 ServiceRequest::StatusSubmitted,
                 ServiceRequest::StatusUnderReview,
             ]);
+            $reason = $this->normalizedNote($cancellationReason);
 
             $locked->forceFill([
                 'status' => ServiceRequest::StatusCancelled,
             ])->save();
 
-            $this->recordActivity($locked, 'service_request_cancelled', $actor, [
+            $properties = [
                 'status_after' => ServiceRequest::StatusCancelled,
-            ]);
+            ];
+
+            if ($reason !== null) {
+                $properties['cancellation_reason'] = $reason;
+            }
+
+            $this->recordActivity($locked, 'service_request_cancelled', $actor, $properties);
 
             $this->notifyStudent($locked, new GeneralSystemNotification(
                 type: 'service_request_cancelled',
                 subject: 'Service request cancelled',
-                body: 'Your service request has been cancelled.',
-                metadata: $this->notificationMetadata($locked),
+                body: $reason === null
+                    ? 'Your service request has been cancelled.'
+                    : "Your service request has been cancelled. Reason: {$reason}",
+                metadata: $this->notificationMetadata(
+                    $locked,
+                    $reason === null ? [] : ['cancellation_reason' => $reason],
+                ),
             ));
 
             return $locked->fresh();
         });
     }
 
-    private function finish(ServiceRequest $request, User $registrar, string $status): ServiceRequest
-    {
-        return DB::transaction(function () use ($request, $registrar, $status): ServiceRequest {
+    private function finish(
+        ServiceRequest $request,
+        User $registrar,
+        string $status,
+        ?string $note = null,
+    ): ServiceRequest {
+        $noteKey = $status === ServiceRequest::StatusResolved ? 'resolution_note' : 'rejection_reason';
+        $normalizedNote = $status === ServiceRequest::StatusRejected
+            ? $this->requiredNote($note, 'A rejection reason is required.')
+            : $this->normalizedNote($note);
+
+        return DB::transaction(function () use ($request, $registrar, $status, $noteKey, $normalizedNote): ServiceRequest {
             $locked = $this->lockRequest($request);
             $this->assertStatus($locked, [
                 ServiceRequest::StatusSubmitted,
@@ -144,19 +165,34 @@ class ServiceRequestLifecycleService
                 ? 'service_request_resolved'
                 : 'service_request_rejected';
 
-            $this->recordActivity($locked, $event, $registrar, [
+            $properties = [
                 'status_after' => $status,
-            ]);
+            ];
+
+            if ($normalizedNote !== null) {
+                $properties[$noteKey] = $normalizedNote;
+            }
+
+            $this->recordActivity($locked, $event, $registrar, $properties);
+
+            $isResolved = $status === ServiceRequest::StatusResolved;
+            $body = match (true) {
+                $isResolved && $normalizedNote !== null => "Your service request has been resolved. Note: {$normalizedNote}",
+                $isResolved => 'Your service request has been resolved.',
+                $normalizedNote !== null => "Your service request has been rejected. Reason: {$normalizedNote}",
+                default => 'Your service request has been rejected. Please check with Registrar for details.',
+            };
 
             $this->notifyStudent($locked, new GeneralSystemNotification(
                 type: $event,
-                subject: $status === ServiceRequest::StatusResolved
+                subject: $isResolved
                     ? 'Service request resolved'
                     : 'Service request rejected',
-                body: $status === ServiceRequest::StatusResolved
-                    ? 'Your service request has been resolved.'
-                    : 'Your service request has been rejected. Please check with Registrar for details.',
-                metadata: $this->notificationMetadata($locked),
+                body: $body,
+                metadata: $this->notificationMetadata(
+                    $locked,
+                    $normalizedNote === null ? [] : [$noteKey => $normalizedNote],
+                ),
             ));
 
             return $locked->fresh();
@@ -209,6 +245,24 @@ class ServiceRequestLifecycleService
             ->value('user_id');
 
         return (int) $studentProfileUserId === (int) $actor->id;
+    }
+
+    private function normalizedNote(?string $note): ?string
+    {
+        $note = trim((string) $note);
+
+        return $note === '' ? null : $note;
+    }
+
+    private function requiredNote(?string $note, string $message): string
+    {
+        $note = $this->normalizedNote($note);
+
+        if ($note === null) {
+            throw new RuntimeException($message);
+        }
+
+        return $note;
     }
 
     private function notifyStudent(ServiceRequest $request, GeneralSystemNotification $notification): void

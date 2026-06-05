@@ -28,6 +28,11 @@ class RoleResource extends Resource
         return RolesTable::configure($table);
     }
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function getRelations(): array
     {
         return [
