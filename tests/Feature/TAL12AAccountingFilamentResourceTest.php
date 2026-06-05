@@ -121,8 +121,15 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         $this->assertStringContainsString("'create'", $resource);
         $this->assertStringNotContainsString("'edit'", $resource);
         $this->assertStringNotContainsString("Select::make('status')", $form);
+        $this->assertStringNotContainsString("->relationship('enrollment', 'id')", $form);
+        $this->assertStringNotContainsString("->relationship('ledgerEntry', 'id')", $form);
+        $this->assertStringContainsString('PromissoryNote::enrollmentOptionsFor', $form);
+        $this->assertStringContainsString('PromissoryNote::ledgerEntryOptionsFor', $form);
+        $this->assertStringContainsString('->live()', $form);
+        $this->assertStringContainsString('->afterStateUpdated', $form);
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringContainsString('PromissoryNote::validateAccountingScopeData($data)', $createPage);
         $this->assertStringContainsString("\$data['status'] = 'approved';", $createPage);
         $this->assertStringContainsString("\$data['approved_by'] = Auth::id();", $createPage);
         $this->assertStringContainsString('return false;', $policy);

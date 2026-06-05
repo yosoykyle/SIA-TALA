@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PromissoryNotes\Pages;
 
 use App\Filament\Resources\PromissoryNotes\PromissoryNoteResource;
+use App\Models\PromissoryNote;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -16,6 +17,8 @@ class CreatePromissoryNote extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data = PromissoryNote::validateAccountingScopeData($data);
+
         $data['status'] = 'approved';
         $data['approved_by'] = Auth::id();
         $data['approved_at'] = now();
