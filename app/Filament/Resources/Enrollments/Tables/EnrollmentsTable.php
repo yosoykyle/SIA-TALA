@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Enrollments\Tables;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
+use App\Actions\Enrollment\EnrollmentHardCopyReceiptService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Models\Enrollment;
 use App\Models\User;
@@ -17,7 +18,6 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class EnrollmentsTable
@@ -128,32 +128,20 @@ class EnrollmentsTable
                     return;
                 }
 
-                DB::transaction(function () use ($record, $actor): void {
-                    $record->studentProfile()->update([
-                        'hard_copy_received' => true,
-                        'last_status_changed_at' => now(),
-                    ]);
+                try {
+                    app(EnrollmentHardCopyReceiptService::class)->markReceived($record, $actor);
 
-                    DB::table('activity_log')->insert([
-                        'log_name' => 'enrollment_registrar',
-                        'description' => 'Registrar confirmed physical document submission.',
-                        'subject_type' => Enrollment::class,
-                        'subject_id' => $record->id,
-                        'event' => 'hard_copy_received',
-                        'causer_type' => User::class,
-                        'causer_id' => $actor->id,
-                        'properties' => json_encode([
-                            'student_profile_id' => $record->student_profile_id,
-                        ], JSON_UNESCAPED_SLASHES),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                });
-
-                Notification::make()
-                    ->title('Hard-copy submission marked as received')
-                    ->success()
-                    ->send();
+                    Notification::make()
+                        ->title('Hard-copy submission marked as received')
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    Notification::make()
+                        ->title('Hard-copy confirmation failed')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
             });
     }
 

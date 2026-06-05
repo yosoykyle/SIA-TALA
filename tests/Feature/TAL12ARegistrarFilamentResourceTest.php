@@ -85,9 +85,13 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('markHardCopyReceived', $source);
         $this->assertStringContainsString('assess', $source);
         $this->assertStringContainsString('confirmPayment', $source);
+        $this->assertStringContainsString('EnrollmentHardCopyReceiptService', $source);
         $this->assertStringContainsString("can('markHardCopyReceived'", $source);
         $this->assertStringContainsString("can('assess'", $source);
         $this->assertStringContainsString("can('confirmPayment'", $source);
+        $this->assertStringNotContainsString('DB::transaction', $source);
+        $this->assertStringNotContainsString('json_encode', $source);
+        $this->assertStringNotContainsString('studentProfile()->update', $source);
     }
 
     public function test_enrollments_are_lifecycle_action_surfaces_not_generic_crud(): void

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Actions\SystemAdministration\UserAccountLifecycleService;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -10,7 +11,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class UsersTable
 {
@@ -68,29 +69,33 @@ class UsersTable
                             ->columnSpanFull(),
                     ])
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status !== User::StatusArchived && $record->id !== auth()->id())
+                    ->visible(fn ($record): bool => (auth()->user()?->can('archiveStaffAccount', $record) ?? false)
+                        && $record->status !== User::StatusArchived)
                     ->action(function (array $data, $record): void {
-                        DB::transaction(function () use ($data, $record): void {
-                            $record->forceFill([
-                                'status' => User::StatusArchived,
-                                'archived_at' => now(),
-                                'archived_reason' => $data['reason'],
-                            ])->save();
+                        $actor = auth()->user();
 
-                            $record->syncRoles([]);
+                        if (! $actor instanceof User) {
+                            return;
+                        }
 
-                            activity()
-                                ->performedOn($record)
-                                ->causedBy(auth()->user())
-                                ->event('staff_account_archived')
-                                ->withProperties(['reason' => $data['reason']])
-                                ->log('Staff account archived');
-                        });
+                        try {
+                            app(UserAccountLifecycleService::class)->archive(
+                                target: $record,
+                                actor: $actor,
+                                reason: (string) $data['reason'],
+                            );
 
-                        Notification::make()
-                            ->title('Staff account archived')
-                            ->success()
-                            ->send();
+                            Notification::make()
+                                ->title('Staff account archived')
+                                ->success()
+                                ->send();
+                        } catch (Throwable $exception) {
+                            Notification::make()
+                                ->title('Staff account archive failed')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Action::make('restore')
                     ->label('Restore Account')
@@ -104,29 +109,33 @@ class UsersTable
                             ->helperText('Restored accounts require exactly one active staff role.'),
                     ])
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status === User::StatusArchived)
+                    ->visible(fn ($record): bool => (auth()->user()?->can('restoreStaffAccount', $record) ?? false)
+                        && $record->status === User::StatusArchived)
                     ->action(function (array $data, $record): void {
-                        DB::transaction(function () use ($data, $record): void {
-                            $record->forceFill([
-                                'status' => User::StatusActive,
-                                'archived_at' => null,
-                                'archived_reason' => null,
-                            ])->save();
+                        $actor = auth()->user();
 
-                            $record->syncRoles([$data['role']]);
+                        if (! $actor instanceof User) {
+                            return;
+                        }
 
-                            activity()
-                                ->performedOn($record)
-                                ->causedBy(auth()->user())
-                                ->event('staff_account_restored')
-                                ->withProperties(['role' => $data['role']])
-                                ->log('Staff account restored');
-                        });
+                        try {
+                            app(UserAccountLifecycleService::class)->restore(
+                                target: $record,
+                                actor: $actor,
+                                role: (string) $data['role'],
+                            );
 
-                        Notification::make()
-                            ->title('Staff account restored')
-                            ->success()
-                            ->send();
+                            Notification::make()
+                                ->title('Staff account restored')
+                                ->success()
+                                ->send();
+                        } catch (Throwable $exception) {
+                            Notification::make()
+                                ->title('Staff account restore failed')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->toolbarActions([]);

@@ -28,6 +28,18 @@ class UserPolicy
             && $model->status !== User::StatusArchived;
     }
 
+    public function archiveStaffAccount(User $user, User $model): bool
+    {
+        return $user->can('manage-users')
+            && $user->getKey() !== $model->getKey();
+    }
+
+    public function restoreStaffAccount(User $user, User $model): bool
+    {
+        return $user->can('manage-users')
+            && $user->getKey() !== $model->getKey();
+    }
+
     public function delete(User $user, User $model): bool
     {
         return false;

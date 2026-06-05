@@ -146,12 +146,22 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         $archivedStaff = (new User)->forceFill(['id' => 4, 'status' => 'archived']);
 
         $this->assertStringContainsString("auth()->user()?->can('update', \$record)", $usersTable);
+        $this->assertStringContainsString("can('archiveStaffAccount'", $usersTable);
+        $this->assertStringContainsString("can('restoreStaffAccount'", $usersTable);
+        $this->assertStringContainsString('UserAccountLifecycleService', $usersTable);
         $this->assertStringContainsString('User::StatusArchived', $usersTable);
         $this->assertStringContainsString('User::staffRoleOptions()', $usersTable);
+        $this->assertStringNotContainsString('DB::transaction', $usersTable);
+        $this->assertStringNotContainsString('forceFill', $usersTable);
+        $this->assertStringNotContainsString('syncRoles', $usersTable);
         $this->assertTrue($policy->update($admin, $otherActiveStaff));
+        $this->assertTrue($policy->archiveStaffAccount($admin, $otherActiveStaff));
+        $this->assertTrue($policy->restoreStaffAccount($admin, $archivedStaff));
         $this->assertFalse($policy->update($admin, $admin));
+        $this->assertFalse($policy->archiveStaffAccount($admin, $admin));
         $this->assertFalse($policy->update($admin, $archivedStaff));
         $this->assertFalse($policy->update($ordinaryStaff, $otherActiveStaff));
+        $this->assertFalse($policy->restoreStaffAccount($ordinaryStaff, $archivedStaff));
     }
 
     public function test_faq_entries_use_fixed_categories_and_super_admin_owned_authoring_fields(): void
