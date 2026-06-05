@@ -95,6 +95,16 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringContainsString('Record Approved Grade Change', $table);
         $this->assertStringContainsString('Academic Head who approved offline', $table);
         $this->assertStringContainsString('Use only after the Academic Head has already approved', $table);
+        $this->assertStringContainsString("TextInput::make('college_prelim')", $table);
+        $this->assertStringContainsString("TextInput::make('college_midterm')", $table);
+        $this->assertStringContainsString("TextInput::make('college_final')", $table);
+        $this->assertStringContainsString("TextInput::make('shs_q1')", $table);
+        $this->assertStringContainsString("TextInput::make('shs_q2')", $table);
+        $this->assertStringContainsString('usesCollegeGrading', $table);
+        $this->assertStringContainsString('usesShsGrading', $table);
+        $this->assertStringNotContainsString("TextInput::make('final_grade')", $table);
+        $this->assertStringNotContainsString("TextInput::make('grade')", $table);
+        $this->assertStringNotContainsString("TextInput::make('remarks')", $table);
         $this->assertStringContainsString('manage-grade-corrections', $policy);
     }
 

@@ -3,6 +3,8 @@
 namespace App\Actions\Grades;
 
 use App\Enums\GradeCorrectionStatus;
+use App\Exceptions\InvalidGradeException;
+use App\Exceptions\MissingGradePeriodException;
 use App\Models\Grade;
 use App\Models\GradeCorrection;
 use App\Models\User;
@@ -14,6 +16,11 @@ use RuntimeException;
 
 class GradeCorrectionService
 {
+    public function __construct(
+        private readonly SHSGradingService $shsGrading,
+        private readonly CollegeGradingService $collegeGrading,
+    ) {}
+
     /**
      * @param  list<string>  $attachmentPaths
      *
@@ -256,7 +263,7 @@ class GradeCorrectionService
                 ->firstOrFail();
 
             $oldGrade = $this->gradeSnapshot($lockedGrade);
-            $normalizedGradeAttributes = $this->normalizeGradeAttributes($gradeAttributes);
+            $normalizedGradeAttributes = $this->officialGradeChangeAttributes($lockedGrade, $gradeAttributes);
 
             $lockedGrade->forceFill($normalizedGradeAttributes);
 
@@ -526,57 +533,101 @@ class GradeCorrectionService
      *
      * @throws ValidationException
      */
-    private function normalizeGradeAttributes(array $gradeAttributes): array
+    private function officialGradeChangeAttributes(Grade $grade, array $gradeAttributes): array
     {
-        $allowed = [
-            'prelim_grade',
-            'midterm_grade',
-            'final_grade',
-            'grade',
-            'remarks',
-            'is_inc',
-            'inc_expires_at',
-        ];
+        return $grade->usesShsGrading()
+            ? $this->shsOfficialGradeChangeAttributes($gradeAttributes)
+            : $this->collegeOfficialGradeChangeAttributes($gradeAttributes);
+    }
 
-        $unknown = array_diff(array_keys($gradeAttributes), $allowed);
+    /**
+     * @param  array<string, bool|float|int|string|null>  $gradeAttributes
+     * @return array{prelim_grade:string, midterm_grade:string, final_grade:string, grade:string, remarks:string, is_inc:false, inc_expires_at:null}
+     *
+     * @throws ValidationException
+     */
+    private function collegeOfficialGradeChangeAttributes(array $gradeAttributes): array
+    {
+        $this->assertOnlyGradeOverrideFields($gradeAttributes, ['college_prelim', 'college_midterm', 'college_final']);
+
+        try {
+            $result = $this->collegeGrading->calculateFinalGrade([
+                'prelim' => $gradeAttributes['college_prelim'] ?? null,
+                'midterm' => $gradeAttributes['college_midterm'] ?? null,
+                'final' => $gradeAttributes['college_final'] ?? null,
+            ]);
+        } catch (InvalidGradeException|MissingGradePeriodException $exception) {
+            throw ValidationException::withMessages([
+                'grade' => $exception->getMessage(),
+            ]);
+        }
+
+        return [
+            'prelim_grade' => $result['prelim'],
+            'midterm_grade' => $result['midterm'],
+            'final_grade' => $result['final_raw_average'],
+            'grade' => $result['equivalent_grade'],
+            'remarks' => $result['remarks'],
+            'is_inc' => false,
+            'inc_expires_at' => null,
+        ];
+    }
+
+    /**
+     * @param  array<string, bool|float|int|string|null>  $gradeAttributes
+     * @return array{prelim_grade:string, midterm_grade:string, final_grade:string, grade:string, remarks:string, is_inc:false, inc_expires_at:null}
+     *
+     * @throws ValidationException
+     */
+    private function shsOfficialGradeChangeAttributes(array $gradeAttributes): array
+    {
+        $this->assertOnlyGradeOverrideFields($gradeAttributes, ['shs_q1', 'shs_q2']);
+
+        try {
+            $result = $this->shsGrading->calculateFinalGrade([
+                'q1' => $gradeAttributes['shs_q1'] ?? null,
+                'q2' => $gradeAttributes['shs_q2'] ?? null,
+            ]);
+        } catch (InvalidGradeException $exception) {
+            throw ValidationException::withMessages([
+                'grade' => $exception->getMessage(),
+            ]);
+        }
+
+        return [
+            'prelim_grade' => $result['q1'],
+            'midterm_grade' => $result['q2'],
+            'final_grade' => $result['final_grade'],
+            'grade' => $result['final_grade'],
+            'remarks' => $result['remarks'],
+            'is_inc' => false,
+            'inc_expires_at' => null,
+        ];
+    }
+
+    /**
+     * @param  array<string, bool|float|int|string|null>  $gradeAttributes
+     * @param  list<string>  $allowedFields
+     *
+     * @throws ValidationException
+     */
+    private function assertOnlyGradeOverrideFields(array $gradeAttributes, array $allowedFields): void
+    {
+        $unknown = array_diff(array_keys($gradeAttributes), $allowedFields);
 
         if ($unknown !== []) {
             throw ValidationException::withMessages([
-                'grade' => 'Unsupported grade fields were provided.',
+                'grade' => 'Unsupported grade override fields were provided for this grading scheme.',
             ]);
         }
 
-        if ($gradeAttributes === []) {
-            throw ValidationException::withMessages([
-                'grade' => 'At least one grade field is required.',
-            ]);
-        }
-
-        foreach (['prelim_grade', 'midterm_grade', 'final_grade', 'grade'] as $field) {
-            if (! array_key_exists($field, $gradeAttributes) || $gradeAttributes[$field] === null) {
-                continue;
-            }
-
-            if (! is_numeric($gradeAttributes[$field])) {
+        foreach ($allowedFields as $field) {
+            if (! array_key_exists($field, $gradeAttributes) || $gradeAttributes[$field] === null || $gradeAttributes[$field] === '') {
                 throw ValidationException::withMessages([
-                    $field => 'Grade values must be numeric.',
+                    $field => 'This grade field is required for an official grade change.',
                 ]);
             }
         }
-
-        if (array_key_exists('remarks', $gradeAttributes)) {
-            $remarks = trim((string) $gradeAttributes['remarks']);
-
-            if ($remarks === '' || mb_strlen($remarks) > 255) {
-                throw ValidationException::withMessages([
-                    'remarks' => 'Remarks are required and may not be greater than 255 characters.',
-                ]);
-            }
-
-            $gradeAttributes['remarks'] = $remarks;
-        }
-
-        return $gradeAttributes;
     }
 
     /**

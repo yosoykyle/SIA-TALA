@@ -199,28 +199,43 @@ class GradeCorrectionsTable
                     ->searchable()
                     ->required()
                     ->helperText('Use only after the Academic Head has already approved the official grade change outside this screen. This action records that approval and the Registrar resolution in the audit trail.'),
-                TextInput::make('prelim_grade')
-                    ->label('Prelim/Q1')
+                TextInput::make('college_prelim')
+                    ->label('College Prelim Raw Score')
+                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
-                TextInput::make('midterm_grade')
-                    ->label('Midterm/Q2')
+                TextInput::make('college_midterm')
+                    ->label('College Midterm Raw Score')
+                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
-                TextInput::make('final_grade')
-                    ->label('Final Raw')
+                TextInput::make('college_final')
+                    ->label('College Final Raw Score')
+                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
                     ->numeric()
                     ->minValue(0)
-                    ->maxValue(100),
-                TextInput::make('grade')
-                    ->label('Final Grade')
+                    ->maxValue(100)
+                    ->helperText('The final raw average, equivalent grade, and remarks are calculated by the same College grading service used by Faculty grade encoding.'),
+                TextInput::make('shs_q1')
+                    ->label('SHS Quarter 1 Grade')
+                    ->visible(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
+                    ->required(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
                     ->numeric()
-                    ->minValue(0)
+                    ->minValue(60)
                     ->maxValue(100),
-                TextInput::make('remarks')
-                    ->maxLength(255),
+                TextInput::make('shs_q2')
+                    ->label('SHS Quarter 2 Grade')
+                    ->visible(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
+                    ->required(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
+                    ->numeric()
+                    ->minValue(60)
+                    ->maxValue(100)
+                    ->helperText('The final SHS grade and remarks are calculated by the same SHS grading service used by Faculty grade encoding.'),
                 Textarea::make('approval_reason')
                     ->label('Recorded Academic Head Approval Reason')
                     ->required()
@@ -263,7 +278,7 @@ class GradeCorrectionsTable
     {
         $payload = [];
 
-        foreach (['prelim_grade', 'midterm_grade', 'final_grade', 'grade', 'remarks'] as $field) {
+        foreach (['college_prelim', 'college_midterm', 'college_final', 'shs_q1', 'shs_q2'] as $field) {
             if (($data[$field] ?? null) === null || $data[$field] === '') {
                 continue;
             }
@@ -272,6 +287,18 @@ class GradeCorrectionsTable
         }
 
         return $payload;
+    }
+
+    private static function usesCollegeGrading(?GradeCorrection $record): bool
+    {
+        return $record?->grade !== null && ! self::usesShsGrading($record);
+    }
+
+    private static function usesShsGrading(?GradeCorrection $record): bool
+    {
+        $record?->loadMissing('grade');
+
+        return $record?->grade?->usesShsGrading() ?? false;
     }
 
     /**
