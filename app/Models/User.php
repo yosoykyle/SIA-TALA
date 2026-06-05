@@ -18,16 +18,26 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
 
+    public const StatusActive = 'active';
+
+    public const StatusInactive = 'inactive';
+
+    public const StatusArchived = 'archived';
+
+    public const StaffRoleRegistrar = 'registrar';
+
+    public const StaffRoleAccounting = 'accounting';
+
+    public const StaffRoleFaculty = 'faculty';
+
+    public const StaffRoleAcademicHead = 'academic-head';
+
+    public const StaffRoleSystemSuperAdmin = 'system-super-admin';
+
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->status === 'active'
-            && $this->hasAnyRole([
-                'registrar',
-                'accounting',
-                'faculty',
-                'academic-head',
-                'system-super-admin',
-            ]);
+        return $this->status === self::StatusActive
+            && $this->hasAnyRole(self::staffRoleNames());
     }
 
     /**
@@ -118,5 +128,46 @@ class User extends Authenticatable implements FilamentUser
                 ->filter(fn (?string $part): bool => filled($part))
                 ->implode(' '),
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function staffEditableStatusOptions(): array
+    {
+        return [
+            self::StatusActive => 'Active',
+            self::StatusInactive => 'Inactive',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function staffEditableStatusValues(): array
+    {
+        return array_keys(self::staffEditableStatusOptions());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function staffRoleOptions(): array
+    {
+        return [
+            self::StaffRoleRegistrar => 'Registrar',
+            self::StaffRoleAccounting => 'Accounting',
+            self::StaffRoleFaculty => 'Faculty',
+            self::StaffRoleAcademicHead => 'Academic Head',
+            self::StaffRoleSystemSuperAdmin => 'System Super Admin',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function staffRoleNames(): array
+    {
+        return array_keys(self::staffRoleOptions());
     }
 }

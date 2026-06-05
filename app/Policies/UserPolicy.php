@@ -25,7 +25,7 @@ class UserPolicy
     {
         return $user->can('manage-users')
             && $user->getKey() !== $model->getKey()
-            && $model->status !== 'archived';
+            && $model->status !== User::StatusArchived;
     }
 
     public function delete(User $user, User $model): bool

@@ -16,7 +16,7 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
     {
         $source = $this->source('Users/Schemas/UserForm.php');
 
-        foreach (['first_name', 'middle_name', 'last_name', 'suffix', 'username', 'email', 'password', 'roles'] as $field) {
+        foreach (['first_name', 'middle_name', 'last_name', 'suffix', 'username', 'email', 'password', 'status', 'roles'] as $field) {
             $this->assertStringContainsString("'{$field}'", $source);
         }
 
@@ -26,6 +26,22 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         }
 
         $this->assertStringContainsString('System Super Admin creates staff accounts only', $source);
+        $this->assertStringContainsString("ToggleButtons::make('status')", $source);
+        $this->assertStringContainsString('User::staffEditableStatusOptions()', $source);
+        $this->assertStringContainsString('->in(User::staffEditableStatusValues())', $source);
+        $this->assertStringContainsString('User::staffRoleNames()', $source);
+        $this->assertStringNotContainsString("'archived' => 'Archived'", $source);
+        $this->assertSame([
+            User::StatusActive => 'Active',
+            User::StatusInactive => 'Inactive',
+        ], User::staffEditableStatusOptions());
+        $this->assertSame([
+            'registrar' => 'Registrar',
+            'accounting' => 'Accounting',
+            'faculty' => 'Faculty',
+            'academic-head' => 'Academic Head',
+            'system-super-admin' => 'System Super Admin',
+        ], User::staffRoleOptions());
     }
 
     public function test_system_settings_are_internal_runtime_registry_not_generic_admin_crud(): void
@@ -130,6 +146,8 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         $archivedStaff = (new User)->forceFill(['id' => 4, 'status' => 'archived']);
 
         $this->assertStringContainsString("auth()->user()?->can('update', \$record)", $usersTable);
+        $this->assertStringContainsString('User::StatusArchived', $usersTable);
+        $this->assertStringContainsString('User::staffRoleOptions()', $usersTable);
         $this->assertTrue($policy->update($admin, $otherActiveStaff));
         $this->assertFalse($policy->update($admin, $admin));
         $this->assertFalse($policy->update($admin, $archivedStaff));

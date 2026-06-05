@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
@@ -67,11 +68,11 @@ class UsersTable
                             ->columnSpanFull(),
                     ])
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status !== 'archived' && $record->id !== auth()->id())
+                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status !== User::StatusArchived && $record->id !== auth()->id())
                     ->action(function (array $data, $record): void {
                         DB::transaction(function () use ($data, $record): void {
                             $record->forceFill([
-                                'status' => 'archived',
+                                'status' => User::StatusArchived,
                                 'archived_at' => now(),
                                 'archived_reason' => $data['reason'],
                             ])->save();
@@ -98,22 +99,16 @@ class UsersTable
                     ->schema([
                         Select::make('role')
                             ->label('Restored staff role')
-                            ->options([
-                                'registrar' => 'Registrar',
-                                'accounting' => 'Accounting',
-                                'faculty' => 'Faculty',
-                                'academic-head' => 'Academic Head',
-                                'system-super-admin' => 'System Super Admin',
-                            ])
+                            ->options(User::staffRoleOptions())
                             ->required()
                             ->helperText('Restored accounts require exactly one active staff role.'),
                     ])
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status === 'archived')
+                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status === User::StatusArchived)
                     ->action(function (array $data, $record): void {
                         DB::transaction(function () use ($data, $record): void {
                             $record->forceFill([
-                                'status' => 'active',
+                                'status' => User::StatusActive,
                                 'archived_at' => null,
                                 'archived_reason' => null,
                             ])->save();

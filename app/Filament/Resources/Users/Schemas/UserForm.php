@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,26 +54,19 @@ class UserForm
                             ->required(fn (string $operation): bool => $operation === 'create')
                             ->dehydrated(fn (?string $state): bool => filled($state))
                             ->helperText('Required when creating a staff account. Leave blank on edit to keep the current password.'),
-                        Select::make('status')
-                            ->options([
-                                'active' => 'Active',
-                                'inactive' => 'Inactive',
-                            ])
+                        ToggleButtons::make('status')
+                            ->options(User::staffEditableStatusOptions())
                             ->required()
-                            ->default('active')
+                            ->default(User::StatusActive)
+                            ->inline()
+                            ->in(User::staffEditableStatusValues())
                             ->helperText('Archived status is controlled by the Archive/Restore account actions.'),
                         Select::make('roles')
                             ->label('Staff role')
                             ->relationship(
                                 'roles',
                                 'name',
-                                fn (Builder $query): Builder => $query->whereIn('name', [
-                                    'registrar',
-                                    'accounting',
-                                    'faculty',
-                                    'academic-head',
-                                    'system-super-admin',
-                                ])
+                                fn (Builder $query): Builder => $query->whereIn('name', User::staffRoleNames())
                             )
                             ->multiple()
                             ->maxItems(1)
