@@ -2,11 +2,9 @@
 
 namespace App\Filament\Resources\ScheduleChanges\Tables;
 
-use App\Actions\Scheduling\SectionMeetingAssignmentService;
+use App\Actions\Scheduling\ScheduleChangeLifecycleService;
 use App\Models\ScheduleChange;
 use App\Models\User;
-use App\Support\Scheduling\ScheduleChangePayload;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -15,7 +13,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class ScheduleChangesTable
@@ -35,12 +32,7 @@ class ScheduleChangesTable
                     ->searchable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'warning' => 'proposed',
-                        'info' => 'approved',
-                        'success' => 'applied',
-                        'danger' => 'rejected',
-                    ]),
+                    ->colors(ScheduleChange::statusColors()),
                 TextColumn::make('requester.name')
                     ->label('Requested By')
                     ->placeholder('-'),
@@ -58,18 +50,13 @@ class ScheduleChangesTable
             ])
             ->filters([
                 SelectFilter::make('status')
-                    ->options([
-                        'proposed' => 'Proposed',
-                        'approved' => 'Approved',
-                        'applied' => 'Applied',
-                        'rejected' => 'Rejected',
-                    ]),
+                    ->options(ScheduleChange::statusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make()
                     ->visible(fn (ScheduleChange $record): bool => (auth()->user()?->can('manage-schedules') ?? false)
-                        && $record->status === 'proposed'),
+                        && $record->isProposed()),
                 self::approveAction(),
                 self::applyAction(),
             ])
@@ -84,13 +71,10 @@ class ScheduleChangesTable
             ->color('info')
             ->requiresConfirmation()
             ->visible(fn (ScheduleChange $record): bool => (auth()->user()?->can('authorize-overrides') ?? false)
-                && $record->status === 'proposed')
-            ->action(fn (ScheduleChange $record) => self::transition(
-                $record,
-                'approved',
-                'schedule_change_approved',
+                && $record->isProposed())
+            ->action(fn (ScheduleChange $record) => self::runAction(
+                fn (ScheduleChangeLifecycleService $service, User $actor): ScheduleChange => $service->approve($record, $actor),
                 'Schedule change approved',
-                true,
             ));
     }
 
@@ -102,23 +86,18 @@ class ScheduleChangesTable
             ->color('success')
             ->requiresConfirmation()
             ->visible(fn (ScheduleChange $record): bool => (auth()->user()?->can('manage-schedules') ?? false)
-                && $record->status === 'approved')
-            ->action(fn (ScheduleChange $record) => self::transition(
-                $record,
-                'applied',
-                'schedule_change_applied',
+                && $record->isApproved())
+            ->action(fn (ScheduleChange $record) => self::runAction(
+                fn (ScheduleChangeLifecycleService $service, User $actor): ScheduleChange => $service->apply($record, $actor),
                 'Schedule change applied',
-                false,
             ));
     }
 
-    private static function transition(
-        ScheduleChange $record,
-        string $status,
-        string $event,
-        string $successTitle,
-        bool $setApprover,
-    ): void {
+    /**
+     * @param  callable(ScheduleChangeLifecycleService, User): ScheduleChange  $callback
+     */
+    private static function runAction(callable $callback, string $successTitle): void
+    {
         $actor = auth()->user();
 
         if (! $actor instanceof User) {
@@ -126,40 +105,7 @@ class ScheduleChangesTable
         }
 
         try {
-            DB::transaction(function () use ($record, $status, $event, $actor, $setApprover): void {
-                $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-                if ($status === 'applied' && $record->sectionMeeting !== null && is_array($record->new_payload)) {
-                    $record->sectionMeeting
-                        ->forceFill(app(SectionMeetingAssignmentService::class)->prepareForScheduleChange(
-                            $record->sectionMeeting,
-                            ScheduleChangePayload::normalize($record->new_payload),
-                        ))
-                        ->save();
-                }
-
-                $record->forceFill([
-                    'status' => $status,
-                    'approved_by' => $setApprover ? $actor->id : $record->approved_by,
-                    'applied_at' => $status === 'applied' ? $timestamp : $record->applied_at,
-                ])->save();
-
-                DB::table('activity_log')->insert([
-                    'log_name' => 'scheduling',
-                    'description' => 'Schedule change state changed.',
-                    'subject_type' => ScheduleChange::class,
-                    'subject_id' => $record->id,
-                    'event' => $event,
-                    'causer_type' => User::class,
-                    'causer_id' => $actor->id,
-                    'properties' => json_encode([
-                        'status_after' => $status,
-                        'term_id' => $record->term_id,
-                    ], JSON_UNESCAPED_SLASHES),
-                    'created_at' => $timestamp->toDateTimeString(),
-                    'updated_at' => $timestamp->toDateTimeString(),
-                ]);
-            });
+            $callback(app(ScheduleChangeLifecycleService::class), $actor);
 
             Notification::make()
                 ->title($successTitle)

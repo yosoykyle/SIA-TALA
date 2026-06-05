@@ -323,10 +323,15 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('ScheduleChangePayload::fromSectionMeeting', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);
-        $this->assertStringContainsString('SectionMeetingAssignmentService', $table);
-        $this->assertStringContainsString('prepareForScheduleChange', $table);
+        $this->assertStringContainsString('ScheduleChangeLifecycleService', $table);
+        $this->assertStringContainsString('ScheduleChange::statusOptions()', $table);
+        $this->assertStringContainsString('isProposed()', $table);
+        $this->assertStringContainsString('isApproved()', $table);
+        $this->assertStringNotContainsString('SectionMeetingAssignmentService', $table);
+        $this->assertStringNotContainsString('DB::transaction', $table);
+        $this->assertStringNotContainsString('json_encode', $table);
         $this->assertStringContainsString("\$scheduleChange->status === 'proposed'", $policy);
-        $this->assertStringContainsString("\$record->status === 'proposed'", $table);
+        $this->assertStringContainsString('$record->isProposed()', $table);
     }
 
     public function test_schedule_change_direct_edit_policy_is_limited_to_proposed_requests(): void

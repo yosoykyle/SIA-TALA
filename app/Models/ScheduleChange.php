@@ -8,6 +8,14 @@ use Illuminate\Validation\ValidationException;
 
 class ScheduleChange extends Model
 {
+    public const StatusProposed = 'proposed';
+
+    public const StatusApproved = 'approved';
+
+    public const StatusApplied = 'applied';
+
+    public const StatusRejected = 'rejected';
+
     /**
      * @var list<string>
      */
@@ -33,6 +41,42 @@ class ScheduleChange extends Model
             'new_payload' => 'array',
             'applied_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusProposed => 'Proposed',
+            self::StatusApproved => 'Approved',
+            self::StatusApplied => 'Applied',
+            self::StatusRejected => 'Rejected',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusColors(): array
+    {
+        return [
+            'warning' => self::StatusProposed,
+            'info' => self::StatusApproved,
+            'success' => self::StatusApplied,
+            'danger' => self::StatusRejected,
+        ];
+    }
+
+    public function isProposed(): bool
+    {
+        return $this->status === self::StatusProposed;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === self::StatusApproved;
     }
 
     /**
