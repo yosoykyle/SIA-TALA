@@ -112,6 +112,19 @@ class DocumentUpload extends Model
         ];
     }
 
+    public static function reviewStatusColor(?string $status): string
+    {
+        return match ($status) {
+            self::ReviewStatusOcrExtracted => 'info',
+            self::ReviewStatusPendingRegistrarReview,
+            self::ReviewStatusNeedsCorrection,
+            self::ReviewStatusNeedsManualReview => 'warning',
+            self::ReviewStatusRegistrarApproved => 'success',
+            self::ReviewStatusRejected => 'danger',
+            default => 'gray',
+        };
+    }
+
     public function isRegistrarApproved(): bool
     {
         return $this->ocr_review_status === self::ReviewStatusRegistrarApproved;

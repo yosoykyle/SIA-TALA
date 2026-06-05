@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app/
+        - routes/
+
+    # Level 5 is a good balance for finding real bugs without being too strict
+    level: 5
+
+    # You can add more specific configuration here later if needed
+    # ignoreErrors:
+    #     - '#Some specific error pattern to ignore#'

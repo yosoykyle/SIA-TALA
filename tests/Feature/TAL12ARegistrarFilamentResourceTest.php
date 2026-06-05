@@ -163,6 +163,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $resource = $this->resourceSource('DocumentUploads/DocumentUploadResource.php');
         $listPage = $this->resourceSource('DocumentUploads/Pages/ListDocumentUploads.php');
         $viewPage = $this->resourceSource('DocumentUploads/Pages/ViewDocumentUpload.php');
+        $infolist = $this->resourceSource('DocumentUploads/Schemas/DocumentUploadInfolist.php');
         $table = $this->resourceSource('DocumentUploads/Tables/DocumentUploadsTable.php');
 
         $this->assertStringNotContainsString("CreateDocumentUpload::route('/create')", $resource);
@@ -179,6 +180,17 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('DocumentUploadReviewService', $table);
         $this->assertStringContainsString('DocumentUpload::reviewStatusOptions()', $table);
         $this->assertStringContainsString('isRegistrarReviewable()', $table);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.student_id')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.user.name')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('user.name')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('term.term_name')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('registrarReviewer.name')", $infolist);
+        $this->assertStringContainsString('DocumentUpload::reviewStatusColor($record->ocr_review_status)', $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('student_profile_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('user_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('term_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('registrar_reviewed_by')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('file_path')", $infolist);
         $this->assertStringNotContainsString('DB::transaction', $table);
         $this->assertStringNotContainsString('json_encode', $table);
         $this->assertStringNotContainsString("'ocr_review_status' =>", $table);

@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\DocumentUploads\Schemas;
 
+use App\Models\DocumentUpload;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class DocumentUploadInfolist
@@ -11,54 +13,88 @@ class DocumentUploadInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('student_profile_id')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('user_id')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('term_id')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('document_type'),
-                TextEntry::make('file_disk'),
-                TextEntry::make('file_path'),
-                TextEntry::make('file_name'),
-                TextEntry::make('mime_type')
-                    ->placeholder('-'),
-                TextEntry::make('file_size')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('checksum')
-                    ->placeholder('-'),
-                TextEntry::make('upload_status'),
-                TextEntry::make('ocr_review_status'),
-                TextEntry::make('ocr_confidence')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('ocr_text')
-                    ->placeholder('-')
-                    ->columnSpanFull(),
-                TextEntry::make('ocr_processed_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('parser_version')
-                    ->placeholder('-'),
-                TextEntry::make('registrar_reviewed_by')
-                    ->numeric()
-                    ->placeholder('-'),
-                TextEntry::make('registrar_reviewed_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('student_confirmed_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
+                Section::make('Student and Upload Evidence')
+                    ->schema([
+                        TextEntry::make('studentProfile.student_id')
+                            ->label('Student ID')
+                            ->placeholder('-'),
+                        TextEntry::make('studentProfile.user.name')
+                            ->label('Student')
+                            ->placeholder('-'),
+                        TextEntry::make('user.name')
+                            ->label('Uploaded By')
+                            ->placeholder('-'),
+                        TextEntry::make('term.term_name')
+                            ->label('Term')
+                            ->placeholder('-'),
+                        TextEntry::make('document_type')
+                            ->label('Document')
+                            ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->headline()->toString()),
+                        TextEntry::make('file_name')
+                            ->label('Source File')
+                            ->placeholder('-'),
+                        TextEntry::make('mime_type')
+                            ->label('File Type')
+                            ->placeholder('-'),
+                        TextEntry::make('file_size')
+                            ->label('File Size')
+                            ->numeric()
+                            ->placeholder('-'),
+                        TextEntry::make('checksum')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+                Section::make('OCR Review Evidence')
+                    ->schema([
+                        TextEntry::make('upload_status')
+                            ->label('Upload Status')
+                            ->badge(),
+                        TextEntry::make('ocr_review_status')
+                            ->label('Review Status')
+                            ->badge()
+                            ->formatStateUsing(fn (?string $state): string => DocumentUpload::reviewStatusOptions()[$state] ?? 'Unknown')
+                            ->color(fn (DocumentUpload $record): string => DocumentUpload::reviewStatusColor($record->ocr_review_status)),
+                        TextEntry::make('ocr_confidence')
+                            ->label('OCR Confidence')
+                            ->numeric()
+                            ->placeholder('-'),
+                        TextEntry::make('parser_version')
+                            ->label('Parser Version')
+                            ->placeholder('-'),
+                        TextEntry::make('ocr_text')
+                            ->label('OCR Text')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                        TextEntry::make('ocr_processed_at')
+                            ->label('OCR Processed At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                    ])
+                    ->columns(2),
+                Section::make('Review Timeline')
+                    ->schema([
+                        TextEntry::make('registrarReviewer.name')
+                            ->label('Reviewed By')
+                            ->placeholder('-'),
+                        TextEntry::make('registrar_reviewed_at')
+                            ->label('Reviewed At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('student_confirmed_at')
+                            ->label('Student Confirmed At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('created_at')
+                            ->label('Uploaded At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('updated_at')
+                            ->label('Last Updated At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                    ])
+                    ->columns(2),
             ]);
     }
 }
