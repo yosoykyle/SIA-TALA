@@ -297,6 +297,13 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
 
         $this->assertStringNotContainsString("Textarea::make('old_payload')", $form);
         $this->assertStringNotContainsString("Textarea::make('new_payload')", $form);
+        $this->assertStringNotContainsString("->relationship('sectionMeeting', 'id')", $form);
+        $this->assertStringContainsString('SectionMeeting::scheduleChangeOptionsFor', $form);
+        $this->assertStringContainsString('->live()', $form);
+        $this->assertStringContainsString('->afterStateUpdated', $form);
+        $this->assertStringContainsString("->disabled(fn (Get \$get): bool => blank(\$get('term_id')))", $form);
+        $this->assertStringContainsString('ScheduleChange::validateTargetMeetingData', $createPage);
+        $this->assertStringContainsString('ScheduleChange::validateTargetMeetingData', $editPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromSectionMeeting', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $createPage);
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);

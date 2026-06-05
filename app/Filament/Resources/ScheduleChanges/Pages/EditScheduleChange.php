@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleChanges\Pages;
 
 use App\Filament\Resources\ScheduleChanges\ScheduleChangeResource;
+use App\Models\ScheduleChange;
 use App\Models\SectionMeeting;
 use App\Support\Scheduling\ScheduleChangePayload;
 use Filament\Actions\ViewAction;
@@ -25,7 +26,8 @@ class EditScheduleChange extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $sectionMeeting = SectionMeeting::query()->find($data['section_meeting_id'] ?? null);
+        $data = ScheduleChange::validateTargetMeetingData($data);
+        $sectionMeeting = SectionMeeting::query()->findOrFail($data['section_meeting_id']);
 
         return [
             ...ScheduleChangePayload::stripFormOnlyFields($data),

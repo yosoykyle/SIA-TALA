@@ -64,6 +64,74 @@ class SectionMeeting extends Model
         ];
     }
 
+    /**
+     * @return array<int, string>
+     */
+    public static function scheduleChangeOptionsFor(mixed $termId): array
+    {
+        $termId = self::integerFormId($termId);
+
+        if ($termId === null) {
+            return [];
+        }
+
+        return self::query()
+            ->with(['section', 'subject', 'faculty'])
+            ->where('term_id', $termId)
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->mapWithKeys(fn (SectionMeeting $sectionMeeting): array => [
+                $sectionMeeting->getKey() => self::scheduleChangeOptionLabel($sectionMeeting),
+            ])
+            ->all();
+    }
+
+    public static function scheduleChangeOptionLabel(SectionMeeting $sectionMeeting): string
+    {
+        $sectionMeeting->loadMissing(['section', 'subject', 'faculty']);
+
+        $day = self::dayOptions()[$sectionMeeting->day_of_week] ?? 'Unscheduled';
+        $time = trim(implode('-', array_filter([
+            self::timeLabel($sectionMeeting->starts_at),
+            self::timeLabel($sectionMeeting->ends_at),
+        ])));
+
+        return collect([
+            $sectionMeeting->section?->name,
+            $sectionMeeting->subject?->code,
+            $sectionMeeting->faculty?->name,
+            $day,
+            $time !== '' ? $time : null,
+            $sectionMeeting->room,
+        ])->filter()->implode(' | ');
+    }
+
+    private static function integerFormId(mixed $value): ?int
+    {
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/^[1-9][0-9]*$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    private static function timeLabel(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $time = (string) $value;
+
+        return strlen($time) > 5 ? substr($time, 0, 5) : $time;
+    }
+
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);

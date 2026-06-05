@@ -12,6 +12,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class ScheduleChangeForm
@@ -28,13 +30,16 @@ class ScheduleChangeForm
                             ->relationship('term', 'term_name')
                             ->searchable()
                             ->preload()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('section_meeting_id', null))
                             ->required(),
                         Select::make('section_meeting_id')
                             ->label('Official schedule')
-                            ->relationship('sectionMeeting', 'id')
-                            ->getOptionLabelFromRecordUsing(fn (SectionMeeting $record): string => self::sectionMeetingLabel($record))
+                            ->options(fn (Get $get): array => SectionMeeting::scheduleChangeOptionsFor($get('term_id')))
                             ->searchable()
                             ->preload()
+                            ->disabled(fn (Get $get): bool => blank($get('term_id')))
+                            ->helperText('Choose an official meeting from the selected term.')
                             ->required(),
                         Hidden::make('status')
                             ->default('proposed')
@@ -53,7 +58,7 @@ class ScheduleChangeForm
                             ->dehydrated(false),
                         Select::make('new_day_of_week')
                             ->label('Requested day')
-                            ->options(self::dayOptions())
+                            ->options(SectionMeeting::dayOptions())
                             ->required()
                             ->default(fn (?ScheduleChange $record): ?int => self::payloadValue($record, 'day_of_week'))
                             ->dehydrated(false),
@@ -72,12 +77,7 @@ class ScheduleChangeForm
                             ->dehydrated(false),
                         Select::make('new_modality')
                             ->label('Requested modality')
-                            ->options([
-                                'on_site' => 'On-site',
-                                'online' => 'Online',
-                                'modular' => 'Modular',
-                                'blended' => 'Blended',
-                            ])
+                            ->options(SectionMeeting::modalityOptions())
                             ->required()
                             ->default(fn (?ScheduleChange $record): ?string => self::payloadValue($record, 'modality'))
                             ->dehydrated(false),
@@ -92,39 +92,6 @@ class ScheduleChangeForm
                     ->columns(2)
                     ->columnSpanFull(),
             ]);
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function dayOptions(): array
-    {
-        return [
-            1 => 'Monday',
-            2 => 'Tuesday',
-            3 => 'Wednesday',
-            4 => 'Thursday',
-            5 => 'Friday',
-            6 => 'Saturday',
-            7 => 'Sunday',
-        ];
-    }
-
-    private static function sectionMeetingLabel(SectionMeeting $record): string
-    {
-        $record->loadMissing(['section', 'subject', 'faculty']);
-
-        $day = self::dayOptions()[$record->day_of_week] ?? 'Unscheduled';
-        $time = trim(implode('-', array_filter([$record->starts_at, $record->ends_at])));
-
-        return collect([
-            $record->section?->name,
-            $record->subject?->code,
-            $record->faculty?->name,
-            $day,
-            $time !== '' ? $time : null,
-            $record->room,
-        ])->filter()->implode(' | ');
     }
 
     private static function payloadValue(?ScheduleChange $record, string $key): mixed
