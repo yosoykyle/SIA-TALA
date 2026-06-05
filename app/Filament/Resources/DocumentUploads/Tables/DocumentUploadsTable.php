@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\DocumentUploads\Tables;
 
+use App\Actions\Registrar\DocumentUploadReviewService;
 use App\Models\DocumentUpload;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
@@ -13,7 +13,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class DocumentUploadsTable
@@ -39,13 +38,7 @@ class DocumentUploadsTable
                 TextColumn::make('ocr_review_status')
                     ->label('Review')
                     ->badge()
-                    ->colors([
-                        'gray' => DocumentUpload::ReviewStatusUploaded,
-                        'info' => DocumentUpload::ReviewStatusOcrExtracted,
-                        'warning' => DocumentUpload::ReviewStatusPendingRegistrarReview,
-                        'success' => DocumentUpload::ReviewStatusRegistrarApproved,
-                        'danger' => DocumentUpload::ReviewStatusRejected,
-                    ])
+                    ->colors(DocumentUpload::reviewStatusColors())
                     ->searchable(),
                 TextColumn::make('ocr_confidence')
                     ->numeric(decimalPlaces: 2)
@@ -71,17 +64,7 @@ class DocumentUploadsTable
             ->filters([
                 SelectFilter::make('ocr_review_status')
                     ->label('Review Status')
-                    ->options([
-                        DocumentUpload::ReviewStatusUploaded => 'Uploaded',
-                        DocumentUpload::ReviewStatusOcrExtracted => 'OCR Extracted',
-                        DocumentUpload::ReviewStatusStudentConfirmed => 'Student Confirmed',
-                        DocumentUpload::ReviewStatusPendingRegistrarReview => 'Pending Registrar Review',
-                        DocumentUpload::ReviewStatusRegistrarApproved => 'Registrar Approved',
-                        DocumentUpload::ReviewStatusNeedsCorrection => 'Needs Correction',
-                        DocumentUpload::ReviewStatusRejected => 'Rejected',
-                        DocumentUpload::ReviewStatusNeedsManualReview => 'Needs Manual Review',
-                        DocumentUpload::ReviewStatusManualEntry => 'Manual Entry',
-                    ]),
+                    ->options(DocumentUpload::reviewStatusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -100,11 +83,9 @@ class DocumentUploadsTable
             ->color('success')
             ->requiresConfirmation()
             ->visible(fn (DocumentUpload $record): bool => self::registrarCanReview()
-                && $record->ocr_review_status !== DocumentUpload::ReviewStatusRegistrarApproved)
-            ->action(fn (DocumentUpload $record) => self::transitionReview(
-                $record,
-                DocumentUpload::ReviewStatusRegistrarApproved,
-                'document_upload_approved',
+                && $record->isRegistrarReviewable())
+            ->action(fn (DocumentUpload $record) => self::runAction(
+                fn (DocumentUploadReviewService $service, User $actor): DocumentUpload => $service->approve($record, $actor),
                 'Document approved',
             ));
     }
@@ -121,13 +102,10 @@ class DocumentUploadsTable
                     ->maxLength(500),
             ])
             ->visible(fn (DocumentUpload $record): bool => self::registrarCanReview()
-                && $record->ocr_review_status !== DocumentUpload::ReviewStatusRegistrarApproved)
-            ->action(fn (DocumentUpload $record, array $data) => self::transitionReview(
-                $record,
-                DocumentUpload::ReviewStatusNeedsCorrection,
-                'document_upload_needs_correction',
+                && $record->isRegistrarReviewable())
+            ->action(fn (DocumentUpload $record, array $data) => self::runAction(
+                fn (DocumentUploadReviewService $service, User $actor): DocumentUpload => $service->needsCorrection($record, $actor, (string) $data['reason']),
                 'Document marked for correction',
-                (string) $data['reason'],
             ));
     }
 
@@ -144,23 +122,18 @@ class DocumentUploadsTable
             ])
             ->requiresConfirmation()
             ->visible(fn (DocumentUpload $record): bool => self::registrarCanReview()
-                && $record->ocr_review_status !== DocumentUpload::ReviewStatusRejected)
-            ->action(fn (DocumentUpload $record, array $data) => self::transitionReview(
-                $record,
-                DocumentUpload::ReviewStatusRejected,
-                'document_upload_rejected',
+                && $record->isRegistrarReviewable())
+            ->action(fn (DocumentUpload $record, array $data) => self::runAction(
+                fn (DocumentUploadReviewService $service, User $actor): DocumentUpload => $service->reject($record, $actor, (string) $data['reason']),
                 'Document rejected',
-                (string) $data['reason'],
             ));
     }
 
-    private static function transitionReview(
-        DocumentUpload $record,
-        string $status,
-        string $event,
-        string $successTitle,
-        ?string $reason = null,
-    ): void {
+    /**
+     * @param  callable(DocumentUploadReviewService, User): DocumentUpload  $callback
+     */
+    private static function runAction(callable $callback, string $successTitle): void
+    {
         $actor = auth()->user();
 
         if (! $actor instanceof User) {
@@ -168,34 +141,7 @@ class DocumentUploadsTable
         }
 
         try {
-            DB::transaction(function () use ($record, $status, $event, $actor, $reason): void {
-                $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-                $record->forceFill([
-                    'ocr_review_status' => $status,
-                    'registrar_reviewed_by' => $actor->id,
-                    'registrar_reviewed_at' => $timestamp,
-                    'registrar_approved_payload' => $status === DocumentUpload::ReviewStatusRegistrarApproved
-                        ? ($record->student_confirmed_payload ?? [])
-                        : $record->registrar_approved_payload,
-                ])->save();
-
-                DB::table('activity_log')->insert([
-                    'log_name' => 'document_review',
-                    'description' => 'Registrar document review transition.',
-                    'subject_type' => DocumentUpload::class,
-                    'subject_id' => $record->id,
-                    'event' => $event,
-                    'causer_type' => User::class,
-                    'causer_id' => $actor->id,
-                    'properties' => json_encode([
-                        'status_after' => $status,
-                        'reason' => $reason,
-                    ], JSON_UNESCAPED_SLASHES),
-                    'created_at' => $timestamp->toDateTimeString(),
-                    'updated_at' => $timestamp->toDateTimeString(),
-                ]);
-            });
+            $callback(app(DocumentUploadReviewService::class), $actor);
 
             Notification::make()
                 ->title($successTitle)

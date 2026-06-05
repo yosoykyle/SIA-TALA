@@ -166,6 +166,12 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('approveAction', $table);
         $this->assertStringContainsString('needsCorrectionAction', $table);
         $this->assertStringContainsString('rejectAction', $table);
+        $this->assertStringContainsString('DocumentUploadReviewService', $table);
+        $this->assertStringContainsString('DocumentUpload::reviewStatusOptions()', $table);
+        $this->assertStringContainsString('isRegistrarReviewable()', $table);
+        $this->assertStringNotContainsString('DB::transaction', $table);
+        $this->assertStringNotContainsString('json_encode', $table);
+        $this->assertStringNotContainsString("'ocr_review_status' =>", $table);
     }
 
     public function test_cor_controls_are_token_evidence_with_lifecycle_actions_not_generic_crud(): void

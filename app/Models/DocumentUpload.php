@@ -28,6 +28,19 @@ class DocumentUpload extends Model
     /**
      * @var list<string>
      */
+    public const RegistrarReviewableStatuses = [
+        self::ReviewStatusUploaded,
+        self::ReviewStatusOcrExtracted,
+        self::ReviewStatusStudentConfirmed,
+        self::ReviewStatusPendingRegistrarReview,
+        self::ReviewStatusNeedsCorrection,
+        self::ReviewStatusNeedsManualReview,
+        self::ReviewStatusManualEntry,
+    ];
+
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'student_profile_id',
         'user_id',
@@ -65,6 +78,53 @@ class DocumentUpload extends Model
             'student_confirmed_at' => 'datetime',
             'registrar_approved_payload' => 'array',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function reviewStatusOptions(): array
+    {
+        return [
+            self::ReviewStatusUploaded => 'Uploaded',
+            self::ReviewStatusOcrExtracted => 'OCR Extracted',
+            self::ReviewStatusStudentConfirmed => 'Student Confirmed',
+            self::ReviewStatusPendingRegistrarReview => 'Pending Registrar Review',
+            self::ReviewStatusRegistrarApproved => 'Registrar Approved',
+            self::ReviewStatusNeedsCorrection => 'Needs Correction',
+            self::ReviewStatusRejected => 'Rejected',
+            self::ReviewStatusNeedsManualReview => 'Needs Manual Review',
+            self::ReviewStatusManualEntry => 'Manual Entry',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function reviewStatusColors(): array
+    {
+        return [
+            'gray' => self::ReviewStatusUploaded,
+            'info' => self::ReviewStatusOcrExtracted,
+            'warning' => self::ReviewStatusPendingRegistrarReview,
+            'success' => self::ReviewStatusRegistrarApproved,
+            'danger' => self::ReviewStatusRejected,
+        ];
+    }
+
+    public function isRegistrarApproved(): bool
+    {
+        return $this->ocr_review_status === self::ReviewStatusRegistrarApproved;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->ocr_review_status === self::ReviewStatusRejected;
+    }
+
+    public function isRegistrarReviewable(): bool
+    {
+        return in_array($this->ocr_review_status, self::RegistrarReviewableStatuses, true);
     }
 
     public function studentProfile(): BelongsTo
