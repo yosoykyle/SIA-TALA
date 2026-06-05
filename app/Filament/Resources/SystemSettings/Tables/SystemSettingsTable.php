@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\SystemSettings\Tables;
 
 use App\Models\SystemSetting;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -45,10 +44,7 @@ class SystemSettingsTable
             ->filters([
                 //
             ])
-            ->recordActions([
-                EditAction::make()
-                    ->visible(fn (SystemSetting $record): bool => $record->isEditable()),
-            ])
+            ->recordActions([])
             ->toolbarActions([]);
     }
 }

@@ -40,7 +40,7 @@ class ScheduleChangePolicy
      */
     public function update(User $user, ScheduleChange $scheduleChange): bool
     {
-        return $user->can('manage-schedules');
+        return $user->can('manage-schedules') && $scheduleChange->status === 'proposed';
     }
 
     /**

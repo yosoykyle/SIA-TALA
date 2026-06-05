@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\ScheduleChange;
+use App\Models\User;
+use App\Policies\ScheduleChangePolicy;
 use Tests\TestCase;
 
 class TAL12ARegistrarFilamentResourceTest extends TestCase
@@ -267,6 +270,9 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $createPage = $this->resourceSource('ScheduleChanges/Pages/CreateScheduleChange.php');
         $editPage = $this->resourceSource('ScheduleChanges/Pages/EditScheduleChange.php');
         $table = $this->resourceSource('ScheduleChanges/Tables/ScheduleChangesTable.php');
+        $policy = file_get_contents(app_path('Policies/ScheduleChangePolicy.php'));
+
+        $this->assertIsString($policy);
 
         foreach (['new_faculty_id', 'new_room', 'new_day_of_week', 'new_starts_at', 'new_ends_at', 'new_modality'] as $field) {
             $this->assertStringContainsString($field, $form);
@@ -279,6 +285,26 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);
         $this->assertStringContainsString('SectionMeetingAssignmentService', $table);
         $this->assertStringContainsString('prepareForScheduleChange', $table);
+        $this->assertStringContainsString("\$scheduleChange->status === 'proposed'", $policy);
+        $this->assertStringContainsString("\$record->status === 'proposed'", $table);
+    }
+
+    public function test_schedule_change_direct_edit_policy_is_limited_to_proposed_requests(): void
+    {
+        $policy = app(ScheduleChangePolicy::class);
+        $registrar = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return $abilities === 'manage-schedules';
+            }
+        };
+
+        $this->assertTrue($policy->update($registrar, new ScheduleChange(['status' => 'proposed'])));
+
+        foreach (['approved', 'applied', 'rejected'] as $status) {
+            $this->assertFalse($policy->update($registrar, new ScheduleChange(['status' => $status])));
+        }
     }
 
     private function resourceSource(string $relativePath): string

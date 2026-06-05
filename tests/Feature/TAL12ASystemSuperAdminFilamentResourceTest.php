@@ -28,14 +28,22 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
     public function test_system_settings_are_internal_runtime_registry_not_generic_admin_crud(): void
     {
         $resource = $this->source('SystemSettings/SystemSettingResource.php');
+        $table = $this->source('SystemSettings/Tables/SystemSettingsTable.php');
         $policy = file_get_contents(app_path('Policies/SystemSettingPolicy.php'));
         $model = file_get_contents(app_path('Models/SystemSetting.php'));
 
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/SystemSettings/Schemas/SystemSettingForm.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/SystemSettings/Pages/EditSystemSetting.php'));
         $this->assertIsString($policy);
         $this->assertIsString($model);
 
         $this->assertStringContainsString('protected static bool $shouldRegisterNavigation = false;', $resource);
         $this->assertStringContainsString('return false;', $resource);
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('EditSystemSetting', $resource);
+        $this->assertStringNotContainsString('SystemSettingForm', $resource);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringContainsString('public function viewAny(User $user): bool', $policy);
         $this->assertStringContainsString('public function update(User $user, SystemSetting $model): bool', $policy);
         $this->assertStringNotContainsString('return $user->can(\'manage-settings\')', $policy);
