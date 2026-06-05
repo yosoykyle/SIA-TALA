@@ -218,6 +218,7 @@ class DocumentRequestsTable
                     ->disk('local')
                     ->directory(DocumentRequest::CourierReceiptDirectory)
                     ->visibility('private')
+                    ->preventFilePathTampering()
                     ->acceptedFileTypes([
                         'application/pdf',
                         'image/jpeg',

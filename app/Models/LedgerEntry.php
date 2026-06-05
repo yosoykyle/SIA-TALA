@@ -60,4 +60,17 @@ class LedgerEntry extends Model
     {
         return $this->belongsTo(User::class, 'posted_by');
     }
+
+    public function displayLabel(): string
+    {
+        return collect([
+            "#{$this->id}",
+            $this->entry_type,
+            $this->description,
+            'Amount: '.number_format((float) $this->amount, 2),
+            'Balance: '.number_format((float) $this->running_balance, 2),
+        ])
+            ->filter(fn (?string $part): bool => filled($part))
+            ->implode(' - ');
+    }
 }

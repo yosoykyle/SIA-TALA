@@ -85,4 +85,18 @@ class Enrollment extends Model
         return in_array($studentType, ['new', 'freshman', 'freshmen'], true)
             && in_array($yearLevel, ['grade 11', '11', '1st year', 'first year', '1'], true);
     }
+
+    public function displayLabel(): string
+    {
+        $this->loadMissing('term');
+
+        return collect([
+            "#{$this->id}",
+            $this->term?->term_name ?? 'No term',
+            $this->status,
+            $this->year_level,
+        ])
+            ->filter(fn (?string $part): bool => filled($part))
+            ->implode(' - ');
+    }
 }

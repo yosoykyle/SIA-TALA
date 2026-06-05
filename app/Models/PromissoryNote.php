@@ -175,29 +175,14 @@ class PromissoryNote extends Model
         return $data;
     }
 
-    private static function enrollmentOptionLabel(Enrollment $enrollment): string
+    public static function enrollmentOptionLabel(Enrollment $enrollment): string
     {
-        return collect([
-            "#{$enrollment->id}",
-            $enrollment->term?->term_name ?? 'No term',
-            $enrollment->status,
-            $enrollment->year_level,
-        ])
-            ->filter(fn (?string $part): bool => filled($part))
-            ->implode(' - ');
+        return $enrollment->displayLabel();
     }
 
-    private static function ledgerEntryOptionLabel(LedgerEntry $ledgerEntry): string
+    public static function ledgerEntryOptionLabel(LedgerEntry $ledgerEntry): string
     {
-        return collect([
-            "#{$ledgerEntry->id}",
-            $ledgerEntry->entry_type,
-            $ledgerEntry->description,
-            'Amount: '.number_format((float) $ledgerEntry->amount, 2),
-            'Balance: '.number_format((float) $ledgerEntry->running_balance, 2),
-        ])
-            ->filter(fn (?string $part): bool => filled($part))
-            ->implode(' - ');
+        return $ledgerEntry->displayLabel();
     }
 
     /**

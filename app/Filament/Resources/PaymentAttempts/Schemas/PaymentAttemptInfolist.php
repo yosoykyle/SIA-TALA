@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PaymentAttempts\Schemas;
 
+use App\Models\PaymentAttempt;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -11,17 +12,24 @@ class PaymentAttemptInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('student_profile_id')
-                    ->numeric(),
-                TextEntry::make('term_id')
-                    ->numeric()
+                TextEntry::make('studentProfile.student_id')
+                    ->label('Student ID'),
+                TextEntry::make('studentProfile.user.name')
+                    ->label('Student')
                     ->placeholder('-'),
-                TextEntry::make('enrollment_id')
-                    ->numeric()
+                TextEntry::make('term.term_name')
+                    ->label('Term')
                     ->placeholder('-'),
-                TextEntry::make('ledger_entry_id')
-                    ->numeric()
-                    ->placeholder('-'),
+                TextEntry::make('enrollment.id')
+                    ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->enrollment === null
+                        ? '-'
+                        : $record->enrollment->displayLabel()),
+                TextEntry::make('ledgerEntry.id')
+                    ->label('Ledger Entry')
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->ledgerEntry === null
+                        ? '-'
+                        : $record->ledgerEntry->displayLabel()),
                 TextEntry::make('channel'),
                 TextEntry::make('status'),
                 TextEntry::make('provider')

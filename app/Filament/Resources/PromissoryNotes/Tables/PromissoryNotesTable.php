@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PromissoryNotes\Tables;
 
+use App\Models\PromissoryNote;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -28,9 +29,15 @@ class PromissoryNotesTable
                     ->searchable(),
                 TextColumn::make('enrollment.id')
                     ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, PromissoryNote $record): string => $record->enrollment === null
+                        ? '-'
+                        : PromissoryNote::enrollmentOptionLabel($record->enrollment))
                     ->placeholder('-'),
                 TextColumn::make('ledgerEntry.id')
-                    ->label('Ledger')
+                    ->label('Ledger Entry')
+                    ->formatStateUsing(fn (?int $state, PromissoryNote $record): string => $record->ledgerEntry === null
+                        ? '-'
+                        : PromissoryNote::ledgerEntryOptionLabel($record->ledgerEntry))
                     ->placeholder('-'),
                 TextColumn::make('amount')
                     ->money('PHP')

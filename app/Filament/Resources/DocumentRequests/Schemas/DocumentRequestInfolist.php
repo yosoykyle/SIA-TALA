@@ -38,7 +38,10 @@ class DocumentRequestInfolist
                     ->numeric()
                     ->placeholder('-'),
                 TextEntry::make('courier_receipt_path')
-                    ->placeholder('-'),
+                    ->label('Courier receipt proof')
+                    ->formatStateUsing(fn (?string $state): string => filled($state) ? 'Uploaded' : 'Not uploaded')
+                    ->badge()
+                    ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
                 TextEntry::make('shipped_at')
                     ->dateTime()
                     ->placeholder('-'),

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
+use App\Models\Payment;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -28,12 +29,21 @@ class PaymentsTable
                     ->searchable(),
                 TextColumn::make('enrollment.id')
                     ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->enrollment === null
+                        ? '-'
+                        : $record->enrollment->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('paymentAttempt.id')
-                    ->label('Attempt')
+                    ->label('Payment Attempt')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->paymentAttempt === null
+                        ? '-'
+                        : $record->paymentAttempt->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('ledgerEntry.id')
-                    ->label('Ledger')
+                    ->label('Ledger Entry')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry === null
+                        ? '-'
+                        : $record->ledgerEntry->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('payment_reference')
                     ->label('Reference')

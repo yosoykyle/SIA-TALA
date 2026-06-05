@@ -58,4 +58,17 @@ class PaymentAttempt extends Model
     {
         return $this->belongsTo(LedgerEntry::class);
     }
+
+    public function displayLabel(): string
+    {
+        return collect([
+            "#{$this->id}",
+            $this->provider,
+            $this->channel,
+            $this->status,
+            'Amount: '.number_format((float) $this->amount, 2),
+        ])
+            ->filter(fn (?string $part): bool => filled($part))
+            ->implode(' - ');
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PaymentAttempts\Tables;
 
+use App\Models\PaymentAttempt;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -28,9 +29,15 @@ class PaymentAttemptsTable
                     ->searchable(),
                 TextColumn::make('enrollment.id')
                     ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->enrollment === null
+                        ? '-'
+                        : $record->enrollment->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('ledgerEntry.id')
-                    ->label('Ledger')
+                    ->label('Ledger Entry')
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->ledgerEntry === null
+                        ? '-'
+                        : $record->ledgerEntry->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('channel')
                     ->badge()

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Payments\Schemas;
 
+use App\Models\Payment;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -11,19 +12,31 @@ class PaymentInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('studentProfile.id')
-                    ->label('Student profile'),
-                TextEntry::make('term_id')
-                    ->numeric()
+                TextEntry::make('studentProfile.student_id')
+                    ->label('Student ID'),
+                TextEntry::make('studentProfile.user.name')
+                    ->label('Student')
+                    ->placeholder('-'),
+                TextEntry::make('term.term_name')
+                    ->label('Term')
                     ->placeholder('-'),
                 TextEntry::make('enrollment.id')
                     ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->enrollment === null
+                        ? '-'
+                        : $record->enrollment->displayLabel())
                     ->placeholder('-'),
-                TextEntry::make('payment_attempt_id')
-                    ->numeric()
+                TextEntry::make('paymentAttempt.id')
+                    ->label('Payment Attempt')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->paymentAttempt === null
+                        ? '-'
+                        : $record->paymentAttempt->displayLabel())
                     ->placeholder('-'),
                 TextEntry::make('ledgerEntry.id')
                     ->label('Ledger entry')
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry === null
+                        ? '-'
+                        : $record->ledgerEntry->displayLabel())
                     ->placeholder('-'),
                 TextEntry::make('payment_reference')
                     ->placeholder('-'),
@@ -34,8 +47,8 @@ class PaymentInfolist
                 TextEntry::make('confirmed_at')
                     ->dateTime()
                     ->placeholder('-'),
-                TextEntry::make('confirmed_by')
-                    ->numeric()
+                TextEntry::make('confirmer.name')
+                    ->label('Confirmed By')
                     ->placeholder('-'),
                 TextEntry::make('created_at')
                     ->dateTime()

@@ -112,6 +112,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
 
         $resource = $this->resourceSource('PromissoryNotes/PromissoryNoteResource.php');
         $form = $this->resourceSource('PromissoryNotes/Schemas/PromissoryNoteForm.php');
+        $infolist = $this->resourceSource('PromissoryNotes/Schemas/PromissoryNoteInfolist.php');
         $table = $this->resourceSource('PromissoryNotes/Tables/PromissoryNotesTable.php');
         $createPage = $this->resourceSource('PromissoryNotes/Pages/CreatePromissoryNote.php');
         $viewPage = $this->resourceSource('PromissoryNotes/Pages/ViewPromissoryNote.php');
@@ -127,6 +128,19 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         $this->assertStringContainsString('PromissoryNote::ledgerEntryOptionsFor', $form);
         $this->assertStringContainsString('->live()', $form);
         $this->assertStringContainsString('->afterStateUpdated', $form);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.student_id')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.user.name')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('term.term_name')", $infolist);
+        $this->assertStringContainsString('PromissoryNote::enrollmentOptionLabel', $infolist);
+        $this->assertStringContainsString('PromissoryNote::ledgerEntryOptionLabel', $infolist);
+        $this->assertStringContainsString("TextEntry::make('approver.name')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('student_profile_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('term_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('enrollment_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('ledger_entry_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('approved_by')", $infolist);
+        $this->assertStringContainsString('PromissoryNote::enrollmentOptionLabel', $table);
+        $this->assertStringContainsString('PromissoryNote::ledgerEntryOptionLabel', $table);
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringContainsString('PromissoryNote::validateAccountingScopeData($data)', $createPage);
