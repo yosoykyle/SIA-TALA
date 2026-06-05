@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Policies\RolePolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Policies\UserPolicy;
+use App\Support\ActivityPropertiesFormatter;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -119,6 +120,35 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringNotContainsString("Select::make('permissions')", $resource);
         $this->assertFalse($policy->update($admin, new Role(['name' => 'registrar'])));
+    }
+
+    public function test_audit_log_details_present_metadata_as_readable_read_only_lines(): void
+    {
+        $infolist = $this->source('Activities/Schemas/ActivityInfolist.php');
+
+        $this->assertStringContainsString("TextEntry::make('properties')", $infolist);
+        $this->assertStringContainsString('ActivityPropertiesFormatter::lines($record->properties)', $infolist);
+        $this->assertStringContainsString('->listWithLineBreaks()', $infolist);
+        $this->assertStringContainsString('->bulleted()', $infolist);
+        $this->assertStringNotContainsString('KeyValueEntry::make', $infolist);
+
+        $this->assertSame([
+            'Status After: archived',
+            'Reason: Registrar resigned from service.',
+            'Flags > Hard Copy Received: Yes',
+            'Approvals > #1 > User ID: 7',
+        ], ActivityPropertiesFormatter::lines(collect([
+            'status_after' => 'archived',
+            'reason' => 'Registrar resigned from service.',
+            'flags' => [
+                'hard_copy_received' => true,
+            ],
+            'approvals' => [
+                [
+                    'user_id' => 7,
+                ],
+            ],
+        ])));
     }
 
     public function test_staff_user_direct_edit_policy_blocks_self_and_archived_records(): void

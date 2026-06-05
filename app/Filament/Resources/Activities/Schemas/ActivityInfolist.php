@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources\Activities\Schemas;
 
-use Filament\Infolists\Components\KeyValueEntry;
+use App\Support\ActivityPropertiesFormatter;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
+use Spatie\Activitylog\Models\Activity;
 
 class ActivityInfolist
 {
@@ -25,7 +26,11 @@ class ActivityInfolist
                 TextEntry::make('causer.email')
                     ->label('Actor')
                     ->placeholder('System'),
-                KeyValueEntry::make('properties')
+                TextEntry::make('properties')
+                    ->label('Audit metadata')
+                    ->state(fn (Activity $record): array => ActivityPropertiesFormatter::lines($record->properties))
+                    ->listWithLineBreaks()
+                    ->bulleted()
                     ->columnSpanFull(),
                 TextEntry::make('created_at')
                     ->dateTime(),

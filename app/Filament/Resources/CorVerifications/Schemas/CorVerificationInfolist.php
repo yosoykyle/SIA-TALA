@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CorVerifications\Schemas;
 
+use App\Models\CorVerification;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -11,15 +12,23 @@ class CorVerificationInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('student_profile_id')
-                    ->numeric(),
-                TextEntry::make('term_id')
-                    ->numeric(),
+                TextEntry::make('studentProfile.student_id')
+                    ->label('Student ID')
+                    ->placeholder('-'),
+                TextEntry::make('studentProfile.user.name')
+                    ->label('Student')
+                    ->placeholder('-'),
+                TextEntry::make('term.term_name')
+                    ->label('Term')
+                    ->placeholder('-'),
                 TextEntry::make('enrollment_id')
-                    ->numeric()
+                    ->label('Enrollment')
+                    ->formatStateUsing(fn (?int $state, CorVerification $record): string => $record->enrollment?->displayLabel() ?? '-')
                     ->placeholder('-'),
                 TextEntry::make('token'),
-                TextEntry::make('status'),
+                TextEntry::make('status')
+                    ->badge()
+                    ->colors(CorVerification::statusColors()),
                 TextEntry::make('issued_at')
                     ->dateTime(),
                 TextEntry::make('expires_at')

@@ -190,6 +190,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $listPage = $this->resourceSource('CorVerifications/Pages/ListCorVerifications.php');
         $viewPage = $this->resourceSource('CorVerifications/Pages/ViewCorVerification.php');
         $table = $this->resourceSource('CorVerifications/Tables/CorVerificationsTable.php');
+        $infolist = $this->resourceSource('CorVerifications/Schemas/CorVerificationInfolist.php');
 
         $this->assertStringNotContainsString("CreateCorVerification::route('/create')", $resource);
         $this->assertStringNotContainsString("EditCorVerification::route('/{record}/edit')", $resource);
@@ -207,6 +208,12 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('isRevoked()', $table);
         $this->assertStringNotContainsString('DB::transaction', $table);
         $this->assertStringNotContainsString("'status' =>", $table);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.student_id')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.user.name')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('term.term_name')", $infolist);
+        $this->assertStringContainsString('->enrollment?->displayLabel()', $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('student_profile_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('term_id')", $infolist);
     }
 
     public function test_schedule_generation_runs_are_service_created_drafts_not_generic_crud(): void
