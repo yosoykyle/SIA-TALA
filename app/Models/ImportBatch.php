@@ -8,6 +8,22 @@ use Illuminate\Support\Str;
 
 class ImportBatch extends Model
 {
+    public const TypeStudentData = 'student_data';
+
+    public const TypeLegacyGrades = 'legacy_grades';
+
+    public const TypeLegacyFinancial = 'legacy_financial';
+
+    public const TypeEnrollmentRecords = 'enrollment_records';
+
+    public const TypeCurriculum = 'curriculum';
+
+    public const StatusPendingReview = 'pending_review';
+
+    public const StatusCommitted = 'committed';
+
+    public const StatusCancelled = 'cancelled';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -40,6 +56,49 @@ class ImportBatch extends Model
             'committed_at' => 'datetime',
             'error_log' => 'array',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function importTypeOptions(): array
+    {
+        return [
+            self::TypeStudentData => 'Student Data',
+            self::TypeLegacyGrades => 'Legacy Grades',
+            self::TypeLegacyFinancial => 'Legacy Financial',
+            self::TypeEnrollmentRecords => 'Enrollment Records',
+            self::TypeCurriculum => 'Curriculum',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusPendingReview => 'Pending Review',
+            self::StatusCommitted => 'Committed',
+            self::StatusCancelled => 'Cancelled',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusColors(): array
+    {
+        return [
+            'warning' => self::StatusPendingReview,
+            'success' => self::StatusCommitted,
+            'gray' => self::StatusCancelled,
+        ];
+    }
+
+    public function isPendingReview(): bool
+    {
+        return $this->status === self::StatusPendingReview;
     }
 
     public function importer(): BelongsTo

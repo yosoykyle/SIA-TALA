@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\CorVerifications\Tables;
 
+use App\Actions\Registrar\CorVerificationLifecycleService;
 use App\Models\CorVerification;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
@@ -13,7 +13,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class CorVerificationsTable
@@ -35,11 +34,7 @@ class CorVerificationsTable
                     ->searchable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'success' => CorVerification::StatusValid,
-                        'warning' => CorVerification::StatusSuperseded,
-                        'danger' => CorVerification::StatusRevoked,
-                    ]),
+                    ->colors(CorVerification::statusColors()),
                 TextColumn::make('token')
                     ->copyable()
                     ->limit(16)
@@ -58,11 +53,7 @@ class CorVerificationsTable
             ])
             ->filters([
                 SelectFilter::make('status')
-                    ->options([
-                        CorVerification::StatusValid => 'Valid',
-                        CorVerification::StatusSuperseded => 'Superseded',
-                        CorVerification::StatusRevoked => 'Revoked',
-                    ]),
+                    ->options(CorVerification::statusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -80,13 +71,8 @@ class CorVerificationsTable
             ->color('warning')
             ->requiresConfirmation()
             ->visible(fn (CorVerification $record): bool => self::registrarCanControlCor()
-                && $record->status === CorVerification::StatusValid)
-            ->action(fn (CorVerification $record) => self::transition(
-                $record,
-                CorVerification::StatusSuperseded,
-                'cor_superseded',
-                'COR marked superseded',
-            ));
+                && $record->isValid())
+            ->action(fn (CorVerification $record) => self::supersede($record));
     }
 
     private static function revokeAction(): Action
@@ -102,23 +88,31 @@ class CorVerificationsTable
             ])
             ->requiresConfirmation()
             ->visible(fn (CorVerification $record): bool => self::registrarCanControlCor()
-                && $record->status !== CorVerification::StatusRevoked)
-            ->action(fn (CorVerification $record, array $data) => self::transition(
-                $record,
-                CorVerification::StatusRevoked,
-                'cor_revoked',
-                'COR revoked',
-                (string) $data['reason'],
-            ));
+                && ! $record->isRevoked())
+            ->action(fn (CorVerification $record, array $data) => self::revoke($record, (string) $data['reason']));
     }
 
-    private static function transition(
-        CorVerification $record,
-        string $status,
-        string $event,
-        string $successTitle,
-        ?string $reason = null,
-    ): void {
+    private static function supersede(CorVerification $record): void
+    {
+        self::runAction(
+            callback: fn (CorVerificationLifecycleService $service, User $actor) => $service->supersede($record, $actor),
+            successTitle: 'COR marked superseded',
+        );
+    }
+
+    private static function revoke(CorVerification $record, string $reason): void
+    {
+        self::runAction(
+            callback: fn (CorVerificationLifecycleService $service, User $actor) => $service->revoke($record, $actor, $reason),
+            successTitle: 'COR revoked',
+        );
+    }
+
+    /**
+     * @param  callable(CorVerificationLifecycleService, User): CorVerification  $callback
+     */
+    private static function runAction(callable $callback, string $successTitle): void
+    {
         $actor = auth()->user();
 
         if (! $actor instanceof User) {
@@ -126,31 +120,7 @@ class CorVerificationsTable
         }
 
         try {
-            DB::transaction(function () use ($record, $status, $event, $actor, $reason): void {
-                $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-                $record->forceFill([
-                    'status' => $status,
-                    'revoked_at' => $status === CorVerification::StatusRevoked ? $timestamp : $record->revoked_at,
-                    'revocation_reason' => $status === CorVerification::StatusRevoked ? $reason : $record->revocation_reason,
-                ])->save();
-
-                DB::table('activity_log')->insert([
-                    'log_name' => 'cor_controls',
-                    'description' => 'COR verification state changed.',
-                    'subject_type' => CorVerification::class,
-                    'subject_id' => $record->id,
-                    'event' => $event,
-                    'causer_type' => User::class,
-                    'causer_id' => $actor->id,
-                    'properties' => json_encode([
-                        'status_after' => $status,
-                        'reason' => $reason,
-                    ], JSON_UNESCAPED_SLASHES),
-                    'created_at' => $timestamp->toDateTimeString(),
-                    'updated_at' => $timestamp->toDateTimeString(),
-                ]);
-            });
+            $callback(app(CorVerificationLifecycleService::class), $actor);
 
             Notification::make()
                 ->title($successTitle)

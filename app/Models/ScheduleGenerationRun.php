@@ -8,6 +8,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScheduleGenerationRun extends Model
 {
+    public const StatusGenerated = 'generated';
+
+    public const StatusDraft = 'draft';
+
+    public const StatusUnderReview = 'under_review';
+
+    public const StatusBlocked = 'blocked';
+
+    public const StatusCommitted = 'committed';
+
+    public const StatusAbandoned = 'abandoned';
+
+    public const StatusSuperseded = 'superseded';
+
     /**
      * @var list<string>
      */
@@ -32,6 +46,52 @@ class ScheduleGenerationRun extends Model
             'committed_at' => 'datetime',
             'constraint_summary' => 'array',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusGenerated => 'Generated',
+            self::StatusDraft => 'Draft',
+            self::StatusUnderReview => 'Under Review',
+            self::StatusBlocked => 'Blocked',
+            self::StatusCommitted => 'Committed',
+            self::StatusAbandoned => 'Abandoned',
+            self::StatusSuperseded => 'Superseded',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusColors(): array
+    {
+        return [
+            'info' => self::StatusGenerated,
+            'warning' => self::StatusDraft,
+            'gray' => self::StatusUnderReview,
+            'danger' => self::StatusBlocked,
+            'success' => self::StatusCommitted,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function committableStatuses(): array
+    {
+        return [
+            self::StatusGenerated,
+            self::StatusUnderReview,
+        ];
+    }
+
+    public function canBeCommitted(): bool
+    {
+        return in_array($this->status, self::committableStatuses(), true);
     }
 
     public function term(): BelongsTo

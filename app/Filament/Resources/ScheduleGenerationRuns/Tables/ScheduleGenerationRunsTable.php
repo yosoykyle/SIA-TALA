@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Tables;
 
+use App\Actions\Scheduling\ScheduleCommitService;
 use App\Models\ScheduleGenerationRun;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -12,7 +12,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class ScheduleGenerationRunsTable
@@ -28,12 +27,7 @@ class ScheduleGenerationRunsTable
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'info' => 'generated',
-                        'warning' => 'draft',
-                        'success' => 'committed',
-                        'danger' => 'blocked',
-                    ])
+                    ->colors(ScheduleGenerationRun::statusColors())
                     ->searchable(),
                 TextColumn::make('section_meetings_count')
                     ->label('Committed Meetings')
@@ -55,12 +49,7 @@ class ScheduleGenerationRunsTable
             ])
             ->filters([
                 SelectFilter::make('status')
-                    ->options([
-                        'generated' => 'Generated',
-                        'draft' => 'Draft',
-                        'committed' => 'Committed',
-                        'blocked' => 'Blocked',
-                    ]),
+                    ->options(ScheduleGenerationRun::statusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -77,7 +66,7 @@ class ScheduleGenerationRunsTable
             ->color('success')
             ->requiresConfirmation()
             ->visible(fn (ScheduleGenerationRun $record): bool => self::registrarCanSchedule()
-                && $record->status !== 'committed')
+                && $record->canBeCommitted())
             ->action(function (ScheduleGenerationRun $record): void {
                 $actor = auth()->user();
 
@@ -86,31 +75,7 @@ class ScheduleGenerationRunsTable
                 }
 
                 try {
-                    DB::transaction(function () use ($record, $actor): void {
-                        $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-                        $record->forceFill([
-                            'status' => 'committed',
-                            'committed_by' => $actor->id,
-                            'committed_at' => $timestamp,
-                        ])->save();
-
-                        DB::table('activity_log')->insert([
-                            'log_name' => 'scheduling',
-                            'description' => 'Schedule generation run committed from Filament.',
-                            'subject_type' => ScheduleGenerationRun::class,
-                            'subject_id' => $record->id,
-                            'event' => 'schedule_generation_run_committed',
-                            'causer_type' => User::class,
-                            'causer_id' => $actor->id,
-                            'properties' => json_encode([
-                                'term_id' => $record->term_id,
-                                'status_after' => 'committed',
-                            ], JSON_UNESCAPED_SLASHES),
-                            'created_at' => $timestamp->toDateTimeString(),
-                            'updated_at' => $timestamp->toDateTimeString(),
-                        ]);
-                    });
+                    app(ScheduleCommitService::class)->commit($record, $actor);
 
                     Notification::make()
                         ->title('Schedule run committed')

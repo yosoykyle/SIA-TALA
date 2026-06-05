@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\ImportBatches\Tables;
 
+use App\Actions\Imports\ImportBatchLifecycleService;
 use App\Models\ImportBatch;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -12,7 +12,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class ImportBatchesTable
@@ -29,11 +28,7 @@ class ImportBatchesTable
                     ->searchable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'warning' => 'pending_review',
-                        'success' => 'committed',
-                        'gray' => 'cancelled',
-                    ]),
+                    ->colors(ImportBatch::statusColors()),
                 TextColumn::make('total_rows')
                     ->numeric()
                     ->sortable(),
@@ -63,19 +58,9 @@ class ImportBatchesTable
             ])
             ->filters([
                 SelectFilter::make('import_type')
-                    ->options([
-                        'student_data' => 'Student Data',
-                        'legacy_grades' => 'Legacy Grades',
-                        'legacy_financial' => 'Legacy Financial',
-                        'enrollment_records' => 'Enrollment Records',
-                        'curriculum' => 'Curriculum',
-                    ]),
+                    ->options(ImportBatch::importTypeOptions()),
                 SelectFilter::make('status')
-                    ->options([
-                        'pending_review' => 'Pending Review',
-                        'committed' => 'Committed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                    ->options(ImportBatch::statusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -93,8 +78,8 @@ class ImportBatchesTable
             ->color('success')
             ->requiresConfirmation()
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
-                && $record->status === 'pending_review')
-            ->action(fn (ImportBatch $record) => self::transition($record, 'committed', 'import_batch_committed', 'Import batch committed'));
+                && $record->isPendingReview())
+            ->action(fn (ImportBatch $record) => self::commit($record));
     }
 
     private static function cancelAction(): Action
@@ -105,11 +90,21 @@ class ImportBatchesTable
             ->color('gray')
             ->requiresConfirmation()
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
-                && $record->status === 'pending_review')
-            ->action(fn (ImportBatch $record) => self::transition($record, 'cancelled', 'import_batch_cancelled', 'Import batch cancelled'));
+                && $record->isPendingReview())
+            ->action(fn (ImportBatch $record) => self::cancel($record));
     }
 
-    private static function transition(ImportBatch $record, string $status, string $event, string $successTitle): void
+    private static function commit(ImportBatch $record): void
+    {
+        self::transition($record, 'commit', 'Import batch committed');
+    }
+
+    private static function cancel(ImportBatch $record): void
+    {
+        self::transition($record, 'cancel', 'Import batch cancelled');
+    }
+
+    private static function transition(ImportBatch $record, string $method, string $successTitle): void
     {
         $actor = auth()->user();
 
@@ -118,31 +113,7 @@ class ImportBatchesTable
         }
 
         try {
-            DB::transaction(function () use ($record, $status, $event, $actor): void {
-                $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-                $record->forceFill([
-                    'status' => $status,
-                    'committed_by' => $status === 'committed' ? $actor->id : $record->committed_by,
-                    'committed_at' => $status === 'committed' ? $timestamp : $record->committed_at,
-                ])->save();
-
-                DB::table('activity_log')->insert([
-                    'log_name' => 'imports',
-                    'description' => 'Import batch state changed.',
-                    'subject_type' => ImportBatch::class,
-                    'subject_id' => null,
-                    'event' => $event,
-                    'causer_type' => User::class,
-                    'causer_id' => $actor->id,
-                    'properties' => json_encode([
-                        'import_batch_id' => $record->id,
-                        'status_after' => $status,
-                    ], JSON_UNESCAPED_SLASHES),
-                    'created_at' => $timestamp->toDateTimeString(),
-                    'updated_at' => $timestamp->toDateTimeString(),
-                ]);
-            });
+            app(ImportBatchLifecycleService::class)->{$method}($record, $actor);
 
             Notification::make()
                 ->title($successTitle)

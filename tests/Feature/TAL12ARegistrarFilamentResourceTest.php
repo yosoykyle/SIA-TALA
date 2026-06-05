@@ -141,6 +141,11 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringContainsString('commit', $table);
         $this->assertStringContainsString('cancel', $table);
+        $this->assertStringContainsString('ImportBatchLifecycleService', $table);
+        $this->assertStringContainsString('ImportBatch::importTypeOptions()', $table);
+        $this->assertStringContainsString('ImportBatch::statusOptions()', $table);
+        $this->assertStringNotContainsString('DB::transaction', $table);
+        $this->assertStringNotContainsString("'status' => 'committed'", $table);
     }
 
     public function test_document_uploads_are_review_only_not_generic_create_edit_crud(): void
@@ -180,6 +185,12 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringContainsString('supersedeAction', $table);
         $this->assertStringContainsString('revokeAction', $table);
+        $this->assertStringContainsString('CorVerificationLifecycleService', $table);
+        $this->assertStringContainsString('CorVerification::statusOptions()', $table);
+        $this->assertStringContainsString('isValid()', $table);
+        $this->assertStringContainsString('isRevoked()', $table);
+        $this->assertStringNotContainsString('DB::transaction', $table);
+        $this->assertStringNotContainsString("'status' =>", $table);
     }
 
     public function test_schedule_generation_runs_are_service_created_drafts_not_generic_crud(): void
@@ -199,6 +210,11 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringContainsString('commitAction', $table);
+        $this->assertStringContainsString('ScheduleCommitService', $table);
+        $this->assertStringContainsString('ScheduleGenerationRun::statusOptions()', $table);
+        $this->assertStringContainsString('canBeCommitted()', $table);
+        $this->assertStringNotContainsString('DB::transaction', $table);
+        $this->assertStringNotContainsString("'status' => 'committed'", $table);
     }
 
     public function test_section_meetings_use_typed_manual_assignment_without_raw_commit_fields_or_direct_edit(): void

@@ -40,6 +40,40 @@ class CorVerification extends Model
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusValid => 'Valid',
+            self::StatusSuperseded => 'Superseded',
+            self::StatusRevoked => 'Revoked',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusColors(): array
+    {
+        return [
+            'success' => self::StatusValid,
+            'warning' => self::StatusSuperseded,
+            'danger' => self::StatusRevoked,
+        ];
+    }
+
+    public function isValid(): bool
+    {
+        return $this->status === self::StatusValid;
+    }
+
+    public function isRevoked(): bool
+    {
+        return $this->status === self::StatusRevoked;
+    }
+
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
