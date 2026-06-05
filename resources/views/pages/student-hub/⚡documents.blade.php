@@ -3,8 +3,7 @@
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
-#[Layout('layouts.student')]
-new class extends Component
+new #[Layout('layouts.student')] class extends Component
 {
     //
 };

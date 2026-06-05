@@ -36,15 +36,15 @@
                     </div>
                 </x-slot:brand>
 
-                <x-side-bar.item text="Dashboard" icon="home" :route="url('/student/dashboard')" />
-                <x-side-bar.item text="Schedule" icon="calendar" :route="url('/student/schedule')" />
-                <x-side-bar.item text="Grades" icon="academic-cap" :route="url('/student/grades')" />
-                <x-side-bar.item text="Financials" icon="credit-card" :route="url('/student/financials')" />
-                <x-side-bar.item text="Documents" icon="document-text" :route="url('/student/documents')" />
+                <x-side-bar.item text="Dashboard" icon="home" :route="route('student.dashboard')" />
+                <x-side-bar.item text="Schedule" icon="calendar" :route="route('student.schedule')" />
+                <x-side-bar.item text="Grades" icon="academic-cap" :route="route('student.grades')" />
+                <x-side-bar.item text="Financials" icon="credit-card" :route="route('student.financials')" />
+                <x-side-bar.item text="Documents" icon="document-text" :route="route('student.documents')" />
 
                 <x-side-bar.separator text="Support" />
 
-                <x-side-bar.item text="Help" icon="information-circle" :route="url('/student/help')" />
+                <x-side-bar.item text="Help" icon="information-circle" :route="route('student.help')" />
             </x-side-bar>
         </x-slot:menu>
 

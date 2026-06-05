@@ -10,6 +10,7 @@ use App\Actions\Integrations\Ocr\OcrTextExtractor;
 use App\Actions\Integrations\Payments\MockPaymentGateway;
 use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
+use App\Http\Middleware\EnsureActiveStudentHubUser;
 use App\Policies\ActivityPolicy;
 use App\Policies\RolePolicy;
 use App\Support\DecimalMoney;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
+use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 
@@ -88,6 +90,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Livewire::addPersistentMiddleware([
+            EnsureActiveStudentHubUser::class,
+        ]);
+
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);
 
