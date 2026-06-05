@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccountingConfigurationScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InstallmentPolicy extends Model
 {
+    use HasAccountingConfigurationScope;
+
     /**
      * @var list<string>
      */
@@ -51,5 +54,10 @@ class InstallmentPolicy extends Model
     public function milestones(): HasMany
     {
         return $this->hasMany(InstallmentPolicyMilestone::class);
+    }
+
+    protected static function activeScopeConflictMessage(): string
+    {
+        return 'Only one active installment policy may exist for the selected education level, program, and year/grade scope.';
     }
 }

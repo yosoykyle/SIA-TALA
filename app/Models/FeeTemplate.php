@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasAccountingConfigurationScope;
 use Database\Factories\FeeTemplateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class FeeTemplate extends Model
 {
     /** @use HasFactory<FeeTemplateFactory> */
-    use HasFactory;
+    use HasAccountingConfigurationScope, HasFactory;
 
     /**
      * @var list<string>
@@ -46,5 +47,10 @@ class FeeTemplate extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);
+    }
+
+    protected static function activeScopeConflictMessage(): string
+    {
+        return 'Only one active fee template may exist for the selected education level, program, and year/grade scope.';
     }
 }

@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\InstallmentPolicies\Schemas;
 
+use App\Models\InstallmentPolicy;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class InstallmentPolicyForm
@@ -21,17 +24,19 @@ class InstallmentPolicyForm
                             ->maxLength(255)
                             ->required(),
                         Select::make('education_level')
-                            ->options([
-                                'shs' => 'SHS',
-                                'college' => 'College',
-                            ])
+                            ->options(InstallmentPolicy::EducationLevelOptions)
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set): null => $set('year_level', null))
                             ->required(),
                         Select::make('program_id')
                             ->relationship('program', 'name')
                             ->searchable()
                             ->preload(),
-                        TextInput::make('year_level')
-                            ->maxLength(255),
+                        Select::make('year_level')
+                            ->label('Year/Grade')
+                            ->options(fn (Get $get): array => InstallmentPolicy::yearLevelOptionsFor($get('education_level')))
+                            ->placeholder('All year/grade levels')
+                            ->helperText('Leave blank only when this policy applies to every year/grade in the selected education level.'),
                         Toggle::make('is_active')
                             ->label('Active')
                             ->default(true)
