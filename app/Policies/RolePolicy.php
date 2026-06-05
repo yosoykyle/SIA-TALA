@@ -24,7 +24,7 @@ class RolePolicy
 
     public function update(User $user, Role $model): bool
     {
-        return $user->can('manage-users');
+        return false;
     }
 
     public function delete(User $user, Role $model): bool

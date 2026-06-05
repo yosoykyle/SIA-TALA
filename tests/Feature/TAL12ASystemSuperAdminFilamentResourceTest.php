@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Policies\RolePolicy;
 use App\Policies\SystemSettingPolicy;
+use App\Policies\UserPolicy;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
@@ -70,6 +73,61 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         }
 
         $this->assertFalse(SystemSetting::SettingDefinitions['admission_requirements']['editable']);
+    }
+
+    public function test_role_permissions_are_read_only_seeded_matrix_not_generic_multi_select_editor(): void
+    {
+        $resource = $this->source('Roles/RoleResource.php');
+        $table = $this->source('Roles/Tables/RolesTable.php');
+        $policy = app(RolePolicy::class);
+        $admin = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return $abilities === 'manage-users';
+            }
+        };
+
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/Roles/Schemas/RoleForm.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/Roles/Pages/EditRole.php'));
+        $this->assertStringContainsString("'System Administration'", $resource);
+        $this->assertStringContainsString("TextColumn::make('permissions.name')", $table);
+        $this->assertStringNotContainsString('function form(', $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringNotContainsString("Select::make('permissions')", $resource);
+        $this->assertFalse($policy->update($admin, new Role(['name' => 'registrar'])));
+    }
+
+    public function test_staff_user_direct_edit_policy_blocks_self_and_archived_records(): void
+    {
+        $policy = app(UserPolicy::class);
+        $usersTable = $this->source('Users/Tables/UsersTable.php');
+        $admin = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return $abilities === 'manage-users';
+            }
+        };
+        $ordinaryStaff = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return false;
+            }
+        };
+
+        $admin->forceFill(['id' => 1, 'status' => 'active']);
+        $ordinaryStaff->forceFill(['id' => 3, 'status' => 'active']);
+        $otherActiveStaff = (new User)->forceFill(['id' => 2, 'status' => 'active']);
+        $archivedStaff = (new User)->forceFill(['id' => 4, 'status' => 'archived']);
+
+        $this->assertStringContainsString("auth()->user()?->can('update', \$record)", $usersTable);
+        $this->assertTrue($policy->update($admin, $otherActiveStaff));
+        $this->assertFalse($policy->update($admin, $admin));
+        $this->assertFalse($policy->update($admin, $archivedStaff));
+        $this->assertFalse($policy->update($ordinaryStaff, $otherActiveStaff));
     }
 
     public function test_faq_entries_use_fixed_categories_and_super_admin_owned_authoring_fields(): void

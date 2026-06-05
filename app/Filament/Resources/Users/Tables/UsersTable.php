@@ -54,7 +54,7 @@ class UsersTable
             ])
             ->recordActions([
                 EditAction::make()
-                    ->visible(fn ($record): bool => auth()->user()?->can('manage-users') && $record->status !== 'archived'),
+                    ->visible(fn ($record): bool => auth()->user()?->can('update', $record)),
                 Action::make('archive')
                     ->label('Archive Account')
                     ->icon('heroicon-o-archive-box')

@@ -23,7 +23,9 @@ class UserPolicy
 
     public function update(User $user, User $model): bool
     {
-        return $user->can('manage-users');
+        return $user->can('manage-users')
+            && $user->getKey() !== $model->getKey()
+            && $model->status !== 'archived';
     }
 
     public function delete(User $user, User $model): bool
