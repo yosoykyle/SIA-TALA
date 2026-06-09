@@ -2,24 +2,28 @@
 
 namespace App\Models;
 
-use Database\Factories\ProgramFactory;
+use Database\Factories\CurriculumFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Program extends Model
+class Curriculum extends Model
 {
-    /** @use HasFactory<ProgramFactory> */
+    /** @use HasFactory<CurriculumFactory> */
     use HasFactory;
+
+    protected $table = 'curriculums';
 
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'code',
-        'department',
+        'program_id',
+        'effective_year',
+        'version_name',
         'is_active',
+        'activated_at',
     ];
 
     /**
@@ -29,17 +33,18 @@ class Program extends Model
     {
         return [
             'is_active' => 'boolean',
+            'activated_at' => 'datetime',
         ];
     }
 
-    public function studentProfiles(): HasMany
+    public function program(): BelongsTo
     {
-        return $this->hasMany(StudentProfile::class);
+        return $this->belongsTo(Program::class);
     }
 
-    public function curriculums(): HasMany
+    public function curriculumSubjects(): HasMany
     {
-        return $this->hasMany(Curriculum::class);
+        return $this->hasMany(CurriculumSubject::class);
     }
 
     public function sections(): HasMany

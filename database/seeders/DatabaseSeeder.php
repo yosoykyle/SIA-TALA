@@ -56,6 +56,7 @@ class DatabaseSeeder extends Seeder
             'evaluate-transferees',
             'manage-lis',
             'review-lock-faculty-availability',
+            'manage-faculty-subject-eligibilities',
             'generate-schedule-drafts',
             'commit-schedules',
             'export-schedules',
@@ -113,6 +114,7 @@ class DatabaseSeeder extends Seeder
             'manage-lis',
             'manage-grade-corrections',
             'review-lock-faculty-availability',
+            'manage-faculty-subject-eligibilities',
             'generate-schedule-drafts',
             'commit-schedules',
             'export-schedules',
@@ -143,6 +145,7 @@ class DatabaseSeeder extends Seeder
             'authorize-overrides',
             'view-grade-submission-progress',
             'view-faculty-availability',
+            'manage-faculty-subject-eligibilities',
             'view-cor',
             'view-grades',
             'view-advising-status',
@@ -150,6 +153,7 @@ class DatabaseSeeder extends Seeder
 
         Role::findByName('system-super-admin')->syncPermissions([
             'manage-users',
+            'manage-faculty-subject-eligibilities',
             'manage-settings',
             'view-audit-logs',
             'manage-system-health',

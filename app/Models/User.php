@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Arr;
@@ -38,6 +39,16 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->status === self::StatusActive
             && $this->hasAnyRole(self::staffRoleNames());
+    }
+
+    public function facultySubjectEligibilities(): HasMany
+    {
+        return $this->hasMany(FacultySubjectEligibility::class, 'faculty_id');
+    }
+
+    public function facultyAvailabilitySubmissions(): HasMany
+    {
+        return $this->hasMany(FacultyAvailabilitySubmission::class, 'faculty_id');
     }
 
     /**

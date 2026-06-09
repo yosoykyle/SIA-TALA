@@ -17,9 +17,12 @@ class SectionFactory extends Factory
         return [
             'term_id' => Term::factory(),
             'program_id' => Program::factory(),
+            'curriculum_id' => null,
+            'year_level' => '1st Year',
+            'curriculum_period' => '1st Semester',
             'name' => fake()->unique()->bothify('Section ##'),
             'room' => fake()->bothify('R-###'),
-            'max_seats' => 40,
+            'max_seats' => 30,
             'enrolled_count' => 0,
             'modality' => 'on_site',
         ];

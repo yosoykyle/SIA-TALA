@@ -33,6 +33,9 @@ class ScheduleGenerationRun extends Model
         'committed_by',
         'committed_at',
         'constraint_summary',
+        'solver_input_snapshot',
+        'solver_input_hash',
+        'solver_snapshot_captured_at',
         'notes',
     ];
 
@@ -45,6 +48,8 @@ class ScheduleGenerationRun extends Model
             'generated_at' => 'datetime',
             'committed_at' => 'datetime',
             'constraint_summary' => 'array',
+            'solver_input_snapshot' => 'array',
+            'solver_snapshot_captured_at' => 'datetime',
         ];
     }
 
@@ -112,5 +117,10 @@ class ScheduleGenerationRun extends Model
     public function sectionMeetings(): HasMany
     {
         return $this->hasMany(SectionMeeting::class, 'schedule_generation_run_id');
+    }
+
+    public function draftRows(): HasMany
+    {
+        return $this->hasMany(ScheduleDraftRow::class, 'generation_run_id');
     }
 }

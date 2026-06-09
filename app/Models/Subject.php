@@ -45,4 +45,14 @@ class Subject extends Model
     {
         return $this->hasMany(GradeCorrection::class);
     }
+
+    public function facultySubjectEligibilities(): HasMany
+    {
+        return $this->hasMany(FacultySubjectEligibility::class);
+    }
+
+    public function curriculumSubjects(): HasMany
+    {
+        return $this->hasMany(CurriculumSubject::class);
+    }
 }
