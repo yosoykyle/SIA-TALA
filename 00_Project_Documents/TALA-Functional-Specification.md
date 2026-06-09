@@ -690,7 +690,7 @@ The section's assigned modality directly determines how the scheduling engine be
 
 #### 5.3.1 Step 1: Faculty Availability Self-Service Submission
 
-**Current TAL-12 Implementation Scope Note**: The scheduling foundation tables for faculty availability exist, but the full Faculty Availability self-service UI/service is not treated as completed Pre-UAT evidence until a dedicated implementation item delivers the submission, review/lock, and change-request screens. Current TAL-12 admin QA may validate term readiness, direct schedule assignment, schedule generation/commit surfaces, and role boundaries only.
+**Current TAL-12 Implementation Scope Note**: The rescue scheduling workflow now includes the minimal Faculty Availability service/UI needed for automatic scheduling: Registrar opens a term availability period, Faculty submits weekly windows during the open period, Registrar reviews/locks submissions, and locked availability feeds the solver snapshot. Post-lock/deadline change requests remain a separate workflow and are not required before the current Pre-UAT gate unless stakeholders explicitly pull them forward.
 
 **Schedule Draft Surface Boundary**: Schedule generation run records are created by the scheduling service/action layer after term readiness and conflict checks. The Registrar may view runs and commit eligible generated or under-review runs through approved lifecycle actions. Committing a run must call a backend schedule-commit service that rejects conflicted/incomplete draft rows, creates official `section_meetings`, synchronizes faculty-section-subject assignment, records lifecycle activity, and marks the run committed. The Admin Nexus must not expose a generic Schedule Draft create/edit form for raw `term_id`, `requested_by`, `constraint_summary`, solver payload, or status mutation.
 
@@ -717,7 +717,7 @@ The section's assigned modality directly determines how the scheduling engine be
 
 **Current TAL-12 Admin Mapping**: Direct Schedule Assignment is exposed as a Registrar-only `Manual Assignment` create flow on Official Schedules. The form uses typed fields for term, section, subject, faculty, room, day, start time, end time, and modality. The system derives `committed_by`, `committed_at`, and manual-vs-draft source internally; staff do not manually type these values. Once an official meeting row exists, TAL-12 does not expose direct edit/delete actions for it. Corrections after commitment must be recorded through the Schedule Change workflow below.
 
-**Current TAL-12 Conflict Guard**: The implemented guard rejects invalid time ranges, overlapping faculty assignments, and overlapping physical-room assignments for on-site/blended meetings. Teacher availability-window validation remains tied to the Faculty Availability self-service/review service, which is documented but not counted as completed TAL-12 Pre-UAT evidence.
+**Current TAL-12 Conflict Guard**: The implemented guard rejects invalid time ranges, overlapping faculty assignments, overlapping physical-room assignments for on-site/blended meetings, missing faculty assignment, missing faculty-subject eligibility, and solver rows outside locked faculty availability windows before commit.
 
 **Automatic Generation Flow**:
 
@@ -2033,9 +2033,9 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 2. P1: Track Student Hub/self-service gaps under TAL-13, not TAL-12/TAL-12A.
 3. P1: Keep generic System Settings editor frozen; add dedicated typed settings pages only for workflows required before expanded UAT, starting with Admission Requirements only if stakeholders require it.
 4. P1: Define Accounting adjustment workflow before adding any ledger mutation UI.
-5. P1: Add minimal `faculty_subject_eligibilities` contract before automatic schedule generation implementation.
+5. P1: Maintain the implemented automatic scheduling rescue path: faculty-subject eligibility, section planning readiness, locked faculty availability, IAM-private Cloud Run OR-Tools dispatch, solver-row ingestion, Laravel validation, draft review, and commit.
 6. P2: Replace remaining raw detail display IDs in Service Request detail views with relationship-backed labels.
-7. P2: Decide whether Academic Head in-system approval and full faculty availability self-service are required before expanded UAT.
+7. P2: Decide whether Academic Head in-system approval and post-lock faculty availability change requests are required before expanded UAT.
 
 
 ---

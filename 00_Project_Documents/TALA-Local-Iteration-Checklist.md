@@ -1,7 +1,7 @@
 # TALA Local Iteration Checklist (DB-First)
 
 **Location Purpose:** Local execution checklist aligned with the 3 main specs and Linear roadmap.
-**Last Updated:** 2026-06-09
+**Last Updated:** 2026-06-10
 **Linear Project:** TALA Iterative Implementation Map (DB-First)
 
 ---
@@ -192,6 +192,26 @@
 - [x] Confirmed the generated solver rows become `ok` draft rows, the schedule run moves to `under_review`, commit creates official `section_meetings`, and `section_teacher` assignments are written.
 - [x] Verified with focused tests: `SchedulingEndToEndWorkflowTest`, `ScheduleGenerationServiceTest`, `ScheduleSolverDispatchJobTest`, `ScheduleCloudResultIngestorTest`, `ScheduleCommitServiceTest`, `FacultyAvailabilityServiceTest`, and `ScheduleSolverSnapshotServiceTest`.
 - [x] No user-side Google Cloud Console, Docker, or manual queue action is required for this QA slice. A live Cloud Run smoke test remains optional because the deployed solver was already verified separately.
+
+**Slice 13 Evidence - Scheduling Filament Admin Smoke Pass**
+
+- [x] Added `SchedulingFilamentSmokeTest` to verify the scheduling admin pages render through the real Filament panel routes instead of only source-level assertions.
+- [x] Confirmed Registrar can open Section Planning, Official Schedule manual assignment, Faculty Subject Eligibility, Availability Periods, Faculty Availability review, and Schedule Drafts surfaces with the approved rescue permissions.
+- [x] Confirmed Faculty can open only their self-service scheduling surfaces: own subject eligibility visibility and faculty availability submission/list pages.
+- [x] Confirmed Faculty cannot open Registrar-only section planning, eligibility creation, availability-period creation, or schedule-draft routes.
+- [x] Kept this as route-render smoke coverage; full browser/manual Pre-UAT QA remains tracked under Iteration 8.
+- [x] Verified with focused test: `SchedulingFilamentSmokeTest`.
+
+**Slice 14 Evidence - UI-Driven Scheduling Workflow QA**
+
+- [x] Added `SchedulingFilamentWorkflowTest` as the automated admin workflow proof that scheduling is usable through Filament/Livewire surfaces, not only backend service calls.
+- [x] Verified Registrar can create a section plan through `CreateSection` with typed term/program/curriculum/year/period/modality/capacity/room fields.
+- [x] Verified Registrar can create faculty-subject eligibility through `CreateFacultySubjectEligibility` and open the faculty availability period through `CreateFacultyAvailabilityPeriod`.
+- [x] Verified Faculty can submit weekly availability through `CreateFacultyAvailabilitySubmission`, and Registrar can lock it through the Faculty Availability table action.
+- [x] Verified Registrar can run `Generate Schedule` from Schedule Drafts, then the queued solver dispatch can ingest deterministic solver rows into `schedule_draft_rows`.
+- [x] Verified Registrar can review generated draft rows through `DraftRowsRelationManager` and commit the schedule through the Schedule Drafts table action.
+- [x] Confirmed commit creates official `section_meetings`, records `committed_by`, and writes `section_teacher` assignments from the generated rows.
+- [x] Verified with focused tests: `SchedulingFilamentWorkflowTest`, `SchedulingFilamentSmokeTest`, `SectionPlanningFilamentResourceTest`, `FacultyAvailabilityFilamentResourceTest`, `ScheduleDraftRowsRelationManagerTest`, `TAL12ARegistrarFilamentResourceTest`, `SchedulingEndToEndWorkflowTest`, `ScheduleGenerationServiceTest`, `ScheduleSolverDispatchJobTest`, `ScheduleCloudResultIngestorTest`, and `ScheduleCommitServiceTest`.
 
 ---
 
@@ -405,12 +425,13 @@
 
 ---
 
-## Iteration 9 - Student Portal UI & Self-Service Contracts (`TAL-13`)
+## Deferred Backlog - Student Portal UI & Self-Service Contracts (`TAL-13`, Not Active Until Iteration 8 Closes)
 
 **Scope Boundary**
 - This iteration covers student-initiated workflows and Student Hub presentation only.
 - It must consume the shared backend/admin contracts already built for TAL-12/TAL-12A instead of redefining enrollment, finance, document, grade, or gate policy.
 - Existing `/student/*` routes are now protected by authenticated active-student middleware and the Student Hub Help page is data-backed by published FAQ entries. Dashboard, schedule, grades, financials, and documents pages remain placeholder/self-service surfaces and are not UAT-ready evidence until they are data-backed and tested under this iteration.
+- This section is intentionally not part of the active Iteration 8 readiness gate. Linear indexing remains strict: `TAL-12` / Iteration 8 is the active final step; `TAL-13` stays Backlog until Pre-UAT Developer/Internal QA, staff/client UAT sign-off, and production-readiness decisions close or explicitly defer the remaining TAL-12 gates.
 
 ### Part A: Missing Backend Contracts (Student Self-Service)
 - [ ] Implement `ApplicantIntakeService` (Public registration to pending applicant)
