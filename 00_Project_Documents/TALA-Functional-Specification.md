@@ -44,8 +44,9 @@
 | 5.10     | 2026-06-03 | Refined Official Schedule admin surface: manual schedule assignment uses typed Registrar fields, server-derived commit metadata, and conflict guards; committed meetings are changed through schedule-change records, not direct edit forms. |
 | 5.11     | 2026-06-04 | Refined Faculty Class List / Grade Encoding surface: `enrollment_subjects` are class-list rows managed through list/view and typed grade lifecycle actions, not generic create/edit enrollment-subject forms. |
 | 5.12     | 2026-06-05 | Refined Document Request admin surface: `document_requests` are student/approved-service-created workflow records managed through list/view and role-scoped lifecycle actions, not generic create/edit request forms. |
-| 5.13     | 2026-06-05 | Refined Promissory Note admin surface: Accounting may record approved promise cases with typed fields, status is system-controlled, generic edit/status forms are removed, and Student Hub upload/pending lifecycle remains Needs Clarification. |
+| 5.13     | 2026-06-05 | Refined Promissory Note admin surface: Accounting may record approved promise cases with typed fields, status is system-controlled, generic edit/status forms are removed. |
 | 5.14     | 2026-06-05 | Refined Enrollment admin surface: `enrollments` are lifecycle records advanced by approval, payment, LIS, and term-close services; Admin Nexus is list/view plus typed actions, not generic create/edit state forms. |
+| 5.46     | 2026-06-09 | Clarified student-facing promissory note workflow as a digital form (no upload), confirmed GCP OR-Tools solver deployment, and locked Returnee Detection to a strict manual Registrar search (deferred self-service). |
 | 5.15     | 2026-06-05 | Refined Installment Policy admin surface: milestone schedule rows are maintained as typed child rows inside the Accounting-owned policy form, not standalone generic milestone create/edit/status screens. |
 | 5.16     | 2026-06-05 | Refined Schedule Change lifecycle boundary: Registrar edit access is limited to proposed typed requests; approved/applied/rejected changes are lifecycle evidence and cannot be edited through direct routes. |
 | 5.17     | 2026-06-05 | Refined System Super Admin RBAC/admin-account boundary: Role permissions are a seeded read-only matrix in Filament, not generic permission multi-select editing; staff direct edit excludes self and archived accounts. |
@@ -74,6 +75,9 @@
 | 5.40     | 2026-06-06 | Refined COR Control detail display boundary: Registrar/System Super Admin COR token detail screens show descriptive student, term, and enrollment context instead of raw internal foreign-key IDs. |
 | 5.41     | 2026-06-06 | Refined Document Review detail display boundary: Registrar upload detail screens show descriptive student/uploader/term/reviewer labels and source-file evidence without exposing private storage paths or raw internal foreign-key IDs. |
 | 5.42     | 2026-06-06 | Closed the role-by-role raw-input audit as a planning deliverable: remaining brittle surfaces are tracked as prioritized follow-up implementation work instead of blocking the completed TAL-12A admin evidence package. |
+| 5.43     | 2026-06-07 | Approved Pre-TAL-12 rescue scope: Student Hub/self-service, student promissory lifecycle, generic settings editors, and shipping automation are outside rescue scope; automatic scheduling uses IAM-private GCP Cloud Run OR-Tools CP-SAT with faculty-subject eligibility and 100% hard-constraint validity. |
+| 5.44     | 2026-06-08 | Clarified scheduling rescue constraints: all modalities, including Modular, require an assigned faculty teacher/adviser path; section `max_seats` is editable but bounded to a hard maximum of 30 heads and cannot be lowered below current enrollment. |
+| 5.45     | 2026-06-09 | Clarified automatic scheduling flow: section/year-level planning and curriculum demand readiness happen before faculty/room/time solving; the rescue solver schedules existing planned sections and does not auto-create sections. |
 
 ---
 
@@ -270,7 +274,7 @@ After initial registration, applicants can return to check their enrollment prog
 **Modality Selection**: Applicants must choose a preferred learning mode based on their department:
 
 - **SHS Options**:
-    - **Modular**: Weekly module pickup with flexible attendance. No room/teacher scheduling required.
+    - **Modular**: Weekly module pickup with flexible attendance. No room assignment required, but a faculty teacher/adviser assignment is still required for class ownership, module accountability, grade encoding, and faculty class-list visibility.
     - **Online**: Virtual classes. No room assignment needed.
 - **College Options**:
     - **On-Site**: Face-to-face for all subjects. Fixed classroom schedules with room/teacher assignment.
@@ -367,34 +371,6 @@ If Registrar clicks "Reject" (e.g., blurry, wrong document):
 4. **Result**: The old email login stops working
 5. **Sends Welcome Email**: Contains the New Official Credentials and link to the Main Student Portal
 
-**Application/Enrollment State Rule**: Applicant states do not have active Student Hub access. When Registrar approval is complete, the applicant may enter payment as `approved`. Payment clearance moves the enrollment to `Pre-Enrolled` and immediately activates the account. `OfficiallyEnrolled` is reserved for optional LIS completion and is not required before COR/class access. The system must not leave a student payment-cleared but inactive.
-
----
-
-### 4.2 Pipeline B: Existing Student Enrollment (Student Hub)
-
-**Target Audience**: All current students (Regular, Irregular, and Returnee)
-
-**Platform**: Internal System (Accessed via Student ID)
-
-#### 4.2.0 Returnee Detection (Returning Students)
-
-**Trigger**: When a student who was previously dropped or inactive attempts to re-enroll.
-
-**Workflow**:
-
-1. **Search by LRN**: The Registrar searches for the student's existing record using their LRN.
-2. **Account Reactivation**: The system finds the old `User` record (status: `dropped` or `inactive`) and reactivates it (`users.status` → `active`, `student_profiles.operational_status` → `Active`). Both fields must be updated atomically.
-3. **"Welcome Back" Profile Update**: The student is presented with a pre-filled form showing their existing information, allowing them to update their address, contact number, guardian info, and other personal details.
-4. **History Preservation**: All previous grades, enrollment records, financial transactions, and academic history remain linked to the reactivated account.
-5. **Balance Carry-Forward**: Any unpaid balance from the previous enrollment remains on the student's ledger and must be cleared during Step 1 (Clearance & Eligibility).
-6. **Enrollment Record**: The new enrollment is tagged as `student_type = 'returnee'` for reporting and tracking purposes.
-7. **Proceed to Step 1**: After profile update, the returnee enters the normal Pipeline B flow (clearance check → subject selection → payment).
-
-**Note**: Returnees do NOT go through Pipeline A (new applicant intake). They are treated as existing students with preserved history.
-
-#### 4.2.1 Step 1: Clearance & Eligibility
-
 **System Logic**:
 
 - **If Balance > 0**: Blocked
@@ -463,7 +439,7 @@ Upload Proof → Cashier Confirms → Student becomes **Finance-Cleared** (Pre-E
 **Offline Features**:
 
 - Caches Read-Only Data (COR, Class Schedule, Latest Grades) on the phone
-- **Modular Students**: Caches module pickup schedule (day + time window)
+- **Modular Students**: Caches module pickup schedule (day + time window) and responsible faculty teacher/adviser ownership
 - **Sync Logic**: When internet returns, the app Auto-Refreshes (Pull-to-Refresh) to fetch the latest status
 
 **Constraint**: No Offline Form Submission. Students cannot enroll or upload docs without internet.
@@ -666,19 +642,57 @@ The section's assigned modality directly determines how the scheduling engine be
 | ----------- | ------------- | --------------- | ------------------ | --------------------- | ------------------------------------------------------ |
 | **On-Site** | College Only  | Required        | Required           | Full (Room + Teacher) | Fixed timetable shown on COR                           |
 | **Online**  | SHS & College | Not required    | Required           | Teacher-only check    | Online schedule details without meeting URL management |
-| **Modular** | SHS Only      | Not required    | Not required       | None                  | Module pickup schedule (day + time window)             |
+| **Modular** | SHS Only      | Not required    | Required           | Teacher-only check    | Module pickup schedule (day + time window)             |
 
-**Section-Based Modality Logic**: The scheduling engine enforces constraints based on the `sections.modality` field. If a section is `on_site`, the Registrar must define room and time schedules, and the system enforces conflict checks. If the section is `online` or `modular`, room conflict checking is skipped.
+**Section-Based Modality Logic**: The scheduling engine enforces constraints based on the `sections.modality` field. If a section is `on_site`, the Registrar must define room and time schedules, and the system enforces room, section, and teacher conflict checks. If the section is `online` or `modular`, room conflict checking is skipped, but teacher assignment, teacher eligibility, teacher availability, and teacher double-booking checks still apply. Modular sections still require a responsible faculty teacher/adviser even when no physical room is scheduled.
 
 **Online Link Boundary**: TALA records schedule modality, day, time, instructor, section, subject, and room when applicable. TALA does **not** require, validate, store, warn about, or export Zoom, Google Meet, LMS, or platform meeting URLs. Online link coordination remains outside the system unless the client explicitly approves link tracking in a later version.
 
 **Term Readiness Gate**: The Registrar must first configure the target academic term with `term_name`, `term_start_date`, `term_end_date`, and `scheduling_starts_at`. If any required field is missing, faculty availability submission, availability locking, draft generation, and schedule commitment are disabled. The system shows a setup warning listing missing fields (for example: "Schedule setup locked: missing `scheduling_starts_at`").
 
+**Approved Rescue Scheduling Architecture**: Automatic schedule generation is a cloud-hosted deterministic optimization workflow. TALA uses an IAM-private Google Cloud Run service running Google OR-Tools CP-SAT. Vertex AI is not the primary scheduler because timetable generation is a hard-constraint optimization problem, not a prediction problem. Laravel remains the source of truth, validator, reviewer, and committer.
+
+**Pre-Solver Section Planning Rule**: TALA must plan sections before calling the scheduler. The solver does not decide how many sections exist, does not split a year level into new sections, and does not create section records during solving. Registrar/setup staff first create term-scoped sections for each program and year level, set `curriculum_id`, `year_level`, `curriculum_period`, modality, editable `max_seats`, `enrolled_count`, and fixed room when required. Only after those section records exist does Laravel derive the subject demand from the curriculum and ask the solver to assign faculty, room, day, and time.
+
+**Correct Scheduling Sequence**: The business flow is section/curriculum first, then faculty/room/time solving. Faculty availability and faculty-subject eligibility are inputs used to assign each planned section's required subjects. They do not replace section planning and they do not determine the section count. A section can be scheduled only when it has explicit year-level/curriculum-period scope and a valid curriculum subject set.
+
+**Cloud Solver Security Boundary**: The Cloud Run solver must require authentication and must not allow public unauthenticated invocation. Laravel calls the solver with a Google-signed ID token whose audience is the solver service URL. The invoking service account must be restricted to the Cloud Run Invoker role for the scheduler service; OCR credentials must not be reused unless a later security review explicitly approves shared credentials.
+
+**Scheduling Source-of-Truth Layers**:
+
+| Layer | Business Meaning | Rescue Contract |
+| --- | --- | --- |
+| Curriculum offering | Defines which subjects must be offered for a program, year level, and term/semester. | Use `curriculums`, `curriculum_subjects`, and `subjects`; scheduling must not invent subjects. |
+| Section planning | Defines the actual class blocks that must be scheduled for the target term. | Registrar/setup staff create sections before solving. The rescue solver schedules existing sections only; automatic section creation/splitting is outside the current rescue scope. |
+| Section demand | Defines which section needs which subject set for the target term. | Use `sections.curriculum_id`, `sections.year_level`, and `sections.curriculum_period` to map each section to `curriculums` / `curriculum_subjects`; do not infer demand from section names. |
+| Section capacity | Defines how many students may be assigned to a section. | `sections.max_seats` defaults to 30 and is editable by authorized Registrar/setup staff, but the hard maximum is 30 heads. It cannot be set below `enrolled_count`; any larger-capacity exception is outside rescue scope and requires a separate approved policy. |
+| Faculty teaching eligibility | Defines which faculty may teach which subjects before the solver runs. | Add a minimal `faculty_subject_eligibilities` contract; do not use post-commit `section_teacher` as the pre-scheduling eligibility source. |
+| Faculty availability | Defines when faculty are available for the target term. | Faculty submits availability windows only; they do not self-select official teaching subjects. |
+| Room/catalog constraints | Defines room code, capacity, type, and availability. | Rescue uses `sections.room` as the fixed-room/minimal room catalog input. A normalized room table remains deferred unless separately approved. |
+| Calendar/term constraints | Defines the scheduling period and operational gates. | Generate schedules per term as a recurring weekly timetable, not monthly or whole-year schedules. |
+
+**Faculty Subject Eligibility Rule**: The faculty account creator, Academic Head, Registrar, or another approved administrative owner assigns the subjects a faculty member is eligible to teach. Faculty may view their assigned/eligible subjects but may not add, remove, replace, or self-approve teaching subjects from their own account. Any change request to teaching eligibility is handled outside the faculty self-service flow unless a later typed request workflow is approved.
+
+**Accuracy and Validity Target**: The automatic scheduler target is **greater than 98% auto-assignment coverage for feasible inputs**. Every committed official schedule must still have **100% hard-constraint validity**. Any generated row with a hard conflict remains a draft conflict and cannot be committed.
+
+**Section Planning Readiness Flow**:
+
+1. Registrar selects the target term and confirms term readiness.
+2. Registrar/setup staff create the planned sections per program and year level, such as `BSIT 1A`, `BSIT 1B`, or Grade 11 sections.
+3. Each section receives explicit solver scope: `curriculum_id`, `year_level`, and `curriculum_period`.
+4. Each section receives capacity and modality inputs: `max_seats` default 30, `enrolled_count`, modality, and fixed room for on-site/blended sections.
+5. Laravel derives each section's required subjects from the curriculum, not from section names and not from faculty preferences.
+6. Faculty-subject eligibility defines who may teach each derived subject.
+7. Faculty availability defines when eligible faculty may teach.
+8. The solver assigns faculty, room when required, day, and time for each section-subject demand.
+
+**Current Rescue Boundary**: Automatic section creation, automatic student balancing across sections, and automatic generation of additional overflow sections are not part of the rescue scheduler. If a program/year level needs another section because `max_seats` is reached, Registrar/setup staff create that section before generation and rerun readiness.
+
 #### 5.3.1 Step 1: Faculty Availability Self-Service Submission
 
 **Current TAL-12 Implementation Scope Note**: The scheduling foundation tables for faculty availability exist, but the full Faculty Availability self-service UI/service is not treated as completed Pre-UAT evidence until a dedicated implementation item delivers the submission, review/lock, and change-request screens. Current TAL-12 admin QA may validate term readiness, direct schedule assignment, schedule generation/commit surfaces, and role boundaries only.
 
-**Schedule Draft Surface Boundary**: Schedule generation run records are created by the scheduling service/action layer after term readiness and conflict checks. The Registrar may view runs and commit eligible generated or under-review runs through approved lifecycle actions. Committing a run must call a backend schedule-commit service that rejects conflicted/incomplete draft rows, creates official `section_meetings`, synchronizes faculty-section-subject assignment, records lifecycle activity, and marks the run committed. The Admin Nexus must not expose a generic Schedule Draft create/edit form for raw `term_id`, `requested_by`, `constraint_summary`, or status mutation.
+**Schedule Draft Surface Boundary**: Schedule generation run records are created by the scheduling service/action layer after term readiness and conflict checks. The Registrar may view runs and commit eligible generated or under-review runs through approved lifecycle actions. Committing a run must call a backend schedule-commit service that rejects conflicted/incomplete draft rows, creates official `section_meetings`, synchronizes faculty-section-subject assignment, records lifecycle activity, and marks the run committed. The Admin Nexus must not expose a generic Schedule Draft create/edit form for raw `term_id`, `requested_by`, `constraint_summary`, solver payload, or status mutation.
 
 - **Registrar Action**: Before the school year/term scheduling period begins, the Registrar opens a limited availability submission period with `opens_at`, `closes_at`, and target term.
 - **Date Rule**: The system enforces `opens_at < closes_at <= scheduling_starts_at`. If no valid submission period exists, faculty availability entry and schedule generation remain locked for that term.
@@ -688,30 +702,50 @@ The section's assigned modality directly determines how the scheduling engine be
 
 #### 5.3.2 Step 2: Direct Schedule Assignment
 
-- **Assignment Logic**: The Registrar assigns a teacher, room, and time to a section directly. There are no draft runs, exception revisions, or multi-draft state machines.
+- **Manual Assignment Logic**: The Registrar may assign a teacher, room, and time to a section directly as a fallback or correction path. Automatic generation uses schedule runs and draft rows; direct manual assignment is not the automatic scheduler.
 - **Real-Time Validation (The Commit Guard)**: Upon saving an assignment, the system performs real-time conflict checking:
     - "Is the teacher assigned to another class at the same day/time?"
     - "Is the room already occupied at the same day/time?" (on-site meetings only)
     - "Is the teacher available at this time based on their submitted availability?"
+    - "Is the teacher eligible to teach this subject?"
 
 **If YES** -> Show Error: "Hard conflict detected. Resolve all blocking conflicts before saving." (Save Failed)
 
 **If NO** -> Save Successfully
 
-**Faculty Assignment Tracking**: When saved, the system directly records official meeting rows in the `schedules` table. This enables grade submission tracking (Section 8.4.1), faculty class list generation (Section 7.1.1), and final schedule export.
+**Faculty Assignment Tracking**: When saved or committed, the system records official meeting rows in `section_meetings` and synchronizes the `section_teacher` pivot. This enables grade submission tracking (Section 8.4.1), faculty class list generation (Section 7.1.1), and final schedule export.
 
 **Current TAL-12 Admin Mapping**: Direct Schedule Assignment is exposed as a Registrar-only `Manual Assignment` create flow on Official Schedules. The form uses typed fields for term, section, subject, faculty, room, day, start time, end time, and modality. The system derives `committed_by`, `committed_at`, and manual-vs-draft source internally; staff do not manually type these values. Once an official meeting row exists, TAL-12 does not expose direct edit/delete actions for it. Corrections after commitment must be recorded through the Schedule Change workflow below.
 
 **Current TAL-12 Conflict Guard**: The implemented guard rejects invalid time ranges, overlapping faculty assignments, and overlapping physical-room assignments for on-site/blended meetings. Teacher availability-window validation remains tied to the Faculty Availability self-service/review service, which is documented but not counted as completed TAL-12 Pre-UAT evidence.
 
+**Automatic Generation Flow**:
+
+1. Registrar confirms term readiness.
+2. Registrar/setup staff create planned sections for the term by program and year level.
+3. Laravel verifies section planning readiness: every target section has `curriculum_id`, `year_level`, `curriculum_period`, modality, valid capacity, and room input when required.
+4. Registrar confirms faculty-subject eligibility and locked/submitted faculty availability.
+5. Registrar clicks Generate Schedule from Schedule Generation Runs.
+6. Laravel creates a run and captures an immutable input snapshot.
+7. Laravel dispatches a queue job after database commit.
+8. The queue job triggers the IAM-private Cloud Run solver service with a Google ID-token authenticated request.
+9. The solver runs OR-Tools CP-SAT with a strict timeout and returns result JSON or writes result JSON to Cloud Storage.
+10. Laravel validates every returned row against curriculum, section capacity, mandatory faculty assignment, faculty-subject eligibility, availability, room, section, modality, and conflict rules.
+11. Laravel inserts `schedule_draft_rows` with `ok`, `warning`, or `conflict` status.
+12. Registrar reviews the run.
+13. `ScheduleCommitService` commits only runs with no blocking draft-row conflicts.
+14. The commit creates `section_meetings`, updates `section_teacher`, and records activity.
+
 **Post-Commit Changes**: Availability changes after schedules are committed do not automatically affect approved schedules. Any official schedule change requires Registrar approval, reason capture, and audit history containing the old values and new values. Registrar-facing schedule-change forms must use typed fields for the target official meeting, requested teacher, room, day, start time, end time, modality, and reason. The target official meeting control must be scoped to the selected term, show descriptive meeting labels, and reject submitted meetings that do not belong to that term. The old/new values may be stored internally as audit snapshots, but raw JSON payload editing is not an admin workflow. Only `proposed` schedule-change requests are editable by Registrar; once approved, applied, or rejected, the record becomes lifecycle evidence and must move only through approved actions or remain read-only. Approve and Apply controls must call a backend lifecycle service that validates `authorize-overrides` or `manage-schedules`, accepts only valid state transitions, applies the normalized payload through the official schedule assignment conflict guard, and records lifecycle activity.
 
 #### 5.3.4 Step 4: Capacity Management
 
-- **Business Rule**: Every Section has Max_Seats
-- If Enrolled_Count >= Max_Seats, the Section Auto-Closes
-- **Registrar Override**: Registrar can enter a **Registrar Override PIN** to add +1 seat (Max 10% overflow)
-- **Log**: All capacity overrides are logged in Audit Trail
+- **Business Rule**: Every section has editable `Max_Seats`, defaulting to **30 heads**.
+- **Hard Maximum**: `Max_Seats` cannot exceed **30 heads** in the rescue scope.
+- **Safe Edit Rule**: Authorized Registrar/setup staff may edit `Max_Seats` before or during sectioning, but the value cannot be lowered below the current `Enrolled_Count`.
+- **Auto-Close Rule**: If `Enrolled_Count >= Max_Seats`, the section auto-closes for additional assignment.
+- **Override Boundary**: The previous 10% overflow/PIN model is not part of the approved rescue flow. Any capacity above 30 requires a separate approved exception policy and audit contract before implementation.
+- **Log**: All capacity edits are logged in the audit trail.
 
 #### 5.3.5 Scheduling Edge Cases
 
@@ -719,6 +753,8 @@ The section's assigned modality directly determines how the scheduling engine be
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | Incomplete academic term setup                              | Lock availability and scheduling features; show missing required term fields                                                                 | Registrar                         |
 | Missing `term_start_date`, `term_end_date`, or `scheduling_starts_at` | Lock availability period creation, faculty availability editing, and schedule assignment                                                     | Registrar                         |
+| Missing planned sections for a program/year level           | Block schedule generation for that scope; Registrar/setup staff must create sections before solving                                          | Registrar / Setup Staff           |
+| Section missing `curriculum_id`, `year_level`, or `curriculum_period` | Mark term scheduling readiness as failed; do not derive subject demand from section name                                                     | Registrar / Setup Staff           |
 | Missing faculty availability submission period              | Keep faculty availability and schedule assignment locked for the selected term                                                               | Registrar                         |
 | Faculty misses availability deadline                        | Mark as missing/late; Registrar manually verifies availability during schedule assignment                                                    | Registrar                         |
 | Faculty submits availability late                           | Store as late; Registrar reviews during manual assignment                                                                                    | Registrar                         |
@@ -895,12 +931,11 @@ The section's assigned modality directly determines how the scheduling engine be
 
 **Mode C: Promissory Note (Promise Tracking Only)**
 
-- **Workflow**: Students upload a signed Promissory Note. Only one allowed per academic year.
-- **Approval**: **Accounting/Cashier** is the canonical approver of promissory notes (financial instrument). The Registrar sees a read-only **"Promissory Active"** tag/badge on the student's enrollment record but cannot approve or modify promissory notes.
+- **Workflow**: Students fill out a digital Promissory Note request form (amount, reason, requested date) via the Student Hub. No document upload is required. Only one allowed per academic year.
+- **Approval**: **Accounting/Cashier** is the canonical approver of promissory notes (financial instrument). The Admin Nexus acts as an approval queue for pending student requests. The Registrar sees a read-only **"Promissory Active"** tag/badge on the student's enrollment record but cannot approve or modify promissory notes.
 - **System Logic**: A validated Promissory Note records the student's payment promise and expiry date for Accounting follow-up. It does **not** clear the balance, does **not** satisfy the minimum downpayment requirement, and does **not** move the student to `Pre-Enrolled` or `OfficiallyEnrolled`.
 - **Effect**: Promissory approval does not unlock COR, class-list visibility, official enrollment, or exam permit access. The student remains financially pending until the minimum downpayment is actually received or the balance is fully paid.
-- **Admin Surface Boundary**: In the current TAL-12 Admin Nexus implementation, Accounting/Cashier may record an already approved promissory case with typed student, term, enrollment, ledger, amount, due-date, and reason fields. Enrollment and ledger choices must be scoped to the selected student and optional term, with backend validation rejecting cross-student, cross-term, or cross-enrollment submissions. Raw unscoped enrollment-ID or ledger-entry-ID pickers are not approved promissory UI. The record is system-marked `approved` with approver and approval timestamp. Accounting may view/filter promissory records using descriptive student, enrollment, ledger, and approver labels rather than raw foreign-key IDs, but must not edit arbitrary status values through a generic form after creation. Registrar, Faculty, Student, and Academic Head surfaces may show only the permitted high-level status/tag and must not expose promissory documents, amount history, or mutation actions.
-- **Needs Clarification**: The Student Hub upload intake, `pending` status lifecycle, one-per-academic-year enforcement key, replacement/renewal behavior, and explicit reject/expire/settle action model require a dedicated workflow decision before being claimed as implemented.
+- **Admin Surface Boundary**: In the current TAL-12 Admin Nexus implementation, Accounting/Cashier reviews pending student requests in an approval queue, using approve/reject actions. Enrollment and ledger choices must be scoped to the selected student and optional term, with backend validation rejecting cross-student, cross-term, or cross-enrollment submissions. Raw unscoped enrollment-ID or ledger-entry-ID pickers are not approved promissory UI. An approved record is system-marked `approved` with approver and approval timestamp. Accounting may view/filter promissory records using descriptive student, enrollment, ledger, and approver labels rather than raw foreign-key IDs, but must not edit arbitrary status values through a generic form after creation. Registrar, Faculty, Student, and Academic Head surfaces may show only the permitted high-level status/tag and must not expose amount history or mutation actions.
 
 #### 6.2.2 Service Fees & Assessments
 
@@ -1719,6 +1754,7 @@ The student portal allows official students to request documents from a fixed ap
 - **Delivery Payment Sequence**: For delivery, the student pays only the document fee before processing. The Registrar then ships the document and records the actual courier fee, moving the request to `pending_shipping_payment` for Accounting confirmation.
 - **Grace-Period Debt Rule**: If the recorded shipping fee is not paid within 3 calendar days from shipment, the system posts the shipping amount as standard debt to the student ledger and marks the request `completed_with_debt`.
 - **Document Request Admin Surface Boundary**: Document request records are created by student/request intake or approved service workflows. Registrar/Accounting-facing Admin Nexus screens are list/view lifecycle-action surfaces for document-fee confirmation, Registrar fulfillment, courier recording, pickup completion, shipping-payment confirmation, and cancellation. They must not expose a generic create/edit Document Request form with raw student IDs, term IDs, document type mutation, status mutation, delivery flags, or free-request toggles.
+- **Pre-TAL-12 Rescue Boundary**: Advanced shipping automation is outside rescue scope. Manual Registrar fulfillment may remain, but courier integrations, automatic shipping fee escalation, rich shipment UX, and shipping SLA niceties are deferred unless already stable and tested. Shipping must not block the core SIS, enrollment, finance ledger, grades, or automatic scheduling delivery.
 - **Service Request Admin Surface Boundary**: Service request records are created by student/request intake or approved backend workflows. Registrar-facing admin screens are list/view lifecycle-action surfaces for review, resolution, rejection, cancellation, and fulfillment handoff. Resolve must expose an optional typed `resolution_note`, while Reject and Registrar Cancel must require typed `rejection_reason` / `cancellation_reason` modal fields that feed student notification context and lifecycle activity evidence. The UI must not expose a generic create/edit Service Request form with raw student IDs, attachment path arrays, assignee/resolver IDs, arbitrary status mutation, or discarded generic notes.
 
 ### 9.2 Delivery & Data Privacy (RA 10173)
@@ -1753,7 +1789,7 @@ The T.A.L.A. system is "State-Aware", meaning feature availability changes autom
 | Module                   | Status    | Features                                                                               |
 | ------------------------ | --------- | -------------------------------------------------------------------------------------- |
 | **Module 1 (Student)**   | OPEN      | "Create Account" and "Upload Documents" are active. PWA shows "Enrollment in Progress" |
-| **Module 2 (Registrar)** | ACTIVE    | Sectioning tools are unlocked. Max_Seats override is enabled                           |
+| **Module 2 (Registrar)** | ACTIVE    | Sectioning tools are unlocked. Editable bounded `Max_Seats` is enabled, with 30 heads as the rescue hard maximum |
 | **Module 4 (Faculty)**   | READ-ONLY | Class lists are empty or fluctuating                                                   |
 
 ---
@@ -1945,7 +1981,7 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 | --- | --- | --- | --- |
 | Enrollment review | Generic lifecycle/state mutation would bypass enrollment, payment, LIS, and receipt services. | Keep `EnrollmentResource` list/view/action-only; hard-copy receipt is a typed Registrar action. | Implemented; maintain in TAL-12A evidence. |
 | Document review / OCR uploads | Raw upload IDs, private paths, OCR payloads, and generic status editing are unsafe staff UX. | Keep review queue list/view/action-only; show descriptive student/uploader/term/reviewer labels and source-file evidence; reasons stay typed modal fields. | Implemented; maintain in TAL-12A evidence. |
-| Document requests / fulfillment | Generic request forms and raw receipt-path typing conflict with courier/privacy workflow. | Keep lifecycle actions; shipment proof uses private upload control and detail views show proof status. | Implemented; maintain in TAL-12A evidence. |
+| Document requests / fulfillment | Generic request forms, raw receipt-path typing, and advanced shipping automation conflict with the rescue scope. | Keep lifecycle actions and manual fulfillment; shipment proof uses private upload control and detail views show proof status. Defer courier integrations, shipping SLA niceties, and expanded shipping automation. | Implemented surface; advanced shipping automation deferred for rescue. |
 | Service requests | Lifecycle notes and statuses must not be arbitrary generic fields. Detail context should avoid raw IDs. | Resolve/Reject/Cancel use typed modal note/reason fields; next implementation pass should replace remaining raw detail IDs with relationship-backed labels. | Follow-up, priority P2. |
 | Scheduling / schedule changes | Raw meeting IDs and old/new JSON payloads are brittle. | Keep term-scoped official-meeting selects and typed requested-meeting fields; old/new payloads remain internal snapshots. | Implemented; maintain in TAL-12A evidence. |
 
@@ -1956,7 +1992,7 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 | Ledger entries | Generic ledger create/edit would corrupt immutable accounting evidence. | Ledger is list/view immutable evidence; one-off adjustments require a future typed service/action. | Follow-up, priority P1 if stakeholders need manual adjustments. |
 | Payments / payment attempts | Raw gateway payload/meta editing is not an Accounting workflow. | Payment queues remain service-owned read-only/evidence surfaces with role-scoped confirmation actions. | Implemented; maintain in TAL-12A evidence. |
 | Fee templates / installment policy | Unscoped raw year/grade/program inputs create invalid pricing scope. | Use canonical education/program/year scope controls and one active config per scope; milestones are typed child rows. | Implemented; maintain in TAL-12A evidence. |
-| Promissory notes | Generic status/edit forms and unscoped IDs are brittle. | Accounting records approved promise cases with scoped student/term/enrollment/ledger choices; student upload/pending lifecycle remains separate. | Partially implemented; student lifecycle Needs Clarification / TAL-13 or new issue. |
+| Promissory notes | Generic status/edit forms, unscoped IDs, and student-side upload/pending/replacement/settlement lifecycle are too broad for rescue. | Accounting may record approved promise cases with scoped student/term/enrollment/ledger choices. Student upload/pending/replacement/settlement lifecycle is descoped from TAL-12. | Accounting promise tracking remains; student lifecycle deferred. |
 
 #### Faculty
 
@@ -1964,7 +2000,7 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 | --- | --- | --- | --- |
 | Class lists / grade entry | Generic enrollment-subject CRUD and raw grade rows bypass grading rules. | Faculty uses list/view class lists plus program-specific grade modals backed by grading services. | Implemented; maintain in TAL-12A evidence. |
 | Grade correction requests | Generic correction editing and direct final-grade override would bypass approval rules. | Registrar/faculty workflows use typed lifecycle actions; official corrections derive final grade/remarks from scheme-specific period inputs. | Implemented; maintain in TAL-12A evidence. |
-| Faculty availability | The documented business process expects self-service availability, but the current Pre-UAT package does not implement that surface. | Track as a separate workflow; do not claim as TAL-12A evidence until implemented. | Follow-up, priority P2. |
+| Faculty availability and subject eligibility | The documented business process expects availability data, and approved rescue scheduling also requires a pre-scheduling faculty-subject eligibility contract. | Faculty submits availability only; faculty cannot self-select teaching subjects. Add minimal faculty-subject eligibility before automatic scheduling implementation. | Rescue dependency for automatic scheduling. |
 
 #### Academic Head
 
@@ -1981,24 +2017,25 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 | Roles / permissions | Generic role create/edit and permission multi-select could break seeded RBAC. | Roles are a read-only seeded permission matrix; no create/edit/permission editor. | Implemented; maintain in TAL-12A evidence. |
 | Staff accounts | Self-edit, archived direct edit, and arbitrary roles/statuses are unsafe. | Direct edits exclude self/archived users; archive/restore owns lifecycle with reason/role validation. | Implemented; maintain in TAL-12A evidence. |
 | Audit logs | Raw JSON/key-value payload display is poor audit UX. | Activity detail displays labeled immutable evidence lines derived from formatted metadata. | Implemented; maintain in TAL-12A evidence. |
-| System settings | Generic key/value/JSON settings editing is too broad for Pre-UAT. | Hide/block generic settings resource; future changes require dedicated typed module-specific settings pages. | Follow-up, priority P1 for admission requirements if needed before expanded UAT. |
+| System settings | Generic key/value/JSON settings editing is too broad for Pre-UAT and can break admissions, finance, scheduling, maintenance, and cutover behavior. | Keep `system_settings` as an internal runtime registry; future changes require dedicated typed domain workflows with validation, authorization, audit, and cache invalidation. | Generic editor frozen for rescue. |
 
 #### Student / Applicant / Public Surfaces
 
 | Feature | Issue Found | Functional Refactor | Status / Priority |
 | --- | --- | --- | --- |
-| Student Hub modules | Student-facing dashboard, schedule, grades, financials, and documents are not complete UAT evidence. | Keep out of TAL-12A; consume shared backend/admin contracts in TAL-13. | Follow-up, priority P1 under TAL-13. |
+| Student Hub modules | Student-facing dashboard, schedule, grades, financials, payments, document requests, grade corrections, and PWA/offline behavior are not complete rescue evidence. | Keep out of TAL-12/TAL-12A except authenticated access and published FAQ consumption. Consume shared backend/admin contracts in TAL-13. | Deferred to TAL-13. |
 | Public FAQ | Public consumption must not expose draft FAQ records. | `/faq` renders published FAQ entries only; authoring remains System Super Admin only. | Implemented. |
-| Promissory upload/pending lifecycle | Student-side upload/replacement/settlement rules remain underdefined. | Mark as Needs Clarification before implementation. | Needs Clarification / P1 if required for UAT. |
+| Promissory upload/pending lifecycle | Student-side upload/replacement/settlement rules remain underdefined and are not required for the approved rescue scope. | Descope from TAL-12; keep Accounting-only approved promise tracking. | Deferred to TAL-13 or a later dedicated workflow. |
 
 #### Priority Order
 
 1. P1: Keep TAL-12 Pre-UAT open until Developer/Internal QA executes against the checklist and logs actual failures.
-2. P1: Track Student Hub/self-service gaps under TAL-13, not TAL-12A.
-3. P1: Add dedicated typed settings pages only for workflows required before expanded UAT, starting with Admission Requirements if stakeholders require it.
+2. P1: Track Student Hub/self-service gaps under TAL-13, not TAL-12/TAL-12A.
+3. P1: Keep generic System Settings editor frozen; add dedicated typed settings pages only for workflows required before expanded UAT, starting with Admission Requirements only if stakeholders require it.
 4. P1: Define Accounting adjustment workflow before adding any ledger mutation UI.
-5. P2: Replace remaining raw detail display IDs in Service Request detail views with relationship-backed labels.
-6. P2: Decide whether Academic Head in-system approval and faculty availability self-service are required before staff/client UAT.
+5. P1: Add minimal `faculty_subject_eligibilities` contract before automatic schedule generation implementation.
+6. P2: Replace remaining raw detail display IDs in Service Request detail views with relationship-backed labels.
+7. P2: Decide whether Academic Head in-system approval and full faculty availability self-service are required before expanded UAT.
 
 
 ---

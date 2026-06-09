@@ -1,7 +1,7 @@
 # TALA Local Iteration Checklist (DB-First)
 
 **Location Purpose:** Local execution checklist aligned with the 3 main specs and Linear roadmap.
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-06-09
 **Linear Project:** TALA Iterative Implementation Map (DB-First)
 
 ---
@@ -12,6 +12,8 @@
 - Shared student-domain backend logic required by admin workflows is **not deferred**. This includes student profiles, enrollments, assessments, payment clearance, ledgers, promissory holds, document requests, OCR/manual-review state, grades, class-list visibility, and calendar gates.
 - Student Portal UI and student self-service contracts are **deferred** to a separate iteration after backend/admin stabilization.
 - No Student Portal frontend or student self-service contract work should be marked complete under backend/admin iterations before `TAL-13`.
+- Pre-TAL-12 rescue scope is approved as of 2026-06-07. The rescue is an execution track, not a planning-only phase.
+- Do not update Linear from this checklist automatically; when Linear is updated later, mirror this exact local scope boundary.
 
 ---
 
@@ -21,6 +23,175 @@
 - If Functional and Technical specs conflict, pause implementation and resolve the conflict in docs before coding.
 - Do not mark any checklist item done if the implemented behavior is not traceable to FS/TS sections.
 - Backend/service completion alone does not make a staff module complete. A staff-facing module is admin-ready only when the required Filament Resource/Page/Action exists, role access is enforced, and the panel action calls the tested backend service.
+
+---
+
+## Pre-TAL-12 Rescue Execution Track (Approved 2026-06-07)
+
+**Purpose:** Rapidly develop the smallest viable working SIS path while protecting the approved rescue boundaries.
+
+**Approved Descope / Freeze**
+
+- [x] Full Student Hub self-service remains outside TAL-12/TAL-12A except authenticated access and published FAQ consumption.
+- [x] Student-side promissory upload/pending/replacement/settlement lifecycle remains outside TAL-12; Accounting-only approved promise tracking may remain.
+- [x] Generic System Settings editor remains frozen; `system_settings` stays an internal runtime registry.
+- [x] Advanced shipping automation remains outside rescue; manual Registrar fulfillment and hardened receipt evidence may remain.
+- [x] Vertex AI is not the TAL-12 scheduler.
+
+**Approved Rescue Build Targets**
+
+- [x] Add/approve minimal `faculty_subject_eligibilities` contract before automatic scheduling implementation.
+- [x] Confirm section-to-year-level/term mapping for solver input; add a small explicit contract if naming/import convention is not sufficient.
+- [x] Confirm minimal room catalog input for solver; defer full room-management module unless explicitly approved.
+- [x] Clarify modality scheduling rule: every modality, including Modular, requires an assigned faculty teacher/adviser path for committable schedules.
+- [x] Clarify section capacity rule: `max_seats` is editable but bounded to a rescue hard maximum of 30 heads and cannot be lowered below current enrollment.
+- [x] Enforce mandatory faculty assignment and bounded section capacity in scheduling code/tests before solver result ingestion is marked complete.
+- [x] Implement automatic scheduling as an IAM-private Google Cloud Run service running OR-Tools CP-SAT.
+- [x] Generate immutable Laravel input snapshot before solver dispatch.
+- [x] Dispatch solver through queue job after database commit using a Google ID-token authenticated request to the private Cloud Run service when the `cloud_run` driver is enabled.
+- [x] Ingest solver output into `schedule_draft_rows` with `ok`, `warning`, or `conflict` status.
+- [x] Validate all solver rows in Laravel before commit: curriculum, section demand, faculty eligibility, availability, room, modality, time, and existing commitments.
+- [ ] Enforce `>98%` auto-assignment coverage for feasible inputs as the solver target.
+- [x] Enforce `100%` hard-constraint validity for committed `section_meetings`.
+- [x] Keep `ScheduleCommitService` as final authority for creating `section_meetings`, synchronizing `section_teacher`, and recording activity.
+- [ ] Preserve PayMongo / GCash as required external payment infrastructure with webhook-confirmed evidence and idempotent ledger posting.
+- [ ] Preserve controlled legacy migration as strict template -> preview/validation -> commit -> audit, with no in-browser row repair/freeform spreadsheet import.
+
+**Linear Mirror Note**
+
+- When Linear is updated later, mirror this execution track into the appropriate TAL-12/TAL-12A items or new follow-up issues.
+- Do not create one monolithic "rescue plan" issue that consumes the full 1.5 weeks; split implementation into small verifiable slices: eligibility contract, solver input snapshot, IAM-private Cloud Run solver, result ingestion, Laravel validation, commit hardening, and Pre-UAT retest.
+
+**Slice 1 Evidence - Faculty Subject Eligibility**
+
+- [x] Added `faculty_subject_eligibilities` table contract with faculty, subject, optional term scope, active/inactive status, priority, max weekly hours, approval metadata, and uniqueness guard.
+- [x] Added `FacultySubjectEligibility` model relationships and active eligibility lookup used by scheduling.
+- [x] Added policy boundary: Registrar/Academic Head/System Super Admin permission can manage; Faculty can view only their own eligibility and cannot self-assign.
+- [x] Added minimal Filament admin resource for maintaining faculty-subject eligibility records.
+- [x] Updated manual schedule assignment and schedule commit path to reject faculty-subject assignments without active eligibility.
+- [x] Verified with focused tests: `FacultySubjectEligibilityTest`, `SectionMeetingAssignmentServiceTest`, and `ScheduleCommitServiceTest`.
+
+**Slice 2 Evidence - Scheduling Readiness / Schema Audit**
+
+- [x] Audited FS/TS scheduling source-of-truth layers against current database fields.
+- [x] Confirmed section naming/import convention is not sufficient for automatic scheduling demand; added explicit `sections.curriculum_id`, `sections.year_level`, and `sections.curriculum_period`.
+- [x] Confirmed rescue room catalog should stay minimal; `sections.room` is the fixed-room/minimal room input and a normalized room-management table remains deferred.
+- [x] Added `Curriculum` and `CurriculumSubject` models/factories so solver demand can resolve through Eloquent instead of raw table guesses.
+- [x] Added `TermSchedulingReadinessService` to report missing term fields, section solver-scope issues, missing curriculum demand, and room catalog mode before snapshot generation.
+- [x] Verified with focused test: `SchedulingReadinessContractTest`.
+
+**Slice 3 Evidence - IAM-Private Cloud Run Auth Plumbing**
+
+- [x] Confirmed local solver config values load from `.env` through `tala_integrations.scheduling_solver`.
+- [x] Added `CloudRunIdTokenProvider` and service-account-backed Google ID-token provider for IAM-private Cloud Run.
+- [x] Added `CloudRunSchedulingSolverClient` and `LocalStubSchedulingSolverClient`; default driver remains `local_stub` until the real solver dispatch path is enabled.
+- [x] Verified authenticated placeholder Cloud Run probe returns HTTP 200 using the configured invoker service-account key.
+- [x] Verified unauthenticated placeholder Cloud Run request returns HTTP 403, proving Cloud Run IAM is blocking anonymous callers.
+- [x] Verified with focused test: `SchedulingCloudRunSolverClientTest`.
+
+**Slice 4 Evidence - Immutable Solver Input Snapshot**
+
+- [x] Added `solver_input_snapshot`, `solver_input_hash`, and `solver_snapshot_captured_at` to `schedule_generation_runs`.
+- [x] Added `ScheduleSolverSnapshotService` to capture run metadata, section/curriculum demand, faculty eligibility, submitted/locked availability, fixed-room catalog, existing commitments, readiness, and policy constraints.
+- [x] Enforced immutability: once a run has a stored snapshot, later calls return the original snapshot instead of rebuilding from changed source records.
+- [x] Enforced readiness: unready terms cannot capture a solver snapshot.
+- [x] Verified with focused test: `ScheduleSolverSnapshotServiceTest`.
+
+**Slice 5 Evidence - After-Commit Solver Dispatch**
+
+- [x] Added `ScheduleGenerationService` to create draft schedule runs, capture immutable solver snapshots, and dispatch solver work after database commit.
+- [x] Added `ScheduleSolverDispatchJob` on the `scheduling` queue with retry/backoff settings, configured solver-client invocation, success summary recording, and failure summary recording before retry/fail.
+- [x] Preserved the current rescue-safe default `TALA_SCHEDULING_SOLVER_DRIVER=local_stub`; no additional Google Cloud Console action is required until the real Python OR-Tools `/solve` service replaces the placeholder container.
+- [x] Verified with focused tests: `ScheduleGenerationServiceTest` and `ScheduleSolverDispatchJobTest`.
+
+**Scheduling Constraint Clarification - 2026-06-08**
+
+- [x] Updated FS/TS planning contract so Modular, Online, and On-site all require faculty teacher/adviser ownership for committable schedule rows.
+- [x] Updated FS/TS planning contract so section `max_seats` remains editable but cannot exceed 30 heads or drop below `enrolled_count`.
+- [x] Code follow-up completed before solver-ingestion slice: make `faculty_id` mandatory for `ok` draft rows/committed meetings and enforce section capacity bounds in services/tests.
+
+**Slice 6 Evidence - Clarified Scheduling Constraint Enforcement**
+
+- [x] Updated `SectionMeetingAssignmentService` so every committable schedule row requires `faculty_id`, including Modular and Online modalities.
+- [x] Updated `TermSchedulingReadinessService` so section capacity must stay within the rescue contract: `max_seats` from 1 to 30 and not below `enrolled_count`.
+- [x] Updated `ScheduleSolverSnapshotService` so solver snapshots expose `available_seats`, `mandatory_faculty_assignment`, `max_section_seats = 30`, and section capacity mode.
+- [x] Updated `ScheduleCommitService` so an `ok` draft row without faculty fails before official `section_meetings` creation.
+- [x] Updated `SectionFactory` default `max_seats` to 30.
+- [x] Verified with focused tests: `SectionMeetingAssignmentServiceTest`, `SchedulingReadinessContractTest`, `ScheduleSolverSnapshotServiceTest`, and `ScheduleCommitServiceTest`.
+
+**Slice 7 Evidence - Solver Output Ingestion**
+
+- [x] Added `ScheduleDraftRow` model constants/relationships/casts for `ok`, `warning`, and `conflict` rows.
+- [x] Added `ScheduleCloudResultIngestor` to replace a run's draft rows from solver output and record `constraint_summary.solver_ingestion`.
+- [x] Validated solver rows against immutable snapshot section demand, section capacity contract, mandatory faculty assignment, faculty-subject eligibility, snapshot faculty availability, required room/modality/time rules, committed meetings, and internal solver overlaps.
+- [x] Preserved unresolved rows as `conflict` draft rows when possible; rows without valid section/subject foreign keys are counted as rejected in the ingestion summary because the existing table cannot store them.
+- [x] Wired `ScheduleSolverDispatchJob` to ingest successful solver output before recording dispatch completion.
+- [x] Updated `ScheduleCommitService` so `warning` rows are committable only after the same hard-constraint validation used for `ok` rows; `conflict` rows still block commit.
+- [x] Verified with focused tests: `ScheduleCloudResultIngestorTest`, `ScheduleSolverDispatchJobTest`, and `ScheduleCommitServiceTest`.
+
+**Slice 8 Evidence - Cloud Run OR-Tools Solver Container POC**
+
+- [x] Added `cloud/scheduler-solver` Python container project for the IAM-private Cloud Run solver.
+- [x] Added OR-Tools CP-SAT solver logic that turns Laravel solver snapshots into `draft_rows` and leaves unresolved curriculum demand as `conflict` rows.
+- [x] Added stdlib HTTP service with `GET /health` and `POST /solve`, listening on the Cloud Run `PORT` environment variable.
+- [x] Added local sample snapshot and Python unit tests for feasible assignment, unassignable conflicts, and existing-commitment avoidance.
+- [x] Added Dockerfile, `.dockerignore`, Cloud Build image config, and local/cloud setup instructions.
+- [x] Verified local Python tests and local HTTP `/health` + `/solve` probe.
+- [x] Docker image build/run verification passed locally: `/health` returned `ok`, `/solve` returned `solver_status = optimal`, `assigned_count = 2`, `unassigned_count = 0`, and 2 `ok` draft rows from the sample snapshot.
+- [x] Prepared `cloud/scheduler-solver.zip` for Google Cloud Shell upload and recorded the Cloud Shell deployment path in the solver README.
+- [x] Cloud Run deployment completed through Google Cloud Shell: image `asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc` built successfully and revision `tala-scheduler-solver-00003-lfk` is serving 100% traffic at `https://tala-scheduler-solver-783866300038.asia-southeast1.run.app`.
+- [x] Verified Cloud Run IAM boundary: unauthenticated `/health` returned HTTP 403, while authenticated `/solve` with the sample snapshot returned `solver_status = optimal`, `assigned_count = 2`, and `unassigned_count = 0`.
+- [x] Verified local Laravel-to-Cloud-Run integration: `.env` uses `cloud_run`, Laravel minted the service-account ID token, and the sample `/solve` smoke call returned `solver_status = optimal`, `assigned_count = 2`, `unassigned_count = 0`, `hard_violation_count = 0`, and 2 draft rows.
+
+**Scheduling Flow Clarification - 2026-06-09**
+
+- [x] Updated FS/TS so automatic scheduling is explicitly section-driven: term sections by program/year level/curriculum period must exist before solver dispatch.
+- [x] Clarified that the rescue solver assigns faculty, room when required, day, and time for planned section-subject demand; it does not create, split, merge, or rebalance sections.
+- [x] Clarified that missing planned sections or missing section solver-scope fields block generation readiness.
+
+**Slice 9 Evidence - Section Planning / Real Scheduling Readiness Flow**
+
+- [x] Added `SectionPlanningService` as the backend guard for section planning create/edit data before solver readiness: term, program, curriculum, year level, curriculum period, name, modality, bounded capacity, enrolled count, and room rules.
+- [x] Added Registrar `Section Planning` Filament resource with typed create/edit/view/list surfaces for planned term sections; delete and bulk-delete remain unavailable.
+- [x] Enforced rescue capacity through the section planning path: `max_seats` cannot exceed 30 and cannot be lower than `enrolled_count`.
+- [x] Enforced modality room behavior through section planning: on-site/blended require a fixed room; online/modular clear physical room.
+- [x] Added curriculum/program mismatch detection to `TermSchedulingReadinessService` so wrong-curriculum sections cannot pass snapshot capture.
+- [x] Added service-backed `Generate Schedule` action to Schedule Drafts; it calls `ScheduleGenerationService`, captures the immutable snapshot, and queues solver dispatch without exposing generic schedule-run CRUD.
+- [x] Verified with focused tests: `SectionPlanningServiceTest`, `SectionPlanningFilamentResourceTest`, `SchedulingReadinessContractTest`, `ScheduleGenerationServiceTest`, `ScheduleSolverSnapshotServiceTest`, and `TAL12ARegistrarFilamentResourceTest`.
+
+**Slice 10 Evidence - Schedule Draft Review / Conflict Resolution UI**
+
+- [x] Added `ScheduleDraftRowReviewService` so Registrar draft-row edits are authorized, require a review reason, and re-run the full Laravel ingestion validator before commit can succeed.
+- [x] Added `DraftRowsRelationManager` to Schedule Drafts as a run-scoped review table for `ok`, `warning`, and `conflict` rows.
+- [x] Kept draft rows out of generic CRUD: no standalone draft-row resource, no create/delete/dissociate/bulk-delete relation actions, and no raw payload editing.
+- [x] Exposed controlled row revision fields only: faculty, day, start, end, modality, room, and review reason.
+- [x] Added Schedule Draft detail counts for total draft rows, blocking conflicts, and warnings.
+- [x] Confirmed unresolved hard conflicts remain blocking after manual revision, while hard-valid revisions become warning rows with edit evidence.
+- [x] Verified with focused tests: `ScheduleDraftRowReviewServiceTest`, `ScheduleDraftRowsRelationManagerTest`, `TAL12ARegistrarFilamentResourceTest`, `ScheduleCloudResultIngestorTest`, `ScheduleCommitServiceTest`, and `ScheduleSolverDispatchJobTest`.
+
+**Slice 11 Evidence - Faculty Availability Submission / Locking Flow**
+
+- [x] Added `FacultyAvailabilityService` as the backend owner for Registrar period validation, faculty weekly-window submission, duplicate-submission blocking, invalid/overlapping-window rejection, and Registrar locking.
+- [x] Added Registrar `Availability Periods` Filament resource with typed term/open/close controls; period creation/update routes through `FacultyAvailabilityService::preparePeriodData`.
+- [x] Added shared `Faculty Availability` Filament resource that appears under Faculty, Registrar, or Academic Head context and scopes faculty users to their own submissions.
+- [x] Kept faculty submissions out of generic CRUD: no edit route, no delete actions, no raw `faculty_id`/`term_id`/`status` fields, and creation routes through `FacultyAvailabilityService::submitAvailability`.
+- [x] Added Registrar lock action on submitted availability records; locked rows record approver and lock timestamps and become stable solver input evidence.
+- [x] Registered `FacultyAvailabilityPeriodPolicy` and `FacultyAvailabilitySubmissionPolicy` so period management, faculty submission, and read-only oversight use the approved permissions.
+- [x] Verified solver compatibility remains intact because `ScheduleSolverSnapshotService` already captures submitted/locked availability windows from the same tables.
+- [x] Verified with focused tests: `FacultyAvailabilityServiceTest`, `FacultyAvailabilityFilamentResourceTest`, `ScheduleSolverSnapshotServiceTest`, `TAL12ARegistrarFilamentResourceTest`, and `FacultySubjectEligibilityTest`.
+
+**Remaining Scheduling Boundary After Slice 11**
+
+- [ ] Faculty availability change requests after lock/deadline remain a separate workflow. The current viable flow supports initial submission and Registrar locking for solver input; post-lock change requests should be handled only if approved as the next rescue slice.
+
+**Slice 12 Evidence - End-to-End Scheduling QA / Fix Pass**
+
+- [x] Added `SchedulingEndToEndWorkflowTest` as the integrated rescue regression for the full viable scheduling path.
+- [x] Verified the workflow uses real Laravel services for Registrar period setup, faculty availability submission, Registrar locking, schedule generation, solver dispatch handling, solver-result ingestion, draft-row review state, and final commit.
+- [x] Kept the test deterministic by faking only the solver client response; the test does not require Cloud Run uptime, local Docker, or a manual queue worker.
+- [x] Confirmed the generated solver rows become `ok` draft rows, the schedule run moves to `under_review`, commit creates official `section_meetings`, and `section_teacher` assignments are written.
+- [x] Verified with focused tests: `SchedulingEndToEndWorkflowTest`, `ScheduleGenerationServiceTest`, `ScheduleSolverDispatchJobTest`, `ScheduleCloudResultIngestorTest`, `ScheduleCommitServiceTest`, `FacultyAvailabilityServiceTest`, and `ScheduleSolverSnapshotServiceTest`.
+- [x] No user-side Google Cloud Console, Docker, or manual queue action is required for this QA slice. A live Cloud Run smoke test remains optional because the deployed solver was already verified separately.
 
 ---
 
@@ -169,13 +340,13 @@
 **DoD**
 - [x] Each staff role can complete its current TAL-12A implemented admin workflows inside Filament
   - 2026-06-02 admin-side clarification hardening pass completed: Academic Head finance access narrowed to read-only finance status, fee template/downpayment rules, installment policy summary, and promissory status/tag; FAQ categories fixed; document request type selections fixed. No migration-log update required because this changed UI/policy/spec contracts only, not table structure.
-  - 2026-06-03 role/resource reconciliation completed: vendor-backed `Role` and `Activity` policies are explicitly registered; only System Super Admin sees Roles/Audit/Users/FAQ; Import Batches are scoped as `Import Batch Audit` with no generic create/edit routes; Grade Oversight has no raw create/edit grade form; grade-correction grade changes record already-approved Academic Head authorization; full import upload/preview pages, faculty availability self-service, COR template editor, document-catalog admin, rich dashboard metrics, and any separate System Health admin page are not claimed as completed TAL-12A evidence unless implemented through separate items.
+  - 2026-06-03 role/resource reconciliation completed: vendor-backed `Role` and `Activity` policies are explicitly registered; only System Super Admin sees Roles/Audit/Users/FAQ; Import Batches are scoped as `Import Batch Audit` with no generic create/edit routes; Grade Oversight has no raw create/edit grade form; grade-correction grade changes record already-approved Academic Head authorization; full import upload/preview pages, COR template editor, document-catalog admin, rich dashboard metrics, and any separate System Health admin page are not claimed as completed TAL-12A evidence unless implemented through separate items. Faculty availability self-service was later implemented as rescue Slice 11.
   - 2026-06-05 Import Batch lifecycle hardening completed: `ImportBatchResource` remains audit-only with no raw file-path/error-log form; commit/cancel controls delegate to `ImportBatchLifecycleService`, which validates Registrar import permissions, allows only pending batches, writes commit metadata when appropriate, and records lifecycle activity. `ImportBatch` owns import type/status options so Filament filters and badges do not duplicate enum literals.
   - 2026-06-05 Schedule Draft commit hardening completed: `ScheduleGenerationRunResource` remains list/view with no raw run form; Commit is visible only for committable generated/under-review runs and delegates to `ScheduleCommitService`. The service validates Registrar scheduling permission, rejects conflicted or incomplete draft rows, creates official `section_meetings`, synchronizes `section_teacher`, writes commit metadata, and records lifecycle activity inside one transaction.
   - 2026-06-05 COR Verification lifecycle hardening completed: `CorVerificationResource` remains list/view only with no generic token/status/timestamp form; Supersede/Revoke delegate to `CorVerificationLifecycleService`, which validates `manage-lis`, accepts only valid transitions, requires a typed revoke reason before revoked state, writes `revoked_at` and `revocation_reason`, and records lifecycle activity. `CorVerification` owns status options/colors so filters and badges do not duplicate literals; token detail display uses descriptive student/term/enrollment labels instead of raw foreign-key IDs.
   - 2026-06-06 Document Upload review lifecycle hardening completed: `DocumentUploadResource` remains Registrar list/view review queue with no generic create/edit form or raw OCR/payload editing; Approve/Needs Correction/Reject controls delegate to `DocumentUploadReviewService`, which validates `approve-documents`, allows only active review states, treats approved/rejected uploads as terminal lifecycle evidence, requires typed correction/rejection reasons, captures approved payload snapshots, and records document-review activity. `DocumentUpload` owns review status options/colors so Filament filters and badges do not duplicate literals; the detail view now uses descriptive student/uploader/term/reviewer labels and source-file evidence instead of raw internal IDs or private storage path display.
   - 2026-06-05 Grade Correction official-change hardening completed: `GradeCorrectionResource` remains list/view/action-only; student/backend intake owns ticket creation and server-derived fields; Registrar lifecycle actions own review/reject/resolve transitions; the approved grade-change action collects College Prelim/Midterm/Final raw scores or SHS Q1/Q2 grades and `GradeCorrectionService` derives final grade/remarks through the grading services; no generic correction create/edit/raw status form, direct final-grade override, or manual remarks override remains in TAL-12A.
-  - 2026-06-03 Official Schedule surface hardening completed: `SectionMeetingResource` keeps Registrar manual assignment but replaces raw schedule/commit fields with typed term/section/subject/faculty/day/time/modality/room controls; commit metadata is server-derived; direct edit/delete of committed meetings is blocked; schedule-change apply reuses the assignment conflict guard. Faculty availability-window enforcement remains outside completed TAL-12A evidence until the dedicated availability workflow is implemented.
+  - 2026-06-03 Official Schedule surface hardening completed: `SectionMeetingResource` keeps Registrar manual assignment but replaces raw schedule/commit fields with typed term/section/subject/faculty/day/time/modality/room controls; commit metadata is server-derived; direct edit/delete of committed meetings is blocked; schedule-change apply reuses the assignment conflict guard. Faculty availability-window enforcement was completed later through rescue Slice 11.
   - 2026-06-05 Schedule Change lifecycle boundary tightened: schedule-change forms remain typed and old/new payloads remain internal snapshots; direct edit access is now limited to `proposed` requests, while approved/applied/rejected records are lifecycle evidence only. Approve/Apply table actions now delegate to `ScheduleChangeLifecycleService`, which validates `authorize-overrides` or `manage-schedules`, accepts only valid state transitions, applies normalized official-meeting changes through the assignment conflict guard, and records lifecycle activity.
   - 2026-06-05 Service Request lifecycle note capture completed: `ServiceRequestResource` keeps list/view/action-only boundaries; Resolve exposes optional `resolution_note`, Reject requires `rejection_reason`, and Registrar Cancel requires `cancellation_reason`. Notes/reasons are normalized into activity properties and notification metadata instead of a discarded generic note or mutable request field.
   - 2026-06-06 System Super Admin staff account lifecycle hardening completed: Roles are a list-only seeded permission matrix with no create/edit route, action, page class, form, or permissions multi-select; staff user direct edit is limited to other non-archived accounts and archive/restore owns archived lifecycle. `UsersTable` now delegates Archive/Restore Account actions to `UserAccountLifecycleService`, which validates `archiveStaffAccount`/`restoreStaffAccount` policy abilities, blocks self/invalid state transitions, requires an official archive reason, clears roles on archive, requires one approved staff role on restore, and records lifecycle activity.
@@ -220,7 +391,7 @@
   - 2026-06-03 role/resource reconciliation added: Pre-UAT must verify only System Super Admin can access read-only Roles/Audit, Roles expose no create/edit role route or permission edit form, Import Batch is audit-only until dedicated upload/preview pages exist, grade-correction grade-change resolution records prior Academic Head approval and derives corrected grades from scheme-specific period inputs, and larger unimplemented workflow surfaces are either accepted risk or moved to separate Linear issues before staff/client UAT.
   - 2026-06-03 admin surface debloat added: Official Schedule manual assignment uses typed fields plus conflict validation and blocks direct post-commit editing; schedule changes now use a term-scoped official-meeting select plus typed requested-meeting fields while old/new payloads remain internal snapshots; Document Review has list/view lifecycle actions only; Import Batch Audit has no raw file-path/error-log form; COR Controls, Schedule Drafts, and Service Requests are service-owned list/view lifecycle-action surfaces; Payment Queue and Confirmed Payments are service-owned list/view surfaces with no generic create/edit forms or raw meta/payload editing.
   - 2026-06-06 Document Request admin surface debloat added: `DocumentRequestResource` is list/view plus role-scoped lifecycle actions only. Pre-UAT must verify there is no generic Create/Edit route, header action, delete action, or raw request form for student/term/status/delivery/free-request fields; shipment receipt evidence is uploaded through the private receipt field with file-path tamper protection rather than typed as a raw path, and the detail view shows receipt-proof status instead of the raw private path; requests move through Accounting/Registrar lifecycle actions backed by `DocumentRequestLifecycleService`.
-  - 2026-06-06 raw-input role audit closeout added: FS Appendix F and TS §8.8 now define the final role-by-role audit boundary, priority order, and follow-up contracts. Completed TAL-12A evidence remains implemented hardening; remaining items are no longer open-ended audit work and must be handled as follow-ups: P1 Pre-UAT QA execution, P1 TAL-13 Student Hub modules, P1 typed System Settings pages only where required, P1 Accounting adjustment service/action if needed, P1 Promissory student lifecycle clarification, P2 Service Request detail-label cleanup, P2 Academic Head in-system approval decision, and P2 Faculty availability workflow decision.
+  - 2026-06-06 raw-input role audit closeout added: FS Appendix F and TS §8.8 now define the final role-by-role audit boundary, priority order, and follow-up contracts. Completed TAL-12A evidence remains implemented hardening; remaining items are no longer open-ended audit work and must be handled as follow-ups: P1 Pre-UAT QA execution, P1 TAL-13 Student Hub modules, P1 typed System Settings pages only where required, P1 Accounting adjustment service/action if needed, P1 Promissory student lifecycle clarification, P2 Service Request detail-label cleanup, and P2 Academic Head in-system approval decision. Faculty availability workflow was completed later through rescue Slice 11.
   - 2026-06-03 Linear `TAL-15` created to track the larger unimplemented admin surfaces if stakeholders require them before expanded UAT.
 - [x] Prepare UAT checklist + sign-off evidence artifact
   - 2026-06-01 prepared through `TALA-UAT-Checklist-Signoff-2026-06-01.md`. The UAT package uses the requested test-case scenario table with Pass/Fail, Actual Input, ISO 25010 Product Quality Component, comments/suggestions, issue-log, and sign-off sections while preserving FS/TS traceability. This is a prepared staff/client UAT artifact only. It must be refreshed after Pre-UAT Developer/Internal QA if QA changes actual behavior. Actual staff signatures remain pending UAT execution.
@@ -267,7 +438,4 @@
 - Complete iterations in order unless explicitly re-prioritized.
 - Always execute the **Spec-First Gate** before any implementation task.
 - Do not mark F1/F10 done until behavior is code-enforced and PHPUnit-covered.
-
-
-
 
