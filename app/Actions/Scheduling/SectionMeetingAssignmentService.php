@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\FacultySubjectEligibility;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -31,7 +32,7 @@ class SectionMeetingAssignmentService
 
     /**
      * @param  array<string, mixed>  $newPayload
-     * @return array{faculty_id:int|null, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
+     * @return array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
      *
      * @throws ValidationException
      */
@@ -41,7 +42,9 @@ class SectionMeetingAssignmentService
             'term_id' => $sectionMeeting->term_id,
             'section_id' => $sectionMeeting->section_id,
             'subject_id' => $sectionMeeting->subject_id,
-            'faculty_id' => $newPayload['faculty_id'] ?? null,
+            'faculty_id' => array_key_exists('faculty_id', $newPayload)
+                ? $newPayload['faculty_id']
+                : $sectionMeeting->faculty_id,
             'room' => $newPayload['room'] ?? null,
             'day_of_week' => $newPayload['day_of_week'] ?? null,
             'starts_at' => $newPayload['starts_at'] ?? null,
@@ -65,7 +68,7 @@ class SectionMeetingAssignmentService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{term_id:int, section_id:int, subject_id:int, faculty_id:int|null, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
+     * @return array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
      *
      * @throws ValidationException
      */
@@ -83,7 +86,7 @@ class SectionMeetingAssignmentService
             'modality' => $this->stringValue($data['modality'] ?? null),
         ];
 
-        $this->assertRequired($payload, ['term_id', 'section_id', 'subject_id', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
+        $this->assertRequired($payload, ['term_id', 'section_id', 'subject_id', 'faculty_id', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
 
         if ($payload['day_of_week'] < 1 || $payload['day_of_week'] > 7) {
             throw ValidationException::withMessages([
@@ -109,11 +112,13 @@ class SectionMeetingAssignmentService
             ]);
         }
 
+        $this->assertFacultyIsEligible($payload);
+
         return $payload;
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int|null, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}  $payload
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}  $payload
      *
      * @throws ValidationException
      */
@@ -126,7 +131,7 @@ class SectionMeetingAssignmentService
             ->where('ends_at', '>', $payload['starts_at'])
             ->when($exceptSectionMeetingId !== null, fn ($query) => $query->whereKeyNot($exceptSectionMeetingId));
 
-        if ($payload['faculty_id'] !== null && (clone $overlappingMeetings)->where('faculty_id', $payload['faculty_id'])->exists()) {
+        if ((clone $overlappingMeetings)->where('faculty_id', $payload['faculty_id'])->exists()) {
             throw ValidationException::withMessages([
                 'faculty_id' => 'The selected faculty already has a committed meeting during this time.',
             ]);
@@ -190,5 +195,25 @@ class SectionMeetingAssignmentService
     private function requiresRoom(string $modality): bool
     {
         return in_array($modality, ['on_site', 'blended'], true);
+    }
+
+    /**
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}  $payload
+     *
+     * @throws ValidationException
+     */
+    private function assertFacultyIsEligible(array $payload): void
+    {
+        if (FacultySubjectEligibility::isActiveFor(
+            facultyId: $payload['faculty_id'],
+            subjectId: $payload['subject_id'],
+            termId: $payload['term_id'],
+        )) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'faculty_id' => 'The selected faculty is not approved to teach this subject for the selected term.',
+        ]);
     }
 }

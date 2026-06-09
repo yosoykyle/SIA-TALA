@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleCommitService;
+use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -62,6 +63,44 @@ class ScheduleCommitServiceTest extends TestCase
             $this->fail('Expected conflicted draft rows to block schedule commit.');
         } catch (ValidationException) {
             $this->assertSame(ScheduleGenerationRun::StatusGenerated, $run->refresh()->status);
+            $this->assertSame(0, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
+        }
+    }
+
+    public function test_commit_allows_warning_draft_rows_after_hard_constraint_validation(): void
+    {
+        $registrar = $this->registrar();
+        $faculty = User::factory()->create();
+        [$run] = $this->scheduleRunWithDraftRow($registrar, $faculty, [
+            'status' => 'warning',
+            'warning_payload' => json_encode([
+                'items' => [
+                    ['type' => 'soft_preference_miss'],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        app(ScheduleCommitService::class)->commit($run, $registrar);
+
+        $this->assertSame(ScheduleGenerationRun::StatusCommitted, $run->refresh()->status);
+        $this->assertSame(1, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
+    }
+
+    public function test_commit_rejects_ok_draft_rows_without_faculty_assignment(): void
+    {
+        $registrar = $this->registrar();
+        [$run] = $this->scheduleRunWithDraftRow($registrar, User::factory()->create(), [
+            'faculty_id' => null,
+            'modality' => 'modular',
+            'room' => null,
+            'status' => 'ok',
+        ]);
+
+        try {
+            app(ScheduleCommitService::class)->commit($run, $registrar);
+            $this->fail('Expected missing faculty assignment to block schedule commit.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('faculty_id', $exception->errors());
             $this->assertSame(0, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
         }
     }
@@ -131,6 +170,12 @@ class ScheduleCommitServiceTest extends TestCase
         $program = Program::factory()->create();
         $section = Section::factory()->for($term)->for($program)->create();
         $subject = Subject::factory()->create();
+
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => null,
+        ]);
 
         $run = ScheduleGenerationRun::query()->create([
             'term_id' => $term->id,

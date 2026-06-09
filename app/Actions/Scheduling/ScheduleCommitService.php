@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\User;
@@ -42,7 +43,9 @@ class ScheduleCommitService
                 ]);
             }
 
-            $blockingDraftRow = $draftRows->first(fn (object $row): bool => (string) $row->status !== 'ok');
+            $blockingDraftRow = $draftRows->first(
+                fn (object $row): bool => ! in_array((string) $row->status, ScheduleDraftRow::committableStatuses(), true)
+            );
 
             if ($blockingDraftRow !== null) {
                 throw ValidationException::withMessages([
@@ -91,19 +94,17 @@ class ScheduleCommitService
             'schedule_generation_run_id' => $run->id,
         ]);
 
-        if ($sectionMeeting->faculty_id !== null) {
-            DB::table('section_teacher')->updateOrInsert(
-                [
-                    'section_id' => $sectionMeeting->section_id,
-                    'user_id' => $sectionMeeting->faculty_id,
-                    'subject_id' => $sectionMeeting->subject_id,
-                ],
-                [
-                    'updated_at' => $timestamp->toDateTimeString(),
-                    'created_at' => $timestamp->toDateTimeString(),
-                ],
-            );
-        }
+        DB::table('section_teacher')->updateOrInsert(
+            [
+                'section_id' => $sectionMeeting->section_id,
+                'user_id' => $sectionMeeting->faculty_id,
+                'subject_id' => $sectionMeeting->subject_id,
+            ],
+            [
+                'updated_at' => $timestamp->toDateTimeString(),
+                'created_at' => $timestamp->toDateTimeString(),
+            ],
+        );
     }
 
     private function recordActivity(
