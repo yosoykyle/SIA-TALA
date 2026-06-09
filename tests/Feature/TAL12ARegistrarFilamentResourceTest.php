@@ -16,8 +16,11 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
             'DocumentRequests/DocumentRequestResource.php' => ['Registrar', 'manage-document-requests'],
             'DocumentUploads/DocumentUploadResource.php' => ['Registrar', 'approve-documents'],
             'ImportBatches/ImportBatchResource.php' => ['Registrar', 'manage-curricula'],
+            'Sections/SectionResource.php' => ['Registrar', 'manage-schedules'],
             'SectionMeetings/SectionMeetingResource.php' => ['Registrar', 'manage-schedules'],
             'ScheduleGenerationRuns/ScheduleGenerationRunResource.php' => ['Registrar', 'manage-schedules'],
+            'FacultyAvailabilityPeriods/FacultyAvailabilityPeriodResource.php' => ['Registrar', 'review-lock-faculty-availability'],
+            'FacultyAvailabilitySubmissions/FacultyAvailabilitySubmissionResource.php' => ['Registrar', 'review-lock-faculty-availability'],
             'ScheduleChanges/ScheduleChangeResource.php' => ['Registrar', 'manage-schedules'],
             'CorVerifications/CorVerificationResource.php' => ['Registrar', 'manage-lis'],
         ];
@@ -244,6 +247,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('CreateAction::make()', $listPage);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringContainsString('DraftRowsRelationManager::class', $resource);
         $this->assertStringContainsString('commitAction', $table);
         $this->assertStringContainsString('ScheduleCommitService', $table);
         $this->assertStringContainsString('ScheduleGenerationRun::statusOptions()', $table);
