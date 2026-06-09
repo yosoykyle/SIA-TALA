@@ -10,9 +10,20 @@ use App\Actions\Integrations\Ocr\OcrTextExtractor;
 use App\Actions\Integrations\Payments\MockPaymentGateway;
 use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
+use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
+use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
+use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Http\Middleware\EnsureActiveStudentHubUser;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\Section;
 use App\Policies\ActivityPolicy;
+use App\Policies\FacultyAvailabilityPeriodPolicy;
+use App\Policies\FacultyAvailabilitySubmissionPolicy;
 use App\Policies\RolePolicy;
+use App\Policies\SectionPolicy;
 use App\Support\DecimalMoney;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Support\Facades\Blade;
@@ -62,6 +73,36 @@ class AppServiceProvider extends ServiceProvider
             };
         });
 
+        $this->app->singleton(CloudRunIdTokenProvider::class, function (): CloudRunIdTokenProvider {
+            return new GoogleServiceAccountCloudRunIdTokenProvider(
+                credentialsPath: config('tala_integrations.scheduling_solver.credentials_path') !== null
+                    ? (string) config('tala_integrations.scheduling_solver.credentials_path')
+                    : null,
+            );
+        });
+
+        $this->app->singleton(CloudRunSchedulingSolverClient::class, function ($app): CloudRunSchedulingSolverClient {
+            return new CloudRunSchedulingSolverClient(
+                idTokenProvider: $app->make(CloudRunIdTokenProvider::class),
+                baseUrl: config('tala_integrations.scheduling_solver.url') !== null
+                    ? (string) config('tala_integrations.scheduling_solver.url')
+                    : null,
+                audience: config('tala_integrations.scheduling_solver.audience') !== null
+                    ? (string) config('tala_integrations.scheduling_solver.audience')
+                    : null,
+                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 300),
+                connectTimeoutSeconds: (int) config('tala_integrations.scheduling_solver.connect_timeout_seconds', 10),
+            );
+        });
+
+        $this->app->singleton(SchedulingSolverClient::class, function ($app): SchedulingSolverClient {
+            return match (config('tala_integrations.scheduling_solver.driver', 'local_stub')) {
+                'local_stub' => new LocalStubSchedulingSolverClient,
+                'cloud_run' => $app->make(CloudRunSchedulingSolverClient::class),
+                default => throw new InvalidArgumentException('Unsupported TALA scheduling solver driver configured.'),
+            };
+        });
+
         $this->app->singleton(PayMongoPaymentGateway::class, function ($app): PayMongoPaymentGateway {
             return new PayMongoPaymentGateway(
                 money: $app->make(DecimalMoney::class),
@@ -96,6 +137,9 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);
+        Gate::policy(Section::class, SectionPolicy::class);
+        Gate::policy(FacultyAvailabilityPeriod::class, FacultyAvailabilityPeriodPolicy::class);
+        Gate::policy(FacultyAvailabilitySubmission::class, FacultyAvailabilitySubmissionPolicy::class);
 
         Blade::component('layouts.guest', 'guest-layout');
         Blade::component('layouts.app', 'app-layout');

@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "run_metadata": {
+    "run_id": 1,
+    "term_id": 1,
+    "timezone": "Asia/Manila"
+  },
+  "sections": [
+    {
+      "section_id": 10,
+      "section_name": "BSIT 1A",
+      "program_id": 1,
+      "program_code": "BSIT",
+      "curriculum_id": 1,
+      "year_level": "1st Year",
+      "curriculum_period": "1st Semester",
+      "modality": "on_site",
+      "max_seats": 30,
+      "enrolled_count": 25,
+      "available_seats": 5,
+      "fixed_room": "R-101"
+    }
+  ],
+  "curriculum_subject_demand": [
+    {
+      "section_id": 10,
+      "subject_id": 100,
+      "subject_code": "IT101",
+      "units": "3.00",
+      "lec_hours": "1.00"
+    },
+    {
+      "section_id": 10,
+      "subject_id": 101,
+      "subject_code": "IT102",
+      "units": "3.00",
+      "lec_hours": "1.00"
+    }
+  ],
+  "faculty_eligibility": [
+    {
+      "faculty_id": 200,
+      "subject_id": 100,
+      "scope": "default",
+      "priority": 1
+    },
+    {
+      "faculty_id": 201,
+      "subject_id": 101,
+      "scope": "default",
+      "priority": 1
+    }
+  ],
+  "faculty_availability": [
+    {
+      "faculty_id": 200,
+      "status": "locked",
+      "version": 1,
+      "windows": [
+        {
+          "day_of_week": 1,
+          "starts_at": "08:00:00",
+          "ends_at": "12:00:00"
+        }
+      ]
+    },
+    {
+      "faculty_id": 201,
+      "status": "locked",
+      "version": 1,
+      "windows": [
+        {
+          "day_of_week": 1,
+          "starts_at": "08:00:00",
+          "ends_at": "12:00:00"
+        }
+      ]
+    }
+  ],
+  "rooms_catalog": [
+    {
+      "room_code": "R-101",
+      "source": "sections.room",
+      "section_ids": [10],
+      "max_section_capacity": 30,
+      "modalities": ["on_site"]
+    }
+  ],
+  "existing_commitments": [],
+  "policy_constraints": {
+    "timezone": "Asia/Manila",
+    "slot_granularity_minutes": 30,
+    "mandatory_faculty_assignment": true,
+    "max_section_seats": 30,
+    "section_capacity_mode": "editable_bounded_max_30_not_below_enrolled_count",
+    "room_catalog_mode": "sections.room fixed-room rescue catalog"
+  }
+}

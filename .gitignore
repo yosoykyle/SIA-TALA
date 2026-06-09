@@ -40,3 +40,9 @@ dont access
 /migration_log.txt
 /test_nav.php
 /check_permissions.php
+
+# Python / solver local artifacts
+__pycache__/
+*.py[cod]
+/cloud/scheduler-solver/.venv/
+/cloud/scheduler-solver.zip
