@@ -48,6 +48,7 @@
 | 5.14     | 2026-06-05 | Refined Enrollment admin surface: `enrollments` are lifecycle records advanced by approval, payment, LIS, and term-close services; Admin Nexus is list/view plus typed actions, not generic create/edit state forms. |
 | 5.46     | 2026-06-09 | Clarified student-facing promissory note workflow as a digital form (no upload), confirmed GCP OR-Tools solver deployment, and locked Returnee Detection to a strict manual Registrar search (deferred self-service). |
 | 5.47     | 2026-06-10 | Removed Staff Onboarding guided-tour UI from Admin Nexus; staff training belongs in external documentation/checklists rather than an in-app Filament Tour button. |
+| 5.48     | 2026-06-10 | Updated Pre-UAT readiness boundary: UAT is paused until P1 brittle/missing gates are implemented, including academic foundation behavior, in-system Academic Head grade-change approval, live PayMongo/OCR verification, and controlled import upload/preview/commit flow. |
 | 5.15     | 2026-06-05 | Refined Installment Policy admin surface: milestone schedule rows are maintained as typed child rows inside the Accounting-owned policy form, not standalone generic milestone create/edit/status screens. |
 | 5.16     | 2026-06-05 | Refined Schedule Change lifecycle boundary: Registrar edit access is limited to proposed typed requests; approved/applied/rejected changes are lifecycle evidence and cannot be edited through direct routes. |
 | 5.17     | 2026-06-05 | Refined System Super Admin RBAC/admin-account boundary: Role permissions are a seeded read-only matrix in Filament, not generic permission multi-select editing; staff direct edit excludes self and archived accounts. |
@@ -108,6 +109,15 @@ T.A.L.A. (Total Academic Lifecycle Automation) is a comprehensive School Informa
 The system replaces fragmented manual processes (paper forms, Google Sheets, separate accounting logs) with a unified, automated platform. It streamlines the entire student lifecycle—from online enrollment and document validation to grade management and financial clearance—ensuring compliance with DepEd Order 125 and the Data Privacy Act.
 
 This document serves as the **Functional Specification** for the system, detailing the logical workflows, business rules, and user-facing features.
+
+### TAL-12 Pre-UAT Hardening Gate (Approved 2026-06-10)
+
+Pre-UAT Developer/Internal QA must not start until the following P1 hardening gates are implemented or explicitly descoped in writing:
+
+- **Academic foundation behavior**: Registrar/Academic Head-approved staff must be able to maintain or import Programs, Subjects, Curricula/Curriculum Subjects, Terms, Sections, and the minimum safe room input needed by scheduling. Local seeders are QA support only and are not the production/staff starting point.
+- **Academic Head approval**: Any grade correction or override that changes an official/finalized grade must receive an authenticated in-system Academic Head approval action before Registrar resolution applies the corrected values. Registrar-only recording of prior offline approval is no longer sufficient for TAL-12 readiness.
+- **Live integrations**: PayMongo and Google Cloud Vision OCR must pass live sandbox/configured-environment smoke checks before readiness. Mock drivers remain for automated tests and local fallback, not for final Pre-UAT sign-off.
+- **Controlled import**: Legacy/curriculum import must support strict template download, upload, validation preview, commit, and audit evidence. Audit-only import batch viewing is not enough.
 
 ### Key Enhancements (Revised Requirements)
 
@@ -1231,7 +1241,7 @@ The system automatically applies different calculation engines based on the Stud
 - **Academic Head** approves any correction that changes an official/finalized grade.
 - **System Super Admin** has audit/read-only visibility only; **Accounting/Cashier** has no grade-correction role.
 
-**Current TAL-12 Admin Implementation Note**: If the correction resolution changes an official/finalized grade, the Registrar screen records an already-approved Academic Head decision by selecting the approving Academic Head and entering the approved reason. The approved grade values are entered through scheme-specific period fields: College uses Prelim, Midterm, and Final raw scores; SHS uses Quarter 1 and Quarter 2 transmuted grades. TALA derives the stored final grade and remarks through the same grading services used by Faculty grade encoding; the Registrar screen must not manually accept a direct final-grade or remarks override. This is an audit-recording path for an offline/approved decision, not permission for Registrar-only grade changes. If the school requires a separate authenticated Academic Head approval queue before Registrar resolution, that queue must be implemented as a separate workflow before it is included in Pre-UAT.
+**Current TAL-12 Hardening Decision**: If the correction resolution changes an official/finalized grade, the Academic Head approval must happen inside TALA as an authenticated, audited action before the Registrar can apply the correction. The Registrar may still enter the corrected values through scheme-specific period fields after approval: College uses Prelim, Midterm, and Final raw scores; SHS uses Quarter 1 and Quarter 2 transmuted grades. TALA derives the stored final grade and remarks through the same grading services used by Faculty grade encoding; the Registrar screen must not manually accept a direct final-grade or remarks override. The older Registrar-recorded offline/prior-approval path is now classified as brittle and must not be treated as complete TAL-12 Pre-UAT evidence.
 
 **Admin Surface Boundary**: Grade Correction is not generic correction-ticket CRUD. Student/API intake or approved backend workflows create the ticket, derive `current_grade`, `user_id`, `creator_id`, initial `status`, and private attachment paths, and preserve the ticket as review evidence. TAL-12 Filament must expose only list/view, filters, and typed lifecycle actions (`Start Review`, `Reject`, `Resolve - No Grade Change`, `Resolve - Record Approved Grade Change`). It must not expose raw create/edit forms for `user_id`, `current_grade`, `attachment_paths`, `status`, `assigned_to`, `creator_id`, or arbitrary resolved timestamps.
 
@@ -1632,7 +1642,7 @@ All legacy data imports — including the student seed described in §8.8 — mu
 
 **System Super Admin Boundary**: System Super Admin may view import audit logs and maintain system infrastructure, but cannot upload, preview, commit, or approve academic/enrollment/financial import templates. The role remains read-only for academic and financial operations.
 
-**Current TAL-12 Implementation Scope Note**: The implemented Filament surface is **Import Batch Audit**. Generic create/edit routes, actions, and raw file-path/error-log forms are disabled. Existing pending batches may be viewed and state-transitioned through approved commit/cancel controls. Those controls must call a backend lifecycle service that validates Registrar import permissions, accepts only pending batches, records audit activity, and uses model-owned import type/status options. Dedicated upload, parse, preview, and error-report pages remain a separate import implementation item and must not be treated as complete Pre-UAT evidence.
+**Current TAL-12 Hardening Decision**: The existing **Import Batch Audit** surface is not sufficient for Pre-UAT readiness by itself. The import flow must support strict template download, upload, parse, validation preview/error report, commit, and audit evidence before staff/client UAT. Generic create/edit routes and raw file-path/error-log forms remain forbidden; the import pages/actions must call backend services that validate role permissions, template headers, row-level business rules, commit eligibility, and audit activity. Freeform in-browser spreadsheet repair is not approved.
 
 #### 8.10.3 Template Definitions
 
