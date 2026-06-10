@@ -690,15 +690,32 @@ The section's assigned modality directly determines how the scheduling engine be
 
 #### 5.3.1 Step 1: Faculty Availability Self-Service Submission
 
-**Current TAL-12 Implementation Scope Note**: The rescue scheduling workflow now includes the minimal Faculty Availability service/UI needed for automatic scheduling: Registrar opens a term availability period, Faculty submits weekly windows during the open period, Registrar reviews/locks submissions, and locked availability feeds the solver snapshot. Post-lock/deadline change requests remain a separate workflow and are not required before the current Pre-UAT gate unless stakeholders explicitly pull them forward.
+**Current TAL-12 Implementation Scope Note**: The rescue scheduling workflow includes Faculty Availability service/UI needed for automatic scheduling: Registrar opens a term availability period, Faculty submits weekly windows during the open period, Registrar reviews/locks submissions, and locked availability feeds the solver snapshot. Post-lock/deadline faculty availability change requests are implemented in the active TAL-12 rescue scope as a controlled exception workflow. Faculty must not directly edit locked availability. Any late or post-lock revision must be filed with a reason, approved or rejected by the Registrar, audited, and then either replace solver input before generation/rerun or require an official schedule-change record after commitment.
 
 **Schedule Draft Surface Boundary**: Schedule generation run records are created by the scheduling service/action layer after term readiness and conflict checks. The Registrar may view runs and commit eligible generated or under-review runs through approved lifecycle actions. Committing a run must call a backend schedule-commit service that rejects conflicted/incomplete draft rows, creates official `section_meetings`, synchronizes faculty-section-subject assignment, records lifecycle activity, and marks the run committed. The Admin Nexus must not expose a generic Schedule Draft create/edit form for raw `term_id`, `requested_by`, `constraint_summary`, solver payload, or status mutation.
 
 - **Registrar Action**: Before the school year/term scheduling period begins, the Registrar opens a limited availability submission period with `opens_at`, `closes_at`, and target term.
 - **Date Rule**: The system enforces `opens_at < closes_at <= scheduling_starts_at`. If no valid submission period exists, faculty availability entry and schedule generation remain locked for that term.
 - **Faculty Action**: Faculty log in to their own account and enter available days and time windows for that term. Availability is entered as positive available windows, not unavailable blocks.
-- **Deadline Rule**: Faculty must submit before the deadline. Faculty may edit only while the record is `draft` and the submission window is open.
+- **Deadline Rule**: Faculty must submit before the deadline. Faculty may edit only while the record is `draft` and the submission window is open. After the deadline or Registrar lock, faculty can only request an availability revision through the controlled change-request workflow.
 - **Status**: Faculty submission is a simple record of available days and times. It is used as a reference during schedule assignment.
+
+#### 5.3.1.1 Post-Lock / Deadline Faculty Availability Change Requests
+
+**Purpose**: Allow realistic rescue-mode corrections when a faculty member misses the availability deadline or needs an exceptional revision after Registrar lock, without allowing direct mutation of solver inputs.
+
+**Required TAL-12 Workflow**:
+
+1. Faculty opens their own locked/submitted availability record and files a change request.
+2. Faculty provides requested available windows and a required reason.
+3. The system validates day/time format, `starts_at < ends_at`, no overlapping requested windows, and ownership of the source availability record.
+4. Registrar reviews pending requests from a controlled admin surface.
+5. Registrar approves or rejects the request with an optional review note.
+6. If approved before a schedule is committed, the system creates a new approved availability revision or replacement snapshot and marks the previous locked input as superseded for future solver runs.
+7. If approved after a schedule is committed, the request must not silently mutate official schedules. Registrar must process the downstream impact through the official Schedule Change workflow.
+8. Every request, decision, old values, new requested values, actor, timestamp, and reason must be auditable.
+
+**Boundary**: This workflow is not a generic availability editor. Faculty cannot edit `faculty_id`, `term_id`, approval status, lock metadata, or solver snapshot payloads. Registrar cannot bypass validation by typing raw JSON. Approved revisions affect only future generation/reruns unless a separate official schedule change is approved and applied.
 
 #### 5.3.2 Step 2: Direct Schedule Assignment
 
@@ -758,7 +775,7 @@ The section's assigned modality directly determines how the scheduling engine be
 | Missing faculty availability submission period              | Keep faculty availability and schedule assignment locked for the selected term                                                               | Registrar                         |
 | Faculty misses availability deadline                        | Mark as missing/late; Registrar manually verifies availability during schedule assignment                                                    | Registrar                         |
 | Faculty submits availability late                           | Store as late; Registrar reviews during manual assignment                                                                                    | Registrar                         |
-| Faculty requests change after deadline                      | Faculty edits their availability record; Registrar is notified.                                                                              | Registrar                         |
+| Faculty requests change after deadline or Registrar lock    | Faculty files a formal availability change request with requested windows and reason; Registrar approves/rejects; approved revisions replace future solver input only. | Registrar                         |
 | Faculty requests change after schedule assignment           | No automatic schedule mutation; requires official schedule change record with old/new values and approval by Registrar.                      | Registrar                         |
 | Teacher double-booking                                      | Hard conflict; assignment cannot be saved until resolved.                                                                                    | Registrar                         |
 | Export failure after schedule commitment                    | Official schedule remains committed; export can be retried without changing schedule records                                                 | Registrar                         |
@@ -2000,7 +2017,7 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 | --- | --- | --- | --- |
 | Class lists / grade entry | Generic enrollment-subject CRUD and raw grade rows bypass grading rules. | Faculty uses list/view class lists plus program-specific grade modals backed by grading services. | Implemented; maintain in TAL-12A evidence. |
 | Grade correction requests | Generic correction editing and direct final-grade override would bypass approval rules. | Registrar/faculty workflows use typed lifecycle actions; official corrections derive final grade/remarks from scheme-specific period inputs. | Implemented; maintain in TAL-12A evidence. |
-| Faculty availability and subject eligibility | The documented business process expects availability data, and approved rescue scheduling also requires a pre-scheduling faculty-subject eligibility contract. | Faculty submits availability only; faculty cannot self-select teaching subjects. Add minimal faculty-subject eligibility before automatic scheduling implementation. | Rescue dependency for automatic scheduling. |
+| Faculty availability and subject eligibility | The documented business process expects availability data, and approved rescue scheduling also requires a pre-scheduling faculty-subject eligibility contract plus controlled late/post-lock availability revisions. | Faculty submits availability only; faculty cannot self-select teaching subjects. Post-lock/deadline changes require a formal request, Registrar decision, audit trail, and solver-input replacement rules. | Active TAL-12 rescue scope. |
 
 #### Academic Head
 
@@ -2033,9 +2050,9 @@ This closeout records the final scope boundary for the raw JSON / brittle generi
 2. P1: Track Student Hub/self-service gaps under TAL-13, not TAL-12/TAL-12A.
 3. P1: Keep generic System Settings editor frozen; add dedicated typed settings pages only for workflows required before expanded UAT, starting with Admission Requirements only if stakeholders require it.
 4. P1: Define Accounting adjustment workflow before adding any ledger mutation UI.
-5. P1: Maintain the implemented automatic scheduling rescue path: faculty-subject eligibility, section planning readiness, locked faculty availability, IAM-private Cloud Run OR-Tools dispatch, solver-row ingestion, Laravel validation, draft review, and commit.
+5. P1: Maintain the implemented automatic scheduling rescue path: faculty-subject eligibility, section planning readiness, locked faculty availability, post-lock/deadline availability change requests, IAM-private Cloud Run OR-Tools dispatch, solver-row ingestion, Laravel validation, draft review, and commit.
 6. P2: Replace remaining raw detail display IDs in Service Request detail views with relationship-backed labels.
-7. P2: Decide whether Academic Head in-system approval and post-lock faculty availability change requests are required before expanded UAT.
+7. P2: Decide whether Academic Head in-system approval is required before expanded UAT.
 
 
 ---

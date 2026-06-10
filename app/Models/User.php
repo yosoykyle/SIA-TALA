@@ -51,6 +51,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(FacultyAvailabilitySubmission::class, 'faculty_id');
     }
 
+    public function facultyAvailabilityChangeRequests(): HasMany
+    {
+        return $this->hasMany(FacultyAvailabilityChangeRequest::class, 'faculty_id');
+    }
+
     /**
      * The attributes that are mass assignable.
      *

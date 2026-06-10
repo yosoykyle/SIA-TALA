@@ -180,9 +180,16 @@
 - [x] Verified solver compatibility remains intact because `ScheduleSolverSnapshotService` already captures submitted/locked availability windows from the same tables.
 - [x] Verified with focused tests: `FacultyAvailabilityServiceTest`, `FacultyAvailabilityFilamentResourceTest`, `ScheduleSolverSnapshotServiceTest`, `TAL12ARegistrarFilamentResourceTest`, and `FacultySubjectEligibilityTest`.
 
-**Remaining Scheduling Boundary After Slice 11**
+**Slice 15 Evidence - Post-Lock / Deadline Availability Change Requests**
 
-- [ ] Faculty availability change requests after lock/deadline remain a separate workflow. The current viable flow supports initial submission and Registrar locking for solver input; post-lock change requests should be handled only if approved as the next rescue slice.
+- [x] Added `FacultyAvailabilityChangeRequestService` to validate Faculty-owned submitted/locked availability, required reason, requested windows, ownership, duplicate pending requests, stale source versions, and Registrar approve/reject transitions.
+- [x] Added `FacultyAvailabilityChangeRequest` model/factory/policy and a forward migration for request audit payloads (`source_windows`, `requested_windows`, `review_note`).
+- [x] Added `Availability Change Requests` Filament resource: Faculty can create/view own requests; Registrar/Academic Head can review; Registrar can approve/reject pending requests through lifecycle table actions.
+- [x] Kept the workflow out of generic CRUD: no edit route, no delete actions, no raw `faculty_id`/`term_id`/`status` fields, and no raw solver snapshot editing.
+- [x] Approved requests create a new locked `faculty_availability_submissions` revision with `version + 1` and `parent_submission_id`; original locked availability is not mutated.
+- [x] Rejected requests record Registrar review evidence without creating a revision.
+- [x] Confirmed committed official schedules are not mutated by this workflow; downstream official changes still require the Schedule Change lifecycle.
+- [x] Verified with focused tests: `FacultyAvailabilityChangeRequestServiceTest`, `FacultyAvailabilityChangeRequestFilamentTest`, `FacultyAvailabilityServiceTest`, `FacultyAvailabilityFilamentResourceTest`, `ScheduleSolverSnapshotServiceTest`, `SchedulingFilamentSmokeTest`, `SchedulingFilamentWorkflowTest`, and `SchedulingEndToEndWorkflowTest`.
 
 **Slice 12 Evidence - End-to-End Scheduling QA / Fix Pass**
 
@@ -413,6 +420,7 @@
   - 2026-06-06 Document Request admin surface debloat added: `DocumentRequestResource` is list/view plus role-scoped lifecycle actions only. Pre-UAT must verify there is no generic Create/Edit route, header action, delete action, or raw request form for student/term/status/delivery/free-request fields; shipment receipt evidence is uploaded through the private receipt field with file-path tamper protection rather than typed as a raw path, and the detail view shows receipt-proof status instead of the raw private path; requests move through Accounting/Registrar lifecycle actions backed by `DocumentRequestLifecycleService`.
   - 2026-06-06 raw-input role audit closeout added: FS Appendix F and TS §8.8 now define the final role-by-role audit boundary, priority order, and follow-up contracts. Completed TAL-12A evidence remains implemented hardening; remaining items are no longer open-ended audit work and must be handled as follow-ups: P1 Pre-UAT QA execution, P1 TAL-13 Student Hub modules, P1 typed System Settings pages only where required, P1 Accounting adjustment service/action if needed, P1 Promissory student lifecycle clarification, P2 Service Request detail-label cleanup, and P2 Academic Head in-system approval decision. Faculty availability workflow was completed later through rescue Slice 11.
   - 2026-06-03 Linear `TAL-15` created to track the larger unimplemented admin surfaces if stakeholders require them before expanded UAT.
+  - 2026-06-10 post-lock/deadline faculty availability change requests implemented as active TAL-12 rescue scope. Faculty files requested windows plus reason, Registrar approves/rejects, approved requests create a new locked availability revision for future solver snapshots, and committed schedules still require the separate Schedule Change lifecycle.
 - [x] Prepare UAT checklist + sign-off evidence artifact
   - 2026-06-01 prepared through `TALA-UAT-Checklist-Signoff-2026-06-01.md`. The UAT package uses the requested test-case scenario table with Pass/Fail, Actual Input, ISO 25010 Product Quality Component, comments/suggestions, issue-log, and sign-off sections while preserving FS/TS traceability. This is a prepared staff/client UAT artifact only. It must be refreshed after Pre-UAT Developer/Internal QA if QA changes actual behavior. Actual staff signatures remain pending UAT execution.
 - [x] Prepare go-live cutover runbook artifact

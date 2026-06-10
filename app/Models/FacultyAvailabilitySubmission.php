@@ -87,4 +87,19 @@ class FacultyAvailabilitySubmission extends Model
     {
         return $this->hasMany(FacultyAvailabilityWindow::class, 'submission_id');
     }
+
+    public function changeRequests(): HasMany
+    {
+        return $this->hasMany(FacultyAvailabilityChangeRequest::class, 'submission_id');
+    }
+
+    public function parentSubmission(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_submission_id');
+    }
+
+    public function childSubmissions(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_submission_id');
+    }
 }

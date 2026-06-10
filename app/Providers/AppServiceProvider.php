@@ -16,10 +16,12 @@ use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdToke
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Http\Middleware\EnsureActiveStudentHubUser;
+use App\Models\FacultyAvailabilityChangeRequest;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\Section;
 use App\Policies\ActivityPolicy;
+use App\Policies\FacultyAvailabilityChangeRequestPolicy;
 use App\Policies\FacultyAvailabilityPeriodPolicy;
 use App\Policies\FacultyAvailabilitySubmissionPolicy;
 use App\Policies\RolePolicy;
@@ -139,6 +141,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Activity::class, ActivityPolicy::class);
         Gate::policy(Section::class, SectionPolicy::class);
         Gate::policy(FacultyAvailabilityPeriod::class, FacultyAvailabilityPeriodPolicy::class);
+        Gate::policy(FacultyAvailabilityChangeRequest::class, FacultyAvailabilityChangeRequestPolicy::class);
         Gate::policy(FacultyAvailabilitySubmission::class, FacultyAvailabilitySubmissionPolicy::class);
 
         Blade::component('layouts.guest', 'guest-layout');
