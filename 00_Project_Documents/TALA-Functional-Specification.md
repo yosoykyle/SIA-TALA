@@ -47,6 +47,7 @@
 | 5.13     | 2026-06-05 | Refined Promissory Note admin surface: Accounting may record approved promise cases with typed fields, status is system-controlled, generic edit/status forms are removed. |
 | 5.14     | 2026-06-05 | Refined Enrollment admin surface: `enrollments` are lifecycle records advanced by approval, payment, LIS, and term-close services; Admin Nexus is list/view plus typed actions, not generic create/edit state forms. |
 | 5.46     | 2026-06-09 | Clarified student-facing promissory note workflow as a digital form (no upload), confirmed GCP OR-Tools solver deployment, and locked Returnee Detection to a strict manual Registrar search (deferred self-service). |
+| 5.47     | 2026-06-10 | Removed Staff Onboarding guided-tour UI from Admin Nexus; staff training belongs in external documentation/checklists rather than an in-app Filament Tour button. |
 | 5.15     | 2026-06-05 | Refined Installment Policy admin surface: milestone schedule rows are maintained as typed child rows inside the Accounting-owned policy form, not standalone generic milestone create/edit/status screens. |
 | 5.16     | 2026-06-05 | Refined Schedule Change lifecycle boundary: Registrar edit access is limited to proposed typed requests; approved/applied/rejected changes are lifecycle evidence and cannot be edited through direct routes. |
 | 5.17     | 2026-06-05 | Refined System Super Admin RBAC/admin-account boundary: Role permissions are a seeded read-only matrix in Filament, not generic permission multi-select editing; staff direct edit excludes self and archived accounts. |
@@ -1876,10 +1877,10 @@ School housekeeping jobs run off-hours in `Asia/Manila` to reduce daytime load. 
 
 ---
 
-## 11. Interactive User Onboarding
+## 11. User Onboarding Guidance
 
 **Description:**
-A step-by-step guided UI tutorial designed to drastically reduce training time and help users effectively navigate their respective interfaces upon first login.
+User guidance is handled through role-specific documentation, checklists, and help content. In-app guided-tour overlays are not part of the current TAL-12 rescue scope unless a later implementation item explicitly re-approves and tests them.
 
 ### 11.1 Student Onboarding (PWA Portal)
 
@@ -1892,10 +1893,9 @@ A step-by-step guided UI tutorial designed to drastically reduce training time a
 
 ### 11.2 Staff Onboarding (Filament Panels)
 
-- **Trigger:** Manual activation via a "Take the Tour" button, or automatic upon first login for newly provisioned staff accounts.
-- **Workflow:** A native Filament tutorial highlights specific panel functions based on the user's role.
-    - _Example (Cashier):_ Points to the payment confirmation area and explains how automatic online payment confirmation works.
-    - _Example (Registrar):_ Points to the **Enrollment State** filters to show how to process "Pending Verification" records.
+- **Current TAL-12 Decision:** Removed from Admin Nexus. The Filament guided-tour/topbar button is not an approved production surface.
+- **Approved Guidance Channel:** Staff training must use maintained operations documents, UAT scripts, role checklists, and the public/student FAQ where appropriate.
+- **Reintroduction Rule:** Any future guided-tour feature requires explicit approval, a documented package/security review, role-specific content ownership, and regression tests proving it does not expose unauthorized staff workflows.
 
 ---
 

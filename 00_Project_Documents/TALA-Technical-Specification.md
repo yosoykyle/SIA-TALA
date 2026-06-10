@@ -49,6 +49,7 @@
 | 5.15 | 2026-06-05 | Refined Promissory Note Filament contract: `PromissoryNoteResource` records approved promise cases through typed create fields, removes generic edit/status mutation. |
 | 5.16 | 2026-06-05 | Refined Enrollment Filament contract: `EnrollmentResource` is list/view plus typed Registrar/Accounting actions only; raw create/edit status, LIS, section, and timestamp mutation is removed. |
 | 5.48 | 2026-06-09 | Clarified student-facing promissory note workflow as a digital form (no upload), confirmed GCP OR-Tools solver deployment, and locked Returnee Detection to a strict manual Registrar search (deferred self-service). |
+| 5.49 | 2026-06-10 | Removed `yacoubalhaidari/filament-tour` and the Admin Nexus guided-tour plugin; staff onboarding is documentation/checklist-driven unless a future approved implementation reintroduces a tested tour surface. |
 | 5.17 | 2026-06-05 | Refined Installment Policy Filament contract: milestone schedule rows are maintained as typed child rows inside `InstallmentPolicyResource`; `InstallmentPolicyMilestoneResource` is list/view only and exposes no standalone generic create/edit/status form. |
 | 5.18 | 2026-06-05 | Refined System Settings Filament contract: `system_settings` remains an internal runtime registry with no generic edit route, edit action, or raw key/value/JSON form during TAL-12. |
 | 5.19 | 2026-06-05 | Refined Schedule Change Filament contract: direct edit access is status-bounded to proposed typed requests; approved/applied/rejected changes remain lifecycle evidence. |
@@ -188,7 +189,7 @@ Example usage in Blade templates:
 | **RBAC** | Spatie Laravel Permission | `spatie/laravel-permission` ^6.24 | Role-based access control for all user types (applicant, student, registrar, accounting, faculty, academic-head, system-super-admin) |
 | **PWA** | Laravel PWA | `erag/laravel-pwa` ^2.1 | Progressive Web App support for offline COR access and mobile installation. Provides `@PwaHead` and `@RegisterServiceWorkerScript` Blade directives, Livewire-compatible, supports Laravel 8–13. |
 | **Icons** | Blade Heroicons | Built-in (via `filament/filament`) | Filament v5 bundles `blade-ui-kit/blade-heroicons` as a transitive dependency. No separate install needed. |
-| **Staff Onboarding** | Filament Tour | `yacoubalhaidari/filament-tour` | Provides step-by-step UI tutorials for the Registrar and authorized staff inside the Filament staff panel. |
+| **Staff Onboarding** | External operations docs/checklists | No runtime package | The Admin Nexus does not load a guided-tour plugin. Staff onboarding is handled through maintained documentation, UAT scripts, and role checklists unless a future approved item reintroduces a tested tour surface. |
 | **Student Onboarding** | Driver.js | `driver.js` (NPM) | Provides interactive guided tours for the Livewire/TallStackUI Student PWA. |
 
 ---

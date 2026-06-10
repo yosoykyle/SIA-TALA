@@ -24,8 +24,7 @@
         "spatie/laravel-model-states": "^2.8",
         "spatie/laravel-permission": "^6.24",
         "spatie/laravel-webhook-client": "^3.5",
-        "tallstackui/tallstackui": "3.0.0",
-        "yacoubalhaidari/filament-tour": "^1.0"
+        "tallstackui/tallstackui": "3.0.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

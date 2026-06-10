@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9168fad0bdc02fd515f4c2790b4cd70c",
+    "content-hash": "55b2672591925a73310bc2da28c32c97",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -12100,75 +12100,6 @@
                 "source": "https://github.com/webmozarts/assert/tree/2.4.0"
             },
             "time": "2026-05-20T13:07:01+00:00"
-        },
-        {
-            "name": "yacoubalhaidari/filament-tour",
-            "version": "v1.0.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/YacoubAl-hardari/filament-tour.git",
-                "reference": "963e4a55a4b6eb9fd90d2fd961822a304578029b"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/YacoubAl-hardari/filament-tour/zipball/963e4a55a4b6eb9fd90d2fd961822a304578029b",
-                "reference": "963e4a55a4b6eb9fd90d2fd961822a304578029b",
-                "shasum": ""
-            },
-            "require": {
-                "filament/filament": "^3.0|^4.0|^5.0",
-                "php": "^8.2",
-                "spatie/laravel-package-tools": "^1.15.0"
-            },
-            "require-dev": {
-                "laravel/pint": "^1.0",
-                "nunomaduro/collision": "^7.9",
-                "orchestra/testbench": "^8.0",
-                "pestphp/pest": "^2.0",
-                "pestphp/pest-plugin-arch": "^2.0",
-                "pestphp/pest-plugin-laravel": "^2.0"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "YacoubAlhaidari\\FilamentTour\\FilamentTourServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "YacoubAlhaidari\\FilamentTour\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Yacoub Alhaidari",
-                    "email": "your-email@example.com",
-                    "role": "Developer"
-                }
-            ],
-            "description": "An interactive guided tour for Filament Admin Panel using Shepherd.js",
-            "homepage": "https://github.com/yacoubalhaidari/filament-tour",
-            "keywords": [
-                "filament",
-                "filament-tour",
-                "guide",
-                "laravel",
-                "shepherd",
-                "tour",
-                "tutorial",
-                "yacoubalhaidari"
-            ],
-            "support": {
-                "issues": "https://github.com/YacoubAl-hardari/filament-tour/issues",
-                "source": "https://github.com/YacoubAl-hardari/filament-tour/tree/v1.0.1"
-            },
-            "time": "2026-01-19T07:06:30+00:00"
         }
     ],
     "packages-dev": [
