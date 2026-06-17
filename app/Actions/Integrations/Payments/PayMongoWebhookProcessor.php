@@ -2,10 +2,14 @@
 
 namespace App\Actions\Integrations\Payments;
 
+use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Models\Enrollment;
+use App\Models\StudentProfile;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use stdClass;
 
@@ -17,10 +21,13 @@ class PayMongoWebhookProcessor
 
     private const PAYMENT_FAILED = 'payment.failed';
 
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+    ) {}
 
     /**
-     * @return array{status:string, reason?:string, payment_id?:int, ledger_entry_id?:int}
+     * @return array{status:string, reason?:string, payment_id?:int, ledger_entry_id?:int, finance_cleared?:bool}
      */
     public function process(int $webhookCallId): array
     {
@@ -166,7 +173,7 @@ class PayMongoWebhookProcessor
 
     /**
      * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,amount_centavos:?int,raw:array<string,mixed>}  $context
-     * @return array{status:string, reason?:string, payment_id?:int, ledger_entry_id?:int}
+     * @return array{status:string, reason?:string, payment_id?:int, ledger_entry_id?:int, finance_cleared?:bool}
      */
     private function postSuccessfulPayment(stdClass $attempt, array $context, int $webhookCallId): array
     {
@@ -261,13 +268,53 @@ class PayMongoWebhookProcessor
             'updated_at' => $timestamp->toDateTimeString(),
         ]);
 
+        $clearance = $this->clearEnrollmentIfEligible($attempt, $newBalance, $timestamp);
+
         $this->markProcessed($webhookCallId);
 
         return [
             'status' => 'posted',
             'payment_id' => $paymentId,
             'ledger_entry_id' => $ledgerEntryId,
+            'finance_cleared' => $clearance['finance_cleared'],
         ];
+    }
+
+    /**
+     * @return array{finance_cleared:bool}
+     */
+    private function clearEnrollmentIfEligible(stdClass $attempt, string $newBalance, CarbonImmutable $timestamp): array
+    {
+        if ($attempt->enrollment_id === null || ! Schema::hasTable((new Enrollment)->getTable())) {
+            return ['finance_cleared' => false];
+        }
+
+        $enrollment = Enrollment::query()
+            ->with(['studentProfile.user'])
+            ->lockForUpdate()
+            ->find((int) $attempt->enrollment_id);
+
+        if (! $enrollment instanceof Enrollment) {
+            return ['finance_cleared' => false];
+        }
+
+        $studentProfile = StudentProfile::query()
+            ->lockForUpdate()
+            ->find((int) $attempt->student_profile_id);
+
+        if (! $studentProfile instanceof StudentProfile) {
+            throw new RuntimeException('Student profile for payment clearance was not found.');
+        }
+
+        $clearance = $this->financeClearanceService->clearIfEligible(
+            enrollment: $enrollment,
+            studentProfile: $studentProfile,
+            currentBalance: $newBalance,
+            actor: null,
+            timestamp: $timestamp,
+        );
+
+        return ['finance_cleared' => $clearance['finance_cleared']];
     }
 
     /**

@@ -61,15 +61,14 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | Admin/System | `UserResource`, `RoleResource`, `ActivityResource`, `FaqEntryResource`, `SystemSettingResource`; `UserAccountLifecycleService`; RBAC, FAQ, and direct-route denial tests; SDD-04/TAL-23 verification passed. |
 | Academic foundation | `ProgramResource`, `SubjectResource`, `CurriculumResource`, `TermResource`, `SectionResource`, `RoomResource`; `AcademicFoundationFilamentResourceTest`; `CurriculumImportServiceTest`. |
 | Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; Cloud Run solver package now parses/enforces `section_delivery_group_id`; deployed revision `tala-scheduler-solver-00004-wtx` passed authenticated `/health`, authenticated `/solve`, and unauthenticated 403 IAM smoke proof. |
-| Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources exist, but applicant intake and student self-service orchestration services are missing. |
-| Finance | `PaymentConfirmationService`, `InstallmentPolicyService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`; payment and assessment tests. |
+| Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `ApplicantIntakeService`, `StudentEnrollmentService`, `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources and applicant/enrollment backend contracts exist, while subject suggestion and dashboard aggregation remain missing. |
+| Finance | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, `InstallmentPolicyService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`; payment, webhook, and assessment tests. |
 | Documents/OCR/requests | `DocumentUploadReviewService`, `DocumentRequestLifecycleService`, `ServiceRequestLifecycleService`; document/request Filament resources and tests. |
 | Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, SHS/College grading services; class-list, grades, and grade-correction resources/tests. |
 | Student Hub access | `/student/*` route protection and FAQ/help consumption are tested. Dashboard, schedule, grades, financials, documents, enrollment, and requests still need data-backed backend contracts before UI work. |
 
-Explicit remaining TAL-13 backend contracts after SDD-05A:
+Explicit remaining TAL-13 backend contracts after SDD-05B:
 
-- `StudentEnrollmentService`
 - `SubjectSuggestionService`
 - `StudentDashboardService`
 
@@ -197,9 +196,9 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Linked applicant-owned `document_uploads` to the created official `student_profiles` row during the enrollment bridge, preserving applicant intake history.
 - Added regular enrollment support with an outstanding-balance gate, returnee detection from profile/account state, and compatible delivery-group assignment through the existing capacity-locking sectioning service.
 - Added finance-cleared account handover that sets `users.status = active`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, and exposes a `corReadiness` contract for COR/class-list gates.
-- Updated `PaymentConfirmationService` so Accounting manual payment clearance delegates handover to `StudentEnrollmentService`; this preserves the `PendingPayment` -> `PreEnrolled` finance gate and account activation invariant in the same flow.
-- Verified SDD-05B with focused test coverage in `StudentEnrollmentServiceTest` for approved-applicant happy path, regular enrollment, outstanding-balance block, payment-clearance handover, capacity-blocked rollback, idempotency, and minimum-downpayment clearance. Also re-ran `PaymentConfirmationServiceTest`.
-- Follow-up for SDD-06 Payments: PayMongo webhook processing currently posts confirmed payments/ledger entries but does not yet evaluate the same finance-clearance handover path; resolve this in the payment-backend slice before claiming online payment clearance parity.
+- Added `EnrollmentFinanceClearanceService` as the shared minimum-downpayment/full-payment and promissory-blocking rule used by both manual Accounting payment confirmation and PayMongo webhook-confirmed linked enrollment payments.
+- Updated `PaymentConfirmationService` and `PayMongoWebhookProcessor` so payment clearance delegates handover to `StudentEnrollmentService`; this preserves the `PendingPayment` -> `PreEnrolled` finance gate and account activation invariant for both manual and online gateway paths when the payment attempt is enrollment-linked.
+- Verified SDD-05B with focused test coverage in `StudentEnrollmentServiceTest` for approved-applicant happy path, regular enrollment, outstanding-balance block, payment-clearance handover, capacity-blocked rollback, idempotency, and minimum-downpayment clearance. Also verified PayMongo linked-enrollment parity in `PayMongoWebhookFinanceClearanceTest`, existing webhook contract behavior in `PayMongoWebhookMockContractTest`, payment source coverage in `PaymentConfirmationServiceTest`, and monitoring source coverage in `TAL12MonitoringCoverageTest`.
 
 ### SDD-06: Accounting Backend/Admin Closure
 
@@ -208,7 +207,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
 | Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, tests | Verify fee template scope, freshmen discount, downpayment clearance, and idempotent assessment posting. |
-| Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/balance/monthly/penalty shapes | `PaymentConfirmationService`, PayMongo tests/resources | Keep ledger immutable, gateway idempotent, and admin resources list/view or service-action only. |
+| Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, PayMongo webhook tests/resources | Keep ledger immutable, gateway idempotent, finance-clearance parity shared, and admin resources list/view or service-action only. |
 | Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 8.8 | SOA balance evidence | accounting-side resource exists | Clarify/implement student request backend if needed before UI; promissory must not clear finance status. |
 | Accounting adjustments | FS 6.3, TS 8.8 | SOA corrections/balances | ledger list/view only | Build typed adjustment service/action only if UAT requires manual corrections. |
 
@@ -260,8 +259,8 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Start `SDD-05: TAL-13 Backend Contracts Before UAT`.
+Start `SDD-05C: SubjectSuggestionService Backend Contract`.
 
 1. Treat SDD-01, SDD-02, SDD-03, and SDD-04 as completed implementation/verification evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
-2. Reconcile existing Linear `TAL-16` through `TAL-19` legacy `SDD-04A-D` titles to the current SDD-05 TAL-13 backend contract numbering before implementation starts.
-3. Keep Student Hub UI deferred; do not enter Pre-UAT until the active TAL-13 backend contracts are either implemented or explicitly descoped.
+2. Treat SDD-05A applicant intake, SDD-05B student enrollment, and PayMongo linked-enrollment finance-clearance parity as completed backend evidence.
+3. Keep Student Hub UI deferred; do not enter Pre-UAT until `SubjectSuggestionService` and `StudentDashboardService` are either implemented or explicitly descoped.
