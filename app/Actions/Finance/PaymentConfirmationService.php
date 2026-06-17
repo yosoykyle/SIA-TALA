@@ -2,6 +2,7 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\Enrollment;
 use App\Models\FeeTemplate;
 use App\Models\LedgerEntry;
@@ -16,7 +17,10 @@ use RuntimeException;
 
 class PaymentConfirmationService
 {
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly StudentEnrollmentService $studentEnrollmentService,
+    ) {}
 
     /**
      * @return array{payment_id:int, ledger_entry_id:int, current_balance:string, minimum_required_payment:string, total_confirmed_payments:string, finance_cleared:bool}
@@ -108,9 +112,7 @@ class PaymentConfirmationService
                     'pre_enrolled_at' => $enrollment->pre_enrolled_at ?? $timestamp,
                 ])->save();
 
-                $studentProfile->user?->forceFill([
-                    'status' => 'active',
-                ])->save();
+                $enrollment = $this->studentEnrollmentService->completeFinanceClearedHandover($enrollment, $actor, $timestamp);
             }
 
             $this->recordPaymentAudit($enrollment, $payment, $ledgerEntry, $financeCleared, $actor, $timestamp);

@@ -619,7 +619,9 @@
 ### Part A: Active Missing Backend Contracts
 - [x] Implement `ApplicantIntakeService` (Public registration to pending applicant)
   - 2026-06-17 SDD-05A backend contract implemented: `applicant_intakes` stores pre-handover applicant profile/status/required-document/duplicate-check evidence; pending applicant `users` rows receive the `applicant` role and remain blocked from protected Student Hub/staff areas; applicant-owned `document_uploads` link through `applicant_intake_id` with no `student_profile_id` until Official Handover; OCR dispatch uses the existing `ProcessDocumentOcrJob`; approval-for-payment is blocked until every required applicant document is Registrar-approved. Focused test: `php artisan test --compact tests/Feature/ApplicantIntakeServiceTest.php`.
-- [ ] Implement `StudentEnrollmentService` (One-Click Enroll auto-promotion for Regulars)
+- [x] Implement `StudentEnrollmentService` (One-Click Enroll auto-promotion for Regulars)
+  - 2026-06-17 SDD-05B backend contract implemented: approved applicant intakes can be bridged into official `student_profiles` and `enrollments` without activating Student Hub access before finance clearance; applicant documents are linked to the official profile during handover; regular enrollment blocks outstanding balances, detects returnees, and assigns compatible delivery groups through the existing locked-capacity sectioning service; Accounting manual payment clearance now delegates account handover to `StudentEnrollmentService`, assigning the student role, Student ID username, active status, and COR readiness evidence. Focused tests: `php artisan test --compact tests/Feature/StudentEnrollmentServiceTest.php tests/Feature/PaymentConfirmationServiceTest.php`.
+  - SDD-06 payment follow-up: PayMongo webhook processing still posts payment/ledger evidence only; evaluate and wire the same finance-clearance handover path before claiming online payment clearance parity.
 - [ ] Implement `SubjectSuggestionService` (Prerequisite enforcement & back-subject suggestion for Irregulars)
 - [ ] Implement `StudentDashboardService` (Aggregated view of schedule, balance, grades, requests)
 

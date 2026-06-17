@@ -177,7 +177,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05A:
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
 | Applicant intake backend | FS 4.1, FS 5.4, TS 2.5, TS 3.3 | SHS evaluation, transferee evaluation sheets | `ApplicantIntakeService`, `ApplicantIntake`, applicant-linked `document_uploads`, focused tests | Done for backend contract: public registration service, pending applicant status, duplicate guard, document/OCR handoff, and approval-for-payment prerequisites. |
-| Student enrollment backend | FS 4.2, FS 5.4, TS 3.12 | SOA/enrollment fields, curriculum/evaluation evidence | missing `StudentEnrollmentService` | Create service for regular enrollment, returnee detection, payment/clearance gates, section capacity, and COR readiness. |
+| Student enrollment backend | FS 4.2, FS 5.4, TS 3.12 | SOA/enrollment fields, curriculum/evaluation evidence | `StudentEnrollmentService`, payment handover bridge, focused tests | Done for backend contract: approved-applicant enrollment creation, regular enrollment, returnee detection, payment/clearance handover, section capacity, and COR readiness. |
 | Subject suggestion backend | FS 4.2, FS 5.3, TS 3.4.1 | evaluation/bridging/grade evidence | missing `SubjectSuggestionService` | Create prerequisite-aware subject suggestion for irregulars/transferees, including active INC/failed/missing-history blockers. |
 | Student dashboard backend | FS 4.3, FS 6, FS 7, FS 9, TS 5.8 | SOA and grade-sheet evidence | missing `StudentDashboardService` | Aggregate schedule, balance, grades, document requests, grade corrections, holds, and FAQ/help links for future UI. |
 
@@ -190,6 +190,16 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Added `ApplicantIntakeService` to create pending applicant users with the `applicant` role, block duplicate LRN/name-birthdate matches, derive required document lists, dispatch OCR for uploaded documents, and block payment unlock until every required document is Registrar-approved.
 - Updated the existing Registrar Document Review list/detail surface to show applicant labels for applicant-owned uploads without adding generic Document Upload CRUD.
 - Verified SDD-05A with focused test coverage in `ApplicantIntakeServiceTest` for happy path, duplicate guard, OCR handoff, and blocked finalization prerequisites.
+
+**SDD-05B implementation evidence (2026-06-17):**
+
+- Added `StudentEnrollmentService` as the backend authority for moving approved applicant intakes into `student_profiles` and `enrollments` while keeping the account `approved` until finance clearance.
+- Linked applicant-owned `document_uploads` to the created official `student_profiles` row during the enrollment bridge, preserving applicant intake history.
+- Added regular enrollment support with an outstanding-balance gate, returnee detection from profile/account state, and compatible delivery-group assignment through the existing capacity-locking sectioning service.
+- Added finance-cleared account handover that sets `users.status = active`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, and exposes a `corReadiness` contract for COR/class-list gates.
+- Updated `PaymentConfirmationService` so Accounting manual payment clearance delegates handover to `StudentEnrollmentService`; this preserves the `PendingPayment` -> `PreEnrolled` finance gate and account activation invariant in the same flow.
+- Verified SDD-05B with focused test coverage in `StudentEnrollmentServiceTest` for approved-applicant happy path, regular enrollment, outstanding-balance block, payment-clearance handover, capacity-blocked rollback, idempotency, and minimum-downpayment clearance. Also re-ran `PaymentConfirmationServiceTest`.
+- Follow-up for SDD-06 Payments: PayMongo webhook processing currently posts confirmed payments/ledger entries but does not yet evaluate the same finance-clearance handover path; resolve this in the payment-backend slice before claiming online payment clearance parity.
 
 ### SDD-06: Accounting Backend/Admin Closure
 
