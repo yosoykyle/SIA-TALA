@@ -56,7 +56,7 @@ class GradeCorrectionResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()
-            ->with(['student', 'grade', 'subject', 'term', 'assignedTo', 'creator']);
+            ->with(['student', 'grade', 'subject', 'term', 'assignedTo', 'academicHeadReviewer', 'creator']);
 
         $user = auth()->user();
 
@@ -68,7 +68,7 @@ class GradeCorrectionResource extends Resource
             return $query->visibleToFaculty($user);
         }
 
-        if ($user->can('manage-grade-corrections') || $user->can('view-grade-submission-progress') || $user->can('view-global-records')) {
+        if ($user->can('manage-grade-corrections') || $user->can('authorize-overrides') || $user->can('view-grade-submission-progress') || $user->can('view-global-records')) {
             return $query;
         }
 

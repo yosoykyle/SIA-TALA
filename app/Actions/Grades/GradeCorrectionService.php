@@ -218,6 +218,106 @@ class GradeCorrectionService
     }
 
     /**
+     * @throws AuthorizationException
+     * @throws ValidationException
+     */
+    public function approveOfficialGradeChange(
+        GradeCorrection $correction,
+        User $academicHead,
+        string $approvalReason,
+        ?CarbonImmutable $approvedAt = null,
+    ): GradeCorrectionResult {
+        $timestamp = $approvedAt ?? CarbonImmutable::now(config('app.timezone'));
+
+        return DB::transaction(function () use ($correction, $academicHead, $approvalReason, $timestamp): GradeCorrectionResult {
+            $lockedCorrection = $this->lockedCorrection($correction);
+
+            $this->assertAcademicHeadCanAuthorize($academicHead);
+            $this->assertText($approvalReason, 'approval_reason', 500);
+            $this->assertStatus($lockedCorrection, GradeCorrectionStatus::UnderReview, 'Only under review grade corrections can receive Academic Head approval.');
+            $this->assertLinkedOfficialGradeCorrection($lockedCorrection);
+            $this->assertNoAcademicHeadReviewDecision($lockedCorrection);
+
+            $lockedCorrection->forceFill([
+                'academic_head_review_status' => GradeCorrection::AcademicHeadReviewApproved,
+                'academic_head_reviewed_by' => $academicHead->id,
+                'academic_head_reviewed_at' => $timestamp,
+                'academic_head_review_note' => trim($approvalReason),
+            ])->save();
+
+            $lockedCorrection->refresh();
+
+            $this->recordCorrectionAudit(
+                correction: $lockedCorrection,
+                actor: $academicHead,
+                event: 'grade_correction_academic_head_approved',
+                oldStatus: GradeCorrectionStatus::UnderReview,
+                newStatus: GradeCorrectionStatus::UnderReview,
+                reason: $approvalReason,
+                recordedAt: $timestamp,
+                properties: [
+                    'academic_head_review_status' => GradeCorrection::AcademicHeadReviewApproved,
+                    'academic_head_id' => $academicHead->id,
+                ],
+            );
+
+            return GradeCorrectionResult::underReview($lockedCorrection);
+        });
+    }
+
+    /**
+     * @throws AuthorizationException
+     * @throws ValidationException
+     */
+    public function rejectOfficialGradeChange(
+        GradeCorrection $correction,
+        User $academicHead,
+        string $rejectionReason,
+        ?CarbonImmutable $rejectedAt = null,
+    ): GradeCorrectionResult {
+        $timestamp = $rejectedAt ?? CarbonImmutable::now(config('app.timezone'));
+
+        return DB::transaction(function () use ($correction, $academicHead, $rejectionReason, $timestamp): GradeCorrectionResult {
+            $lockedCorrection = $this->lockedCorrection($correction);
+
+            $this->assertAcademicHeadCanAuthorize($academicHead);
+            $this->assertText($rejectionReason, 'rejection_reason', 500);
+            $this->assertStatus($lockedCorrection, GradeCorrectionStatus::UnderReview, 'Only under review grade corrections can be rejected by the Academic Head.');
+            $this->assertLinkedOfficialGradeCorrection($lockedCorrection);
+            $this->assertNoAcademicHeadReviewDecision($lockedCorrection);
+
+            $oldStatus = $this->status($lockedCorrection);
+
+            $lockedCorrection->forceFill([
+                'status' => GradeCorrectionStatus::Rejected,
+                'academic_head_review_status' => GradeCorrection::AcademicHeadReviewRejected,
+                'academic_head_reviewed_by' => $academicHead->id,
+                'academic_head_reviewed_at' => $timestamp,
+                'academic_head_review_note' => trim($rejectionReason),
+                'resolved_at' => $timestamp,
+            ])->save();
+
+            $lockedCorrection->refresh();
+
+            $this->recordCorrectionAudit(
+                correction: $lockedCorrection,
+                actor: $academicHead,
+                event: 'grade_correction_academic_head_rejected',
+                oldStatus: $oldStatus,
+                newStatus: GradeCorrectionStatus::Rejected,
+                reason: $rejectionReason,
+                recordedAt: $timestamp,
+                properties: [
+                    'academic_head_review_status' => GradeCorrection::AcademicHeadReviewRejected,
+                    'academic_head_id' => $academicHead->id,
+                ],
+            );
+
+            return GradeCorrectionResult::rejected($lockedCorrection);
+        });
+    }
+
+    /**
      * @param  array<string, bool|float|int|string|null>  $gradeAttributes
      *
      * @throws AuthorizationException
@@ -226,9 +326,7 @@ class GradeCorrectionService
     public function resolveWithGradeChange(
         GradeCorrection $correction,
         User $registrar,
-        User $academicHead,
         array $gradeAttributes,
-        string $approvalReason,
         string $resolutionNotes,
         ?CarbonImmutable $resolvedAt = null,
     ): GradeCorrectionResult {
@@ -237,25 +335,20 @@ class GradeCorrectionService
         return DB::transaction(function () use (
             $correction,
             $registrar,
-            $academicHead,
             $gradeAttributes,
-            $approvalReason,
             $resolutionNotes,
             $timestamp,
         ): GradeCorrectionResult {
             $lockedCorrection = $this->lockedCorrection($correction);
 
             $this->assertRegistrarCanManage($registrar);
-            $this->assertAcademicHeadCanAuthorize($academicHead);
-            $this->assertText($approvalReason, 'approval_reason', 500);
             $this->assertText($resolutionNotes, 'resolution_notes', 500);
             $this->assertStatus($lockedCorrection, GradeCorrectionStatus::UnderReview, 'Only under review grade corrections can be resolved.');
+            $this->assertLinkedOfficialGradeCorrection($lockedCorrection);
+            $this->assertAcademicHeadApprovalGranted($lockedCorrection);
 
-            if ($lockedCorrection->grade_id === null) {
-                throw ValidationException::withMessages([
-                    'grade_id' => 'A linked grade is required before an official grade change can be resolved.',
-                ]);
-            }
+            $academicHead = $lockedCorrection->academicHeadReviewer()->firstOrFail();
+            $approvalReason = (string) $lockedCorrection->academic_head_review_note;
 
             $lockedGrade = Grade::query()
                 ->whereKey($lockedCorrection->grade_id)
@@ -350,6 +443,48 @@ class GradeCorrectionService
         }
 
         throw new AuthorizationException('Only the Academic Head can authorize official grade corrections.');
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertLinkedOfficialGradeCorrection(GradeCorrection $correction): void
+    {
+        if ($correction->grade_id !== null) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'grade_id' => 'A linked grade is required before an official grade change can be reviewed.',
+        ]);
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertNoAcademicHeadReviewDecision(GradeCorrection $correction): void
+    {
+        if (! $correction->hasAcademicHeadApproval() && ! $correction->hasAcademicHeadRejection()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'academic_head_review_status' => 'This grade correction already has an Academic Head decision.',
+        ]);
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertAcademicHeadApprovalGranted(GradeCorrection $correction): void
+    {
+        if ($correction->hasAcademicHeadApproval()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'academic_head_review_status' => 'Academic Head approval is required before the Registrar can apply an official grade change.',
+        ]);
     }
 
     /**

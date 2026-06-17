@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Models\Curriculum;
 use App\Models\Program;
+use App\Models\Room;
 use App\Models\Term;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -17,6 +18,7 @@ class SectionPlanningServiceTest extends TestCase
     public function test_valid_section_planning_payload_is_normalized_for_solver_readiness(): void
     {
         [$term, $program, $curriculum] = $this->planningFixtures();
+        Room::factory()->create(['code' => 'R-101']);
 
         $payload = app(SectionPlanningService::class)->prepareForSave([
             'term_id' => (string) $term->id,
@@ -91,6 +93,36 @@ class SectionPlanningServiceTest extends TestCase
             $this->assertArrayHasKey('max_seats', $exception->errors());
             $this->assertArrayHasKey('room', $exception->errors());
             $this->assertArrayHasKey('curriculum_id', $exception->errors());
+        }
+    }
+
+    public function test_section_planning_rejects_unknown_or_inactive_physical_rooms(): void
+    {
+        [$term, $program, $curriculum] = $this->planningFixtures();
+        Room::factory()->create([
+            'code' => 'R-404',
+            'is_active' => false,
+        ]);
+
+        foreach (['R-404', 'R-999'] as $roomCode) {
+            try {
+                app(SectionPlanningService::class)->prepareForSave([
+                    'term_id' => $term->id,
+                    'program_id' => $program->id,
+                    'curriculum_id' => $curriculum->id,
+                    'year_level' => '1st Year',
+                    'curriculum_period' => '1st Semester',
+                    'name' => 'BSIT 1A',
+                    'modality' => 'on_site',
+                    'room' => $roomCode,
+                    'max_seats' => 30,
+                    'enrolled_count' => 12,
+                ]);
+
+                $this->fail("Expected section planning validation to reject {$roomCode}.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('room', $exception->errors());
+            }
         }
     }
 

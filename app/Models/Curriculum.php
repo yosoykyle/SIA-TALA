@@ -47,6 +47,11 @@ class Curriculum extends Model
         return $this->hasMany(CurriculumSubject::class);
     }
 
+    public function readinessScopes(): HasMany
+    {
+        return $this->hasMany(CurriculumReadinessScope::class);
+    }
+
     public function sections(): HasMany
     {
         return $this->hasMany(Section::class);

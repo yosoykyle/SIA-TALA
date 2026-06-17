@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\SectionMeetingAssignmentService;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\Section;
@@ -48,6 +51,7 @@ class SectionMeetingAssignmentServiceTest extends TestCase
         $this->assertNull($payload['schedule_generation_run_id']);
         $this->assertSame($registrar->id, $payload['committed_by']);
         $this->assertSame($committedAt, $payload['committed_at']);
+        $this->assertArrayNotHasKey('availability_override_reason', $payload);
     }
 
     public function test_prepare_for_create_rejects_overlapping_faculty_or_room_assignments(): void
@@ -87,6 +91,51 @@ class SectionMeetingAssignmentServiceTest extends TestCase
             'ends_at' => '11:00',
             'modality' => 'on_site',
         ], $registrar);
+    }
+
+    public function test_prepare_for_create_rejects_section_overlap_as_hard_conflict_even_with_availability_override_reason(): void
+    {
+        [$term, $section, $subject, $registrar, $faculty] = $this->scheduleFixtures();
+        $otherFaculty = User::factory()->create();
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $otherFaculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => null,
+        ]);
+        $this->createFacultyAvailability($term, $otherFaculty, dayOfWeek: 2, startsAt: '08:00:00', endsAt: '12:00:00');
+
+        SectionMeeting::query()->create([
+            'term_id' => $term->id,
+            'section_id' => $section->id,
+            'subject_id' => $subject->id,
+            'faculty_id' => $faculty->id,
+            'room' => 'RUT 201',
+            'day_of_week' => 2,
+            'starts_at' => '08:00',
+            'ends_at' => '10:00',
+            'modality' => 'on_site',
+            'committed_by' => $registrar->id,
+            'committed_at' => now(),
+        ]);
+
+        try {
+            app(SectionMeetingAssignmentService::class)->prepareForCreate([
+                'term_id' => $term->id,
+                'section_id' => $section->id,
+                'subject_id' => $subject->id,
+                'faculty_id' => $otherFaculty->id,
+                'room' => 'RUT 202',
+                'day_of_week' => 2,
+                'starts_at' => '09:00',
+                'ends_at' => '11:00',
+                'modality' => 'on_site',
+                'availability_override_reason' => 'Faculty agreed to teach outside submitted availability.',
+            ], $registrar);
+
+            $this->fail('Expected section overlap to remain a hard conflict.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('section_id', $exception->errors());
+        }
     }
 
     public function test_prepare_for_create_rejects_faculty_without_active_subject_eligibility(): void
@@ -173,6 +222,7 @@ class SectionMeetingAssignmentServiceTest extends TestCase
             'subject_id' => $subject->id,
             'term_id' => null,
         ]);
+        $this->createFacultyAvailability($term, $faculty, dayOfWeek: 2, startsAt: '08:00:00', endsAt: '12:00:00');
 
         $payload = app(SectionMeetingAssignmentService::class)->prepareForCreate([
             'term_id' => $term->id,
@@ -187,6 +237,60 @@ class SectionMeetingAssignmentServiceTest extends TestCase
         ], $registrar);
 
         $this->assertSame($faculty->id, $payload['faculty_id']);
+    }
+
+    public function test_prepare_for_create_requires_reason_when_faculty_has_no_submitted_or_locked_availability(): void
+    {
+        [$term, $section, $subject, $registrar, $faculty] = $this->scheduleFixtures(createAvailability: false);
+
+        try {
+            app(SectionMeetingAssignmentService::class)->prepareForCreate([
+                'term_id' => $term->id,
+                'section_id' => $section->id,
+                'subject_id' => $subject->id,
+                'faculty_id' => $faculty->id,
+                'room' => 'RUT 201',
+                'day_of_week' => 2,
+                'starts_at' => '08:00',
+                'ends_at' => '10:00',
+                'modality' => 'on_site',
+            ], $registrar);
+
+            $this->fail('Expected missing faculty availability to require an override reason.');
+        } catch (ValidationException $exception) {
+            $this->assertSame([
+                'Registrar override reason is required because the selected faculty has no submitted or locked availability for this term.',
+            ], $exception->errors()['availability_override_reason']);
+        }
+    }
+
+    public function test_prepare_for_create_records_reasoned_override_when_meeting_is_outside_availability(): void
+    {
+        [$term, $section, $subject, $registrar, $faculty] = $this->scheduleFixtures(
+            availabilityStartsAt: '08:00:00',
+            availabilityEndsAt: '09:00:00',
+        );
+        $committedAt = CarbonImmutable::parse('2026-06-15 09:00:00', config('app.timezone'));
+
+        $payload = app(SectionMeetingAssignmentService::class)->prepareForCreate([
+            'term_id' => $term->id,
+            'section_id' => $section->id,
+            'subject_id' => $subject->id,
+            'faculty_id' => $faculty->id,
+            'room' => 'RUT 201',
+            'day_of_week' => 2,
+            'starts_at' => '10:00',
+            'ends_at' => '11:00',
+            'modality' => 'on_site',
+            'availability_override_reason' => 'Faculty confirmed availability by signed message after the period closed.',
+        ], $registrar, $committedAt);
+
+        $this->assertSame('Faculty confirmed availability by signed message after the period closed.', $payload['availability_override_reason']);
+        $this->assertSame($registrar->id, $payload['availability_override_by']);
+        $this->assertSame($committedAt, $payload['availability_override_at']);
+        $this->assertSame('outside_availability_window', $payload['availability_override_payload']['type']);
+        $this->assertSame($faculty->id, $payload['availability_override_payload']['faculty_id']);
+        $this->assertSame($term->id, $payload['availability_override_payload']['term_id']);
     }
 
     public function test_prepare_for_schedule_change_ignores_the_current_meeting_but_rejects_other_conflicts(): void
@@ -254,8 +358,11 @@ class SectionMeetingAssignmentServiceTest extends TestCase
     /**
      * @return array{Term, Section, Subject, User, User}
      */
-    private function scheduleFixtures(): array
-    {
+    private function scheduleFixtures(
+        bool $createAvailability = true,
+        string $availabilityStartsAt = '08:00:00',
+        string $availabilityEndsAt = '12:00:00',
+    ): array {
         $term = Term::factory()->create();
         $program = Program::factory()->create();
         $section = Section::factory()->for($term)->for($program)->create();
@@ -268,6 +375,53 @@ class SectionMeetingAssignmentServiceTest extends TestCase
             'term_id' => null,
         ]);
 
+        if ($createAvailability) {
+            $this->createFacultyAvailability(
+                $term,
+                $faculty,
+                dayOfWeek: 2,
+                startsAt: $availabilityStartsAt,
+                endsAt: $availabilityEndsAt,
+            );
+        }
+
         return [$term, $section, $subject, $registrar, $faculty];
+    }
+
+    private function createFacultyAvailability(
+        Term $term,
+        User $faculty,
+        int $dayOfWeek,
+        string $startsAt,
+        string $endsAt,
+    ): FacultyAvailabilitySubmission {
+        $period = FacultyAvailabilityPeriod::query()->firstOrCreate(
+            ['term_id' => $term->id],
+            [
+                'opens_at' => now()->subDay(),
+                'closes_at' => now()->addDays(7),
+                'status' => 'open',
+                'created_by' => User::factory()->create()->id,
+                'locked_at' => null,
+            ],
+        );
+
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'version' => 1,
+            'locked_at' => now(),
+        ]);
+
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+            'day_of_week' => $dayOfWeek,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+        ]);
+
+        return $submission;
     }
 }

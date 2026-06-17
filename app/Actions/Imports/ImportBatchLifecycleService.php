@@ -13,12 +13,15 @@ class ImportBatchLifecycleService
 {
     public function commit(ImportBatch $importBatch, User $actor): ImportBatch
     {
-        return $this->transition(
-            importBatch: $importBatch,
-            actor: $actor,
-            status: ImportBatch::StatusCommitted,
-            event: 'import_batch_committed',
-        );
+        $this->authorizeRegistrarImportAction($actor);
+
+        if ($importBatch->import_type === ImportBatch::TypeCurriculum) {
+            return app(CurriculumImportService::class)->commit($importBatch, $actor);
+        }
+
+        throw ValidationException::withMessages([
+            'import_type' => 'Only curriculum imports have a controlled TAL-12 commit pipeline.',
+        ]);
     }
 
     public function cancel(ImportBatch $importBatch, User $actor): ImportBatch

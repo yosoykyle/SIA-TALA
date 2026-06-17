@@ -8,7 +8,6 @@ use App\Models\GradeCorrection;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -23,7 +22,7 @@ class GradeCorrectionsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['student', 'grade', 'subject', 'term', 'assignedTo', 'creator']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['student', 'grade', 'subject', 'term', 'assignedTo', 'academicHeadReviewer', 'creator']))
             ->columns([
                 TextColumn::make('student.name')
                     ->label('Student')
@@ -70,6 +69,22 @@ class GradeCorrectionsTable
                     ->label('Assigned To')
                     ->placeholder('-')
                     ->toggleable(),
+                TextColumn::make('academic_head_review_status')
+                    ->label('Academic Head Review')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => blank($state) ? 'Pending' : str($state)->headline()->toString())
+                    ->color(fn (?string $state): string => match ($state) {
+                        GradeCorrection::AcademicHeadReviewApproved => 'success',
+                        GradeCorrection::AcademicHeadReviewRejected => 'danger',
+                        GradeCorrection::AcademicHeadReviewPending, null => 'warning',
+                        default => 'gray',
+                    })
+                    ->placeholder('Pending')
+                    ->toggleable(),
+                TextColumn::make('academicHeadReviewer.name')
+                    ->label('Academic Head Reviewer')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('resolved_at')
                     ->dateTime()
                     ->sortable()
@@ -96,6 +111,8 @@ class GradeCorrectionsTable
                 ViewAction::make(),
                 self::startReviewAction(),
                 self::rejectAction(),
+                self::approveOfficialGradeChangeAction(),
+                self::rejectOfficialGradeChangeAction(),
                 self::resolveWithoutGradeChangeAction(),
                 self::resolveWithGradeChangeAction(),
             ])
@@ -189,16 +206,10 @@ class GradeCorrectionsTable
     private static function resolveWithGradeChangeAction(): Action
     {
         return Action::make('resolveWithGradeChange')
-            ->label('Resolve - Record Approved Grade Change')
+            ->label('Resolve - Apply Approved Grade Change')
             ->icon(Heroicon::OutlinedShieldCheck)
             ->color('warning')
             ->schema([
-                Select::make('academic_head_id')
-                    ->label('Academic Head who approved offline')
-                    ->options(fn (): array => User::role('academic-head')->orderBy('name')->pluck('name', 'id')->all())
-                    ->searchable()
-                    ->required()
-                    ->helperText('Use only after the Academic Head has already approved the official grade change outside this screen. This action records that approval and the Registrar resolution in the audit trail.'),
                 TextInput::make('college_prelim')
                     ->label('College Prelim Raw Score')
                     ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
@@ -236,17 +247,13 @@ class GradeCorrectionsTable
                     ->minValue(60)
                     ->maxValue(100)
                     ->helperText('The final SHS grade and remarks are calculated by the same SHS grading service used by Faculty grade encoding.'),
-                Textarea::make('approval_reason')
-                    ->label('Recorded Academic Head Approval Reason')
-                    ->required()
-                    ->maxLength(500)
-                    ->helperText('Record the approval reason exactly as approved by the Academic Head.'),
                 Textarea::make('resolution_notes')
                     ->label('Resolution Notes')
+                    ->helperText('The Academic Head approval reason is captured from the in-system approval action; this field records the Registrar resolution note.')
                     ->required()
                     ->maxLength(500),
             ])
-            ->modalSubmitActionLabel('Record Approved Change')
+            ->modalSubmitActionLabel('Apply Approved Change')
             ->visible(fn (GradeCorrection $record): bool => auth()->user()?->can('resolveWithGradeChange', $record) ?? false)
             ->action(function (GradeCorrection $record, array $data): void {
                 $actor = auth()->user();
@@ -256,17 +263,75 @@ class GradeCorrectionsTable
                 }
 
                 self::handleCorrectionAction(function () use ($record, $data, $actor): void {
-                    $academicHead = User::query()->findOrFail((int) $data['academic_head_id']);
-
                     app(GradeCorrectionService::class)->resolveWithGradeChange(
                         correction: $record,
                         registrar: $actor,
-                        academicHead: $academicHead,
                         gradeAttributes: self::gradeOverridePayload($data),
-                        approvalReason: (string) $data['approval_reason'],
                         resolutionNotes: (string) $data['resolution_notes'],
                     );
-                }, 'Grade correction resolved with Academic Head override');
+                }, 'Approved grade correction applied');
+            });
+    }
+
+    private static function approveOfficialGradeChangeAction(): Action
+    {
+        return Action::make('approveOfficialGradeChange')
+            ->label('Approve Official Grade Change')
+            ->icon(Heroicon::OutlinedShieldCheck)
+            ->color('success')
+            ->schema([
+                Textarea::make('approval_reason')
+                    ->label('Academic Head Approval Reason')
+                    ->required()
+                    ->maxLength(500),
+            ])
+            ->modalSubmitActionLabel('Approve Grade Change')
+            ->visible(fn (GradeCorrection $record): bool => auth()->user()?->can('approveOfficialGradeChange', $record) ?? false)
+            ->action(function (GradeCorrection $record, array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    return;
+                }
+
+                self::handleCorrectionAction(function () use ($record, $data, $actor): void {
+                    app(GradeCorrectionService::class)->approveOfficialGradeChange(
+                        correction: $record,
+                        academicHead: $actor,
+                        approvalReason: (string) $data['approval_reason'],
+                    );
+                }, 'Official grade change approved');
+            });
+    }
+
+    private static function rejectOfficialGradeChangeAction(): Action
+    {
+        return Action::make('rejectOfficialGradeChange')
+            ->label('Reject Official Grade Change')
+            ->icon(Heroicon::OutlinedXCircle)
+            ->color('danger')
+            ->schema([
+                Textarea::make('rejection_reason')
+                    ->label('Academic Head Rejection Reason')
+                    ->required()
+                    ->maxLength(500),
+            ])
+            ->modalSubmitActionLabel('Reject Grade Change')
+            ->visible(fn (GradeCorrection $record): bool => auth()->user()?->can('rejectOfficialGradeChange', $record) ?? false)
+            ->action(function (GradeCorrection $record, array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    return;
+                }
+
+                self::handleCorrectionAction(function () use ($record, $data, $actor): void {
+                    app(GradeCorrectionService::class)->rejectOfficialGradeChange(
+                        correction: $record,
+                        academicHead: $actor,
+                        rejectionReason: (string) $data['rejection_reason'],
+                    );
+                }, 'Official grade change rejected');
             });
     }
 

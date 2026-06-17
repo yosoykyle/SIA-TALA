@@ -2,6 +2,8 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\SectionMeeting;
 use App\Models\User;
@@ -22,22 +24,38 @@ class SectionMeetingAssignmentService
 
         $this->assertNoConflicts($payload);
 
+        $timestamp = $committedAt ?? CarbonImmutable::now(config('app.timezone'));
+        $overrideAttributes = $this->availabilityOverrideAttributes(
+            payload: $payload,
+            registrar: $registrar,
+            timestamp: $timestamp,
+            includeNulls: false,
+        );
+        unset($payload['availability_override_reason']);
+
         return [
             ...$payload,
+            ...$overrideAttributes,
             'schedule_generation_run_id' => null,
             'committed_by' => $registrar->id,
-            'committed_at' => $committedAt ?? CarbonImmutable::now(config('app.timezone')),
+            'committed_at' => $timestamp,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $newPayload
-     * @return array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
+     * @return array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string, availability_override_by:?int, availability_override_at:?CarbonImmutable, availability_override_payload:?array<string, mixed>}
      *
      * @throws ValidationException
      */
-    public function prepareForScheduleChange(SectionMeeting $sectionMeeting, array $newPayload): array
-    {
+    public function prepareForScheduleChange(
+        SectionMeeting $sectionMeeting,
+        array $newPayload,
+        ?User $registrar = null,
+        ?string $availabilityOverrideReason = null,
+        ?CarbonImmutable $changedAt = null,
+        array $availabilityOverrideContext = [],
+    ): array {
         $payload = [
             'term_id' => $sectionMeeting->term_id,
             'section_id' => $sectionMeeting->section_id,
@@ -50,11 +68,19 @@ class SectionMeetingAssignmentService
             'starts_at' => $newPayload['starts_at'] ?? null,
             'ends_at' => $newPayload['ends_at'] ?? null,
             'modality' => $newPayload['modality'] ?? null,
+            'availability_override_reason' => $availabilityOverrideReason,
         ];
 
         $normalized = $this->normalizeAssignmentData($payload);
 
         $this->assertNoConflicts($normalized, $sectionMeeting->id);
+        $overrideAttributes = $this->availabilityOverrideAttributes(
+            payload: $normalized,
+            registrar: $registrar,
+            timestamp: $changedAt ?? CarbonImmutable::now(config('app.timezone')),
+            includeNulls: true,
+            context: $availabilityOverrideContext,
+        );
 
         return [
             'faculty_id' => $normalized['faculty_id'],
@@ -63,12 +89,13 @@ class SectionMeetingAssignmentService
             'starts_at' => $normalized['starts_at'],
             'ends_at' => $normalized['ends_at'],
             'modality' => $normalized['modality'],
+            ...$overrideAttributes,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}
+     * @return array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string}
      *
      * @throws ValidationException
      */
@@ -84,6 +111,7 @@ class SectionMeetingAssignmentService
             'starts_at' => $this->timeValue($data['starts_at'] ?? null),
             'ends_at' => $this->timeValue($data['ends_at'] ?? null),
             'modality' => $this->stringValue($data['modality'] ?? null),
+            'availability_override_reason' => $this->stringValue($data['availability_override_reason'] ?? null),
         ];
 
         $this->assertRequired($payload, ['term_id', 'section_id', 'subject_id', 'faculty_id', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
@@ -106,6 +134,12 @@ class SectionMeetingAssignmentService
             ]);
         }
 
+        if ($payload['availability_override_reason'] !== null && mb_strlen($payload['availability_override_reason']) > 1000) {
+            throw ValidationException::withMessages([
+                'availability_override_reason' => 'Availability override reason may not be greater than 1000 characters.',
+            ]);
+        }
+
         if ($this->requiresRoom($payload['modality']) && $payload['room'] === null) {
             throw ValidationException::withMessages([
                 'room' => 'A room is required for on-site or blended meetings.',
@@ -118,7 +152,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}  $payload
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      *
      * @throws ValidationException
      */
@@ -130,6 +164,12 @@ class SectionMeetingAssignmentService
             ->where('starts_at', '<', $payload['ends_at'])
             ->where('ends_at', '>', $payload['starts_at'])
             ->when($exceptSectionMeetingId !== null, fn ($query) => $query->whereKeyNot($exceptSectionMeetingId));
+
+        if ((clone $overlappingMeetings)->where('section_id', $payload['section_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'section_id' => 'The selected section already has a committed meeting during this time.',
+            ]);
+        }
 
         if ((clone $overlappingMeetings)->where('faculty_id', $payload['faculty_id'])->exists()) {
             throw ValidationException::withMessages([
@@ -198,7 +238,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string}  $payload
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      *
      * @throws ValidationException
      */
@@ -215,5 +255,128 @@ class SectionMeetingAssignmentService
         throw ValidationException::withMessages([
             'faculty_id' => 'The selected faculty is not approved to teach this subject for the selected term.',
         ]);
+    }
+
+    /**
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    private function availabilityOverrideAttributes(
+        array $payload,
+        ?User $registrar,
+        CarbonImmutable $timestamp,
+        bool $includeNulls,
+        array $context = [],
+    ): array {
+        $issue = $this->facultyAvailabilityIssue($payload);
+
+        if ($issue === null) {
+            return $includeNulls
+                ? [
+                    'availability_override_reason' => null,
+                    'availability_override_by' => null,
+                    'availability_override_at' => null,
+                    'availability_override_payload' => null,
+                ]
+                : [];
+        }
+
+        $reason = $payload['availability_override_reason'] ?? null;
+
+        if ($reason === null) {
+            throw ValidationException::withMessages([
+                'availability_override_reason' => $this->availabilityOverrideRequiredMessage($issue['type']),
+            ]);
+        }
+
+        if (! $registrar instanceof User) {
+            throw ValidationException::withMessages([
+                'availability_override_by' => 'An authenticated Registrar is required to record a faculty availability override.',
+            ]);
+        }
+
+        return [
+            'availability_override_reason' => $reason,
+            'availability_override_by' => $registrar->id,
+            'availability_override_at' => $timestamp,
+            'availability_override_payload' => [
+                ...$issue,
+                ...$context,
+                'term_id' => $payload['term_id'],
+                'section_id' => $payload['section_id'],
+                'subject_id' => $payload['subject_id'],
+                'faculty_id' => $payload['faculty_id'],
+                'day_of_week' => $payload['day_of_week'],
+                'starts_at' => $payload['starts_at'],
+                'ends_at' => $payload['ends_at'],
+            ],
+        ];
+    }
+
+    /**
+     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @return array<string, mixed>|null
+     */
+    private function facultyAvailabilityIssue(array $payload): ?array
+    {
+        $submission = FacultyAvailabilitySubmission::query()
+            ->with('windows')
+            ->where('term_id', $payload['term_id'])
+            ->where('faculty_id', $payload['faculty_id'])
+            ->whereIn('status', [
+                FacultyAvailabilitySubmission::StatusSubmitted,
+                FacultyAvailabilitySubmission::StatusLocked,
+            ])
+            ->orderByDesc('version')
+            ->first();
+
+        if (! $submission instanceof FacultyAvailabilitySubmission || $submission->windows->isEmpty()) {
+            return [
+                'type' => 'missing_submitted_or_locked_availability',
+                'message' => 'The selected faculty has no submitted or locked availability window for this term.',
+                'submission_id' => $submission?->id,
+                'submission_status' => $submission?->status,
+                'submission_version' => $submission?->version,
+                'available_windows' => [],
+            ];
+        }
+
+        $windows = $submission->windows
+            ->map(fn (FacultyAvailabilityWindow $window): array => [
+                'day_of_week' => (int) $window->day_of_week,
+                'starts_at' => $this->timeValue($window->starts_at),
+                'ends_at' => $this->timeValue($window->ends_at),
+                'notes' => $window->notes,
+            ])
+            ->values()
+            ->all();
+
+        $insideWindow = collect($windows)->contains(fn (array $window): bool => $window['day_of_week'] === $payload['day_of_week']
+            && $window['starts_at'] <= $payload['starts_at']
+            && $window['ends_at'] >= $payload['ends_at']);
+
+        if ($insideWindow) {
+            return null;
+        }
+
+        return [
+            'type' => 'outside_availability_window',
+            'message' => 'The proposed meeting is outside the selected faculty submitted or locked availability windows.',
+            'submission_id' => (int) $submission->id,
+            'submission_status' => $submission->status,
+            'submission_version' => (int) $submission->version,
+            'available_windows' => $windows,
+        ];
+    }
+
+    private function availabilityOverrideRequiredMessage(string $issueType): string
+    {
+        return match ($issueType) {
+            'missing_submitted_or_locked_availability' => 'Registrar override reason is required because the selected faculty has no submitted or locked availability for this term.',
+            default => 'Registrar override reason is required because the proposed meeting is outside the selected faculty availability.',
+        };
     }
 }

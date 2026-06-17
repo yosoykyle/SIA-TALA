@@ -7,6 +7,7 @@ use App\Actions\Integrations\Ocr\GoogleVisionDocumentTextResult;
 use App\Actions\Integrations\Ocr\OcrTextExtractor;
 use App\Actions\Integrations\Ocr\ProcessDocumentOcr;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -173,6 +174,96 @@ class GoogleVisionOcrIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_google_vision_smoke_command_copies_private_file_and_verifies_extracted_evidence(): void
+    {
+        $client = new FakeGoogleVisionDocumentTextClient(
+            result: new GoogleVisionDocumentTextResult(
+                text: 'LIVE OCR SMOKE TEST',
+                words: [
+                    ['text' => 'LIVE', 'confidence' => 0.92],
+                    ['text' => 'OCR', 'confidence' => 0.94],
+                    ['text' => 'SMOKE', 'confidence' => 0.96],
+                    ['text' => 'TEST', 'confidence' => 0.98],
+                ],
+            ),
+        );
+
+        $this->configureGoogleVision($client);
+        $sourcePath = $this->temporarySmokeFile('fake google vision image bytes');
+
+        try {
+            $exitCode = Artisan::call('integrations:google-vision-ocr-smoke', [
+                '--file' => $sourcePath,
+                '--parser-version' => 'google-vision-smoke/test',
+            ]);
+            $output = Artisan::output();
+        } finally {
+            @unlink($sourcePath);
+        }
+
+        $this->assertSame(0, $exitCode, $output);
+        $this->assertStringContainsString('driver_google_vision=PASS', $output);
+        $this->assertStringContainsString('ocr_result_persisted=PASS', $output);
+        $this->assertStringContainsString('extracted_text_present=PASS', $output);
+        $this->assertStringContainsString('Google Cloud Vision OCR smoke evidence verified.', $output);
+
+        $upload = DB::table('document_uploads')->first();
+
+        $this->assertNotNull($upload);
+        $this->assertSame('ocr_extracted', $upload->ocr_review_status);
+        $this->assertStringStartsWith('ocr-smoke/', $upload->file_path);
+        Storage::disk('local')->assertExists($upload->file_path);
+
+        $this->assertDatabaseHas('document_ocr_results', [
+            'document_upload_id' => $upload->id,
+            'ocr_engine' => 'google_vision_document_text_detection',
+            'status' => 'ocr_extracted',
+            'ocr_text' => 'LIVE OCR SMOKE TEST',
+            'parser_version' => 'google-vision-smoke/test',
+        ]);
+    }
+
+    public function test_google_vision_smoke_command_accepts_expected_manual_review_evidence(): void
+    {
+        $client = new FakeGoogleVisionDocumentTextClient(
+            result: new GoogleVisionDocumentTextResult(
+                text: 'BLURRED LIVE SAMPLE',
+                words: [
+                    ['text' => 'BLURRED', 'confidence' => 0.40],
+                    ['text' => 'LIVE', 'confidence' => 0.50],
+                    ['text' => 'SAMPLE', 'confidence' => 0.60],
+                ],
+            ),
+        );
+
+        $this->configureGoogleVision($client);
+        $documentUploadId = $this->documentUploadId();
+
+        $exitCode = Artisan::call('integrations:google-vision-ocr-smoke', [
+            '--document-upload-id' => $documentUploadId,
+            '--expect' => 'needs_manual_review',
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exitCode, $output);
+        $this->assertStringContainsString('expected_status=PASS', $output);
+        $this->assertStringContainsString('manual_review_error_recorded=PASS', $output);
+        $this->assertStringContainsString('status=needs_manual_review', $output);
+    }
+
+    public function test_google_vision_smoke_command_fails_when_driver_is_not_google_vision(): void
+    {
+        config(['tala_integrations.ocr.driver' => 'mock']);
+
+        $exitCode = Artisan::call('integrations:google-vision-ocr-smoke', [
+            '--document-upload-id' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode, $output);
+        $this->assertStringContainsString('TALA_OCR_DRIVER must be google_vision', $output);
+    }
+
     private function configureGoogleVision(FakeGoogleVisionDocumentTextClient $client, int $monthlyLimit = 2000): void
     {
         config([
@@ -206,6 +297,19 @@ class GoogleVisionOcrIntegrationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function temporarySmokeFile(string $contents): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'tala-ocr-smoke-');
+
+        if ($path === false) {
+            $this->fail('Unable to create temporary OCR smoke file.');
+        }
+
+        file_put_contents($path, $contents);
+
+        return $path;
     }
 
     private function prepareSchema(): void

@@ -15,11 +15,13 @@ use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\DraftRowsRela
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
+use App\Models\Room;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -224,6 +226,11 @@ class SchedulingFilamentWorkflowTest extends TestCase
             'effective_year' => '2026',
             'is_active' => true,
         ]);
+        Room::factory()->create([
+            'code' => 'R-101',
+            'name' => 'Workflow Room 101',
+            'capacity' => Section::MaxRescueSeats,
+        ]);
         $subjects = [
             Subject::factory()->create([
                 'code' => 'IT101',
@@ -248,6 +255,18 @@ class SchedulingFilamentWorkflowTest extends TestCase
                 'sort_order' => $index + 1,
             ]);
         }
+        CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => '1st Year',
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+            ],
+        );
 
         return [$term, $program, $curriculum, $subjects];
     }

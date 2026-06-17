@@ -30,13 +30,14 @@ class SectionPlanningFilamentResourceTest extends TestCase
             "Select::make('curriculum_period')",
             "Select::make('modality')",
             "TextInput::make('name')",
-            "TextInput::make('room')",
+            "Select::make('room')",
             "TextInput::make('max_seats')",
             "TextInput::make('enrolled_count')",
         ] as $typedField) {
             $this->assertStringContainsString($typedField, $form);
         }
 
+        $this->assertStringContainsString('Room::selectOptions', $form);
         $this->assertStringContainsString('Section::MaxRescueSeats', $form);
         $this->assertStringContainsString('Section::modalityRequiresRoom', $form);
         $this->assertStringContainsString('SectionPlanningService', $createPage);

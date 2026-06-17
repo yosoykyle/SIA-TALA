@@ -78,7 +78,9 @@ class ImportBatchesTable
             ->color('success')
             ->requiresConfirmation()
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
-                && $record->isPendingReview())
+                && $record->isPendingReview()
+                && $record->import_type === ImportBatch::TypeCurriculum
+                && (int) $record->error_rows === 0)
             ->action(fn (ImportBatch $record) => self::commit($record));
     }
 

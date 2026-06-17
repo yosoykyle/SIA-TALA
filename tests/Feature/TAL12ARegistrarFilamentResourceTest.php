@@ -281,6 +281,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
             "TimePicker::make('ends_at')",
             "Select::make('modality')",
             "TextInput::make('room')",
+            "Textarea::make('availability_override_reason')",
         ] as $typedField) {
             $this->assertStringContainsString($typedField, $form);
         }
@@ -301,6 +302,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
 
         $this->assertStringContainsString('SectionMeetingAssignmentService', $createPage);
         $this->assertStringContainsString('prepareForCreate', $createPage);
+        $this->assertStringContainsString("TextEntry::make('availability_override_reason')", $viewPage.$this->resourceSource('SectionMeetings/Schemas/SectionMeetingInfolist.php'));
         $this->assertStringContainsString('Manual Assignment', $listPage);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);

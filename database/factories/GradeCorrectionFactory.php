@@ -33,6 +33,10 @@ class GradeCorrectionFactory extends Factory
             'attachment_paths' => null,
             'status' => GradeCorrectionStatus::Submitted,
             'assigned_to' => null,
+            'academic_head_review_status' => null,
+            'academic_head_reviewed_by' => null,
+            'academic_head_reviewed_at' => null,
+            'academic_head_review_note' => null,
             'creator_id' => null,
             'resolved_at' => null,
         ];

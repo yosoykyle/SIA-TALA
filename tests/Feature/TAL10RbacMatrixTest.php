@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\FaqEntry;
 use App\Models\User;
 use App\Policies\ActivityPolicy;
+use App\Policies\FaqEntryPolicy;
 use App\Policies\RolePolicy;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Activitylog\Models\Activity;
@@ -28,7 +30,6 @@ class TAL10RbacMatrixTest extends TestCase
     {
         $expectations = [
             'UserPolicy.php' => 'manage-users',
-            'FaqEntryPolicy.php' => 'manage-faqs',
             'EnrollmentPolicy.php' => 'approve-documents',
             'EnrollmentPolicy.php::assessment' => 'create-assessments',
             'PaymentPolicy.php' => 'process-payments',
@@ -36,6 +37,7 @@ class TAL10RbacMatrixTest extends TestCase
             'EnrollmentSubjectPolicy.php' => 'encode-grades',
             'DocumentRequestPolicy.php' => 'manage-document-requests',
             'DocumentUploadPolicy.php' => 'approve-documents',
+            'FaqEntryPolicy.php' => 'manage-faqs',
         ];
 
         foreach ($expectations as $file => $permission) {
@@ -49,7 +51,7 @@ class TAL10RbacMatrixTest extends TestCase
 
     public function test_system_super_admin_resources_are_separated_from_academic_and_finance_domains(): void
     {
-        foreach (['Users', 'Roles', 'FaqEntries', 'Activities'] as $resource) {
+        foreach (['Users', 'Roles', 'Activities'] as $resource) {
             $source = file_get_contents(app_path("Filament/Resources/{$resource}/{$this->resourceClass($resource)}.php"));
 
             $this->assertIsString($source);
@@ -63,12 +65,20 @@ class TAL10RbacMatrixTest extends TestCase
         $this->assertIsString($systemSettingsPolicy);
         $this->assertStringContainsString('protected static bool $shouldRegisterNavigation = false;', $systemSettingsResource);
         $this->assertStringNotContainsString('return $user->can(\'manage-settings\')', $systemSettingsPolicy);
+        $faqResource = file_get_contents(app_path('Filament/Resources/FaqEntries/FaqEntryResource.php'));
+        $faqPolicy = file_get_contents(app_path('Policies/FaqEntryPolicy.php'));
+
+        $this->assertIsString($faqResource);
+        $this->assertIsString($faqPolicy);
+        $this->assertStringContainsString("'System Administration'", $faqResource);
+        $this->assertStringContainsString('manage-faqs', $faqPolicy);
     }
 
     public function test_vendor_backed_system_administration_resources_are_policy_registered(): void
     {
         $this->assertInstanceOf(RolePolicy::class, Gate::getPolicyFor(Role::class));
         $this->assertInstanceOf(ActivityPolicy::class, Gate::getPolicyFor(Activity::class));
+        $this->assertInstanceOf(FaqEntryPolicy::class, Gate::getPolicyFor(FaqEntry::class));
     }
 
     public function test_roles_and_audit_logs_are_guarded_by_system_admin_permissions(): void

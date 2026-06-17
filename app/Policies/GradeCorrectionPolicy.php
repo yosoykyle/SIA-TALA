@@ -12,6 +12,7 @@ class GradeCorrectionPolicy
     {
         return $this->canAny($user, [
             'manage-grade-corrections',
+            'authorize-overrides',
             'view-grade-submission-progress',
             'view-global-records',
             'view-class-list',
@@ -22,6 +23,7 @@ class GradeCorrectionPolicy
     {
         if ($this->canAny($user, [
             'manage-grade-corrections',
+            'authorize-overrides',
             'view-grade-submission-progress',
             'view-global-records',
         ])) {
@@ -68,7 +70,20 @@ class GradeCorrectionPolicy
     {
         return $this->canRegistrarManage($user)
             && $gradeCorrection->grade_id !== null
+            && $gradeCorrection->hasAcademicHeadApproval()
             && $this->status($gradeCorrection) === GradeCorrectionStatus::UnderReview;
+    }
+
+    public function approveOfficialGradeChange(User $user, GradeCorrection $gradeCorrection): bool
+    {
+        return $this->canAcademicHeadAuthorize($user)
+            && $gradeCorrection->isAwaitingAcademicHeadReview();
+    }
+
+    public function rejectOfficialGradeChange(User $user, GradeCorrection $gradeCorrection): bool
+    {
+        return $this->canAcademicHeadAuthorize($user)
+            && $gradeCorrection->isAwaitingAcademicHeadReview();
     }
 
     /**
@@ -112,6 +127,11 @@ class GradeCorrectionPolicy
     private function canRegistrarManage(User $user): bool
     {
         return $user->hasRole('registrar') && $user->can('manage-grade-corrections');
+    }
+
+    private function canAcademicHeadAuthorize(User $user): bool
+    {
+        return $user->hasRole('academic-head') && $user->can('authorize-overrides');
     }
 
     private function status(GradeCorrection $gradeCorrection): ?GradeCorrectionStatus

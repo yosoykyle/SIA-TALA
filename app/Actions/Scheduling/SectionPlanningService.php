@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\Curriculum;
+use App\Models\Room;
 use App\Models\Section;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -40,6 +41,17 @@ class SectionPlanningService
 
             if (Section::modalityRequiresRoom($prepared['modality'] ?? null) && blank($prepared['room'] ?? null)) {
                 $validator->errors()->add('room', 'Room is required for on-site and blended section planning.');
+            }
+
+            if (Section::modalityRequiresRoom($prepared['modality'] ?? null) && filled($prepared['room'] ?? null)) {
+                $roomIsActive = Room::query()
+                    ->where('code', $prepared['room'])
+                    ->where('is_active', true)
+                    ->exists();
+
+                if (! $roomIsActive) {
+                    $validator->errors()->add('room', 'Selected room must exist in the active room catalog.');
+                }
             }
 
             $curriculum = Curriculum::query()->find($prepared['curriculum_id'] ?? null);

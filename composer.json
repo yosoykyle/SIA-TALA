@@ -92,6 +92,9 @@
         }
     },
     "config": {
+        "platform": {
+            "php": "8.2.12"
+        },
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,

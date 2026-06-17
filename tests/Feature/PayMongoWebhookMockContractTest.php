@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -192,6 +193,92 @@ class PayMongoWebhookMockContractTest extends TestCase
             ->assertAccepted();
 
         $this->assertSame(1, DB::table('payments')->count());
+    }
+
+    public function test_paymongo_sandbox_smoke_command_verifies_webhook_confirmed_payment_and_ledger_evidence(): void
+    {
+        $studentProfileId = $this->studentProfileId();
+        $attemptId = $this->paymentAttemptId($studentProfileId, [
+            'provider' => 'paymongo',
+            'provider_checkout_session_id' => 'cs_smoke_pass',
+        ]);
+
+        $this->postJson('/api/webhooks/paymongo', $this->checkoutPaidPayload(
+            eventId: 'evt_smoke_pass',
+            checkoutSessionId: 'cs_smoke_pass',
+            amountCentavos: 150000,
+        ))->assertAccepted();
+
+        $exitCode = Artisan::call('integrations:paymongo-sandbox-webhook-smoke', [
+            '--attempt-id' => $attemptId,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('attempt_paid=PASS', $output);
+        $this->assertStringContainsString('single_confirmed_payment=PASS', $output);
+        $this->assertStringContainsString('ledger_is_payment_credit=PASS', $output);
+        $this->assertStringContainsString('PayMongo sandbox webhook smoke evidence verified.', $output);
+        $this->assertSame(0, $exitCode, $output);
+    }
+
+    public function test_paymongo_sandbox_smoke_command_can_process_matching_stored_webhook_when_queue_worker_was_not_running(): void
+    {
+        $studentProfileId = $this->studentProfileId();
+        $attemptId = $this->paymentAttemptId($studentProfileId, [
+            'provider' => 'paymongo',
+            'provider_checkout_session_id' => 'cs_smoke_pending',
+        ]);
+
+        DB::table('webhook_calls')->insert([
+            'name' => 'paymongo',
+            'url' => 'https://tala.test/api/webhooks/paymongo',
+            'headers' => json_encode(['paymongo-signature' => ['not-used-in-stored-processing']], JSON_UNESCAPED_SLASHES),
+            'payload' => json_encode($this->checkoutPaidPayload(
+                eventId: 'evt_smoke_pending',
+                checkoutSessionId: 'cs_smoke_pending',
+                amountCentavos: 150000,
+            ), JSON_UNESCAPED_SLASHES),
+            'attachments' => null,
+            'exception' => null,
+            'processed_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertStringContainsString('cs_smoke_pending', (string) DB::table('webhook_calls')->value('payload'));
+
+        $exitCode = Artisan::call('integrations:paymongo-sandbox-webhook-smoke', [
+            '--attempt-id' => $attemptId,
+            '--process-pending' => true,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('processed_webhook_call_id=', $output);
+        $this->assertStringContainsString('status=posted', $output);
+        $this->assertStringContainsString('PayMongo sandbox webhook smoke evidence verified.', $output);
+        $this->assertSame(0, $exitCode, $output);
+
+        $this->assertSame(1, DB::table('payments')->count());
+        $this->assertSame(1, DB::table('ledger_entries')->count());
+    }
+
+    public function test_paymongo_sandbox_smoke_command_fails_until_provider_webhook_posts_ledger_evidence(): void
+    {
+        $studentProfileId = $this->studentProfileId();
+        $attemptId = $this->paymentAttemptId($studentProfileId, [
+            'provider' => 'paymongo',
+            'provider_checkout_session_id' => 'cs_smoke_missing',
+        ]);
+
+        $exitCode = Artisan::call('integrations:paymongo-sandbox-webhook-smoke', [
+            '--attempt-id' => $attemptId,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('attempt_paid=FAIL', $output);
+        $this->assertStringContainsString('webhook_call_stored=FAIL', $output);
+        $this->assertStringContainsString('PayMongo sandbox webhook smoke evidence is incomplete.', $output);
+        $this->assertSame(1, $exitCode, $output);
     }
 
     /**

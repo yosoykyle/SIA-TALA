@@ -28,9 +28,14 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
     public function test_academic_head_grade_override_actions_require_authorize_overrides_permission(): void
     {
         $gradeTable = $this->resourceSource('Grades/Tables/GradesTable.php');
+        $gradeCorrectionTable = $this->resourceSource('GradeCorrections/Tables/GradeCorrectionsTable.php');
+        $gradeCorrectionPolicy = file_get_contents(app_path('Policies/GradeCorrectionPolicy.php'));
+        $gradeCorrectionService = file_get_contents(app_path('Actions/Grades/GradeCorrectionService.php'));
         $gradePolicy = file_get_contents(app_path('Policies/GradePolicy.php'));
         $finalizationService = file_get_contents(app_path('Actions/Grades/GradeFinalizationService.php'));
 
+        $this->assertIsString($gradeCorrectionPolicy);
+        $this->assertIsString($gradeCorrectionService);
         $this->assertIsString($gradePolicy);
         $this->assertIsString($finalizationService);
 
@@ -42,6 +47,16 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
         $this->assertStringContainsString("hasRole('academic-head')", $gradePolicy);
         $this->assertStringContainsString("can('authorize-overrides')", $gradePolicy);
         $this->assertStringContainsString('Only the Academic Head can authorize grade finalization overrides.', $finalizationService);
+
+        foreach (['approveOfficialGradeChange', 'rejectOfficialGradeChange'] as $action) {
+            $this->assertStringContainsString($action, $gradeCorrectionTable);
+            $this->assertStringContainsString($action, $gradeCorrectionPolicy);
+            $this->assertStringContainsString($action, $gradeCorrectionService);
+        }
+
+        $this->assertStringContainsString('hasAcademicHeadApproval', $gradeCorrectionPolicy);
+        $this->assertStringContainsString('Academic Head approval is required before the Registrar can apply an official grade change.', $gradeCorrectionService);
+        $this->assertStringNotContainsString('Academic Head who approved offline', $gradeCorrectionTable);
     }
 
     public function test_grade_oversight_is_not_generic_grade_crud(): void

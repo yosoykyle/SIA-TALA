@@ -4,11 +4,17 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
+use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Term;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -27,6 +33,8 @@ class SchedulingReadinessContractTest extends TestCase
             'year_level' => '1st Year',
             'semester' => '1st Semester',
         ]);
+        $this->readyScope($curriculum);
+        $this->createSchedulableFaculty($term, $subject);
 
         Section::factory()->create([
             'term_id' => $term->id,
@@ -43,6 +51,7 @@ class SchedulingReadinessContractTest extends TestCase
         $this->assertTrue($readiness['is_ready']);
         $this->assertSame([], $readiness['missing_term_fields']);
         $this->assertSame([], $readiness['section_issues']);
+        $this->assertSame([], $readiness['faculty_input_issues']);
         $this->assertSame('sections.room fixed-room rescue catalog', $readiness['room_catalog_mode']);
     }
 
@@ -180,6 +189,81 @@ class SchedulingReadinessContractTest extends TestCase
         $this->assertTrue($readiness['section_issues'][0]['has_curriculum_demand']);
     }
 
+    public function test_term_is_not_ready_when_section_subject_demand_has_no_schedulable_faculty(): void
+    {
+        [$term, $program, $curriculum] = $this->curriculumFixtures();
+
+        $subject = Subject::factory()->create(['code' => 'IT101']);
+        CurriculumSubject::factory()->create([
+            'curriculum_id' => $curriculum->id,
+            'subject_id' => $subject->id,
+            'year_level' => '1st Year',
+            'semester' => '1st Semester',
+        ]);
+        $this->readyScope($curriculum);
+
+        $section = Section::factory()->create([
+            'term_id' => $term->id,
+            'program_id' => $program->id,
+            'curriculum_id' => $curriculum->id,
+            'year_level' => '1st Year',
+            'curriculum_period' => '1st Semester',
+            'room' => 'R-101',
+            'modality' => 'on_site',
+        ]);
+
+        $readiness = app(TermSchedulingReadinessService::class)->evaluateTerm($term);
+
+        $this->assertFalse($readiness['is_ready']);
+        $this->assertSame([], $readiness['section_issues']);
+        $this->assertSame($section->id, $readiness['faculty_input_issues'][0]['section_id']);
+        $this->assertSame($subject->id, $readiness['faculty_input_issues'][0]['subject_id']);
+        $this->assertSame('IT101', $readiness['faculty_input_issues'][0]['subject_code']);
+        $this->assertSame([
+            'active_faculty_subject_eligibility',
+            'submitted_or_locked_faculty_availability',
+        ], $readiness['faculty_input_issues'][0]['missing_inputs']);
+        $this->assertSame(0, $readiness['faculty_input_issues'][0]['eligible_faculty_count']);
+        $this->assertSame(0, $readiness['faculty_input_issues'][0]['schedulable_faculty_count']);
+    }
+
+    public function test_term_is_not_ready_when_eligible_faculty_has_no_submitted_or_locked_availability(): void
+    {
+        [$term, $program, $curriculum] = $this->curriculumFixtures();
+
+        $subject = Subject::factory()->create(['code' => 'IT101']);
+        $faculty = User::factory()->create();
+        CurriculumSubject::factory()->create([
+            'curriculum_id' => $curriculum->id,
+            'subject_id' => $subject->id,
+            'year_level' => '1st Year',
+            'semester' => '1st Semester',
+        ]);
+        $this->readyScope($curriculum);
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => $term->id,
+        ]);
+
+        Section::factory()->create([
+            'term_id' => $term->id,
+            'program_id' => $program->id,
+            'curriculum_id' => $curriculum->id,
+            'year_level' => '1st Year',
+            'curriculum_period' => '1st Semester',
+            'room' => 'R-101',
+            'modality' => 'on_site',
+        ]);
+
+        $readiness = app(TermSchedulingReadinessService::class)->evaluateTerm($term);
+
+        $this->assertFalse($readiness['is_ready']);
+        $this->assertSame(['submitted_or_locked_faculty_availability'], $readiness['faculty_input_issues'][0]['missing_inputs']);
+        $this->assertSame(1, $readiness['faculty_input_issues'][0]['eligible_faculty_count']);
+        $this->assertSame(0, $readiness['faculty_input_issues'][0]['schedulable_faculty_count']);
+    }
+
     /**
      * @return array{Term, Program, Curriculum}
      */
@@ -192,5 +276,54 @@ class SchedulingReadinessContractTest extends TestCase
         ]);
 
         return [$term, $program, $curriculum];
+    }
+
+    private function createSchedulableFaculty(Term $term, Subject $subject): User
+    {
+        $registrar = User::factory()->create();
+        $faculty = User::factory()->create();
+        $period = FacultyAvailabilityPeriod::factory()->create([
+            'term_id' => $term->id,
+            'status' => FacultyAvailabilityPeriod::StatusLocked,
+            'created_by' => $registrar->id,
+            'locked_at' => now(),
+        ]);
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'locked_at' => now(),
+            'approved_by' => $registrar->id,
+            'approved_at' => now(),
+        ]);
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+        ]);
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => $term->id,
+            'approved_by' => $registrar->id,
+        ]);
+
+        return $faculty;
+    }
+
+    private function readyScope(Curriculum $curriculum): CurriculumReadinessScope
+    {
+        return CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => '1st Year',
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+                'last_blocker_hash' => null,
+            ],
+        );
     }
 }

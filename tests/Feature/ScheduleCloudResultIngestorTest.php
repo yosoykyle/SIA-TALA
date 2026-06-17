@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleCommitService;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleDraftRow;
@@ -198,6 +201,25 @@ class ScheduleCloudResultIngestorTest extends TestCase
         $this->assertTrue(collect($draftRows[2]->conflict_payload['items'])->contains('type', 'faculty_overlap'));
     }
 
+    public function test_solver_row_room_must_match_fixed_section_room_snapshot(): void
+    {
+        [$run, $section, $subject, $faculty] = $this->readyRun();
+
+        app(ScheduleCloudResultIngestor::class)->ingest($run, [
+            'draft_rows' => [
+                $this->solverRow($section, $subject, $faculty, [
+                    'room' => 'R-999',
+                ]),
+            ],
+        ]);
+
+        $draftRow = ScheduleDraftRow::query()->first();
+
+        $this->assertNotNull($draftRow);
+        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRow->status);
+        $this->assertTrue(collect($draftRow->conflict_payload['items'])->contains('type', 'room_mismatch_fixed_section_room'));
+    }
+
     /**
      * @return array{ScheduleGenerationRun, Section, Subject, User, User}
      */
@@ -222,6 +244,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
                 'term_id' => null,
             ]);
         }
+        $this->createFacultyAvailability($term, $faculty);
 
         $run = ScheduleGenerationRun::query()->create([
             'term_id' => $term->id,
@@ -237,6 +260,36 @@ class ScheduleCloudResultIngestorTest extends TestCase
         ]);
 
         return [$run, $section, $subject, $faculty, $registrar];
+    }
+
+    private function createFacultyAvailability(Term $term, User $faculty): void
+    {
+        $period = FacultyAvailabilityPeriod::query()->firstOrCreate(
+            ['term_id' => $term->id],
+            [
+                'opens_at' => now()->subDay(),
+                'closes_at' => now()->addDays(7),
+                'status' => 'open',
+                'created_by' => User::factory()->create()->id,
+                'locked_at' => null,
+            ],
+        );
+
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'version' => 1,
+            'locked_at' => now(),
+        ]);
+
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '15:00:00',
+        ]);
     }
 
     private function registrar(): User

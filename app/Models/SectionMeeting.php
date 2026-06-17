@@ -23,6 +23,10 @@ class SectionMeeting extends Model
         'schedule_generation_run_id',
         'committed_by',
         'committed_at',
+        'availability_override_reason',
+        'availability_override_by',
+        'availability_override_at',
+        'availability_override_payload',
     ];
 
     /**
@@ -32,6 +36,8 @@ class SectionMeeting extends Model
     {
         return [
             'committed_at' => 'datetime',
+            'availability_override_at' => 'datetime',
+            'availability_override_payload' => 'array',
         ];
     }
 
@@ -155,6 +161,11 @@ class SectionMeeting extends Model
     public function committer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'committed_by');
+    }
+
+    public function availabilityOverrideAuthor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'availability_override_by');
     }
 
     public function scheduleGenerationRun(): BelongsTo

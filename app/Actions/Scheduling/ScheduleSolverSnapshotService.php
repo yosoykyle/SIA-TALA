@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\AcademicFoundation\CurriculumScopeReadinessService;
 use App\Models\CurriculumSubject;
 use App\Models\FacultySubjectEligibility;
 use App\Models\ScheduleGenerationRun;
@@ -14,11 +15,14 @@ use Illuminate\Validation\ValidationException;
 
 class ScheduleSolverSnapshotService
 {
-    private const SchemaVersion = 1;
+    private const SchemaVersion = 2;
 
     private const MaxSectionSeats = 30;
 
-    public function __construct(private readonly TermSchedulingReadinessService $readinessService) {}
+    public function __construct(
+        private readonly TermSchedulingReadinessService $readinessService,
+        private readonly CurriculumScopeReadinessService $curriculumReadinessService,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -79,6 +83,7 @@ class ScheduleSolverSnapshotService
             'readiness' => $readiness,
             'run_metadata' => $this->runMetadata($run),
             'sections' => $sectionPayload,
+            'curriculum_readiness_scopes' => $this->curriculumReadinessService->evidenceForSections($sections),
             'curriculum_subject_demand' => $this->curriculumSubjectDemand($sections),
             'faculty_eligibility' => $this->facultyEligibility((int) $run->term_id),
             'faculty_availability' => $this->facultyAvailability((int) $run->term_id),
@@ -157,6 +162,10 @@ class ScheduleSolverSnapshotService
         $curriculumSubjects = CurriculumSubject::query()
             ->with('subject')
             ->whereIn('curriculum_id', $curriculumIds)
+            ->where(function ($query): void {
+                $query->whereNull('delivery_rule_override')
+                    ->orWhere('delivery_rule_override', '!=', CurriculumSubject::DeliveryOverrideExcludeFromAutoSchedule);
+            })
             ->orderBy('curriculum_id')
             ->orderBy('year_level')
             ->orderBy('semester')
@@ -178,8 +187,11 @@ class ScheduleSolverSnapshotService
                         'subject_code' => $curriculumSubject->subject?->code,
                         'subject_description' => $curriculumSubject->subject?->description,
                         'units' => $this->decimalValue($curriculumSubject->subject?->units),
-                        'lec_hours' => $this->decimalValue($curriculumSubject->subject?->lec_hours),
-                        'subject_type' => $curriculumSubject->subject?->subject_type,
+                        'weekly_contact_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
+                        'lec_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
+                        'academic_subject_type' => $curriculumSubject->academic_subject_type,
+                        'scheduling_group' => $curriculumSubject->scheduling_group,
+                        'delivery_rule_override' => $curriculumSubject->delivery_rule_override,
                         'sort_order' => (int) $curriculumSubject->sort_order,
                     ])
                     ->values()

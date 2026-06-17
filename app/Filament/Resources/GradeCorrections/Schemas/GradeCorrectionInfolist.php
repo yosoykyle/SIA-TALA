@@ -35,6 +35,27 @@ class GradeCorrectionInfolist
                 TextEntry::make('assignedTo.name')
                     ->label('Assigned To')
                     ->placeholder('-'),
+                TextEntry::make('academic_head_review_status')
+                    ->label('Academic Head Review')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => blank($state) ? 'Pending' : str($state)->headline()->toString())
+                    ->color(fn (?string $state): string => match ($state) {
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        'pending', null => 'warning',
+                        default => 'gray',
+                    })
+                    ->placeholder('Pending'),
+                TextEntry::make('academicHeadReviewer.name')
+                    ->label('Academic Head Reviewer')
+                    ->placeholder('-'),
+                TextEntry::make('academic_head_review_note')
+                    ->label('Academic Head Review Note')
+                    ->placeholder('-'),
+                TextEntry::make('academic_head_reviewed_at')
+                    ->label('Academic Head Reviewed At')
+                    ->dateTime()
+                    ->placeholder('-'),
                 TextEntry::make('creator.name')
                     ->label('Created By')
                     ->placeholder('-'),

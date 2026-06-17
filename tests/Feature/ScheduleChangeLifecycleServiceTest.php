@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleChangeLifecycleService;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
+use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleChange;
 use App\Models\Section;
@@ -59,7 +63,39 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         $this->assertSame(3, $meeting->day_of_week);
         $this->assertSame('10:00', (string) $meeting->starts_at);
         $this->assertSame('11:30', (string) $meeting->ends_at);
+        $this->assertNull($meeting->availability_override_reason);
         $this->assertSame(ScheduleChange::StatusApplied, $properties['status_after']);
+    }
+
+    public function test_apply_records_schedule_change_reason_as_availability_override_evidence_when_needed(): void
+    {
+        $registrar = $this->userWithPermission('manage-schedules');
+        [$scheduleChange, $meeting] = $this->scheduleChangeFixtures([
+            'status' => ScheduleChange::StatusApproved,
+            'approved_by' => User::factory()->create()->id,
+            'reason' => 'Registrar confirmed a one-time faculty availability exception.',
+        ]);
+
+        $scheduleChange->forceFill([
+            'new_payload' => [
+                'faculty_id' => $meeting->faculty_id,
+                'room' => 'RUT 202',
+                'day_of_week' => 3,
+                'starts_at' => '15:00',
+                'ends_at' => '16:00',
+                'modality' => 'on_site',
+            ],
+        ])->save();
+
+        app(ScheduleChangeLifecycleService::class)->apply($scheduleChange, $registrar);
+
+        $meeting->refresh();
+
+        $this->assertSame('Registrar confirmed a one-time faculty availability exception.', $meeting->availability_override_reason);
+        $this->assertSame($registrar->id, $meeting->availability_override_by);
+        $this->assertNotNull($meeting->availability_override_at);
+        $this->assertSame('outside_availability_window', $meeting->availability_override_payload['type']);
+        $this->assertSame($scheduleChange->id, $meeting->availability_override_payload['schedule_change_id']);
     }
 
     public function test_schedule_change_lifecycle_requires_matching_permissions(): void
@@ -121,6 +157,12 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         $subject = Subject::factory()->create();
         $registrar = User::factory()->create();
         $faculty = User::factory()->create();
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => null,
+        ]);
+        $this->createFacultyAvailability($term, $faculty, dayOfWeek: 3, startsAt: '08:00:00', endsAt: '12:00:00');
 
         $meeting = SectionMeeting::query()->create([
             'term_id' => $term->id,
@@ -155,6 +197,41 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         ]);
 
         return [$scheduleChange, $meeting];
+    }
+
+    private function createFacultyAvailability(
+        Term $term,
+        User $faculty,
+        int $dayOfWeek,
+        string $startsAt,
+        string $endsAt,
+    ): void {
+        $period = FacultyAvailabilityPeriod::query()->firstOrCreate(
+            ['term_id' => $term->id],
+            [
+                'opens_at' => now()->subDay(),
+                'closes_at' => now()->addDays(7),
+                'status' => 'open',
+                'created_by' => User::factory()->create()->id,
+                'locked_at' => null,
+            ],
+        );
+
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'version' => 1,
+            'locked_at' => now(),
+        ]);
+
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+            'day_of_week' => $dayOfWeek,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+        ]);
     }
 
     /**

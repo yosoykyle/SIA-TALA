@@ -6,6 +6,7 @@ use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\User;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Section;
@@ -66,6 +67,12 @@ class SectionMeetingForm
                             ->maxLength(255)
                             ->required(fn (Get $get): bool => in_array($get('modality'), ['on_site', 'blended'], true))
                             ->helperText('Required for on-site or blended meetings. Leave blank for online or modular meetings when no physical room is assigned.'),
+                        Textarea::make('availability_override_reason')
+                            ->label('Availability override reason')
+                            ->rows(3)
+                            ->maxLength(1000)
+                            ->helperText('Required only when the selected faculty has no submitted/locked availability for this term or the meeting is outside their availability window.')
+                            ->columnSpanFull(),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),

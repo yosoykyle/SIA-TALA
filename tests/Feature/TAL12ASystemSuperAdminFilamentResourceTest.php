@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\FaqEntry;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Policies\FaqEntryPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Policies\UserPolicy;
@@ -194,25 +196,54 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
         $this->assertFalse($policy->restoreStaffAccount($ordinaryStaff, $archivedStaff));
     }
 
-    public function test_faq_entries_use_fixed_categories_and_super_admin_owned_authoring_fields(): void
+    public function test_faq_entries_are_maintainable_through_permission_gated_admin_crud(): void
     {
-        $form = $this->source('FaqEntries/Schemas/FaqEntryForm.php');
         $model = file_get_contents(app_path('Models/FaqEntry.php'));
-        $policy = file_get_contents(app_path('Policies/FaqEntryPolicy.php'));
+        $resource = $this->source('FaqEntries/FaqEntryResource.php');
+        $form = $this->source('FaqEntries/Schemas/FaqEntryForm.php');
+        $table = $this->source('FaqEntries/Tables/FaqEntriesTable.php');
+        $listPage = $this->source('FaqEntries/Pages/ListFaqEntries.php');
+        $editPage = $this->source('FaqEntries/Pages/EditFaqEntry.php');
+        $policy = app(FaqEntryPolicy::class);
+        $manager = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return $abilities === 'manage-faqs';
+            }
+        };
+        $ordinaryStaff = new class extends User
+        {
+            public function can($abilities, $arguments = []): bool
+            {
+                return false;
+            }
+        };
 
         $this->assertIsString($model);
-        $this->assertIsString($policy);
-        $this->assertStringContainsString('manage-faqs', $policy);
+        $this->assertStringContainsString("'System Administration'", $resource);
+        $this->assertStringContainsString("CreateFaqEntry::route('/create')", $resource);
+        $this->assertStringContainsString("EditFaqEntry::route('/{record}/edit')", $resource);
+        $this->assertStringContainsString('CreateAction::make()', $listPage);
+        $this->assertStringContainsString('EditAction::make()', $table);
+        $this->assertStringContainsString('DeleteAction::make()', $editPage);
+
+        foreach (['question', 'answer', 'category', 'sort_order', 'is_published'] as $field) {
+            $this->assertStringContainsString("'{$field}'", $form);
+        }
 
         foreach (['General', 'Admission / Enrollment', 'Payments / Fees', 'Documents / Requests', 'Grades / Academics', 'Account / Login', 'Technical Support'] as $category) {
             $this->assertStringContainsString($category, $model);
         }
 
-        $this->assertStringContainsString('FaqEntry::categoryOptions()', $form);
         $this->assertStringContainsString('created_by', $model);
         $this->assertStringContainsString('updated_by', $model);
-        $this->assertStringNotContainsString("'author_id'", $form);
-        $this->assertStringNotContainsString("TextInput::make('created_at')", $form);
+        $this->assertTrue($policy->viewAny($manager));
+        $this->assertTrue($policy->create($manager));
+        $this->assertTrue($policy->update($manager, new FaqEntry));
+        $this->assertTrue($policy->delete($manager, new FaqEntry));
+        $this->assertFalse($policy->viewAny($ordinaryStaff));
+        $this->assertFalse($policy->create($ordinaryStaff));
     }
 
     private function source(string $relativePath): string

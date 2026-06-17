@@ -185,6 +185,7 @@ class ScheduleCloudResultIngestor
         }
 
         $this->appendFieldConflicts($payload, $conflicts);
+        $this->appendSnapshotRoomConflicts($payload, $sectionSnapshot, $conflicts);
         $this->appendFacultyConflicts($run, $payload, $availability, $conflicts);
         $this->appendOverlapConflicts($run, $payload, $acceptedRows, $conflicts);
 
@@ -235,6 +236,30 @@ class ScheduleCloudResultIngestor
 
         if ($payload['modality'] !== null && $this->requiresRoom($payload['modality']) && $payload['room'] === null) {
             $conflicts[] = $this->conflict('missing_required_room', 'A room is required for on-site or blended meetings.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>|null  $sectionSnapshot
+     * @param  list<array<string, mixed>>  $conflicts
+     */
+    private function appendSnapshotRoomConflicts(array $payload, ?array $sectionSnapshot, array &$conflicts): void
+    {
+        if ($sectionSnapshot === null || $payload['modality'] === null || ! $this->requiresRoom((string) $payload['modality'])) {
+            return;
+        }
+
+        $fixedRoom = $this->stringValue($sectionSnapshot['fixed_room'] ?? null);
+
+        if ($fixedRoom === null) {
+            $conflicts[] = $this->conflict('missing_snapshot_fixed_room', 'The solver snapshot is missing the fixed section room required by this modality.');
+
+            return;
+        }
+
+        if ($payload['room'] !== null && $payload['room'] !== $fixedRoom) {
+            $conflicts[] = $this->conflict('room_mismatch_fixed_section_room', 'The proposed room does not match the fixed section room in the solver snapshot.');
         }
     }
 

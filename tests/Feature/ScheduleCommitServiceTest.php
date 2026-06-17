@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleCommitService;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleGenerationRun;
@@ -176,6 +179,7 @@ class ScheduleCommitServiceTest extends TestCase
             'subject_id' => $subject->id,
             'term_id' => null,
         ]);
+        $this->createFacultyAvailability($term, $faculty);
 
         $run = ScheduleGenerationRun::query()->create([
             'term_id' => $term->id,
@@ -203,6 +207,36 @@ class ScheduleCommitServiceTest extends TestCase
         ]);
 
         return [$run, $section, $subject];
+    }
+
+    private function createFacultyAvailability(Term $term, User $faculty): void
+    {
+        $period = FacultyAvailabilityPeriod::query()->firstOrCreate(
+            ['term_id' => $term->id],
+            [
+                'opens_at' => now()->subDay(),
+                'closes_at' => now()->addDays(7),
+                'status' => 'open',
+                'created_by' => User::factory()->create()->id,
+                'locked_at' => null,
+            ],
+        );
+
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'version' => 1,
+            'locked_at' => now(),
+        ]);
+
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '12:00:00',
+        ]);
     }
 
     /**

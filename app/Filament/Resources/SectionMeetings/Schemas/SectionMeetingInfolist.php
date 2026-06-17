@@ -49,6 +49,17 @@ class SectionMeetingInfolist
                 TextEntry::make('committed_at')
                     ->label('Committed At')
                     ->dateTime(),
+                TextEntry::make('availability_override_reason')
+                    ->label('Availability Override Reason')
+                    ->placeholder('-')
+                    ->columnSpanFull(),
+                TextEntry::make('availabilityOverrideAuthor.name')
+                    ->label('Availability Override By')
+                    ->placeholder('-'),
+                TextEntry::make('availability_override_at')
+                    ->label('Availability Override At')
+                    ->dateTime()
+                    ->placeholder('-'),
                 TextEntry::make('created_at')
                     ->dateTime()
                     ->placeholder('-'),

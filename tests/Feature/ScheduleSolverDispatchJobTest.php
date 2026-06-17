@@ -7,7 +7,12 @@ use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
+use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -96,6 +101,7 @@ class ScheduleSolverDispatchJobTest extends TestCase
             'program_id' => $program->id,
         ]);
         $subject = Subject::factory()->create();
+        $faculty = User::factory()->create();
 
         CurriculumSubject::factory()->create([
             'curriculum_id' => $curriculum->id,
@@ -103,6 +109,18 @@ class ScheduleSolverDispatchJobTest extends TestCase
             'year_level' => '1st Year',
             'semester' => '1st Semester',
         ]);
+        CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => '1st Year',
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+            ],
+        );
 
         Section::factory()->create([
             'term_id' => $term->id,
@@ -112,6 +130,30 @@ class ScheduleSolverDispatchJobTest extends TestCase
             'curriculum_period' => '1st Semester',
             'room' => 'R-101',
             'modality' => 'on_site',
+        ]);
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => $term->id,
+            'approved_by' => $registrar->id,
+        ]);
+        $period = FacultyAvailabilityPeriod::factory()->create([
+            'term_id' => $term->id,
+            'created_by' => $registrar->id,
+            'status' => FacultyAvailabilityPeriod::StatusLocked,
+            'locked_at' => now(),
+        ]);
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'locked_at' => now(),
+            'approved_by' => $registrar->id,
+            'approved_at' => now(),
+        ]);
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
         ]);
 
         $run = ScheduleGenerationRun::query()->create([

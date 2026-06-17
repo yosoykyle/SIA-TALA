@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sections\Schemas;
 
 use App\Models\Curriculum;
+use App\Models\Room;
 use App\Models\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -59,11 +60,14 @@ class SectionForm
                             ->options(Section::modalityOptions())
                             ->live()
                             ->required(),
-                        TextInput::make('room')
+                        Select::make('room')
                             ->label('Fixed Room')
-                            ->maxLength(255)
+                            ->options(fn (?Section $record): array => Room::selectOptions($record?->room))
+                            ->searchable()
+                            ->preload()
                             ->required(fn (Get $get): bool => Section::modalityRequiresRoom($get('modality')))
-                            ->helperText('Required for on-site or blended sections. Online and modular sections keep room blank.'),
+                            ->visible(fn (Get $get): bool => Section::modalityRequiresRoom($get('modality')))
+                            ->helperText('Required for on-site or blended sections. Pick from Rooms; online and modular sections keep room blank.'),
                         TextInput::make('max_seats')
                             ->label('Max Seats')
                             ->required()

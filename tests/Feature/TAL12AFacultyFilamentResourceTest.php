@@ -87,14 +87,17 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
 
         $this->assertIsString($policy);
 
-        foreach (['startReview', 'reject', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $action) {
+        foreach (['startReview', 'reject', 'approveOfficialGradeChange', 'rejectOfficialGradeChange', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $action) {
             $this->assertStringContainsString($action, $table);
             $this->assertStringContainsString($action, $policy);
         }
 
-        $this->assertStringContainsString('Record Approved Grade Change', $table);
-        $this->assertStringContainsString('Academic Head who approved offline', $table);
-        $this->assertStringContainsString('Use only after the Academic Head has already approved', $table);
+        $this->assertStringContainsString('Approve Official Grade Change', $table);
+        $this->assertStringContainsString('Reject Official Grade Change', $table);
+        $this->assertStringContainsString('Apply Approved Grade Change', $table);
+        $this->assertStringContainsString("Textarea::make('approval_reason')", $table);
+        $this->assertStringContainsString("Textarea::make('rejection_reason')", $table);
+        $this->assertStringContainsString('hasAcademicHeadApproval', $policy);
         $this->assertStringContainsString("TextInput::make('college_prelim')", $table);
         $this->assertStringContainsString("TextInput::make('college_midterm')", $table);
         $this->assertStringContainsString("TextInput::make('college_final')", $table);
@@ -105,6 +108,8 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString("TextInput::make('final_grade')", $table);
         $this->assertStringNotContainsString("TextInput::make('grade')", $table);
         $this->assertStringNotContainsString("TextInput::make('remarks')", $table);
+        $this->assertStringNotContainsString('Academic Head who approved offline', $table);
+        $this->assertStringNotContainsString('Use only after the Academic Head has already approved', $table);
         $this->assertStringContainsString('manage-grade-corrections', $policy);
     }
 
@@ -146,7 +151,7 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
             $this->assertStringNotContainsString($rawField, $table);
         }
 
-        foreach (['startReview', 'reject', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $lifecycleAction) {
+        foreach (['startReview', 'reject', 'approveOfficialGradeChange', 'rejectOfficialGradeChange', 'resolveWithoutGradeChange', 'resolveWithGradeChange'] as $lifecycleAction) {
             $this->assertStringContainsString($lifecycleAction, $table);
         }
     }

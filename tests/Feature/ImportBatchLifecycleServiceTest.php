@@ -17,22 +17,20 @@ class ImportBatchLifecycleServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_commit_records_committer_status_and_lifecycle_activity(): void
+    public function test_commit_rejects_import_types_without_controlled_pipeline(): void
     {
         $registrar = $this->registrar();
         $batch = $this->importBatch();
 
-        $result = app(ImportBatchLifecycleService::class)->commit($batch, $registrar);
-
-        $batch->refresh();
-        $properties = $this->activityProperties('import_batch_committed');
-
-        $this->assertTrue($result->is($batch));
-        $this->assertSame(ImportBatch::StatusCommitted, $batch->status);
-        $this->assertSame($registrar->id, $batch->committed_by);
-        $this->assertNotNull($batch->committed_at);
-        $this->assertSame($batch->id, $properties['import_batch_id']);
-        $this->assertSame(ImportBatch::StatusCommitted, $properties['status_after']);
+        try {
+            app(ImportBatchLifecycleService::class)->commit($batch, $registrar);
+            $this->fail('Expected unsupported import batch commit to fail.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('import_type', $exception->errors());
+            $this->assertSame(ImportBatch::StatusPendingReview, $batch->refresh()->status);
+            $this->assertNull($batch->committed_by);
+            $this->assertNull($batch->committed_at);
+        }
     }
 
     public function test_cancel_records_cancelled_status_without_commit_metadata(): void

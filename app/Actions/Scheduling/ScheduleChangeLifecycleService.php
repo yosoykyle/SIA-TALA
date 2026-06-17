@@ -86,12 +86,19 @@ class ScheduleChangeLifecycleService
                 ->lockForUpdate()
                 ->findOrFail($locked->section_meeting_id);
 
+            $timestamp = CarbonImmutable::now(config('app.timezone'));
+
             $sectionMeeting->forceFill($this->assignmentService->prepareForScheduleChange(
                 $sectionMeeting,
                 ScheduleChangePayload::normalize($locked->new_payload),
+                $registrar,
+                $locked->reason,
+                $timestamp,
+                [
+                    'source' => 'schedule_change',
+                    'schedule_change_id' => $locked->id,
+                ],
             ))->save();
-
-            $timestamp = CarbonImmutable::now(config('app.timezone'));
 
             $locked->forceFill([
                 'status' => ScheduleChange::StatusApplied,

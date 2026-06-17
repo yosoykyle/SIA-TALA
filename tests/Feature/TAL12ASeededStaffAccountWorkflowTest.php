@@ -31,8 +31,8 @@ class TAL12ASeededStaffAccountWorkflowTest extends TestCase
 
         foreach ([
             'manage-users',
-            'manage-settings',
             'manage-faqs',
+            'manage-settings',
             'view-audit-logs',
             'approve-documents',
             'create-assessments',

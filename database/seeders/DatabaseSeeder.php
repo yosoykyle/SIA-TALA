@@ -74,10 +74,10 @@ class DatabaseSeeder extends Seeder
             'view-grade-submission-progress',
             'view-faculty-availability',
             'manage-users',
+            'manage-faqs',
             'manage-settings',
             'view-audit-logs',
             'manage-system-health',
-            'manage-faqs',
             'manage-cor-templates',
         ];
 
@@ -153,11 +153,11 @@ class DatabaseSeeder extends Seeder
 
         Role::findByName('system-super-admin')->syncPermissions([
             'manage-users',
+            'manage-faqs',
             'manage-faculty-subject-eligibilities',
             'manage-settings',
             'view-audit-logs',
             'manage-system-health',
-            'manage-faqs',
             'manage-cor-templates',
         ]);
 

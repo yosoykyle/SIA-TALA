@@ -16,6 +16,12 @@ class GradeCorrection extends Model
     /** @use HasFactory<GradeCorrectionFactory> */
     use HasFactory, LogsActivity;
 
+    public const AcademicHeadReviewPending = 'pending';
+
+    public const AcademicHeadReviewApproved = 'approved';
+
+    public const AcademicHeadReviewRejected = 'rejected';
+
     /**
      * @var list<string>
      */
@@ -31,6 +37,10 @@ class GradeCorrection extends Model
         'attachment_paths',
         'status',
         'assigned_to',
+        'academic_head_review_status',
+        'academic_head_reviewed_by',
+        'academic_head_reviewed_at',
+        'academic_head_review_note',
         'creator_id',
         'resolved_at',
     ];
@@ -44,6 +54,7 @@ class GradeCorrection extends Model
             'current_grade' => 'decimal:2',
             'attachment_paths' => 'array',
             'status' => GradeCorrectionStatus::class,
+            'academic_head_reviewed_at' => 'datetime',
             'resolved_at' => 'datetime',
         ];
     }
@@ -73,9 +84,38 @@ class GradeCorrection extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    public function academicHeadReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'academic_head_reviewed_by');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    public function hasAcademicHeadApproval(): bool
+    {
+        return $this->academic_head_review_status === self::AcademicHeadReviewApproved
+            && $this->academic_head_reviewed_by !== null
+            && $this->academic_head_reviewed_at !== null;
+    }
+
+    public function hasAcademicHeadRejection(): bool
+    {
+        return $this->academic_head_review_status === self::AcademicHeadReviewRejected;
+    }
+
+    public function isAwaitingAcademicHeadReview(): bool
+    {
+        $status = $this->status instanceof GradeCorrectionStatus
+            ? $this->status
+            : GradeCorrectionStatus::tryFrom((string) $this->status);
+
+        return $status === GradeCorrectionStatus::UnderReview
+            && $this->grade_id !== null
+            && ! $this->hasAcademicHeadApproval()
+            && ! $this->hasAcademicHeadRejection();
     }
 
     public function scopeVisibleToFaculty(Builder $query, User $faculty): Builder
@@ -113,7 +153,14 @@ class GradeCorrection extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'assigned_to', 'resolved_at'])
+            ->logOnly([
+                'status',
+                'assigned_to',
+                'academic_head_review_status',
+                'academic_head_reviewed_by',
+                'academic_head_reviewed_at',
+                'resolved_at',
+            ])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }

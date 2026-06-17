@@ -29,16 +29,20 @@ class GradeCorrectionServiceTest extends TestCase
         [$grade, $correction] = $this->gradeCorrectionContext('college', 'college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
+        app(GradeCorrectionService::class)->approveOfficialGradeChange(
+            correction: $correction,
+            academicHead: $academicHead,
+            approvalReason: 'Academic Head approved corrected raw period scores.',
+        );
+
         app(GradeCorrectionService::class)->resolveWithGradeChange(
             correction: $correction,
             registrar: $registrar,
-            academicHead: $academicHead,
             gradeAttributes: [
                 'college_prelim' => '99',
                 'college_midterm' => '99',
                 'college_final' => '99',
             ],
-            approvalReason: 'Academic Head approved corrected raw period scores.',
             resolutionNotes: 'Registrar recorded the approved official correction.',
         );
 
@@ -51,6 +55,8 @@ class GradeCorrectionServiceTest extends TestCase
         $this->assertSame('1.00', $grade->grade);
         $this->assertSame('passed', $grade->remarks);
         $this->assertSame(GradeCorrectionStatus::Resolved, $correction->status);
+        $this->assertTrue($correction->hasAcademicHeadApproval());
+        $this->assertSame($academicHead->id, $correction->academic_head_reviewed_by);
     }
 
     public function test_shs_grade_correction_resolution_derives_final_grade_from_quarter_grades(): void
@@ -58,15 +64,19 @@ class GradeCorrectionServiceTest extends TestCase
         [$grade, $correction] = $this->gradeCorrectionContext('shs', 'shs');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
+        app(GradeCorrectionService::class)->approveOfficialGradeChange(
+            correction: $correction,
+            academicHead: $academicHead,
+            approvalReason: 'Academic Head approved corrected SHS quarter grades.',
+        );
+
         app(GradeCorrectionService::class)->resolveWithGradeChange(
             correction: $correction,
             registrar: $registrar,
-            academicHead: $academicHead,
             gradeAttributes: [
                 'shs_q1' => '80',
                 'shs_q2' => '90',
             ],
-            approvalReason: 'Academic Head approved corrected SHS quarter grades.',
             resolutionNotes: 'Registrar recorded the approved official correction.',
         );
 
@@ -86,18 +96,75 @@ class GradeCorrectionServiceTest extends TestCase
         [, $correction] = $this->gradeCorrectionContext('college', 'college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
+        app(GradeCorrectionService::class)->approveOfficialGradeChange(
+            correction: $correction,
+            academicHead: $academicHead,
+            approvalReason: 'Academic Head approved a correction.',
+        );
+
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('Unsupported grade override fields were provided for this grading scheme.');
 
         app(GradeCorrectionService::class)->resolveWithGradeChange(
             correction: $correction,
             registrar: $registrar,
-            academicHead: $academicHead,
             gradeAttributes: [
                 'grade' => '1.00',
             ],
-            approvalReason: 'Academic Head approved a correction.',
             resolutionNotes: 'Registrar recorded the approved official correction.',
+        );
+    }
+
+    public function test_registrar_cannot_apply_official_grade_change_without_in_system_academic_head_approval(): void
+    {
+        [, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [$registrar] = $this->gradeCorrectionStaff();
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Academic Head approval is required before the Registrar can apply an official grade change.');
+
+        app(GradeCorrectionService::class)->resolveWithGradeChange(
+            correction: $correction,
+            registrar: $registrar,
+            gradeAttributes: [
+                'college_prelim' => '99',
+                'college_midterm' => '99',
+                'college_final' => '99',
+            ],
+            resolutionNotes: 'Registrar tried to bypass Academic Head approval.',
+        );
+    }
+
+    public function test_academic_head_rejection_blocks_official_grade_change_and_rejects_correction(): void
+    {
+        [, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [$registrar, $academicHead] = $this->gradeCorrectionStaff();
+
+        app(GradeCorrectionService::class)->rejectOfficialGradeChange(
+            correction: $correction,
+            academicHead: $academicHead,
+            rejectionReason: 'Insufficient basis for an official grade correction.',
+        );
+
+        $correction->refresh();
+
+        $this->assertSame(GradeCorrectionStatus::Rejected, $correction->status);
+        $this->assertTrue($correction->hasAcademicHeadRejection());
+        $this->assertSame($academicHead->id, $correction->academic_head_reviewed_by);
+        $this->assertNotNull($correction->resolved_at);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Only under review grade corrections can be resolved.');
+
+        app(GradeCorrectionService::class)->resolveWithGradeChange(
+            correction: $correction,
+            registrar: $registrar,
+            gradeAttributes: [
+                'college_prelim' => '99',
+                'college_midterm' => '99',
+                'college_final' => '99',
+            ],
+            resolutionNotes: 'Registrar cannot apply a rejected correction.',
         );
     }
 

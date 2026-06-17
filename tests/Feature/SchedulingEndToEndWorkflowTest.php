@@ -10,6 +10,7 @@ use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
@@ -162,6 +163,18 @@ class SchedulingEndToEndWorkflowTest extends TestCase
                 'sort_order' => $index + 1,
             ]);
         }
+        CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => '1st Year',
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+            ],
+        );
 
         return [$term, $section, $subjects];
     }

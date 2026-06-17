@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
@@ -30,11 +31,13 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
 
         $fixtures['run']->refresh();
 
-        $this->assertSame(1, $snapshot['schema_version']);
+        $this->assertSame(2, $snapshot['schema_version']);
         $this->assertSame($fixtures['run']->id, $snapshot['run_metadata']['run_id']);
         $this->assertSame($fixtures['term']->id, $snapshot['run_metadata']['term_id']);
         $this->assertSame($fixtures['term']->term_name, $snapshot['run_metadata']['term_name']);
         $this->assertTrue($snapshot['readiness']['is_ready']);
+        $this->assertCount(1, $snapshot['curriculum_readiness_scopes']);
+        $this->assertSame('ready_for_scheduling', $snapshot['curriculum_readiness_scopes'][0]['status']);
 
         $this->assertSame([
             'section_id' => $fixtures['section']->id,
@@ -56,7 +59,10 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
         $this->assertSame($fixtures['section']->id, $snapshot['curriculum_subject_demand'][0]['section_id']);
         $this->assertSame($fixtures['subjectA']->id, $snapshot['curriculum_subject_demand'][0]['subject_id']);
         $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['units']);
+        $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['weekly_contact_hours']);
         $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['lec_hours']);
+        $this->assertSame('major', $snapshot['curriculum_subject_demand'][0]['academic_subject_type']);
+        $this->assertSame('lecture', $snapshot['curriculum_subject_demand'][0]['scheduling_group']);
 
         $this->assertCount(2, $snapshot['faculty_eligibility']);
         $this->assertSame($fixtures['faculty']->id, $snapshot['faculty_eligibility'][0]['faculty_id']);
@@ -181,7 +187,7 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
         $subjectA = Subject::factory()->create([
             'code' => 'IT101',
             'units' => '3.00',
-            'lec_hours' => '3.00',
+            'lec_hours' => '1.00',
         ]);
         $subjectB = Subject::factory()->create([
             'code' => 'MATH101',
@@ -194,6 +200,9 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
             'subject_id' => $subjectA->id,
             'year_level' => '1st Year',
             'semester' => '1st Semester',
+            'weekly_contact_hours' => '3.00',
+            'academic_subject_type' => CurriculumSubject::AcademicSubjectTypeMajor,
+            'scheduling_group' => CurriculumSubject::SchedulingGroupLecture,
             'sort_order' => 1,
         ]);
         CurriculumSubject::factory()->create([
@@ -201,8 +210,24 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
             'subject_id' => $subjectB->id,
             'year_level' => '1st Year',
             'semester' => '1st Semester',
+            'weekly_contact_hours' => '3.00',
+            'academic_subject_type' => CurriculumSubject::AcademicSubjectTypeMinor,
+            'scheduling_group' => CurriculumSubject::SchedulingGroupLecture,
             'sort_order' => 2,
         ]);
+        CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => '1st Year',
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+                'last_blocker_hash' => null,
+            ],
+        );
 
         FacultySubjectEligibility::factory()->create([
             'faculty_id' => $faculty->id,
