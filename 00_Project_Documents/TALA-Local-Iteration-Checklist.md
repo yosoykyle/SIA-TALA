@@ -238,7 +238,11 @@
   - 2026-06-17 verification: `php artisan test --compact tests/Feature/ScheduleCloudResultIngestorTest.php tests/Feature/ScheduleDraftRowReviewServiceTest.php tests/Feature/ScheduleChangeLifecycleServiceTest.php tests/Feature/ScheduleChangeTargetMeetingScopeTest.php tests/Feature/ScheduleSolverSnapshotServiceTest.php tests/Feature/ScheduleCommitServiceTest.php tests/Feature/SectionMeetingAssignmentServiceTest.php tests/Feature/SchedulePublishServiceTest.php tests/Unit/ScheduleChangePayloadTest.php tests/Feature/SchedulingEndToEndWorkflowTest.php tests/Feature/SchedulingFilamentWorkflowTest.php` passed with 53 tests and 271 assertions after Pint.
   - 2026-06-17 solver verification: temp-venv `python -m unittest discover -s cloud/scheduler-solver/tests` passed with 4 tests after installing `cloud/scheduler-solver/requirements.txt`.
   - 2026-06-17 package boundary: `cloud/scheduler-solver.zip` was refreshed on disk for Cloud Shell upload, but it is gitignored. No Cloud Run redeploy or private `/health` + `/solve` deployed smoke proof has been performed yet.
-- [ ] SDD-03 Cloud Run closure: provide the requested Google Cloud Console/Cloud Shell redeployment steps and rerun private `/health` + `/solve` smoke proof before marking deployed scheduling complete.
+- [x] SDD-03 Cloud Run closure: redeployed and smoke-tested the IAM-private solver after `section_delivery_group_id` runtime changes.
+  - 2026-06-17 Cloud Build evidence: image `asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:sdd-03-delivery-groups-20260617` built and pushed successfully with digest `sha256:94435d3bd658907eef99e38a7f2fc44fc713c0d94a4a97cbc0c1fffafd755688`.
+  - 2026-06-17 Cloud Run evidence: service `tala-scheduler-solver` deployed revision `tala-scheduler-solver-00004-wtx` in `asia-southeast1`, serving 100% traffic at `https://tala-scheduler-solver-783866300038.asia-southeast1.run.app`.
+  - 2026-06-17 private smoke evidence: authenticated `/health` returned `{"status":"ok","service":"tala-scheduler-solver"}`; authenticated `/solve` with `samples/minimal_snapshot.json` returned `solver_status = optimal`, `assigned_count = 2`, `unassigned_count = 0`, `hard_violation_count = 0`, `warning_count = 0`, and draft rows containing `section_delivery_group_id = 110`.
+  - 2026-06-17 IAM boundary evidence: unauthenticated `/health` returned HTTP 403.
 
 **Scheduling Flow Clarification - 2026-06-09**
 

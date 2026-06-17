@@ -60,7 +60,7 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | --- | --- |
 | Admin/System | `UserResource`, `RoleResource`, `ActivityResource`, `FaqEntryResource`, `SystemSettingResource`; `UserAccountLifecycleService`; RBAC and FAQ tests. |
 | Academic foundation | `ProgramResource`, `SubjectResource`, `CurriculumResource`, `TermResource`, `SectionResource`, `RoomResource`; `AcademicFoundationFilamentResourceTest`; `CurriculumImportServiceTest`. |
-| Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; local Cloud Run solver package now parses/enforces `section_delivery_group_id`. Deployed Cloud Run proof is still pending after runtime changes. |
+| Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; Cloud Run solver package now parses/enforces `section_delivery_group_id`; deployed revision `tala-scheduler-solver-00004-wtx` passed authenticated `/health`, authenticated `/solve`, and unauthenticated 403 IAM smoke proof. |
 | Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources exist, but applicant intake and student self-service orchestration services are missing. |
 | Finance | `PaymentConfirmationService`, `InstallmentPolicyService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`; payment and assessment tests. |
 | Documents/OCR/requests | `DocumentUploadReviewService`, `DocumentRequestLifecycleService`, `ServiceRequestLifecycleService`; document/request Filament resources and tests. |
@@ -143,7 +143,7 @@ Explicit missing TAL-13 backend contracts as of this audit:
 | Feature slice | FS/TS anchors | Current evidence | Target |
 | --- | --- | --- | --- |
 | Readiness and snapshot | FS 5.3, TS 3.6.3 | Locally implemented in `ScheduleSolverSnapshotService` schema v3 and tests | Include ready curriculum scopes, delivery groups, weekly contact hours, delivery patterns, and section/group capacity. |
-| Solver runtime and ingestion | TS 3.6.3 | Locally implemented in `cloud/scheduler-solver` and `ScheduleCloudResultIngestor`; deployed Cloud Run proof still old model | Update Cloud Run solver and Laravel ingestor for `section_delivery_group_id`; preserve >98% feasible-input target and 100% hard validity. |
+| Solver runtime and ingestion | TS 3.6.3 | Implemented in `cloud/scheduler-solver` and `ScheduleCloudResultIngestor`; deployed revision `tala-scheduler-solver-00004-wtx` smoke-tested with delivery-group sample payload | Update Cloud Run solver and Laravel ingestor for `section_delivery_group_id`; preserve >98% feasible-input target and 100% hard validity. |
 | Manual official assignment | FS 5.3.2, TS 3.6.3 | Locally implemented in `SectionMeetingAssignmentService`, `SectionMeetingResource`, and tests | Require delivery group; preserve eligibility and hard conflicts; availability override remains reasoned/audited. |
 | Workload soft overrides | FS 5.3, TS 3.6.3 | `max_weekly_hours` exists but solver does not enforce broadly | Add configurable caps and Academic Head-approved soft override; never bypass hard conflicts. |
 | Publish lifecycle | FS 5.3, TS 3.6.3 | Locally implemented in `SchedulePublishService`, run metadata, Filament actions, and tests | Add `committed official` -> `published` with Academic Head approval; System Super Admin emergency publish only with reason. |
@@ -232,9 +232,8 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Close the `SDD-03` deployment gate or explicitly accept it as a pending deployment item before moving to `SDD-04`.
+Start `SDD-04: Admin/System Foundation Verification`.
 
-1. Local SDD-03 implementation is complete for solver snapshot schema v3, delivery-group-aware runtime rows, Laravel ingestion/review/commit/manual assignment, publish lifecycle, Filament controls, and focused tests.
-2. The checked local solver package changed, so the already deployed Cloud Run service must not be treated as current until redeployed.
-3. When the user requests deployment steps, provide the Cloud Console/Cloud Shell checklist, upload the refreshed `cloud/scheduler-solver.zip`, redeploy `tala-scheduler-solver`, and smoke-test private `/health` and `/solve`.
-4. After deployed proof is recorded, move to `SDD-04: Admin/System Foundation Verification`.
+1. Treat SDD-01, SDD-02, and SDD-03 as completed implementation evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit, publish lifecycle, focused tests, and deployed Cloud Run smoke proof.
+2. Reconfirm cross-role admin infrastructure after the scheduling model changes: staff account lifecycle, RBAC/audit, FAQ maintenance, and System Settings boundary.
+3. Keep Student Hub UI deferred; do not enter Pre-UAT until SDD-04 and the active TAL-13 backend contracts are either implemented or explicitly descoped.
