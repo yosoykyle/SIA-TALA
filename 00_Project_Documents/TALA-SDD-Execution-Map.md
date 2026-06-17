@@ -1,7 +1,7 @@
 # TALA SDD Execution Map
 
 **Purpose:** Active spec-driven execution map for finishing the Admin Nexus, backend, scheduling, and TAL-13 backend contracts before Pre-UAT.
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-06-18
 **Scope:** Backend + Filament Admin UI + TAL-13 backend contracts. Student Hub UI remains deferred.
 **Status:** Active execution map for the next backend/Admin SDD pass. Scheduling/curriculum decisions from the 2026-06-17 audit are now locked unless the user reopens a specific decision.
 
@@ -48,7 +48,8 @@ Student Hub UI screens, PWA offline behavior, and student presentation polish ar
 | `Copy-of-SIA-SHS-EVALUATION-FORM.md` | SHS evaluation/intake structure and learner record expectations. |
 | `shs-tf.md` | SHS semester fee, downpayment, and monthly tuition assumptions. |
 | `SOA-SHS-1.md`, `SOA-2nd-year-COLLEGE-1.md` | LRN/course/balance/paid/remaining/monthly payment/penalty shapes for ledger and assessment logic. |
-| `MS.-OLIMBERIO-Blended-Online.Final-Grade-1.md` | Faculty grade-sheet layout, grade scales, pass/fail, INC, and DRP evidence. |
+| `shs sample classrecord.md`, `MS.-OLIMBERIO-Blended-Online.Final-Grade-1.md` | Faculty class-record/final-grade layouts, SHS quarterly grades, college equivalent grade scales, pass/fail, INC, and DRP evidence. |
+| `INSTITUTION WORK  FLOW CURRENT.md` | Subject-offering, enrollment, faculty grade submission, Registrar verification, and archived-grade lifecycle evidence. |
 
 Use business evidence to clarify fields and policies. Do not copy raw sheet layout into the app as the UI contract.
 
@@ -61,15 +62,14 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | Admin/System | `UserResource`, `RoleResource`, `ActivityResource`, `FaqEntryResource`, `SystemSettingResource`; `UserAccountLifecycleService`; RBAC, FAQ, and direct-route denial tests; SDD-04/TAL-23 verification passed. |
 | Academic foundation | `ProgramResource`, `SubjectResource`, `CurriculumResource`, `TermResource`, `SectionResource`, `RoomResource`; `AcademicFoundationFilamentResourceTest`; `CurriculumImportServiceTest`. |
 | Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; Cloud Run solver package now parses/enforces `section_delivery_group_id`; deployed revision `tala-scheduler-solver-00004-wtx` passed authenticated `/health`, authenticated `/solve`, and unauthenticated 403 IAM smoke proof. |
-| Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `ApplicantIntakeService`, `StudentEnrollmentService`, `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources and applicant/enrollment backend contracts exist, while subject suggestion and dashboard aggregation remain missing. |
+| Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `ApplicantIntakeService`, `StudentEnrollmentService`, `SubjectSuggestionService`, `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources plus applicant, enrollment, and subject-suggestion backend contracts exist, while dashboard aggregation remains missing. |
 | Finance | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, `InstallmentPolicyService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`; payment, webhook, and assessment tests. |
 | Documents/OCR/requests | `DocumentUploadReviewService`, `DocumentRequestLifecycleService`, `ServiceRequestLifecycleService`; document/request Filament resources and tests. |
 | Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, SHS/College grading services; class-list, grades, and grade-correction resources/tests. |
 | Student Hub access | `/student/*` route protection and FAQ/help consumption are tested. Dashboard, schedule, grades, financials, documents, enrollment, and requests still need data-backed backend contracts before UI work. |
 
-Explicit remaining TAL-13 backend contracts after SDD-05B:
+Explicit remaining TAL-13 backend contracts after SDD-05C:
 
-- `SubjectSuggestionService`
 - `StudentDashboardService`
 
 ---
@@ -177,7 +177,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05B:
 | --- | --- | --- | --- | --- |
 | Applicant intake backend | FS 4.1, FS 5.4, TS 2.5, TS 3.3 | SHS evaluation, transferee evaluation sheets | `ApplicantIntakeService`, `ApplicantIntake`, applicant-linked `document_uploads`, focused tests | Done for backend contract: public registration service, pending applicant status, duplicate guard, document/OCR handoff, and approval-for-payment prerequisites. |
 | Student enrollment backend | FS 4.2, FS 5.4, TS 3.12 | SOA/enrollment fields, curriculum/evaluation evidence | `StudentEnrollmentService`, payment handover bridge, focused tests | Done for backend contract: approved-applicant enrollment creation, regular enrollment, returnee detection, payment/clearance handover, section capacity, and COR readiness. |
-| Subject suggestion backend | FS 4.2, FS 5.3, TS 3.4.1 | evaluation/bridging/grade evidence | missing `SubjectSuggestionService` | Create prerequisite-aware subject suggestion for irregulars/transferees, including active INC/failed/missing-history blockers. |
+| Subject suggestion backend | FS 4.2, FS 5.3, TS 3.4.1 | evaluation/bridging/grade evidence plus class-record/final-grade lifecycle evidence | `SubjectSuggestionService`, `Subject::prerequisites()`, focused tests | Done for backend contract: prerequisite-aware current-subject suggestions, back subjects, already-passed subjects, active INC/failed/missing-history blockers, and latest finalized attempt behavior. |
 | Student dashboard backend | FS 4.3, FS 6, FS 7, FS 9, TS 5.8 | SOA and grade-sheet evidence | missing `StudentDashboardService` | Aggregate schedule, balance, grades, document requests, grade corrections, holds, and FAQ/help links for future UI. |
 
 Do not build the Student Hub pages in this phase. Tests may call services directly or through narrow backend routes/actions if those routes already exist.
@@ -199,6 +199,16 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Added `EnrollmentFinanceClearanceService` as the shared minimum-downpayment/full-payment and promissory-blocking rule used by both manual Accounting payment confirmation and PayMongo webhook-confirmed linked enrollment payments.
 - Updated `PaymentConfirmationService` and `PayMongoWebhookProcessor` so payment clearance delegates handover to `StudentEnrollmentService`; this preserves the `PendingPayment` -> `PreEnrolled` finance gate and account activation invariant for both manual and online gateway paths when the payment attempt is enrollment-linked.
 - Verified SDD-05B with focused test coverage in `StudentEnrollmentServiceTest` for approved-applicant happy path, regular enrollment, outstanding-balance block, payment-clearance handover, capacity-blocked rollback, idempotency, and minimum-downpayment clearance. Also verified PayMongo linked-enrollment parity in `PayMongoWebhookFinanceClearanceTest`, existing webhook contract behavior in `PayMongoWebhookMockContractTest`, payment source coverage in `PaymentConfirmationServiceTest`, and monitoring source coverage in `TAL12MonitoringCoverageTest`.
+
+**SDD-05C implementation evidence (2026-06-18):**
+
+- Added `SubjectSuggestionService` as the backend authority for prerequisite-aware irregular/transferee subject suggestions before Student Hub UI work.
+- Added explicit `Subject::prerequisites()` and `Subject::requiredBySubjects()` relationships over the existing `prerequisites` table.
+- The service returns suggested current subjects, back subjects, blocked subjects, already-passed current subjects, setup blockers, and summary counts for an enrollment's current curriculum scope.
+- Finalized grade history is the eligibility authority: the service uses the latest relevant finalized attempt per subject, treats active INC as `active_inc`, finalized failing grades as `failed`, and missing prerequisite history as `missing_history`.
+- Business evidence alignment: SHS and College class-record/final-grade sheets prove raw component-score layouts differ by level, while the workflow evidence confirms faculty records become official eligibility data only after Registrar verification/finalization.
+- Approved equivalent or credited-subject satisfaction remains blocked until a controlled equivalency/credit-evaluation record exists; the service does not mutate enrollment subjects, perform unit-cap/summer split decisions, or bypass Registrar approval.
+- Verified SDD-05C with focused test coverage in `SubjectSuggestionServiceTest` for passed-prerequisite suggestions, missing/failed/active-INC blockers, latest finalized attempt behavior, and failed current subjects becoming back subjects.
 
 ### SDD-06: Accounting Backend/Admin Closure
 
@@ -259,8 +269,8 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Start `SDD-05C: SubjectSuggestionService Backend Contract`.
+Start `SDD-05D: StudentDashboardService Backend Contract`.
 
 1. Treat SDD-01, SDD-02, SDD-03, and SDD-04 as completed implementation/verification evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
-2. Treat SDD-05A applicant intake, SDD-05B student enrollment, and PayMongo linked-enrollment finance-clearance parity as completed backend evidence.
-3. Keep Student Hub UI deferred; do not enter Pre-UAT until `SubjectSuggestionService` and `StudentDashboardService` are either implemented or explicitly descoped.
+2. Treat SDD-05A applicant intake, SDD-05B student enrollment, PayMongo linked-enrollment finance-clearance parity, and SDD-05C subject suggestion as completed backend evidence.
+3. Keep Student Hub UI deferred; do not enter Pre-UAT until `StudentDashboardService` is implemented or explicitly descoped.

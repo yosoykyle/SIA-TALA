@@ -42,6 +42,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 28.0 | 2026-06-14 | SDD execution pivot; TAL-13 backend contracts active before UAT while Student Hub UI stays deferred; blended modality retained as room-required scheduling option; Registrar-owned student sectioning, stricter scheduling readiness, and manual scheduling override rules approved. |
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, staff-assisted modality capture, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook payments now share the finance-clearance/account-handover contract with manual Accounting payment confirmation. |
+| 31.0 | 2026-06-18 | Subject suggestion backend contract finalized around registrar-verified grade history, back subjects, active INC, failed, and missing-history blockers. |
 
 ---
 
@@ -365,6 +366,8 @@ If Registrar clicks "Reject" (e.g., blurry, wrong document):
 
 - **Automated Subject Suggestion**: The system cross-checks their academic record with the curriculum to suggest allowable subjects and back subjects.
 - **Prerequisite Enforcement**: Prevents enrollment in courses whose prerequisites are not yet passed. A prerequisite is satisfied by a finalized passing grade for the same subject or an approved equivalent subject. If a student repeated a subject, the latest finalized attempt is used. _An "Incomplete" (INC) grade acts as a hard block. Students cannot enroll in advanced subjects if the prerequisite holds an active INC._ Expired INC grades are handled by the nightly auto-fail job and then treated as failed. Missing grade history blocks enrollment unless the Registrar applies an audited prerequisite override.
+- **Grade-History Authority**: Subject suggestion consumes registrar-verified finalized grade history only. Faculty class records, component scores, and working grade sheets are evidence for grade computation and review, but they become enrollment eligibility data only after faculty submission, Registrar verification, finalization, and archival in the student's academic record.
+- **Current Backend Boundary**: The MVP backend returns suggested current subjects, back subjects, blocked subjects, and already-passed current subjects. Active INC, failed prerequisites, and missing historical grades remain blocking. Approved-equivalent or credited-subject satisfaction remains a business rule, but it requires controlled equivalency/credit-evaluation records before the system may auto-treat an alternate subject as satisfying a prerequisite.
 - **Modality Choice**: Must select a learning mode each term based on their Department constraints. SHS students may only select **Modular** or **Online**. College students may only select **On-Site** or **Online**.
 
 **SHS Irregulars — Registrar-Assisted Subject Load Assignment**:

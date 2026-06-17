@@ -42,6 +42,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 28.0 | 2026-06-14 | SDD execution pivot; TAL-13 backend services active before UAT while Student Hub UI stays deferred; blended modality retained as room-required scheduling option; Registrar-owned student sectioning, stricter scheduling readiness, and manual scheduling override rules approved. |
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook processing now shares manual payment finance-clearance/account-handover behavior. |
+| 31.0 | 2026-06-18 | SubjectSuggestionService backend contract implemented for finalized grade history, back subjects, active INC, failed, and missing-history blockers. |
 
 ---
 
@@ -1120,6 +1121,10 @@ class PrerequisiteValidator
 | Expired INC | The nightly INC auto-fail job converts it to failed; prerequisite validation then treats it as failed. |
 | Missing historical grade | Blocks enrollment as `missing_history` unless the Registrar applies an audited prerequisite override. |
 | Registrar override | Requires reason, target subject, prerequisite subject, actor ID, and activity-log entry; it does not change the historical grade itself. |
+
+**Current Subject Suggestion Backend Contract (SDD-05C)**: `App\Actions\Enrollment\SubjectSuggestionService` is the current prerequisite-aware suggestion contract for irregular/transferee enrollment assistance. It accepts an `Enrollment`, resolves the applicable curriculum from the assigned section or active program curriculum, scopes current subjects by `year_level` and `curriculum_period`, and returns structured `suggested`, `back_subjects`, `blocked`, `already_passed`, `setup_blockers`, and `summary` arrays. It consumes finalized grade rows from the student's enrollment history plus active INC rows, uses the latest relevant attempt per subject, and emits blocker reasons `missing_history`, `failed`, or `active_inc`.
+
+**Current Limitation**: Direct prerequisite relationships are enforced through the `prerequisites` table and `Subject::prerequisites()` relationship. Approved equivalent or credited-subject satisfaction must remain blocked as `missing_history` until controlled Registrar/Academic Head equivalency or credit-evaluation records exist. The service does not create `enrollment_subjects`, perform 30-unit load/summer splitting, or bypass Registrar approval; those remain enrollment finalization concerns.
 
 `canEnroll()` callers should consume the structured `PrerequisiteValidationResult` instead of a bare boolean so the UI can show `missing_history`, `active_inc`, `failed`, or `override_required` without guessing.
 

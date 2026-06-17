@@ -1,7 +1,7 @@
 # TALA Local Iteration Checklist (DB-First)
 
 **Location Purpose:** Local execution checklist aligned with the 3 main specs and Linear roadmap.
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-06-18
 **Linear Project:** TALA Iterative Implementation Map (DB-First)
 
 ---
@@ -33,7 +33,7 @@
 - Work is targeted as one module-feature vertical slice at a time: FS/TS contract, business-evidence check, code audit, backend service/policy/test, Filament admin UI/action/test, then docs and Linear sync.
 - Older refinement lists are historical unless a specific item is mapped into the active SDD execution map.
 - Current execution order is: curriculum template/readiness scopes -> delivery patterns/section delivery groups -> enrollment assignment to section + delivery group -> scheduling snapshot/solver/commit/publish -> admin/system verification -> TAL-13 backend contracts -> remaining module closures -> Pre-UAT QA.
-- TAL-13 backend contracts remain active before UAT: `ApplicantIntakeService` and `StudentEnrollmentService` are implemented; `SubjectSuggestionService` and `StudentDashboardService` remain open.
+- TAL-13 backend contracts remain active before UAT: `ApplicantIntakeService`, `StudentEnrollmentService`, and `SubjectSuggestionService` are implemented; `StudentDashboardService` remains open.
 - TAL-13 Student Hub UI remains deferred. Do not spend implementation time on Student Hub presentation until the backend contracts above are stable or explicitly descoped.
 - Scheduling availability cadence is term-scoped, not whole-academic-year-scoped. Approved Pre-UAT rule: SHS scheduling terms and availability are semester-scoped; SHS quarters remain grading-period evidence only unless a future quarter-based scheduling change is approved.
 - Filament feasibility confirmed: the planned admin UI uses Filament v5 resources, forms, tables, filters, relation managers, infolists, and action modals. Business rules must stay in Laravel services/actions; Filament resources call those services.
@@ -622,7 +622,8 @@
 - [x] Implement `StudentEnrollmentService` (One-Click Enroll auto-promotion for Regulars)
   - 2026-06-17 SDD-05B backend contract implemented: approved applicant intakes can be bridged into official `student_profiles` and `enrollments` without activating Student Hub access before finance clearance; applicant documents are linked to the official profile during handover; regular enrollment blocks outstanding balances, detects returnees, and assigns compatible delivery groups through the existing locked-capacity sectioning service; Accounting manual payment clearance now delegates account handover to `StudentEnrollmentService`, assigning the student role, Student ID username, active status, and COR readiness evidence. Focused tests: `php artisan test --compact tests/Feature/StudentEnrollmentServiceTest.php tests/Feature/PaymentConfirmationServiceTest.php`.
   - 2026-06-17 PayMongo parity follow-up closed before the next TAL-13 slice: webhook-confirmed PayMongo payments now use the same shared finance-clearance/account-handover rule when the payment attempt is linked to a real enrollment. Focused tests: `php artisan test --compact tests/Feature/PayMongoWebhookFinanceClearanceTest.php`, `php artisan test --compact tests/Feature/PayMongoWebhookMockContractTest.php`, and `php artisan test --compact tests/Feature/TAL12MonitoringCoverageTest.php`.
-- [ ] Implement `SubjectSuggestionService` (Prerequisite enforcement & back-subject suggestion for Irregulars)
+- [x] Implement `SubjectSuggestionService` (Prerequisite enforcement & back-subject suggestion for Irregulars)
+  - 2026-06-18 SDD-05C backend contract implemented: `SubjectSuggestionService` resolves the enrollment curriculum scope, returns suggested current subjects, back subjects, blocked subjects, already-passed current subjects, setup blockers, and summary counts; consumes Registrar-finalized grade history plus active INC rows; uses the latest relevant attempt per subject; blocks active INC, finalized failed prerequisites, and missing historical prerequisite grades; and leaves approved-equivalent/credited-subject satisfaction blocked until controlled equivalency/credit-evaluation records exist. Focused test: `php artisan test --compact tests/Feature/SubjectSuggestionServiceTest.php`.
 - [ ] Implement `StudentDashboardService` (Aggregated view of schedule, balance, grades, requests)
 
 ### Part B: Deferred Frontend UI
