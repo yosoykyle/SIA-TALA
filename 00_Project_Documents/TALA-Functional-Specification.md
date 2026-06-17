@@ -43,6 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, staff-assisted modality capture, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook payments now share the finance-clearance/account-handover contract with manual Accounting payment confirmation. |
 | 31.0 | 2026-06-18 | Subject suggestion backend contract finalized around registrar-verified grade history, back subjects, active INC, failed, and missing-history blockers. |
+| 32.0 | 2026-06-18 | Student dashboard backend contract finalized for profile, enrollment, schedule, financial, grade, request, hold, notification, and FAQ/help aggregation while Student Hub UI remains deferred. |
 
 ---
 
@@ -426,6 +427,8 @@ Upload Proof → Cashier Confirms → Student becomes **Finance-Cleared** (Pre-E
 - **Sync Logic**: When internet returns, the app Auto-Refreshes (Pull-to-Refresh) to fetch the latest status
 
 **Constraint**: No Offline Form Submission. Students cannot enroll or upload docs without internet.
+
+**Student Dashboard Backend Contract**: Before Student Hub UI buildout, the dashboard data source must be a read-only backend aggregate rather than hardcoded page content. The implemented contract provides student-owned profile/enrollment context, current schedule, financial balance and term summaries, finalized grades, recent document/service/grade-correction requests, dashboard holds, latest notifications, and published FAQ/help links. PWA/offline presentation may cache only these read-only outputs; enrollment, document upload, grade-correction, and payment actions still require an online authenticated request.
 
 ---
 
@@ -1612,7 +1615,7 @@ The system includes an FAQ/help content module accessible via the public landing
 - Registrar, Accounting, Faculty, Academic Head, Students, and Public users are **read-only** for FAQ content.
 - No separate "FAQ manager" role is required in the current scope.
 
-**Current TAL-12/TAL-13 Implementation Scope Note**: Admin FAQ CRUD is restored as a System Super Admin content-maintenance surface guarded by `manage-faqs`. The public `/faq` route and Student Hub Help route read only published FAQ entries; `/faq` is guest-accessible and read-only, while Student Hub Help is protected by authenticated active-student access. Other Student Hub pages remain placeholder UI surfaces. Their backend contracts for dashboard, enrollment, financial, document, grade, and request data must be implemented before Pre-UAT or explicitly descoped; the Student Hub UI itself remains deferred.
+**Current TAL-12/TAL-13 Implementation Scope Note**: Admin FAQ CRUD is restored as a System Super Admin content-maintenance surface guarded by `manage-faqs`. The public `/faq` route and Student Hub Help route read only published FAQ entries; `/faq` is guest-accessible and read-only, while Student Hub Help is protected by authenticated active-student access. Other Student Hub pages remain placeholder UI surfaces. Their backend contracts for applicant intake, student enrollment, subject suggestion, and student dashboard aggregation are implemented for Pre-UAT backend evidence; the Student Hub UI itself remains deferred.
 
 ---
 

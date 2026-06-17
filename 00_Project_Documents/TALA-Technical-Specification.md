@@ -43,6 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook processing now shares manual payment finance-clearance/account-handover behavior. |
 | 31.0 | 2026-06-18 | SubjectSuggestionService backend contract implemented for finalized grade history, back subjects, active INC, failed, and missing-history blockers. |
+| 32.0 | 2026-06-18 | StudentDashboardService backend contract implemented for read-only Student Hub aggregation while Student Hub UI remains deferred. |
 
 ---
 
@@ -2123,7 +2124,7 @@ FAQ table migration exists as `2026_05_23_173901_create_faq_entries_table.php` a
 
 #### 3.16.5 Current TAL-12 Implementation Status
 
-`FaqEntry`, the `faq_entries` migration, `FaqEntryResource`, Filament pages, and `FaqEntryPolicy` are implemented so FAQ content remains maintainable without hardcoding. Categories are model-owned fixed options; author/updater fields remain system-derived. The public `/faq` route uses `pages::faq` and has only `web` middleware, so guests can read published entries without gaining mutation capability. Student Hub routes are protected by `EnsureActiveStudentHubUser`, which accepts only authenticated active users with the `student` role, and `pages::student-hub.help` renders only published FAQ entries. Student dashboard, schedule, grades, financials, and documents pages remain placeholder UI surfaces; their data-backed backend service contracts are active pre-UAT backend work.
+`FaqEntry`, the `faq_entries` migration, `FaqEntryResource`, Filament pages, and `FaqEntryPolicy` are implemented so FAQ content remains maintainable without hardcoding. Categories are model-owned fixed options; author/updater fields remain system-derived. The public `/faq` route uses `pages::faq` and has only `web` middleware, so guests can read published entries without gaining mutation capability. Student Hub routes are protected by `EnsureActiveStudentHubUser`, which accepts only authenticated active users with the `student` role, and `pages::student-hub.help` renders only published FAQ entries. Student dashboard, schedule, grades, financials, requests, holds, notifications, and help links are now covered by `StudentDashboardService`; the Student Hub pages remain placeholder UI surfaces until the deferred UI phase starts.
 
 ---
 
@@ -3053,6 +3054,16 @@ To minimize Super Admin operational overhead and eliminate the security risks of
 | **4\. SCHEDULE** | Current Term’s Class Schedule (Subject, Time, Room, Instructor). List View (Mobile) / Table View (Desktop) | Class schedule reference |
 | **5\. GRADES** | Latest Term to Oldest Term. Separate visual blocks (Divs) per Term. Content: Subject Code, Description, Grade, Remarks (Passed/Failed) | Academic history |
 
+**Current Student Dashboard Backend Contract**: `App\Actions\StudentHub\StudentDashboardService` is the read-only data contract for the future Student Hub dashboard and tab UI. It accepts a `StudentProfile` resolved by the authenticated active student boundary and returns profile context, current enrollment/history, current schedule, financial balance and term summaries, latest confirmed payments, finalized grade history, recent document requests, recent service requests, recent grade-correction requests, holds, latest notifications, and published FAQ/help links.
+
+**Data Scope Rules**:
+- Schedule rows come from the current enrollment's section/term and, when present, its section delivery group.
+- Grades are limited to finalized grade records attached to the student's enrollments.
+- Financial summaries are limited to the student's ledger/payment records and do not treat promissory notes as clearance.
+- Request summaries are limited to the student's profile or student user account.
+- FAQ/help output includes only published FAQ entries.
+- The service does not submit enrollment, payment, document, or grade-correction mutations; Student Hub UI remains deferred and must call the appropriate existing backend services when that phase starts.
+
 ---
 
 ### 5.9 Mobile Responsiveness (Critical)
@@ -3558,7 +3569,7 @@ These rules define stable staff-facing admin boundaries. They are not an executi
 | Controlled curriculum/foundation import | `ImportBatchResource` supports curriculum template download, private CSV/XLSX upload, strict row validation, validation preview/error report, zero-error commit, and audit evidence. It exposes no generic create/edit routes and no freeform in-browser spreadsheet repair. | Student, grade, financial, and enrollment legacy imports require separate controlled services before being treated as implemented. |
 | PayMongo payment evidence | Payment confirmation is provider/service-owned. `PaymentAttemptResource` and `PaymentResource` are list/view evidence surfaces; webhook processing must be signed, idempotent, and ledger-posting safe. | Generic payment CRUD, raw gateway payload editing, and redirect-only paid status are forbidden. |
 | Google Vision OCR evidence | OCR is a routing/prefill assistant. Document review stores private source evidence, OCR metadata, confidence, parser output, and manual-review routing without promoting OCR output directly into official records. | Raw OCR payload editing and private path editing are forbidden. Manual review remains available when confidence is unavailable or below threshold. |
-| Student Hub boundary | `/student/*` is protected by `auth` and `student.active`; published FAQ consumption exists for Help. Student dashboard, schedule, grades, financials, payments, documents, grade-correction, and PWA self-service must use stable backend contracts before UI work becomes UAT evidence. The backend contracts themselves are active pre-UAT backend work. | Placeholder or sample Student Hub screens do not count as backend/admin readiness evidence. Student Hub UI remains deferred until backend contracts are stable. |
+| Student Hub boundary | `/student/*` is protected by `auth` and `student.active`; published FAQ consumption exists for Help. `StudentDashboardService` provides the read-only dashboard aggregate for profile, enrollment, schedule, financials, finalized grades, requests, holds, notifications, and help links. Future student-side payment, document, enrollment, and grade-correction mutation UI must call the appropriate dedicated backend services. | Placeholder or sample Student Hub screens do not count as backend/admin readiness evidence. Student Hub UI remains deferred until the UI phase is explicitly activated. |
 | FAQ content management | `FaqEntryResource` provides System Super Admin CRUD for question, answer, category, sort order, and publish state, guarded by `manage-faqs`. Public `/faq` and Student Hub Help consume only published entries. | Registrar, Accounting, Faculty, Academic Head, Student, and public users cannot mutate FAQ content. FAQ categories remain model-owned fixed options, not arbitrary text. |
 | System settings | `SystemSettingResource` is hidden/blocked, exposes no raw key/value/JSON editing, and direct `/admin/system-settings` returns 403 even for System Super Admin. | `system_settings` remains an internal runtime registry. Dedicated typed domain settings pages require validated service handlers, authorization, audit, and cache invalidation. |
 | Accounting adjustments | `LedgerEntryResource` is immutable list/view evidence. | Manual adjustments require a typed adjustment action/service with policy checks, double-entry-safe posting, and activity logging; generic ledger CRUD is forbidden. |

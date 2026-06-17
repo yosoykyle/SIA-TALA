@@ -33,7 +33,7 @@
 - Work is targeted as one module-feature vertical slice at a time: FS/TS contract, business-evidence check, code audit, backend service/policy/test, Filament admin UI/action/test, then docs and Linear sync.
 - Older refinement lists are historical unless a specific item is mapped into the active SDD execution map.
 - Current execution order is: curriculum template/readiness scopes -> delivery patterns/section delivery groups -> enrollment assignment to section + delivery group -> scheduling snapshot/solver/commit/publish -> admin/system verification -> TAL-13 backend contracts -> remaining module closures -> Pre-UAT QA.
-- TAL-13 backend contracts remain active before UAT: `ApplicantIntakeService`, `StudentEnrollmentService`, and `SubjectSuggestionService` are implemented; `StudentDashboardService` remains open.
+- TAL-13 backend contracts remain active before UAT: `ApplicantIntakeService`, `StudentEnrollmentService`, `SubjectSuggestionService`, and `StudentDashboardService` are implemented; Student Hub UI remains deferred.
 - TAL-13 Student Hub UI remains deferred. Do not spend implementation time on Student Hub presentation until the backend contracts above are stable or explicitly descoped.
 - Scheduling availability cadence is term-scoped, not whole-academic-year-scoped. Approved Pre-UAT rule: SHS scheduling terms and availability are semester-scoped; SHS quarters remain grading-period evidence only unless a future quarter-based scheduling change is approved.
 - Filament feasibility confirmed: the planned admin UI uses Filament v5 resources, forms, tables, filters, relation managers, infolists, and action modals. Business rules must stay in Laravel services/actions; Filament resources call those services.
@@ -613,10 +613,10 @@
 - Backend contracts needed for student-domain data are now part of the active pre-UAT backend/admin closure.
 - Student Hub UI, PWA presentation, and student-facing page buildout remain deferred until these backend contracts are stable or explicitly descoped.
 - The backend contracts must consume shared backend/admin policy already built for TAL-12/TAL-12A instead of redefining enrollment, finance, document, grade, or gate policy.
-- Existing `/student/*` routes are protected by authenticated active-student middleware and the Student Hub Help page is data-backed by published FAQ entries. Dashboard, schedule, grades, financials, and documents pages remain placeholder UI surfaces until data-backed services are implemented and UI work is reactivated.
+- Existing `/student/*` routes are protected by authenticated active-student middleware and the Student Hub Help page is data-backed by published FAQ entries. Dashboard, schedule, grades, financials, and documents pages remain placeholder UI surfaces, but their read-only dashboard aggregate is now backed by `StudentDashboardService` for the deferred UI phase.
 - Linear should split this scope logically: TAL-13 backend contract work is an active dependency for UAT readiness; TAL-13 Student Hub UI remains backlog/deferred.
 
-### Part A: Active Missing Backend Contracts
+### Part A: Completed Backend Contracts
 - [x] Implement `ApplicantIntakeService` (Public registration to pending applicant)
   - 2026-06-17 SDD-05A backend contract implemented: `applicant_intakes` stores pre-handover applicant profile/status/required-document/duplicate-check evidence; pending applicant `users` rows receive the `applicant` role and remain blocked from protected Student Hub/staff areas; applicant-owned `document_uploads` link through `applicant_intake_id` with no `student_profile_id` until Official Handover; OCR dispatch uses the existing `ProcessDocumentOcrJob`; approval-for-payment is blocked until every required applicant document is Registrar-approved. Focused test: `php artisan test --compact tests/Feature/ApplicantIntakeServiceTest.php`.
 - [x] Implement `StudentEnrollmentService` (One-Click Enroll auto-promotion for Regulars)
@@ -624,7 +624,8 @@
   - 2026-06-17 PayMongo parity follow-up closed before the next TAL-13 slice: webhook-confirmed PayMongo payments now use the same shared finance-clearance/account-handover rule when the payment attempt is linked to a real enrollment. Focused tests: `php artisan test --compact tests/Feature/PayMongoWebhookFinanceClearanceTest.php`, `php artisan test --compact tests/Feature/PayMongoWebhookMockContractTest.php`, and `php artisan test --compact tests/Feature/TAL12MonitoringCoverageTest.php`.
 - [x] Implement `SubjectSuggestionService` (Prerequisite enforcement & back-subject suggestion for Irregulars)
   - 2026-06-18 SDD-05C backend contract implemented: `SubjectSuggestionService` resolves the enrollment curriculum scope, returns suggested current subjects, back subjects, blocked subjects, already-passed current subjects, setup blockers, and summary counts; consumes Registrar-finalized grade history plus active INC rows; uses the latest relevant attempt per subject; blocks active INC, finalized failed prerequisites, and missing historical prerequisite grades; and leaves approved-equivalent/credited-subject satisfaction blocked until controlled equivalency/credit-evaluation records exist. Focused test: `php artisan test --compact tests/Feature/SubjectSuggestionServiceTest.php`.
-- [ ] Implement `StudentDashboardService` (Aggregated view of schedule, balance, grades, requests)
+- [x] Implement `StudentDashboardService` (Aggregated view of schedule, balance, grades, requests)
+  - 2026-06-18 SDD-05D backend contract implemented: `StudentDashboardService` returns student-owned profile/enrollment context, current schedule, financial balance and term summaries, latest confirmed payments, finalized grades, recent document/service requests, recent grade-correction requests, dashboard holds, latest notifications, and published FAQ/help links. It prevents cross-student leakage and returns stable empty sections when no current enrollment exists. Focused test: `php artisan test --compact tests/Feature/StudentDashboardServiceTest.php`.
 
 ### Part B: Deferred Frontend UI
 - [ ] Build student portal pages (Livewire/TallStack) against the backend contracts
@@ -635,7 +636,7 @@
   - 2026-06-06 partial access/FAQ coverage added: `StudentHubAccessTest` verifies guest redirect, inactive-student denial, active-applicant denial, active-student access to all `/student/*` pages, and published-only Student Hub FAQ rendering. `PublicFaqPageTest` verifies guest access to `/faq`, published-only public FAQ rendering, and no authenticated student middleware on the public route. This does not close TAL-13 end-to-end student journeys because the core dashboard/enrollment/ledger/document/grade/request pages remain placeholder or missing service-backed workflows.
 
 **DoD**
-- [ ] Student self-service backend logic is test-verified
+- [x] Student self-service backend logic is test-verified for the current SDD-05 backend-contract set
 - [ ] Student UI uses stable backend contracts without policy drift
 - [ ] Student journeys are test-verified end-to-end
 
