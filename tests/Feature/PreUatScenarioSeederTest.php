@@ -31,6 +31,18 @@ class PreUatScenarioSeederTest extends TestCase
             'max_seats' => 30,
             'modality' => 'on_site',
         ]);
+        $this->assertDatabaseHas('delivery_patterns', [
+            'code' => 'PREUAT-F2F',
+            'version' => 1,
+            'is_frozen' => true,
+        ]);
+        $this->assertDatabaseHas('section_delivery_groups', [
+            'name' => 'Primary Face-to-Face',
+            'modality' => 'on_site',
+            'capacity' => 30,
+            'assigned_count' => 1,
+            'status' => 'active',
+        ]);
         $this->assertDatabaseHas('student_profiles', [
             'student_id' => 'TALA-2026-0001',
             'education_level' => 'college',
@@ -47,6 +59,8 @@ class PreUatScenarioSeederTest extends TestCase
         $this->assertSame(2, $this->tableCount('subjects'));
         $this->assertSame(2, $this->tableCount('curriculum_subjects'));
         $this->assertSame(1, $this->tableCount('curriculum_readiness_scopes'));
+        $this->assertSame(1, $this->tableCount('delivery_patterns'));
+        $this->assertSame(1, $this->tableCount('section_delivery_groups'));
         $this->assertSame(2, $this->tableCount('faculty_subject_eligibilities'));
         $this->assertSame(2, $this->tableCount('faculty_availability_windows'));
         $this->assertSame(2, $this->tableCount('enrollment_subjects'));
@@ -123,6 +137,8 @@ class PreUatScenarioSeederTest extends TestCase
             'curriculums',
             'curriculum_subjects',
             'curriculum_readiness_scopes',
+            'delivery_patterns',
+            'section_delivery_groups',
             'terms',
             'sections',
             'faculty_subject_eligibilities',

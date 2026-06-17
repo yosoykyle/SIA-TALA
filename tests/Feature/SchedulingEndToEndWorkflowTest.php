@@ -12,6 +12,7 @@ use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\DeliveryPattern;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
@@ -19,6 +20,7 @@ use App\Models\Program;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\Term;
@@ -141,6 +143,7 @@ class SchedulingEndToEndWorkflowTest extends TestCase
             'enrolled_count' => 24,
             'modality' => 'on_site',
         ]);
+        $this->deliveryGroup($section);
         $subjects = [
             Subject::factory()->create([
                 'code' => 'IT101',
@@ -177,6 +180,26 @@ class SchedulingEndToEndWorkflowTest extends TestCase
         );
 
         return [$term, $section, $subjects];
+    }
+
+    private function deliveryGroup(Section $section): SectionDeliveryGroup
+    {
+        $pattern = DeliveryPattern::factory()->create([
+            'modality' => 'on_site',
+            'default_room_required' => true,
+        ]);
+
+        return SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'delivery_pattern_id' => $pattern->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => $section->max_seats,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
     }
 
     /**

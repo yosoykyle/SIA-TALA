@@ -109,4 +109,9 @@ class Section extends Model
     {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function deliveryGroups(): HasMany
+    {
+        return $this->hasMany(SectionDeliveryGroup::class);
+    }
 }

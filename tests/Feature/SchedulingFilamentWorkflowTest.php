@@ -17,6 +17,7 @@ use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\DeliveryPattern;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
@@ -25,6 +26,7 @@ use App\Models\Room;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\Term;
@@ -75,6 +77,7 @@ class SchedulingFilamentWorkflowTest extends TestCase
             ->assertHasNoFormErrors();
 
         $section = Section::query()->where('name', 'BSIT 1A')->firstOrFail();
+        $this->deliveryGroup($section);
 
         foreach ($subjects as $subject) {
             Livewire::test(CreateFacultySubjectEligibility::class)
@@ -269,6 +272,26 @@ class SchedulingFilamentWorkflowTest extends TestCase
         );
 
         return [$term, $program, $curriculum, $subjects];
+    }
+
+    private function deliveryGroup(Section $section): SectionDeliveryGroup
+    {
+        $pattern = DeliveryPattern::factory()->create([
+            'modality' => 'on_site',
+            'default_room_required' => true,
+        ]);
+
+        return SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'delivery_pattern_id' => $pattern->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => $section->max_seats,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
     }
 
     /**

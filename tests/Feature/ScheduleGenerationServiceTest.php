@@ -7,6 +7,7 @@ use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\DeliveryPattern;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultyAvailabilityWindow;
@@ -14,6 +15,7 @@ use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\Subject;
 use App\Models\Term;
 use App\Models\User;
@@ -104,7 +106,7 @@ class ScheduleGenerationServiceTest extends TestCase
             ],
         );
 
-        Section::factory()->create([
+        $section = Section::factory()->create([
             'term_id' => $term->id,
             'program_id' => $program->id,
             'curriculum_id' => $curriculum->id,
@@ -113,6 +115,7 @@ class ScheduleGenerationServiceTest extends TestCase
             'room' => 'R-101',
             'modality' => 'on_site',
         ]);
+        $this->deliveryGroup($section);
         FacultySubjectEligibility::factory()->create([
             'faculty_id' => $faculty->id,
             'subject_id' => $subject->id,
@@ -139,5 +142,25 @@ class ScheduleGenerationServiceTest extends TestCase
         ]);
 
         return [$term, $registrar];
+    }
+
+    private function deliveryGroup(Section $section): SectionDeliveryGroup
+    {
+        $pattern = DeliveryPattern::factory()->create([
+            'modality' => 'on_site',
+            'default_room_required' => true,
+        ]);
+
+        return SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'delivery_pattern_id' => $pattern->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => $section->max_seats,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
     }
 }

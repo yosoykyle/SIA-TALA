@@ -8,6 +8,7 @@ use App\Models\CurriculumSubject;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use Illuminate\Support\Collection;
 
@@ -22,7 +23,8 @@ class TermSchedulingReadinessService
      *     is_ready: bool,
      *     missing_term_fields: list<string>,
      *     section_issues: list<array{section_id:int, section_name:string, missing_fields:list<string>, has_curriculum_demand:bool}>,
-     *     faculty_input_issues: list<array{section_id:int, section_name:string, subject_id:int, subject_code:?string, missing_inputs:list<string>, eligible_faculty_count:int, schedulable_faculty_count:int}>,
+     *     delivery_group_issues: list<array{section_id:int, section_name:string, section_delivery_group_id:int|null, delivery_group_name:string|null, missing_fields:list<string>}>,
+     *     faculty_input_issues: list<array{section_id:int, section_name:string, section_delivery_group_id:int|null, delivery_group_name:string|null, subject_id:int, subject_code:?string, missing_inputs:list<string>, eligible_faculty_count:int, schedulable_faculty_count:int}>,
      *     room_catalog_mode: string
      * }
      */
@@ -30,16 +32,20 @@ class TermSchedulingReadinessService
     {
         $missingTermFields = $this->missingTermFields($term);
         $sectionIssues = $this->sectionIssues($term);
-        $facultyInputIssues = $sectionIssues === []
+        $deliveryGroupIssues = $sectionIssues === []
+            ? $this->deliveryGroupIssues($term)
+            : [];
+        $facultyInputIssues = $sectionIssues === [] && $deliveryGroupIssues === []
             ? $this->facultyInputIssues($term)
             : [];
 
         return [
-            'is_ready' => $missingTermFields === [] && $sectionIssues === [] && $facultyInputIssues === [],
+            'is_ready' => $missingTermFields === [] && $sectionIssues === [] && $deliveryGroupIssues === [] && $facultyInputIssues === [],
             'missing_term_fields' => $missingTermFields,
             'section_issues' => $sectionIssues,
+            'delivery_group_issues' => $deliveryGroupIssues,
             'faculty_input_issues' => $facultyInputIssues,
-            'room_catalog_mode' => 'sections.room fixed-room rescue catalog',
+            'room_catalog_mode' => 'section_delivery_groups.room fixed-room catalog; sections.room legacy compatibility',
         ];
     }
 
@@ -95,7 +101,7 @@ class TermSchedulingReadinessService
     {
         $missingFields = [];
 
-        foreach (['curriculum_id', 'year_level', 'curriculum_period', 'max_seats', 'modality'] as $field) {
+        foreach (['curriculum_id', 'year_level', 'curriculum_period', 'max_seats'] as $field) {
             if (blank($section->{$field})) {
                 $missingFields[] = $field;
             }
@@ -107,10 +113,6 @@ class TermSchedulingReadinessService
 
         if ($section->max_seats !== null && (int) $section->max_seats < (int) $section->enrolled_count) {
             $missingFields[] = 'max_seats_below_enrolled_count';
-        }
-
-        if (in_array($section->modality, ['on_site', 'blended'], true) && blank($section->room)) {
-            $missingFields[] = 'room';
         }
 
         if ($section->curriculum !== null && (int) $section->curriculum->program_id !== (int) $section->program_id) {
@@ -136,6 +138,105 @@ class TermSchedulingReadinessService
             'missing_fields' => $missingFields,
             'has_curriculum_demand' => $hasCurriculumDemand,
         ];
+    }
+
+    /**
+     * @return list<array{section_id:int, section_name:string, section_delivery_group_id:int|null, delivery_group_name:string|null, missing_fields:list<string>}>
+     */
+    private function deliveryGroupIssues(Term $term): array
+    {
+        $sections = Section::query()
+            ->with(['deliveryGroups.deliveryPattern'])
+            ->where('term_id', $term->id)
+            ->orderBy('id')
+            ->get();
+
+        return $sections
+            ->flatMap(function (Section $section): array {
+                if ($section->deliveryGroups->isEmpty()) {
+                    return [[
+                        'section_id' => (int) $section->id,
+                        'section_name' => (string) $section->name,
+                        'section_delivery_group_id' => null,
+                        'delivery_group_name' => null,
+                        'missing_fields' => ['section_delivery_groups'],
+                    ]];
+                }
+
+                $activeGroups = $section->deliveryGroups
+                    ->where('status', SectionDeliveryGroup::StatusActive)
+                    ->values();
+
+                $issues = [];
+
+                if ($activeGroups->isEmpty()) {
+                    $issues[] = [
+                        'section_id' => (int) $section->id,
+                        'section_name' => (string) $section->name,
+                        'section_delivery_group_id' => null,
+                        'delivery_group_name' => null,
+                        'missing_fields' => ['active_section_delivery_group'],
+                    ];
+                }
+
+                foreach ($section->deliveryGroups as $group) {
+                    $missingFields = $this->missingDeliveryGroupFields($section, $group);
+
+                    if ($missingFields !== []) {
+                        $issues[] = [
+                            'section_id' => (int) $section->id,
+                            'section_name' => (string) $section->name,
+                            'section_delivery_group_id' => (int) $group->id,
+                            'delivery_group_name' => (string) $group->name,
+                            'missing_fields' => $missingFields,
+                        ];
+                    }
+                }
+
+                return $issues;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function missingDeliveryGroupFields(Section $section, SectionDeliveryGroup $group): array
+    {
+        $missingFields = [];
+
+        foreach (['delivery_pattern_id', 'modality', 'capacity', 'status'] as $field) {
+            if (blank($group->{$field})) {
+                $missingFields[] = $field;
+            }
+        }
+
+        if ($group->deliveryPattern === null) {
+            $missingFields[] = 'delivery_pattern';
+        } elseif (! $group->deliveryPattern->is_active) {
+            $missingFields[] = 'active_delivery_pattern';
+        } elseif ($group->deliveryPattern->modality !== null && $group->deliveryPattern->modality !== $group->modality) {
+            $missingFields[] = 'delivery_pattern_modality_mismatch';
+        }
+
+        if ($group->capacity !== null && (int) $group->capacity < 1) {
+            $missingFields[] = 'delivery_group_capacity';
+        }
+
+        if ($group->capacity !== null && (int) $group->capacity > (int) $section->max_seats) {
+            $missingFields[] = 'delivery_group_capacity_above_section_capacity';
+        }
+
+        if ($group->capacity !== null && (int) $group->capacity < (int) $group->assigned_count) {
+            $missingFields[] = 'delivery_group_capacity_below_assigned_count';
+        }
+
+        if (SectionDeliveryGroup::modalityRequiresRoom($group->modality) && blank($group->room)) {
+            $missingFields[] = 'delivery_group_room';
+        }
+
+        return array_values(array_unique($missingFields));
     }
 
     private function hasCurriculumDemand(Section $section): bool
@@ -180,7 +281,7 @@ class TermSchedulingReadinessService
     }
 
     /**
-     * @return list<array{section_id:int, section_name:string, subject_id:int, subject_code:?string, missing_inputs:list<string>, eligible_faculty_count:int, schedulable_faculty_count:int}>
+     * @return list<array{section_id:int, section_name:string, section_delivery_group_id:int|null, delivery_group_name:string|null, subject_id:int, subject_code:?string, missing_inputs:list<string>, eligible_faculty_count:int, schedulable_faculty_count:int}>
      */
     private function facultyInputIssues(Term $term): array
     {
@@ -242,6 +343,8 @@ class TermSchedulingReadinessService
                 return [
                     'section_id' => (int) $demand['section_id'],
                     'section_name' => (string) $demand['section_name'],
+                    'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+                    'delivery_group_name' => (string) $demand['delivery_group_name'],
                     'subject_id' => (int) $demand['subject_id'],
                     'subject_code' => $demand['subject_code'],
                     'missing_inputs' => array_values(array_unique($missingInputs)),
@@ -255,11 +358,12 @@ class TermSchedulingReadinessService
     }
 
     /**
-     * @return Collection<int, array{section_id:int, section_name:string, subject_id:int, subject_code:?string}>
+     * @return Collection<int, array{section_id:int, section_name:string, section_delivery_group_id:int|null, delivery_group_name:string|null, subject_id:int, subject_code:?string}>
      */
     private function curriculumSubjectDemands(Term $term): Collection
     {
         $sections = Section::query()
+            ->with(['deliveryGroups' => fn ($query) => $query->where('status', SectionDeliveryGroup::StatusActive)->orderBy('id')])
             ->where('term_id', $term->id)
             ->whereNotNull('curriculum_id')
             ->whereNotNull('year_level')
@@ -295,12 +399,17 @@ class TermSchedulingReadinessService
         return $sections
             ->flatMap(fn (Section $section): array => $curriculumSubjects
                 ->filter(fn (CurriculumSubject $curriculumSubject): bool => $this->matchesSectionDemand($curriculumSubject, $section))
-                ->map(fn (CurriculumSubject $curriculumSubject): array => [
-                    'section_id' => (int) $section->id,
-                    'section_name' => (string) $section->name,
-                    'subject_id' => (int) $curriculumSubject->subject_id,
-                    'subject_code' => $curriculumSubject->subject?->code,
-                ])
+                ->flatMap(fn (CurriculumSubject $curriculumSubject): array => $section->deliveryGroups
+                    ->map(fn (SectionDeliveryGroup $group): array => [
+                        'section_id' => (int) $section->id,
+                        'section_name' => (string) $section->name,
+                        'section_delivery_group_id' => (int) $group->id,
+                        'delivery_group_name' => (string) $group->name,
+                        'subject_id' => (int) $curriculumSubject->subject_id,
+                        'subject_code' => $curriculumSubject->subject?->code,
+                    ])
+                    ->values()
+                    ->all())
                 ->values()
                 ->all())
             ->values();

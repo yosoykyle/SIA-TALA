@@ -21,6 +21,7 @@ class Enrollment extends Model
         'student_profile_id',
         'term_id',
         'section_id',
+        'section_delivery_group_id',
         'status',
         'student_type',
         'year_level',
@@ -60,6 +61,11 @@ class Enrollment extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    public function sectionDeliveryGroup(): BelongsTo
+    {
+        return $this->belongsTo(SectionDeliveryGroup::class);
     }
 
     public function ledgerEntries(): HasMany

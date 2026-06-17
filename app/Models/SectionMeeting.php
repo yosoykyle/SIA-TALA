@@ -13,6 +13,7 @@ class SectionMeeting extends Model
     protected $fillable = [
         'term_id',
         'section_id',
+        'section_delivery_group_id',
         'subject_id',
         'faculty_id',
         'room',
@@ -146,6 +147,11 @@ class SectionMeeting extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    public function sectionDeliveryGroup(): BelongsTo
+    {
+        return $this->belongsTo(SectionDeliveryGroup::class);
     }
 
     public function subject(): BelongsTo

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
+use App\Models\DeliveryPattern;
 use App\Models\DocumentRequest;
 use App\Models\DocumentUpload;
 use App\Models\Enrollment;
@@ -23,6 +24,7 @@ use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\ServiceRequest;
 use App\Models\StudentProfile;
 use App\Models\Subject;
@@ -161,6 +163,45 @@ class PreUatScenarioSeeder extends Seeder
             ],
         );
 
+        $deliveryPattern = DeliveryPattern::query()->updateOrCreate(
+            [
+                'code' => 'PREUAT-F2F',
+                'version' => 1,
+            ],
+            [
+                'name' => 'Pre-UAT Face-to-Face',
+                'description' => 'Seeded delivery pattern for Pre-UAT scheduling smoke tests.',
+                'modality' => 'on_site',
+                'allowed_days' => [1, 2, 3, 4, 5, 6],
+                'subject_routing' => DeliveryPattern::SubjectRoutingSameSubjectSet,
+                'enforcement_level' => DeliveryPattern::EnforcementStrict,
+                'default_room_required' => true,
+                'is_active' => true,
+                'is_frozen' => true,
+                'used_at' => $now,
+                'created_by' => $registrar->id,
+            ],
+        );
+
+        $deliveryGroup = SectionDeliveryGroup::query()->updateOrCreate(
+            [
+                'section_id' => $section->id,
+                'name' => 'Primary Face-to-Face',
+            ],
+            [
+                'delivery_pattern_id' => $deliveryPattern->id,
+                'modality' => 'on_site',
+                'capacity' => Section::MaxRescueSeats,
+                'assigned_count' => 1,
+                'room_required' => true,
+                'room' => 'R-101',
+                'status' => SectionDeliveryGroup::StatusActive,
+                'created_by' => $registrar->id,
+                'updated_by' => $registrar->id,
+                'closed_at' => null,
+            ],
+        );
+
         foreach ($subjects as $subject) {
             FacultySubjectEligibility::query()->updateOrCreate(
                 [
@@ -243,6 +284,7 @@ class PreUatScenarioSeeder extends Seeder
             ],
             [
                 'section_id' => $section->id,
+                'section_delivery_group_id' => $deliveryGroup->id,
                 'status' => 'officially_enrolled',
                 'student_type' => 'new',
                 'year_level' => '1st Year',
