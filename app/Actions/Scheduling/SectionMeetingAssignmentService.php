@@ -5,6 +5,8 @@ namespace App\Actions\Scheduling;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
+use App\Models\ScheduleGenerationRun;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -22,6 +24,7 @@ class SectionMeetingAssignmentService
     {
         $payload = $this->normalizeAssignmentData($data);
 
+        $this->assertTermIsNotPublished($payload['term_id']);
         $this->assertNoConflicts($payload);
 
         $timestamp = $committedAt ?? CarbonImmutable::now(config('app.timezone'));
@@ -44,7 +47,7 @@ class SectionMeetingAssignmentService
 
     /**
      * @param  array<string, mixed>  $newPayload
-     * @return array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string, availability_override_by:?int, availability_override_at:?CarbonImmutable, availability_override_payload:?array<string, mixed>}
+     * @return array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string, availability_override_by:?int, availability_override_at:?CarbonImmutable, availability_override_payload:?array<string, mixed>}
      *
      * @throws ValidationException
      */
@@ -59,6 +62,9 @@ class SectionMeetingAssignmentService
         $payload = [
             'term_id' => $sectionMeeting->term_id,
             'section_id' => $sectionMeeting->section_id,
+            'section_delivery_group_id' => array_key_exists('section_delivery_group_id', $newPayload)
+                ? $newPayload['section_delivery_group_id']
+                : $sectionMeeting->section_delivery_group_id,
             'subject_id' => $sectionMeeting->subject_id,
             'faculty_id' => array_key_exists('faculty_id', $newPayload)
                 ? $newPayload['faculty_id']
@@ -73,6 +79,7 @@ class SectionMeetingAssignmentService
 
         $normalized = $this->normalizeAssignmentData($payload);
 
+        $this->assertTermIsNotPublished($normalized['term_id']);
         $this->assertNoConflicts($normalized, $sectionMeeting->id);
         $overrideAttributes = $this->availabilityOverrideAttributes(
             payload: $normalized,
@@ -83,6 +90,7 @@ class SectionMeetingAssignmentService
         );
 
         return [
+            'section_delivery_group_id' => $normalized['section_delivery_group_id'],
             'faculty_id' => $normalized['faculty_id'],
             'room' => $normalized['room'],
             'day_of_week' => $normalized['day_of_week'],
@@ -95,7 +103,7 @@ class SectionMeetingAssignmentService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string}
+     * @return array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string}
      *
      * @throws ValidationException
      */
@@ -104,6 +112,7 @@ class SectionMeetingAssignmentService
         $payload = [
             'term_id' => $this->integerValue($data['term_id'] ?? null),
             'section_id' => $this->integerValue($data['section_id'] ?? null),
+            'section_delivery_group_id' => $this->integerValue($data['section_delivery_group_id'] ?? null),
             'subject_id' => $this->integerValue($data['subject_id'] ?? null),
             'faculty_id' => $this->integerValue($data['faculty_id'] ?? null),
             'room' => $this->stringValue($data['room'] ?? null),
@@ -114,7 +123,12 @@ class SectionMeetingAssignmentService
             'availability_override_reason' => $this->stringValue($data['availability_override_reason'] ?? null),
         ];
 
-        $this->assertRequired($payload, ['term_id', 'section_id', 'subject_id', 'faculty_id', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
+        $this->assertRequired($payload, ['term_id', 'section_id', 'section_delivery_group_id', 'subject_id', 'faculty_id', 'day_of_week', 'starts_at', 'ends_at']);
+
+        $deliveryGroup = $this->deliveryGroupFor($payload);
+        $payload['modality'] ??= $deliveryGroup->modality;
+
+        $this->assertRequired($payload, ['modality']);
 
         if ($payload['day_of_week'] < 1 || $payload['day_of_week'] > 7) {
             throw ValidationException::withMessages([
@@ -125,6 +139,12 @@ class SectionMeetingAssignmentService
         if (! in_array($payload['modality'], ['on_site', 'online', 'modular', 'blended'], true)) {
             throw ValidationException::withMessages([
                 'modality' => 'Unsupported schedule modality.',
+            ]);
+        }
+
+        if ($payload['modality'] !== $deliveryGroup->modality) {
+            throw ValidationException::withMessages([
+                'modality' => 'Schedule modality must match the selected section delivery group.',
             ]);
         }
 
@@ -140,7 +160,17 @@ class SectionMeetingAssignmentService
             ]);
         }
 
-        if ($this->requiresRoom($payload['modality']) && $payload['room'] === null) {
+        if ($payload['room'] === null && filled($deliveryGroup->room)) {
+            $payload['room'] = (string) $deliveryGroup->room;
+        }
+
+        if (filled($deliveryGroup->room) && $payload['room'] !== (string) $deliveryGroup->room) {
+            throw ValidationException::withMessages([
+                'room' => 'Schedule room must match the selected section delivery group fixed room.',
+            ]);
+        }
+
+        if (((bool) $deliveryGroup->room_required || $this->requiresRoom($payload['modality'])) && $payload['room'] === null) {
             throw ValidationException::withMessages([
                 'room' => 'A room is required for on-site or blended meetings.',
             ]);
@@ -152,7 +182,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      *
      * @throws ValidationException
      */
@@ -165,9 +195,9 @@ class SectionMeetingAssignmentService
             ->where('ends_at', '>', $payload['starts_at'])
             ->when($exceptSectionMeetingId !== null, fn ($query) => $query->whereKeyNot($exceptSectionMeetingId));
 
-        if ((clone $overlappingMeetings)->where('section_id', $payload['section_id'])->exists()) {
+        if ((clone $overlappingMeetings)->where('section_delivery_group_id', $payload['section_delivery_group_id'])->exists()) {
             throw ValidationException::withMessages([
-                'section_id' => 'The selected section already has a committed meeting during this time.',
+                'section_delivery_group_id' => 'The selected section delivery group already has a committed meeting during this time.',
             ]);
         }
 
@@ -238,7 +268,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      *
      * @throws ValidationException
      */
@@ -258,7 +288,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
      *
@@ -307,6 +337,7 @@ class SectionMeetingAssignmentService
                 ...$context,
                 'term_id' => $payload['term_id'],
                 'section_id' => $payload['section_id'],
+                'section_delivery_group_id' => $payload['section_delivery_group_id'],
                 'subject_id' => $payload['subject_id'],
                 'faculty_id' => $payload['faculty_id'],
                 'day_of_week' => $payload['day_of_week'],
@@ -317,7 +348,7 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
+     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
      * @return array<string, mixed>|null
      */
     private function facultyAvailabilityIssue(array $payload): ?array
@@ -378,5 +409,66 @@ class SectionMeetingAssignmentService
             'missing_submitted_or_locked_availability' => 'Registrar override reason is required because the selected faculty has no submitted or locked availability for this term.',
             default => 'Registrar override reason is required because the proposed meeting is outside the selected faculty availability.',
         };
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertTermIsNotPublished(int $termId): void
+    {
+        if (! ScheduleGenerationRun::query()
+            ->where('term_id', $termId)
+            ->where('status', ScheduleGenerationRun::StatusPublished)
+            ->exists()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'term_id' => 'This term already has a published schedule. Use the schedule-change workflow for post-publish edits.',
+        ]);
+    }
+
+    /**
+     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:?string, availability_override_reason:?string}  $payload
+     *
+     * @throws ValidationException
+     */
+    private function deliveryGroupFor(array $payload): SectionDeliveryGroup
+    {
+        $deliveryGroup = SectionDeliveryGroup::query()
+            ->with('section')
+            ->find($payload['section_delivery_group_id']);
+
+        if (! $deliveryGroup instanceof SectionDeliveryGroup) {
+            throw ValidationException::withMessages([
+                'section_delivery_group_id' => 'Choose a valid section delivery group.',
+            ]);
+        }
+
+        if ((int) $deliveryGroup->section_id !== $payload['section_id']) {
+            throw ValidationException::withMessages([
+                'section_delivery_group_id' => 'The selected delivery group does not belong to the selected section.',
+            ]);
+        }
+
+        if ((int) $deliveryGroup->section?->term_id !== $payload['term_id']) {
+            throw ValidationException::withMessages([
+                'section_delivery_group_id' => 'The selected delivery group does not belong to the selected term.',
+            ]);
+        }
+
+        if ($deliveryGroup->status !== SectionDeliveryGroup::StatusActive) {
+            throw ValidationException::withMessages([
+                'section_delivery_group_id' => 'Only active section delivery groups can be scheduled.',
+            ]);
+        }
+
+        if ((int) $deliveryGroup->assigned_count > (int) $deliveryGroup->capacity) {
+            throw ValidationException::withMessages([
+                'section_delivery_group_id' => 'The selected section delivery group is already over assigned capacity.',
+            ]);
+        }
+
+        return $deliveryGroup;
     }
 }

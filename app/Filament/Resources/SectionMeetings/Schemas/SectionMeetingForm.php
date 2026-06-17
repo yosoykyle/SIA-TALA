@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SectionMeetings\Schemas;
 
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class SectionMeetingForm
@@ -33,6 +35,28 @@ class SectionMeetingForm
                             ->relationship('section', 'name')
                             ->searchable()
                             ->preload()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('section_delivery_group_id', null))
+                            ->required(),
+                        Select::make('section_delivery_group_id')
+                            ->label('Delivery Group')
+                            ->options(fn (Get $get): array => self::deliveryGroupOptions($get('section_id')))
+                            ->searchable()
+                            ->preload()
+                            ->disabled(fn (Get $get): bool => blank($get('section_id')))
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, mixed $state): void {
+                                $group = filled($state)
+                                    ? SectionDeliveryGroup::query()->find((int) $state)
+                                    : null;
+
+                                if (! $group instanceof SectionDeliveryGroup) {
+                                    return;
+                                }
+
+                                $set('modality', $group->modality);
+                                $set('room', $group->room);
+                            })
                             ->required(),
                         Select::make('subject_id')
                             ->label('Subject')
@@ -93,5 +117,25 @@ class SectionMeetingForm
     private static function modalityOptions(): array
     {
         return SectionMeeting::modalityOptions();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function deliveryGroupOptions(mixed $sectionId): array
+    {
+        if (blank($sectionId)) {
+            return [];
+        }
+
+        return SectionDeliveryGroup::query()
+            ->where('section_id', (int) $sectionId)
+            ->where('status', SectionDeliveryGroup::StatusActive)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (SectionDeliveryGroup $group): array => [
+                $group->id => $group->displayLabel(),
+            ])
+            ->all();
     }
 }

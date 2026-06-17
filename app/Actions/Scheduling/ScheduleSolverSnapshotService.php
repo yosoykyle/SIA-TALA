@@ -7,6 +7,7 @@ use App\Models\CurriculumSubject;
 use App\Models\FacultySubjectEligibility;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use DateTimeInterface;
 use Illuminate\Support\Collection;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class ScheduleSolverSnapshotService
 {
-    private const SchemaVersion = 2;
+    private const SchemaVersion = 3;
 
     private const MaxSectionSeats = 30;
 
@@ -70,12 +71,13 @@ class ScheduleSolverSnapshotService
     private function buildSnapshot(ScheduleGenerationRun $run, array $readiness): array
     {
         $sections = Section::query()
-            ->with(['program', 'curriculum'])
+            ->with(['program', 'curriculum', 'deliveryGroups.deliveryPattern'])
             ->where('term_id', $run->term_id)
             ->orderBy('id')
             ->get();
 
         $sectionPayload = $this->sectionsPayload($sections);
+        $deliveryGroupPayload = $this->sectionDeliveryGroupsPayload($sections);
 
         return [
             'schema_version' => self::SchemaVersion,
@@ -83,11 +85,12 @@ class ScheduleSolverSnapshotService
             'readiness' => $readiness,
             'run_metadata' => $this->runMetadata($run),
             'sections' => $sectionPayload,
+            'section_delivery_groups' => $deliveryGroupPayload,
             'curriculum_readiness_scopes' => $this->curriculumReadinessService->evidenceForSections($sections),
             'curriculum_subject_demand' => $this->curriculumSubjectDemand($sections),
             'faculty_eligibility' => $this->facultyEligibility((int) $run->term_id),
             'faculty_availability' => $this->facultyAvailability((int) $run->term_id),
-            'rooms_catalog' => $this->roomsCatalog($sectionPayload),
+            'rooms_catalog' => $this->roomsCatalog($deliveryGroupPayload),
             'existing_commitments' => $this->existingCommitments((int) $run->term_id),
             'policy_constraints' => $this->policyConstraints(),
         ];
@@ -137,7 +140,49 @@ class ScheduleSolverSnapshotService
                 'enrolled_count' => (int) $section->enrolled_count,
                 'available_seats' => max(0, (int) $section->max_seats - (int) $section->enrolled_count),
                 'fixed_room' => filled($section->room) ? (string) $section->room : null,
+                'delivery_group_ids' => $section->deliveryGroups
+                    ->where('status', SectionDeliveryGroup::StatusActive)
+                    ->sortBy('id')
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->values()
+                    ->all(),
             ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, Section>  $sections
+     * @return list<array<string, mixed>>
+     */
+    private function sectionDeliveryGroupsPayload(Collection $sections): array
+    {
+        return $sections
+            ->flatMap(fn (Section $section): array => $section->deliveryGroups
+                ->where('status', SectionDeliveryGroup::StatusActive)
+                ->sortBy('id')
+                ->map(fn (SectionDeliveryGroup $group): array => [
+                    'section_delivery_group_id' => (int) $group->id,
+                    'section_id' => (int) $section->id,
+                    'delivery_group_name' => (string) $group->name,
+                    'modality' => (string) $group->modality,
+                    'capacity' => (int) $group->capacity,
+                    'assigned_count' => (int) $group->assigned_count,
+                    'available_seats' => $group->availableSeats(),
+                    'room_required' => (bool) $group->room_required,
+                    'fixed_room' => filled($group->room) ? (string) $group->room : null,
+                    'delivery_pattern_id' => (int) $group->delivery_pattern_id,
+                    'delivery_pattern_code' => $group->deliveryPattern?->code,
+                    'delivery_pattern_version' => $group->deliveryPattern?->version !== null
+                        ? (int) $group->deliveryPattern->version
+                        : null,
+                    'delivery_pattern_allowed_days' => $group->deliveryPattern?->allowed_days ?? [],
+                    'delivery_pattern_subject_routing' => $group->deliveryPattern?->subject_routing,
+                    'delivery_pattern_enforcement_level' => $group->deliveryPattern?->enforcement_level,
+                ])
+                ->values()
+                ->all())
             ->values()
             ->all();
     }
@@ -175,25 +220,44 @@ class ScheduleSolverSnapshotService
 
         return $sections
             ->flatMap(function (Section $section) use ($curriculumSubjects): array {
-                return $curriculumSubjects
-                    ->filter(fn (CurriculumSubject $curriculumSubject): bool => $this->matchesSectionDemand($curriculumSubject, $section))
-                    ->map(fn (CurriculumSubject $curriculumSubject): array => [
-                        'section_id' => (int) $section->id,
-                        'curriculum_subject_id' => (int) $curriculumSubject->id,
-                        'curriculum_id' => (int) $curriculumSubject->curriculum_id,
-                        'year_level' => $curriculumSubject->year_level,
-                        'curriculum_period' => $curriculumSubject->semester,
-                        'subject_id' => (int) $curriculumSubject->subject_id,
-                        'subject_code' => $curriculumSubject->subject?->code,
-                        'subject_description' => $curriculumSubject->subject?->description,
-                        'units' => $this->decimalValue($curriculumSubject->subject?->units),
-                        'weekly_contact_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
-                        'lec_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
-                        'academic_subject_type' => $curriculumSubject->academic_subject_type,
-                        'scheduling_group' => $curriculumSubject->scheduling_group,
-                        'delivery_rule_override' => $curriculumSubject->delivery_rule_override,
-                        'sort_order' => (int) $curriculumSubject->sort_order,
-                    ])
+                $activeGroups = $section->deliveryGroups
+                    ->where('status', SectionDeliveryGroup::StatusActive)
+                    ->sortBy('id')
+                    ->values();
+
+                return $activeGroups
+                    ->flatMap(fn (SectionDeliveryGroup $group): array => $curriculumSubjects
+                        ->filter(fn (CurriculumSubject $curriculumSubject): bool => $this->matchesSectionDemand($curriculumSubject, $section))
+                        ->map(fn (CurriculumSubject $curriculumSubject): array => [
+                            'demand_key' => ((int) $section->id).':'.((int) $group->id).':'.((int) $curriculumSubject->subject_id),
+                            'section_id' => (int) $section->id,
+                            'section_delivery_group_id' => (int) $group->id,
+                            'delivery_group_name' => (string) $group->name,
+                            'curriculum_subject_id' => (int) $curriculumSubject->id,
+                            'curriculum_id' => (int) $curriculumSubject->curriculum_id,
+                            'year_level' => $curriculumSubject->year_level,
+                            'curriculum_period' => $curriculumSubject->semester,
+                            'subject_id' => (int) $curriculumSubject->subject_id,
+                            'subject_code' => $curriculumSubject->subject?->code,
+                            'subject_description' => $curriculumSubject->subject?->description,
+                            'units' => $this->decimalValue($curriculumSubject->subject?->units),
+                            'weekly_contact_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
+                            'lec_hours' => $this->decimalValue($curriculumSubject->weekly_contact_hours),
+                            'academic_subject_type' => $curriculumSubject->academic_subject_type,
+                            'scheduling_group' => $curriculumSubject->scheduling_group,
+                            'delivery_rule_override' => $curriculumSubject->delivery_rule_override,
+                            'modality' => (string) $group->modality,
+                            'room_required' => (bool) $group->room_required,
+                            'fixed_room' => filled($group->room) ? (string) $group->room : null,
+                            'delivery_pattern_id' => (int) $group->delivery_pattern_id,
+                            'delivery_pattern_code' => $group->deliveryPattern?->code,
+                            'delivery_pattern_version' => $group->deliveryPattern?->version !== null
+                                ? (int) $group->deliveryPattern->version
+                                : null,
+                            'sort_order' => (int) $curriculumSubject->sort_order,
+                        ])
+                        ->values()
+                        ->all())
                     ->values()
                     ->all();
             })
@@ -296,20 +360,21 @@ class ScheduleSolverSnapshotService
     }
 
     /**
-     * @param  list<array<string, mixed>>  $sections
+     * @param  list<array<string, mixed>>  $deliveryGroups
      * @return list<array<string, mixed>>
      */
-    private function roomsCatalog(array $sections): array
+    private function roomsCatalog(array $deliveryGroups): array
     {
-        return collect($sections)
+        return collect($deliveryGroups)
             ->filter(fn (array $section): bool => filled($section['fixed_room'] ?? null))
             ->groupBy('fixed_room')
-            ->map(fn (Collection $roomSections, string $room): array => [
+            ->map(fn (Collection $roomGroups, string $room): array => [
                 'room_code' => $room,
-                'source' => 'sections.room',
-                'section_ids' => $roomSections->pluck('section_id')->values()->all(),
-                'max_section_capacity' => (int) $roomSections->max('max_seats'),
-                'modalities' => $roomSections->pluck('modality')->unique()->values()->all(),
+                'source' => 'section_delivery_groups.room',
+                'section_ids' => $roomGroups->pluck('section_id')->unique()->values()->all(),
+                'section_delivery_group_ids' => $roomGroups->pluck('section_delivery_group_id')->values()->all(),
+                'max_group_capacity' => (int) $roomGroups->max('capacity'),
+                'modalities' => $roomGroups->pluck('modality')->unique()->values()->all(),
             ])
             ->values()
             ->all();
@@ -329,6 +394,7 @@ class ScheduleSolverSnapshotService
             ->map(fn (object $meeting): array => [
                 'section_meeting_id' => (int) $meeting->id,
                 'section_id' => (int) $meeting->section_id,
+                'section_delivery_group_id' => $meeting->section_delivery_group_id !== null ? (int) $meeting->section_delivery_group_id : null,
                 'subject_id' => (int) $meeting->subject_id,
                 'faculty_id' => $meeting->faculty_id !== null ? (int) $meeting->faculty_id : null,
                 'room' => $meeting->room,
@@ -356,7 +422,8 @@ class ScheduleSolverSnapshotService
             'mandatory_faculty_assignment' => true,
             'max_section_seats' => self::MaxSectionSeats,
             'section_capacity_mode' => 'editable_bounded_max_30_not_below_enrolled_count',
-            'room_catalog_mode' => 'sections.room fixed-room rescue catalog',
+            'room_catalog_mode' => 'section_delivery_groups.room fixed-room catalog',
+            'delivery_group_required' => true,
         ];
     }
 

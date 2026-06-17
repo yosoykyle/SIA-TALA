@@ -191,8 +191,8 @@ Do not switch Laravel from `local_stub` to `cloud_run` until the local Docker te
 
 ## Current Rescue Limitations
 
-- This POC schedules each curriculum demand as one contiguous block using `lec_hours` or `units`.
-- It does not yet split lectures across multiple weekly meetings.
-- It uses `sections.room` as the rescue fixed-room catalog.
+- This POC schedules each section-delivery-group subject demand as one contiguous block using `weekly_contact_hours`, with legacy `lec_hours` or `units` only as fallback duration inputs.
+- It does not yet split lectures or laboratories across multiple weekly meetings.
+- It uses `section_delivery_groups.fixed_room` / `room` as the rescue fixed-room catalog for room-required delivery groups.
 - It emits unassigned curriculum demand as `conflict` draft rows so Laravel can store/review them safely.
-- Laravel remains the final validator and commit authority.
+- Laravel remains the final validator, review surface, commit authority, and publish authority.

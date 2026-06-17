@@ -18,6 +18,8 @@ class ScheduleGenerationRun extends Model
 
     public const StatusCommitted = 'committed';
 
+    public const StatusPublished = 'published';
+
     public const StatusAbandoned = 'abandoned';
 
     public const StatusSuperseded = 'superseded';
@@ -32,6 +34,10 @@ class ScheduleGenerationRun extends Model
         'generated_at',
         'committed_by',
         'committed_at',
+        'published_by',
+        'published_at',
+        'publish_note',
+        'emergency_published',
         'constraint_summary',
         'solver_input_snapshot',
         'solver_input_hash',
@@ -47,6 +53,8 @@ class ScheduleGenerationRun extends Model
         return [
             'generated_at' => 'datetime',
             'committed_at' => 'datetime',
+            'published_at' => 'datetime',
+            'emergency_published' => 'boolean',
             'constraint_summary' => 'array',
             'solver_input_snapshot' => 'array',
             'solver_snapshot_captured_at' => 'datetime',
@@ -64,6 +72,7 @@ class ScheduleGenerationRun extends Model
             self::StatusUnderReview => 'Under Review',
             self::StatusBlocked => 'Blocked',
             self::StatusCommitted => 'Committed',
+            self::StatusPublished => 'Published',
             self::StatusAbandoned => 'Abandoned',
             self::StatusSuperseded => 'Superseded',
         ];
@@ -80,6 +89,7 @@ class ScheduleGenerationRun extends Model
             'gray' => self::StatusUnderReview,
             'danger' => self::StatusBlocked,
             'success' => self::StatusCommitted,
+            'primary' => self::StatusPublished,
         ];
     }
 
@@ -99,6 +109,11 @@ class ScheduleGenerationRun extends Model
         return in_array($this->status, self::committableStatuses(), true);
     }
 
+    public function canBePublished(): bool
+    {
+        return $this->status === self::StatusCommitted;
+    }
+
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
@@ -112,6 +127,11 @@ class ScheduleGenerationRun extends Model
     public function committer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'committed_by');
+    }
+
+    public function publisher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'published_by');
     }
 
     public function sectionMeetings(): HasMany

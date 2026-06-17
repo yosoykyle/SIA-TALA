@@ -33,7 +33,7 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
 
         $fixtures['run']->refresh();
 
-        $this->assertSame(2, $snapshot['schema_version']);
+        $this->assertSame(3, $snapshot['schema_version']);
         $this->assertSame($fixtures['run']->id, $snapshot['run_metadata']['run_id']);
         $this->assertSame($fixtures['term']->id, $snapshot['run_metadata']['term_id']);
         $this->assertSame($fixtures['term']->term_name, $snapshot['run_metadata']['term_name']);
@@ -55,16 +55,33 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
             'enrolled_count' => 25,
             'available_seats' => 5,
             'fixed_room' => 'R-101',
+            'delivery_group_ids' => [$fixtures['deliveryGroup']->id],
         ], $snapshot['sections'][0]);
 
+        $this->assertCount(1, $snapshot['section_delivery_groups']);
+        $this->assertSame($fixtures['deliveryGroup']->id, $snapshot['section_delivery_groups'][0]['section_delivery_group_id']);
+        $this->assertSame($fixtures['section']->id, $snapshot['section_delivery_groups'][0]['section_id']);
+        $this->assertSame('Primary F2F', $snapshot['section_delivery_groups'][0]['delivery_group_name']);
+        $this->assertSame('on_site', $snapshot['section_delivery_groups'][0]['modality']);
+        $this->assertTrue($snapshot['section_delivery_groups'][0]['room_required']);
+        $this->assertSame('R-101', $snapshot['section_delivery_groups'][0]['fixed_room']);
+
         $this->assertCount(2, $snapshot['curriculum_subject_demand']);
+        $this->assertSame(
+            "{$fixtures['section']->id}:{$fixtures['deliveryGroup']->id}:{$fixtures['subjectA']->id}",
+            $snapshot['curriculum_subject_demand'][0]['demand_key'],
+        );
         $this->assertSame($fixtures['section']->id, $snapshot['curriculum_subject_demand'][0]['section_id']);
+        $this->assertSame($fixtures['deliveryGroup']->id, $snapshot['curriculum_subject_demand'][0]['section_delivery_group_id']);
         $this->assertSame($fixtures['subjectA']->id, $snapshot['curriculum_subject_demand'][0]['subject_id']);
         $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['units']);
         $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['weekly_contact_hours']);
         $this->assertSame('3.00', $snapshot['curriculum_subject_demand'][0]['lec_hours']);
         $this->assertSame('major', $snapshot['curriculum_subject_demand'][0]['academic_subject_type']);
         $this->assertSame('lecture', $snapshot['curriculum_subject_demand'][0]['scheduling_group']);
+        $this->assertSame('on_site', $snapshot['curriculum_subject_demand'][0]['modality']);
+        $this->assertTrue($snapshot['curriculum_subject_demand'][0]['room_required']);
+        $this->assertSame('R-101', $snapshot['curriculum_subject_demand'][0]['fixed_room']);
 
         $this->assertCount(2, $snapshot['faculty_eligibility']);
         $this->assertSame($fixtures['faculty']->id, $snapshot['faculty_eligibility'][0]['faculty_id']);
@@ -84,12 +101,17 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
         ], $snapshot['faculty_availability'][0]['windows'][0]);
 
         $this->assertSame('R-101', $snapshot['rooms_catalog'][0]['room_code']);
+        $this->assertSame('section_delivery_groups.room', $snapshot['rooms_catalog'][0]['source']);
         $this->assertSame([$fixtures['section']->id], $snapshot['rooms_catalog'][0]['section_ids']);
+        $this->assertSame([$fixtures['deliveryGroup']->id], $snapshot['rooms_catalog'][0]['section_delivery_group_ids']);
+        $this->assertSame(30, $snapshot['rooms_catalog'][0]['max_group_capacity']);
 
         $this->assertCount(1, $snapshot['existing_commitments']);
         $this->assertSame($fixtures['existingMeeting']->id, $snapshot['existing_commitments'][0]['section_meeting_id']);
+        $this->assertSame($fixtures['deliveryGroup']->id, $snapshot['existing_commitments'][0]['section_delivery_group_id']);
 
-        $this->assertSame('sections.room fixed-room rescue catalog', $snapshot['policy_constraints']['room_catalog_mode']);
+        $this->assertSame('section_delivery_groups.room fixed-room catalog', $snapshot['policy_constraints']['room_catalog_mode']);
+        $this->assertTrue($snapshot['policy_constraints']['delivery_group_required']);
         $this->assertTrue($snapshot['policy_constraints']['mandatory_faculty_assignment']);
         $this->assertSame(30, $snapshot['policy_constraints']['max_section_seats']);
         $this->assertSame('editable_bounded_max_30_not_below_enrolled_count', $snapshot['policy_constraints']['section_capacity_mode']);
@@ -157,6 +179,7 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
      *     program: Program,
      *     curriculum: Curriculum,
      *     section: Section,
+     *     deliveryGroup: SectionDeliveryGroup,
      *     subjectA: Subject,
      *     subjectB: Subject,
      *     faculty: User,
@@ -319,6 +342,7 @@ class ScheduleSolverSnapshotServiceTest extends TestCase
             'program' => $program,
             'curriculum' => $curriculum,
             'section' => $section,
+            'deliveryGroup' => $deliveryGroup,
             'subjectA' => $subjectA,
             'subjectB' => $subjectB,
             'faculty' => $faculty,

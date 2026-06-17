@@ -8,11 +8,13 @@ use App\Models\Program;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\Subject;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -26,6 +28,7 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
         [$run, $row, $faculty, $registrar] = $this->draftReviewFixtures();
 
         app(ScheduleDraftRowReviewService::class)->revise($row, [
+            'section_delivery_group_id' => $row->section_delivery_group_id,
             'faculty_id' => $faculty->id,
             'room' => 'R-101',
             'day_of_week' => 1,
@@ -52,6 +55,7 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
         [$run, $row, $faculty, $registrar] = $this->draftReviewFixtures();
 
         app(ScheduleDraftRowReviewService::class)->revise($row, [
+            'section_delivery_group_id' => $row->section_delivery_group_id,
             'faculty_id' => $faculty->id,
             'room' => 'R-101',
             'day_of_week' => 2,
@@ -76,6 +80,7 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
         $this->expectException(AuthorizationException::class);
 
         app(ScheduleDraftRowReviewService::class)->revise($row, [
+            'section_delivery_group_id' => $row->section_delivery_group_id,
             'faculty_id' => $faculty->id,
             'room' => 'R-101',
             'day_of_week' => 1,
@@ -84,6 +89,25 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
             'modality' => 'on_site',
             'override_reason' => 'Unauthorized attempt.',
         ], User::factory()->create());
+    }
+
+    public function test_published_runs_cannot_have_draft_rows_revised(): void
+    {
+        [$run, $row, $faculty, $registrar] = $this->draftReviewFixtures();
+        $run->forceFill(['status' => ScheduleGenerationRun::StatusPublished])->save();
+
+        $this->expectException(ValidationException::class);
+
+        app(ScheduleDraftRowReviewService::class)->revise($row, [
+            'section_delivery_group_id' => $row->section_delivery_group_id,
+            'faculty_id' => $faculty->id,
+            'room' => 'R-101',
+            'day_of_week' => 1,
+            'starts_at' => '08:00',
+            'ends_at' => '09:00',
+            'modality' => 'on_site',
+            'override_reason' => 'Published schedules are immutable.',
+        ], $registrar);
     }
 
     /**
@@ -103,6 +127,16 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
             'max_seats' => 30,
             'enrolled_count' => 20,
             'modality' => 'on_site',
+        ]);
+        $deliveryGroup = SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => $section->max_seats,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
         ]);
         $subject = Subject::factory()->create();
         $faculty = User::factory()->create();
@@ -127,6 +161,7 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
         $row = ScheduleDraftRow::query()->create([
             'generation_run_id' => $run->id,
             'section_id' => $section->id,
+            'section_delivery_group_id' => $deliveryGroup->id,
             'subject_id' => $subject->id,
             'faculty_id' => null,
             'room' => 'R-101',
@@ -151,8 +186,10 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
      */
     private function snapshot(Section $section, Subject $subject, User $faculty): array
     {
+        $deliveryGroup = $section->deliveryGroups()->firstOrFail();
+
         return [
-            'schema_version' => 1,
+            'schema_version' => 3,
             'sections' => [[
                 'section_id' => $section->id,
                 'section_name' => $section->name,
@@ -162,10 +199,27 @@ class ScheduleDraftRowReviewServiceTest extends TestCase
                 'enrolled_count' => $section->enrolled_count,
                 'available_seats' => $section->max_seats - $section->enrolled_count,
                 'fixed_room' => $section->room,
+                'delivery_group_ids' => [$deliveryGroup->id],
+            ]],
+            'section_delivery_groups' => [[
+                'section_delivery_group_id' => $deliveryGroup->id,
+                'section_id' => $section->id,
+                'delivery_group_name' => $deliveryGroup->name,
+                'modality' => $deliveryGroup->modality,
+                'capacity' => $deliveryGroup->capacity,
+                'assigned_count' => $deliveryGroup->assigned_count,
+                'available_seats' => $deliveryGroup->availableSeats(),
+                'room_required' => $deliveryGroup->room_required,
+                'fixed_room' => $deliveryGroup->room,
             ]],
             'curriculum_subject_demand' => [[
+                'demand_key' => "{$section->id}:{$deliveryGroup->id}:{$subject->id}",
                 'section_id' => $section->id,
+                'section_delivery_group_id' => $deliveryGroup->id,
                 'subject_id' => $subject->id,
+                'modality' => $deliveryGroup->modality,
+                'room_required' => $deliveryGroup->room_required,
+                'fixed_room' => $deliveryGroup->room,
             ]],
             'faculty_availability' => [[
                 'faculty_id' => $faculty->id,

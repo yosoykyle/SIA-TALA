@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ScheduleGenerationRuns\RelationManagers;
 use App\Actions\Scheduling\ScheduleDraftRowReviewService;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -38,6 +39,9 @@ class DraftRowsRelationManager extends RelationManager
                     ->color(fn (string $state): string => self::statusColor($state)),
                 TextEntry::make('section.name')
                     ->label('Section'),
+                TextEntry::make('sectionDeliveryGroup.name')
+                    ->label('Delivery Group')
+                    ->placeholder('-'),
                 TextEntry::make('subject.code')
                     ->label('Subject'),
                 TextEntry::make('faculty.name')
@@ -84,7 +88,7 @@ class DraftRowsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('id')
-            ->modifyQueryUsing(fn ($query) => $query->with(['section', 'subject', 'faculty', 'editor']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['section', 'sectionDeliveryGroup', 'subject', 'faculty', 'editor']))
             ->columns([
                 TextColumn::make('status')
                     ->badge()
@@ -92,6 +96,10 @@ class DraftRowsRelationManager extends RelationManager
                     ->sortable(),
                 TextColumn::make('section.name')
                     ->label('Section')
+                    ->searchable(),
+                TextColumn::make('sectionDeliveryGroup.name')
+                    ->label('Delivery Group')
+                    ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('subject.code')
                     ->label('Subject')
@@ -147,6 +155,7 @@ class DraftRowsRelationManager extends RelationManager
             ->color('warning')
             ->visible(fn (ScheduleDraftRow $record): bool => self::canRevise($record))
             ->fillForm(fn (ScheduleDraftRow $record): array => [
+                'section_delivery_group_id' => $record->section_delivery_group_id,
                 'faculty_id' => $record->faculty_id,
                 'room' => $record->room,
                 'day_of_week' => $record->day_of_week,
@@ -156,6 +165,20 @@ class DraftRowsRelationManager extends RelationManager
                 'override_reason' => $record->override_reason,
             ])
             ->schema([
+                Select::make('section_delivery_group_id')
+                    ->label('Delivery Group')
+                    ->options(fn (ScheduleDraftRow $record): array => SectionDeliveryGroup::query()
+                        ->where('section_id', $record->section_id)
+                        ->where('status', SectionDeliveryGroup::StatusActive)
+                        ->orderBy('name')
+                        ->get()
+                        ->mapWithKeys(fn (SectionDeliveryGroup $group): array => [
+                            $group->id => $group->displayLabel(),
+                        ])
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->required(),
                 Select::make('faculty_id')
                     ->label('Faculty')
                     ->options(fn (): array => User::role(User::StaffRoleFaculty)->orderBy('name')->pluck('name', 'id')->all())
@@ -228,6 +251,7 @@ class DraftRowsRelationManager extends RelationManager
         return $run instanceof ScheduleGenerationRun
             && ! in_array($run->status, [
                 ScheduleGenerationRun::StatusCommitted,
+                ScheduleGenerationRun::StatusPublished,
                 ScheduleGenerationRun::StatusAbandoned,
                 ScheduleGenerationRun::StatusSuperseded,
             ], true);

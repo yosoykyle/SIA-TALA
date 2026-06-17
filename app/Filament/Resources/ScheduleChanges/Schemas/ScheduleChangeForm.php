@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleChanges\Schemas;
 
 use App\Models\ScheduleChange;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use App\Support\Scheduling\ScheduleChangePayload;
@@ -50,6 +51,15 @@ class ScheduleChangeForm
                             ->searchable()
                             ->preload()
                             ->default(fn (?ScheduleChange $record): ?int => self::payloadValue($record, 'faculty_id'))
+                            ->dehydrated(false),
+                        Select::make('new_section_delivery_group_id')
+                            ->label('Requested delivery group')
+                            ->options(fn (Get $get): array => self::deliveryGroupOptionsForMeeting($get('section_meeting_id')))
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->disabled(fn (Get $get): bool => blank($get('section_meeting_id')))
+                            ->default(fn (?ScheduleChange $record): ?int => self::payloadValue($record, 'section_delivery_group_id'))
                             ->dehydrated(false),
                         TextInput::make('new_room')
                             ->label('Requested room')
@@ -101,5 +111,33 @@ class ScheduleChangeForm
         }
 
         return ScheduleChangePayload::normalize($record->new_payload)[$key] ?? null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function deliveryGroupOptionsForMeeting(mixed $sectionMeetingId): array
+    {
+        if (blank($sectionMeetingId)) {
+            return [];
+        }
+
+        $sectionId = SectionMeeting::query()
+            ->whereKey((int) $sectionMeetingId)
+            ->value('section_id');
+
+        if ($sectionId === null) {
+            return [];
+        }
+
+        return SectionDeliveryGroup::query()
+            ->where('section_id', (int) $sectionId)
+            ->where('status', SectionDeliveryGroup::StatusActive)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (SectionDeliveryGroup $group): array => [
+                $group->id => $group->displayLabel(),
+            ])
+            ->all();
     }
 }

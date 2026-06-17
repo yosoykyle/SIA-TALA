@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "run_metadata": {
     "run_id": 1,
     "term_id": 1,
@@ -18,23 +18,55 @@
       "max_seats": 30,
       "enrolled_count": 25,
       "available_seats": 5,
-      "fixed_room": "R-101"
+      "fixed_room": "R-101",
+      "delivery_group_ids": [110]
+    }
+  ],
+  "section_delivery_groups": [
+    {
+      "section_delivery_group_id": 110,
+      "section_id": 10,
+      "delivery_group_name": "Primary Face-to-Face",
+      "modality": "on_site",
+      "capacity": 30,
+      "assigned_count": 25,
+      "available_seats": 5,
+      "room_required": true,
+      "fixed_room": "R-101",
+      "delivery_pattern_id": 1,
+      "delivery_pattern_code": "F2F",
+      "delivery_pattern_version": 1,
+      "delivery_pattern_allowed_days": [1, 2, 3, 4, 5, 6],
+      "delivery_pattern_subject_routing": "same_subject_set",
+      "delivery_pattern_enforcement_level": "strict"
     }
   ],
   "curriculum_subject_demand": [
     {
+      "demand_key": "10:110:100",
       "section_id": 10,
+      "section_delivery_group_id": 110,
       "subject_id": 100,
       "subject_code": "IT101",
       "units": "3.00",
-      "lec_hours": "1.00"
+      "weekly_contact_hours": "1.00",
+      "lec_hours": "1.00",
+      "modality": "on_site",
+      "room_required": true,
+      "fixed_room": "R-101"
     },
     {
+      "demand_key": "10:110:101",
       "section_id": 10,
+      "section_delivery_group_id": 110,
       "subject_id": 101,
       "subject_code": "IT102",
       "units": "3.00",
-      "lec_hours": "1.00"
+      "weekly_contact_hours": "1.00",
+      "lec_hours": "1.00",
+      "modality": "on_site",
+      "room_required": true,
+      "fixed_room": "R-101"
     }
   ],
   "faculty_eligibility": [
@@ -80,9 +112,10 @@
   "rooms_catalog": [
     {
       "room_code": "R-101",
-      "source": "sections.room",
+      "source": "section_delivery_groups.room",
       "section_ids": [10],
-      "max_section_capacity": 30,
+      "section_delivery_group_ids": [110],
+      "max_group_capacity": 30,
       "modalities": ["on_site"]
     }
   ],
@@ -93,6 +126,7 @@
     "mandatory_faculty_assignment": true,
     "max_section_seats": 30,
     "section_capacity_mode": "editable_bounded_max_30_not_below_enrolled_count",
-    "room_catalog_mode": "sections.room fixed-room rescue catalog"
+    "room_catalog_mode": "section_delivery_groups.room fixed-room catalog",
+    "delivery_group_required": true
   }
 }

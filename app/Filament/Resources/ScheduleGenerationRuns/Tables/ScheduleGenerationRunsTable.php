@@ -3,10 +3,12 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Tables;
 
 use App\Actions\Scheduling\ScheduleCommitService;
+use App\Actions\Scheduling\SchedulePublishService;
 use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -19,7 +21,7 @@ class ScheduleGenerationRunsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['term', 'requester', 'committer'])->withCount('sectionMeetings'))
+            ->modifyQueryUsing(fn ($query) => $query->with(['term', 'requester', 'committer', 'publisher'])->withCount('sectionMeetings'))
             ->columns([
                 TextColumn::make('term.term_name')
                     ->label('Term')
@@ -46,6 +48,13 @@ class ScheduleGenerationRunsTable
                     ->dateTime()
                     ->sortable()
                     ->placeholder('-'),
+                TextColumn::make('publisher.name')
+                    ->label('Published By')
+                    ->placeholder('-'),
+                TextColumn::make('published_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->placeholder('-'),
             ])
             ->filters([
                 SelectFilter::make('status')
@@ -54,8 +63,87 @@ class ScheduleGenerationRunsTable
             ->recordActions([
                 ViewAction::make(),
                 self::commitAction(),
+                self::publishAction(),
+                self::emergencyPublishAction(),
             ])
             ->toolbarActions([]);
+    }
+
+    private static function publishAction(): Action
+    {
+        return Action::make('publishSchedule')
+            ->label('Publish')
+            ->icon(Heroicon::OutlinedCheckCircle)
+            ->color('primary')
+            ->schema([
+                Textarea::make('publish_note')
+                    ->label('Publish note')
+                    ->maxLength(1000)
+                    ->rows(3),
+            ])
+            ->requiresConfirmation()
+            ->visible(fn (ScheduleGenerationRun $record): bool => self::academicHeadCanPublish()
+                && $record->canBePublished())
+            ->action(fn (array $data, ScheduleGenerationRun $record): null => self::publish(
+                $record,
+                $data['publish_note'] ?? null,
+                false,
+                'Schedule run published',
+            ));
+    }
+
+    private static function emergencyPublishAction(): Action
+    {
+        return Action::make('emergencyPublishSchedule')
+            ->label('Emergency Publish')
+            ->icon(Heroicon::OutlinedExclamationTriangle)
+            ->color('danger')
+            ->schema([
+                Textarea::make('publish_note')
+                    ->label('Emergency reason')
+                    ->required()
+                    ->maxLength(1000)
+                    ->rows(3),
+            ])
+            ->requiresConfirmation()
+            ->visible(fn (ScheduleGenerationRun $record): bool => self::systemSuperAdminCanPublish()
+                && $record->canBePublished())
+            ->action(fn (array $data, ScheduleGenerationRun $record): null => self::publish(
+                $record,
+                $data['publish_note'] ?? null,
+                true,
+                'Schedule run emergency-published',
+            ));
+    }
+
+    private static function publish(
+        ScheduleGenerationRun $record,
+        ?string $note,
+        bool $emergency,
+        string $successTitle,
+    ): null {
+        $actor = auth()->user();
+
+        if (! $actor instanceof User) {
+            return null;
+        }
+
+        try {
+            app(SchedulePublishService::class)->publish($record, $actor, $note, $emergency);
+
+            Notification::make()
+                ->title($successTitle)
+                ->success()
+                ->send();
+        } catch (Throwable $exception) {
+            Notification::make()
+                ->title('Schedule publish failed')
+                ->body($exception->getMessage())
+                ->danger()
+                ->send();
+        }
+
+        return null;
     }
 
     private static function commitAction(): Action
@@ -94,5 +182,19 @@ class ScheduleGenerationRunsTable
     private static function registrarCanSchedule(): bool
     {
         return auth()->user()?->can('manage-schedules') ?? false;
+    }
+
+    private static function academicHeadCanPublish(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User
+            && $user->hasRole(User::StaffRoleAcademicHead)
+            && $user->can('authorize-overrides');
+    }
+
+    private static function systemSuperAdminCanPublish(): bool
+    {
+        return auth()->user()?->hasRole(User::StaffRoleSystemSuperAdmin) ?? false;
     }
 }

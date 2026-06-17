@@ -11,6 +11,7 @@ from ortools.sat.python import cp_model
 class Candidate:
     demand_key: str
     section_id: int
+    section_delivery_group_id: int
     subject_id: int
     faculty_id: int
     room: str | None
@@ -28,6 +29,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     timeout_seconds = max(1, min(int(timeout_seconds), 300))
 
     sections = _sections(snapshot)
+    section_delivery_groups = _section_delivery_groups(snapshot)
     demands = _demands(snapshot)
     eligibility = _eligibility(snapshot)
     availability = _availability(snapshot)
@@ -39,28 +41,43 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
     for demand in demands:
         section_id = _int_or_none(demand.get("section_id"))
+        section_delivery_group_id = _int_or_none(demand.get("section_delivery_group_id"))
         subject_id = _int_or_none(demand.get("subject_id"))
 
-        if section_id is None or subject_id is None:
+        if section_id is None or section_delivery_group_id is None or subject_id is None:
             continue
 
         section = sections.get(section_id)
-        demand_key = f"{section_id}:{subject_id}"
+        section_delivery_group = section_delivery_groups.get(section_delivery_group_id)
+        demand_key = str(demand.get("demand_key") or f"{section_id}:{section_delivery_group_id}:{subject_id}")
         reasons: list[dict[str, Any]] = []
 
         if section is None:
             unassignable_reasons[demand_key] = [_reason("section_missing", "Section is missing from solver snapshot.")]
             continue
 
+        if section_delivery_group is None:
+            unassignable_reasons[demand_key] = [_reason("delivery_group_missing", "Section delivery group is missing from solver snapshot.")]
+            continue
+
+        if _int_or_none(section_delivery_group.get("section_id")) != section_id:
+            unassignable_reasons[demand_key] = [_reason("delivery_group_section_mismatch", "Section delivery group does not belong to the demand section.")]
+            continue
+
         if int(section.get("max_seats") or 0) > 30 or int(section.get("enrolled_count") or 0) > int(section.get("max_seats") or 0):
             reasons.append(_reason("section_capacity_contract_violation", "Section capacity violates the rescue contract."))
 
-        duration = _duration_minutes(demand)
-        modality = str(section.get("modality") or "on_site")
-        room = section.get("fixed_room") if _requires_room(modality) else None
+        if int(section_delivery_group.get("assigned_count") or 0) > int(section_delivery_group.get("capacity") or 0):
+            reasons.append(_reason("delivery_group_capacity_contract_violation", "Section delivery group is already over assigned capacity."))
 
-        if _requires_room(modality) and not room:
-            reasons.append(_reason("missing_required_room", "Fixed rescue room is required for on-site or blended scheduling."))
+        duration = _duration_minutes(demand)
+        modality = str(demand.get("modality") or section_delivery_group.get("modality") or section.get("modality") or "on_site")
+        room_required = bool(demand.get("room_required") or section_delivery_group.get("room_required") or _requires_room(modality))
+        room = demand.get("fixed_room") or section_delivery_group.get("fixed_room")
+        room = room if room_required else None
+
+        if room_required and not room:
+            reasons.append(_reason("missing_required_room", "Fixed delivery-group room is required for this scheduling demand."))
 
         eligible_faculty = eligibility.get(subject_id, [])
 
@@ -89,6 +106,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
                     candidate = Candidate(
                         demand_key=demand_key,
                         section_id=section_id,
+                        section_delivery_group_id=section_delivery_group_id,
                         subject_id=subject_id,
                         faculty_id=faculty_id,
                         room=str(room) if room else None,
@@ -122,11 +140,11 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             if not _overlaps(left, right):
                 continue
 
-            same_section = left.section_id == right.section_id
+            same_delivery_group = left.section_delivery_group_id == right.section_delivery_group_id
             same_faculty = left.faculty_id == right.faculty_id
             same_room = left.room is not None and left.room == right.room
 
-            if same_section or same_faculty or same_room:
+            if same_delivery_group or same_faculty or same_room:
                 model.add(variables[left_index] + variables[right_index] <= 1)
 
     model.maximize(sum(_candidate_weight(candidate) * variables[index] for index, candidate in enumerate(candidates)))
@@ -142,29 +160,32 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
     for demand in demands:
         section_id = _int_or_none(demand.get("section_id"))
+        section_delivery_group_id = _int_or_none(demand.get("section_delivery_group_id"))
         subject_id = _int_or_none(demand.get("subject_id"))
 
-        if section_id is None or subject_id is None:
+        if section_id is None or section_delivery_group_id is None or subject_id is None:
             continue
 
-        demand_key = f"{section_id}:{subject_id}"
+        demand_key = str(demand.get("demand_key") or f"{section_id}:{section_delivery_group_id}:{subject_id}")
 
         if demand_key in selected_keys:
             continue
 
         section = sections.get(section_id, {})
+        section_delivery_group = section_delivery_groups.get(section_delivery_group_id, {})
         reasons = unassignable_reasons.get(demand_key) or [
             _reason("solver_unassigned", "No conflict-free candidate was selected for this curriculum demand."),
         ]
         draft_rows.append({
             "section_id": section_id,
+            "section_delivery_group_id": section_delivery_group_id,
             "subject_id": subject_id,
             "faculty_id": None,
-            "room": section.get("fixed_room"),
+            "room": demand.get("fixed_room") or section_delivery_group.get("fixed_room"),
             "day_of_week": None,
             "starts_at": None,
             "ends_at": None,
-            "modality": section.get("modality") or "on_site",
+            "modality": demand.get("modality") or section_delivery_group.get("modality") or section.get("modality") or "on_site",
             "status": "conflict",
             "conflict_payload": {
                 "source": "or_tools_cp_sat_solver",
@@ -194,6 +215,14 @@ def _sections(snapshot: dict[str, Any]) -> dict[int, dict[str, Any]]:
         int(section["section_id"]): section
         for section in snapshot.get("sections", [])
         if isinstance(section, dict) and section.get("section_id") is not None
+    }
+
+
+def _section_delivery_groups(snapshot: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    return {
+        int(group["section_delivery_group_id"]): group
+        for group in snapshot.get("section_delivery_groups", [])
+        if isinstance(group, dict) and group.get("section_delivery_group_id") is not None
     }
 
 
@@ -256,7 +285,7 @@ def _existing_commitments(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _duration_minutes(demand: dict[str, Any]) -> int:
-    value = demand.get("lec_hours") or demand.get("units") or 1
+    value = demand.get("weekly_contact_hours") or demand.get("lec_hours") or demand.get("units") or 1
 
     try:
         hours = float(value)
@@ -278,11 +307,11 @@ def _conflicts_existing(candidate: Candidate, commitments: list[dict[str, Any]])
         if candidate.starts_minute >= ends or candidate.ends_minute <= starts:
             continue
 
-        same_section = _int_or_none(commitment.get("section_id")) == candidate.section_id
+        same_delivery_group = _int_or_none(commitment.get("section_delivery_group_id")) == candidate.section_delivery_group_id
         same_faculty = _int_or_none(commitment.get("faculty_id")) == candidate.faculty_id
         same_room = candidate.room is not None and commitment.get("room") == candidate.room
 
-        if same_section or same_faculty or same_room:
+        if same_delivery_group or same_faculty or same_room:
             return True
 
     return False
@@ -303,6 +332,7 @@ def _candidate_weight(candidate: Candidate) -> int:
 def _draft_row(candidate: Candidate) -> dict[str, Any]:
     return {
         "section_id": candidate.section_id,
+        "section_delivery_group_id": candidate.section_delivery_group_id,
         "subject_id": candidate.subject_id,
         "faculty_id": candidate.faculty_id,
         "room": candidate.room,

@@ -10,6 +10,7 @@ use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\Term;
@@ -30,7 +31,7 @@ class ScheduleCommitServiceTest extends TestCase
     {
         $registrar = $this->registrar();
         $faculty = User::factory()->create();
-        [$run, $section, $subject] = $this->scheduleRunWithDraftRow($registrar, $faculty);
+        [$run, $section, $subject, $deliveryGroup] = $this->scheduleRunWithDraftRow($registrar, $faculty);
 
         app(ScheduleCommitService::class)->commit($run, $registrar);
 
@@ -43,6 +44,7 @@ class ScheduleCommitServiceTest extends TestCase
         $this->assertSame($registrar->id, $run->committed_by);
         $this->assertNotNull($run->committed_at);
         $this->assertSame($section->id, $meeting->section_id);
+        $this->assertSame($deliveryGroup->id, $meeting->section_delivery_group_id);
         $this->assertSame($subject->id, $meeting->subject_id);
         $this->assertSame($faculty->id, $meeting->faculty_id);
         $this->assertDatabaseHas('section_teacher', [
@@ -138,6 +140,7 @@ class ScheduleCommitServiceTest extends TestCase
             ScheduleGenerationRun::StatusUnderReview => 'Under Review',
             ScheduleGenerationRun::StatusBlocked => 'Blocked',
             ScheduleGenerationRun::StatusCommitted => 'Committed',
+            ScheduleGenerationRun::StatusPublished => 'Published',
             ScheduleGenerationRun::StatusAbandoned => 'Abandoned',
             ScheduleGenerationRun::StatusSuperseded => 'Superseded',
         ], ScheduleGenerationRun::statusOptions());
@@ -161,7 +164,7 @@ class ScheduleCommitServiceTest extends TestCase
     /**
      * @param  array<string, mixed>  $draftRowAttributes
      * @param  array<string, mixed>  $runAttributes
-     * @return array{0: ScheduleGenerationRun, 1: Section, 2: Subject}
+     * @return array{0: ScheduleGenerationRun, 1: Section, 2: Subject, 3: SectionDeliveryGroup}
      */
     private function scheduleRunWithDraftRow(
         User $registrar,
@@ -172,6 +175,15 @@ class ScheduleCommitServiceTest extends TestCase
         $term = Term::factory()->create();
         $program = Program::factory()->create();
         $section = Section::factory()->for($term)->for($program)->create();
+        $deliveryGroup = SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'modality' => 'on_site',
+            'capacity' => 30,
+            'assigned_count' => 25,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
         $subject = Subject::factory()->create();
 
         FacultySubjectEligibility::factory()->create([
@@ -193,6 +205,7 @@ class ScheduleCommitServiceTest extends TestCase
         DB::table('schedule_draft_rows')->insert([
             'generation_run_id' => $run->id,
             'section_id' => $section->id,
+            'section_delivery_group_id' => $deliveryGroup->id,
             'subject_id' => $subject->id,
             'faculty_id' => $faculty->id,
             'room' => 'R-101',
@@ -206,7 +219,7 @@ class ScheduleCommitServiceTest extends TestCase
             ...$draftRowAttributes,
         ]);
 
-        return [$run, $section, $subject];
+        return [$run, $section, $subject, $deliveryGroup];
     }
 
     private function createFacultyAvailability(Term $term, User $faculty): void

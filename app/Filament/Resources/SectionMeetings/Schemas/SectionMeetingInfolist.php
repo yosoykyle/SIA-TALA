@@ -16,6 +16,9 @@ class SectionMeetingInfolist
                     ->label('Term'),
                 TextEntry::make('section.name')
                     ->label('Section'),
+                TextEntry::make('sectionDeliveryGroup.name')
+                    ->label('Delivery Group')
+                    ->placeholder('-'),
                 TextEntry::make('subject.code')
                     ->label('Subject'),
                 TextEntry::make('subject.description')

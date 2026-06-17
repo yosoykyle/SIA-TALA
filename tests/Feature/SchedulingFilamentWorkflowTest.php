@@ -326,18 +326,21 @@ final class FilamentWorkflowSchedulingSolverClient implements SchedulingSolverCl
             ->map(function (array $demand, int $index) use ($snapshot): array {
                 $section = collect($snapshot['sections'] ?? [])
                     ->first(fn (array $section): bool => (int) $section['section_id'] === (int) $demand['section_id']);
+                $deliveryGroup = collect($snapshot['section_delivery_groups'] ?? [])
+                    ->first(fn (array $group): bool => (int) $group['section_delivery_group_id'] === (int) $demand['section_delivery_group_id']);
                 $facultyId = $this->facultyIdForSubject($snapshot, (int) $demand['subject_id']);
                 $startHour = 8 + $index;
 
                 return [
                     'section_id' => (int) $demand['section_id'],
+                    'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
                     'subject_id' => (int) $demand['subject_id'],
                     'faculty_id' => $facultyId,
-                    'room' => $section['fixed_room'] ?? null,
+                    'room' => $deliveryGroup['fixed_room'] ?? $section['fixed_room'] ?? null,
                     'day_of_week' => 1,
                     'starts_at' => sprintf('%02d:00:00', $startHour),
                     'ends_at' => sprintf('%02d:00:00', $startHour + 1),
-                    'modality' => $section['modality'] ?? 'on_site',
+                    'modality' => $deliveryGroup['modality'] ?? $section['modality'] ?? 'on_site',
                     'status' => ScheduleDraftRow::StatusOk,
                 ];
             })

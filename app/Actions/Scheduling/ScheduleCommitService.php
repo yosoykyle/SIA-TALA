@@ -80,6 +80,7 @@ class ScheduleCommitService
         $payload = $this->assignmentService->prepareForCreate([
             'term_id' => $run->term_id,
             'section_id' => $draftRow->section_id,
+            'section_delivery_group_id' => $draftRow->section_delivery_group_id,
             'subject_id' => $draftRow->subject_id,
             'faculty_id' => $draftRow->faculty_id,
             'room' => $draftRow->room,
@@ -87,6 +88,7 @@ class ScheduleCommitService
             'starts_at' => $draftRow->starts_at,
             'ends_at' => $draftRow->ends_at,
             'modality' => $draftRow->modality,
+            'availability_override_reason' => $draftRow->override_reason,
         ], $registrar, $timestamp);
 
         $sectionMeeting = SectionMeeting::query()->create([

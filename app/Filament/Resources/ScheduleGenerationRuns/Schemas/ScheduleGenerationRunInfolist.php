@@ -29,6 +29,20 @@ class ScheduleGenerationRunInfolist
                 TextEntry::make('committed_at')
                     ->dateTime()
                     ->placeholder('-'),
+                TextEntry::make('publisher.name')
+                    ->label('Published By')
+                    ->placeholder('-'),
+                TextEntry::make('published_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('emergency_published')
+                    ->label('Emergency Publish')
+                    ->badge()
+                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Yes' : 'No')
+                    ->color(fn (?bool $state): string => $state ? 'danger' : 'gray'),
+                TextEntry::make('publish_note')
+                    ->placeholder('-')
+                    ->columnSpanFull(),
                 TextEntry::make('draft_row_total')
                     ->label('Draft Rows')
                     ->state(fn (ScheduleGenerationRun $record): int => $record->draftRows()->count())
@@ -63,6 +77,7 @@ class ScheduleGenerationRunInfolist
             ScheduleGenerationRun::StatusUnderReview => 'gray',
             ScheduleGenerationRun::StatusBlocked => 'danger',
             ScheduleGenerationRun::StatusCommitted => 'success',
+            ScheduleGenerationRun::StatusPublished => 'primary',
             default => 'gray',
         };
     }

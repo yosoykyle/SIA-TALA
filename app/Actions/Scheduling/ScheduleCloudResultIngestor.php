@@ -6,6 +6,7 @@ use App\Models\FacultySubjectEligibility;
 use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\User;
@@ -34,9 +35,12 @@ class ScheduleCloudResultIngestor
                 ]);
             }
 
-            if ($lockedRun->status === ScheduleGenerationRun::StatusCommitted) {
+            if (in_array($lockedRun->status, [
+                ScheduleGenerationRun::StatusCommitted,
+                ScheduleGenerationRun::StatusPublished,
+            ], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Committed schedule runs cannot ingest new solver results.',
+                    'status' => 'Committed or published schedule runs cannot ingest new solver results.',
                 ]);
             }
 
@@ -134,18 +138,27 @@ class ScheduleCloudResultIngestor
     {
         $snapshot = $run->solver_input_snapshot ?? [];
         $sections = $this->snapshotSections($snapshot);
+        $deliveryGroups = $this->snapshotDeliveryGroups($snapshot);
         $demandKeys = $this->snapshotDemandKeys($snapshot);
         $availability = $this->snapshotAvailability($snapshot);
 
         $sectionId = $this->integerValue($rawRow['section_id'] ?? null);
+        $deliveryGroupId = $this->integerValue($rawRow['section_delivery_group_id'] ?? null);
         $subjectId = $this->integerValue($rawRow['subject_id'] ?? null);
 
-        if ($sectionId === null || $subjectId === null) {
-            return $this->rejected('missing_section_or_subject_identifier');
+        if ($sectionId === null || $deliveryGroupId === null || $subjectId === null) {
+            return $this->rejected('missing_section_delivery_group_or_subject_identifier');
         }
 
         if (! Section::query()->whereKey($sectionId)->where('term_id', $run->term_id)->exists()) {
             return $this->rejected('section_not_found_in_run_term');
+        }
+
+        if (! SectionDeliveryGroup::query()
+            ->whereKey($deliveryGroupId)
+            ->where('section_id', $sectionId)
+            ->exists()) {
+            return $this->rejected('delivery_group_not_found_for_section');
         }
 
         if (! Subject::query()->whereKey($subjectId)->exists()) {
@@ -153,10 +166,12 @@ class ScheduleCloudResultIngestor
         }
 
         $sectionSnapshot = $sections[$sectionId] ?? null;
+        $deliveryGroupSnapshot = $deliveryGroups[$deliveryGroupId] ?? null;
         $facultyId = $this->validFacultyId($rawRow['faculty_id'] ?? null);
-        $modality = $this->stringValue($rawRow['modality'] ?? null) ?? $sectionSnapshot['modality'] ?? null;
+        $modality = $this->stringValue($rawRow['modality'] ?? null) ?? $deliveryGroupSnapshot['modality'] ?? $sectionSnapshot['modality'] ?? null;
         $payload = [
             'section_id' => $sectionId,
+            'section_delivery_group_id' => $deliveryGroupId,
             'subject_id' => $subjectId,
             'faculty_id' => $facultyId,
             'room' => $this->stringValue($rawRow['room'] ?? null),
@@ -165,6 +180,14 @@ class ScheduleCloudResultIngestor
             'ends_at' => $this->timeValue($rawRow['ends_at'] ?? null),
             'modality' => $modality,
         ];
+
+        if ($deliveryGroupSnapshot !== null
+            && $payload['room'] === null
+            && (($deliveryGroupSnapshot['room_required'] ?? false) || ($modality !== null && $this->requiresRoom((string) $modality)))
+            && filled($deliveryGroupSnapshot['fixed_room'] ?? null)) {
+            $payload['room'] = (string) $deliveryGroupSnapshot['fixed_room'];
+        }
+
         $conflicts = [];
         $warnings = $this->warningsFrom($rawRow);
 
@@ -176,16 +199,26 @@ class ScheduleCloudResultIngestor
             $conflicts[] = $this->conflict('section_not_in_snapshot', 'The section was not part of the immutable solver input snapshot.');
         }
 
-        if (! isset($demandKeys[$sectionId.':'.$subjectId])) {
-            $conflicts[] = $this->conflict('subject_not_in_curriculum_demand', 'The subject is not required for this section in the solver snapshot.');
+        if ($deliveryGroupSnapshot === null) {
+            $conflicts[] = $this->conflict('delivery_group_not_in_snapshot', 'The section delivery group was not part of the immutable solver input snapshot.');
+        } elseif ((int) ($deliveryGroupSnapshot['section_id'] ?? 0) !== $sectionId) {
+            $conflicts[] = $this->conflict('delivery_group_section_mismatch', 'The delivery group does not belong to the proposed section in the solver snapshot.');
+        }
+
+        if (! isset($demandKeys[$sectionId.':'.$deliveryGroupId.':'.$subjectId])) {
+            $conflicts[] = $this->conflict('subject_not_in_delivery_group_demand', 'The subject is not required for this section delivery group in the solver snapshot.');
         }
 
         if (($sectionSnapshot['max_seats'] ?? 0) > 30 || ($sectionSnapshot['enrolled_count'] ?? 0) > ($sectionSnapshot['max_seats'] ?? 0)) {
             $conflicts[] = $this->conflict('section_capacity_contract_violation', 'The section capacity snapshot violates the rescue capacity contract.');
         }
 
+        if (($deliveryGroupSnapshot['assigned_count'] ?? 0) > ($deliveryGroupSnapshot['capacity'] ?? 0)) {
+            $conflicts[] = $this->conflict('delivery_group_capacity_contract_violation', 'The delivery-group capacity snapshot is already over assigned capacity.');
+        }
+
         $this->appendFieldConflicts($payload, $conflicts);
-        $this->appendSnapshotRoomConflicts($payload, $sectionSnapshot, $conflicts);
+        $this->appendSnapshotRoomConflicts($payload, $deliveryGroupSnapshot, $conflicts);
         $this->appendFacultyConflicts($run, $payload, $availability, $conflicts);
         $this->appendOverlapConflicts($run, $payload, $acceptedRows, $conflicts);
 
@@ -241,25 +274,31 @@ class ScheduleCloudResultIngestor
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  array<string, mixed>|null  $sectionSnapshot
+     * @param  array<string, mixed>|null  $deliveryGroupSnapshot
      * @param  list<array<string, mixed>>  $conflicts
      */
-    private function appendSnapshotRoomConflicts(array $payload, ?array $sectionSnapshot, array &$conflicts): void
+    private function appendSnapshotRoomConflicts(array $payload, ?array $deliveryGroupSnapshot, array &$conflicts): void
     {
-        if ($sectionSnapshot === null || $payload['modality'] === null || ! $this->requiresRoom((string) $payload['modality'])) {
+        if ($deliveryGroupSnapshot === null || $payload['modality'] === null) {
             return;
         }
 
-        $fixedRoom = $this->stringValue($sectionSnapshot['fixed_room'] ?? null);
+        $roomRequired = (bool) ($deliveryGroupSnapshot['room_required'] ?? false) || $this->requiresRoom((string) $payload['modality']);
+
+        if (! $roomRequired) {
+            return;
+        }
+
+        $fixedRoom = $this->stringValue($deliveryGroupSnapshot['fixed_room'] ?? null);
 
         if ($fixedRoom === null) {
-            $conflicts[] = $this->conflict('missing_snapshot_fixed_room', 'The solver snapshot is missing the fixed section room required by this modality.');
+            $conflicts[] = $this->conflict('missing_snapshot_fixed_room', 'The solver snapshot is missing the fixed delivery-group room required by this modality.');
 
             return;
         }
 
         if ($payload['room'] !== null && $payload['room'] !== $fixedRoom) {
-            $conflicts[] = $this->conflict('room_mismatch_fixed_section_room', 'The proposed room does not match the fixed section room in the solver snapshot.');
+            $conflicts[] = $this->conflict('room_mismatch_fixed_delivery_group_room', 'The proposed room does not match the fixed delivery-group room in the solver snapshot.');
         }
     }
 
@@ -324,8 +363,10 @@ class ScheduleCloudResultIngestor
             ->where('starts_at', '<', $payload['ends_at'])
             ->where('ends_at', '>', $payload['starts_at']);
 
-        if ((clone $overlappingMeetings)->where('section_id', $payload['section_id'])->exists()) {
-            $conflicts[] = $this->conflict('section_overlap', 'The section already has a committed meeting during this time.');
+        if ((clone $overlappingMeetings)
+            ->where('section_delivery_group_id', $payload['section_delivery_group_id'])
+            ->exists()) {
+            $conflicts[] = $this->conflict('delivery_group_overlap', 'The section delivery group already has a committed meeting during this time.');
         }
 
         if ($payload['faculty_id'] !== null && (clone $overlappingMeetings)->where('faculty_id', $payload['faculty_id'])->exists()) {
@@ -341,8 +382,8 @@ class ScheduleCloudResultIngestor
                 continue;
             }
 
-            if ($acceptedRow['section_id'] === $payload['section_id']) {
-                $conflicts[] = $this->conflict('internal_section_overlap', 'The solver proposed two overlapping rows for the same section.');
+            if (($acceptedRow['section_delivery_group_id'] ?? null) === $payload['section_delivery_group_id']) {
+                $conflicts[] = $this->conflict('internal_delivery_group_overlap', 'The solver proposed two overlapping rows for the same section delivery group.');
             }
 
             if ($payload['faculty_id'] !== null && $acceptedRow['faculty_id'] === $payload['faculty_id']) {
@@ -432,14 +473,26 @@ class ScheduleCloudResultIngestor
 
     /**
      * @param  array<string, mixed>  $snapshot
+     * @return array<int, array<string, mixed>>
+     */
+    private function snapshotDeliveryGroups(array $snapshot): array
+    {
+        return collect($snapshot['section_delivery_groups'] ?? [])
+            ->filter(fn (mixed $group): bool => is_array($group) && isset($group['section_delivery_group_id']))
+            ->keyBy(fn (array $group): int => (int) $group['section_delivery_group_id'])
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
      * @return array<string, true>
      */
     private function snapshotDemandKeys(array $snapshot): array
     {
         return collect($snapshot['curriculum_subject_demand'] ?? [])
-            ->filter(fn (mixed $demand): bool => is_array($demand) && isset($demand['section_id'], $demand['subject_id']))
+            ->filter(fn (mixed $demand): bool => is_array($demand) && isset($demand['section_id'], $demand['section_delivery_group_id'], $demand['subject_id']))
             ->mapWithKeys(fn (array $demand): array => [
-                ((int) $demand['section_id']).':'.((int) $demand['subject_id']) => true,
+                ((int) $demand['section_id']).':'.((int) $demand['section_delivery_group_id']).':'.((int) $demand['subject_id']) => true,
             ])
             ->all();
     }

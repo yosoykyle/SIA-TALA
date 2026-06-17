@@ -40,6 +40,7 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertTrue(all(row["status"] == "ok" for row in result["draft_rows"]))
 
         rows = result["draft_rows"]
+        self.assertEqual({110}, {row["section_delivery_group_id"] for row in rows})
         self.assertNotEqual((rows[0]["starts_at"], rows[0]["ends_at"]), (rows[1]["starts_at"], rows[1]["ends_at"]))
 
     def test_unassignable_demand_returns_conflict_row(self) -> None:
@@ -61,6 +62,7 @@ class SolveSnapshotTest(unittest.TestCase):
             {
                 "section_meeting_id": 99,
                 "section_id": 999,
+                "section_delivery_group_id": 9999,
                 "subject_id": 999,
                 "faculty_id": 200,
                 "room": "R-999",
@@ -92,6 +94,7 @@ class SolveSnapshotTest(unittest.TestCase):
             ("13:00:00", "14:00:00"),
         ]
         sections: list[dict[str, Any]] = []
+        section_delivery_groups: list[dict[str, Any]] = []
         demands: list[dict[str, Any]] = []
         eligibility: list[dict[str, Any]] = []
         availability: list[dict[str, Any]] = []
@@ -100,6 +103,7 @@ class SolveSnapshotTest(unittest.TestCase):
 
         for section_index in range(section_count):
             section_id = 1000 + section_index
+            section_delivery_group_id = 5000 + section_index
             room = f"R-{section_index + 1:03d}"
             sections.append({
                 "section_id": section_id,
@@ -114,22 +118,47 @@ class SolveSnapshotTest(unittest.TestCase):
                 "enrolled_count": 25,
                 "available_seats": 5,
                 "fixed_room": room,
+                "delivery_group_ids": [section_delivery_group_id],
+            })
+            section_delivery_groups.append({
+                "section_delivery_group_id": section_delivery_group_id,
+                "section_id": section_id,
+                "delivery_group_name": f"Primary F2F {section_index + 1:02d}",
+                "modality": "on_site",
+                "capacity": 30,
+                "assigned_count": 25,
+                "available_seats": 5,
+                "room_required": True,
+                "fixed_room": room,
+                "delivery_pattern_id": 1,
+                "delivery_pattern_code": "F2F",
+                "delivery_pattern_version": 1,
+                "delivery_pattern_allowed_days": [1, 2, 3, 4, 5, 6],
+                "delivery_pattern_subject_routing": "same_subject_set",
+                "delivery_pattern_enforcement_level": "strict",
             })
             rooms_catalog.append({
                 "room_code": room,
-                "source": "sections.room",
+                "source": "section_delivery_groups.room",
                 "section_ids": [section_id],
-                "max_section_capacity": 30,
+                "section_delivery_group_ids": [section_delivery_group_id],
+                "max_group_capacity": 30,
                 "modalities": ["on_site"],
             })
 
             for subject_id in subject_ids:
                 demands.append({
+                    "demand_key": f"{section_id}:{section_delivery_group_id}:{subject_id}",
                     "section_id": section_id,
+                    "section_delivery_group_id": section_delivery_group_id,
                     "subject_id": subject_id,
                     "subject_code": f"SUBJ{subject_id}",
                     "units": "3.00",
+                    "weekly_contact_hours": "1.00",
                     "lec_hours": "1.00",
+                    "modality": "on_site",
+                    "room_required": True,
+                    "fixed_room": room,
                 })
 
         for subject_index, subject_id in enumerate(subject_ids):
@@ -139,6 +168,7 @@ class SolveSnapshotTest(unittest.TestCase):
             existing_commitments.append({
                 "section_meeting_id": 9000 + subject_index,
                 "section_id": 9900 + subject_index,
+                "section_delivery_group_id": 99000 + subject_index,
                 "subject_id": subject_id,
                 "faculty_id": blocked_faculty_id,
                 "room": f"BLOCK-{subject_index + 1}",
@@ -168,13 +198,14 @@ class SolveSnapshotTest(unittest.TestCase):
                 })
 
         return {
-            "schema_version": 1,
+            "schema_version": 3,
             "run_metadata": {
                 "run_id": 98,
                 "term_id": 1,
                 "timezone": "Asia/Manila",
             },
             "sections": sections,
+            "section_delivery_groups": section_delivery_groups,
             "curriculum_subject_demand": demands,
             "faculty_eligibility": eligibility,
             "faculty_availability": availability,
@@ -186,14 +217,19 @@ class SolveSnapshotTest(unittest.TestCase):
                 "mandatory_faculty_assignment": True,
                 "max_section_seats": 30,
                 "section_capacity_mode": "editable_bounded_max_30_not_below_enrolled_count",
-                "room_catalog_mode": "sections.room fixed-room rescue catalog",
+                "room_catalog_mode": "section_delivery_groups.room fixed-room catalog",
+                "delivery_group_required": True,
             },
         }
 
     def hard_constraint_violations(self, snapshot: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
         sections = {int(section["section_id"]): section for section in snapshot["sections"]}
+        delivery_groups = {
+            int(group["section_delivery_group_id"]): group
+            for group in snapshot["section_delivery_groups"]
+        }
         demand_keys = {
-            f"{int(demand['section_id'])}:{int(demand['subject_id'])}"
+            f"{int(demand['section_id'])}:{int(demand['section_delivery_group_id'])}:{int(demand['subject_id'])}"
             for demand in snapshot["curriculum_subject_demand"]
         }
         eligibility: dict[int, set[int]] = {}
@@ -209,10 +245,12 @@ class SolveSnapshotTest(unittest.TestCase):
 
         for index, row in enumerate(rows):
             section_id = int(row["section_id"])
+            section_delivery_group_id = int(row["section_delivery_group_id"])
             subject_id = int(row["subject_id"])
             faculty_id = int(row["faculty_id"])
             section = sections.get(section_id)
-            label = f"row {index} ({section_id}:{subject_id})"
+            delivery_group = delivery_groups.get(section_delivery_group_id)
+            label = f"row {index} ({section_id}:{section_delivery_group_id}:{subject_id})"
 
             if row["status"] != "ok":
                 violations.append(f"{label} is not ok")
@@ -221,7 +259,14 @@ class SolveSnapshotTest(unittest.TestCase):
                 violations.append(f"{label} section is missing from snapshot")
                 continue
 
-            if f"{section_id}:{subject_id}" not in demand_keys:
+            if delivery_group is None:
+                violations.append(f"{label} delivery group is missing from snapshot")
+                continue
+
+            if int(delivery_group["section_id"]) != section_id:
+                violations.append(f"{label} delivery group belongs to another section")
+
+            if f"{section_id}:{section_delivery_group_id}:{subject_id}" not in demand_keys:
                 violations.append(f"{label} demand is missing from snapshot")
 
             if faculty_id not in eligibility.get(subject_id, set()):
@@ -230,17 +275,20 @@ class SolveSnapshotTest(unittest.TestCase):
             if int(section["max_seats"]) > 30 or int(section["enrolled_count"]) > int(section["max_seats"]):
                 violations.append(f"{label} section capacity violates the rescue contract")
 
+            if int(delivery_group["assigned_count"]) > int(delivery_group["capacity"]):
+                violations.append(f"{label} delivery group capacity is over assigned")
+
             starts = self.minutes(row["starts_at"])
             ends = self.minutes(row["ends_at"])
 
             if starts >= ends:
                 violations.append(f"{label} time range is invalid")
 
-            if row["modality"] in {"on_site", "blended"}:
+            if row["modality"] in {"on_site", "blended"} or bool(delivery_group["room_required"]):
                 if row["room"] is None:
                     violations.append(f"{label} requires a room")
-                elif row["room"] != section["fixed_room"]:
-                    violations.append(f"{label} room does not match the fixed section room")
+                elif row["room"] != delivery_group["fixed_room"]:
+                    violations.append(f"{label} room does not match the fixed delivery-group room")
 
             if not self.inside_any_window(row, availability.get(faculty_id, [])):
                 violations.append(f"{label} is outside faculty availability")
@@ -255,8 +303,8 @@ class SolveSnapshotTest(unittest.TestCase):
                 if not self.overlaps(left, right):
                     continue
 
-                if left["section_id"] == right["section_id"]:
-                    violations.append(f"rows {left_index} and {right_index} overlap for one section")
+                if left["section_delivery_group_id"] == right["section_delivery_group_id"]:
+                    violations.append(f"rows {left_index} and {right_index} overlap for one delivery group")
 
                 if left["faculty_id"] == right["faculty_id"]:
                     violations.append(f"rows {left_index} and {right_index} overlap for one faculty")
@@ -287,7 +335,7 @@ class SolveSnapshotTest(unittest.TestCase):
             if not self.time_ranges_overlap(row, commitment):
                 continue
 
-            if int(commitment["section_id"]) == int(row["section_id"]):
+            if int(commitment["section_delivery_group_id"]) == int(row["section_delivery_group_id"]):
                 return True
 
             if int(commitment["faculty_id"]) == int(row["faculty_id"]):

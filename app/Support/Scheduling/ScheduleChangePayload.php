@@ -8,12 +8,13 @@ use Illuminate\Support\Arr;
 class ScheduleChangePayload
 {
     /**
-     * @return array{faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
+     * @return array{section_delivery_group_id:int|null, faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
      */
     public static function fromSectionMeeting(?SectionMeeting $sectionMeeting): array
     {
         if (! $sectionMeeting instanceof SectionMeeting) {
             return [
+                'section_delivery_group_id' => null,
                 'faculty_id' => null,
                 'room' => null,
                 'day_of_week' => null,
@@ -24,6 +25,7 @@ class ScheduleChangePayload
         }
 
         return [
+            'section_delivery_group_id' => $sectionMeeting->section_delivery_group_id,
             'faculty_id' => $sectionMeeting->faculty_id,
             'room' => $sectionMeeting->room,
             'day_of_week' => $sectionMeeting->day_of_week,
@@ -35,11 +37,12 @@ class ScheduleChangePayload
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
+     * @return array{section_delivery_group_id:int|null, faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
      */
     public static function fromFormData(array $data): array
     {
         return [
+            'section_delivery_group_id' => filled($data['new_section_delivery_group_id'] ?? null) ? (int) $data['new_section_delivery_group_id'] : null,
             'faculty_id' => filled($data['new_faculty_id'] ?? null) ? (int) $data['new_faculty_id'] : null,
             'room' => filled($data['new_room'] ?? null) ? (string) $data['new_room'] : null,
             'day_of_week' => filled($data['new_day_of_week'] ?? null) ? (int) $data['new_day_of_week'] : null,
@@ -51,13 +54,14 @@ class ScheduleChangePayload
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
+     * @return array{section_delivery_group_id:int|null, faculty_id:int|null, room:string|null, day_of_week:int|null, starts_at:string|null, ends_at:string|null, modality:string|null}
      */
     public static function normalize(array $payload): array
     {
-        $payload = Arr::only($payload, ['faculty_id', 'room', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
+        $payload = Arr::only($payload, ['section_delivery_group_id', 'faculty_id', 'room', 'day_of_week', 'starts_at', 'ends_at', 'modality']);
 
         return [
+            'section_delivery_group_id' => filled($payload['section_delivery_group_id'] ?? null) ? (int) $payload['section_delivery_group_id'] : null,
             'faculty_id' => filled($payload['faculty_id'] ?? null) ? (int) $payload['faculty_id'] : null,
             'room' => filled($payload['room'] ?? null) ? (string) $payload['room'] : null,
             'day_of_week' => filled($payload['day_of_week'] ?? null) ? (int) $payload['day_of_week'] : null,
@@ -75,6 +79,7 @@ class ScheduleChangePayload
     {
         return Arr::except($data, [
             'new_faculty_id',
+            'new_section_delivery_group_id',
             'new_room',
             'new_day_of_week',
             'new_starts_at',

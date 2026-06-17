@@ -15,7 +15,7 @@ class SectionMeetingsTable
     {
         return $table
             ->modifyQueryUsing(function ($query) {
-                $query->with(['term', 'section', 'subject', 'faculty', 'committer']);
+                $query->with(['term', 'section', 'sectionDeliveryGroup', 'subject', 'faculty', 'committer']);
 
                 $user = auth()->user();
 
@@ -46,6 +46,10 @@ class SectionMeetingsTable
                     ->sortable(),
                 TextColumn::make('section.name')
                     ->label('Section')
+                    ->searchable(),
+                TextColumn::make('sectionDeliveryGroup.name')
+                    ->label('Delivery Group')
+                    ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('subject.code')
                     ->label('Subject')

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ScheduleChange;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\Term;
@@ -103,11 +104,22 @@ class ScheduleChangeTargetMeetingScopeTest extends TestCase
             ...User::staffNamePayload('Grace', null, 'Hopper'),
         ]);
         $section = Section::factory()->create(['term_id' => $term->id]);
+        $deliveryGroup = SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => 30,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => null,
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
         $subject = Subject::factory()->create(['code' => fake()->unique()->bothify('REG-###')]);
 
         return SectionMeeting::query()->create([
             'term_id' => $term->id,
             'section_id' => $section->id,
+            'section_delivery_group_id' => $deliveryGroup->id,
             'subject_id' => $subject->id,
             'faculty_id' => $faculty->id,
             'room' => 'Room 101',

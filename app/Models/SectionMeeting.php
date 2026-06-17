@@ -83,7 +83,7 @@ class SectionMeeting extends Model
         }
 
         return self::query()
-            ->with(['section', 'subject', 'faculty'])
+            ->with(['section', 'sectionDeliveryGroup', 'subject', 'faculty'])
             ->where('term_id', $termId)
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
@@ -97,7 +97,7 @@ class SectionMeeting extends Model
 
     public static function scheduleChangeOptionLabel(SectionMeeting $sectionMeeting): string
     {
-        $sectionMeeting->loadMissing(['section', 'subject', 'faculty']);
+        $sectionMeeting->loadMissing(['section', 'sectionDeliveryGroup', 'subject', 'faculty']);
 
         $day = self::dayOptions()[$sectionMeeting->day_of_week] ?? 'Unscheduled';
         $time = trim(implode('-', array_filter([
@@ -107,6 +107,7 @@ class SectionMeeting extends Model
 
         return collect([
             $sectionMeeting->section?->name,
+            $sectionMeeting->sectionDeliveryGroup?->name,
             $sectionMeeting->subject?->code,
             $sectionMeeting->faculty?->name,
             $day,

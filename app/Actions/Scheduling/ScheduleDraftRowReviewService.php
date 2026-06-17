@@ -39,6 +39,7 @@ class ScheduleDraftRowReviewService
 
             if (! $run instanceof ScheduleGenerationRun || in_array($run->status, [
                 ScheduleGenerationRun::StatusCommitted,
+                ScheduleGenerationRun::StatusPublished,
                 ScheduleGenerationRun::StatusAbandoned,
                 ScheduleGenerationRun::StatusSuperseded,
             ], true)) {
@@ -89,7 +90,7 @@ class ScheduleDraftRowReviewService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}
+     * @return array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}
      *
      * @throws ValidationException
      */
@@ -97,6 +98,7 @@ class ScheduleDraftRowReviewService
     {
         $payload = [
             'faculty_id' => $this->integerValue($data['faculty_id'] ?? null),
+            'section_delivery_group_id' => $this->integerValue($data['section_delivery_group_id'] ?? null),
             'room' => filled($data['room'] ?? null) ? trim((string) $data['room']) : null,
             'day_of_week' => $this->integerValue($data['day_of_week'] ?? null),
             'starts_at' => $this->timeValue($data['starts_at'] ?? null),
@@ -107,6 +109,7 @@ class ScheduleDraftRowReviewService
 
         $validator = Validator::make($payload, [
             'faculty_id' => ['required', 'integer', 'exists:users,id'],
+            'section_delivery_group_id' => ['required', 'integer', 'exists:section_delivery_groups,id'],
             'room' => ['nullable', 'string', 'max:255'],
             'day_of_week' => ['required', 'integer', 'min:1', 'max:7'],
             'starts_at' => ['required', 'date_format:H:i:s'],
@@ -119,18 +122,19 @@ class ScheduleDraftRowReviewService
             throw new ValidationException($validator);
         }
 
-        /** @var array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string} $payload */
+        /** @var array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string} $payload */
         return $payload;
     }
 
     /**
-     * @param  array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
+     * @param  array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
      * @return array<string, mixed>
      */
     private function reviewedRowPayload(ScheduleDraftRow $row, array $prepared): array
     {
         return [
             'section_id' => $row->section_id,
+            'section_delivery_group_id' => $prepared['section_delivery_group_id'],
             'subject_id' => $row->subject_id,
             'faculty_id' => $prepared['faculty_id'],
             'room' => $prepared['room'],
@@ -156,6 +160,7 @@ class ScheduleDraftRowReviewService
     {
         return [
             'section_id' => $row->section_id,
+            'section_delivery_group_id' => $row->section_delivery_group_id,
             'subject_id' => $row->subject_id,
             'faculty_id' => $row->faculty_id,
             'room' => $row->room,
@@ -180,13 +185,14 @@ class ScheduleDraftRowReviewService
     }
 
     /**
-     * @param  array{faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
+     * @param  array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
      */
     private function findReviewedRow(ScheduleDraftRow $originalRow, array $prepared): ?ScheduleDraftRow
     {
         return ScheduleDraftRow::query()
             ->where('generation_run_id', $originalRow->generation_run_id)
             ->where('section_id', $originalRow->section_id)
+            ->where('section_delivery_group_id', $prepared['section_delivery_group_id'])
             ->where('subject_id', $originalRow->subject_id)
             ->where('faculty_id', $prepared['faculty_id'])
             ->where('day_of_week', $prepared['day_of_week'])

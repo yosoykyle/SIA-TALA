@@ -9,7 +9,9 @@ use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\ScheduleChange;
+use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Subject;
 use App\Models\Term;
@@ -78,6 +80,7 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
 
         $scheduleChange->forceFill([
             'new_payload' => [
+                'section_delivery_group_id' => $meeting->section_delivery_group_id,
                 'faculty_id' => $meeting->faculty_id,
                 'room' => 'RUT 202',
                 'day_of_week' => 3,
@@ -106,6 +109,31 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         $this->expectException(AuthorizationException::class);
 
         app(ScheduleChangeLifecycleService::class)->approve($scheduleChange, $actor);
+    }
+
+    public function test_approved_schedule_change_cannot_be_applied_after_term_schedule_is_published(): void
+    {
+        $registrar = $this->userWithPermission('manage-schedules');
+        [$scheduleChange] = $this->scheduleChangeFixtures([
+            'status' => ScheduleChange::StatusApproved,
+            'approved_by' => User::factory()->create()->id,
+        ]);
+
+        ScheduleGenerationRun::query()->create([
+            'term_id' => $scheduleChange->term_id,
+            'status' => ScheduleGenerationRun::StatusPublished,
+            'requested_by' => $registrar->id,
+            'generated_at' => now(),
+            'committed_by' => $registrar->id,
+            'committed_at' => now(),
+            'published_by' => $registrar->id,
+            'published_at' => now(),
+            'constraint_summary' => [],
+        ]);
+
+        $this->expectException(ValidationException::class);
+
+        app(ScheduleChangeLifecycleService::class)->apply($scheduleChange, $registrar);
     }
 
     public function test_only_approved_schedule_changes_can_be_applied(): void
@@ -154,6 +182,16 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         $term = Term::factory()->create();
         $program = Program::factory()->create();
         $section = Section::factory()->for($term)->for($program)->create();
+        $deliveryGroup = SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'name' => 'Primary F2F',
+            'modality' => 'on_site',
+            'capacity' => 30,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => null,
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
         $subject = Subject::factory()->create();
         $registrar = User::factory()->create();
         $faculty = User::factory()->create();
@@ -167,6 +205,7 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
         $meeting = SectionMeeting::query()->create([
             'term_id' => $term->id,
             'section_id' => $section->id,
+            'section_delivery_group_id' => $deliveryGroup->id,
             'subject_id' => $subject->id,
             'faculty_id' => $faculty->id,
             'room' => 'RUT 201',
@@ -184,6 +223,7 @@ class ScheduleChangeLifecycleServiceTest extends TestCase
             'status' => ScheduleChange::StatusProposed,
             'old_payload' => ScheduleChangePayload::fromSectionMeeting($meeting),
             'new_payload' => [
+                'section_delivery_group_id' => $deliveryGroup->id,
                 'faculty_id' => $faculty->id,
                 'room' => 'RUT 202',
                 'day_of_week' => 3,
