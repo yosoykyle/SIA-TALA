@@ -90,13 +90,19 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
         foreach ([
             'FeeTemplatePolicy.php',
             'InstallmentPolicyPolicy.php',
-            'PromissoryNotePolicy.php',
         ] as $policyFile) {
             $source = file_get_contents(app_path("Policies/{$policyFile}"));
 
             $this->assertIsString($source);
             $this->assertStringContainsString('view-global-records', $source, "{$policyFile} should allow Academic Head summary oversight through global read permission.");
         }
+
+        $promissoryPolicy = file_get_contents(app_path('Policies/PromissoryNotePolicy.php'));
+        $promissoryResource = $this->resourceSource('PromissoryNotes/PromissoryNoteResource.php');
+
+        $this->assertIsString($promissoryPolicy);
+        $this->assertStringNotContainsString('view-global-records', $promissoryPolicy);
+        $this->assertStringNotContainsString('academic-head', $promissoryResource);
 
         foreach (['PaymentPolicy.php', 'LedgerEntryPolicy.php', 'PromissoryNotePolicy.php'] as $policyFile) {
             $source = file_get_contents(app_path("Policies/{$policyFile}"));

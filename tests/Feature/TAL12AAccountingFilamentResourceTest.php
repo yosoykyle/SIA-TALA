@@ -13,7 +13,6 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'PaymentAttempts/PaymentAttemptResource.php',
             'Payments/PaymentResource.php',
             'LedgerEntries/LedgerEntryResource.php',
-            'PromissoryNotes/PromissoryNoteResource.php',
             'InstallmentPolicies/InstallmentPolicyResource.php',
         ] as $relativePath) {
             $source = $this->resourceSource($relativePath);
@@ -21,6 +20,11 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             $this->assertStringContainsString("'Accounting'", $source);
             $this->assertStringContainsString('academic-head', $source);
         }
+
+        $promissoryResource = $this->resourceSource('PromissoryNotes/PromissoryNoteResource.php');
+
+        $this->assertStringContainsString("'Accounting'", $promissoryResource);
+        $this->assertStringNotContainsString('academic-head', $promissoryResource);
 
         $milestoneResource = $this->resourceSource('InstallmentPolicyMilestones/InstallmentPolicyMilestoneResource.php');
 
@@ -102,7 +106,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         $this->assertStringContainsString('return false;', $policy);
     }
 
-    public function test_promissory_notes_are_recorded_without_generic_status_editing(): void
+    public function test_promissory_notes_use_lifecycle_queue_without_generic_status_editing(): void
     {
         foreach ([
             'PromissoryNotes/Pages/EditPromissoryNote.php',
@@ -141,11 +145,16 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString("TextEntry::make('approved_by')", $infolist);
         $this->assertStringContainsString('PromissoryNote::enrollmentOptionLabel', $table);
         $this->assertStringContainsString('PromissoryNote::ledgerEntryOptionLabel', $table);
+        $this->assertStringContainsString("Action::make('approve')", $table);
+        $this->assertStringContainsString("Action::make('reject')", $table);
+        $this->assertStringContainsString("Action::make('cancel')", $table);
+        $this->assertStringContainsString('PromissoryNoteLifecycleService', $table);
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
-        $this->assertStringContainsString('PromissoryNote::validateAccountingScopeData($data)', $createPage);
-        $this->assertStringContainsString("\$data['status'] = 'approved';", $createPage);
-        $this->assertStringContainsString("\$data['approved_by'] = Auth::id();", $createPage);
+        $this->assertStringContainsString('PromissoryNoteLifecycleService', $createPage);
+        $this->assertStringContainsString('->submit($data, $actor)', $createPage);
+        $this->assertStringNotContainsString("\$data['status'] = 'approved';", $createPage);
+        $this->assertStringNotContainsString("\$data['approved_by'] = Auth::id();", $createPage);
         $this->assertStringContainsString('return false;', $policy);
     }
 

@@ -35,6 +35,15 @@ class PromissoryNoteInfolist
                 TextEntry::make('due_date')
                     ->date(),
                 TextEntry::make('status'),
+                TextEntry::make('request_source')
+                    ->label('Source')
+                    ->placeholder('-'),
+                TextEntry::make('requester.name')
+                    ->label('Requested By')
+                    ->placeholder('-'),
+                TextEntry::make('requested_at')
+                    ->dateTime()
+                    ->placeholder('-'),
                 TextEntry::make('reason')
                     ->placeholder('-')
                     ->columnSpanFull(),
@@ -45,6 +54,30 @@ class PromissoryNoteInfolist
                     ->dateTime()
                     ->placeholder('-'),
                 TextEntry::make('expired_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('rejector.name')
+                    ->label('Rejected By')
+                    ->placeholder('-'),
+                TextEntry::make('rejected_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('rejection_reason')
+                    ->placeholder('-')
+                    ->columnSpanFull(),
+                TextEntry::make('canceller.name')
+                    ->label('Cancelled By')
+                    ->placeholder('-'),
+                TextEntry::make('cancelled_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('cancellation_reason')
+                    ->placeholder('-')
+                    ->columnSpanFull(),
+                TextEntry::make('settler.name')
+                    ->label('Settled By')
+                    ->placeholder('-'),
+                TextEntry::make('settled_at')
                     ->dateTime()
                     ->placeholder('-'),
                 TextEntry::make('created_at')

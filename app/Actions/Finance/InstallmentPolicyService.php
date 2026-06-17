@@ -36,7 +36,7 @@ class InstallmentPolicyService
         if ($policy === null) {
             $isCleared = $this->money->isZeroOrNegative(
                 $this->money->subtract($principalAmount, $totalPaid),
-            ) && ! $hasActivePromissory;
+            );
 
             return [
                 'enrollment_id' => (int) $enrollment->id,
@@ -94,7 +94,7 @@ class InstallmentPolicyService
             $totalOutstanding = $this->money->add($totalOutstanding, $outstanding);
         }
 
-        $isFinanceCleared = $this->money->isZeroOrNegative($totalOutstanding) && ! $hasActivePromissory;
+        $isFinanceCleared = $this->money->isZeroOrNegative($totalOutstanding);
 
         return [
             'enrollment_id' => (int) $enrollment->id,

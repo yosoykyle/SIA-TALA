@@ -196,7 +196,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Linked applicant-owned `document_uploads` to the created official `student_profiles` row during the enrollment bridge, preserving applicant intake history.
 - Added regular enrollment support with an outstanding-balance gate, returnee detection from profile/account state, and compatible delivery-group assignment through the existing capacity-locking sectioning service.
 - Added finance-cleared account handover that sets `users.status = active`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, and exposes a `corReadiness` contract for COR/class-list gates.
-- Added `EnrollmentFinanceClearanceService` as the shared minimum-downpayment/full-payment and promissory-blocking rule used by both manual Accounting payment confirmation and PayMongo webhook-confirmed linked enrollment payments.
+- Added `EnrollmentFinanceClearanceService` as the shared minimum-downpayment/full-payment rule used by both manual Accounting payment confirmation and PayMongo webhook-confirmed linked enrollment payments. SDD-06C later corrected promissory handling so a promissory note remains non-payment evidence but cannot block real confirmed payment clearance.
 - Updated `PaymentConfirmationService` and `PayMongoWebhookProcessor` so payment clearance delegates handover to `StudentEnrollmentService`; this preserves the `PendingPayment` -> `PreEnrolled` finance gate and account activation invariant for both manual and online gateway paths when the payment attempt is enrollment-linked.
 - Verified SDD-05B with focused test coverage in `StudentEnrollmentServiceTest` for approved-applicant happy path, regular enrollment, outstanding-balance block, payment-clearance handover, capacity-blocked rollback, idempotency, and minimum-downpayment clearance. Also verified PayMongo linked-enrollment parity in `PayMongoWebhookFinanceClearanceTest`, existing webhook contract behavior in `PayMongoWebhookMockContractTest`, payment source coverage in `PaymentConfirmationServiceTest`, and monitoring source coverage in `TAL12MonitoringCoverageTest`.
 
@@ -226,7 +226,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | --- | --- | --- | --- | --- |
 | Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentAssessmentServiceTest` | **SDD-06A closed:** most-specific fee-template scope, tuition-only freshmen discount, idempotent ledger posting, and configured downpayment threshold are executable-test verified. |
 | Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/date/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, queue/resource tests | **SDD-06B closed:** typed manual confirmation, atomic immutable posting, provider idempotency/retry, overpayment, shared clearance, and list/view admin boundaries are executable-test verified. |
-| Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 8.8 | SOA balance evidence | accounting-side resource exists | Clarify/implement student request backend if needed before UI; promissory must not clear finance status. |
+| Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 2.6.1, TS 8.8 | SOA balance evidence, RA 11984 benchmark | `PromissoryNoteLifecycleService`, `ExamAccessDecisionService`, Accounting resources/actions | **SDD-06C closed:** applicant/student-owner backend request, staff-assisted pending creation, Accounting approve/reject/cancel, payment-driven settlement, deadline processing, and separate exam-access accommodations are executable-test verified. |
 | Accounting adjustments | FS 6.3, TS 8.8 | SOA corrections/balances | ledger list/view only | Build typed adjustment service/action only if UAT requires manual corrections. |
 
 **SDD-06A implementation evidence (2026-06-18)**
@@ -247,6 +247,16 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Overpayments remain standard immutable payment credits and produce a negative balance without a separate wallet transaction.
 - PayMongo processing row-locks the attempt, suppresses duplicate events, links the attempt and payment to one ledger entry, records processing errors, and rethrows so queue retries remain active.
 - Payment Attempt, Confirmed Payment, and Ledger Entry resources remain list/view-only; the Enrollment and document-shipping actions are the authorized typed manual confirmation surfaces.
+
+**SDD-06C implementation evidence (2026-06-18)**
+
+- Financial promissory notes now use `pending`, `approved`, `rejected`, `cancelled`, `expired`, and `settled` lifecycle states through `PromissoryNoteLifecycleService`; generic status editing remains forbidden.
+- Applicant-owner and active-student-owner backend requests are supported before Student Hub UI work resumes; Accounting can create staff-assisted pending requests from the Admin Nexus.
+- One open promissory request is allowed per enrollment. Cross-student, cross-term, and cross-enrollment submissions are rejected by service validation.
+- Real confirmed payments still clear finance when thresholds are met; promissory notes are non-payment evidence and no longer block real payment clearance. Payment confirmation and PayMongo webhook processing both run a promissory settlement check.
+- `ProcessPromissoryNoteDeadlinesJob` is scheduled at `00:45` Asia/Manila and dedupes expiring/expired notifications with timestamp fields.
+- Exam access exceptions are separate `ExamAccessAccommodation` records. RA 11984 certification and institution-discretion cases can allow exam access without finance clearance, while certification evidence remains private and student/faculty/public responses receive only the high-level decision.
+- Focused proof: `php artisan test --compact tests/Feature/PromissoryNoteLifecycleServiceTest.php tests/Feature/ExamAccessDecisionServiceTest.php tests/Feature/SDD06CPromissoryFilamentWorkflowTest.php tests/Feature/PaymentConfirmationServiceTest.php tests/Feature/InstallmentPolicyServiceTest.php`.
 
 ### SDD-07: Documents, OCR, and Service Requests Closure
 
@@ -296,12 +306,12 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Continue with `SDD-06C: Promissory Lifecycle Closure`.
+Continue with `SDD-06D: Accounting Adjustments Decision`.
 
 **Status context**
 
 - **Completed evidence:** SDD-01 through SDD-04 cover curriculum readiness, delivery groups, scheduling solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
 - **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
-- **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries.
-- **Active target:** SDD-06C closes the student promissory-request backend and Accounting lifecycle while preserving the non-clearing finance rule.
+- **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries; SDD-06C verifies promissory lifecycle, payment-driven settlement, deadline processing, and exam-access accommodation separation.
+- **Active target:** SDD-06D decides whether UAT requires a typed Accounting adjustment service/action or whether immutable ledger evidence is sufficient for MVP.
 - **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.

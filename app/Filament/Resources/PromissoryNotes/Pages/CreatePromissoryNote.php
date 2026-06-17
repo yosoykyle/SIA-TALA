@@ -2,10 +2,11 @@
 
 namespace App\Filament\Resources\PromissoryNotes\Pages;
 
+use App\Actions\Finance\PromissoryNoteLifecycleService;
 use App\Filament\Resources\PromissoryNotes\PromissoryNoteResource;
-use App\Models\PromissoryNote;
+use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Model;
 
 class CreatePromissoryNote extends CreateRecord
 {
@@ -13,16 +14,13 @@ class CreatePromissoryNote extends CreateRecord
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
      */
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function handleRecordCreation(array $data): Model
     {
-        $data = PromissoryNote::validateAccountingScopeData($data);
+        $actor = auth()->user();
 
-        $data['status'] = 'approved';
-        $data['approved_by'] = Auth::id();
-        $data['approved_at'] = now();
+        abort_unless($actor instanceof User, 403);
 
-        return $data;
+        return app(PromissoryNoteLifecycleService::class)->submit($data, $actor);
     }
 }

@@ -8,6 +8,27 @@ use Illuminate\Validation\ValidationException;
 
 class PromissoryNote extends Model
 {
+    public const StatusPending = 'pending';
+
+    public const StatusApproved = 'approved';
+
+    public const StatusExpired = 'expired';
+
+    public const StatusSettled = 'settled';
+
+    public const StatusRejected = 'rejected';
+
+    public const StatusCancelled = 'cancelled';
+
+    public const SourceStudent = 'student';
+
+    public const SourceStaffAssisted = 'staff_assisted';
+
+    protected $attributes = [
+        'status' => self::StatusPending,
+        'request_source' => self::SourceStaffAssisted,
+    ];
+
     /**
      * @var list<string>
      */
@@ -20,9 +41,22 @@ class PromissoryNote extends Model
         'due_date',
         'status',
         'reason',
+        'requested_by',
+        'requested_at',
+        'request_source',
         'approved_by',
         'approved_at',
         'expired_at',
+        'rejected_by',
+        'rejected_at',
+        'rejection_reason',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
+        'settled_by',
+        'settled_at',
+        'expiry_warning_sent_at',
+        'expiry_notified_at',
     ];
 
     /**
@@ -33,8 +67,14 @@ class PromissoryNote extends Model
         return [
             'amount' => 'decimal:2',
             'due_date' => 'date',
+            'requested_at' => 'datetime',
             'approved_at' => 'datetime',
             'expired_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'settled_at' => 'datetime',
+            'expiry_warning_sent_at' => 'datetime',
+            'expiry_notified_at' => 'datetime',
         ];
     }
 
@@ -222,5 +262,25 @@ class PromissoryNote extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function requester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function settler(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'settled_by');
     }
 }

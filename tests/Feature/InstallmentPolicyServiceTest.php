@@ -31,12 +31,12 @@ class InstallmentPolicyServiceTest extends TestCase
         $this->assertStringContainsString('penaltyAlreadyPosted', $source);
     }
 
-    public function test_active_promissory_prevents_finance_clearance(): void
+    public function test_active_promissory_is_reported_but_does_not_count_as_finance_payment(): void
     {
         $source = $this->source(InstallmentPolicyService::class);
 
         $this->assertStringContainsString('hasActivePromissory', $source);
-        $this->assertStringContainsString('! $hasActivePromissory', $source);
+        $this->assertStringNotContainsString('&& ! $hasActivePromissory', $source);
         $this->assertStringContainsString("whereIn('status', ['approved', 'active'])", $source);
     }
 

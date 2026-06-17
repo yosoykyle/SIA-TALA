@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\Finance\PromissoryNoteLifecycleService;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
@@ -242,11 +243,11 @@ class PaymentConfirmationServiceTest extends TestCase
         $this->assertSame('pending_payment', $enrollment->fresh()->status);
     }
 
-    public function test_active_promissory_note_does_not_clear_finance_status_after_full_payment_posting(): void
+    public function test_real_full_payment_clears_finance_and_settles_active_promissory_note(): void
     {
         [$enrollment, $studentProfile, $accounting] = $this->paymentContext();
 
-        PromissoryNote::query()->create([
+        $note = PromissoryNote::query()->create([
             'student_profile_id' => $studentProfile->id,
             'term_id' => $enrollment->term_id,
             'enrollment_id' => $enrollment->id,
@@ -267,8 +268,9 @@ class PaymentConfirmationServiceTest extends TestCase
         );
 
         $this->assertSame('0.00', $summary['current_balance']);
-        $this->assertFalse($summary['finance_cleared']);
-        $this->assertSame('pending_payment', $enrollment->fresh()->status);
+        $this->assertTrue($summary['finance_cleared']);
+        $this->assertSame('pre_enrolled', $enrollment->fresh()->status);
+        $this->assertSame(PromissoryNote::StatusSettled, $note->refresh()->status);
     }
 
     public function test_finance_clearance_failure_rolls_back_payment_ledger_balance_and_audit(): void
@@ -289,7 +291,7 @@ class PaymentConfirmationServiceTest extends TestCase
                 throw new RuntimeException('Simulated clearance failure.');
             }
         };
-        $service = new PaymentConfirmationService(new DecimalMoney, $failingClearance);
+        $service = new PaymentConfirmationService(new DecimalMoney, $failingClearance, app(PromissoryNoteLifecycleService::class));
 
         try {
             $service->confirmManualPayment(

@@ -3,6 +3,7 @@
 namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Actions\Finance\PromissoryNoteLifecycleService;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Support\DecimalMoney;
@@ -24,6 +25,7 @@ class PayMongoWebhookProcessor
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+        private readonly PromissoryNoteLifecycleService $promissoryNoteLifecycleService,
     ) {}
 
     /**
@@ -310,6 +312,12 @@ class PayMongoWebhookProcessor
         if (! $studentProfile instanceof StudentProfile) {
             throw new RuntimeException('Student profile for payment clearance was not found.');
         }
+
+        $this->promissoryNoteLifecycleService->settleEligibleForEnrollment(
+            enrollment: $enrollment,
+            actor: null,
+            settledAt: $timestamp,
+        );
 
         $clearance = $this->financeClearanceService->clearIfEligible(
             enrollment: $enrollment,

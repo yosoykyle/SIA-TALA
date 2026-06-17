@@ -11,7 +11,6 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 
 class EnrollmentFinanceClearanceService
 {
@@ -91,25 +90,12 @@ class EnrollmentFinanceClearanceService
             return false;
         }
 
-        if ($this->hasActivePromissory($enrollment)) {
-            return false;
-        }
-
         if ($this->money->isZeroOrNegative($currentBalance)) {
             return true;
         }
 
         return $this->money->toCents($totalConfirmedPayments) >= $this->money->toCents($minimumRequiredPayment)
             && $this->money->greaterThanZero($minimumRequiredPayment);
-    }
-
-    private function hasActivePromissory(Enrollment $enrollment): bool
-    {
-        return DB::table('promissory_notes')
-            ->where('enrollment_id', $enrollment->id)
-            ->whereIn('status', ['approved', 'active'])
-            ->whereDate('due_date', '>=', now(config('app.timezone'))->toDateString())
-            ->exists();
     }
 
     private function feeTemplateFromAssessment(Enrollment $enrollment): ?FeeTemplate

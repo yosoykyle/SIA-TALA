@@ -374,7 +374,7 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | --- | --- |
 | `assessment` | Initial Fee/Debit (Tuition, Lab Fees, Miscellaneous) |
 | `payment` | OTC Payment, E-wallet (GCash Webhook validation) |
-| `promissory_note` | Records Accounting-approved promise/expiry only; does not clear balance, enrollment, COR, class-list, or exam-permit restrictions |
+| `promissory_note` | Records Accounting-reviewed promise/expiry/settlement evidence only; does not clear balance, enrollment, COR, class-list, or exam access by itself |
 | `discount` | Automated or authorized Discount/Credit ledger entry (including the Freshmen Tuition discount) |
 | `shipping_fee` | Deferred post-fulfillment courier charge. Posted as standard debt only if unpaid after 3 calendar days from shipment. |
 | `drop_fee` | ₱3,500 assessment triggered when officially withdrawing |
@@ -383,7 +383,9 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 
 **Display Logic**: Portal groups transactions by type to show “Tuition vs. Misc vs. Discounts”
 
-**Current TAL-12 Filament Mapping**: `PromissoryNoteResource` is an Accounting promise-tracking surface and approval queue. It registers list/view pages, and a dedicated review action instead of a direct create form. Students submit a digital request via the Student Hub (amount, due date, reason) which creates a `pending` record. `PromissoryNote::validateAccountingScopeData()` is the backend trust boundary when Accounting approves a request: it must reject an enrollment that does not belong to the selected student/term and a ledger entry that does not belong to the selected student, optional term, and optional enrollment. The form must not expose unscoped raw ID relationship selects such as `relationship('enrollment', 'id')` or `relationship('ledgerEntry', 'id')`. List and detail views must show descriptive relationship labels for student, term, enrollment, ledger entry, and approver context instead of raw `student_profile_id`, `term_id`, `enrollment_id`, `ledger_entry_id`, or `approved_by` numeric values. The resource must not register a generic edit page, edit action, or status selector for arbitrary `approved`/`active`/`expired`/`settled`/`rejected` mutation. Update policy remains false until a dedicated lifecycle service/action contract exists.
+**Current SDD-06C Filament Mapping**: `PromissoryNoteResource` is an Accounting promise-tracking surface and approval queue. It registers list/create/view pages, where create means staff-assisted pending request creation, not direct approval. Applicant-owner or active-student-owner submission is supported at the backend service layer while Student Hub UI remains deferred. `PromissoryNote::validateAccountingScopeData()` and `PromissoryNoteLifecycleService` are the backend trust boundary: they reject cross-student, cross-term, or cross-enrollment submissions, require one open request per enrollment, and transition only through typed `pending -> approved/rejected/cancelled/expired/settled` lifecycle methods. The form must not expose unscoped raw ID relationship selects such as `relationship('enrollment', 'id')` or `relationship('ledgerEntry', 'id')`. List and detail views must show descriptive relationship labels for student, term, enrollment, ledger entry, requester, reviewer, and settlement context instead of raw numeric foreign keys. The resource must not register a generic edit page, edit action, delete action, or status selector for arbitrary lifecycle mutation.
+
+**Exam Access Accommodation Contract**: `exam_access_accommodations` is a separate private Accounting workflow for exam access exceptions. It stores student, term or academic-year scope, optional enrollment/promissory linkage, basis (`ra11984_certification` or `institutional_discretion`), status, validity dates, reviewer audit fields, and private certification evidence metadata. `ExamAccessDecisionService` returns only `{allowed, basis, accommodation_id}` and must never expose evidence paths, certification references, balances, payment channels, or promissory amounts. Senior High School statutory accommodations are academic-year scoped because RA 11984 applies the K-12 mandate for the entire school year; College accommodations are term-scoped by default. Promissory-note approval is not a substitute for an approved accommodation.
 
 ---
 
@@ -415,16 +417,16 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 use App\Models\Term;
 use App\Models\User;
 
-function canViewExamPermit(User $student, Term|int $term): bool
+function canViewExamPermit(User $student, Term $term, ExamAccessDecisionService $examAccess): bool
 {
-    $termId = $term instanceof Term ? $term->id : $term;
+    $balance = $student->getCurrentBalance($term->id) ?? '0.00';
 
-    $balance = $student->getCurrentBalance($termId) ?? '0.00';
-    return DecimalMoney::fromString($balance)->isLessThanOrEqualTo('0.00');
+    return DecimalMoney::fromString($balance)->isLessThanOrEqualTo('0.00')
+        || $examAccess->decideForUser($student, $term)['allowed'];
 }
 ```
 
-**Balance Contract**: `getCurrentBalance()` returns a ledger-safe decimal string with exactly two decimal places, never a PHP `float`. If no ledger entries exist for the student and term, the default is `"0.00"`. All comparisons must use a decimal-safe money comparator or money value object; `DecimalMoney` in the pseudocode represents that project-local abstraction, not a required package. Promissory notes must not be included in exam-permit clearance.
+**Balance Contract**: `getCurrentBalance()` returns a ledger-safe decimal string with exactly two decimal places, never a PHP `float`. If no ledger entries exist for the student and term, the default is `"0.00"`. All comparisons must use a decimal-safe money comparator or money value object; `DecimalMoney` in the pseudocode represents that project-local abstraction, not a required package. Promissory notes must not be included in exam-permit clearance. Exam exceptions must come from `ExamAccessDecisionService` and must be backed by an approved, current `exam_access_accommodations` record.
 
 #### 2.6.2 COR QR Code Verification Contract
 
@@ -1666,7 +1668,7 @@ enum LisStatus: string{    case NotEncoded = 'not_encoded';    case Encoded = 'e
 
 **Current Student Enrollment Backend Contract**: `StudentEnrollmentService` is the application-layer authority for the approved-applicant-to-student bridge and regular enrollment backend contract before Student Hub UI is enabled. It creates or reuses exactly one `student_profiles` row for an approved applicant, creates or reuses one term-scoped `enrollments` row with `status = 'pending_payment'`, links applicant-owned documents to the official profile, and assigns only to existing section delivery groups through the locked-capacity `EnrollmentSectioningService`. It also supports regular enrollment by blocking outstanding balances, detecting returnees from inactive/archived profile or account state, and assigning a compatible existing delivery group rather than creating sections or overflowing capacity.
 
-`EnrollmentFinanceClearanceService` is the shared application-layer rule for payment-driven finance clearance. Manual Accounting confirmation and PayMongo webhook-confirmed payments for payment attempts linked to an enrollment both evaluate the minimum-downpayment/full-payment rule, block active promissory notes from clearing finance, move eligible enrollments to `pre_enrolled`, and delegate account handover to `StudentEnrollmentService`. The handover sets `users.status = 'active'`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, records audit evidence, and exposes `corReadiness()` for COR/class-list gates. PayMongo attempts without an enrollment link remain payment/ledger evidence only until a controlled reconciliation path links them to an enrollment.
+`EnrollmentFinanceClearanceService` is the shared application-layer rule for payment-driven finance clearance. Manual Accounting confirmation and PayMongo webhook-confirmed payments for payment attempts linked to an enrollment both evaluate the minimum-downpayment/full-payment rule, ignore promissory notes as payment, move eligible enrollments to `pre_enrolled`, and delegate account handover to `StudentEnrollmentService`. A promissory note cannot clear finance by itself, but it must not block real confirmed payments from clearing finance when the required threshold or full balance condition is met. The handover sets `users.status = 'active'`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, records audit evidence, and exposes `corReadiness()` for COR/class-list gates. PayMongo attempts without an enrollment link remain payment/ledger evidence only until a controlled reconciliation path links them to an enrollment.
 
 **Cross-State Invariant Contract**:
 
@@ -1724,7 +1726,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 **Service Boundary**:
 -   Accounting configures the base fee templates and downpayment percentages.
 -   Finance clearance to `PreEnrolled` is evaluated by checking if total payments for the term meet or exceed `(total_assessed * minimum_downpayment_percentage / 100)`.
--   Accounting-approved promissory notes do not grant finance clearance.
+-   Accounting-approved promissory notes do not grant finance clearance; only confirmed payment evidence can clear finance.
 -   Policy calculations must use decimal strings/value objects, never PHP `float`.
 
 **Current SDD-06A Implementation Contract**: `EnrollmentAssessmentService` locks the enrollment, selects the most specific active `FeeTemplate` by education/program/year scope, posts immutable assessment rows plus any eligible tuition-only freshmen discount, updates the student's running balance, and returns the existing result on repeat execution without duplicate ledger rows. `EnrollmentFinanceClearanceService`, reached through manual or linked PayMongo payment confirmation, calculates the minimum required payment from the net assessment after discounts. A payment total below that decimal threshold remains `pending_payment`; meeting it exactly may transition the enrollment to `pre_enrolled` and invoke the shared account-handover service. `EnrollmentAssessmentServiceTest` provides executable coverage for scope precedence, discount amount, ledger balances, idempotency, and threshold-boundary clearance.
@@ -1736,7 +1738,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   Missed installment enters **3-day grace** before overdue consequence.
 -   `InstallmentPolicy` uses the same normalized education/program/year scope contract as `FeeTemplate` and rejects a second active policy for the same scope. Milestone rows remain child schedule rows inside the policy form.
 -   Overdue installment applies **5% penalty** (aligned with SOA policy wording).
--   Promissory notes remain non-clearing records and do not satisfy installment clearance.
+-   Promissory notes remain non-payment records and do not satisfy installment clearance. They may be reported as active hold context, but a confirmed payment that satisfies the required installment/assessment threshold must still clear finance.
 -   Accounting appeal-based grace/exception handling remains outside normal automated flow unless later formalized in service contracts.
 
 **Current TAL-12 Filament Mapping**: `InstallmentPolicyResource` is the Accounting-owned installment policy configuration surface. It must expose typed fields for policy scope, maximum months, due rule, grace days, penalty rate/frequency, partial-payment behavior, promissory clearing behavior, and active status. Milestone schedule rows must be maintained through a `milestones` relationship repeater with typed `sequence`, `month_offset`, `required_percentage`, and active-toggle fields. `InstallmentPolicyMilestoneResource` is retained only as a list/view schedule reference surface and must not register standalone create/edit page routes, generic create/edit actions, or a raw `Select::make('status')` milestone form.
@@ -1896,7 +1898,7 @@ Manual reconciliation may mark a payment as paid only by retrieving the provider
 
 **Current TAL-12 Filament Mapping**: `PaymentAttemptResource` is the Accounting Payment Queue and `PaymentResource` is Confirmed Payments evidence. Both resources are list/view only. They must not register generic create/edit page routes, create/edit header actions, delete actions, or raw `meta`/provider-reference forms. Payment attempts are created by checkout/manual-upload/service workflows, and payment records are created by webhook processing, manual confirmation, or reconciliation services. Any manual confirmation UI must be an authorized Accounting action that validates amount, reference, date, and eligible state before posting ledger effects.
 
-**Current SDD-06B Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, and audit evidence atomically. The authorized document-shipping confirmation action reuses the same channel, reference, explicit-date, and atomic posting boundary without closing the remaining SDD-07 fulfillment scope. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
+**Current SDD-06B/06C Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, promissory settlement check, and audit evidence atomically. The authorized document-shipping confirmation action reuses the same channel, reference, explicit-date, and atomic posting boundary without closing the remaining SDD-07 fulfillment scope. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
 
 #### 3.14.2 Document Request Fulfillment Service
 
@@ -2031,7 +2033,7 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 | --- | --- | --- | --- |
 | `GracePeriodEnforcerJob` | Daily `00:15` Asia/Manila | 100 per chunk, 1,000 per run | Lock user row before archive; skip if already active/archived by staff. |
 | `ShippingFeeEnforcerJob` | Daily `00:30` Asia/Manila | 100 per chunk, 1,000 per run | Lock document request; skip if assessment transaction already exists. |
-| `CheckPromissoryNoteExpiry` | Daily `00:45` Asia/Manila | 100 per chunk, 1,000 per run | Notification dedupe keys from §3.9.2; deactivate only active notes. |
+| `ProcessPromissoryNoteDeadlinesJob` | Daily `00:45` Asia/Manila | Pending/approved rows, idempotent by timestamp field | Sends one expiring-soon notification per approved note, expires overdue approved/active notes, and never treats expiry as payment or refund evidence. |
 | `IncAutoFailJob` | Daily `01:00` Asia/Manila | 100 per chunk, 1,000 per run | Lock grade row; skip if INC was already cleared or failed. |
 | `PaymentHousekeepingJob` | Daily `01:30` Asia/Manila | 100 per chunk, 1,000 per run | Skip if payment already confirmed/cancelled; no ledger reversal without Accounting action. |
 | `TermCloseJob` | Manual Registrar action; queue for off-hours execution unless urgent | 100 per chunk, no more than one term per batch | Requires Registrar confirmation; cannot run twice for the same closed term. |
@@ -3389,7 +3391,7 @@ If mismatch found → **Request Re-upload** (manual decision).
 -   GCash/E-Wallet (via PayMongo Checkout — primary)
 -   GCash/Bank Transfer (Screenshot upload — fallback)
 -   Over-the-Counter (Manual encoding by Accounting)
--   Promissory Note (Document upload)
+-   Promissory Note (digital promise request / Accounting review; not a payment method and not a document upload)
 
 ---
 
@@ -3575,7 +3577,7 @@ These rules define stable staff-facing admin boundaries. They are not an executi
 | FAQ content management | `FaqEntryResource` provides System Super Admin CRUD for question, answer, category, sort order, and publish state, guarded by `manage-faqs`. Public `/faq` and Student Hub Help consume only published entries. | Registrar, Accounting, Faculty, Academic Head, Student, and public users cannot mutate FAQ content. FAQ categories remain model-owned fixed options, not arbitrary text. |
 | System settings | `SystemSettingResource` is hidden/blocked, exposes no raw key/value/JSON editing, and direct `/admin/system-settings` returns 403 even for System Super Admin. | `system_settings` remains an internal runtime registry. Dedicated typed domain settings pages require validated service handlers, authorization, audit, and cache invalidation. |
 | Accounting adjustments | `LedgerEntryResource` is immutable list/view evidence. | Manual adjustments require a typed adjustment action/service with policy checks, double-entry-safe posting, and activity logging; generic ledger CRUD is forbidden. |
-| Promissory notes | Accounting-side approved-promise tracking is typed and scoped to valid student, term, enrollment, and ledger context. | Student upload, pending replacement, and settlement lifecycle are outside TAL-12 unless a dedicated workflow is approved and implemented. |
+| Promissory notes | Applicant/student-owner backend request, Accounting staff-assisted pending creation, approve/reject/cancel, deadline processing, payment-driven settlement, and scoped relationship labels are implemented through typed lifecycle services/actions. | Student Hub UI remains deferred; generic status editing and amount/private-detail exposure remain forbidden. |
 | Automatic scheduling solver | Scheduling uses IAM-private GCP Cloud Run OR-Tools CP-SAT, Google ID-token dispatch, immutable snapshots, solver-result ingestion, Laravel validation, draft review, and commit to `section_meetings` / `section_teacher`. Committed rows require 100% hard-constraint validity. | The solver does not create academic sections by itself; section/year-level planning and curriculum demand readiness precede solving. |
 | Faculty subject eligibility and availability | Faculty-subject eligibility is Registrar/Academic Head/System Super Admin managed; faculty cannot self-approve teaching subjects. Locked availability and approved post-lock revisions are solver inputs. | Direct faculty edits to locked availability are forbidden. Post-commit schedule changes use official schedule-change workflows. |
 | Service request detail labels | Staff-facing service request tables and detail views should use relationship-backed labels and model-owned status helpers rather than raw IDs as primary labels. | Raw FK/payload display is only acceptable as internal audit evidence when no staff decision depends on it. |

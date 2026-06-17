@@ -19,6 +19,7 @@ class PaymentConfirmationService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+        private readonly PromissoryNoteLifecycleService $promissoryNoteLifecycleService,
     ) {}
 
     /**
@@ -125,6 +126,12 @@ class PaymentConfirmationService
             $studentProfile->forceFill([
                 'current_balance' => $newBalance,
             ])->save();
+
+            $this->promissoryNoteLifecycleService->settleEligibleForEnrollment(
+                enrollment: $enrollment,
+                actor: $actor,
+                settledAt: $timestamp,
+            );
 
             $clearance = $this->financeClearanceService->clearIfEligible(
                 enrollment: $enrollment,

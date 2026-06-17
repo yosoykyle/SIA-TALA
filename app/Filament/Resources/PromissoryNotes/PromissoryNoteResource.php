@@ -30,10 +30,6 @@ class PromissoryNoteResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        if (auth()->user()?->hasRole('academic-head')) {
-            return 'Academic Head';
-        }
-
         return 'Accounting';
     }
 
