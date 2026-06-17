@@ -46,7 +46,20 @@
 - [x] Optional/deferred admin surfaces remain mapped to `TAL-15` unless stakeholders explicitly pull them into Pre-UAT.
 - [x] Student Hub UI/PWA presentation remains deferred to `TAL-13`; shared student-domain backend contracts remain active pre-UAT dependencies.
 - [x] Stale FAQ-removal and student-self-service-contract deferral wording in UAT readiness artifacts must be treated as superseded by the 2026-06-17 FS/TS/SDD decision closure.
-- [ ] Before grilling a new SDD slice, verify the target slice is not already covered by an existing SDD child issue and that the previous-slice blockers are either complete or intentionally accepted.
+- [x] Before starting SDD-04, verified the current Admin/System verification slice was not already covered by an existing current SDD child issue. Existing Linear `TAL-16` through `TAL-19` used legacy `SDD-04A-D` student-backend numbering and are now treated as current SDD-05 TAL-13 backend contract work.
+- [ ] Before starting each later SDD slice, verify the target slice is not already covered by an existing SDD child issue and that the previous-slice blockers are either complete or intentionally accepted.
+
+### SDD-04 Admin/System Foundation Verification Evidence - 2026-06-17
+
+- [x] Linear `TAL-23` created for current `SDD-04 - Admin/System Foundation Verification`.
+- [x] Staff account lifecycle verified against FS §8.3 and TS §3.2: `UserResource` uses split staff-name fields, staff role choices, active/inactive direct status only, one-role-only selection, and service-backed Archive/Restore account actions.
+- [x] `UserAccountLifecycleService` verified as the lifecycle authority: target row locking, System Super Admin authorization, archive reason validation, role clearing on archive, exactly one approved role on restore, and activity logging remain intact.
+- [x] RBAC matrix verified: `RoleResource` remains list-only with no create/edit routes or actions; role mutation remains release-controlled through seeders/code, not ad hoc admin UI.
+- [x] Audit surface verified: `ActivityResource` remains list/view only, policy-gated by `view-audit-logs`, and activity metadata is rendered as readable evidence lines through `ActivityPropertiesFormatter`.
+- [x] FAQ maintenance verified: `FaqEntryResource` keeps System Super Admin CRUD through `manage-faqs`; public `/faq` and Student Hub Help read only published FAQ rows.
+- [x] System Settings boundary verified: generic `SystemSettingResource` remains hidden, has no create/edit route or raw form/action, and `SystemSettingPolicy` denies all abilities including direct `/admin/system-settings`.
+- [x] Focused admin/system tests passed: `php artisan test --compact tests/Feature/UserAccountLifecycleServiceTest.php tests/Feature/TAL12ASystemSuperAdminFilamentResourceTest.php tests/Feature/TAL10RbacMatrixTest.php tests/Feature/PublicFaqPageTest.php tests/Feature/StudentHubAccessTest.php` -> 24 passed / 227 assertions.
+- [x] Direct internal route denial test passed: `php artisan test --compact tests/Feature/PreUatInternalRouteDenialTest.php` -> 2 passed / 4 assertions.
 
 ### Locked Scheduling/Curriculum Decisions - 2026-06-17
 

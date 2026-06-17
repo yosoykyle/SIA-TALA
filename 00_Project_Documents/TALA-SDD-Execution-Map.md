@@ -58,7 +58,7 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 
 | Area | Current evidence |
 | --- | --- |
-| Admin/System | `UserResource`, `RoleResource`, `ActivityResource`, `FaqEntryResource`, `SystemSettingResource`; `UserAccountLifecycleService`; RBAC and FAQ tests. |
+| Admin/System | `UserResource`, `RoleResource`, `ActivityResource`, `FaqEntryResource`, `SystemSettingResource`; `UserAccountLifecycleService`; RBAC, FAQ, and direct-route denial tests; SDD-04/TAL-23 verification passed. |
 | Academic foundation | `ProgramResource`, `SubjectResource`, `CurriculumResource`, `TermResource`, `SectionResource`, `RoomResource`; `AcademicFoundationFilamentResourceTest`; `CurriculumImportServiceTest`. |
 | Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; Cloud Run solver package now parses/enforces `section_delivery_group_id`; deployed revision `tala-scheduler-solver-00004-wtx` passed authenticated `/health`, authenticated `/solve`, and unauthenticated 403 IAM smoke proof. |
 | Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources exist, but applicant intake and student self-service orchestration services are missing. |
@@ -149,7 +149,7 @@ Explicit missing TAL-13 backend contracts as of this audit:
 | Publish lifecycle | FS 5.3, TS 3.6.3 | Locally implemented in `SchedulePublishService`, run metadata, Filament actions, and tests | Add `committed official` -> `published` with Academic Head approval; System Super Admin emergency publish only with reason. |
 | Cloud solver redeploy checkpoint | TS 3.6.3 | `cloud/scheduler-solver`, Dockerfile, Cloud Build config, deployed Cloud Run URL | If solver code changes, provide step-by-step Google Cloud Console/Cloud Shell redeploy instructions, then smoke-test `/health` and `/solve` before closure. |
 
-### SDD-04: Admin/System Foundation Verification
+### SDD-04: Admin/System Foundation Verification (`TAL-23`)
 
 **Goal:** Reconfirm cross-role admin infrastructure after the scheduling model changes.
 
@@ -159,6 +159,17 @@ Explicit missing TAL-13 backend contracts as of this audit:
 | RBAC matrix and audit | FS 3, FS 8.2, TS 4 | `RoleResource`, `ActivityResource`, policies | Keep role matrix read-only and audit details human-readable. |
 | FAQ maintenance | FS 8.7, TS 3.16 | `FaqEntryResource`, `FaqEntryPolicy`, public/student FAQ tests | Keep CRUD for System Super Admin only; public/student read published rows only. |
 | System settings boundary | FS 8.5, TS 3.19, TS 8.8 | `SystemSettingResource`, denial tests | Keep generic raw settings hidden/blocked; create typed settings pages only if a module needs them. |
+
+**SDD-04 verification evidence (2026-06-17):**
+
+- Code audit reconfirmed `UserResource` uses split staff-name fields, staff-only role choices, active/inactive direct status options, and one-role-only selection; archive/restore actions delegate to `UserAccountLifecycleService`.
+- `UserAccountLifecycleService` locks target rows, blocks invalid lifecycle transitions, clears roles on archive, restores exactly one approved staff role, and records activity evidence.
+- `RoleResource` remains list-only with no create/edit routes or actions; `RolePolicy` denies mutation and vendor role policy registration remains explicit in `AppServiceProvider`.
+- `ActivityResource` remains list/view only; `ActivityInfolist` renders audit metadata through `ActivityPropertiesFormatter` instead of exposing editable/raw payload fields.
+- `FaqEntryResource` keeps System Super Admin CRUD through `manage-faqs`; public `/faq` and Student Hub Help read only published FAQ rows.
+- `SystemSettingResource` remains hidden from navigation, exposes no create/edit route or action, and `SystemSettingPolicy` denies every ability, including direct `/admin/system-settings` access.
+- Focused tests passed: `php artisan test --compact tests/Feature/UserAccountLifecycleServiceTest.php tests/Feature/TAL12ASystemSuperAdminFilamentResourceTest.php tests/Feature/TAL10RbacMatrixTest.php tests/Feature/PublicFaqPageTest.php tests/Feature/StudentHubAccessTest.php` -> 24 passed / 227 assertions.
+- Direct internal route denial test passed: `php artisan test --compact tests/Feature/PreUatInternalRouteDenialTest.php` -> 2 passed / 4 assertions.
 
 ### SDD-05: TAL-13 Backend Contracts Before UAT
 
@@ -232,8 +243,8 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Start `SDD-04: Admin/System Foundation Verification`.
+Start `SDD-05: TAL-13 Backend Contracts Before UAT`.
 
-1. Treat SDD-01, SDD-02, and SDD-03 as completed implementation evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit, publish lifecycle, focused tests, and deployed Cloud Run smoke proof.
-2. Reconfirm cross-role admin infrastructure after the scheduling model changes: staff account lifecycle, RBAC/audit, FAQ maintenance, and System Settings boundary.
-3. Keep Student Hub UI deferred; do not enter Pre-UAT until SDD-04 and the active TAL-13 backend contracts are either implemented or explicitly descoped.
+1. Treat SDD-01, SDD-02, SDD-03, and SDD-04 as completed implementation/verification evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
+2. Reconcile existing Linear `TAL-16` through `TAL-19` legacy `SDD-04A-D` titles to the current SDD-05 TAL-13 backend contract numbering before implementation starts.
+3. Keep Student Hub UI deferred; do not enter Pre-UAT until the active TAL-13 backend contracts are either implemented or explicitly descoped.
