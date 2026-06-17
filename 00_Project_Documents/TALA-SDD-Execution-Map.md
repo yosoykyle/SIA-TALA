@@ -288,7 +288,10 @@ Mirror this map logically, not mechanically:
 
 Continue with `SDD-06B: Payments/Ledger Closure`.
 
-1. Treat SDD-01, SDD-02, SDD-03, and SDD-04 as completed implementation/verification evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
-2. Treat SDD-05A applicant intake, SDD-05B student enrollment, PayMongo linked-enrollment finance-clearance parity, SDD-05C subject suggestion, and SDD-05D student dashboard aggregation as completed TAL-13 backend evidence.
-3. Treat SDD-06A assessment/downpayment behavior as closed by executable service tests; audit payment/ledger immutability, idempotency, parity, and admin action boundaries next.
-4. Keep Student Hub UI deferred; continue with the next backend/Admin closure slice before Pre-UAT QA.
+**Status context**
+
+- **Completed evidence:** SDD-01 through SDD-04 cover curriculum readiness, delivery groups, scheduling solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
+- **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
+- **Just closed:** SDD-06A verifies assessment/downpayment behavior through executable service tests.
+- **Active target:** SDD-06B audits payment/ledger immutability, idempotency, finance-clearance parity, and admin action boundaries.
+- **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.
