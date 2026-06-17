@@ -642,6 +642,17 @@
 
 ---
 
+## Active Accounting Backend/Admin Closure (`SDD-06`)
+
+- [x] **SDD-06A - Assessment/downpayment proof**
+  - 2026-06-18 executable coverage verifies most-specific active fee-template selection, 50% tuition-only freshmen discount posting, immutable running balances, repeat-assessment idempotency, and configured minimum-downpayment boundary behavior. A below-threshold payment remains `pending_payment`; reaching the threshold exactly transitions through shared finance clearance and account handover. Focused test: `php artisan test --compact tests/Feature/EnrollmentAssessmentServiceTest.php`.
+- [ ] **SDD-06B - Payments/ledger closure**: verify immutable posting, manual/PayMongo idempotency and parity, and typed admin action boundaries.
+- [ ] **SDD-06C - Promissory lifecycle closure**: implement or verify the student request backend before its deferred UI while preserving the non-clearing finance rule.
+- [ ] **SDD-06D - Accounting adjustments decision**: add a typed, authorized adjustment service/action only if required for UAT; generic ledger CRUD remains forbidden.
+- [ ] Mirror the active SDD-06 slice state to Linear after the Linear connector is re-authenticated; local documents are the current source while OAuth access is blocked.
+
+---
+
 ## Execution Rule
 
 - Complete iterations in order unless explicitly re-prioritized.

@@ -224,10 +224,18 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
-| Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, tests | Verify fee template scope, freshmen discount, downpayment clearance, and idempotent assessment posting. |
+| Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentAssessmentServiceTest` | **SDD-06A closed:** most-specific fee-template scope, tuition-only freshmen discount, idempotent ledger posting, and configured downpayment threshold are executable-test verified. |
 | Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, PayMongo webhook tests/resources | Keep ledger immutable, gateway idempotent, finance-clearance parity shared, and admin resources list/view or service-action only. |
 | Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 8.8 | SOA balance evidence | accounting-side resource exists | Clarify/implement student request backend if needed before UI; promissory must not clear finance status. |
 | Accounting adjustments | FS 6.3, TS 8.8 | SOA corrections/balances | ledger list/view only | Build typed adjustment service/action only if UAT requires manual corrections. |
+
+**SDD-06A implementation evidence (2026-06-18)**
+
+- Verified exact program/year fee templates take precedence over program-only and education-level defaults.
+- Verified eligible new Grade 11/first-year students receive exactly 50% of tuition as a negative ledger entry while laboratory, miscellaneous, and other fees remain undiscounted.
+- Verified repeated assessment does not duplicate fee or discount ledger entries and preserves the calculated balance.
+- Verified configured minimum downpayment is calculated from net assessment: a payment below the threshold stays pending and meeting the threshold exactly triggers finance clearance and shared account handover.
+- Focused proof: `php artisan test --compact tests/Feature/EnrollmentAssessmentServiceTest.php`.
 
 ### SDD-07: Documents, OCR, and Service Requests Closure
 
@@ -277,8 +285,9 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Start `SDD-06: Accounting Backend/Admin Closure`.
+Continue with `SDD-06B: Payments/Ledger Closure`.
 
 1. Treat SDD-01, SDD-02, SDD-03, and SDD-04 as completed implementation/verification evidence for curriculum readiness, delivery groups, solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
 2. Treat SDD-05A applicant intake, SDD-05B student enrollment, PayMongo linked-enrollment finance-clearance parity, SDD-05C subject suggestion, and SDD-05D student dashboard aggregation as completed TAL-13 backend evidence.
-3. Keep Student Hub UI deferred; continue with the next backend/Admin closure slice before Pre-UAT QA.
+3. Treat SDD-06A assessment/downpayment behavior as closed by executable service tests; audit payment/ledger immutability, idempotency, parity, and admin action boundaries next.
+4. Keep Student Hub UI deferred; continue with the next backend/Admin closure slice before Pre-UAT QA.

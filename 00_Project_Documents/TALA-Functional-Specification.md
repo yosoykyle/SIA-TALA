@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, staff-assisted modality capture, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook payments now share the finance-clearance/account-handover contract with manual Accounting payment confirmation. |
 | 31.0 | 2026-06-18 | Subject suggestion backend contract finalized around registrar-verified grade history, back subjects, active INC, failed, and missing-history blockers. |
-| 32.0 | 2026-06-18 | Student dashboard backend contract finalized for profile, enrollment, schedule, financial, grade, request, hold, notification, and FAQ/help aggregation while Student Hub UI remains deferred. |
+| 32.0 | 2026-06-18 | Student dashboard backend contract finalized; accounting assessment/downpayment contract verified for scoped fee templates, tuition-only freshmen discounts, idempotent ledger posting, and configured finance-clearance thresholds. |
 
 ---
 
@@ -967,6 +967,8 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 **Ledger Admin Surface Boundary**: The Ledger Entries screen is an Accounting review/evidence surface. Accounting may view and filter assessed fees, payments, discounts, penalties, shipping debt, credits, and balances, but must not create, edit, or delete arbitrary ledger rows through generic Filament CRUD. Ledger mutations are produced by assessment, discount, payment-confirmation, webhook, installment-penalty, document-request, or future approved adjustment services.
 
+**Assessment Selection and Idempotency Contract**: Auto-assessment selects the most specific active fee template matching the student's education level, optional program, and optional year/grade. An exact program-and-year template takes precedence over broader program-only or education-level defaults. Re-running assessment for the same enrollment/template must return the existing assessment result without duplicating fee or discount ledger entries.
+
 #### 6.1.1 Automated Freshmen Discounts
 
 - **Strategy**: SIA operates on a Non-Subsidized, Regular Rate model but offers an automatic 50% discount on the **Tuition Fee** for incoming freshmen.
@@ -1023,6 +1025,7 @@ Modality is no longer treated as a single immutable property of the whole sectio
 - **Scope Contract**: Fee templates use canonical scope fields: education level, optional program, and optional year/grade. Year/grade values must match the enrollment values used by finance services (for example `Grade 11`, `Grade 12`, `1st Year`, `2nd Year`, `3rd Year`, `4th Year`). Blank year/grade means all year/grade levels for the selected education level. Only one active fee template may exist for the same education/program/year scope; older alternatives must be inactive historical records before a replacement becomes active.
 - **Student Visibility**: The Student Hub must show the student's assessed fees, minimum required downpayment, remaining balance, and whether the account is currently finance-cleared.
 - **State Transition**: Enrollment moves to **Pre-Enrolled** only when Accounting confirms the required minimum downpayment has been received, or the full balance has been paid. `OfficiallyEnrolled` is reserved for optional LIS completion. Promissory notes do not trigger this transition.
+- **Threshold Precision**: The minimum required payment is calculated from the enrollment's net assessment after automatic discounts. Payments below the configured threshold remain financially pending; reaching the threshold exactly is sufficient for finance clearance and account handover.
 
 **Approved F10 Target Policy (for rollout once de-deferred):**
 

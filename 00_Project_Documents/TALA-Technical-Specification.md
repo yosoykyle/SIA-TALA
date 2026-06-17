@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook processing now shares manual payment finance-clearance/account-handover behavior. |
 | 31.0 | 2026-06-18 | SubjectSuggestionService backend contract implemented for finalized grade history, back subjects, active INC, failed, and missing-history blockers. |
-| 32.0 | 2026-06-18 | StudentDashboardService backend contract implemented for read-only Student Hub aggregation while Student Hub UI remains deferred. |
+| 32.0 | 2026-06-18 | StudentDashboardService backend contract implemented; SDD-06A assessment/downpayment behavior verified through executable service tests. |
 
 ---
 
@@ -1728,6 +1728,8 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   Finance clearance to `PreEnrolled` is evaluated by checking if total payments for the term meet or exceed `(total_assessed * minimum_downpayment_percentage / 100)`.
 -   Accounting-approved promissory notes do not grant finance clearance.
 -   Policy calculations must use decimal strings/value objects, never PHP `float`.
+
+**Current SDD-06A Implementation Contract**: `EnrollmentAssessmentService` locks the enrollment, selects the most specific active `FeeTemplate` by education/program/year scope, posts immutable assessment rows plus any eligible tuition-only freshmen discount, updates the student's running balance, and returns the existing result on repeat execution without duplicate ledger rows. `EnrollmentFinanceClearanceService`, reached through manual or linked PayMongo payment confirmation, calculates the minimum required payment from the net assessment after discounts. A payment total below that decimal threshold remains `pending_payment`; meeting it exactly may transition the enrollment to `pre_enrolled` and invoke the shared account-handover service. `EnrollmentAssessmentServiceTest` provides executable coverage for scope precedence, discount amount, ledger balances, idempotency, and threshold-boundary clearance.
 
 **Approved F10 Target Policy (Deferred Until Migration + Service/Test Readiness)**:
 
