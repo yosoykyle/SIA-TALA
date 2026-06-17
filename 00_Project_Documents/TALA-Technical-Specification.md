@@ -275,6 +275,7 @@ The following low-policy support tables now have migration files and are executa
 The following domains are covered by schema and service contracts in this TS. Whether a given local database has applied every migration is verified through `migrate:status`, not by hardcoded documentation counts:
 
 - Enrollment/profile flow (`student_profiles`, `enrollments`, `enrollment_subjects`)
+- Applicant intake staging (`applicant_intakes` plus applicant-linked `document_uploads` before handover)
 - Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`, `promissory_notes`, installment tables)
 - Document/OCR/request flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`, `document_requests`)
 - Grade/correction flow (`grades`, `grade_corrections`)
@@ -350,7 +351,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 
 Future student profile migrations must keep academic and financial context off the `users` table. `student_profiles` owns the student lifecycle and academic identity contract:
 
-**Creation Timing**: A `student_profiles` row is created atomically during the Official Handover transaction (§3.3) when the applicant account transitions to an official student. Applicant data lives in the `users` table and applicant-specific staging columns until handover. The profile is never created for applicants who do not complete enrollment.
+**Creation Timing**: A `student_profiles` row is created atomically during the Official Handover transaction (§3.3) when the applicant account transitions to an official student. Applicant data lives in `users` for authentication/name fields and in `applicant_intakes` for LIS-aligned profiling, duplicate-check evidence, applicant status, required-document lists, and Registrar review metadata until handover. The profile is never created for applicants who do not complete enrollment.
 
 | Field Group | Required Contract |
 | --- | --- |
@@ -1655,6 +1656,8 @@ enum LisStatus: string{    case NotEncoded = 'not_encoded';    case Encoded = 'e
 -   **Term Close**: Both `PreEnrolled` (LIS still not_encoded) and `OfficiallyEnrolled` can transition to `Completed`.
 
 **Bridge Between Phase 1 and Phase 2**: When the Registrar marks the application as approved (`ocr_review_status = 'registrar_approved'` and `users.status = 'approved'`), the system unlocks the payment portal allowing the applicant to view intake payment instructions or checkout links. Once the payment attempt is verified, the system creates an `Enrollment` record with `status = PendingPayment` (or straight to `PreEnrolled` only if the required minimum downpayment/initial installment milestone or full balance is already paid). After `PreEnrolled` is reached, the Account Handover (FS §4.1.2 Step 7) fires — credential rotation, student ID generation — and `users.status` changes to `active`. Promissory approval does not trigger this bridge. LIS encoding runs independently and does not gate account activation after finance clearance.
+
+**Current Applicant Intake Backend Contract**: `ApplicantIntakeService` is the application-layer authority for public applicant creation, applicant status updates, duplicate checks, required-document derivation, applicant-owned `document_uploads`, OCR job dispatch, and approval-for-payment prerequisites. It creates a pending applicant `users` row with the `applicant` role, creates one `applicant_intakes` staging record, and does not create `student_profiles`, `enrollments`, ledger entries, or official student credentials. Applicant document uploads may have `document_uploads.applicant_intake_id` with `student_profile_id = null` until Official Handover links official student records.
 
 **Cross-State Invariant Contract**:
 

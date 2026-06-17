@@ -20,13 +20,18 @@ class DocumentUploadsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'user', 'term', 'registrarReviewer']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'applicantIntake.user', 'user', 'term', 'registrarReviewer']))
             ->columns([
                 TextColumn::make('studentProfile.student_id')
                     ->label('Student ID')
                     ->placeholder('-')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('applicantIntake.user.name')
+                    ->label('Applicant')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('user.name')
                     ->label('Uploader')
                     ->placeholder('-')

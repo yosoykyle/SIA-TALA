@@ -213,7 +213,7 @@ After initial registration, applicants can return to check their enrollment prog
 **Step 0: Temporary Account Creation**
 
 - **Action**: User signs up with Personal Email & Password
-- **System Logic**: Creates a temporary applicant user row with applicant-facing status; Student Hub access remains blocked until Official Handover
+- **System Logic**: Creates a temporary applicant user row plus an applicant intake staging record with applicant-facing status; Student Hub access remains blocked until Official Handover
 - **Purpose**: Allows them to save progress, pause, and return later
 
 **Step 1: Digital Orientation**
@@ -236,6 +236,8 @@ After initial registration, applicants can return to check their enrollment prog
 
 **Name Storage Rule**: Student/applicant/staff person names are captured as separate `first_name`, `middle_name`, `last_name`, and `suffix` fields. The system composes `users.name` for display, search, exports, audit labels, and legacy compatibility. Registrar walk-in intake and System Super Admin staff-account creation must use the same split-name contract; student academic identifiers remain in `student_profiles`.
 
+**Applicant Staging Rule**: Public intake stores pre-handover LIS/profile context, duplicate-check evidence, required-document lists, and Registrar review status in the applicant intake staging record. `student_profiles`, enrollments, ledger entries, and official student credentials are created only during the later Official Handover / enrollment backend flow.
+
 **Educational Level Check**:
 
 - The system explicitly asks: "Are you enrolling for Senior High School (SHS) or College?"
@@ -252,6 +254,7 @@ After initial registration, applicants can return to check their enrollment prog
     - **Online**: Virtual classes. No room assignment needed.
 - **College Options**:
     - **On-Site**: Face-to-face for all subjects. Fixed classroom schedules with room/teacher assignment.
+    - **Blended**: Room-required hybrid delivery for scheduling purposes. It uses on-site-style room/faculty conflict checks while detailed online meeting link tracking remains outside MVP.
     - **Online**: Virtual classes. No room assignment needed.
 
 **Conditional Fields**:

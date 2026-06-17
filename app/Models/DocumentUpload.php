@@ -43,6 +43,7 @@ class DocumentUpload extends Model
      */
     protected $fillable = [
         'student_profile_id',
+        'applicant_intake_id',
         'user_id',
         'term_id',
         'document_type',
@@ -143,6 +144,11 @@ class DocumentUpload extends Model
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
+    }
+
+    public function applicantIntake(): BelongsTo
+    {
+        return $this->belongsTo(ApplicantIntake::class);
     }
 
     public function user(): BelongsTo

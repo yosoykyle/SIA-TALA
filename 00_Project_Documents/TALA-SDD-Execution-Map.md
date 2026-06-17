@@ -67,9 +67,8 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, SHS/College grading services; class-list, grades, and grade-correction resources/tests. |
 | Student Hub access | `/student/*` route protection and FAQ/help consumption are tested. Dashboard, schedule, grades, financials, documents, enrollment, and requests still need data-backed backend contracts before UI work. |
 
-Explicit missing TAL-13 backend contracts as of this audit:
+Explicit remaining TAL-13 backend contracts after SDD-05A:
 
-- `ApplicantIntakeService`
 - `StudentEnrollmentService`
 - `SubjectSuggestionService`
 - `StudentDashboardService`
@@ -177,12 +176,20 @@ Explicit missing TAL-13 backend contracts as of this audit:
 
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
-| Applicant intake backend | FS 4.1, FS 5.4, TS 2.5, TS 3.3 | SHS evaluation, transferee evaluation sheets | missing `ApplicantIntakeService` | Create service for public registration, applicant status, duplicate guard, document/OCR handoff, and staff finalization prerequisites. |
+| Applicant intake backend | FS 4.1, FS 5.4, TS 2.5, TS 3.3 | SHS evaluation, transferee evaluation sheets | `ApplicantIntakeService`, `ApplicantIntake`, applicant-linked `document_uploads`, focused tests | Done for backend contract: public registration service, pending applicant status, duplicate guard, document/OCR handoff, and approval-for-payment prerequisites. |
 | Student enrollment backend | FS 4.2, FS 5.4, TS 3.12 | SOA/enrollment fields, curriculum/evaluation evidence | missing `StudentEnrollmentService` | Create service for regular enrollment, returnee detection, payment/clearance gates, section capacity, and COR readiness. |
 | Subject suggestion backend | FS 4.2, FS 5.3, TS 3.4.1 | evaluation/bridging/grade evidence | missing `SubjectSuggestionService` | Create prerequisite-aware subject suggestion for irregulars/transferees, including active INC/failed/missing-history blockers. |
 | Student dashboard backend | FS 4.3, FS 6, FS 7, FS 9, TS 5.8 | SOA and grade-sheet evidence | missing `StudentDashboardService` | Aggregate schedule, balance, grades, document requests, grade corrections, holds, and FAQ/help links for future UI. |
 
 Do not build the Student Hub pages in this phase. Tests may call services directly or through narrow backend routes/actions if those routes already exist.
+
+**SDD-05A implementation evidence (2026-06-17):**
+
+- Added `applicant_intakes` as the pre-handover staging aggregate for LIS-aligned applicant profile fields, orientation acknowledgements, required-document lists, duplicate-check status/payload, and Registrar review metadata.
+- Linked applicant-owned document evidence through nullable `document_uploads.applicant_intake_id` while keeping `student_profile_id = null` until Official Handover.
+- Added `ApplicantIntakeService` to create pending applicant users with the `applicant` role, block duplicate LRN/name-birthdate matches, derive required document lists, dispatch OCR for uploaded documents, and block payment unlock until every required document is Registrar-approved.
+- Updated the existing Registrar Document Review list/detail surface to show applicant labels for applicant-owned uploads without adding generic Document Upload CRUD.
+- Verified SDD-05A with focused test coverage in `ApplicantIntakeServiceTest` for happy path, duplicate guard, OCR handoff, and blocked finalization prerequisites.
 
 ### SDD-06: Accounting Backend/Admin Closure
 

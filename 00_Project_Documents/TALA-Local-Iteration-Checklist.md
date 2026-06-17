@@ -617,7 +617,8 @@
 - Linear should split this scope logically: TAL-13 backend contract work is an active dependency for UAT readiness; TAL-13 Student Hub UI remains backlog/deferred.
 
 ### Part A: Active Missing Backend Contracts
-- [ ] Implement `ApplicantIntakeService` (Public registration to pending applicant)
+- [x] Implement `ApplicantIntakeService` (Public registration to pending applicant)
+  - 2026-06-17 SDD-05A backend contract implemented: `applicant_intakes` stores pre-handover applicant profile/status/required-document/duplicate-check evidence; pending applicant `users` rows receive the `applicant` role and remain blocked from protected Student Hub/staff areas; applicant-owned `document_uploads` link through `applicant_intake_id` with no `student_profile_id` until Official Handover; OCR dispatch uses the existing `ProcessDocumentOcrJob`; approval-for-payment is blocked until every required applicant document is Registrar-approved. Focused test: `php artisan test --compact tests/Feature/ApplicantIntakeServiceTest.php`.
 - [ ] Implement `StudentEnrollmentService` (One-Click Enroll auto-promotion for Regulars)
 - [ ] Implement `SubjectSuggestionService` (Prerequisite enforcement & back-subject suggestion for Irregulars)
 - [ ] Implement `StudentDashboardService` (Aggregated view of schedule, balance, grades, requests)

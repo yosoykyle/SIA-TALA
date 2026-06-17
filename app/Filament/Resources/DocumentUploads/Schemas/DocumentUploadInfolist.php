@@ -13,13 +13,16 @@ class DocumentUploadInfolist
     {
         return $schema
             ->components([
-                Section::make('Student and Upload Evidence')
+                Section::make('Applicant / Student and Upload Evidence')
                     ->schema([
                         TextEntry::make('studentProfile.student_id')
                             ->label('Student ID')
                             ->placeholder('-'),
                         TextEntry::make('studentProfile.user.name')
                             ->label('Student')
+                            ->placeholder('-'),
+                        TextEntry::make('applicantIntake.user.name')
+                            ->label('Applicant')
                             ->placeholder('-'),
                         TextEntry::make('user.name')
                             ->label('Uploaded By')
