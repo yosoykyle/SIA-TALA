@@ -231,6 +231,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 
 **SDD-06A implementation evidence (2026-06-18)**
 
+- Linear mirror: `TAL-24` (Done), linked as completed evidence for the active `TAL-12` readiness gate.
 - Verified exact program/year fee templates take precedence over program-only and education-level defaults.
 - Verified eligible new Grade 11/first-year students receive exactly 50% of tuition as a negative ledger entry while laboratory, miscellaneous, and other fees remain undiscounted.
 - Verified repeated assessment does not duplicate fee or discount ledger entries and preserves the calculated balance.
