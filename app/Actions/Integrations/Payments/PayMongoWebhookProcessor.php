@@ -263,6 +263,11 @@ class PayMongoWebhookProcessor
             'updated_at' => $timestamp->toDateTimeString(),
         ]);
 
+        DB::table('payment_attempts')->where('id', $attempt->id)->update([
+            'ledger_entry_id' => $ledgerEntryId,
+            'updated_at' => $timestamp->toDateTimeString(),
+        ]);
+
         DB::table('student_profiles')->where('id', $attempt->student_profile_id)->update([
             'current_balance' => $newBalance,
             'updated_at' => $timestamp->toDateTimeString(),

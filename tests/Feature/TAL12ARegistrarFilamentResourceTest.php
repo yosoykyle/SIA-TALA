@@ -43,6 +43,10 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('markShipped', $source);
         $this->assertStringContainsString('confirmDocumentFee', $source);
         $this->assertStringContainsString('confirmShippingPayment', $source);
+        $this->assertStringContainsString('Payment::manualConfirmationChannelOptions()', $source);
+        $this->assertStringContainsString("TextInput::make('payment_reference')", $source);
+        $this->assertStringContainsString("DateTimePicker::make('confirmed_at')", $source);
+        $this->assertStringNotContainsString("'paymongo_reconciled' => 'PayMongo Reconciled'", $source);
     }
 
     public function test_document_requests_are_lifecycle_action_surfaces_not_generic_crud(): void

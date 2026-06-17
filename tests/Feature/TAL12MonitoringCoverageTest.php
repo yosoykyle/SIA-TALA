@@ -120,7 +120,13 @@ class TAL12MonitoringCoverageTest extends TestCase
             }
         };
 
-        (new ProcessPayMongoWebhookCall($webhookCallId))->handle($processor);
+        try {
+            (new ProcessPayMongoWebhookCall($webhookCallId))->handle($processor);
+
+            $this->fail('Webhook processing failures must be rethrown so the queue can retry the job.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('simulated webhook processor outage', $exception->getMessage());
+        }
 
         $webhookCall = DB::table('webhook_calls')->where('id', $webhookCallId)->first();
 

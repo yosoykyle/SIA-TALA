@@ -11,6 +11,7 @@ use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class PaymentConfirmationService
@@ -43,13 +44,30 @@ class PaymentConfirmationService
             throw new RuntimeException('Payment amount must be greater than zero.');
         }
 
-        $timestamp = $confirmedAt ?? CarbonImmutable::now(config('app.timezone'));
+        $normalizedChannel = strtolower(trim($channel));
 
-        return DB::transaction(function () use ($enrollmentId, $normalizedAmount, $channel, $paymentReference, $actor, $timestamp): array {
-            if ($paymentReference !== null && trim($paymentReference) !== '' && Payment::query()->where('payment_reference', $paymentReference)->exists()) {
-                throw new RuntimeException('Payment reference already exists.');
-            }
+        if (! array_key_exists($normalizedChannel, Payment::manualConfirmationChannelOptions())) {
+            throw new RuntimeException('Unsupported manual payment channel.');
+        }
 
+        $normalizedReference = trim((string) $paymentReference);
+
+        if ($normalizedReference === '') {
+            throw new RuntimeException('Payment reference is required.');
+        }
+
+        if (Str::length($normalizedReference) > 255) {
+            throw new RuntimeException('Payment reference must not exceed 255 characters.');
+        }
+
+        $now = CarbonImmutable::now(config('app.timezone'));
+        $timestamp = $confirmedAt ?? $now;
+
+        if ($timestamp->greaterThan($now)) {
+            throw new RuntimeException('Payment confirmation date cannot be in the future.');
+        }
+
+        return DB::transaction(function () use ($enrollmentId, $normalizedAmount, $normalizedChannel, $normalizedReference, $actor, $timestamp): array {
             $enrollment = Enrollment::query()
                 ->with(['studentProfile.user'])
                 ->lockForUpdate()
@@ -59,12 +77,20 @@ class PaymentConfirmationService
                 ->lockForUpdate()
                 ->findOrFail($enrollment->student_profile_id);
 
+            if (Payment::query()->where('payment_reference', $normalizedReference)->exists()) {
+                throw new RuntimeException('Payment reference already exists.');
+            }
+
+            if (! LedgerEntry::query()->where('enrollment_id', $enrollment->id)->where('entry_type', 'assessment')->exists()) {
+                throw new RuntimeException('Enrollment must be assessed before payment confirmation.');
+            }
+
             $payment = Payment::query()->create([
                 'student_profile_id' => $studentProfile->id,
                 'term_id' => $enrollment->term_id,
                 'enrollment_id' => $enrollment->id,
-                'payment_reference' => $paymentReference !== null && trim($paymentReference) !== '' ? trim($paymentReference) : null,
-                'channel' => $channel,
+                'payment_reference' => $normalizedReference,
+                'channel' => $normalizedChannel,
                 'amount' => $normalizedAmount,
                 'status' => 'confirmed',
                 'confirmed_at' => $timestamp,

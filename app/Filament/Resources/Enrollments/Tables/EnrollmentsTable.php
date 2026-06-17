@@ -6,10 +6,12 @@ use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Enrollment\EnrollmentHardCopyReceiptService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Models\Enrollment;
+use App\Models\Payment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -192,16 +194,18 @@ class EnrollmentsTable
                     ->minValue(0.01),
                 Select::make('channel')
                     ->required()
-                    ->options([
-                        'cash' => 'Cash',
-                        'gcash_manual' => 'GCash Manual',
-                        'bank_transfer' => 'Bank Transfer',
-                        'paymongo_reconciled' => 'PayMongo Reconciled',
-                    ])
+                    ->options(Payment::manualConfirmationChannelOptions())
                     ->default('cash'),
                 TextInput::make('payment_reference')
                     ->label('Reference Number')
+                    ->required()
                     ->maxLength(255),
+                DateTimePicker::make('confirmed_at')
+                    ->label('Payment Date')
+                    ->required()
+                    ->default(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
+                    ->maxDate(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
+                    ->seconds(false),
             ])
             ->modalSubmitActionLabel('Confirm Payment')
             ->visible(fn (Enrollment $record): bool => auth()->user()?->can('confirmPayment', $record) ?? false)
@@ -219,7 +223,7 @@ class EnrollmentsTable
                         channel: (string) $data['channel'],
                         paymentReference: isset($data['payment_reference']) ? (string) $data['payment_reference'] : null,
                         actor: $actor,
-                        confirmedAt: CarbonImmutable::now(config('app.timezone')),
+                        confirmedAt: CarbonImmutable::parse((string) $data['confirmed_at'], config('app.timezone')),
                     );
 
                     Notification::make()

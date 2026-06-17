@@ -225,7 +225,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
 | Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentAssessmentServiceTest` | **SDD-06A closed:** most-specific fee-template scope, tuition-only freshmen discount, idempotent ledger posting, and configured downpayment threshold are executable-test verified. |
-| Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, PayMongo webhook tests/resources | Keep ledger immutable, gateway idempotent, finance-clearance parity shared, and admin resources list/view or service-action only. |
+| Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/date/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, queue/resource tests | **SDD-06B closed:** typed manual confirmation, atomic immutable posting, provider idempotency/retry, overpayment, shared clearance, and list/view admin boundaries are executable-test verified. |
 | Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 8.8 | SOA balance evidence | accounting-side resource exists | Clarify/implement student request backend if needed before UI; promissory must not clear finance status. |
 | Accounting adjustments | FS 6.3, TS 8.8 | SOA corrections/balances | ledger list/view only | Build typed adjustment service/action only if UAT requires manual corrections. |
 
@@ -237,6 +237,16 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - Verified repeated assessment does not duplicate fee or discount ledger entries and preserves the calculated balance.
 - Verified configured minimum downpayment is calculated from net assessment: a payment below the threshold stays pending and meeting the threshold exactly triggers finance clearance and shared account handover.
 - Focused proof: `php artisan test --compact tests/Feature/EnrollmentAssessmentServiceTest.php`.
+
+**SDD-06B implementation evidence (2026-06-18)**
+
+- Linear mirror: `TAL-25` (Done), blocking the active `TAL-12` readiness gate and related to `TAL-24`.
+- Manual confirmation requires Accounting authorization, prior assessment, positive decimal amount, an allowed manual channel, normalized unique reference, and a non-future payment date.
+- The document-shipping confirmation action reuses the allowed manual channels, required unique reference, explicit payment date, and atomic payment/ledger posting boundary; document fulfillment state closure remains in SDD-07.
+- Payment, negative ledger credit, running balance, finance clearance/account handover, and audit evidence commit atomically; forced downstream failure is rollback-tested.
+- Overpayments remain standard immutable payment credits and produce a negative balance without a separate wallet transaction.
+- PayMongo processing row-locks the attempt, suppresses duplicate events, links the attempt and payment to one ledger entry, records processing errors, and rethrows so queue retries remain active.
+- Payment Attempt, Confirmed Payment, and Ledger Entry resources remain list/view-only; the Enrollment and document-shipping actions are the authorized typed manual confirmation surfaces.
 
 ### SDD-07: Documents, OCR, and Service Requests Closure
 
@@ -286,12 +296,12 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Continue with `SDD-06B: Payments/Ledger Closure`.
+Continue with `SDD-06C: Promissory Lifecycle Closure`.
 
 **Status context**
 
 - **Completed evidence:** SDD-01 through SDD-04 cover curriculum readiness, delivery groups, scheduling solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
 - **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
-- **Just closed:** SDD-06A verifies assessment/downpayment behavior through executable service tests.
-- **Active target:** SDD-06B audits payment/ledger immutability, idempotency, finance-clearance parity, and admin action boundaries.
+- **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries.
+- **Active target:** SDD-06C closes the student promissory-request backend and Accounting lifecycle while preserving the non-clearing finance rule.
 - **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.

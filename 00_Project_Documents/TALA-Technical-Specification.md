@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook processing now shares manual payment finance-clearance/account-handover behavior. |
 | 31.0 | 2026-06-18 | SubjectSuggestionService backend contract implemented for finalized grade history, back subjects, active INC, failed, and missing-history blockers. |
-| 32.0 | 2026-06-18 | StudentDashboardService backend contract implemented; SDD-06A assessment/downpayment behavior verified through executable service tests. |
+| 32.0 | 2026-06-18 | StudentDashboardService implemented; SDD-06A assessment/downpayment and SDD-06B payment/immutable-ledger behavior verified through executable service, webhook, queue, and admin-boundary tests. |
 
 ---
 
@@ -379,8 +379,6 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | `shipping_fee` | Deferred post-fulfillment courier charge. Posted as standard debt only if unpaid after 3 calendar days from shipment. |
 | `drop_fee` | ₱3,500 assessment triggered when officially withdrawing |
 | `adjustment` | Manual Correction |
-| `wallet_deposit` | Credit to `wallet_balance` from overpayment |
-| `wallet_credit` | Debit from `wallet_balance` applied to fees |
 | `legacy_balance_forward` | Initial balance imported from legacy SIA system via the Bulk Data Import Framework (§3.20). Posted during student seed (FS §8.8). |
 
 **Display Logic**: Portal groups transactions by type to show “Tuition vs. Misc vs. Discounts”
@@ -1709,7 +1707,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   TALA must not expose a standard refund approval action for Accounting, Registrar, Academic Head, or System Super Admin.
 -   LIS/system errors, cancelled enrollment, duplicate successful payments, and overpayments do not trigger PayMongo provider refunds or cash refund workflows.
 -   Duplicate webhook retries are suppressed by idempotency and do not create duplicate ledger entries.
--   A separate second successful payment is treated as an overpayment and routed to `wallet_deposit`.
+-   A separate second successful payment remains a standard immutable `payment` credit and may drive the ledger balance below zero; no separate wallet transaction is created.
 -   Cancelled or ineligible enrollment keeps immutable payment history for audit; access/COR/class-list state is changed separately from financial refund behavior.
 -   Any future refund capability requires a new approved policy, authorization contract, audit trail, and tests before implementation.
 
@@ -1876,13 +1874,13 @@ If OCR confidence is low, identity signals conflict, or the extracted text is in
 -   **Route**: `POST /api/webhooks/paymongo`, registered only after API routing is deliberately enabled for this Laravel 12 app because `routes/api.php` is not currently present.
 -   **Webhook Client**: `spatie/laravel-webhook-client` must be published/configured first because `config/webhook-client.php` is not currently present.
 -   **Signature Contract**: Verify the `Paymongo-Signature` header against the raw request body and webhook secret before processing. Invalid signatures are rejected without ledger effects.
--   **Storage Before Processing**: Store the webhook call in `webhook_calls` through Spatie Webhook Client before domain processing begins, including the payload and relevant headers needed for audit/replay.
--   **Response Contract**: Return an HTTP `2xx` JSON response quickly after signature validation and storage. Ledger mutations, enrollment transitions, wallet updates, and notifications run asynchronously from the stored webhook call.
+-   **Storage Before Processing**: After signature validation, store the webhook call in `webhook_calls` before dispatching domain processing, including the payload and relevant headers needed for audit/replay.
+-   **Response Contract**: Return an HTTP `2xx` JSON response quickly after signature validation and storage. Attempt, payment, ledger, student-balance, and eligible enrollment transitions run asynchronously from the stored webhook call.
 -   **Logic**: Receives payloads from PayMongo, normalizes PayMongo integer minor-unit amounts to ledger-safe decimal strings, creates immutable `payment` transactions from the queued processing job, and runs shared finance-clearance/account-handover evaluation when the payment attempt is linked to a real enrollment.
 -   **Accepted Events**: Hosted Checkout success is driven by `checkout_session.payment.paid`. `payment.paid` is accepted only when its provider payment/payment-intent reference maps to an existing TALA payment attempt. Unknown events are stored for audit and return `2xx` without ledger effects.
 -   **Redirect Boundary**: Return/success URLs from PayMongo are user-navigation hints only. The system must never mark a ledger payment as paid from the redirect URL alone.
--   **Idempotency**: The webhook logic uses both a cache lock and a database uniqueness guarantee on the composite idempotency key `{event_id}:{provider_checkout_session_id|provider_payment_id}` to prevent double-crediting if PayMongo retries the same event.
--   **Transactions**: Ledger writes, enrollment-state transitions, and wallet updates occur inside `DB::transaction()`; notifications and follow-up jobs dispatch with `afterCommit()`.
+-   **Idempotency**: The webhook processor locks the matched payment-attempt row inside the transaction and uses database uniqueness on the provider-derived payment reference and generated composite key `{event_id}:{provider_checkout_session_id|provider_payment_id}`. A paid attempt or existing provider payment reference is ignored without another ledger credit.
+-   **Transactions and Retry**: Attempt status, payment evidence, linked ledger credit, student balance, and finance-clearance/account-handover effects occur inside `DB::transaction()`. Processing failures are recorded on `webhook_calls` and rethrown so the queued job's configured retry/backoff policy remains effective.
 -   **Missed Event Reconciliation**: If webhook delivery is missed or the endpoint was unavailable, reconcile by retrieving the PayMongo payment intent, checkout session, or payment object by provider ID and applying the same idempotent processing path.
 -   **Sandbox Smoke Evidence Command**: `php artisan integrations:paymongo-sandbox-webhook-smoke --attempt-id=<id>` or `--checkout-session-id=<cs_test_id>` verifies the stored PayMongo webhook evidence after a sandbox checkout is completed. The command fails unless the selected attempt is `paid`, a provider event/reference is recorded, a PayMongo `webhook_calls` row is present, exactly one confirmed PayMongo `payments` row exists, and the linked `ledger_entries` row is a negative `payment` credit for the same amount. `--process-pending` may be used only for local smoke testing when the callback was stored but no queue worker processed it yet.
 
@@ -1897,6 +1895,8 @@ If OCR confidence is low, identity signals conflict, or the extracted text is in
 Manual reconciliation may mark a payment as paid only by retrieving the provider object through the PayMongo API and applying the same idempotent ledger-posting service used by webhooks.
 
 **Current TAL-12 Filament Mapping**: `PaymentAttemptResource` is the Accounting Payment Queue and `PaymentResource` is Confirmed Payments evidence. Both resources are list/view only. They must not register generic create/edit page routes, create/edit header actions, delete actions, or raw `meta`/provider-reference forms. Payment attempts are created by checkout/manual-upload/service workflows, and payment records are created by webhook processing, manual confirmation, or reconciliation services. Any manual confirmation UI must be an authorized Accounting action that validates amount, reference, date, and eligible state before posting ledger effects.
+
+**Current SDD-06B Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, and audit evidence atomically. The authorized document-shipping confirmation action reuses the same channel, reference, explicit-date, and atomic posting boundary without closing the remaining SDD-07 fulfillment scope. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
 
 #### 3.14.2 Document Request Fulfillment Service
 

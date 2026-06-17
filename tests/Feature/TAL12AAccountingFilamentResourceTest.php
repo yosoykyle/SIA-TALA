@@ -184,6 +184,13 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             $this->assertStringNotContainsString('CreateAction::make()', $source);
             $this->assertStringNotContainsString('EditAction::make()', $source);
         }
+
+        $enrollmentTable = $this->resourceSource('Enrollments/Tables/EnrollmentsTable.php');
+
+        $this->assertStringContainsString('Payment::manualConfirmationChannelOptions()', $enrollmentTable);
+        $this->assertStringContainsString("TextInput::make('payment_reference')", $enrollmentTable);
+        $this->assertStringContainsString("DateTimePicker::make('confirmed_at')", $enrollmentTable);
+        $this->assertStringNotContainsString("'paymongo_reconciled'", $enrollmentTable);
     }
 
     public function test_ledger_entries_are_immutable_evidence_not_generic_crud(): void

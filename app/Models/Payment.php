@@ -13,6 +13,18 @@ class Payment extends Model
     use HasFactory;
 
     /**
+     * @return array<string, string>
+     */
+    public static function manualConfirmationChannelOptions(): array
+    {
+        return [
+            'cash' => 'Cash',
+            'gcash_manual' => 'GCash Manual',
+            'bank_transfer' => 'Bank Transfer',
+        ];
+    }
+
+    /**
      * @var list<string>
      */
     protected $fillable = [

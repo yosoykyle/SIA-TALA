@@ -76,6 +76,13 @@ class PayMongoWebhookMockContractTest extends TestCase
             'running_balance' => '0.00',
         ]);
 
+        $ledgerEntryId = (int) DB::table('ledger_entries')->where('reference_id', $paymentId)->value('id');
+
+        $this->assertDatabaseHas('payment_attempts', [
+            'id' => $attemptId,
+            'ledger_entry_id' => $ledgerEntryId,
+        ]);
+
         $this->assertSame('0.00', number_format((float) DB::table('student_profiles')->where('id', $studentProfileId)->value('current_balance'), 2, '.', ''));
     }
 

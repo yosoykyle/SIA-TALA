@@ -43,6 +43,8 @@ class ProcessPayMongoWebhookCall implements ShouldQueue
                 'exception' => $exception::class.': '.$exception->getMessage(),
                 'updated_at' => CarbonImmutable::now(config('app.timezone'))->toDateTimeString(),
             ]);
+
+            throw $exception;
         }
     }
 }

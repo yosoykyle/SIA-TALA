@@ -30,9 +30,10 @@ class EnrollmentFinanceClearanceService
         ?User $actor,
         CarbonImmutable $timestamp,
     ): array {
-        $minimumRequiredPayment = $this->minimumRequiredPayment($enrollment, $studentProfile);
+        $netAssessment = $this->netAssessment($enrollment);
+        $minimumRequiredPayment = $this->minimumRequiredPayment($enrollment, $studentProfile, $netAssessment);
         $totalConfirmedPayments = $this->totalConfirmedPayments($enrollment);
-        $financeCleared = $this->shouldClearFinance($enrollment, $currentBalance, $minimumRequiredPayment, $totalConfirmedPayments);
+        $financeCleared = $this->shouldClearFinance($enrollment, $currentBalance, $minimumRequiredPayment, $totalConfirmedPayments, $netAssessment);
 
         if ($financeCleared) {
             if (! in_array($enrollment->status, ['pre_enrolled', 'officially_enrolled'], true)) {
@@ -53,9 +54,8 @@ class EnrollmentFinanceClearanceService
         ];
     }
 
-    private function minimumRequiredPayment(Enrollment $enrollment, StudentProfile $studentProfile): string
+    private function minimumRequiredPayment(Enrollment $enrollment, StudentProfile $studentProfile, string $netAssessment): string
     {
-        $netAssessment = $this->netAssessment($enrollment);
         $feeTemplate = $this->feeTemplateFromAssessment($enrollment)
             ?? $this->resolveFeeTemplate($enrollment, $studentProfile);
         $percentage = $feeTemplate instanceof FeeTemplate
@@ -85,8 +85,12 @@ class EnrollmentFinanceClearanceService
         return $this->money->normalize((string) $sum);
     }
 
-    private function shouldClearFinance(Enrollment $enrollment, string $currentBalance, string $minimumRequiredPayment, string $totalConfirmedPayments): bool
+    private function shouldClearFinance(Enrollment $enrollment, string $currentBalance, string $minimumRequiredPayment, string $totalConfirmedPayments, string $netAssessment): bool
     {
+        if (! $this->money->greaterThanZero($netAssessment)) {
+            return false;
+        }
+
         if ($this->hasActivePromissory($enrollment)) {
             return false;
         }

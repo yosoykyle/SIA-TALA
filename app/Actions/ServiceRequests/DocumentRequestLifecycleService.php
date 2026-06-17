@@ -12,6 +12,7 @@ use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -258,13 +259,31 @@ class DocumentRequestLifecycleService
             throw new RuntimeException('Shipping payment amount must be greater than zero.');
         }
 
-        $normalizedReference = $paymentReference !== null && trim($paymentReference) !== ''
-            ? trim($paymentReference)
-            : null;
-        $timestamp = $confirmedAt ?? CarbonImmutable::now(config('app.timezone'));
+        $normalizedChannel = strtolower(trim($channel));
 
-        return DB::transaction(function () use ($request, $cashier, $normalizedAmount, $channel, $normalizedReference, $timestamp): DocumentRequest {
-            if ($normalizedReference !== null && Payment::query()->where('payment_reference', $normalizedReference)->exists()) {
+        if (! array_key_exists($normalizedChannel, Payment::manualConfirmationChannelOptions())) {
+            throw new RuntimeException('Unsupported manual payment channel.');
+        }
+
+        $normalizedReference = trim((string) $paymentReference);
+
+        if ($normalizedReference === '') {
+            throw new RuntimeException('Payment reference is required.');
+        }
+
+        if (Str::length($normalizedReference) > 255) {
+            throw new RuntimeException('Payment reference must not exceed 255 characters.');
+        }
+
+        $now = CarbonImmutable::now(config('app.timezone'));
+        $timestamp = $confirmedAt ?? $now;
+
+        if ($timestamp->greaterThan($now)) {
+            throw new RuntimeException('Payment confirmation date cannot be in the future.');
+        }
+
+        return DB::transaction(function () use ($request, $cashier, $normalizedAmount, $normalizedChannel, $normalizedReference, $timestamp): DocumentRequest {
+            if (Payment::query()->where('payment_reference', $normalizedReference)->exists()) {
                 throw new RuntimeException('Payment reference already exists.');
             }
 
@@ -297,7 +316,7 @@ class DocumentRequestLifecycleService
                 'term_id' => $locked->term_id,
                 'enrollment_id' => null,
                 'payment_reference' => $normalizedReference,
-                'channel' => $channel,
+                'channel' => $normalizedChannel,
                 'amount' => $normalizedAmount,
                 'status' => 'confirmed',
                 'confirmed_at' => $timestamp,

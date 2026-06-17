@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling/curriculum SDD closure: delivery patterns, section delivery groups, scoped curriculum readiness, staff-assisted modality capture, schedule publish lifecycle, and workload override boundaries approved. |
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook payments now share the finance-clearance/account-handover contract with manual Accounting payment confirmation. |
 | 31.0 | 2026-06-18 | Subject suggestion backend contract finalized around registrar-verified grade history, back subjects, active INC, failed, and missing-history blockers. |
-| 32.0 | 2026-06-18 | Student dashboard backend contract finalized; accounting assessment/downpayment contract verified for scoped fee templates, tuition-only freshmen discounts, idempotent ledger posting, and configured finance-clearance thresholds. |
+| 32.0 | 2026-06-18 | Student dashboard backend finalized; SDD-06A assessment/downpayment and SDD-06B payment/immutable-ledger contracts verified, including typed manual confirmation, PayMongo retry/idempotency, overpayment, and finance-clearance parity. |
 
 ---
 
@@ -999,7 +999,10 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 - **Workflow**: Student uploads a GCash screenshot, bank deposit slip, or physical receipt.
 - **Validation**: Cashier manually reviews the uploaded image, comparing it against bank records, and enters the **Amount**, **Reference Number**, and **Date** into the system before clicking confirm.
+- **Allowed Manual Channels**: Enrollment payment confirmation accepts Cash, GCash Manual, or Bank Transfer. PayMongo reconciliation is not a typed manual channel; a missed PayMongo event must retrieve the provider object and use the idempotent provider-processing path.
+- **Eligibility Rule**: The enrollment must already have assessment ledger evidence. A blank reference, unsupported channel, non-positive amount, future payment date, or duplicate normalized reference is rejected before ledger effects are committed.
 - **Atomic Trigger**: Once "Confirmed" by Cashier, the ledger updates instantly.
+- **Atomicity Rule**: Payment evidence, its negative ledger credit, the student's running balance, finance-clearance evaluation, account handover, and audit evidence commit as one transaction or roll back together.
 - **Admin Surface Boundary**: Payment Queue and Confirmed Payments are not generic payment CRUD modules. `payment_attempts` are created by checkout/manual upload/service workflows and confirmed through approved Accounting actions. `payments` are immutable evidence records created by webhook processing, manual confirmation, or reconciliation services. Accounting may view, filter, confirm eligible queued attempts, and inspect ledger evidence, but must not create or edit arbitrary `payment_attempts` or `payments` through generic forms.
 
 **Mode C: Promissory Note (Promise Tracking Only)**
