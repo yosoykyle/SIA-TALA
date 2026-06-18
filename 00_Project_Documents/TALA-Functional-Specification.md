@@ -44,6 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-17 | PayMongo linked-enrollment webhook payments now share the finance-clearance/account-handover contract with manual Accounting payment confirmation. |
 | 31.0 | 2026-06-18 | Subject suggestion backend contract finalized around registrar-verified grade history, back subjects, active INC, failed, and missing-history blockers. |
 | 32.0 | 2026-06-18 | Student dashboard backend finalized; SDD-06A assessment/downpayment and SDD-06B payment/immutable-ledger contracts verified, including typed manual confirmation, PayMongo retry/idempotency, overpayment, and finance-clearance parity. |
+| 33.0 | 2026-06-18 | SDD-06C promissory lifecycle and SDD-06D typed Accounting adjustment workflow finalized; financial corrections use audited service posts, not raw ledger CRUD. |
 
 ---
 
@@ -1085,7 +1086,10 @@ The Student Hub financial view must display the following information to the stu
 
 ### 6.3 Real-Time Ledger Synchronization (Atomic Rules)
 
-- **Immutable Records**: All financial entries (assessments, payments, credits) are **Write-Once**. Errors are corrected via "Reversal" transactions, never via deletion
+- **Immutable Records**: All financial entries (assessments, payments, credits, and accounting adjustments) are **Write-Once**. Errors are corrected via typed Accounting adjustments and reversal transactions, never via deletion or direct ledger editing.
+- **Correction Workflow**: Accounting/Cashier may post only three approved correction types: student-account debit, student-account credit, and ledger-entry reversal. Each correction requires authorization, a selected student, a reason, a non-future posting date, and optional evidence reference. Term/enrollment/source ledger selections must be scoped to the selected student.
+- **Reversal Rule**: A ledger-entry reversal posts the exact opposite of the selected source ledger entry and blocks duplicate reversal of the same source entry. It does not delete, edit, or hide the original record.
+- **Handover Boundary**: Accounting adjustments update the student's running balance and future financial status calculations, but they do not silently undo an already completed finance-cleared account handover, remove the student role, or change `Pre-Enrolled`/`OfficiallyEnrolled` status. Any enrollment/access rollback requires a separate approved workflow.
 - **State Synchronization**: If a student pays at 10:00 AM and the Cashier confirms at 10:05 AM, the Student Hub and Faculty Class Lists reflect the "Paid" status at 10:06 AM
 
 ---

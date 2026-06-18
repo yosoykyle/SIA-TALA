@@ -63,6 +63,7 @@ class DatabaseSeeder extends Seeder
             'process-payments',
             'create-assessments',
             'apply-discounts',
+            'post-accounting-adjustments',
             'approve-promissory-notes',
             'encode-grades',
             'finalize-grades',
@@ -127,6 +128,7 @@ class DatabaseSeeder extends Seeder
             'process-payments',
             'create-assessments',
             'apply-discounts',
+            'post-accounting-adjustments',
             'approve-promissory-notes',
             'view-cor',
         ]);

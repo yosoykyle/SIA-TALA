@@ -63,7 +63,7 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | Academic foundation | `ProgramResource`, `SubjectResource`, `CurriculumResource`, `TermResource`, `SectionResource`, `RoomResource`; `AcademicFoundationFilamentResourceTest`; `CurriculumImportServiceTest`. |
 | Scheduling | `SectionPlanningService`, `DeliveryPatternService`, `SectionDeliveryGroupService`, `EnrollmentSectioningService`, `FacultyAvailabilityService`, `FacultyAvailabilityChangeRequestService`, `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleCloudResultIngestor`, `ScheduleDraftRowReviewService`, `ScheduleCommitService`, `SchedulePublishService`; scheduling resources/tests; `DeliveryPatternResource`, `SectionDeliveryGroupResource`, Section delivery-groups relation manager, delivery-group-aware Official Schedules and Schedule Draft review actions; Cloud Run solver package now parses/enforces `section_delivery_group_id`; deployed revision `tala-scheduler-solver-00004-wtx` passed authenticated `/health`, authenticated `/solve`, and unauthenticated 403 IAM smoke proof. |
 | Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `ApplicantIntakeService`, `StudentEnrollmentService`, `SubjectSuggestionService`, `StudentDashboardService`, `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources plus TAL-13 applicant, enrollment, subject-suggestion, and dashboard backend contracts exist. |
-| Finance | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, `InstallmentPolicyService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`; payment, webhook, and assessment tests. |
+| Finance | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, `InstallmentPolicyService`, `AccountingAdjustmentService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`, `AccountingAdjustmentResource`; payment, webhook, assessment, promissory, and accounting-adjustment tests. |
 | Documents/OCR/requests | `DocumentUploadReviewService`, `DocumentRequestLifecycleService`, `ServiceRequestLifecycleService`; document/request Filament resources and tests. |
 | Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, SHS/College grading services; class-list, grades, and grade-correction resources/tests. |
 | Student Hub access | `/student/*` route protection and FAQ/help consumption are tested. `StudentDashboardService` now provides the dashboard aggregate contract for profile, enrollment, schedule, financials, finalized grades, requests, holds, notifications, and published FAQ/help links before UI work. |
@@ -227,7 +227,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Assessment/downpayment | FS 6.1-6.2, TS 3.12 | `shs-tf.md`, SOA files | `EnrollmentAssessmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentAssessmentServiceTest` | **SDD-06A closed:** most-specific fee-template scope, tuition-only freshmen discount, idempotent ledger posting, and configured downpayment threshold are executable-test verified. |
 | Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/date/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, queue/resource tests | **SDD-06B closed:** typed manual confirmation, atomic immutable posting, provider idempotency/retry, overpayment, shared clearance, and list/view admin boundaries are executable-test verified. |
 | Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 2.6.1, TS 8.8 | SOA balance evidence, RA 11984 benchmark | `PromissoryNoteLifecycleService`, `ExamAccessDecisionService`, Accounting resources/actions | **SDD-06C closed:** applicant/student-owner backend request, staff-assisted pending creation, Accounting approve/reject/cancel, payment-driven settlement, deadline processing, and separate exam-access accommodations are executable-test verified. |
-| Accounting adjustments | FS 6.3, TS 8.8 | SOA corrections/balances | ledger list/view only | Build typed adjustment service/action only if UAT requires manual corrections. |
+| Accounting adjustments | FS 6.3, TS 3.12, TS 8.8 | SOA corrections/balances, accounting-log/manual-receipt workflow evidence, finance correction benchmarks | `AccountingAdjustmentService`, `accounting_adjustments`, `AccountingAdjustmentResource`, `LedgerEntryResource` list/view-only evidence | **SDD-06D closed:** typed debit, credit, and ledger-entry reversal workflow posts one audited adjustment plus one immutable ledger entry; generic ledger CRUD remains forbidden. |
 
 **SDD-06A implementation evidence (2026-06-18)**
 
@@ -257,6 +257,16 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 - `ProcessPromissoryNoteDeadlinesJob` is scheduled at `00:45` Asia/Manila and dedupes expiring/expired notifications with timestamp fields.
 - Exam access exceptions are separate `ExamAccessAccommodation` records. RA 11984 certification and institution-discretion cases can allow exam access without finance clearance, while certification evidence remains private and student/faculty/public responses receive only the high-level decision.
 - Focused proof: `php artisan test --compact tests/Feature/PromissoryNoteLifecycleServiceTest.php tests/Feature/ExamAccessDecisionServiceTest.php tests/Feature/SDD06CPromissoryFilamentWorkflowTest.php tests/Feature/PaymentConfirmationServiceTest.php tests/Feature/InstallmentPolicyServiceTest.php`.
+
+**SDD-06D implementation evidence (2026-06-18)**
+
+- Added `accounting_adjustments` as the audit record for manual Accounting corrections, linked to the selected student, optional term/enrollment/source ledger entry, generated ledger entry, reason, evidence reference, posting timestamp, and poster.
+- Added `AccountingAdjustmentService` as the sole manual correction path. It requires `post-accounting-adjustments`, validates reason/evidence/date/scope, row-locks the student profile, posts inside a transaction, updates `student_profiles.current_balance`, and writes activity-log evidence.
+- Supported adjustment types are `student_account_debit`, `student_account_credit`, and `ledger_entry_reversal`. Reversal posts the exact opposite amount of the selected source ledger entry and rejects duplicate reversal of that source.
+- Added `AccountingAdjustmentResource` as a typed Accounting surface with list/create/view only. Create delegates to the service; list/view use descriptive student, enrollment, source-ledger, posted-ledger, and poster labels; edit/delete/bulk-delete remain unavailable.
+- Added `post-accounting-adjustments` permission and assigned it to the Accounting role. Existing `LedgerEntryResource` remains immutable list/view evidence and now includes accounting-adjustment filter values.
+- Accounting adjustments update balances but intentionally do not create refunds, edit payments, or silently undo finance-cleared account handover/enrollment access. Any such rollback requires a separate approved workflow.
+- Focused proof: `php artisan test --compact tests/Feature/SDD06DAccountingAdjustmentServiceTest.php` and `php artisan test --compact tests/Feature/TAL12AAccountingFilamentResourceTest.php`.
 
 ### SDD-07: Documents, OCR, and Service Requests Closure
 
@@ -306,12 +316,12 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Continue with `SDD-06D: Accounting Adjustments Decision`.
+Continue with `SDD-07: Documents, OCR, and Service Requests Closure`.
 
 **Status context**
 
 - **Completed evidence:** SDD-01 through SDD-04 cover curriculum readiness, delivery groups, scheduling solver/runtime/ingestion/commit/publish, Cloud Run smoke proof, and Admin/System foundation boundaries.
 - **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
-- **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries; SDD-06C verifies promissory lifecycle, payment-driven settlement, deadline processing, and exam-access accommodation separation.
-- **Active target:** SDD-06D decides whether UAT requires a typed Accounting adjustment service/action or whether immutable ledger evidence is sufficient for MVP.
+- **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries; SDD-06C verifies promissory lifecycle, payment-driven settlement, deadline processing, and exam-access accommodation separation; SDD-06D verifies typed Accounting adjustments without generic ledger CRUD.
+- **Active target:** SDD-07 closes document upload review, document requests, and service-request lifecycle behavior before Pre-UAT QA.
 - **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.

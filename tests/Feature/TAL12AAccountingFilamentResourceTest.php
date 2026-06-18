@@ -13,6 +13,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'PaymentAttempts/PaymentAttemptResource.php',
             'Payments/PaymentResource.php',
             'LedgerEntries/LedgerEntryResource.php',
+            'AccountingAdjustments/AccountingAdjustmentResource.php',
             'InstallmentPolicies/InstallmentPolicyResource.php',
         ] as $relativePath) {
             $source = $this->resourceSource($relativePath);
@@ -39,6 +40,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
             'PaymentPolicy.php' => 'process-payments',
             'PaymentAttemptPolicy.php' => 'process-payments',
             'LedgerEntryPolicy.php' => 'process-payments',
+            'AccountingAdjustmentPolicy.php' => 'post-accounting-adjustments',
             'PromissoryNotePolicy.php' => 'approve-promissory-notes',
             'InstallmentPolicyPolicy.php' => 'create-assessments',
         ];
@@ -55,6 +57,7 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
     {
         $checks = [
             'FeeTemplates/Schemas/FeeTemplateForm.php' => ['tuition_fee', 'laboratory_fee', 'misc_fee', 'other_fee', 'minimum_downpayment_percentage'],
+            'AccountingAdjustments/Schemas/AccountingAdjustmentForm.php' => ['student_profile_id', 'adjustment_type', 'source_ledger_entry_id', 'amount', 'evidence_reference', 'posted_at', 'reason'],
             'PromissoryNotes/Schemas/PromissoryNoteForm.php' => ['amount', 'due_date', 'reason'],
             'InstallmentPolicies/Schemas/InstallmentPolicyForm.php' => ['max_months', 'grace_days', 'penalty_rate', 'penalty_frequency', 'due_day_rule'],
         ];
@@ -66,6 +69,49 @@ class TAL12AAccountingFilamentResourceTest extends TestCase
                 $this->assertStringContainsString("'{$field}'", $source, "{$relativePath} should contain {$field}.");
             }
         }
+    }
+
+    public function test_accounting_adjustments_are_typed_service_posts_not_generic_crud(): void
+    {
+        foreach ([
+            'AccountingAdjustments/Pages/EditAccountingAdjustment.php',
+        ] as $relativePath) {
+            $this->assertFileDoesNotExist(app_path("Filament/Resources/{$relativePath}"));
+        }
+
+        $resource = $this->resourceSource('AccountingAdjustments/AccountingAdjustmentResource.php');
+        $form = $this->resourceSource('AccountingAdjustments/Schemas/AccountingAdjustmentForm.php');
+        $infolist = $this->resourceSource('AccountingAdjustments/Schemas/AccountingAdjustmentInfolist.php');
+        $table = $this->resourceSource('AccountingAdjustments/Tables/AccountingAdjustmentsTable.php');
+        $createPage = $this->resourceSource('AccountingAdjustments/Pages/CreateAccountingAdjustment.php');
+        $viewPage = $this->resourceSource('AccountingAdjustments/Pages/ViewAccountingAdjustment.php');
+        $ledgerTable = $this->resourceSource('LedgerEntries/Tables/LedgerEntriesTable.php');
+        $policy = file_get_contents(app_path('Policies/AccountingAdjustmentPolicy.php'));
+
+        $this->assertIsString($policy);
+        $this->assertStringContainsString("'create'", $resource);
+        $this->assertStringNotContainsString("'edit'", $resource);
+        $this->assertStringContainsString('AccountingAdjustment::enrollmentOptionsFor', $form);
+        $this->assertStringContainsString('AccountingAdjustment::sourceLedgerOptionsFor', $form);
+        $this->assertStringContainsString("DateTimePicker::make('posted_at')", $form);
+        $this->assertStringContainsString("TextInput::make('amount')", $form);
+        $this->assertStringContainsString("Textarea::make('reason')", $form);
+        $this->assertStringContainsString('AccountingAdjustmentService', $createPage);
+        $this->assertStringContainsString('->post($data, $actor', $createPage);
+        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
+        $this->assertStringNotContainsString('EditAction::make()', $table);
+        $this->assertStringNotContainsString('DeleteBulkAction::make()', $table);
+        $this->assertStringContainsString('ViewAction::make()', $table);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.student_id')", $infolist);
+        $this->assertStringContainsString("TextEntry::make('studentProfile.user.name')", $infolist);
+        $this->assertStringContainsString('AccountingAdjustment::sourceLedgerOptionLabel', $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('student_profile_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('term_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('enrollment_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('ledger_entry_id')", $infolist);
+        $this->assertStringNotContainsString("TextEntry::make('posted_by')", $infolist);
+        $this->assertStringContainsString('post-accounting-adjustments', $policy);
+        $this->assertStringContainsString("'accounting_adjustment' => 'Accounting Adjustment'", $ledgerTable);
     }
 
     public function test_installment_policy_milestones_are_child_schedule_rows_not_generic_crud(): void

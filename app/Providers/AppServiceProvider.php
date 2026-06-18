@@ -16,6 +16,7 @@ use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdToke
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Http\Middleware\EnsureActiveStudentHubUser;
+use App\Models\AccountingAdjustment;
 use App\Models\CurriculumSubject;
 use App\Models\DeliveryPattern;
 use App\Models\ExamAccessAccommodation;
@@ -25,6 +26,7 @@ use App\Models\FacultyAvailabilitySubmission;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Observers\CurriculumSubjectObserver;
+use App\Policies\AccountingAdjustmentPolicy;
 use App\Policies\ActivityPolicy;
 use App\Policies\DeliveryPatternPolicy;
 use App\Policies\ExamAccessAccommodationPolicy;
@@ -147,6 +149,7 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);
+        Gate::policy(AccountingAdjustment::class, AccountingAdjustmentPolicy::class);
         Gate::policy(Section::class, SectionPolicy::class);
         Gate::policy(DeliveryPattern::class, DeliveryPatternPolicy::class);
         Gate::policy(ExamAccessAccommodation::class, ExamAccessAccommodationPolicy::class);
