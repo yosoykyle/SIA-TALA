@@ -29,7 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('T.A.L.A. System')
-            ->brandLogo(asset('images/icons/icon-128x128.png'))
+            ->brandLogo(asset('talalogo.jpg'))
             ->colors([
                 'primary' => Color::Blue,
             ])

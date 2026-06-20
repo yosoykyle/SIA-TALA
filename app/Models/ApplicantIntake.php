@@ -130,14 +130,47 @@ class ApplicantIntake extends Model
         return $this->hasMany(DocumentUpload::class);
     }
 
+    public function applicantDocumentRequirements(): HasMany
+    {
+        return $this->hasMany(ApplicantDocumentRequirement::class);
+    }
+
+    public function retentionDocumentUndertakings(): HasMany
+    {
+        return $this->hasMany(RetentionDocumentUndertaking::class);
+    }
+
     /**
      * @return list<string>
      */
     public function requiredDocumentTypes(): array
     {
+        if ($this->exists && $this->applicantDocumentRequirements()->exists()) {
+            return $this->applicantDocumentRequirements()
+                ->orderBy('id')
+                ->pluck('item_key')
+                ->all();
+        }
+
         $documents = $this->required_documents ?? [];
 
         return array_values(array_filter($documents, 'is_string'));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function admissionGateDocumentTypes(): array
+    {
+        if ($this->exists && $this->applicantDocumentRequirements()->exists()) {
+            return $this->applicantDocumentRequirements()
+                ->where('gate_type', DocumentRequirementItem::GateTypeAdmission)
+                ->orderBy('id')
+                ->pluck('item_key')
+                ->all();
+        }
+
+        return $this->requiredDocumentTypes();
     }
 
     /**
@@ -156,5 +189,32 @@ class ApplicantIntake extends Model
     public function hasAllApprovedRequiredDocuments(): bool
     {
         return $this->missingApprovedDocumentTypes() === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function missingSubmittedAdmissionGateDocumentTypes(): array
+    {
+        $submittedDocuments = $this->documentUploads()
+            ->select('document_type')
+            ->distinct()
+            ->pluck('document_type')
+            ->all();
+
+        return array_values(array_diff($this->admissionGateDocumentTypes(), $submittedDocuments));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function missingApprovedAdmissionGateDocumentTypes(): array
+    {
+        $approvedDocuments = $this->documentUploads()
+            ->where('ocr_review_status', DocumentUpload::ReviewStatusRegistrarApproved)
+            ->pluck('document_type')
+            ->all();
+
+        return array_values(array_diff($this->admissionGateDocumentTypes(), $approvedDocuments));
     }
 }

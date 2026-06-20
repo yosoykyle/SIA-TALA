@@ -4,6 +4,7 @@ namespace App\Actions\Applicants;
 
 use App\Actions\Fortify\PasswordValidationRules;
 use App\Jobs\ProcessDocumentOcrJob;
+use App\Models\ApplicantDocumentRequirement;
 use App\Models\ApplicantIntake;
 use App\Models\DocumentUpload;
 use App\Models\Program;
@@ -23,6 +24,11 @@ class ApplicantIntakeService
 {
     use PasswordValidationRules;
 
+    public function __construct(
+        private AdmissionRequirementResolver $requirementResolver,
+        private RetentionDocumentUndertakingService $retentionDocumentUndertakings,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $data
      *
@@ -41,9 +47,10 @@ class ApplicantIntakeService
         }
 
         $timestamp = CarbonImmutable::now(config('app.timezone'));
-        $requiredDocuments = $this->requiredDocumentsFor($validated);
+        $requirementResolution = $this->requirementResolver->resolve($validated, $term);
+        $requiredDocuments = $requirementResolution->documentKeys();
 
-        return DB::transaction(function () use ($validated, $term, $timestamp, $requiredDocuments): ApplicantIntake {
+        return DB::transaction(function () use ($validated, $term, $timestamp, $requiredDocuments, $requirementResolution): ApplicantIntake {
             $user = User::query()->create([
                 ...User::staffNamePayload(
                     (string) $validated['first_name'],
@@ -104,6 +111,8 @@ class ApplicantIntakeService
                 ],
             ]);
 
+            $this->materializeDocumentRequirements($intake, $requirementResolution);
+
             $this->recordActivity(
                 subject: $intake,
                 event: 'applicant_intake_created',
@@ -154,9 +163,13 @@ class ApplicantIntakeService
             $locked = ApplicantIntake::query()
                 ->lockForUpdate()
                 ->findOrFail($intake->id);
+            $requirement = $locked->applicantDocumentRequirements()
+                ->where('item_key', $validated['document_type'])
+                ->first();
 
             $documentUpload = DocumentUpload::query()->create([
                 'applicant_intake_id' => $locked->id,
+                'applicant_document_requirement_id' => $requirement?->id,
                 'student_profile_id' => null,
                 'user_id' => $locked->user_id,
                 'term_id' => $locked->term_id,
@@ -174,6 +187,12 @@ class ApplicantIntakeService
                     ? $timestamp
                     : null,
             ]);
+
+            if ($requirement instanceof ApplicantDocumentRequirement) {
+                $requirement->forceFill([
+                    'evidence_state' => ApplicantDocumentRequirement::EvidenceStateSubmitted,
+                ])->save();
+            }
 
             if ($locked->status === ApplicantIntake::StatusActionRequired) {
                 $locked->forceFill([
@@ -211,17 +230,11 @@ class ApplicantIntakeService
      */
     public function submitForRegistrarEvaluation(ApplicantIntake $intake): ApplicantIntake
     {
-        $missingDocuments = $intake->documentUploads()
-            ->select('document_type')
-            ->distinct()
-            ->pluck('document_type')
-            ->all();
-
-        $missingDocuments = array_values(array_diff($intake->requiredDocumentTypes(), $missingDocuments));
+        $missingDocuments = $intake->missingSubmittedAdmissionGateDocumentTypes();
 
         if ($missingDocuments !== []) {
             throw ValidationException::withMessages([
-                'required_documents' => 'All required document types must be uploaded before Registrar evaluation.',
+                'required_documents' => 'All admission-gate document types must be uploaded before Registrar evaluation.',
             ]);
         }
 
@@ -265,11 +278,11 @@ class ApplicantIntakeService
             ]);
         }
 
-        $missingDocuments = $intake->missingApprovedDocumentTypes();
+        $missingDocuments = $intake->missingApprovedAdmissionGateDocumentTypes();
 
         if ($missingDocuments !== []) {
             throw ValidationException::withMessages([
-                'required_documents' => 'Every required applicant document must be Registrar-approved before payment unlock.',
+                'required_documents' => 'Every admission-gate applicant document must be Registrar-approved before payment unlock.',
             ]);
         }
 
@@ -296,6 +309,8 @@ class ApplicantIntakeService
             $locked->user()->update([
                 'status' => User::StatusApplicantApproved,
             ]);
+
+            $this->retentionDocumentUndertakings->openForApprovedIntake($locked, $registrar, $timestamp);
 
             $this->recordActivity(
                 subject: $locked,
@@ -476,43 +491,6 @@ class ApplicantIntakeService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return list<string>
-     */
-    private function requiredDocumentsFor(array $data): array
-    {
-        if ($data['education_level'] === 'college') {
-            return [
-                'psa_birth_certificate',
-                'grade_11_card',
-                'grade_12_card',
-                'form_137',
-                'good_moral',
-                'diploma',
-            ];
-        }
-
-        if ($this->isGrade11($data['year_level']) && $data['applicant_type'] === ApplicantIntake::ApplicantTypeNew) {
-            return [
-                'psa_birth_certificate',
-                'diploma',
-                'grade_10_card',
-                'form_137',
-                'good_moral',
-                'af5',
-            ];
-        }
-
-        return [
-            'psa_birth_certificate',
-            'diploma',
-            'grade_11_card',
-            'form_137',
-            'good_moral',
-        ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
      */
     private function isFreshmenDiscountEligible(array $data): bool
     {
@@ -526,6 +504,33 @@ class ApplicantIntakeService
             'grade 11',
             '11',
         ], true);
+    }
+
+    private function materializeDocumentRequirements(
+        ApplicantIntake $intake,
+        AdmissionRequirementResolution $resolution,
+    ): void {
+        foreach ($resolution->items as $item) {
+            ApplicantDocumentRequirement::query()->create([
+                'applicant_intake_id' => $intake->id,
+                'admission_offering_id' => $resolution->offering->id,
+                'admission_requirement_policy_id' => $resolution->policy->id,
+                'document_requirement_item_id' => $item->id,
+                'item_key' => $item->key,
+                'label' => $item->label,
+                'gate_type' => $item->gate_type,
+                'permitted_evidence_methods' => $item->permitted_evidence_methods,
+                'storage_class' => $item->storage_class,
+                'sensitivity_class' => $item->sensitivity_class,
+                'ocr_policy' => $item->ocr_policy,
+                'deadline_strategy' => $item->deadline_strategy,
+                'evidence_state' => ApplicantDocumentRequirement::EvidenceStatePending,
+                'meta' => [
+                    'policy_version' => $resolution->policy->version,
+                    'source_item_key' => $item->key,
+                ],
+            ]);
+        }
     }
 
     /**

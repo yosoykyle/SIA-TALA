@@ -2,6 +2,7 @@
 
 use App\Jobs\ProcessInstallmentOverduesJob;
 use App\Jobs\ProcessPromissoryNoteDeadlinesJob;
+use App\Jobs\ProcessRetentionDocumentUndertakingsJob;
 use App\Jobs\ShippingFeeEnforcerJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -24,4 +25,9 @@ Schedule::job(new ShippingFeeEnforcerJob)
 Schedule::job(new ProcessPromissoryNoteDeadlinesJob)
     ->name('promissory-notes.process-deadlines')
     ->dailyAt('00:45')
+    ->withoutOverlapping();
+
+Schedule::job(new ProcessRetentionDocumentUndertakingsJob)
+    ->name('retention-documents.process-undertakings')
+    ->dailyAt('01:00')
     ->withoutOverlapping();

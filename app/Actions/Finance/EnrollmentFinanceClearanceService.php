@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AdmissionCapacityReservationService;
+use App\Actions\Enrollment\AdmissionFinanceReadinessGateService;
 use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\Enrollment;
 use App\Models\FeeTemplate;
@@ -17,6 +19,8 @@ class EnrollmentFinanceClearanceService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly StudentEnrollmentService $studentEnrollmentService,
+        private readonly AdmissionCapacityReservationService $capacityReservations,
+        private readonly AdmissionFinanceReadinessGateService $admissionReadinessGate,
     ) {}
 
     /**
@@ -35,6 +39,26 @@ class EnrollmentFinanceClearanceService
         $financeCleared = $this->shouldClearFinance($enrollment, $currentBalance, $minimumRequiredPayment, $totalConfirmedPayments, $netAssessment);
 
         if ($financeCleared) {
+            $this->admissionReadinessGate->assertReadyForFinanceClearance($enrollment, $studentProfile, $timestamp);
+
+            $payment = Payment::query()
+                ->where('enrollment_id', $enrollment->id)
+                ->where('status', 'confirmed')
+                ->latest('confirmed_at')
+                ->latest('id')
+                ->first();
+            $ledgerEntry = $payment instanceof Payment && $payment->ledger_entry_id !== null
+                ? LedgerEntry::query()->find((int) $payment->ledger_entry_id)
+                : null;
+
+            $this->capacityReservations->secureForFinanceClearedEnrollment(
+                enrollment: $enrollment,
+                studentProfile: $studentProfile,
+                payment: $payment,
+                ledgerEntry: $ledgerEntry,
+                securedAt: $timestamp,
+            );
+
             if (! in_array($enrollment->status, ['pre_enrolled', 'officially_enrolled'], true)) {
                 $enrollment->forceFill([
                     'status' => 'pre_enrolled',

@@ -47,6 +47,7 @@ class DatabaseSeeder extends Seeder
             'request-documents',
             'request-grade-corrections',
             'approve-documents',
+            'manage-admission-setup',
             'manage-grade-corrections',
             'manage-document-requests',
             'manage-curricula',
@@ -106,6 +107,7 @@ class DatabaseSeeder extends Seeder
 
         Role::findByName('registrar')->syncPermissions([
             'approve-documents',
+            'manage-admission-setup',
             'manage-document-requests',
             'manage-curricula',
             'manage-terms',

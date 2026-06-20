@@ -5,11 +5,30 @@ namespace Tests\Feature;
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\PromissoryNoteLifecycleService;
+use App\Models\AdmissionCapacityPlan;
+use App\Models\AdmissionCapacityReservation;
+use App\Models\AdmissionOffering;
+use App\Models\AdmissionRequirementPolicy;
+use App\Models\ApplicantDocumentRequirement;
+use App\Models\ApplicantIntake;
+use App\Models\Curriculum;
+use App\Models\CurriculumReadinessScope;
+use App\Models\CurriculumSubject;
+use App\Models\DocumentRequirementItem;
 use App\Models\Enrollment;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
+use App\Models\FacultySubjectEligibility;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PromissoryNote;
+use App\Models\ScheduleGenerationRun;
+use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
+use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
+use App\Models\Subject;
 use App\Models\Term;
 use App\Models\User;
 use App\Support\DecimalMoney;
@@ -17,6 +36,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -273,6 +293,179 @@ class PaymentConfirmationServiceTest extends TestCase
         $this->assertSame(PromissoryNote::StatusSettled, $note->refresh()->status);
     }
 
+    public function test_finance_clearance_secures_every_matching_capacity_plan(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->paymentContext(
+            assessmentAmount: '100.00',
+            currentBalance: '100.00',
+        );
+        $campusPlan = AdmissionCapacityPlan::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'scope_type' => AdmissionCapacityPlan::ScopeCampus,
+            'capacity_limit' => 2,
+            'reserved_count' => 0,
+        ]);
+        $programPlan = AdmissionCapacityPlan::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'scope_type' => AdmissionCapacityPlan::ScopeProgram,
+            'education_level' => $studentProfile->education_level,
+            'program_id' => $studentProfile->program_id,
+            'capacity_limit' => 1,
+            'reserved_count' => 0,
+        ]);
+
+        $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $enrollment->id,
+            amount: '100.00',
+            channel: 'cash',
+            paymentReference: 'OR-CAPACITY',
+            actor: $accounting,
+        );
+
+        $this->assertTrue($summary['finance_cleared']);
+        $this->assertSame(2, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+        $this->assertSame(1, $campusPlan->refresh()->reserved_count);
+        $this->assertSame(1, $programPlan->refresh()->reserved_count);
+        $this->assertDatabaseHas(AdmissionCapacityReservation::class, [
+            'admission_capacity_plan_id' => $campusPlan->id,
+            'enrollment_id' => $enrollment->id,
+            'status' => AdmissionCapacityReservation::StatusSecured,
+        ]);
+    }
+
+    public function test_capacity_reservation_is_idempotent_for_already_cleared_enrollment(): void
+    {
+        [$enrollment, $studentProfile] = $this->paymentContext(
+            assessmentAmount: '100.00',
+            currentBalance: '0.00',
+        );
+        $plan = AdmissionCapacityPlan::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'scope_type' => AdmissionCapacityPlan::ScopeCampus,
+            'capacity_limit' => 1,
+            'reserved_count' => 0,
+        ]);
+        $timestamp = CarbonImmutable::now(config('app.timezone'));
+
+        $service = app(EnrollmentFinanceClearanceService::class);
+        $first = $service->clearIfEligible($enrollment, $studentProfile, '0.00', null, $timestamp);
+        $second = $service->clearIfEligible($enrollment->fresh(), $studentProfile->fresh(), '0.00', null, $timestamp->addMinute());
+
+        $this->assertTrue($first['finance_cleared']);
+        $this->assertTrue($second['finance_cleared']);
+        $this->assertSame(1, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+        $this->assertSame(1, $plan->refresh()->reserved_count);
+    }
+
+    public function test_full_capacity_blocks_finance_clearance_and_rolls_back_payment(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->paymentContext(
+            assessmentAmount: '100.00',
+            currentBalance: '100.00',
+        );
+        AdmissionCapacityPlan::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'scope_type' => AdmissionCapacityPlan::ScopeCampus,
+            'capacity_limit' => 1,
+            'reserved_count' => 1,
+        ]);
+
+        try {
+            app(PaymentConfirmationService::class)->confirmManualPayment(
+                enrollmentId: $enrollment->id,
+                amount: '100.00',
+                channel: 'cash',
+                paymentReference: 'OR-FULL-CAPACITY',
+                actor: $accounting,
+            );
+
+            $this->fail('Expected full capacity to block finance clearance.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('admission_capacity', $exception->errors());
+        }
+
+        $this->assertSame('pending_payment', $enrollment->fresh()->status);
+        $this->assertDatabaseMissing(Payment::class, [
+            'payment_reference' => 'OR-FULL-CAPACITY',
+        ]);
+        $this->assertSame('100.00', $studentProfile->fresh()->current_balance);
+        $this->assertSame(0, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+    }
+
+    public function test_admission_finance_clearance_requires_an_approved_capacity_plan_before_handover(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->admissionPaymentContext(
+            withCapacityPlan: false,
+        );
+
+        try {
+            app(PaymentConfirmationService::class)->confirmManualPayment(
+                enrollmentId: $enrollment->id,
+                amount: '100.00',
+                channel: 'cash',
+                paymentReference: 'OR-ADMISSION-NO-CAPACITY',
+                actor: $accounting,
+            );
+
+            $this->fail('Expected admission readiness to require an approved capacity plan.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('admission_capacity', $exception->errors());
+        }
+
+        $this->assertSame('pending_payment', $enrollment->fresh()->status);
+        $this->assertDatabaseMissing(Payment::class, [
+            'payment_reference' => 'OR-ADMISSION-NO-CAPACITY',
+        ]);
+        $this->assertSame('100.00', $studentProfile->fresh()->current_balance);
+        $this->assertSame(0, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+    }
+
+    public function test_admission_finance_clearance_requires_a_published_schedule_before_handover(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->admissionPaymentContext(
+            withPublishedSchedule: false,
+        );
+
+        try {
+            app(PaymentConfirmationService::class)->confirmManualPayment(
+                enrollmentId: $enrollment->id,
+                amount: '100.00',
+                channel: 'cash',
+                paymentReference: 'OR-ADMISSION-NO-SCHEDULE',
+                actor: $accounting,
+            );
+
+            $this->fail('Expected admission readiness to require a published schedule.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('schedule_publish', $exception->errors());
+        }
+
+        $this->assertSame('pending_payment', $enrollment->fresh()->status);
+        $this->assertDatabaseMissing(Payment::class, [
+            'payment_reference' => 'OR-ADMISSION-NO-SCHEDULE',
+        ]);
+        $this->assertSame('100.00', $studentProfile->fresh()->current_balance);
+        $this->assertSame(0, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+    }
+
+    public function test_admission_finance_clearance_completes_when_admin_readiness_is_configured(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->admissionPaymentContext();
+
+        $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $enrollment->id,
+            amount: '100.00',
+            channel: 'cash',
+            paymentReference: 'OR-ADMISSION-READY',
+            actor: $accounting,
+        );
+
+        $this->assertTrue($summary['finance_cleared']);
+        $this->assertSame('pre_enrolled', $enrollment->fresh()->status);
+        $this->assertSame('0.00', $studentProfile->fresh()->current_balance);
+        $this->assertSame(1, AdmissionCapacityReservation::query()->where('enrollment_id', $enrollment->id)->count());
+    }
+
     public function test_finance_clearance_failure_rolls_back_payment_ledger_balance_and_audit(): void
     {
         [$enrollment, $studentProfile, $accounting] = $this->paymentContext();
@@ -350,5 +543,192 @@ class PaymentConfirmationServiceTest extends TestCase
         $accounting->givePermissionTo(Permission::findOrCreate('process-payments'));
 
         return [$enrollment, $studentProfile, $accounting];
+    }
+
+    /**
+     * @return array{Enrollment, StudentProfile, User}
+     */
+    private function admissionPaymentContext(
+        bool $withCapacityPlan = true,
+        bool $withPublishedSchedule = true,
+    ): array {
+        [$enrollment, $studentProfile, $accounting] = $this->paymentContext(
+            assessmentAmount: '100.00',
+            currentBalance: '100.00',
+        );
+
+        $this->materializeApplicantChecklist($enrollment, $studentProfile);
+        [$section, $group, $subject, $faculty] = $this->readySchedulingSetup($enrollment, $studentProfile);
+
+        if ($withCapacityPlan) {
+            AdmissionCapacityPlan::factory()->create([
+                'term_id' => $enrollment->term_id,
+                'scope_type' => AdmissionCapacityPlan::ScopeProgram,
+                'education_level' => $studentProfile->education_level,
+                'program_id' => $studentProfile->program_id,
+                'year_level' => $enrollment->year_level,
+                'delivery_setup' => $enrollment->modality,
+                'capacity_limit' => 1,
+                'reserved_count' => 0,
+            ]);
+        }
+
+        if ($withPublishedSchedule) {
+            $this->publishedSchedule($enrollment, $section, $group, $subject, $faculty);
+        }
+
+        return [$enrollment, $studentProfile, $accounting];
+    }
+
+    private function materializeApplicantChecklist(Enrollment $enrollment, StudentProfile $studentProfile): void
+    {
+        $intake = ApplicantIntake::factory()->create([
+            'user_id' => $studentProfile->user_id,
+            'term_id' => $enrollment->term_id,
+            'program_id' => $studentProfile->program_id,
+            'education_level' => $studentProfile->education_level,
+            'year_level' => $enrollment->year_level,
+            'applicant_type' => ApplicantIntake::ApplicantTypeNew,
+            'preferred_modality' => $enrollment->modality,
+            'status' => ApplicantIntake::StatusApproved,
+            'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
+            'approved_at' => now(),
+        ]);
+        $offering = AdmissionOffering::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'program_id' => $studentProfile->program_id,
+            'education_level' => $studentProfile->education_level,
+            'year_level' => $enrollment->year_level,
+        ]);
+        $policy = AdmissionRequirementPolicy::factory()->create([
+            'admission_offering_id' => $offering->id,
+        ]);
+        $item = DocumentRequirementItem::factory()->create([
+            'admission_requirement_policy_id' => $policy->id,
+        ]);
+
+        ApplicantDocumentRequirement::factory()->create([
+            'applicant_intake_id' => $intake->id,
+            'admission_offering_id' => $offering->id,
+            'admission_requirement_policy_id' => $policy->id,
+            'document_requirement_item_id' => $item->id,
+            'item_key' => $item->key,
+            'label' => $item->label,
+            'gate_type' => $item->gate_type,
+            'evidence_state' => ApplicantDocumentRequirement::EvidenceStateSatisfied,
+        ]);
+    }
+
+    /**
+     * @return array{Section, SectionDeliveryGroup, Subject, User}
+     */
+    private function readySchedulingSetup(Enrollment $enrollment, StudentProfile $studentProfile): array
+    {
+        $curriculum = Curriculum::factory()->create([
+            'program_id' => $studentProfile->program_id,
+        ]);
+        $section = Section::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'program_id' => $studentProfile->program_id,
+            'curriculum_id' => $curriculum->id,
+            'year_level' => $enrollment->year_level,
+            'curriculum_period' => '1st Semester',
+            'max_seats' => 30,
+            'enrolled_count' => 0,
+            'modality' => $enrollment->modality,
+        ]);
+        $group = SectionDeliveryGroup::factory()->create([
+            'section_id' => $section->id,
+            'modality' => $enrollment->modality,
+            'capacity' => 30,
+            'assigned_count' => 0,
+            'room_required' => true,
+            'room' => 'R-101',
+            'status' => SectionDeliveryGroup::StatusActive,
+        ]);
+        $subject = Subject::factory()->create();
+        CurriculumSubject::factory()->create([
+            'curriculum_id' => $curriculum->id,
+            'subject_id' => $subject->id,
+            'year_level' => $enrollment->year_level,
+            'semester' => '1st Semester',
+        ]);
+        CurriculumReadinessScope::query()->updateOrCreate(
+            [
+                'curriculum_id' => $curriculum->id,
+                'year_level' => $enrollment->year_level,
+                'curriculum_period' => '1st Semester',
+            ],
+            [
+                'status' => CurriculumReadinessScope::StatusReadyForScheduling,
+                'last_transition_at' => now(),
+                'last_blockers' => [],
+            ],
+        );
+
+        $faculty = User::factory()->create();
+        $registrar = User::factory()->create();
+        $period = FacultyAvailabilityPeriod::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'status' => FacultyAvailabilityPeriod::StatusLocked,
+            'created_by' => $registrar->id,
+            'locked_at' => now(),
+        ]);
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $enrollment->term_id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'locked_at' => now(),
+            'approved_by' => $registrar->id,
+            'approved_at' => now(),
+        ]);
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+        ]);
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => $enrollment->term_id,
+            'approved_by' => $registrar->id,
+        ]);
+
+        return [$section, $group, $subject, $faculty];
+    }
+
+    private function publishedSchedule(
+        Enrollment $enrollment,
+        Section $section,
+        SectionDeliveryGroup $group,
+        Subject $subject,
+        User $faculty,
+    ): void {
+        $run = ScheduleGenerationRun::query()->create([
+            'term_id' => $enrollment->term_id,
+            'status' => ScheduleGenerationRun::StatusPublished,
+            'requested_by' => $faculty->id,
+            'generated_at' => now(),
+            'committed_by' => $faculty->id,
+            'committed_at' => now(),
+            'published_by' => $faculty->id,
+            'published_at' => now(),
+            'constraint_summary' => [],
+        ]);
+
+        SectionMeeting::query()->create([
+            'term_id' => $enrollment->term_id,
+            'section_id' => $section->id,
+            'section_delivery_group_id' => $group->id,
+            'subject_id' => $subject->id,
+            'faculty_id' => $faculty->id,
+            'room' => 'R-101',
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:00:00',
+            'modality' => $enrollment->modality,
+            'schedule_generation_run_id' => $run->id,
+            'committed_by' => $faculty->id,
+            'committed_at' => now(),
+        ]);
     }
 }

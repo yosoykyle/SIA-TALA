@@ -2,6 +2,8 @@
 
 namespace App\Actions\Registrar;
 
+use App\Actions\Applicants\RetentionDocumentUndertakingService;
+use App\Models\ApplicantDocumentRequirement;
 use App\Models\DocumentUpload;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -11,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class DocumentUploadReviewService
 {
+    public function __construct(
+        private RetentionDocumentUndertakingService $retentionDocumentUndertakings,
+    ) {}
+
     /**
      * @throws AuthorizationException
      * @throws ValidationException
@@ -92,6 +98,8 @@ class DocumentUploadReviewService
                     : $locked->registrar_approved_payload,
             ])->save();
 
+            $this->syncApplicantRequirementState($locked, $registrar, $status, $timestamp);
+
             $this->recordActivity($locked, $registrar, $event, $status, $normalizedReason, $timestamp);
 
             return $locked->refresh();
@@ -126,6 +134,58 @@ class DocumentUploadReviewService
         }
 
         return $normalized;
+    }
+
+    private function syncApplicantRequirementState(
+        DocumentUpload $documentUpload,
+        User $registrar,
+        string $status,
+        CarbonImmutable $timestamp,
+    ): void {
+        $requirement = $documentUpload->applicantDocumentRequirement;
+
+        if (! $requirement instanceof ApplicantDocumentRequirement && $documentUpload->applicant_intake_id !== null) {
+            $requirement = ApplicantDocumentRequirement::query()
+                ->where('applicant_intake_id', $documentUpload->applicant_intake_id)
+                ->where('item_key', $documentUpload->document_type)
+                ->first();
+        }
+
+        if (! $requirement instanceof ApplicantDocumentRequirement) {
+            return;
+        }
+
+        $state = match ($status) {
+            DocumentUpload::ReviewStatusRegistrarApproved => ApplicantDocumentRequirement::EvidenceStateSatisfied,
+            DocumentUpload::ReviewStatusNeedsCorrection => ApplicantDocumentRequirement::EvidenceStateNeedsCorrection,
+            DocumentUpload::ReviewStatusRejected => ApplicantDocumentRequirement::EvidenceStateRejected,
+            default => ApplicantDocumentRequirement::EvidenceStateSubmitted,
+        };
+
+        $requirement->forceFill([
+            'evidence_state' => $state,
+            'satisfied_by_document_upload_id' => $status === DocumentUpload::ReviewStatusRegistrarApproved
+                ? $documentUpload->id
+                : $requirement->satisfied_by_document_upload_id,
+            'satisfied_method' => $status === DocumentUpload::ReviewStatusRegistrarApproved
+                ? 'registrar_approved_upload'
+                : $requirement->satisfied_method,
+            'satisfied_by' => $status === DocumentUpload::ReviewStatusRegistrarApproved
+                ? $registrar->id
+                : $requirement->satisfied_by,
+            'satisfied_at' => $status === DocumentUpload::ReviewStatusRegistrarApproved
+                ? $timestamp
+                : $requirement->satisfied_at,
+        ])->save();
+
+        if ($status === DocumentUpload::ReviewStatusRegistrarApproved) {
+            $this->retentionDocumentUndertakings->resolveForRequirement(
+                requirement: $requirement,
+                documentUpload: $documentUpload,
+                registrar: $registrar,
+                resolvedAt: $timestamp,
+            );
+        }
     }
 
     private function recordActivity(

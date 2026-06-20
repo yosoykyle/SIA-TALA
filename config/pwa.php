@@ -27,9 +27,9 @@ return [
         'theme_color' => '#6777ef',
         'icons' => [
             [
-                'src' => 'logo.png',
+                'src' => 'talalogo.jpg',
                 'sizes' => '512x512',
-                'type' => 'image/png',
+                'type' => 'image/jpeg',
             ],
         ],
     ],

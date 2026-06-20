@@ -45,6 +45,18 @@ Versioning rule: major version increments once per update date; same-day updates
 | 31.0 | 2026-06-18 | SubjectSuggestionService backend contract implemented for finalized grade history, back subjects, active INC, failed, and missing-history blockers. |
 | 32.0 | 2026-06-18 | StudentDashboardService implemented; SDD-06A assessment/downpayment and SDD-06B payment/immutable-ledger behavior verified through executable service, webhook, queue, and admin-boundary tests. |
 | 33.0 | 2026-06-18 | SDD-06C promissory lifecycle and SDD-06D AccountingAdjustmentService/Resource finalized; financial corrections are typed, audited service posts with no generic ledger CRUD. |
+| 34.0 | 2026-06-18 | SDD-07A document-lifecycle audit started; versioned Registrar-managed admission requirements, mandatory physical receipt for the current deployment, requirement-specific deadlines, calendar-bound admission capacity, one canonical `Enrolled` state, external-only DepEd LIS handling, enrolled-roster export, institutional-placement handling, and policy-resolved financial dispositions are recorded. |
+| 35.0 | 2026-06-19 | SDD-07A enrolled-roster output finalized as a generic filter-scoped CSV/XLSX export with audited generation and no regulator-specific template or completion state. |
+| 36.0 | 2026-06-19 | Comprehensive workflow reconciliation: superseded blanket physical-document gating with admission-gate plus retention-undertaking architecture; rebaselined tentative/secured placement; removed debt-based exam denial; added grading-profile, progression, finance-reconciliation, typed student-status, and graduation implementation gates; and linked the workflow traceability matrix. |
+| 37.0 | 2026-06-19 | SDD-07A admissions benchmark adopted: one admission state machine resolves published offerings and composable, versioned requirement rules across education level, entry route, prior credential, citizenship/compliance, program/grade scope, and purpose-limited support attributes. Initial public offerings are Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer; returning students use assisted readmission with controlled legacy onboarding; cross-enrollee remains inactive. The hybrid storage contract now assigns explicit treatment to credential files, official transmissions, restricted medical/support evidence, generated artifacts, imports, OCR derivatives, structured records, and physical custody. |
+| 38.0 | 2026-06-19 | SDD-07A composed-profile decisions locked ALS as an ALS Junior High School-to-Grade 11 pathway only for the current deployment and foreign compliance as inactive by default until institution acceptance and legal stay/study authorization evidence rules are approved. |
+| 39.0 | 2026-06-19 | SDD-07A support-profile decision locked IP and disability/SEN as optional purpose-limited support attributes that may collect restricted evidence for approved accommodations/support only and must not become admission-denial routes. |
+| 40.0 | 2026-06-19 | SDD-07A readiness/capacity decision locked mature-SIS order: term/calendar, offering/policy, capacity plan, curriculum/subjects, sections/delivery groups, faculty availability/eligibility, and official schedule readiness must precede payment clearance and enrollment handover unless explicitly overridden; OR-backed payment secures capacity across applicable capacity-plan stack. |
+| 41.0 | 2026-06-19 | SDD-07A Old Curriculum SHS ambiguity closed: client clarification plus benchmark evidence routes old-curriculum high-school graduates to the Old Curriculum College prior-credential pathway when otherwise eligible. The Old Curriculum SHS row is retained only as inactive trace evidence and has no public route, resolver fallback, or publishable seed policy in the current deployment. |
+| 42.0 | 2026-06-19 | SDD-07A implementation started: added versioned admission offering/policy/document-item tables, applicant checklist snapshots, resolver-driven intake creation, fail-closed missing/ambiguous offering behavior, admission-gate-only payment approval, retention-item non-blocking behavior, and checklist-state sync from document upload review. |
+| 43.0 | 2026-06-19 | SDD-07A retention undertaking lifecycle implemented at the backend level: pending retention checklist items create itemized undertakings on payment approval, undertakings attach to student/enrollment context during applicant handover, approved document review resolves matching undertakings, and scheduled processing marks overdue undertakings with documentary/next-cycle hold evidence without canceling current enrollment. |
+| 44.0 | 2026-06-19 | SDD-07A capacity reservation backend implemented: approved admission capacity plans and OR-backed reservations now enforce configured campus/education/program/year/delivery stacks during finance clearance, create idempotent secured reservations per enrollment/plan, and roll back the payment/ledger post when configured capacity is full. |
+| 45.0 | 2026-06-19 | Added goal-state UI acceptance contract for test-case derivation: Filament owns staff Admin Nexus resources/actions/widgets; TallStackUI/Livewire owns applicant and Student Hub flows; master test cases track implemented, in-progress, and envisioned behavior without treating pass/fail as TS execution status. Added splash/loading/PWA acceptance constraints and local test-evidence traceability. |
 
 ---
 
@@ -174,6 +186,64 @@ Example usage in Blade templates:
 
 **Architecture Decision**: T.A.L.A. uses a **hybrid document storage model**.
 
+> **SDD-07A DECISION HOLD (2026-06-19):** The generic pipeline, all four initial public-offering requirement contracts, Old Curriculum College pathway, inactive/no-public-route Old Curriculum SHS trace row, ALS Junior High School-to-Grade 11 pathway, inactive-by-default foreign compliance profile, purpose-limited IP/SEN support attributes, readiness-gated payment/enrollment handover, stacked capacity-plan enforcement, returning/legacy boundary, inactive cross-enrollee behavior, composable admission dimensions, and deterministic fail-closed resolution are approved. Versioned requirements, per-item evidence, immutable history, capacity locking, and typed services are retained controls.
+
+**Versioned Admission Requirement Contract**:
+
+- `admission_offerings` owns the term-scoped applicant-facing route. It records education level, entry route, prior-credential pathway, citizenship/compliance profile, optional program/strand and grade/year scope, publication window/state, capacity-plan reference, and active requirement-policy version. Unpublished offerings cannot receive public or Registrar-assisted intake.
+- Initial seed data creates draft templates for all approved workflow profiles but publishes only Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer for UAT. Cross-enrollee remains inactive. Old curriculum and ALS are controlled prior-credential pathway values; foreign is a compliance profile; IP and disability/SEN are purpose-limited support attributes. ALS is enabled only as `als_jhs` under Regular SHS Grade 11 for the current deployment. Foreign compliance templates are unpublished until a scoped offering and evidence policy are institution-approved. None creates a separate service or state machine.
+- Draft requirement templates reproduce the client-declared admission/retention rows in FS 4.1.2 with source/version provenance. Seeding is not publication: activation validates non-empty coverage, regulator-compatible evidence methods/deadlines, deterministic resolution, and authorized Registrar approval. A binding regulator rule may change the active method or deadline without deleting the traceable client baseline.
+- `admission_requirement_policies` owns immutable Registrar-authored policy versions. `admission_requirement_rules` contains structured match criteria over approved dimensions plus explicit priority; publication validates that every offering resolves deterministically and rejects equal-priority conflicts, unknown dimensions, or missing coverage.
+- `document_requirement_items` owns the ordered normalized document-type keys produced by a policy rule plus `gate_type` (`admission` or `retention`), permitted evidence methods, storage class, sensitivity class, OCR policy, verified-field mapping, deadline strategy, retention policy, and nullable policy parameters. Items are configuration records, not applicant submissions. Admission and retention classification is scope/version specific; no deployment-wide all-physical constant is permitted.
+- `applicant_document_requirements` materializes the selected requirement-item snapshot for one applicant intake. It owns separate digital-review and physical-receipt states independently from whether a digital file currently exists, allowing a Registrar to record a walk-in physical inspection before an optional scan is attached.
+- A requirement policy moves through typed draft/active/retired states. Activation rejects overlapping or incomplete rules that would make an offering's resolution ambiguous or impossible.
+- `AdmissionRequirementResolver` resolves the published offering and composes its active base and conditional rules when an applicant intake starts. It stores the offering and source policy/rule versions plus an immutable requirement snapshot on the intake so later configuration changes do not rewrite historical applicant obligations.
+- Missing or ambiguous resolution blocks intake for that scope and produces a staff-facing setup error. The service must not fall back silently to a hardcoded list.
+- Registrar maintains requirement sets through a typed Filament workflow with version/activation actions and audit evidence. Arbitrary per-applicant requirement names and generic delete of activated history are forbidden.
+- The existing hardcoded `ApplicantIntakeService::requiredDocumentsFor()` matrix is transitional code and must be replaced by the resolver during SDD-07A.
+
+**Unified Submission Channel Contract**:
+
+- `self_service` and `registrar_assisted` are submission-channel values on one document lifecycle. They do not create separate applicant, requirement, or review models.
+- Self-service requires an authenticated applicant-owned upload action. Registrar-assisted intake requires the authorized Registrar actor and may record physical inspection with no attachment or attach a scan to private storage.
+- Every submitted file links to the applicable `applicant_document_requirements` row and records channel, submitting actor, and submission time. Replacement evidence remains historically linked instead of overwriting the prior file.
+- OCR dispatch requires an attached digital file and an OCR-enabled requirement type. A Registrar-assisted physical inspection without a scan never dispatches OCR.
+- Both channels use the same completeness, review, correction, rejection, and approval services. Channel-specific controller or Filament code must not duplicate state-transition rules.
+
+**Per-Item Compliance Contract**:
+
+- Each materialized requirement snapshots `gate_type`, permitted evidence methods, review state, due-date policy, and labels. Required items cannot be waived ad hoc.
+- Evidence state distinguishes `not_required`, `pending`, `submitted`, `approved`, `needs_correction`, `rejected`, `overdue`, and `satisfied`, while the satisfaction record identifies the accepted method (for example physical original, certified copy, or regulator-permitted official transmission), actor, timestamp, and evidence reference.
+- Applicant uploads, Registrar scans, and OCR output remain preliminary unless the snapshot explicitly permits that method as final evidence. OCR never establishes authenticity.
+- Admission-gate completeness is an activation prerequisite. Retention items may remain pending after enrollment only through an itemized undertaking with issue date, due date, responsible party, reminders, extensions, receipt history, and resolution.
+- `RetentionDocumentDeadlineResolver` derives the due date within the active deployment policy and term calendar. The current institution's ordinary target window is 30-to-60 days, selected per requirement/undertaking; no universal seven-day default is permitted.
+- `document_requirement_extensions` preserves prior/new deadlines, reason, actor, and timestamp. Scheduled monitoring marks overdue items, sends deduplicated notifications, and applies only configured documentary/next-cycle holds. It never silently cancels an active enrollment or removes section/COR/class access.
+- Runtime implementation currently materializes retention undertakings in `retention_document_undertakings` as one row per pending retention checklist item. Approval for payment creates active undertakings, handover attaches student/enrollment context, Registrar document approval resolves the undertaking, and `ProcessRetentionDocumentUndertakingsJob` marks due active undertakings overdue with `retention_document_overdue` hold evidence. Notification delivery and explicit extension workflow remain admin-surface follow-up work.
+- `DocumentComplianceService` derives admission completeness, retention obligations, missing labels, and hold reasons from the checklist. `student_profiles.hard_copy_received` is transitional compatibility data and must not remain an independent source of truth.
+- For Regular SHS, `DocumentComplianceService` evaluates two admission outcomes: verified identity and verified Grade 10 completion/eligibility. The materialized checklist records the specific accepted method and authority; it must not hardcode possession of a PSA certificate and physical Form 138 as the only valid combination. Good Moral, 2x2 photo, Certificate of Completion, and Form 137 default to retention/follow-up items for this scope.
+- Official school-to-school delivery is an external channel with an internal receipt record. MVP uses Registrar-assisted entry of sender/school, channel, receipt timestamp, provenance, verification, and optional private artifact; it does not integrate with DepEd LIS, email servers, or previous-school systems. Undertakings, deadlines, reminders, and holds are TALA-owned records. Alternative identity evidence uses the ordinary private upload/verification lifecycle.
+- For Regular College Freshman, admission outcomes are verified identity, verified SHS completion/eligibility, and accepted Good Moral evidence for the current deployment. Diploma/Certificate of Graduation and one normalized ID-photo obligation default to retention/follow-up. Policy publication rejects duplicate photo items with the same purpose.
+- College entrance-exam completion/result is stored as a structured admission assessment linked to the intake. No score threshold affects eligibility until a versioned admission-assessment policy defines the exam, scoring/version, passing or placement effect, effective scope, and approving authority. An uploaded screenshot is never the authoritative exam result.
+- For SHS Transfer, admission outcomes are verified identity and verified latest-completed-grade eligibility. `AdmissionRequirementResolver` derives the applicable prior-grade evidence from the target grade and must not hardcode `Grade 12 grades`. Good Moral, one normalized ID-photo item, official transfer credentials, and Form 137 default to retention/follow-up.
+- `official_transmission` records are Registrar-created receipt/provenance records, not external-system integrations. Electronic artifacts are retained privately and checksummed; physical-only receipt creates a custody/inspection event without fabricating a file. Both methods may satisfy only requirement items whose active policy permits that evidence method.
+- For College Transfer, admission outcomes are verified identity, sufficient preliminary academic evidence for credit/eligibility evaluation, verified transfer-release eligibility, and accepted Good Moral evidence for the current deployment. Final TOR, remaining non-duplicate official transfer evidence, and one normalized ID-photo item default to retention/follow-up.
+- `document_types` must distinguish `honorable_dismissal` as transfer-release evidence from `final_tor` as the authoritative academic record. A generic `official_transfer_credentials` label may group staff display but must not materialize a duplicate obligation when its purpose is already satisfied by a specific item.
+- `old_curriculum` is a College prior-credential pathway, not an applicant type or separate state machine. It composes with Regular College Freshman and substitutes verified old-high-school eligibility evidence for SHS completion evidence. Requirement materialization deduplicates Form 137 when it already served as the accepted admission evidence and does not add a generic Certificate of Completion unless an active rule identifies the credential and purpose.
+- The workflow's `Old Curriculum SHS` row is retained only as inactive trace evidence from the client baseline. It is not seeded as a publishable offering in the current deployment because the clarified learner scenario is an old-curriculum high-school graduate continuing to College. It has no public route, no resolver fallback, and no hardcoded requirement list. Any future adult/remedial SHS route requires a separate client-approved scenario, target grade, eligibility authority, and non-conflicting requirement policy.
+- `als_jhs` is a Regular SHS Grade 11 prior-credential pathway only. Publication validation fails if ALS is attached to College, SHS transfer, Grade 12 transfer, or a non-Grade-11 offering in the current deployment. Requirement materialization requires one authoritative ALS Junior High School-level eligibility outcome and deduplicates Certificate of Rating, Certificate of Completion, and portfolio-assessment evidence when they prove the same Grade 11 eligibility purpose. Good Moral, photo, and any remaining ALS record default to retention unless the active policy marks a specific item as an admission gate with a recorded reason.
+- `foreign` is a citizenship/compliance profile, not an applicant type or separate state machine. Publication validation fails unless the base offering is published, institution acceptance of foreign applicants is recorded for the term/scope, and the active policy requires legal stay/study authorization evidence appropriate to the offering. College and other higher-than-high-school offerings must distinguish Student Visa 9(f) evidence; basic-education, short-term, exchange, and non-degree cases must use the configured legal-stay or Special Study Permit evidence method where applicable. Passport, visa, permit, immigration, medical, and English-proficiency files use `restricted_support_file` controls by default. TALA stores evidence, verification state, deadlines, and holds only; it has no external immigration/regulator integration or status mutation.
+- IP and disability/SEN are optional support attributes, not applicant types, routes, or denial-producing dimensions. Requirement resolution must not add an admission gate solely because one of these attributes is present. Support evidence may be materialized only when a configured support purpose exists, such as scholarship/support program eligibility, culture-responsive coordination, accessibility accommodation, safety planning, or legally required inclusive-education service. IP/community, medical, psychological, functional, accessibility, and accommodation files use `restricted_support_file` controls, disable OCR by default, and require a purpose tag, role-scoped authorization, access audit, retention policy, and minimal verified-field promotion. These attributes must not be used for automated rejection, ranking, section assignment, billing, discipline, or public reporting unless a later approved rule explicitly permits the specific use.
+- `admission_capacity_plans` owns effective-dated approved intake limits by term and scope. Capacity scopes may be campus-wide, education-level-specific (SHS/College), program/strand-specific, year/grade-specific, or delivery-setup-specific. The current campus value may be 100 active enrolled students, but scope and value are configuration, not platform constants.
+- Capacity resolution returns every active matching plan as a stack. Payment may secure capacity only when every applicable plan has remaining room. If only a campus plan exists, SHS and College draw from the same OR-secured first-paid pool. If SHS/College sub-plans exist, the system enforces the sub-plan and the parent campus plan. Child caps may be stricter than the parent; the system must reject overlapping equal-scope plans that would make capacity resolution ambiguous.
+- `admission_capacity_placements` distinguishes `tentative` pre-payment planning, `secured` OR-backed admission capacity, and `placed` final section/delivery assignment. Tentative placement grants no account/COR/class access, consumes no protected capacity, and expires at the earlier of the configured payment deadline, admission-window close, or manual Registrar cancellation with reason.
+- Payment confirmation locks the resolved capacity-plan stack and atomically secures capacity with the immutable payment/ledger post. Idempotent retries cannot consume capacity twice. Section/group planning must cover the approved plan before payment opens, and final placement must respect section and delivery-group capacity separately from admission capacity.
+- Runtime implementation currently enforces configured approved plans through `admission_capacity_plans` and `admission_capacity_reservations`. `AdmissionCapacityReservationService` resolves every matching approved plan, locks the stack during finance clearance, creates one `secured` reservation per enrollment/plan, increments `reserved_count` idempotently, and throws before handover when any configured plan is full. For legacy/local data with no approved plan rows, reservation is a no-op until the remaining readiness gate/admin setup makes capacity plans mandatory before payment opens.
+- `EnrollmentReadinessService` must block payment clearance, OR-backed capacity security, and enrollment handover until the term has an active calendar/enrollment window, published admission offering and requirement policy, approved capacity plan, ready curriculum/subject-offering scope, planned sections and delivery groups, faculty-subject eligibility/availability or approved override, and a committed/published official schedule or documented institution-controlled scheduling exception.
+- If an applicant pays and capacity is secured but no compatible final section/delivery placement remains because of institution-caused planning delay or scheduling failure, the system records `PendingInstitutionalPlacement` for Registrar resolution instead of reverting payment, rejecting the applicant, or marking the applicant noncompliant.
+- `EnrollmentHandoverService` may activate only when admission, finance, secured-capacity, and compatible-placement gates are clear. It finalizes section/group assignment, writes canonical `enrolled`, updates counts once, activates the account, and enables COR/class-list eligibility in one transaction.
+- If the institution cannot provide compatible placement after capacity was secured, the enrollment enters `pending_institutional_placement`; this is not applicant noncompliance and financial outcome is resolved by the effective disposition policy.
+- Cancellation and withdrawal preserve applicant, checklist, upload, payment, and ledger history. They use typed causes and the financial disposition resolver; no service assumes blanket payment retention or refund.
+
 Raw uploaded documents are preserved as the canonical evidence, while OCR output and reviewed fields are stored in structured database records. OCR is never treated as the official student record until a Registrar, Accounting user, or authorized Admin verifies the extracted values.
 
 | Storage Layer | Stores | Purpose |
@@ -182,6 +252,25 @@ Raw uploaded documents are preserved as the canonical evidence, while OCR output
 | **MySQL Metadata Tables** | Owner, document type, storage disk/path, MIME type, checksum, file size, upload status, review status | Fast workflow queries, RBAC filtering, audit joins, and lifecycle tracking |
 | **MySQL OCR Tables** | Raw OCR text, confidence score, OCR engine, parser version, processing errors, parsed JSON payload | Search, registrar side-by-side review, retry/reprocess support, and confidence-based queues |
 | **Domain Tables** | Verified profile fields, credited subjects, discount entries, payment references | Operational source of truth after staff verification |
+
+**Normative Document-Class Matrix**:
+
+| Storage class | Included evidence | Canonical record | OCR/default derivatives | Required controls |
+| --- | --- | --- | --- | --- |
+| `credential_file` | PSA/birth certificate, Form 138, Form 137, TOR/grades, Good Moral, diploma/completion, Honorable Dismissal, ALS records, passport/visa | Versioned private source file plus metadata/checksum; accepted facts are copied only into verified domain fields | Allowed when useful; always provisional | Replacement history, source/provenance, staff review, temporary authorized preview |
+| `official_transmission` | School-to-school Form 137/TOR/transfer credential or other regulator-permitted official transmission | Received artifact plus sender, channel, received time, provenance/signature evidence, and verification state | Optional | Requirement satisfaction references the transmission; applicant upload is not fabricated or required when this method is accepted |
+| `identity_photo` | 2x2/recent ID photo | Private source image and versioned approved derivative | Disabled | Image access remains private; public use requires a separately generated purpose-bound artifact |
+| `restricted_support_file` | Medical/psychological, disability/SEN, IP/community, immigration, and medical-clearance evidence | Versioned private source file | Disabled by default; explicit purpose approval required | Separate restricted permission, purpose limitation, access audit, minimal field promotion, retention/disposal schedule |
+| `transaction_evidence` | Payment proof, promissory attachment, receipt image, courier receipt | Private source file linked to immutable transaction/request/shipment | Optional reference extraction only | OCR cannot confirm payment or lifecycle state; Accounting/Registrar service remains authoritative |
+| `generated_official_artifact` | COR, report card, assessment, requested official document, system-issued receipt | Immutable issuance snapshot and/or PDF with template version, issuer, issued time, checksum, subject/term/request, token, and lifecycle state | Search text may be derived; no review OCR | Supersede/revoke instead of overwrite; verification and re-render reproducibility where applicable |
+| `structured_record` | Applicant, requirement status, enrollment, schedule, grades, ledger, holds | Authorized normalized database row plus audit evidence | Not applicable | A screenshot/PDF/export is never the operational source of truth |
+| `import_source` | Curriculum, roster, fee, grade, enrollment, or legacy CSV/XLSX | Private source file plus checksum, uploader, template/parser version, validation report, and batch state | Parser output is provisional until commit | Zero-error/approved commit rules; normalized accepted rows become operational records |
+| `processing_derivative` | OCR text, candidate fields, parser payload, thumbnail/preview | Exact source-version-linked derivative | Regenerable | No independent authority; track engine/parser/attempt; purge independently when policy permits |
+| `physical_custody_record` | Original/certified evidence received or inspected without a scan | Structured custody/inspection event | None unless a separate scan is attached | Record method, actor, time, custody location/status, and return/transfer event; scan possession and physical possession are distinct |
+
+`document_types` (or the equivalent normalized catalog) owns the default storage class, sensitivity, allowed MIME/extensions, maximum size, OCR policy, and verified-field schema. A versioned admission requirement may narrow accepted evidence methods or disable OCR, but it cannot weaken the class's security controls. `document_uploads` must reference the applicable document type, owner/context, source channel, source version, checksum, storage disk/key, detected MIME type, size, lifecycle state, and superseded upload when present. Restricted support files require a distinct permission boundary from ordinary document review.
+
+Institutional forms and clearances use the class determined by their source: externally issued evidence is `credential_file`, a decision captured inside TALA is `structured_record`, and an official PDF/signature package issued by TALA is `generated_official_artifact`. One business concept may therefore have a structured decision plus an immutable issued artifact without duplicating authority.
 
 **Processing Flow**:
 
@@ -198,9 +287,11 @@ Raw uploaded documents are preserved as the canonical evidence, while OCR output
 -   Do not store full document binaries in MySQL.
 -   Do not expose document files through public URLs.
 -   Use private visibility and temporary signed URLs for previews/downloads.
+-   Validate an allowlisted extension plus detected MIME/file signature; never trust the client `Content-Type` alone. Generate storage names, enforce size limits, and scan files for malware where the deployed infrastructure supports it.
 -   OCR failures must not block manual review; they should create a `needs_manual_review` state.
 -   Reprocessing must be possible without replacing the original upload.
 -   Critical academic, financial, and identity fields require human verification before they affect enrollment, billing, grades, or credentials.
+-   Retention and disposal are driven by document class, active institutional/regulatory policy, unresolved holds, and audit requirements. Disposal removes both the object and non-required derivatives while preserving the minimum non-sensitive tombstone/audit evidence needed to explain the lifecycle.
 
 **Cost and Complexity Trade-Offs**:
 
@@ -231,8 +322,8 @@ By using a Monolithic Laravel core, the **Registrar** and **Accounting** modules
 
 | Module | Primary Tech | Key Libraries | Key Features |
 | --- | --- | --- | --- |
-| Module 1 (Student) | **Laravel Livewire + TallStackUI + Tailwind + Alpine.js** | `tallstackui/tallstackui`, `alpinejs`, `erag/laravel-pwa` | PWA, Multi-Step Wizard, 3-Mode Section-Level Modality Selection (SHS: Modular/Online, College: On-Site/Online), LIS-Aligned Data Collection, and automated freshmen discount eligibility capture. **(Custom)** |
-| Module 2 (Registrar) | FilamentPHP (Admin) | `filament/filament`, `google/cloud-vision` | Student Record Management (Filament Data Table), Scheduling (Curriculum Import, Modality-Aware Conflict Detection), Manual Credit Evaluation, Account Archiver, OCR Document Review, LIS Encoding View |
+| Module 1 (Student) | **Laravel Livewire + TallStackUI + Tailwind + Alpine.js** | `tallstackui/tallstackui`, `alpinejs`, `erag/laravel-pwa` | PWA, Multi-Step Wizard, 3-Mode Section-Level Modality Selection (SHS: Modular/Online, College: On-Site/Online), external-reporting-ready data collection, and automated freshmen discount eligibility capture. **(Custom)** |
+| Module 2 (Registrar) | FilamentPHP (Admin) | `filament/filament`, `google/cloud-vision` | Student Record Management (Filament Data Table), Scheduling (Curriculum Import, Modality-Aware Conflict Detection), Manual Credit Evaluation, Account Archiver, OCR Document Review, and filterable Enrolled Student Roster/export |
 | Module 3 (Accounting) | FilamentPHP + Excel Export | `filament/filament`, `maatwebsite/excel`, `chillerlan/php-qrcode` | Payment Queues (E-Wallets, OTC, Screenshots), Promissory Notes, COR with QR Code, Export Reports |
 | Module 4 (Faculty) | FilamentPHP | `filament/filament`, `maatwebsite/excel` | Grading Ecosystem, Manual INC Management, Grade Export, Modality-Aware Class Lists |
 | Module 5 (Administration & Integration) | FilamentPHP + Laravel Mail + Audit Logs | `filament/filament`, `spatie/laravel-permission` | RBAC, User Mgmt, Dashboard, Email, Audit Trail, FAQ/Inquiry Management |
@@ -306,30 +397,30 @@ The following domains are covered by schema and service contracts in this TS. Wh
 
 ### 2.5 Detailed Business Data Dictionary
 
-#### 2.5.1 Applicant Data Fields (LIS-Aligned)
+#### 2.5.1 Applicant Data Fields (Student Record and External Reporting Aligned)
 
 | Field Group | Data Point | Type | Purpose / Validation |
 | --- | --- | --- | --- |
-| **Identity** | **LRN** | `string(12)` | **Primary Key** for LIS. Exactly 12 digits, unique check |
+| **Identity** | **LRN** | `string(12)` | External learner identifier where applicable. Exactly 12 digits, unique check |
 |  | **Last Name** | `string(50)` | Alphabetic + hyphen + apostrophe only |
 |  | **First Name** | `string(50)` | Alphabetic + hyphen + apostrophe only |
 |  | **Middle Name** | `string(50)` | Alphabetic + hyphen + apostrophe only |
 |  | **Extended Name** | `string(10)` | Suffixes (Jr., Sr., II, III, IV) — optional |
 |  | **Birthdate** | `date` | Valid past date, age >= 10 for Grade 11 |
-|  | **Place of Birth** | `string(100)` | City/Municipality, Province — LIS requirement |
-|  | **Gender** | `enum` | Male / Female — LIS profiling |
+|  | **Place of Birth** | `string(100)` | City/Municipality, Province — student record/external reporting field |
+|  | **Gender** | `enum` | Male / Female — student record/external reporting field |
 |  | **Civil Status** | `enum` | Single / Married / Widowed / Separated / Annulled — default: Single |
-|  | **Mother’s Maiden Name** | `string(100)` | **Critical Security Question** & LIS Requirement |
-| **Personal Contact** | **Home Address — Street** | `string(100)` | House/Unit No., Building, Street Name — LIS requirement |
-|  | **Home Address — Barangay** | `string(50)` | Barangay name — LIS requirement |
-|  | **Home Address — City/Municipality** | `string(50)` | City or Municipality — LIS requirement |
-|  | **Home Address — Province** | `string(50)` | Province — LIS requirement |
-|  | **Home Address — Region** | `string(50)` | Region (e.g., NCR, Region IV-A) — LIS requirement |
+|  | **Mother’s Maiden Name** | `string(100)` | Student identity/external reporting field |
+| **Personal Contact** | **Home Address — Street** | `string(100)` | House/Unit No., Building, Street Name — student record/external reporting field |
+|  | **Home Address — Barangay** | `string(50)` | Barangay name — student record/external reporting field |
+|  | **Home Address — City/Municipality** | `string(50)` | City or Municipality — student record/external reporting field |
+|  | **Home Address — Province** | `string(50)` | Province — student record/external reporting field |
+|  | **Home Address — Region** | `string(50)` | Region (e.g., NCR, Region IV-A) — student record/external reporting field |
 |  | **Home Address — Zip Code** | `string(4)` | 4-digit Philippine zip code |
 |  | **Contact Number** | `string(13)` | Philippine mobile format (09XXXXXXXXX). Regex: `/^09\d{9}$/` |
-|  | **Father’s Name** | `string(100)` | Full name — LIS requirement |
-|  | **Father’s Occupation** | `string(50)` | Optional — LIS profiling |
-|  | **Mother’s Occupation** | `string(50)` | Optional — LIS profiling |
+|  | **Father’s Name** | `string(100)` | Full name — student record/external reporting field |
+|  | **Father’s Occupation** | `string(50)` | Optional student record field |
+|  | **Mother’s Occupation** | `string(50)` | Optional student record field |
 |  | **Guardian’s Name** | `string(100)` | Required if applicant is a minor |
 |  | **Guardian’s Contact Number** | `string(13)` | Same format as Contact Number |
 |  | **Guardian’s Address** | `text` | Can be same as home address (checkbox to copy) |
@@ -343,7 +434,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 |  | **Admission Category** | `enum` | Freshman / Transferee / Returnee / Second Degree |
 |  | **Credited Subjects** | `json` | Relevant only for transferees/irregular placement. Populated post-evaluation. |
 | **Last School Attended** | **School Name** | `string(150)` | Required for Transferees — basis for F137 request |
-|  | **School Address** | `text` | School location — LIS requirement for transferees |
+|  | **School Address** | `text` | School location — transferee record/external reporting field |
 |  | **Year Graduated / Last Year Attended** | `year` | e.g., 2024, 2023 — dropdown or text |
 | **Modality** | **Learning Mode** | `enum` | **SHS**: `modular`, `online`. **College**: `on_site`, `blended`, `online`. `blended` remains active in Pre-UAT as a room-required schedule modality that uses on-site-style room, delivery-group, and faculty conflict checks; online meeting/link tracking and alternating online/on-site pattern modeling are out of scope. Modality is captured as a declared enrollment preference and finalized through Registrar assignment to a section delivery group. |
 | **Account Name Storage** | **Canonical Name Parts** | `users.first_name`, `users.middle_name`, `users.last_name`, `users.suffix`; composed `users.name` | Intake forms store legal/display name parts separately. The model/service layer composes `users.name` for search/display compatibility. |
@@ -355,7 +446,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 
 Future student profile migrations must keep academic and financial context off the `users` table. `student_profiles` owns the student lifecycle and academic identity contract:
 
-**Creation Timing**: A `student_profiles` row is created atomically during the Official Handover transaction (§3.3) when the applicant account transitions to an official student. Applicant data lives in `users` for authentication/name fields and in `applicant_intakes` for LIS-aligned profiling, duplicate-check evidence, applicant status, required-document lists, and Registrar review metadata until handover. The profile is never created for applicants who do not complete enrollment.
+**Creation Timing**: A `student_profiles` row is created atomically during the Official Handover transaction (§3.3) when the applicant account transitions to an enrolled student. Applicant data lives in `users` for authentication/name fields and in `applicant_intakes` for student-profile/external-reporting data, duplicate-check evidence, applicant status, required-document lists, and Registrar review metadata until handover. The profile is never created for applicants who do not complete enrollment.
 
 | Field Group | Required Contract |
 | --- | --- |
@@ -394,23 +485,23 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 
 | Flag | Type | Purpose |
 | --- | --- | --- |
-| `hard_copy_received` | Boolean | If false by deadline → Block Grade View |
+| `hard_copy_received` | Derived compatibility Boolean | Mirrors whether every required physical applicant-document item is received; per-item compliance rows are authoritative. |
 | `ocr_confidence` | `decimal(5,2)` nullable (0-100) | Google Vision API confidence score when returned by document OCR; `null` means confidence was unavailable and manual review is required when the document type needs verification |
 | `ocr_review_status` | Enum | `uploaded`, `ocr_extracted`, `student_confirmed`, `pending_registrar_review`, `registrar_approved`, `needs_correction`, `rejected`, `needs_manual_review` |
-| `document_extracted_fields` | JSON | Future schema requirement: Stores OCR-extracted, student-confirmed, and Registrar-approved values as distinct stages. |
-| `student_confirmed_at` | Timestamp | Future schema requirement: When the applicant confirmed the OCR extraction. |
-| `student_confirmed_payload` | JSON | Future schema requirement: Snapshot of data at the time of student confirmation. |
-| `registrar_reviewed_by` | Foreign Key (Users) | Future schema requirement: The staff member who performed the review. |
-| `registrar_reviewed_at` | Timestamp | Future schema requirement: When the staff review occurred. |
-| `registrar_approved_payload` | JSON | Future schema requirement: Snapshot of official data promoted to the record. |
-| `document_type` | Enum | PSA, Report Card, Diploma, F137, Good Moral, etc. |
+| `document_extracted_fields` | Related rows | Stores OCR-extracted, student-confirmed, and Registrar-approved values as distinct field stages. |
+| `student_confirmed_at` | Timestamp | When the applicant confirmed the provisional extraction. |
+| `student_confirmed_payload` | JSON | Snapshot of data at the time of student confirmation. |
+| `registrar_reviewed_by` | Foreign Key (Users) | The staff member who performed the review. |
+| `registrar_reviewed_at` | Timestamp | When the staff review occurred. |
+| `registrar_approved_payload` | JSON | Snapshot of data explicitly approved during document review. |
+| `document_type` | Catalog key | Normalized requirement-item type such as PSA, Report Card, Diploma, F137, Good Moral, or AF5. |
 | `checksum` | String | Detects duplicate uploads and supports safe OCR reprocessing |
 
 ---
 
 ### 2.6 Key Computed Logic
 
-#### 2.6.1 Exam Permit Visibility
+#### 2.6.1 Examination Access Decision
 
 
 
@@ -418,16 +509,13 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 use App\Models\Term;
 use App\Models\User;
 
-function canViewExamPermit(User $student, Term $term, ExamAccessDecisionService $examAccess): bool
+function canAccessScheduledExamination(User $student, Term $term, ExamAccessDecisionService $examAccess): bool
 {
-    $balance = $student->getCurrentBalance($term->id) ?? '0.00';
-
-    return DecimalMoney::fromString($balance)->isLessThanOrEqualTo('0.00')
-        || $examAccess->decideForUser($student, $term)['allowed'];
+    return $examAccess->decideForUser($student, $term)['allowed'];
 }
 ```
 
-**Balance Contract**: `getCurrentBalance()` returns a ledger-safe decimal string with exactly two decimal places, never a PHP `float`. If no ledger entries exist for the student and term, the default is `"0.00"`. All comparisons must use a decimal-safe money comparator or money value object; `DecimalMoney` in the pseudocode represents that project-local abstraction, not a required package. Promissory notes must not be included in exam-permit clearance. Exam exceptions must come from `ExamAccessDecisionService` and must be backed by an approved, current `exam_access_accommodations` record.
+**Decision Contract**: Outstanding balance and promissory status do not deny an enrolled student's scheduled examination access. `ExamAccessDecisionService` treats the current institution's no-debt-based-exam-block policy as the default and may retain accommodation/certification evidence for Republic Act No. 11984 compliance. Finance collection, next-cycle enrollment clearance, and lawful record-release holds remain separate services. Faculty and class-facing UI must not expose delinquent lists or balance amounts.
 
 #### 2.6.2 COR QR Code Verification Contract
 
@@ -448,7 +536,7 @@ function canViewExamPermit(User $student, Term $term, ExamAccessDecisionService 
 | Missing token/document | HTTP `404` with `status = not_found` |
 | Valid lookup | HTTP `200` with one of `valid`, `superseded`, or `revoked` |
 
-**Current TAL-12 Filament Mapping**: `CorVerificationResource` is a COR Controls evidence surface. It registers list/view pages only and exposes controlled lifecycle actions for superseding or revoking tokens. It must not register generic create/edit page routes, create/edit header actions, delete actions, or forms for direct `student_profile_id`, `token`, `status`, `issued_at`, `expires_at`, or `revoked_at` editing. COR tokens are generated by COR issuance services. Supersede/revoke transitions are delegated to `CorVerificationLifecycleService`, which validates `manage-lis`, allows only valid lifecycle transitions, requires a typed non-empty revoke reason before setting `revocation_reason` / `revoked_at`, and records lifecycle activity. `CorVerification` owns approved status labels and badge colors so Filament filters and columns do not duplicate raw status literals.
+**Current TAL-12 Filament Mapping**: `CorVerificationResource` is a COR Controls evidence surface. It registers list/view pages only and exposes controlled lifecycle actions for superseding or revoking tokens. It must not register generic create/edit page routes, create/edit header actions, delete actions, or forms for direct `student_profile_id`, `token`, `status`, `issued_at`, `expires_at`, or `revoked_at` editing. COR tokens are generated by COR issuance services. SDD-07A replaces the unrelated legacy `manage-lis` check with a dedicated `manage-cor-verifications` permission. Supersede/revoke transitions are delegated to `CorVerificationLifecycleService`, which allows only valid lifecycle transitions, requires a typed non-empty revoke reason before setting `revocation_reason` / `revoked_at`, and records lifecycle activity. `CorVerification` owns approved status labels and badge colors so Filament filters and columns do not duplicate raw status literals.
 
 **Response Body**: The HTML page is canonical for scanners. When `Accept: application/json` is sent, return:
 
@@ -547,6 +635,8 @@ class SHSGradingService
 #### 3.1.2 College Engine
 
 **Algorithm**: Average raw percentage scores first → round to nearest integer → transmute once at the end. The system **MUST NOT** average transmuted equivalents (see Deprecation Notice below).
+
+> **SDD-08A RECONCILIATION HOLD (2026-06-19):** The code block below documents the currently implemented raw-evidence profile. The consolidated workflow describes a conflicting lecture/laboratory calculation and transmutation scale. Replace hardcoded policy with an effective-dated `grading_profiles` contract scoped by education level and optionally program/subject/term before changing calculations. Every grade sheet/import must snapshot its profile. No runtime or historical-grade migration is approved until the client selects the active College profile.
 
 ```php
 class CollegeGradingService
@@ -1056,9 +1146,9 @@ class EnrollmentService
 
 **Section Capacity Contract**: `sections.max_seats` is editable by authorized Registrar/setup staff, but the approved rescue hard maximum is **30 heads**. New sections default to 30. A section capacity edit must reject values above 30 and must reject decreases below `sections.enrolled_count`. The previous 10% overflow/PIN model is outside the rescue scope and must not be implemented unless a later exception policy is approved.
 
-**Student Section Assignment Contract**: Student-to-section assignment is an admin-owned operation for Pre-UAT. `StudentEnrollmentService` or any future enrollment finalization service must assign only to an existing term-scoped section and must lock the selected `sections` row before checking `enrolled_count < max_seats`. It must reject full sections instead of auto-overflowing, auto-balancing across alternate sections, or creating a new section. If capacity is exhausted, the UI should surface a Registrar/setup action to create another planned section first; the backend must not silently create one.
+**Student Section Assignment Contract**: Student-to-section assignment is an admin-owned operation for Pre-UAT. `StudentEnrollmentService` or any future enrollment finalization service must assign only to an existing term-scoped section and must lock the selected section and delivery-group rows before checking actual assigned capacity. It must reject full sections instead of auto-overflowing, auto-balancing across alternate sections, or creating a new section. An admission-capacity reservation is a plan-level institutional commitment, not a section hold, and remains absent from COR, schedules, class lists, and enrollment assignment columns until actual placement. If compatible section capacity is missing for a valid reservation, the backend records `pending_institutional_placement`; it must not silently create a section or blame the applicant.
 
-**Current TAL-12 Filament Mapping**: `EnrollmentResource` is the Registrar/Accounting/Academic Head enrollment visibility and lifecycle-action surface. It registers list/view pages only and must not register generic create/edit page routes, create/edit header actions, table edit actions, or a raw form for `student_profile_id`, `term_id`, `section_id`, `status`, `lis_status`, `is_late_enrollment`, `enrolled_at`, `pre_enrolled_at`, `officially_enrolled_at`, or `completed_at`. Existing allowed actions are typed and policy-scoped: Registrar hard-copy receipt confirmation, Accounting assessment posting, and Accounting manual payment confirmation. Hard-copy receipt confirmation is delegated to `EnrollmentHardCopyReceiptService`; the service locks the enrollment and linked student profile, authorizes the `markHardCopyReceived` policy ability, rejects duplicate receipt confirmation, sets `student_profiles.hard_copy_received` and `last_status_changed_at`, and records `hard_copy_received` lifecycle activity. Payment confirmation may transition `pending_payment` to `pre_enrolled` only through the finance service. Future approved-applicant enrollment creation, LIS mark-encoded/error actions, ineligible-state handling, term-close completion, and any manual repair workflow must be implemented as dedicated services/actions with invariant checks and activity logging before being exposed.
+**SDD-07A Filament Correction Target**: `EnrollmentResource` remains list/view with typed actions only. The profile-wide hard-copy receipt action must be replaced by per-requirement evidence/receipt actions backed by the applicant checklist and admission/retention services. Accounting payment confirmation secures capacity but must not activate the applicant while an admission gate or placement remains unresolved. Retention undertakings appear as itemized obligations and do not become a raw status-edit control. Generic create/edit/status/compliance mutation remains forbidden. A separate read-only `EnrolledStudentRosterResource` (or purpose-built list page) exposes required term plus optional education-level, program/strand, year/grade, section, modality, and student-type filters, with an audited Filament v5 `ExportAction` limited to CSV and XLSX; it has no create/edit/delete or external-status mutation action.
 
 ### 3.4.1 Prerequisite Validation (INC Block)
 
@@ -1591,19 +1681,25 @@ class AdmissionRequirements extends Component
 }
 ```
 
-**Settings Contract**: Admission requirements must not be hardcoded in Livewire components. Current TAL-12 stores the public requirements matrix internally in `system_settings.admission_requirements` as seeded versioned JSON. Generic raw JSON editing is not exposed to admins; Registrar/System Super Admin typed editing is deferred until the public/student admission workflow receives a dedicated validated interface.
+**Settings Contract**: Admission requirements must not be hardcoded in Livewire components. Current TAL-12 stores the public requirements matrix internally in `system_settings.admission_requirements` as seeded versioned JSON. During SDD-07A this key becomes a cached/read projection generated from published `admission_offerings` and their resolved policy versions; it must not remain an independently editable requirements source. Generic raw JSON editing is not exposed to admins. Registrar/System Super Admin maintenance uses the dedicated typed offering and policy workflow.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "updated_at": "2026-05-18T00:00:00+08:00",
   "updated_by": 1,
-  "sections": [
+  "offerings": [
     {
       "key": "shs_new_grade_11",
+      "academic_term_id": 12,
       "education_level": "shs",
-      "applicant_type": "new",
+      "entry_route": "regular",
+      "prior_credential_pathway": "grade_10",
+      "citizenship_profile": "domestic",
+      "program_id": null,
+      "grade_or_year": "11",
       "title": "New Grade 11",
+      "source_requirement_policy_version": 3,
       "items": ["PSA Birth Certificate", "Grade 10 Card", "Good Moral"],
       "is_published": true
     }
@@ -1614,19 +1710,24 @@ class AdmissionRequirements extends Component
 | Field | Contract |
 | --- | --- |
 | `version` | Positive integer incremented on every settings save. |
-| `sections[].key` | Stable unique string used for anchors and faculty share links. |
-| `sections[].education_level` | `shs` or `college`. |
-| `sections[].applicant_type` | `new`, `transferee`, `returnee`, or another approved intake type. |
-| `sections[].items` | Non-empty array of display strings, trimmed and shown in configured order. |
-| `sections[].is_published` | Boolean; unpublished sections are hidden from the public page. |
+| `offerings[].key` | Stable unique string used for applicant selection, public anchors, and faculty share links. |
+| `offerings[].academic_term_id` | Required term owning the admission window and offering. |
+| `offerings[].education_level` | `shs` or `college`. |
+| `offerings[].entry_route` | Controlled route such as `regular`, `transfer`, `returning`, or `cross_enrollee`; this is not a demographic/support category. |
+| `offerings[].prior_credential_pathway` | Prior-schooling basis such as `grade_10`, `shs_graduate`, `old_curriculum`, or `als`; values are governed by a controlled catalog. |
+| `offerings[].citizenship_profile` | Compliance profile such as `domestic` or `foreign`; it is independently combinable with entry route and support attributes. |
+| `offerings[].program_id`, `grade_or_year` | Optional narrowing dimensions when requirements or eligibility differ by program, strand, grade, or year. |
+| `offerings[].source_requirement_policy_version` | Published immutable policy version from which this public projection was generated. |
+| `offerings[].items` | Resolved, ordered public display labels only; compliance metadata remains in normalized policy and requirement tables. |
+| `offerings[].is_published` | Boolean; unpublished offerings cannot receive public or Registrar-assisted intake. |
 
-Seeders may provide default JSON, but the public page and faculty quick-link widget must read through `AdmissionRequirementsService`. Saving the setting clears the admission requirements cache immediately. If the setting is missing or invalid, the public page displays a standard "Requirements temporarily unavailable" message and logs the parse failure for System Super Admin review.
+Seeders may provide draft offering/policy templates, but the public page and faculty quick-link widget must read through `AdmissionRequirementsService`. Publishing or retiring an offering/policy invalidates and rebuilds the projection cache. If no valid published offering resolves, the public page hides that intake route; if the projection itself fails, it displays a standard "Requirements temporarily unavailable" message and logs the failure for System Super Admin review.
 
 ---
 
 ### 3.12 Enrollment & Financial State Machine
 
-**Purpose**: Manage the complex transition from applicant to student, ensuring national LIS validation and accurate financial ledger handling.
+**Purpose**: Manage the transition from applicant to institutionally enrolled student while enforcing document, finance, placement, account-access, and ledger invariants. External regulator encoding is not part of this state machine.
 
 **Architecture Note**: The full student lifecycle uses **two separate state machines** on different models:
 
@@ -1636,40 +1737,47 @@ Seeders may provide default JSON, but the public page and faculty quick-link wid
     -   `action_required` → documents rejected, needs re-upload
     -   `for_evaluation` → transferee needs credit evaluation
     -   `approved` → documents verified, ready for payment
-    -   `active` → finance-cleared student account with Student Hub access; LIS status remains separate
+    -   `active` → fully enrolled student account with Student Hub access
     -   `dropped` / `inactive` → withdrawn or archived
-2.  **Enrollment State** — tracked on `enrollments.status` via `spatie/laravel-model-states`. Governs the financial and LIS verification pipeline. Created when Application State reaches `approved`.
+2.  **Enrollment State** — tracked on `enrollments.status` via `spatie/laravel-model-states`. Governs document, finance, placement, active enrollment, ineligibility, and term-close transitions. Created when Application State reaches `approved`.
     
 
 #### 3.12.1 Enrollment States (`spatie/laravel-model-states`)
 
-
-
-```php
-abstract class EnrollmentState extends State{    abstract public static function config(): StateConfig;}class PendingPayment extends EnrollmentState {}class PreEnrolled extends EnrollmentState {}     // Minimum downpayment/full payment received; COR-eligibleclass OfficiallyEnrolled extends EnrollmentState {} // LIS encoded (optional upgrade)class Ineligible extends EnrollmentState {}       // LIS encoding errorclass Completed extends EnrollmentState {}        // Set by TermCloseJobclass EnrollmentCancelled extends EnrollmentState {}// ConfigurationEnrollmentState::config()    ->default(PendingPayment::class)    ->allowTransition(PendingPayment::class, PreEnrolled::class)         // Via minimum downpayment or full payment only    ->allowTransition(PendingPayment::class, EnrollmentCancelled::class) // Via withdrawal    ->allowTransition(PreEnrolled::class, OfficiallyEnrolled::class)     // Via LIS Encode    ->allowTransition(PreEnrolled::class, Ineligible::class)             // Via LIS Error    ->allowTransition(PreEnrolled::class, Completed::class)              // Via Term Close (LIS still pending)    ->allowTransition(OfficiallyEnrolled::class, Completed::class)       // Via Term Close    ->allowTransition(OfficiallyEnrolled::class, Ineligible::class);     // Via post-lock LIS Error
-```
-
-**COR/LIS Decoupling**: Finance clearance triggers `PreEnrolled`, which makes the student COR-eligible and schedule-active. LIS encoding is tracked separately via `lis_status` on the enrollment record:
+> **SDD-07A RECONCILIATION HOLD (2026-06-19):** The target must distinguish admission-gate evidence, retention undertakings, tentative pre-payment placement, OR-secured capacity, and active enrollment. The prior blanket `PendingPhysicalDocuments` design is superseded. Preserve typed states, locking, atomic handover, and audit controls, but do not implement the candidate state table until tentative-placement expiry and seat-consumption behavior are approved.
 
 
 
-```php
-enum LisStatus: string{    case NotEncoded = 'not_encoded';    case Encoded = 'encoded';    case Error = 'error';}
-```
+| Enrollment State | Meaning | Permitted Next States |
+| --- | --- | --- |
+| `PendingPayment` | Assessment exists but minimum required payment is not confirmed. | `PendingAdmissionGate`, `PendingInstitutionalPlacement`, `Enrolled`, `EnrollmentCancelled` |
+| `PendingAdmissionGate` | Payment may exist, but one or more configured admission-gate requirements remain unresolved. Tentative placement does not grant protected access. | `PendingPayment`, `PendingInstitutionalPlacement`, `Enrolled`, `EnrollmentCancelled` |
+| `PendingInstitutionalPlacement` | Admission and finance gates are clear and capacity is secured, but the institution has not completed compatible section/delivery-group placement. The account remains inactive; this is institution responsibility, not applicant noncompliance. | `Enrolled`, controlled institution-caused resolution |
+| `Enrolled` | Admission, finance, secured-capacity, and placement gates are clear; account handover completed; COR and class access available. Retention undertakings may remain active as separate holds. | `Ineligible`, `Completed` |
+| `Ineligible` | Registrar resolved a disqualifying institutional enrollment conflict through an audited workflow. | Controlled repair only |
+| `Completed` | Historical enrollment after term close. | None |
+| `EnrollmentCancelled` | Enrollment stopped before institutional activation through an authorized typed cause and financial disposition. Retention-document delinquency alone does not silently cancel an active enrollment. | Controlled restart only |
 
--   **`PreEnrolled` = institutionally enrolled**: Student can download COR, attend classes, and is fully schedule-active only after Accounting confirms the required minimum downpayment/initial installment milestone or full payment. `lis_status` defaults to `not_encoded`.
--   **LIS Encode**: Registrar successfully encodes student into DepEd LIS → `lis_status = 'encoded'`, `lis_encoded_at` timestamped. Enrollment state optionally transitions to `OfficiallyEnrolled`.
--   **LIS Error (pre-lock)**: Registrar encounters an encoding error (e.g., student enrolled elsewhere) and flags ineligibility → enrollment state → `Ineligible`. COR voided and class access revoked. No refund action exists in the current scope.
--   **LIS Error (post-lock)**: Same as above. COR marked as superseded, student removed from class lists.
--   **Term Close**: Both `PreEnrolled` (LIS still not_encoded) and `OfficiallyEnrolled` can transition to `Completed`.
+**Canonical Enrollment Boundary**: Accepted admission-gate evidence plus finance clearance, secured capacity, and compatible placement triggers `Enrolled`. This is the only active institutional enrollment state: the student can download COR, attend classes, and appears in class lists and the Registrar Enrolled Student Roster. Retention undertakings remain separate itemized obligations. External regulator encoding neither upgrades nor downgrades this state. A later discovered institutional conflict uses a typed resolution workflow, and term close transitions `Enrolled` to `Completed`.
 
-**Bridge Between Phase 1 and Phase 2**: When the Registrar marks the application as approved (`ocr_review_status = 'registrar_approved'` and `users.status = 'approved'`), the system unlocks the payment portal allowing the applicant to view intake payment instructions or checkout links. Once the payment attempt is verified, the system creates an `Enrollment` record with `status = PendingPayment` (or straight to `PreEnrolled` only if the required minimum downpayment/initial installment milestone or full balance is already paid). After `PreEnrolled` is reached, the Account Handover (FS §4.1.2 Step 7) fires — credential rotation, student ID generation — and `users.status` changes to `active`. Promissory approval does not trigger this bridge. LIS encoding runs independently and does not gate account activation after finance clearance.
+**Bridge Between Phase 1 and Phase 2**: An approved scoped capacity plan may create a tentative placement before payment, but that placement consumes no secured seat and grants no protected access. Accepted admission-gate evidence unlocks the approved payment path. Confirmed minimum/full payment atomically secures capacity against the plan. When a compatible final placement is available, the system completes Account Handover to `Enrolled`; otherwise it records `PendingInstitutionalPlacement` without blaming the applicant. Non-critical retention documents use a separate undertaking/hold lifecycle. Promissory approval does not trigger finance clearance. External regulator encoding occurs outside TALA and does not mutate enrollment.
 
 **Current Applicant Intake Backend Contract**: `ApplicantIntakeService` is the application-layer authority for public applicant creation, applicant status updates, duplicate checks, required-document derivation, applicant-owned `document_uploads`, OCR job dispatch, and approval-for-payment prerequisites. It creates a pending applicant `users` row with the `applicant` role, creates one `applicant_intakes` staging record, and does not create `student_profiles`, `enrollments`, ledger entries, or official student credentials. Applicant document uploads may have `document_uploads.applicant_intake_id` with `student_profile_id = null` until Official Handover links official student records.
 
-**Current Student Enrollment Backend Contract**: `StudentEnrollmentService` is the application-layer authority for the approved-applicant-to-student bridge and regular enrollment backend contract before Student Hub UI is enabled. It creates or reuses exactly one `student_profiles` row for an approved applicant, creates or reuses one term-scoped `enrollments` row with `status = 'pending_payment'`, links applicant-owned documents to the official profile, and assigns only to existing section delivery groups through the locked-capacity `EnrollmentSectioningService`. It also supports regular enrollment by blocking outstanding balances, detecting returnees from inactive/archived profile or account state, and assigning a compatible existing delivery group rather than creating sections or overflowing capacity.
+**SDD-07A Admission Offering and Requirement Resolution Contract**: Replace hardcoded document derivation and flat `applicant_type` branching with an `AdmissionOffering` plus versioned `AdmissionRequirementPolicy`. The normalized intake dimensions are `education_level`, `entry_route`, `prior_credential_pathway`, `citizenship_profile`, target program/strand and grade/year, and purpose-limited support attributes. IP and disability/SEN attributes must not be exposed as public applicant categories or used as eligibility denials; they may select lawful evidence alternatives, accessibility accommodations, or authorized support workflows only. `AdmissionRequirementResolver` validates that the selected offering is published for the term, composes its base and conditional rules deterministically, rejects unknown dimensions or conflicting matches, and materializes an immutable checklist snapshot containing source rule IDs/versions. Applicant approval decisions and later student creation continue through the shared state machine; no category-specific service may bypass verification, finance, capacity, or audit contracts.
 
-`EnrollmentFinanceClearanceService` is the shared application-layer rule for payment-driven finance clearance. Manual Accounting confirmation and PayMongo webhook-confirmed payments for payment attempts linked to an enrollment both evaluate the minimum-downpayment/full-payment rule, ignore promissory notes as payment, move eligible enrollments to `pre_enrolled`, and delegate account handover to `StudentEnrollmentService`. A promissory note cannot clear finance by itself, but it must not block real confirmed payments from clearing finance when the required threshold or full balance condition is met. The handover sets `users.status = 'active'`, switches `users.username` to the generated student ID, removes the `applicant` role, assigns the `student` role, records audit evidence, and exposes `corReadiness()` for COR/class-list gates. PayMongo attempts without an enrollment link remain payment/ledger evidence only until a controlled reconciliation path links them to an enrollment.
+**Returning/Legacy Intake Contract**: Returning students bypass public applicant-account creation and enter through an authenticated Registrar-assisted lookup. Matching order is immutable student ID when known, then LRN and verified identity attributes, then a guarded manual review; weak name-only matches never auto-merge. If no reliable pre-TALA record exists, `LegacyStudentOnboardingService` creates one provenance-tagged student/profile baseline from verified institutional evidence, records source references and unknown historical fields, and runs the same duplicate guard before readmission begins. This service does not approve readmission, fabricate grades/documents, clear balances/holds, or activate access. It may invoke `AdmissionRequirementResolver` for itemized missing legacy/readmission evidence. SDD-07D's readmission service remains responsible for eligibility, curriculum alignment, finance/document/discipline holds, capacity, lifecycle transition, and account reactivation.
+
+**Current Student Enrollment Backend Contract**: `StudentEnrollmentService` is the application-layer authority for the approved-applicant-to-student bridge and regular enrollment backend contract before Student Hub UI is enabled. It creates or reuses exactly one `student_profiles` row for an approved applicant, creates or reuses one term-scoped sectionless `enrollments` row with `status = 'pending_payment'`, and links applicant-owned documents to the official profile. Applicant-origin section assignment is deferred until finance and required physical-document clearance are both satisfied, then uses the locked-capacity `EnrollmentSectioningService`. Regular/returning enrollment keeps its separate eligibility, balance, returnee, and compatible-section rules. SDD-07A migrates the current runtime's `pre_enrolled` and `officially_enrolled` values to the canonical `enrolled` value and removes LIS-only columns after all code references are migrated.
+
+**SDD-07A Legacy Enrollment Migration Contract**:
+
+- Stop `EnrollmentAssessmentService` from setting `enrolled_at`; assessment creation is not enrollment. Only the successful atomic document/finance/placement handover writes `enrolled_at`.
+- Before dropping legacy columns, map both `pre_enrolled` and `officially_enrolled` status values to `enrolled` and set `enrolled_at = COALESCE(pre_enrolled_at, officially_enrolled_at, enrolled_at)` for those rows. Other lifecycle states retain their existing timestamps.
+- Migrate all services, policies, queries, Filament resources, dashboard projections, exports, factories, seeders, and tests to `enrolled` before dropping `pre_enrolled_at`, `officially_enrolled_at`, and `lis_status`.
+- The local/UAT rollback recreates legacy nullable columns, maps `enrolled` back to `pre_enrolled`, copies `enrolled_at` into `pre_enrolled_at`, and defaults restored `lis_status` to `not_encoded`; it cannot reconstruct historical external LIS completion. Production with real data uses backup plus forward-fix migration rather than relying on this lossy rollback.
+
+`EnrollmentFinanceClearanceService` is the shared application-layer rule for payment-driven finance clearance. Manual Accounting confirmation and PayMongo webhook-confirmed payments both evaluate the same minimum-downpayment/full-payment rule and atomically secure the approved capacity reservation while ignoring promissory notes as payment. It may delegate to account handover only when admission and placement gates are clear. Retention undertakings do not block that delegation. Regular/returning enrollment keeps its approved finance-clearance behavior. PayMongo attempts without an enrollment link remain payment/ledger evidence only until a controlled reconciliation path links them to an enrollment.
 
 **Cross-State Invariant Contract**:
 
@@ -1677,15 +1785,18 @@ enum LisStatus: string{    case NotEncoded = 'not_encoded';    case Encoded = 'e
 | --- | --- | --- | --- |
 | `pending`, `action_required`, `for_evaluation` | none | Yes | Applicant is still in document review; no enrollment record exists. |
 | `approved` | none or `PendingPayment` | Yes | Payment portal is available; protected Student Hub remains blocked until account activation. |
-| `active` | `PreEnrolled` or `OfficiallyEnrolled` | Yes | Finance-cleared account; COR and class access are available. |
-| `active` | `PendingPayment` | No | Account must not be activated before finance clearance. |
-| `approved` | `PreEnrolled` or `OfficiallyEnrolled` | No | Finance clearance must immediately trigger Account Handover and `users.status = active`. |
-| any non-active status | `PreEnrolled` or `OfficiallyEnrolled` | No, except audited rollback | Payment-cleared-but-inactive is invalid and must be corrected by the same transaction or staff repair flow. |
-| `dropped` or `inactive` | historical `Completed`, `EnrollmentCancelled`, or `Ineligible` | Yes | Re-enrollment requires the returnee reactivation flow before new protected access. |
+| `approved` | `PendingAdmissionGate` | Yes | Payment evidence may exist, but an admission blocker remains; tentative placement grants no protected access. |
+| `approved` | `PendingInstitutionalPlacement` | Yes | Applicant gates are clear, but the institution still owes a compatible placement; no protected student access exists. |
+| `active` | `Enrolled` | Yes | Finance-, document-, and placement-cleared account; COR and class access are available. |
+| `active` | `PendingPayment`, `PendingAdmissionGate`, or `PendingInstitutionalPlacement` | No | Account must not activate before finance, admission, secured-capacity, and institutional-placement clearance. |
+| `approved` | `Enrolled` | No | Successful admission/finance/placement handover must activate `users.status` in the same transaction. |
+| any non-active status | `Enrolled` | No, except audited rollback | Enrolled-but-inactive is invalid and must be corrected by the same transaction or staff repair flow. |
+| `inactive` | `EnrollmentCancelled` | Yes | A temporary applicant enrollment was closed before activation; no protected student access exists. |
+| `dropped` or `inactive` | historical `Completed` or `Ineligible` | Yes | Re-enrollment requires the returnee reactivation flow before new protected access. |
 
-`OfficiallyEnrolled` is an optional LIS-completion upgrade, not the first point of student access. `Completed` is historical and set by term close. System code must enforce the invariant inside the same transaction that applies payment clearance, account handover, or LIS transitions.
+`Completed` is historical and set by term close. System code must enforce the invariant inside the same transaction that applies payment clearance and account handover. SDD-07A removes `lis_status`, `officially_enrolled_at`, and any LIS-only notes/timestamps from the target schema and all Student Hub/Admin projections; it preserves ordinary `enrolled_at` and `completed_at` evidence.
 
-**Visibility**: `lis_status`, `lis_encoded_at`, and `lis_notes` are visible only to Registrar and **System Super Admin**. Students and Faculty cannot see LIS compliance data.
+**External Reporting Support**: `EnrollmentRosterQuery` is the read authority for the Registrar roster and export. It requires a term and includes only `status = enrolled`. Optional filters are education level, program/strand, year/grade, section, delivery modality, and student type. `EnrollmentRosterExporter` consumes that query and emits the same generic authorized column schema as CSV or XLSX; it does not contain regulator-specific layout branches. Export authorization is separate from record mutation, and every export records actor, format, filters, timestamp, row count, and generated-file audit evidence. No export action writes enrollment or external-system status.
 
 #### 3.12.2 Advance Payments (Negative Ledger Balance)
 
@@ -1703,18 +1814,24 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Current SDD-06D Accounting Adjustment Contract**: `AccountingAdjustmentService` is the only approved manual correction path for student account balances. It requires the `post-accounting-adjustments` permission, locks the selected student profile, validates optional term/enrollment/source ledger scope, rejects future posting dates, and writes one `accounting_adjustments` audit record plus one immutable `ledger_entries` row inside the same transaction. Supported types are `student_account_debit`, `student_account_credit`, and `ledger_entry_reversal`. Reversal entries post the exact opposite amount of a permitted source ledger entry and block duplicate reversal of the same source. The service updates `student_profiles.current_balance` but deliberately does not perform refund processing, edit historical payments, or silently revoke existing finance-cleared account handover/enrollment status. `AccountingAdjustmentResource` registers list/create/view pages only; create delegates to the service, list/view show descriptive relationship labels, and no edit/delete/bulk-delete action is allowed.
 
-#### 3.12.3 No-Refund Contract
+#### 3.12.3 Financial Disposition Policy Contract
 
-**Purpose**: Enforce the stakeholder-approved no-refund policy across payment, enrollment, and PayMongo workflows.
+**Purpose**: Apply institution-approved, effective-dated financial outcomes to typed payment and enrollment events, including the current 15-day admission/enrollment-fee refund window and non-refundable tuition after official enrollment.
 
 **Rules**:
 
--   TALA must not expose a standard refund approval action for Accounting, Registrar, Academic Head, or System Super Admin.
--   LIS/system errors, cancelled enrollment, duplicate successful payments, and overpayments do not trigger PayMongo provider refunds or cash refund workflows.
+-   `financial_disposition_policies` stores a versioned policy name, scope (deployment plus optional education level, term, and program), typed event cause, disposition (`retain_payment`, `percentage_schedule`, `account_credit`, `transfer_to_term`, `manual_review`, or `provider_refund`), effective dates, state (`draft`, `active`, or `retired`), and approval evidence. Overlapping active scopes are rejected.
+-   `financial_disposition_schedule_rows` stores ordered effective windows or relative day ranges, refundable percentage, and fixed retained fee for policies that use a dated percentage schedule.
+-   `FinancialDispositionResolver` resolves exactly one active policy for the event date and cause. Missing or ambiguous policy blocks automatic closure and routes the case to authorized Accounting review; no payment code may guess a disposition.
+-   The current institution's policy profile must distinguish admission/enrollment-fee and tuition components, Official Receipt date, official-enrollment effective time, payment channel, and prior disposition. The stale blanket `retain_payment` profile must be replaced before refund/cancellation implementation.
+-   External-regulatory/system discrepancies, cancelled enrollment, duplicate successful payments, and overpayments do not trigger PayMongo provider refunds or cash refund workflows unless the resolved policy explicitly enables an implemented refund channel.
 -   Duplicate webhook retries are suppressed by idempotency and do not create duplicate ledger entries.
--   A separate second successful payment remains a standard immutable `payment` credit and may drive the ledger balance below zero; no separate wallet transaction is created.
+-   A separate second successful payment remains a standard immutable `payment` credit and may drive the ledger balance below zero until its resolved disposition is applied; no separate wallet transaction is created.
 -   Cancelled or ineligible enrollment keeps immutable payment history for audit; access/COR/class-list state is changed separately from financial refund behavior.
--   Any future refund capability requires a new approved policy, authorization contract, audit trail, and tests before implementation.
+-   No document-related cancellation may assume automatic payment retention. The resolver applies the effective policy to each fee component and preserves the original payment evidence.
+-   The physical-document closure rule is not a generic cancellation rule. Other cancellation causes require an explicitly approved financial disposition.
+-   Institution-caused placement failure uses cause `institutional_placement_unavailable`; it must never be recorded as applicant document noncompliance. Its financial outcome is resolved through the active policy after placement resolution is exhausted.
+-   A deployment may enable provider/cash refund only after an approved policy, role authorization, channel-specific idempotency, immutable audit trail, reconciliation behavior, and tests are implemented. Raw ledger mutation is never a refund mechanism.
 
 #### 3.12.4 Downpayment Rule
 
@@ -1728,11 +1845,11 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Service Boundary**:
 -   Accounting configures the base fee templates and downpayment percentages.
--   Finance clearance to `PreEnrolled` is evaluated by checking if total payments for the term meet or exceed `(total_assessed * minimum_downpayment_percentage / 100)`.
+-   Finance clearance is evaluated by checking if total payments for the term meet or exceed `(total_assessed * minimum_downpayment_percentage / 100)`. Applicant-origin enrollment reaches `Enrolled` only after admission gates, secured capacity, and sectioning also succeed. Retention undertakings remain separate holds.
 -   Accounting-approved promissory notes do not grant finance clearance; only confirmed payment evidence can clear finance.
 -   Policy calculations must use decimal strings/value objects, never PHP `float`.
 
-**Current SDD-06A Implementation Contract**: `EnrollmentAssessmentService` locks the enrollment, selects the most specific active `FeeTemplate` by education/program/year scope, posts immutable assessment rows plus any eligible tuition-only freshmen discount, updates the student's running balance, and returns the existing result on repeat execution without duplicate ledger rows. `EnrollmentFinanceClearanceService`, reached through manual or linked PayMongo payment confirmation, calculates the minimum required payment from the net assessment after discounts. A payment total below that decimal threshold remains `pending_payment`; meeting it exactly may transition the enrollment to `pre_enrolled` and invoke the shared account-handover service. `EnrollmentAssessmentServiceTest` provides executable coverage for scope precedence, discount amount, ledger balances, idempotency, and threshold-boundary clearance.
+**Current SDD-06A Baseline and SDD-07A Correction**: `EnrollmentAssessmentService` keeps its immutable, idempotent assessment/discount behavior. `EnrollmentFinanceClearanceService` keeps the same decimal threshold calculation for manual and PayMongo payments, but applicant-origin handover requires accepted admission gates and secured placement. Retention-document undertakings do not block handover; unresolved admission gates do.
 
 **Approved F10 Target Policy (Deferred Until Migration + Service/Test Readiness)**:
 
@@ -2194,20 +2311,21 @@ The academic calendar is separated into two hierarchical models to support diver
    - `academic_year_id` (foreign key)
    - `term_name`, `term_type` (quarter / semester / summer)
    - Date ranges: `term_start_date`, `term_end_date`, `class_start_date`, `class_end_date`
-   - Operational Gates: `scheduling_starts_at`, `enrollment_starts_at`, `enrollment_ends_at`, `late_enrollment_ends_at`, `payment_deadline`, `adjustment_ends_at`
+   - Operational Gates: `scheduling_starts_at`, `enrollment_starts_at`, `enrollment_ends_at`, `late_enrollment_ends_at`, `credential_submission_cutoff`, `payment_deadline`, `adjustment_ends_at`
 
 **Admin Interface Contract**:
 - Target staff workflow is two-level calendar setup: create/select the Academic Year for the correct `education_level`, then create Terms under it. Terms remain the operational records used by services.
 - Current implementation (2026-06-14): `AcademicYearResource` provides Registrar/Academic Head create/view/edit for parent Academic Year rows and blocks delete/bulk-delete. `TermResource` provides Registrar/Academic Head create/view/edit for child operational terms and requires Academic Year selection through the `academicYear` relationship.
 - `AcademicYearPolicy` reuses `manage-terms` for create/update and `view-global-records` for read-only visibility. Delete, restore, and force-delete are always denied to preserve calendar history.
 - The Academic Year interface must allow separate SHS and College records even when the label is the same academic year, because SHS follows DepEd-aligned references while College follows CHED/school-approved higher-education calendars.
-- The Term interface must remain the place for operational dates and gates: class dates, enrollment dates, late-enrollment cutoff, payment deadline, adjustment cutoff, and scheduling start.
+- The Term interface must remain the place for operational dates and gates: class dates, enrollment dates, late-enrollment cutoff, credential-submission cutoff, payment deadline, adjustment cutoff, and scheduling start.
 
 **Phase Locking Middleware / Service Rules**:
-- **Enrollment Service**: Throws exceptions if current timestamp is outside `[enrollment_starts_at, enrollment_ends_at]` for the applicable `education_level`.
+- **Enrollment Service**: Throws exceptions if current timestamp is outside `[enrollment_starts_at, enrollment_ends_at]` for the applicable `education_level`, if no approved admission-capacity plan resolves, or if required document grace cannot fit the configured credential cutoff.
 - **Scheduling Service**: Faculty availability and draft generation are blocked if `scheduling_starts_at` is null or if current time > `scheduling_starts_at`.
 - **Adjustment Gate**: Enrollment-affecting edits (irregular placements, drop/adds, section transfers) are allowed only within configured term adjustment windows. Outside the window, the system hard-blocks edits in current scope (no late-edit override path).
 - **Late Enrollment Gate**: If enabled, `late_enrollment_ends_at` is the final cutoff for any late-enrollment path; after this timestamp, no enrollment-affecting action is allowed.
+- **Credential Gate**: `credential_submission_cutoff` is the ordinary finalization boundary. A requirement-specific regulator strategy may resolve a different deadline, but a generic Registrar extension cannot silently exceed the applicable authorized boundary.
 - **Payment Deadline Gate**: `payment_deadline` controls the initial required payment cutoff for term activation/clearance workflows.
 
 **Per-Level Cutover Activation (Approved)**:
@@ -2956,6 +3074,24 @@ class AuditAlertServiceProvider extends ServiceProvider
 
 ---
 
+### 5.1.1 Goal-State UI Acceptance Contract
+
+The UI goal state must be testable without requiring pixel-perfect design assertions. Every screen or workflow named in the FS must define the actor, entry route, authorized component surface, validation/feedback behavior, business-state effect, and failure behavior.
+
+| Surface | Approved Component Pattern | Acceptance-Test Expectations |
+| --- | --- | --- |
+| Public/applicant forms | Blade/Livewire pages using TallStackUI-compatible cards, inputs, selects, file-upload controls, alerts, and toasts | Required fields show inline validation errors; file inputs enforce type/size policy; duplicate or unavailable-offering cases fail closed with user-safe messages; successful submissions create auditable applicant/intake records. |
+| Student Hub dashboard and tabs | Livewire components with TallStackUI cards, badges, tabs/navigation, tables or stacked mobile cards, notification list, and PWA read-only cache | Dashboard data comes from service contracts such as `StudentDashboardService`; mutation buttons call dedicated backend services; offline mode shows cached read-only COR/schedule/grades and disables submit buttons. |
+| Student Hub PWA launch/loading layer | `erag/laravel-pwa` directives in the Student Hub layout, `public/manifest.json`, service worker/offline fallback files, generated icon/splash assets, TallStackUI `Button` loading/`Progress`/`Alert` components, Livewire `wire:loading` and `wire:offline`, and Tailwind `motion-safe`/`motion-reduce` variants | Installed app launch shows branded splash behavior where the platform supports it; route changes and slow service-backed sections show stable skeleton/progress feedback; forms/uploads disable duplicate submits; progress indicators are labelled; offline states block mutation and show safe fallback messaging. |
+| Staff Admin Nexus lists | Filament v5 `Resource`/`Page` table surfaces with filters, searchable relationship labels, badges, infolists, and widgets | Tables must show human-readable labels instead of raw IDs; filters map to approved business states; empty states are allowed; navigation visibility follows policies/permissions. |
+| Staff lifecycle actions | Filament v5 actions with modal forms, typed `Select`, `Toggle`, `Repeater`, `FileUpload`, `Textarea`, confirmation prompts, and notifications | Lifecycle actions call service/model-owned transitions, require reasons/evidence where documented, block invalid transitions, and emit success/error notifications using the FS message catalog. |
+| Staff dashboards/readiness views | Filament widgets/pages with scoped filters, cards/stats, tables, and drilldown links | Widgets/pages may show zero/empty states until data exists, but must not fabricate readiness; blocker lists and drilldowns must reflect service output and role visibility. |
+| Security and access feedback | Laravel/Fortify auth, Filament auth redirects, policy denials, TallStackUI/Filament notifications, branded error pages | Unauthorized users are redirected or receive safe 403/validation messages; inactive or wrong-role accounts cannot enter protected areas; rate limiting follows the implemented Laravel/Fortify configuration rather than an undocumented hardcoded attempt count. |
+
+The master test-case file must use the professor-required columns exactly. Because that format has no separate Expected Result or Implementation Status columns, expected behavior belongs in the scenario/action text, while implementation state (`Implemented`, `In progress`, `Envisioned`, `Blocked by SDD-*`) belongs in `Comments/Suggestion`.
+
+---
+
 ### 5.2 Color Palette
 
 | Token | Value | Usage |
@@ -2997,11 +3133,15 @@ css
 
 ### 5.5 Motion & Behavior
 
--   **Transitions**: Instant state changes only. Focus on raw performance and snap-responsiveness
+-   **Transitions**: Keep state changes fast and purposeful. Avoid decorative animation; any movement must support orientation, feedback, or perceived progress.
 -   **Loading States**:
-    -   **Global**: Top-bar progress loader (NProgress-style) for all page transitions
-    -   **Local**: Submit buttons must show a `Spinner` and become `Disabled` (`wire:loading.attr="disabled"`) to prevent double submission
-    -   **Uploads**: “Uploading…” text with percentage for heavy file uploads (OCR)
+    -   **PWA launch/splash**: Student Hub installability uses the existing `erag/laravel-pwa` package, `@PwaHead`, `@RegisterServiceWorkerScript`, `config/pwa.php`, `public/manifest.json`, service worker files, and icon/splash assets. No new PWA dependency is approved for this baseline. After changing `config/pwa.php`, run `php artisan erag:update-manifest`.
+    -   **Platform behavior**: Android splash behavior is generated from manifest `name`, `background_color`, `theme_color`, and `icons`; iOS/iPadOS requires explicit `apple-touch-startup-image` links or package-generated equivalents for device-specific startup images. Acceptance tests must treat unsupported platform behavior as a documented compatibility note, not a Laravel failure.
+    -   **Global navigation**: Page transitions use a top-bar progress loader or Livewire navigation loading state. The loader must not cover validation errors, field focus, or critical action buttons after the request completes.
+    -   **Local actions**: Submit buttons use TallStackUI button `loading` behavior or Livewire `wire:loading.attr="disabled"` with a clear spinner/text state to prevent double submission.
+    -   **Uploads**: Heavy file uploads, OCR handoff, and import previews show labelled progress using TallStackUI `Progress` or a native `<progress>` element with an accessible label. Upload success/failure then moves to the normal status/toast layer.
+    -   **Offline states**: Mutation controls use `wire:offline.attr="disabled"` or equivalent Livewire/Alpine state. Offline warnings must be visible near the affected action and must not queue hidden payments, uploads, grade corrections, or enrollment changes.
+    -   **Accessibility and reduced motion**: Loading regions set `aria-busy` or status text where appropriate. Tailwind animation utilities must use `motion-safe:`/`motion-reduce:` variants for spinners, shimmer, and transitions.
 
 ---
 
@@ -3031,6 +3171,7 @@ css
     -   **Offline COR**: Service Worker caching
     -   **Grade Viewer**: Read-only grid
 -   **Access**: Only accessible via Official Student Credentials (emailed upon acceptance)
+-   **Current Implementation Boundary (2026-06-19)**: Student Hub routes and SFC pages exist under `resources/views/pages/student-hub/`, and access control is covered by feature tests. `StudentDashboardService` is also tested as the backend aggregate source. However, the current dashboard/tabs still contain placeholder/static presentation in several places; the goal-state UI must wire those pages to service-backed data, loading states, offline guards, and PWA acceptance before they can be marked passed.
 
 ---
 
@@ -3099,7 +3240,7 @@ To minimize Super Admin operational overhead and eliminate the security risks of
 
 -   **Tech Stack**: Filament (Staff Panel Feature)
 -   **Definition**: A dedicated “Walk-In” form accessible only to Registrar staff
--   **Workflow**: Includes an optional Filament `FileUpload` field targeting the `private` disk for digital retention. Bypasses the automated OCR pipeline to save cloud compute costs, since the Registrar manually validates physical documents and inputs data directly. Metadata is stored in `document_uploads` with `ocr_review_status` set to `manual_entry`.
+-   **Workflow**: Resolves the same active requirement set used by self-service intake and materializes the same applicant checklist. Registrar may record a physical inspection without an attachment or use an optional Filament `FileUpload` targeting the private disk. A scan dispatches OCR only when the requirement type enables OCR; otherwise the review remains manual. Walk-in evidence and later scans stay in the same versioned requirement history.
 -   **Identity Contract**: The walk-in form captures `first_name`, `middle_name`, `last_name`, and `suffix` into the `users` account row and lets the model/service layer compose `users.name`; academic identifiers such as `student_id`, `lrn`, `program_id`, and `year_level` remain on `student_profiles`.
 
 ---
@@ -3288,8 +3429,10 @@ graph TD
    - Use dynamic button states (`wire:loading.attr="disabled"`) and standard toast notifications (`use Interactions`) for feedback.
 
 4. **PWA & Offline Support (`laravel-pwa-setup`)**:
-   - Register PWA configurations inside the manifest file (theme colors, branding, mobile orientation, background colors).
-   - Configure service worker caching strategy to ensure the COR (Certificate of Registration) and schedule page can be accessed offline.
+   - Register PWA configurations inside `config/pwa.php` and regenerate `public/manifest.json` with `php artisan erag:update-manifest`.
+   - Keep `@PwaHead` in the Student Hub layout head and `@RegisterServiceWorkerScript` before `</body>`.
+   - Configure service worker caching strategy to ensure the COR (Certificate of Registration), schedule page, and approved read-only dashboard data can be accessed offline.
+   - Verify installability over HTTPS or localhost; service workers and install prompts are not reliable on ordinary insecure HTTP.
 
 5. **Test-Driven Verification (`laravel-tdd` + `laravel-verification`)**:
    - Write standard Livewire feature tests asserting user states, forms validation, and component state changes.
@@ -3421,6 +3564,7 @@ If mismatch found → **Request Re-upload** (manual decision).
 | **Feature Tests** | API endpoints, Form submissions, Livewire components | PHPUnit + Laravel HTTP Testing |
 | **Integration Tests** | Module workflows | PHPUnit |
 | **Browser Smoke / E2E Tests** | Student Hub routes, read-only PWA offline behavior, and critical enrollment/payment flows | Manual browser smoke tests now; Laravel Dusk or Playwright only after dependency approval |
+| **PWA / Loading Acceptance** | Manifest metadata, install prompt/splash behavior where platform-supported, service-worker offline fallback, Livewire loading/offline button states, upload progress labels, and reduced-motion handling | Manual browser/device smoke tests now; Playwright/Lighthouse or device-specific checks only after dependency approval |
 | **Performance Tests** | Load testing | Apache Bench, k6 |
 
 ---
