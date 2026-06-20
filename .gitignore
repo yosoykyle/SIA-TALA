@@ -37,6 +37,7 @@ dont access
 
 # Local Dev Outputs & Helper Scripts
 /outputs/
+/tmp/
 /migration_log.txt
 /test_nav.php
 /check_permissions.php
