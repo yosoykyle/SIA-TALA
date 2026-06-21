@@ -38,6 +38,12 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 5. Rebuild a tiny sprint backlog from approved P0 dependencies.
 6. Update Linear with the reset, retired local execution layer, and new sprint issues.
 
+## Approved Feature Batch 1
+
+- KEEP: auth/RBAC/login/logout/session security; staff roles; applicant intake/admissions; admission document upload/review; Google Vision OCR; student master record; enrollment handover; College academic foundation; SOA/payment acknowledgement/internal payment evidence.
+- REMOVE: active non-College offering paths; official document-request portal/catalog/fulfillment; official tax receipt/e-receipt/CAS behavior.
+- EXTERNAL: outside-office portal/submission/status work. TALA only owns enrolled-student roster visibility/export and audited internal lifecycle state.
+
 ## Sprint Selection Rule
 
 Next implementation work must come from the approved feature inventory, not from old SDD numbering. Highest priority goes to SIS lifecycle dependencies and capstone integrations that can be tested within the remaining time.
