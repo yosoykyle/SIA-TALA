@@ -1,19 +1,19 @@
 # TALA Local Iteration Checklist (DB-First)
 
 **Location Purpose:** Local execution checklist aligned with the 3 main specs and Linear roadmap.
-**Last Updated:** 2026-06-19
+**Last Updated:** 2026-06-21
 **Linear Project:** TALA Iterative Implementation Map (DB-First)
 
 ---
 
 ## Scope Lock (Approved)
 
-- Current active scope is **Backend + Filament Admin UI + TAL-13 backend contracts only**.
-- Shared student-domain backend logic required by admin workflows or future Student Hub data is **not deferred**. This includes applicant intake, student profiles, enrollments, subject suggestion, assessments, payment clearance, ledgers, promissory holds, document requests, OCR/manual-review state, grades, class-list visibility, dashboard aggregation, and calendar gates.
-- Student Portal UI, PWA presentation, and student-facing page buildout are **deferred** until backend/admin stabilization.
-- No Student Portal frontend work should be marked complete under backend/admin iterations before the TAL-13 UI phase is explicitly activated.
-- Pre-TAL-12 rescue scope is approved as of 2026-06-07. The rescue is an execution track, not a planning-only phase.
-- Do not update Linear from this checklist automatically; when Linear is updated later, mirror this exact local scope boundary.
+- Current active scope is the **2026-06-21 UAT rescue baseline**: finish the smallest working SIS core before expanding again.
+- Core rescue flow: login and role access -> applicant intake -> admission review/documents -> enrollment/section/finance clearance -> student record -> faculty class/grade operation -> student read-only view -> completion/graduation boundary.
+- Shared student-domain backend logic required by this flow is **not deferred**. This includes applicant intake, student profiles, enrollments, subject suggestion, assessment/payment clearance, document review state, class-list visibility, grades, student dashboard aggregation, and calendar/capacity gates.
+- Student Hub is **Core-lite** for UAT: authenticated read-only visibility matters; advanced PWA polish, offline mutation, and student write-actions remain deferred unless explicitly promoted.
+- Advanced promissory, refund, courier/SLA automation, external DepEd/CHED/LIS submission, analytics polish, and non-demo UI enhancements are deferred unless the rescue tracker promotes them.
+- Linear `TAL-28` must be updated when this checklist or the rescue baseline changes materially.
 
 ---
 
@@ -37,6 +37,49 @@
 - TAL-13 Student Hub UI remains deferred. Do not spend implementation time on Student Hub presentation until the backend contracts above are stable or explicitly descoped.
 - Scheduling availability cadence is term-scoped, not whole-academic-year-scoped. Approved Pre-UAT rule: SHS scheduling terms and availability are semester-scoped; SHS quarters remain grading-period evidence only unless a future quarter-based scheduling change is approved.
 - Filament feasibility confirmed: the planned admin UI uses Filament v5 resources, forms, tables, filters, relation managers, infolists, and action modals. Business rules must stay in Laravel services/actions; Filament resources call those services.
+
+### UAT Rescue Alignment - 2026-06-21
+
+- [x] Created active rescue tracker: `TALA-UAT-Rescue-Plan-2026-06-21.md`.
+- [x] Linked the rescue tracker from `00_Project_Documents/README.md`.
+- [x] Created benchmark baseline matrix: `TALA-SIS-Benchmark-Baseline-Matrix.md`.
+- [x] Created repeatable benchmark/spec-hardening process: `TALA-Specification-Benchmarking-Process.md`.
+- [x] Added official generated document, PDF, QR verification, COR, TOR, Form 137, SOA, and receipt benchmark coverage to the baseline matrix.
+- [x] Reframed FS/TS as goal-state baseline documents, not implementation-complete proof.
+- [x] Added FS/TS submission-baseline alignment sections so the final-form SIS spine, module baseline, technical contract map, and readiness rules are explicit before module-level details.
+- [x] Corrected baseline contradictions found during the FS/TS audit: Registrar owns versioned admission-requirement setup in the final form; generic settings JSON is transitional only; unresolved "Needs Clarification" wording was converted to controlled optional contracts.
+- [x] Applied the benchmarking process to Feature Group 1: identity/login/roles/logout/protected routes/audit. FS §3.3 and TS §4.1 now define the final-form identity/access baseline, and `TALA-Specification-Benchmarking-Process.md` records the applied hardening log.
+- [x] Applied the benchmarking process to Feature Group 2: admissions/applicant intake/requirement policies/document OCR. FS now has an admissions baseline acceptance contract; TS now has an admissions/document-review technical baseline covering published offering resolution, checklist snapshots, evidence channels, OCR/manual review, gate computation, and retention undertakings.
+- [x] Applied the benchmarking process to Feature Group 3: enrollment/sectioning/finance clearance/enrolled inventory/COR, including atomic handover, secured capacity, generic roster export, and external portal boundary.
+- [x] Applied the benchmarking process to Feature Group 4: scheduling/delivery groups/faculty availability/CP-SAT generation, including immutable inputs, hard/soft constraints, bounded solver outcomes, diagnostics, and publish controls.
+- [x] Applied the benchmarking process to Feature Group 5: finance/assessment/payments/ledger/SOA/receipts/reconciliation, including channel parity, immutable posting, computed clearance, and derived artifacts.
+- [x] Applied the benchmarking process to Feature Group 6: faculty class lists/grades/Registrar verification/corrections, including assignment scoping, grading-profile snapshots, lifecycle separation, and correction evidence.
+- [x] Applied the benchmarking process to Feature Group 7: official generated documents and QR verification, including issuance snapshots, private artifacts, minimal disclosure, and revoke/supersede handling.
+- [x] Applied the benchmarking process to Feature Group 8: Student Hub/PWA read-only visibility, including owner-scoped read models, published/released data, offline mutation denial, freshness, and cache protection.
+- [x] Applied the benchmarking process to Feature Group 9: student status/readmission/transfer/completion/graduation, including typed transitions, provenance review, graduation snapshots, and external processing boundaries.
+- [x] Applied the benchmarking process to Feature Group 10: controlled imports/exports/reports/external boundaries, including versioned templates, private batches, preview/commit/audit, field allowlists, and generic exports.
+- [x] Applied the benchmarking process to Feature Group 11: attendance/behavior/discipline/guidance/interventions; retained as benchmark-gated/deferred until typed evidence, privacy, notice/appeal, resolution, and approved effects exist.
+- [x] Completed the Feature Group 3 submission-lock audit across business evidence, BM-01/BM-02/BM-04/BM-10, FS/TS, reconciliation, SDD, current services/migrations/Filament surfaces/tests, and goal-state UAT rows. Specification is lock-ready; runtime gaps remain explicitly assigned to SDD-07A.
+- [x] Completed the Feature Group 4 submission-lock audit across SIA scheduling evidence, BM-05/BM-06/BM-11/BM-16/BM-17, FS/TS, reconciliation, SDD, Python CP-SAT runtime, Laravel services/jobs, Filament surfaces/tests, and goal-state UAT rows. Specification is lock-ready; runtime corrections remain for `model_invalid` timeout semantics and approved post-publication Apply.
+- [x] Completed the Feature Group 5 submission-lock audit across SIA Accounting evidence, BM-01/BM-05/BM-09/BM-13/BM-18/BM-19, FS/TS, reconciliation, SDD, assessment/payment/PayMongo/ledger/adjustment services, resources/tests, and goal-state UAT rows. Specification is lock-ready; SDD-06E/06F retain versioned assessment, OR/SOA issuance, duty segregation, daily reconciliation, reminders, and refund execution, while SDD-07A owns removal of assessment-written `enrolled_at`.
+- [x] Completed the Feature Group 6 submission-lock audit across the SIA grade-audit workflow, BM-01/BM-05/BM-20/BM-21, FS/TS, reconciliation, SDD, class-list/grading/finalization/correction services, Filament surfaces/tests, and UAT rows. Specification is lock-ready; SDD-08A retains profile/package schema, Registrar verify/return/finalize, verified-only release, Faculty finance-badge removal, and institution approval of the active College profile before any runtime or historical migration.
+- [x] Completed the Feature Group 7 submission-lock audit across official generated documents, COR controls, document requests, private PDF/QR artifacts, BM-13/BM-14/BM-15/BM-22/BM-23, FS/TS, reconciliation, SDD, COR verification lifecycle code/tests, document-request lifecycle code/tests, and UAT rows. Specification is lock-ready; SDD-07A/08A retain complete COR issuance/PDF/QR/public verification and dedicated permission cleanup, SDD-07B retains full issued-document snapshots/private artifacts/release evidence/catalog, SDD-06E retains OR/SOA issuance, and SDD-07E retains diploma/certificate release after graduation evaluation.
+- [x] Completed the Feature Group 8 submission-lock audit across Student Hub/PWA visibility, BM-01/BM-02/BM-12/BM-24, FS/TS, reconciliation, SDD, Student Hub routes/middleware/layout, `StudentDashboardService`, access/dashboard service tests, and STU UAT rows. Specification is lock-ready; SDD-08B/TAL-13 retain connected service-backed Student Hub pages, no-sample UI, mutation forms only when promoted, protected PWA cache/freshness/clearance behavior, and browser/device PWA acceptance proof.
+- [x] Adopted benchmark/default SIS lifecycle as the scope filter: admission, enrollment, records, scheduling/classes, grades, finance, role access, and completion boundary.
+- [x] Added rescue overlay to the SDD execution map.
+- [x] Added rescue overlay to the reconciliation matrix.
+- [x] Added rescue execution split to the master system test cases.
+- [x] Updated Linear `TAL-28` with the rescue pivot and current Day 1 documentation status.
+  - 2026-06-21 Linear mirror: posted benchmarking-process and generated-documents/QR/PDF baseline update to `TAL-28` as comment `9aa8fffc-440d-4262-a303-25c85d402dcb`.
+  - 2026-06-21 Linear mirror: posted FS/TS submission-baseline hardening update to `TAL-28` as comment `d17ccecf-a285-4fc6-af04-ed167b73805e`.
+  - 2026-06-21 Linear mirror: posted Feature Group 1 identity/access baseline-hardening update to `TAL-28` as comment `802fd6e6-5ddb-410a-b68e-de26f96487c3`.
+  - 2026-06-21 Linear mirror: posted Feature Group 2 admissions/applicant-intake/document-OCR baseline-hardening update to `TAL-28` as comment `63631dd7-6dee-4e77-a5a0-1342bb1fb192`.
+  - 2026-06-21 Linear mirror: posted the Feature Group 4 scheduling submission-lock audit, verification result, and two open runtime corrections to `TAL-28` as comment `f5bcce0e-9f65-4f57-9a3b-567dff815025`.
+  - 2026-06-21 Linear mirror: posted the Feature Group 5 finance submission-lock audit, 62-test verification result, corrected UAT boundaries, and SDD-06E/06F runtime gaps to `TAL-28` as comment `cab07d02-c0cb-489e-9332-51b876d4b1bb`.
+  - 2026-06-21 Linear mirror restored: posted the Feature Group 6 faculty class-list/grading submission-lock audit, 30-test verification result, locked verification/finalization boundary, and SDD-08A runtime gaps to `TAL-28` as comment `f11af062-e299-424c-a775-865fb3e1ce7d`.
+  - 2026-06-21 Linear mirror: posted the Feature Group 7 official-document/COR/document-request/PDF/QR submission-lock audit, 11-test verification result, locked issuance/verification/release-evidence boundary, and SDD-07A/07B/06E/07E runtime gaps to `TAL-28` as comment `4cbd4dc6-28e4-4175-8425-95bffe48faed`.
+  - 2026-06-21 Linear mirror blocked: attempted to read/update `TAL-28` for Feature Group 8, but the Linear connector returned HTTP 401 `token_revoked`. Local checklist, FS/TS, reconciliation, SDD, benchmark matrix, and process register were updated; Linear still needs a retry after OAuth is restored.
+- [ ] After the docs are coherent, commit or tag the rescue baseline before UAT execution.
 
 ### Previous Grilling/Iteration Reconciliation - 2026-06-17
 

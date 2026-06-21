@@ -1,9 +1,9 @@
 # TALA SDD Execution Map
 
-**Purpose:** Active spec-driven execution map for finishing the Admin Nexus, backend, scheduling, and TAL-13 backend contracts before Pre-UAT.
-**Last Updated:** 2026-06-19
-**Scope:** Backend + Filament Admin UI + TAL-13 backend contracts. Student Hub UI remains deferred.
-**Status:** Active execution map for the next backend/Admin SDD pass. Scheduling/curriculum decisions from the 2026-06-17 audit are now locked unless the user reopens a specific decision.
+**Purpose:** Active spec-driven execution map for finishing the smallest working SIS core before UAT, then continuing deferred SDD slices in dependency order.
+**Last Updated:** 2026-06-21
+**Scope:** UAT rescue baseline first: role access, applicant intake, admission documents, enrollment/section/finance clearance, student record, faculty class/grade operation, read-only student visibility, and completion/graduation boundary.
+**Status:** Active execution map under the 2026-06-21 UAT rescue overlay. Scheduling/curriculum decisions from the 2026-06-17 audit remain locked unless the user reopens a specific decision.
 
 ---
 
@@ -14,11 +14,50 @@ This map is the current execution control document after the 2026-06-19 consolid
 1. `TALA-Functional-Specification.md` defines business workflows and role boundaries.
 2. `TALA-Technical-Specification.md` defines service, schema, UI, security, and verification contracts.
 3. `business-evidence/INSTITUTION WORK  FLOW CURRENT.md` is the newest client-approved business baseline; other evidence supplies forms/sheets for field and policy validation.
-4. `TALA-Workflow-Reconciliation-Matrix.md` records the requirement-by-requirement FS/TS/code classification, benchmark gate, SDD owner, and dependency order.
-5. The Laravel codebase proves current implementation state through migrations, models, services, policies, Filament resources, and tests.
-6. `TALA-Local-Iteration-Checklist.md` and Linear mirror current execution state.
+4. `TALA-Specification-Benchmarking-Process.md` defines the repeatable feature-group process for benchmark-hardening FS/TS before implementation.
+5. `TALA-Workflow-Reconciliation-Matrix.md` records the requirement-by-requirement FS/TS/code classification, benchmark gate, SDD owner, and dependency order.
+6. The Laravel codebase proves current implementation state through migrations, models, services, policies, Filament resources, and tests.
+7. `TALA-Local-Iteration-Checklist.md` and Linear mirror current execution state.
 
 If a refinement list, archived plan, old prototype, or previous grilling-generated iteration conflicts with this map, this map wins for current execution. Older refinement files stay historical unless a specific item is re-entered here as a module-feature slice or a linked Linear child issue.
+
+---
+
+## UAT Rescue Overlay (2026-06-21)
+
+The rescue period does not cancel the SDD plan. It changes execution priority.
+
+Before starting any new implementation slice, classify it against `TALA-UAT-Rescue-Plan-2026-06-21.md`:
+
+| Classification | Execution meaning |
+| --- | --- |
+| `Core` | Required for the applicant-to-completion SIS flow; can block UAT if broken or absent from the demo path. |
+| `Core-lite` | Needed for proof of visibility or role experience, but may be read-only or limited for UAT. |
+| `Supporting` | Useful and may remain visible if already stable, but not allowed to consume time ahead of broken Core work. |
+| `Deferred` | Preserved as future/research value; do not implement during rescue unless promoted by user decision. |
+| `External Boundary` | Keep evidence/export/status only; do not build external agency/courier/payment-provider automation unless already required by the current demo path. |
+
+Rescue execution order:
+
+1. Stabilize authentication and role-specific access.
+2. Stabilize the applicant/admission/enrollment/finance handover path.
+3. Stabilize official student record and read-only student visibility.
+4. Stabilize faculty class list and grade operation enough to prove post-enrollment academic flow.
+5. Provide a completion/graduation boundary or status proof without building full diploma/government-submission automation.
+6. Update UAT testable-now rows, local checklist, reconciliation matrix, and Linear after each factual change.
+7. When a feature's FS/TS contract is unclear, run the benchmarking process first instead of coding from assumptions.
+
+### Specification Baseline Completion Overlay (2026-06-21)
+
+The benchmark-hardening queue in `TALA-Specification-Benchmarking-Process.md` is complete for Feature Groups 1-11. This closes the FS/TS goal-state coherence pass only. It does not close any SDD implementation item, change executable-test status, or promote deferred work. Continue implementation from the active target and dependency order recorded near the end of this map, using the new FS §2.3 and TS §1.4 contracts as acceptance and technical boundaries.
+
+Feature Group 4 passed its deep submission-lock audit on 2026-06-21. Scheduling remains implemented and supporting unless the selected UAT path depends on it, but two factual runtime corrections remain owned by the scheduling slices: distinguish `model_invalid` from timeout, and allow an approved schedule-change lifecycle Apply after publication while keeping direct creation/edit blocked.
+
+Feature Group 5 passed its deep submission-lock audit on 2026-06-21. Existing SDD-06A-D posting behavior remains valid, but "closed" applies only to those implemented slices, not the complete finance goal state. SDD-06E owns effective-dated fee structures and assessment snapshots, OR/SOA issuance, materialized-balance rebuild proof, duty segregation, private reminders, and daily three-way reconciliation; SDD-06F owns component-level disposition/refund execution. Assessment must stop writing `enrolled_at`, which remains an official-handover field under SDD-07A.
+
+Feature Group 7 passed its deep submission-lock audit on 2026-06-21. COR remains the UAT-core generated academic artifact after canonical enrollment, but current runtime proves only COR verification token lifecycle controls and document-request fulfillment transitions. SDD-07A/SDD-08A own complete COR issuance/PDF/QR/public verification and dedicated COR permission cleanup; SDD-07B owns versioned document catalog, eligibility/holds, issued academic-document snapshots, private artifact access, release evidence, and school-to-school Form 137/Form 138 boundary evidence. SDD-06E owns OR/SOA issuance; SDD-07E owns diploma/certificate release after graduation evaluation.
+
+Feature Group 8 passed its deep submission-lock audit on 2026-06-21. Student Hub/PWA remains UAT Core-lite: route protection, active-student middleware, published Help/FAQ, layout PWA directives, and the `StudentDashboardService` backend aggregate are valid evidence. Runtime gaps remain that prevent manual pass of most Student Hub rows: five pages are placeholder/static rather than service-backed, student mutation forms remain deferred, and `public/sw.js` only provides generic offline fallback rather than protected read-only cache/freshness/clear-on-logout/offline-mutation proof. SDD-08B/TAL-13 owns the connected Student Hub UI and PWA acceptance slice after core admin/backend rescue items are stable or explicitly promoted.
 
 ---
 
@@ -229,7 +268,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Payments/ledger | FS 6.2-6.3, TS 3.12, TS 3.14 | SOA paid/date/balance/monthly/penalty shapes | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, queue/resource tests | **SDD-06B closed:** typed manual confirmation, atomic immutable posting, provider idempotency/retry, overpayment, shared clearance, and list/view admin boundaries are executable-test verified. |
 | Promissory lifecycle | FS 6.2.3, TS 2.5.3, TS 2.6.1, TS 8.8 | SOA balance evidence, RA 11984 benchmark | `PromissoryNoteLifecycleService`, `ExamAccessDecisionService`, Accounting resources/actions | **SDD-06C closed:** applicant/student-owner backend request, staff-assisted pending creation, Accounting approve/reject/cancel, payment-driven settlement, deadline processing, and separate exam-access accommodations are executable-test verified. |
 | Accounting adjustments | FS 6.3, TS 3.12, TS 8.8 | SOA corrections/balances, accounting-log/manual-receipt workflow evidence, finance correction benchmarks | `AccountingAdjustmentService`, `accounting_adjustments`, `AccountingAdjustmentResource`, `LedgerEntryResource` list/view-only evidence | **SDD-06D closed:** typed debit, credit, and ledger-entry reversal workflow posts one audited adjustment plus one immutable ledger entry; generic ledger CRUD remains forbidden. |
-| **SDD-06E - Finance operations and reconciliation delta** | FS 6.1-6.3; TS 3.12/3.14 | Collector/Recorder/Verifier, manual/online receipts, daily three-way reconciliation, private reminders, clearance/SOA | Immutable payment/ledger services exist; no maker-checker daily close or receipt reconciliation | Preserve existing posting services. Add duty permissions, receipt evidence, expected/actual close, variance reason, verifier approval, private reminders, and computed clearance/SOA. |
+| **SDD-06E - Finance operations and reconciliation delta** | FS 6.1-6.3; TS 3.12/3.14 | Fee structures, Collector/Recorder/Verifier, manual/online receipts, daily three-way reconciliation, private reminders, clearance/SOA | Immutable payment/ledger services exist; fee template is transitional and no assessment snapshot, OR/SOA issuance, maker-checker daily close, or projection rebuild exists | Preserve existing posting services. Add versioned effective-dated fee structures/component lines, assessment snapshots, policy-driven discount, duty permissions, OR/SOA issuance, balance rebuild check, expected/actual close, variance reason, verifier approval, and private reminders. Remove assessment-owned `enrolled_at`. |
 | **SDD-06F - Financial disposition and refunds** | FS 6.2.4; TS 3.12.3 | Current 15-day admission/enrollment-fee refund and post-enrollment tuition policy | Typed adjustments exist; no refund request/review/channel execution | Implement effective-dated component disposition, authorization, immutable refund entries, channel idempotency, and reconciliation. Withdrawal/cancellation must call this policy rather than assume retention/refund. |
 
 **SDD-06A implementation evidence (2026-06-18)**
@@ -284,7 +323,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
 | **SDD-07A - Admission documents and enrollment handover** | FS 4.1, FS 5.4, FS 8.1.1, TS 1.3.1, TS 3.12.1, TS 6.1 | Latest approved admission-gate/retention-document split, Registrar workflow, provisional undertaking, payment/receipt slot rule, and external government encoding | `ApplicantIntakeService`, `StudentEnrollmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentHardCopyReceiptService`, `DocumentUploadReviewService`, enrollment/LIS columns and projections, COR permission, OCR services/resources | Requirements closed for implementation planning. Implement one generic admission lifecycle. Initially publish Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer; keep cross-enrollee inactive. Treat old curriculum/ALS, foreign compliance, and support attributes as composable rules. Add readiness-gated payment/handover, stacked admission-capacity plans, tentative placement expiry, OR-secured capacity, and `PendingInstitutionalPlacement` fallback. Add assisted legacy onboarding for pre-TALA returnees without reliable records, while SDD-07D retains readmission approval/reactivation ownership. |
-| **SDD-07B - Official document catalog and fulfillment** | FS 9.1-9.3, TS 3.14.2 | Manual document-request, payment, three-working-day preparation, identity/authorization, and release-log evidence | `DocumentRequestLifecycleService`, `DocumentRequestResource`, fixed model-owned type list, shipping/payment tests | Decide fixed approved types versus a versioned catalog; define eligibility, request basis, fees, holds, processing SLA/extension, pickup representative authorization, release acknowledgement, and delivery boundary. Preserve private evidence paths and immutable payment/audit records. |
+| **SDD-07B - Official document catalog, issuance, and fulfillment** | FS 5.6, FS 9.1-9.3, TS 2.6.2, TS 3.14.2, TS 3.14.2.1 | Manual document-request, payment, three-working-day preparation, identity/authorization, school-record confidentiality, and release-log evidence | `DocumentRequestLifecycleService`, `DocumentRequestResource`, fixed model-owned type list, shipping/payment tests, `CorVerificationLifecycleService`, `CorVerificationResource`; no full issuance/PDF/source-snapshot service yet | Implement versioned catalog/fee activation, eligibility/holds, source snapshot/checksum, private generated artifact storage, release evidence, and request/release audit. Preserve current request/shipping transitions. Keep COR issuance and public QR verification in the COR-owned SDD-07A/08A path, finance OR/SOA in SDD-06E, and diploma/credential release in SDD-07E. |
 | **SDD-07C - Enrollment adjustment requests** | FS 5.3, FS 9.4, TS 3.14.2, TS 3.18 | Drop-subject, section transfer, program transfer, and modality-change workflows | Generic `ServiceRequestLifecycleService`; section/delivery-group capacity and calendar services exist, but no typed request applies these domain changes | Define separate typed workflows for drop subject, section transfer, program transfer, and modality change. Each approval must validate its calendar window, curriculum/prerequisites, capacity/schedule effects, and fee delta, then apply changes atomically. Resolving a generic service request must never mutate enrollment records by itself. |
 | **SDD-07D - Student record and status lifecycle** | FS 4.1, FS 5.2, FS 9.4, TS 2.5, TS 3.14.2 | Personal-data update/correction, missing-requirement receipt, withdrawal, LOA, readmission, transfer-out, inactivity, archive, and reactivation workflows | Generic `ServiceRequestLifecycleService`; `users` and `student_profiles` contain inactive/archived values, but no approved transition services implement these workflows | Define typed evidence, approvals, effective dates, notifications, access effects, financial/document holds, and reversible versus terminal transitions. Keep missing admission-document receipt in SDD-07A. Do not infer inactivity from attendance until an attendance source exists. |
 | **SDD-07E - Graduation evaluation and credential release** | FS/TS gap to be added after grill | Curriculum-audit, deficiency, clearance, graduate approval, diploma-number, claiming, and external-reporting evidence | Curriculum, finalized grades, ledger, document uploads, and document requests exist; no graduation application/audit lifecycle exists | Decide MVP scope, then define an auditable graduation evaluation snapshot, deficiency resolution, approval, credential preparation/release, and external-reporting export boundary. Government portal submission remains external unless separately approved. |
@@ -311,7 +350,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 | Existing slice/contract | New manual impact | Required action |
 | --- | --- | --- |
 | SDD-01 to SDD-03 curriculum, sectioning, and scheduling | Core ownership and prerequisite/schedule mapping remain compatible. The current 100-student ceiling and progression policies are approved institutional requirements. | Keep solver work closed; add configurable institution capacity and benchmark progression constraints before implementing their gates. |
-| SDD-05B enrollment handover / active SDD-07A | Direct conflict: the manual assigns section/schedule before payment and permits 30-to-60-day retention-document follow-up, while the current FS/TS requires seven-day physical completion and no section/access while temporary. | Block SDD-07A implementation until admission-gate versus retention-document behavior is resolved. |
+| SDD-05B enrollment handover / active SDD-07A | Resolved conflict: pre-payment section/schedule work is tentative planning; admission-gate evidence controls payment eligibility; retention undertakings may follow; qualifying payment secures capacity; active access requires compatible final placement and canonical enrollment. | Continue SDD-07A against the lock-audited FS/TS contract. Migrate transitional states/LIS coupling, add tentative-placement expiry and placement-aware handover, then implement generic enrolled roster and COR issuance without reopening the resolved gate split. |
 | SDD-05C subject suggestion | Prerequisite enforcement is compatible; the workflow's SHS/College repeat and remediation outcomes now supersede the narrower earlier contract. | Benchmark regulator rules and model the approved progression outcomes and configurable thresholds before adding automation. |
 | SDD-06C promissory lifecycle | Approved workflow says one approved note per academic year with dual Registrar/Accounting approval; code enforces one open request per enrollment and Accounting review. | Reopen cap/approval implementation; retain payment-driven settlement and RA 11984 exam-access accommodation unless the approved flow or law requires more. |
 | SDD-06D financial disposition | Approved workflow establishes a 15-day admission/enrollment-fee refund window and non-refundable tuition after official enrollment; the strict no-refund contract is stale. | Reconcile the effective-dated policy, payment channels, immutable ledger treatment, and authorization before code changes. |
@@ -344,8 +383,8 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
-| Class list visibility | FS 7.1, TS 3.7 | SOA finance-cleared evidence | `FacultyClassListService`, `EnrollmentSubjectResource` | Verify only finance-cleared/allowed students appear and labels hide balances from faculty. |
-| **SDD-08A - Grade policy, encoding, verification, and correction** | FS 7.2, TS 3.1 | grade-sheet evidence plus consolidated workflow | grading services/resources | Preserve encoding/finalization/correction controls. Add versioned grading-profile snapshots and Registrar verification/return stage; resolve the College profile conflict before code changes. |
+| Class list visibility | FS 7.1, TS 3.7 | official roster and published schedule evidence | `FacultyClassListService`, `EnrollmentSubjectResource` | Scope rows to active official enrollment-subject plus published assignment; remove finance-derived status from Faculty visibility. |
+| **SDD-08A - Grade policy, encoding, verification, and correction** | FS 7.2, TS 3.1 | grade-sheet evidence plus consolidated workflow | grading services/resources | Add effective-dated profile resolution/snapshot, immutable submission packages, Registrar return/verify/finalize, verified-only official release, and append-only correction supersession. Keep the hardcoded College profile and historical grades unchanged until institution approval and migration rules exist. |
 | Grade correction | FS 7.2.5, TS 3.1.5 | grade-sheet/evaluation evidence | `GradeCorrectionService`, resource/tests | Keep Academic Head approval before official grade mutation. |
 | Advising status | FS 7.1.4, TS 3.1.6 | grade evidence | service/API evidence present | Verify advisory-only status does not trigger sanctions or holds. |
 | **SDD-08B - Attendance, guidance, behavior, and discipline evidence** | FS/TS gap plus continuing-enrollment gates | attendance threshold, confidential referrals, behavior/discipline clearance | No attendance, guidance-case, or discipline domain source | Define configurable attendance policy, review/appeal, confidential referrals, and resolved clearance evidence. No automatic FA/DRP or enrollment block until these sources exist. |

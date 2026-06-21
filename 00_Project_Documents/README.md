@@ -9,8 +9,11 @@ This folder is split by document purpose so the main directory stays readable.
 | Functional source of truth | [TALA-Functional-Specification.md](./TALA-Functional-Specification.md) |
 | Technical source of truth | [TALA-Technical-Specification.md](./TALA-Technical-Specification.md) |
 | Workflow-to-spec/code traceability and reconciliation status | [TALA-Workflow-Reconciliation-Matrix.md](./TALA-Workflow-Reconciliation-Matrix.md) |
+| Benchmark baseline for actionable FS/TS final-form scope | [TALA-SIS-Benchmark-Baseline-Matrix.md](./TALA-SIS-Benchmark-Baseline-Matrix.md) |
+| Repeatable process for benchmarking and hardening FS/TS by feature group | [TALA-Specification-Benchmarking-Process.md](./TALA-Specification-Benchmarking-Process.md) |
 | Active SDD execution map | [TALA-SDD-Execution-Map.md](./TALA-SDD-Execution-Map.md) |
 | Local execution tracker | [TALA-Local-Iteration-Checklist.md](./TALA-Local-Iteration-Checklist.md) |
+| UAT rescue scope-freeze tracker | [TALA-UAT-Rescue-Plan-2026-06-21.md](./TALA-UAT-Rescue-Plan-2026-06-21.md) |
 | Migration/schema wave control | [TALA-Foundation-Migration-Control-Log.md](./TALA-Foundation-Migration-Control-Log.md) |
 | Tech stack and package rationale | [TECH_STACK_SUMMARY.md](./TECH_STACK_SUMMARY.md) |
 | Feature/capability quick reference | [TALA-Module-Features-Capabilities.md](./TALA-Module-Features-Capabilities.md) |

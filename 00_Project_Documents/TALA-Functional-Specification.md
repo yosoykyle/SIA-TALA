@@ -51,10 +51,43 @@ Versioning rule: major version increments once per update date; same-day updates
 | 37.0 | 2026-06-19 | SDD-07A admissions benchmark adopted: one configurable admission pipeline replaces flat applicant-type branching. Admission offerings and requirement policies compose education level, entry route, prior-credential pathway, citizenship/compliance profile, program/grade scope, and purpose-limited learner-support attributes. Initial public offerings are Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer; returning students use assisted readmission with legacy onboarding where needed; cross-enrollee remains inactive. Unsupported offerings remain unpublished and intake fails closed when no unique active policy resolves. The hybrid document model is now classified by evidence family so canonical files, verified data, OCR derivatives, generated artifacts, import sources, and physical custody are not conflated. |
 | 38.0 | 2026-06-19 | Client clarification and benchmark evidence closed the Old Curriculum SHS ambiguity: old-curriculum high-school graduates who finished before SHS existed are routed to the Old Curriculum College prior-credential pathway when otherwise eligible. The former Old Curriculum SHS row remains traceable business evidence only and is not a publishable intake route in the current deployment. |
 | 39.0 | 2026-06-19 | Added goal-state UI acceptance baseline rules for INTE 302/UAT test-case derivation. Student-facing behavior is specified through the Student Hub/TallStackUI/PWA goal state, staff behavior through Admin Nexus/Filament goal state, with pass/fail execution tracked outside the FS. Added local test-evidence and splash/loading acceptance boundaries for the master test-case matrix. |
+| 40.0 | 2026-06-21 | UAT rescue scope freeze added: FS remains the approved goal-state functional baseline, while the immediate UAT baseline is limited to the working SIS lifecycle core. Advanced automation and research extensions are retained as deferred enhancements unless required by the institutional workflow, benchmark baseline, visible current UI, or demo correctness. |
+| 41.0 | 2026-06-21 | Submission baseline alignment added: FS now states the benchmark-grounded final-form SIS spine, module baseline, deferral boundary, and acceptance-readiness rule derived from the benchmark matrix and rescue plan. |
+| 42.0 | 2026-06-21 | Admissions/applicant-intake baseline hardening added: public offerings, deterministic requirement policy resolution, materialized applicant checklist, self-service and Registrar-assisted channels, admission-gate versus retention-document effects, OCR/manual-review boundary, and safe failure outcomes are now summarized as a testable final-form contract. |
+| 43.0 | 2026-06-21 | Feature Groups 3-11 baseline hardening completed: enrollment/roster/COR, scheduling, finance, faculty grades, official documents, Student Hub, student status/completion, controlled data exchange, and attendance/guidance now have benchmark-grounded acceptance boundaries and UAT priority classifications. |
+| 44.0 | 2026-06-21 | Feature Group 4 submission-lock audit aligned scheduling with CP-SAT, mature course-schedule conflict checks, queued dispatch, actual solver/domain outcomes, and the controlled post-publication revision boundary. |
+| 45.0 | 2026-06-21 | Feature Group 5 submission-lock audit aligned finance with versioned fee structures, immutable assessment snapshots, channel-parity posting, issued OR/SOA artifacts, maker-checker daily reconciliation, and explicit current-runtime gaps. |
+| 46.0 | 2026-06-21 | Feature Group 6 submission-lock audit separated Faculty submission from Registrar verification/finalization, made grading profiles effective-dated and snapshotted, removed faculty-facing finance status from the goal-state class list, and distinguished pre-final returns from post-final official corrections. The implemented College formula remains transitional pending institution approval. |
+| 47.0 | 2026-06-21 | Feature Group 7 submission-lock audit aligned official document issuance with Registrar/student-record benchmarks, DepEd school-record transfer boundaries, private PDF artifacts, opaque QR verification, request/release evidence, and explicit runtime gaps for full issued-document snapshots beyond COR controls. |
+| 48.0 | 2026-06-21 | Feature Group 8 submission-lock audit aligned Student Hub/PWA with owner-scoped Livewire/TallStackUI read models, active-student access, released/published data only, freshness-labeled read-only offline behavior, and explicit current gaps for placeholder pages and generic-only service-worker fallback. |
 
 ---
 
 **Document Scope Boundary:** This document defines functional requirements and business rules only. Project execution status, QA progress, and implementation ownership live outside the FS in project management artifacts.
+
+**UAT Rescue Baseline Boundary (2026-06-21):** For the immediate UAT rescue period, this FS is the approved goal-state functional baseline, not proof that every described feature is implemented. The executable UAT baseline is the smallest working SIS flow that demonstrates login and role access, applicant intake, admission document review, enrollment/section/finance clearance, student record, faculty class/grade operation, read-only student visibility, and completion/graduation boundary. Features outside that flow remain valid future requirements only when marked as Supporting, Deferred, External Boundary, or Research Extension in the rescue tracker, reconciliation matrix, SDD map, or test-case matrix.
+
+**Submission Baseline Alignment (2026-06-21):** This FS is intended to be the capstone/paper baseline for the final-form TALA system. It is grounded in SIA business evidence, the workflow reconciliation matrix, and the benchmark baseline matrix. Mature SIS references establish the normal lifecycle spine: person/student master data, admissions, enrollment, academic records, scheduling/classes, grades, student financials, self-service, official documents, and completion/graduation processing. SIA-specific policy and workflow evidence narrows how that spine behaves locally. SDD/checklist artifacts decide implementation order; they do not reduce the final-form FS unless a later approved reconciliation changes the requirement.
+
+### Submission Baseline Module Map
+
+| Baseline area | Final-form functional baseline | Benchmark/source basis | UAT treatment |
+| --- | --- | --- | --- |
+| Identity, roles, and protected access | Separate applicant, student, staff, faculty, Accounting, Registrar, Academic Head, and System Super Admin boundaries with one-role operational authority where required. | Mature SIS role/self-service separation; Filament staff UI boundary; current RBAC model. | Core |
+| Applicant intake and admissions | Published term-scoped offerings, applicant self-service, Registrar-assisted intake, configurable requirement policy, checklist states, and admission-gate versus retention-document separation. | Mature admissions lifecycle; Frappe admission pattern; SIA admission workflow; regulatory document-transfer benchmarks. | Core |
+| Student master record and enrollment | Applicant-to-student handover creates or reuses one official profile and one canonical enrolled state after admission, finance, capacity, and placement gates clear. | Mature SIS person/student records and matriculation patterns; SIA enrollment/payment workflow. | Core |
+| Calendar, curriculum, subjects, sections, and scheduling | Education-level-aware academic years/terms, curricula, section/delivery groups, faculty availability, conflict validation, and solver-assisted schedule generation with staff review. | Mature SIS course/schedule/class-readiness model; OR-Tools CP-SAT benchmark; SIA modality evidence. | Core/Supporting |
+| Finance, assessment, ledger, payments, SOA, and receipts | Fee assessment, discounts, installments, manual/online payment confirmation, immutable ledger, computed balance/clearance, SOA/receipt evidence, and privacy-safe finance visibility. | SIS Student Financials benchmark; PayMongo payment lifecycle; SIA SOA/payment evidence. | Core |
+| Faculty class lists and grades | Faculty sees only assigned classes; grades are encoded under versioned grading profiles, submitted, verified/finalized, and corrected only through authorized audited workflows. | SIS Student Records/gradebook patterns; DepEd grading benchmark for SHS; SIA class-record evidence. | Core |
+| Student Hub and applicant/student self-service | Student-facing read-only visibility for profile, enrollment status, COR, schedule, grades, balance, documents, notifications, and FAQ/help, with later mutation workflows added only through dedicated services. | Campus self-service benchmark; Livewire/TallStackUI/PWA pattern. | Core-lite |
+| Official generated documents | COR, COE, COG, TOR/Form 137 copies, report cards, SOA/receipts, and diploma/certificate artifacts are generated from authoritative records with issuance, release, and verification evidence. | Student Records transcript/enrollment-verification/graduation benchmark; PDF/QR verification baseline; SIA document-request workflow. | COR Core/Supporting; full catalog Supporting/Phase 2 |
+| Student status, adjustments, and graduation | Drop/withdraw/shift/transfer/modality changes, LOA/readmission, transfer-out, completion/graduation eligibility, deficiency review, and credential release use typed stateful workflows. | Mature SIS student lifecycle and graduation processing; SIA status/graduation workflow. | Boundary/Supporting |
+| Reports, imports, exports, and external systems | Controlled imports/exports support rosters, schedules, finance, grades, and source evidence. Government portals and outside office systems remain external; TALA provides accurate data and generic exports where useful. | Laravel Excel/import-export benchmark; mature SIS reporting boundary; SIA external workflow clarification. | Supporting/External Boundary |
+| Security, privacy, audit, and evidence | Sensitive student, finance, document, OCR, support, and generated-artifact data remain role-scoped, privately stored where required, audited, and exposed only through authorized workflows. | Data Privacy Act controls, file-upload/security benchmarks, private-storage design. | Core |
+
+### Submission Readiness Rule
+
+This FS is submission-ready only when each baseline area above has enough detail for a reader to identify: responsible role, entry point, workflow states, user action, success result, validation failure, business edge case, access boundary, generated evidence, and the related TS contract. Implementation progress is deliberately tracked outside this FS so the submitted specification remains a stable target rather than a moving development diary.
 
 ## Table of Contents
 
@@ -77,7 +110,7 @@ Versioning rule: major version increments once per update date; same-day updates
 
 T.A.L.A. (Total Academic Lifecycle Automation) is a comprehensive School Information Management System (SIS) designed specifically for Servitech Institute Asia (SIA). The title "T.A.L.A." (Filipino for Star/Guide) reflects the system's role as the central source of truth for academic management.
 
-The system replaces fragmented manual processes (paper forms, Google Sheets, separate accounting logs) with a unified, automated platform. It streamlines the entire student lifecycle—from online enrollment and document validation to grade management and financial clearance—ensuring compliance with DepEd Order 125 and the Data Privacy Act.
+The system replaces fragmented manual processes (paper forms, Google Sheets, separate accounting logs) with a unified, automated platform. It streamlines the entire student lifecycle-from online enrollment and document validation to grade management and financial clearance-while preserving applicable DepEd/CHED, institutional-policy, and Data Privacy Act boundaries.
 
 This document serves as the **Functional Specification** for the system, detailing the logical workflows, business rules, and user-facing features.
 
@@ -154,6 +187,24 @@ Each role/module scenario in the master test-case matrix must trace back to this
 | **Automated Curriculum Matching** | Cross-checks report cards against curriculum                                                                                          | Suggests credited subjects                                               |
 | **Dynamic Modality Scheduling**   | Auto-generates schedules based on modality choice                                                                                     | Flexible learning options                                                |
 
+### 2.3 Benchmark-Hardened Lifecycle Acceptance Contracts
+
+The following contracts complete the feature-group baseline without implying that every capability is currently implemented. Detailed module rules later in this FS remain controlling; these rows state the cross-module outcome, blocked-path behavior, and rescue priority that must remain consistent across implementation and UAT artifacts.
+
+| Feature group | Final-form acceptance contract | Negative and business-edge boundary | Priority and traceability |
+| --- | --- | --- | --- |
+| Enrollment, sectioning, finance clearance, inventory, and COR | Official handover occurs once after admission gates, readiness, finance, and capacity rules pass. It creates or reuses one canonical student profile, one term enrollment, secured placement, account access, and COR/class-list eligibility. Registrar can filter enrolled students by year, term, level, program/strand, grade/year, section, delivery group, and status and export an authorized generic roster. | Tentative placement grants no protected access and may expire. Missing readiness, unpaid required amount, full capacity, duplicate identity, or concurrent handover blocks atomically with an actionable reason. Institution-caused placement failure routes to Registrar resolution rather than applicant rejection. DepEd/CHED/LIS submission remains external. | `UAT_CORE`; BM-01, BM-02, BM-04, BM-10, SIA-01; SDD-07A; master enrollment/Registrar/COR cases. |
+| Scheduling and automatic generation | Registrar prepares delivery groups, meetings, rooms, eligible faculty, workload, and availability; OR-Tools CP-SAT or an equivalent proven solver generates a reviewable proposal from an immutable input snapshot. Academic Head approval precedes official publication; students and faculty see only the published schedule. | Hard conflicts can never be overridden. Infeasible, unknown, or timed-out runs publish nothing and expose constraint-level diagnostics. Authorized workload/availability exceptions require reason and audit; post-publication changes use a controlled change workflow. | `UAT_CORE` when schedule is on the demo path, otherwise `UAT_SUPPORTING`; BM-05, BM-06, SIA-01; SDD-04/SDD-05A. |
+| Finance, assessment, payments, ledger, SOA, and receipts | Effective-dated fee, discount, scholarship, installment, and downpayment policies produce an assessment. Manual Accounting confirmation and PayMongo outcomes post through the same idempotent immutable ledger contract. Balance and finance clearance are computed; SOA and receipts are derived, versioned artifacts. | Duplicate references/webhooks post once; failed or pending provider outcomes do not clear finance; overpayment remains credit; corrections use reversal/adjustment entries rather than editing history. Balances remain private and debt does not become an undocumented exam-access block. | `UAT_CORE` for assessment/payment/clearance; advanced accommodations `UAT_DEFERRED`; BM-01, BM-05, BM-09, BM-13, SIA-01; SDD-06A-E. |
+| Faculty class lists, grades, verification, and correction | Faculty sees only officially assigned and published classes. Grade entry follows the applicable effective-dated grading profile; submission locks a review snapshot; Registrar verifies completeness and Academic Head authorizes corrections to finalized grades before application. | Unassigned faculty, unpublished classes, invalid periods/scales, incomplete rows, concurrent finalization, or missing correction evidence are blocked. Finalized history is never silently overwritten; every correction preserves old/new values, reason, actors, and timestamps. | `UAT_CORE`; BM-01, BM-05, SIA-01; SDD-05B/SDD-05C; faculty, Academic Head, and Registrar grade cases. |
+| Official generated documents and QR verification | COR is available only from canonical enrolled data. COE, COG, report cards, TOR, Form 137, diploma/certificates, SOA, and receipts derive from authoritative enrollment, grade, curriculum, ledger, and request records. Issuance records preserve type, subject, source snapshot, template version, issuer, issue time, reference/serial, checksum, state, and release evidence. QR verification uses an opaque token or signed route and reveals only minimal validity metadata. | Missing eligibility, holds, unfinalized grades, invalid enrollment, revoked/superseded issuance, or unauthorized request blocks generation/release. Corrections create superseding or revoking history; generated files never become the operational source of truth. | COR `UAT_CORE`; full catalog `UAT_SUPPORTING`/`UAT_DEFERRED`; BM-13, BM-14, BM-15, SIA-01; SDD-07B/SDD-08A. |
+| Student Hub and PWA visibility | An active student sees only their own profile, enrollment status, COR, published schedule, released grades, computed balance/transactions, document/request states, notices, and FAQ through service-backed read models. Loading, empty, offline, and error states remain stable and accessible. | Applicant, inactive, archived, dropped, unclaimed, or unauthorized identities cannot enter. Unpublished or unfinalized data stays hidden. Offline mode is read-only, labels data freshness, disables mutations, and does not cache unnecessarily sensitive content. | `UAT_CORE_LITE`; advanced install/offline polish `UAT_DEFERRED`; BM-01, BM-02, BM-12; SDD-08B. |
+| Student status, readmission, transfer, completion, and graduation | Registrar owns typed, reasoned, effective-dated transitions for leave, return/readmission, transfer-out, withdrawal, completion, graduation, archive, and reactivation. Graduation evaluation snapshots curriculum completion, finalized grades, deficiencies, and approved clearances before completion status and credential eligibility. | Status is not inferred from missing attendance or unpaid balance alone. Invalid transitions, unresolved academic deficiencies, active holds, or duplicate legacy identity block completion. Returning students use assisted lookup/readmission and controlled legacy provenance rather than public duplicate creation. Government submission and diploma external processing remain outside TALA. | Completion boundary `UAT_CORE`; full lifecycle `UAT_SUPPORTING`/`UAT_DEFERRED`; BM-01, BM-02, SIA-01; SDD-07D/SDD-08B. |
+| Imports, exports, reports, and external systems | Authorized staff use versioned templates, private uploads, validation preview, explicit commit, row-level results, and import-batch audit for controlled data ingestion. Exports query authoritative records and expose only role-authorized fields. | Wrong template/version, unknown references, duplicate keys, partial invalid batches where zero-error commit is required, unauthorized fields, or stale scopes block commit/export. Generated CSV/XLSX/PDF files are evidence artifacts. DepEd/CHED/LIS, courier, bank, and other portals remain external unless a separately approved integration exists. | `UAT_SUPPORTING`, promoted to `UAT_CORE` only for demo-required foundation data; BM-01, BM-10, SIA-01; SDD-09. |
+| Attendance, behavior, discipline, guidance, and interventions | These domains require typed evidence sources, authorized case ownership, privacy classification, notices, response/appeal opportunity, resolution, effective dates, and explicit policy before they can affect enrollment, clearance, progression, or graduation. | TALA must not infer misconduct, absence, guidance clearance, or enrollment blocks from missing data, free-text notes, or unsupported thresholds. Sensitive case details are restricted to authorized roles and are not exposed in general student/finance views. | `BENCHMARK_GATE` and `UAT_DEFERRED` unless promoted by approved policy and complete data ownership; BM-01, BM-05, SIA-01; future SDD-10. |
+
+For every row, the master test-case matrix may describe the goal-state happy path, negative path, and edge case. Pass/Fail remains blank until the corresponding current UI and executable evidence exist.
+
 ---
 
 ## 3. User Roles & Access Matrix
@@ -190,18 +241,34 @@ Each role/module scenario in the master test-case matrix must trace back to this
 | Drop/Transfer Consult       | ❌        | ❌      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
 | **Review Shifting Requests** | ❌       | ✅ (Request) | ✅              | ❌         | ❌                 | ✅ (Override)  | ❌                 |
 | **Manage Summer Schedules** | ❌        | ✅ (View) | ✅                | ❌         | ✅ (Assigned)      | ✅ **(Read-Only)** | ❌              |
+| Manage Admission Requirements | ❌      | ❌      | ✅ (Versioned setup) | ❌      | ❌                 | ✅ (Read-Only/Oversight) | ❌ (System maintenance only) |
+| User Management             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ✅                 |
+| System Settings             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ❌ (Internal Registry) |
+| **Authorize Override**      | ❌        | ❌      | ❌                 | ❌         | ❌                 | ✅             | ❌                 |
 
 **Academic Head Finance Visibility Clarification (Current Approved Admin Scope)**:
 
 - Academic Head may view only read-only finance status, fee template/downpayment rules, installment policy summaries, and promissory note status/tag.
 - Academic Head must not see or operate Accounting work queues for payment processing, confirmed payments, or full ledger-entry review.
 - Academic Head cannot approve promissory notes, process payments, create assessments, apply discounts, mutate installment policies, or edit finance records.
-| Manage Admission Requirements | ❌      | ❌      | ❌ (Typed UI Deferred) | ❌      | ❌                 | ❌             | ❌ (Typed UI Deferred) |
-| User Management             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ✅                 |
-| System Settings             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ❌ (Internal Registry) |
-| **Authorize Override**      | ❌        | ❌      | ❌                 | ❌         | ❌                 | ✅             | ❌                 |
 
 **Constraint**: One Role Per User. A user CANNOT be both Faculty and Registrar.
+
+### 3.3 Identity and Access Baseline
+
+Identity and access are a UAT-core and final-form baseline capability. The system must provide a clear, testable path for public users, applicants, students, and staff without relying on a generic `admin` role or ad hoc route hiding.
+
+| Access capability | Final-form functional rule | Testable user outcome |
+| --- | --- | --- |
+| Public entry | Guests may open the landing page, FAQ/help, admission requirements, application start, application-status login, password reset, and public verification pages only. | A guest can start or resume the correct public flow but cannot see protected records, staff menus, Student Hub pages, or private files. |
+| Applicant authentication | Applicant accounts authenticate only for applicant intake/progress until official handover. Approved applicants remain blocked from Student Hub until the handover transaction activates the student account. | An applicant can view status and upload/respond to requirements but receives a safe denial when trying to access Student Hub or staff routes. |
+| Student authentication | Student Hub access requires an active user with the `student` role and an official student profile/enrollment context. | An active student can see only their own profile, enrollment status, COR, schedule, grades, balance summary, documents, notifications, and help. |
+| Staff authentication | Staff use the Admin Nexus through the approved operational roles: Registrar, Accounting/Cashier, Faculty, Academic Head, and System Super Admin. | Staff navigation shows only policy-authorized resources, tables, widgets, actions, and lifecycle buttons. |
+| Logout/session expiry | Every authenticated portal provides logout. Expired sessions return a safe session-expired message and require re-authentication before protected actions continue. | Users cannot continue protected work after logout, archive, inactive status, or session expiration. |
+| Login throttling and password recovery | Login and recovery flows use the configured Laravel/Fortify rate limiting and password-reset behavior. The FS does not require a custom three-attempt/five-minute lockout unless later approved and implemented in TS. | Repeated invalid login attempts are throttled by the configured auth backend, and password recovery does not reveal whether an email belongs to a protected account. |
+| Role boundary | One operational role is assigned per staff user unless a later approved permission model explicitly allows a composite role. | A Faculty account cannot open Registrar setup/payment queues; an Accounting account cannot encode grades; System Super Admin cannot mutate academic/finance records through generic admin forms. |
+| Account archive/inactive state | Archived, inactive, dropped, unclaimed, or non-active accounts lose protected access while historical records remain intact. | Previously-created payments, grades, documents, and audit entries keep the person's historical label without allowing that account to log in. |
+| Audit and safe errors | Critical lifecycle actions create audit evidence and authorization failures return safe user-facing messages. | Unauthorized users see safe denial or redirect behavior; no stack trace, SQL error, private path, or raw internal ID is exposed as primary UI feedback. |
 
 ---
 
@@ -292,6 +359,20 @@ After initial registration, applicants can return to check their enrollment prog
 Before applicant intake opens for a term, the Registrar must publish an admission offering and activate a versioned requirement policy for each supported scope. A scope composes the term, education level (SHS/College), entry route, prior-credential pathway, citizenship/compliance profile, applicable grade/year or program, and only those learner-support attributes that lawfully change an admission requirement or accommodation. `Regular`, `transfer`, `returning`, and `cross-enrollee` are entry routes; `old curriculum` and `ALS` are prior-credential pathways; `foreign` is a citizenship/compliance profile; and IP or disability/SEN indicators are purpose-limited support attributes, not mutually exclusive applicant types. One applicant may therefore match more than one dimension.
 
 All supported scopes use the same lifecycle: published offering -> applicant record -> materialized checklist -> submission and verification -> eligibility decision -> student-record creation -> program enrollment. The system composes base and conditional requirement rules, resolves one deterministic effective policy, and snapshots the resulting document items and rule versions onto the applicant intake. Later revisions apply only to new intakes unless the Registrar performs an explicit, audited reassignment; they must not silently change an existing checklist. An unpublished offering is unavailable to applicants. Missing, ambiguous, or conflicting active policies block new intake for the affected scope and produce a staff-facing setup error.
+
+**Admissions Baseline Acceptance Contract**:
+This slice adopts the benchmark pattern used by mature SIS platforms: admissions begins from a published admission process/offering, creates a candidate/applicant record, tracks checklist requirements, supports staff communications/review, and converts an accepted applicant into an enrolled student only after the configured academic, document, finance, capacity, and placement gates are satisfied. TALA adapts that pattern to the SIA workflow by keeping school-to-school credential transmission external, separating admission gates from retention undertakings, and treating OCR as staff-assistive evidence only.
+
+| Capability | Final-form user-visible rule | Negative or edge-case behavior |
+| --- | --- | --- |
+| Published offering selection | Public applicants see only active offerings whose term, education level, entry route, prior-credential pathway, program/strand, grade/year, and compliance/support dimensions have a valid published policy. | Unpublished, expired, missing, or ambiguous offerings are hidden from public intake and produce a safe staff-facing setup error, not a hardcoded fallback list. |
+| Applicant profile creation | Self-service intake creates an applicant account and staging record only; Registrar-assisted intake uses the same lifecycle for walk-in applicants. | Duplicate identity signals, weak name-only matches, or returning-student matches route to Registrar review instead of creating a second official student record. |
+| Requirement checklist | Intake materializes the exact requirement-policy version into applicant-owned checklist rows with gate/retention classification, accepted evidence methods, deadlines, and review states. | Later policy edits do not silently rewrite existing applicants. Required checklist items are not waived by free-text notes or generic admin edits. |
+| Document/evidence submission | Applicants upload private files; Registrar may record physical inspection or attach a scan; official school-to-school transmission is recorded as a receipt/provenance event. | A physical-only inspection does not fabricate a file; an applicant upload does not replace an official transmission when the active policy requires one. |
+| OCR-assisted review | Google Vision OCR may extract text, confidence, and candidate fields for staff review when the document type enables OCR. | Low-confidence OCR, missing text, mismatched identity, or external-service failure routes to manual review; OCR never approves authenticity or final values by itself. |
+| Admission-gate decision | Only accepted admission-gate requirements unlock the next payment/enrollment path. | Payment attempts, tentative section previews, or uploaded-but-unreviewed documents do not activate Student Hub, COR, class-list access, or official enrollment. |
+| Retention undertaking | Non-critical retention items may remain pending after enrollment only through itemized undertakings with due dates, reminders, extensions, receipt history, and hold effects. | Overdue retention items do not silently cancel current enrollment; they apply only configured documentary/next-cycle holds through audited actions. |
+| Safe feedback | Applicants and staff receive clear status messages: pending, needs correction, rejected, approved, blocked by setup, or manual review required. | UI messages must not expose private storage paths, stack traces, raw provider errors, or unsupported internal IDs. |
 
 **Initial Offering Profile**: The initial public/UAT offering set is `Regular SHS`, `SHS Transfer`, `Regular College Freshman`, and `College Transfer`. Old-curriculum and ALS status are prior-credential pathways resolved inside a compatible published offering, not separate application pipelines. For the current deployment, ALS is accepted only as an ALS Junior High School-to-Grade 11 pathway under Regular SHS; it is not a generic College or transfer shortcut. Foreign-student compliance is an independently composable profile, but it remains unpublished unless the institution confirms that it accepts foreign applicants for the scoped term/offering and the Registrar activates a compliant evidence policy. IP and disability/SEN are optional, purpose-limited support attributes and must not be represented as denial-producing applicant routes. `Cross-Enrollee` remains an inactive template until the institution confirms that it accepts students who remain primarily enrolled at another home institution.
 
@@ -531,7 +612,7 @@ Upload Proof → Accounting Confirms → Student becomes **Finance-Cleared**. Fo
 
 **Current Backend Correction Required by SDD-07A**: SDD-05B established payment parity and idempotent handover, but its current implementation performs applicant sectioning/handover immediately after finance clearance and lacks admission-gate/retention-document separation and tentative-versus-secured placement. SDD-07A must preserve manual/PayMongo parity and atomic handover while introducing those distinctions. Payment attempts without an enrollment link remain ledger-only evidence until controlled reconciliation.
 
-**Needs Clarification**: If Registrar needs a manual repair path for enrollment state, section assignment, or lifecycle timestamps, define a separate controlled repair workflow with reason capture, role approval, rollback rules, and audit trail before exposing it in Pre-UAT.
+**Controlled Repair Boundary**: Manual repair of enrollment state, section assignment, or lifecycle timestamps is not a generic edit permission. If the institution activates this capability, it must be a separate controlled repair workflow with reason capture, role approval, rollback rules, and audit trail before it appears in Admin Nexus.
 
 ---
 
@@ -550,6 +631,8 @@ Upload Proof → Accounting Confirms → Student becomes **Finance-Cleared**. Fo
 **Student Dashboard Backend Contract**: Before Student Hub UI buildout, the dashboard data source must be a read-only backend aggregate rather than hardcoded page content. The implemented contract provides student-owned profile/enrollment context, current schedule, financial balance and term summaries, finalized grades, recent document/service/grade-correction requests, dashboard holds, latest notifications, and published FAQ/help links. PWA/offline presentation may cache only these read-only outputs; enrollment, document upload, grade-correction, and payment actions still require an online authenticated request.
 
 **PWA/Splash Implementation Boundary**: The current codebase already includes `erag/laravel-pwa`, `config/pwa.php`, `public/manifest.json`, `public/sw.js`, `public/offline.html`, `public/serviceworker.js`, and generated icon/splash assets under `public/images/icons/`. The Student Hub layout uses `@PwaHead` and `@RegisterServiceWorkerScript`; the public FAQ layout is not currently PWA-enabled. Goal-state acceptance must still verify installability over HTTPS or localhost, manifest branding, Android manifest-generated splash behavior, iOS startup-image coverage where supported by package output or explicit `<link rel="apple-touch-startup-image">` tags, service-worker offline fallback, and no offline mutation.
+
+**Feature Group 8 Lock Boundary (2026-06-21)**: The Student Hub/PWA baseline is service-backed read-only visibility first, not student self-service mutation first. Dashboard, schedule, grades, financials, documents, and help must render only data owned by the authenticated active student and must hide unpublished schedules, draft grades, staff-only financial details, internal IDs, raw storage paths, and other students' records. The current implementation proves protected Student Hub routes, active-student middleware, published Help/FAQ visibility, PWA package wiring, and the `StudentDashboardService` aggregate, but several Student Hub pages still display placeholder/static UI. Until those pages are wired to the service contract, they are goal-state rows, not passable manual UAT rows. Offline behavior is allowed only as a read-only convenience with clear freshness labels; payment, document upload/request, grade correction, enrollment, and other mutations require an online authenticated request.
 
 ---
 
@@ -926,6 +1009,8 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 **Post-Publish Changes**: Availability changes after schedules are committed or published do not automatically affect approved schedules. Any official schedule change requires a request, reason capture, approval, and audit history containing old values and new values. Registrar-facing schedule-change forms must use typed fields for the target official meeting, requested teacher, section delivery group, room, day, start time, end time, modality, and reason. The target official meeting control must be scoped to the selected term, show descriptive meeting labels, and reject submitted meetings that do not belong to that term. The old/new values may be stored internally as audit snapshots, but raw JSON payload editing is not an admin workflow. After publication, direct edits are blocked; changes go through `revision requested` / approval / `applied` flow. Approve and Apply controls must call a backend lifecycle service that validates `authorize-overrides` or `manage-schedules`, accepts only valid state transitions, applies the normalized payload through the official schedule assignment conflict guard, notifies affected faculty/sections where notification channels exist, and records lifecycle activity.
 
+**Current implementation evidence boundary (2026-06-21)**: The typed propose/approve/apply service and audit path exist, but the shared assignment guard currently rejects Apply whenever the term already has a published run. This is a runtime defect against the approved goal-state workflow, not a reason to weaken this requirement. Until corrected and tested, post-publication application must remain failed/blocked in testable-now evidence.
+
 #### 5.3.4 Step 4: Capacity Management
 
 - **Business Rule**: Capacity is enforced at both `Section` and `Section Delivery Group` levels.
@@ -1047,39 +1132,49 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 ### 5.6 Global Enrollment Lock & COR Generation
 
-- **Action**: Registrar toggles "End Enrollment Period"
-- **System Logic (Batch Job)**:
-    1. Generates PDF COR for all `Enrolled` students. Contains: Student Info, Schedule, Units, Fees, Payment Status
-    2. **COR Format**: Read-only PDF with QR Code for validity
-    3. **QR Verification Contract**: QR code contains an online verification URL using an opaque token or signed route. It must not expose raw `Student_ID + Active_Term + Security_Hash` as the visible payload.
-    4. **Official Verification Requirement**: Internet is required for third-party authenticity checks so the system can confirm whether the COR is current, superseded, revoked, or not found. Offline/PWA COR access is read-only viewing convenience only and is not proof of current validity.
-    5. **Verification Privacy**: The public verification page shows only minimal document validity details (document type, student identity needed to match the COR, term, issue date, and status). It must not expose balances, payment history, transactions, promissory details, or internal ledger fields.
-    6. **Availability**: Generated on-demand during enrollment for finance-cleared students; frozen final version after Lock
-    7. **External Reporting Independence**: External regulatory encoding does not affect COR generation. Any later institutionally disqualifying discrepancy uses the normal audited enrollment correction/cancellation workflow.
+**Trigger**: COR availability follows official enrollment handover. It is not a separate external-reporting state and does not wait for DepEd/CHED/LIS portal encoding.
+
+**System Logic**:
+
+1. **Source rule**: COR is generated only from canonical `Enrolled` data after admission, finance, capacity, and compatible section/delivery placement are clear in the handover transaction.
+2. **Contents**: The COR displays student identity needed for institutional use, term, program/strand, section/delivery group, schedule, subject/load details, and authorized assessment/payment-clearance summary fields approved for COR display.
+3. **Artifact rule**: The generated COR is a private derived artifact or reproducible issuance snapshot. It is not the source of truth for enrollment, schedule, grades, or finance.
+4. **QR Verification Contract**: QR code contains an online verification URL using an opaque token or signed route. It must not expose raw `Student_ID + Active_Term + Security_Hash` as the visible payload.
+5. **Official Verification Requirement**: Internet is required for third-party authenticity checks so the system can confirm whether the COR is current, superseded, revoked, or not found. Offline/PWA COR access is read-only viewing convenience only and is not proof of current validity.
+6. **Verification Privacy**: The public verification page shows only minimal document validity details: document type, reference/serial where applicable, issue date, status, and enough displayed identity/term metadata to compare against the presented document. It must not expose balances, payment history, transactions, promissory details, internal ledger fields, private file paths, or grade data.
+7. **Lifecycle**: Corrections, invalidated enrollment, or replacement CORs supersede or revoke the prior issuance/token with actor, timestamp, and reason evidence. Issued history is not overwritten.
+8. **External Reporting Independence**: External regulatory encoding does not affect COR generation. Any later institutionally disqualifying discrepancy uses the normal audited enrollment correction/cancellation workflow.
 
 **Scope Constraint**:
 
-- The system is strictly limited to auto-generating CORs (Enrollment) and Report Cards (Grades)
-- Diploma issuance remains a manual/out-of-scope process. Form 137, Grade 12 Card, Good Moral, COE, Grade 11 Card, and Dismissal Certificate follow the document request pricing rules in §9.1.
+- COR is the immediate UAT-core generated academic document because it proves official enrollment.
+- Report cards/COG derive only from Registrar-verified finalized grades.
+- COE, Good Moral, TOR/Form 137 copies, Form 138/report cards, diploma/certificates, and dismissal/transfer credentials follow the document request and release rules in §9.1 unless a later slice promotes full automation.
+- Diploma preparation/release remains a graduation/credential workflow under SDD-07E; the first UAT baseline may record eligibility/release evidence without automating government submission or final diploma printing.
 
 ---
 
 ## 6. Module 3: Accounting Module
 
+**Finance duty-separation rule**: TALA may retain one Accounting/Cashier staff-role label, but collection, recording, and verification are separate permissions and lifecycle actions. Where maker-checker control applies, the actor who records or confirms a transaction cannot approve the same daily close or variance. Amounts, balances, receipts, and delinquency details remain private to authorized Accounting users and the owning student; faculty and unrelated staff receive only the minimum permitted clearance/status result.
+
 ### 6.1 Tuition Assessment Logic (Auto-Assessment)
 
-**Efficiency Strategy**: To avoid manual computation errors, Accounting maintains a global list of individual fees in a single `fees` table (e.g., "Lab Fee", "Tuition Fee"). Each fee is mapped to an academic scope (e.g., "Grade 11", "STEM").
+**Efficiency Strategy**: Accounting maintains approved, versioned fee structures scoped by effective period, academic year/term, education level, and optional program/year-grade/student category. Each structure contains typed component lines such as tuition, laboratory, miscellaneous, and other approved charges plus the applicable downpayment, discount, scholarship, and installment-policy references.
 
 **Process**:
 
-1. **Automatic Tagging**: When a student enrolls in a specific grade or program, the system automatically retrieves all matching global fees and attaches them to the student's ledger.
-2. **Bulk Import (Optional)**: Accounting can bulk import these global fees via Excel (.xlsx) instead of creating complex templates.
-3. **Manual Adjustments**: Accounting may add "One-Off" charges or overrides to a student's ledger only through an approved, typed Accounting adjustment workflow. TAL-12 does not expose raw `ledger_entries` create/edit forms for direct entry-type, reference, balance, or poster edits.
-4. **Finalization**: The sum of these ledger entries becomes the student's Current Balance.
+1. **Deterministic Resolution**: At assessment time the system resolves exactly one active fee structure for the enrollment and assessment date. Missing or ambiguous matches block posting.
+2. **Immutable Assessment Snapshot**: The system materializes an assessment header and component lines containing the selected structure/version, resolved scope, quantities/units where applicable, policy versions, gross amount, discounts/scholarships, net amount, actor, and assessment time before posting ledger effects.
+3. **Controlled Import (Optional)**: Accounting may import fee structures through a versioned template, validation preview, and explicit audited commit. Import does not bypass approval/effective-date rules.
+4. **Manual Adjustments**: Accounting may add one-off charges or corrections only through an approved typed adjustment workflow. TAL-12 does not expose raw ledger CRUD.
+5. **Finalization**: Ledger entries reference the immutable assessment snapshot. Current Balance is a rebuildable projection over ledger history, not independently editable authority.
 
 **Ledger Admin Surface Boundary**: The Ledger Entries screen is an Accounting review/evidence surface. Accounting may view and filter assessed fees, payments, discounts, penalties, shipping debt, credits, and balances, but must not create, edit, or delete arbitrary ledger rows through generic Filament CRUD. Ledger mutations are produced by assessment, discount, payment-confirmation, webhook, installment-penalty, document-request, or future approved adjustment services.
 
 **Assessment Selection and Idempotency Contract**: Auto-assessment selects the most specific active fee template matching the student's education level, optional program, and optional year/grade. An exact program-and-year template takes precedence over broader program-only or education-level defaults. Re-running assessment for the same enrollment/template must return the existing assessment result without duplicating fee or discount ledger entries.
+
+**Current implementation evidence boundary (2026-06-21)**: `fee_templates` currently stores fixed tuition/laboratory/miscellaneous/other columns with no term, version, effective dates, approval state, or component-line table. `EnrollmentAssessmentService` posts directly to ledger entries, hardcodes the 50% freshman discount, and writes `enrolled_at` during assessment even though official handover owns that timestamp. Existing idempotent posting remains useful transitional behavior, but the effective-dated structure, assessment snapshot, policy-driven discount, and timestamp ownership contracts above are not yet implemented.
 
 #### 6.1.1 Automated Freshmen Discounts
 
@@ -1094,7 +1189,7 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 ---
 
-### 6.2 Payment & Policies (The "Permit" Engine)
+### 6.2 Payment & Policies
 
 #### 6.2.1 Step 1: Payment Processing Modes
 
@@ -1162,7 +1257,7 @@ Modality is no longer treated as a single immutable property of the whole sectio
 - **Accommodation Rule**: Financial promissory-note approval is not the access decision. RA 11984/social-welfare certification or documented institution-discretion evidence must be recorded in the separate Exam Access Accommodation workflow. Senior High School statutory accommodations apply for the academic year; College accommodations are term-scoped unless a later approved policy says otherwise.
 - **Privacy Rule**: Faculty, public verification, and student-facing exam decision responses must never expose certification files, certification numbers, balances, payment channels, or promissory amounts. They receive only the high-level permit/access result.
 
-#### 6.2.4 Financial Disposition Policy (Current Institution: Strict No Refund)
+#### 6.2.4 Financial Disposition Policy
 
 **Business Rule**: Every payment-related cancellation, refund, or adjustment is resolved by a versioned financial-disposition policy scoped to the deployment, effective period, education level, term/program when needed, and typed event cause. The current approved workflow allows refund of the admission/enrollment fee within 15 days of the Official Receipt date and makes tuition non-refundable after official enrollment. These rules must not be hard-coded as universal TALA behavior; other deployments may use legally and operationally approved percentage schedules, account credits, term transfers, or controlled refund workflows.
 
@@ -1215,22 +1310,10 @@ The Student Hub financial view must display the following information to the stu
 
 #### 7.1.1 Digital Class List
 
-- **Source**: Populated strictly by Accounting Module logic. "If they haven't paid the Downpayment, they are NOT on your list."
-- **Update Frequency**: Real-Time. If a student pays at 10:00 AM, they appear on the Faculty list at 10:01 AM (Next Refresh)
+- **Source**: Generated from canonical officially enrolled subject assignments and the committed/published section schedule. Payment may be an upstream enrollment gate, but Faculty does not independently evaluate or display a student's account standing.
+- **Update Frequency**: Near real time after an authorized enrollment, subject, section, drop, or published-assignment change commits.
 - **Late Enrollees**: Marked with a "New" badge for 3 days to alert Faculty
-- **Pending Payment View**: Faculty CANNOT see students with Pending_Payment (they are simply absent from the list until paid)
-
-**Payment Status Indicator (Faculty-Facing Pill/Badge)**:
-Each student in the class list displays a read-only payment status pill — **NOT** a financial balance breakdown, just a high-level account standing indicator so faculty can identify students who may have exam permit or grade access restrictions.
-
-| Status Pill           | Condition                                                                                         | Visual Style      |
-| --------------------- | ------------------------------------------------------------------------------------------------- | ----------------- |
-| **Paid/Cleared**      | Current_Balance <= 0 and no active financial hold                                                  | Green pill        |
-| **With Balance**      | Any unresolved payable/hold exists, including active promissory notes because they do not clear financial standing or enrollment access | Amber/Orange pill |
-
-Pending online payment, active/expired promissory, posted shipping debt, manual payment under review, and any positive balance all display as **With Balance**. Faculty see ONLY the status pill. They CANNOT view the actual balance amount, payment channel, debt type, payment history, promissory document, or transaction details. This preserves student financial privacy (per Section 8.2.1 RBAC) while giving faculty context for attendance and requirement enforcement.
-
-**Sync Timing**: The status pill updates within 1 minute of payment confirmation or financial hold changes, synchronized via the Atomic Trigger in Section 6.3.
+- **Finance Privacy**: Faculty class lists expose no balance, payment status, payment reference, promissory status, financial hold, or finance-derived attendance/exam/grade restriction. Accounting owns collection and clearance evidence. A student appears because the canonical enrollment-subject assignment is active, not because Faculty can inspect the financial reason behind it.
 
 **Current TAL-12 Faculty Class List Surface Boundary**: Faculty Class Lists are not generic `enrollment_subjects` CRUD. Class-list rows are generated by enrollment/scheduling processes and exposed to Faculty as assigned list/view rows with role-scoped grade actions. TAL-12 must not expose generic create/edit forms for raw `enrollment_id`, `subject_id`, `section_meeting_id`, `status`, `is_dropped`, or `dropped_at` mutation from the Faculty Class List screen. Enrollment-subject drops, transfers, or section assignment corrections require the appropriate Registrar/enrollment workflow rather than direct Faculty-side row editing.
 
@@ -1279,7 +1362,7 @@ When a student in the faculty's class list updates their personal or academic in
 - **Enrollment Steps Overview**: High-level 7-step pipeline.
 - **FAQ Links**: Quick links to relevant FAQ entries.
 
-**Configuration Rule**: Admission requirements are configurable school rules, not hardcoded component text. For the current TAL-12 backend/admin scope, the requirements matrix is stored internally in `system_settings.admission_requirements` as seeded versioned JSON and is not exposed through a generic settings UI. Registrar/System Super Admin typed editing is deferred until the public/student admission workflow needs a dedicated, validated interface. Once that typed workflow exists, the public page and faculty quick-link widget read the updated requirements after cache invalidation.
+**Configuration Rule**: Admission requirements are configurable school rules, not hardcoded component text. The final-form workflow uses Registrar-owned versioned setup for offerings, requirement policies, document items, gate/retention classification, evidence methods, and publication state. System Super Admin may maintain the underlying system only; ordinary requirement policy ownership stays with Registrar/authorized academic operations. During transitional builds, seeded or internal configuration may stand in for the typed setup UI, but the submitted baseline remains the versioned Registrar workflow.
 
 **Faculty Workflow**:
 
@@ -1356,9 +1439,9 @@ The system automatically applies different calculation engines based on the Stud
 
 **College (Zero-Based)**:
 
-- **Input**: Faculty enters a single raw score (0-100) per period (Prelim, Midterm, Final)
-- **System Logic**: Averages the raw percentage scores first, rounds to the nearest integer, then transmutes once at the end using the PUP Standard Transmutation Table (see Appendix B). The system **MUST NOT** convert individual period scores to the 1.0–5.0 scale before averaging. Passing is 3.0 (75%).
-- **Faculty UI**: The grade encoding modal shows only College Prelim, Midterm, and Final raw-score fields for College students. It must not show SHS Q1/Q2 fields for College records.
+- **Profile Resolution**: The system resolves one published effective-dated College grading profile by term, with optional program, subject, and course-delivery scope. A missing or ambiguous profile blocks a new grade sheet; it never falls back silently.
+- **Input and Calculation**: Period names, accepted score ranges, weights, rounding, transmutation bands, remarks, and passing rules come from the resolved profile. The grade sheet snapshots the profile version and calculation inputs so later policy changes cannot rewrite historical results.
+- **Faculty UI**: The encoding modal renders only the periods required by the snapshotted profile. The currently implemented Prelim/Midterm/Final `30/30/40` profile is transitional runtime behavior, not an approved universal College policy. It remains unchanged until the institution selects the active profile and approves any migration boundary.
 
 #### 7.2.2 Step 2: INC (Incomplete) Lifecycle
 
@@ -1367,13 +1450,17 @@ The system automatically applies different calculation engines based on the Stud
 - **Auto-Fail**: On day 365, a nightly batch job automatically converts "INC" → "5.0 / Failed" to ensure no grades are left in limbo indefinitely
 - **Prerequisite Block**: While the student has 365 days to clear the INC, they are completely blocked from advancing in that specific subject chain. An INC prevents enrollment in any advanced subjects that require it as a prerequisite.
 
-#### 7.2.3 Step 3: Grade Finalization & Locked State
+#### 7.2.3 Step 3: Grade Submission, Registrar Verification, and Finalization
 
-- **Action**: Assigned faculty clicks "Finalize Grades" for their own section/subject assignment.
-- **Logic**: The grade sheet becomes **Read-Only**. If a grade sheet is already finalized, the system shows an "Already finalized" notice and makes no state change.
-- **Role Rule**: Registrar has read-only official-record monitoring access and cannot normally finalize or reopen grade sheets. Academic Head may force-finalize or reopen only through the Authorize Override workflow.
-- **Audit Trail**: Any finalization override, reopening, or post-finalization correction requires a non-empty reason. The system logs the Reason, Old_Grade, New_Grade, Faculty_ID, and **Authorizer_ID** who approved the change.
-- **Admin Surface Boundary**: Grade Oversight is not generic grade CRUD. Faculty grade entry is performed from the assigned class-list/subject workflow, and Academic Head override is performed through typed `Force Finalize` / `Reopen Grade` actions with a required reason. TAL-12 must not expose raw grade create/edit forms for `is_finalized`, `finalized_by`, `reopened_by`, timestamps, or direct final-grade mutation outside the approved encoding/correction/override services.
+1. **Draft**: Assigned Faculty encodes grades only for the published class assignment and active grading window. Draft values are not official student-record grades.
+2. **Submit**: Faculty submits the complete section/subject/period package. Submission snapshots the roster, grading-profile version, grade values, calculation results, submitter, and time, then locks Faculty editing.
+3. **Registrar Verify or Return**: Registrar compares the submitted package with the required signed/source evidence and checks completeness, roster identity, permitted values, and calculation/profile consistency. Registrar either returns the entire package with a reason and affected rows, or verifies it. Return reopens only the controlled draft revision path and preserves the rejected submission snapshot.
+4. **Finalize**: Registrar verification atomically finalizes the verified package into official academic history. Only verified/finalized grades are released to the Student Hub, prerequisite/progression services, transcripts, report cards, or other official documents.
+5. **After Finalization**: No role edits the official row directly. An official change uses the post-finalization correction workflow, preserving old/new values, reason, evidence, Academic Head decision, Registrar application, and superseded history.
+
+**Authority Rule**: Faculty submits; Registrar verifies/returns and finalizes the official record; Academic Head approves exceptional post-finalization changes or an explicitly authorized emergency override. System Super Admin and Accounting have no academic mutation authority.
+
+**Current Runtime Boundary**: The current `Finalize` action sets `grades.is_finalized` directly per enrollment-subject row and therefore conflates Faculty submission with official finalization. It may be tested as implemented transitional behavior, but it is not proof that this goal-state verification lifecycle is complete.
 
 #### 7.2.4 Step 4: Grade Upload (Downloadable Template)
 
@@ -1551,7 +1638,7 @@ System Super Admin may view the seeded role/permission matrix for audit and veri
 
 **Phase 1: Immediate Off-Boarding (Security)**
 
-- **Trigger**: **System Super Admin** clicks "Archive Account" and enters the required official archive reason. Optional HR evidence upload remains **Needs Clarification** until a dedicated private evidence table/file contract is approved.
+- **Trigger**: **System Super Admin** clicks "Archive Account" and enters the required official archive reason. Optional HR evidence upload is permitted only through a dedicated private evidence table/file contract; it must not be attached through free-form public paths or generic notes.
 - **System Action (Atomic)**:
     1. **Session Flush**: Immediately invalidates all active web sessions for that user (forces logout)
     2. **Role Stripping**: Removes all active Roles/Permissions
@@ -1937,6 +2024,11 @@ The student portal allows official students to request documents from a fixed ap
 **Workflow Logic**:
 
 - **Document Catalog Ownership**: Registrar manages metadata, requirements, processing notes, and availability for the approved document request types. Accounting manages free/paid classification and fee amounts for the same approved catalog. Adding a new selectable type requires a future approved specification update.
+- **Official Issuance Rule**: A fulfilled academic document is generated or released from authoritative student-record, enrollment, grade, curriculum, ledger, or document-request data. The file or paper copy is evidence of an issuance, not the operational source of truth.
+- **Issuance Snapshot**: Goal-state fulfilled records preserve document type, subject/student, term/request context, source snapshot or reproducibility reference, template version, issuer, issued time, reference/serial when applicable, checksum, lifecycle state, and release evidence.
+- **Eligibility and Hold Rule**: Missing eligibility, unresolved document-release holds, unfinalized grades for grade-bearing outputs, invalid enrollment, unpaid request/shipping fee where applicable, or unauthorized requester blocks release with an explicit reason.
+- **Release Evidence**: Pickup or representative release must capture claimant identity, representative authority where applicable, releasing staff, release time, and acknowledgement. Courier release records consent, courier, tracking or `N/A`, shipping fee, and private receipt proof.
+- **School-Record Transfer Boundary**: Form 137/SF10 and Form 138/SF9 handling follows school-record confidentiality and receiving/originating-school request practice. TALA records request, eligibility, release, and evidence; it does not replace DepEd LIS or a receiving school's official portal process.
 - **Activation Rule**: Newly created document types are not requestable by students until Accounting marks them as `free` or assigns a positive document fee.
 - **Free Request Rule**: Only the student's first Form 137 request and first Grade 12 Card request can be free, and only when the request is supported by a requesting-school basis. The one-time free allowance is tracked per student and per document type.
 - **Current TAL-12 Implementation Scope Note**: The approved selectable catalog is implemented as a fixed system list for request creation and fulfillment. A dedicated Registrar/Accounting document-catalog management UI for metadata, availability, and fee-policy editing is not yet counted as completed Pre-UAT evidence unless a separate implementation item builds and tests it.
@@ -2090,9 +2182,9 @@ User guidance is handled through role-specific operations guidance and help cont
 
 ---
 
-### Appendix B: College Grading System (SIA Standard)
+### Appendix B: Current Transitional College Grading Profile (Pending Institution Approval)
 
-**Algorithm**: The system computes the Final Subject Grade using a **weighted average** of raw percentage scores: **Prelim (30%)**, **Midterm (30%)**, and **Final (40%)**. The weighted average is rounded to the nearest whole integer and then transmuted **once** via the SIA transmutation table below. The system **MUST NOT** average transmuted equivalents.
+**Transitional Runtime Algorithm**: The current code computes the Final Subject Grade using a **weighted average** of raw percentage scores: **Prelim (30%)**, **Midterm (30%)**, and **Final (40%)**. The weighted average is rounded to the nearest whole integer and then transmuted **once** via the table below. This section documents existing behavior for traceability; it does not approve the profile as the institution-wide final policy.
 
 **Reconciliation Hold**: The consolidated workflow now describes a different College calculation/point scale (including lecture 60/40 and different percentage bands). The current formula and table remain the implemented profile, not a universal rule. Before changing runtime or historical grades, SDD-08A must introduce a versioned profile scoped by effective term/program/subject and obtain client approval for the active profile and migration boundary.
 
@@ -2112,7 +2204,7 @@ User guidance is handled through role-specific operations guidance and help cont
 | N/A                  | **INC**          | Incomplete   |
 | N/A                  | **W**            | Withdrawn    |
 
-**Passing Grade**: 3.00 (75%)
+**Current Transitional Passing Rule**: 3.00 (75%), pending institution approval of the effective profile.
 
 > **Source**: SIA Evaluation Forms (Ground Truth). This table supersedes the previously referenced PUP standard. The SIA scale includes a **4.00 (Conditional)** grade for raw score 74, which is not present in the generic PUP table.
 
@@ -2177,8 +2269,8 @@ Based on factual evaluation of actual school documents (Evaluation Forms, Gradin
    - *Note: These are baseline values for seeders and templates; the actual values remain fully editable by Accounting per term.*
 
 3. **College Grading Engine Alignment**
-   - The grading formula uses a weighted calculation: **Prelim (30%)**, **Midterm (30%)**, and **Final (40%)**.
-   - The transmutation table explicitly uses the SIA scale mapping: `1.00 (98-100), 1.25 (93-97), 1.50 (90-92), 1.75 (87-89), 2.00 (84-86), 2.25 (82-83), 2.50 (80-81), 2.75 (78-79), 3.00 (75-77), 4.00 (74), 5.00 (Below 74)`.
+   - The final system resolves an institution-approved, effective-dated grading profile and snapshots it with every grade submission package.
+   - The current `30/30/40` Prelim/Midterm/Final formula and SIA scale remain transitional runtime evidence only. They must not be promoted as the universal College policy or used to recalculate history until the institution approves the active profile and migration rule.
 ---
 
 *End of Functional Specification*
