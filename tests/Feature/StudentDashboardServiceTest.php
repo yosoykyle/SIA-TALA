@@ -44,7 +44,6 @@ class StudentDashboardServiceTest extends TestCase
         $studentProfile = StudentProfile::factory()->create([
             'user_id' => $user->id,
             'student_id' => 'SIA-2026-0001',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'modality' => 'online',

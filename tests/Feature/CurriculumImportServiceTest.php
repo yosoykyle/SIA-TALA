@@ -27,13 +27,12 @@ class CurriculumImportServiceTest extends TestCase
     public function test_template_exports_strict_curriculum_headers(): void
     {
         $this->assertSame([
-            'Education Level',
             'Program Code',
             'Program Name',
             'Curriculum Version',
             'Effective Year',
             'Is Active',
-            'Year/Grade',
+            'Year Level',
             'Curriculum Period',
             'Subject Code',
             'Subject Title',
@@ -48,8 +47,8 @@ class CurriculumImportServiceTest extends TestCase
 
         $csv = CurriculumImportTemplate::csv();
 
-        $this->assertStringContainsString('"Education Level","Program Code","Program Name","Curriculum Version"', $csv);
-        $this->assertStringContainsString('college,BSIT,"Bachelor of Science in Information Technology","BSIT 2026"', $csv);
+        $this->assertStringContainsString('"Program Code","Program Name","Curriculum Version","Effective Year"', $csv);
+        $this->assertStringContainsString('BSIT,"Bachelor of Science in Information Technology","BSIT 2026"', $csv);
     }
 
     public function test_create_preview_stores_pending_batch_with_valid_rows_and_private_file_reference(): void
@@ -79,8 +78,8 @@ class CurriculumImportServiceTest extends TestCase
         $registrar = $this->registrar();
         $path = $this->storeCsv('imports/curriculum/uploads/invalid.csv', implode("\n", [
             implode(',', CurriculumImportTemplate::headers()),
-            'college,BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,,3.00,3.00,major,lecture,,lecture,1',
-            'college,BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,MATH101,College Algebra,not-a-number,3.00,minor,lecture,,lecture,2',
+            'BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,,3.00,3.00,major,lecture,,lecture,1',
+            'BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,MATH101,College Algebra,not-a-number,3.00,minor,lecture,,lecture,2',
         ]));
 
         $batch = app(CurriculumImportService::class)->createPreview($path, 'invalid.csv', $registrar);
@@ -147,7 +146,7 @@ class CurriculumImportServiceTest extends TestCase
         $registrar = $this->registrar();
         $invalidPath = $this->storeCsv('imports/curriculum/uploads/invalid.csv', implode("\n", [
             implode(',', CurriculumImportTemplate::headers()),
-            'college,BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,,3.00,3.00,major,lecture,,lecture,1',
+            'BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,,3.00,3.00,major,lecture,,lecture,1',
         ]));
         $invalidBatch = app(CurriculumImportService::class)->createPreview($invalidPath, 'invalid.csv', $registrar);
 
@@ -186,7 +185,7 @@ class CurriculumImportServiceTest extends TestCase
         $registrar = $this->registrar();
         $path = $this->storeCsv('imports/curriculum/uploads/empty.csv', implode("\n", [
             implode(',', CurriculumImportTemplate::headers()),
-            ',,,,,,,,,,,,,,,,',
+            ',,,,,,,,,,,,,,,',
         ]));
         $batch = app(CurriculumImportService::class)->createPreview($path, 'empty.csv', $registrar);
 
@@ -234,8 +233,8 @@ class CurriculumImportServiceTest extends TestCase
     {
         return implode("\n", [
             implode(',', CurriculumImportTemplate::headers()),
-            'college,BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,Introduction to Computing,3.00,3.00,major,lecture,,lecture,1',
-            'college,BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,MATH101,College Algebra,3.00,3.00,minor,lecture,,lecture,2',
+            'BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,IT101,Introduction to Computing,3.00,3.00,major,lecture,,lecture,1',
+            'BSIT,Bachelor of Science in Information Technology,BSIT 2026,2026,yes,1st Year,1st Semester,MATH101,College Algebra,3.00,3.00,minor,lecture,,lecture,2',
         ]);
     }
 

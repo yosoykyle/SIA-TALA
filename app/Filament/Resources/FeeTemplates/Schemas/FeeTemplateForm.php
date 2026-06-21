@@ -6,8 +6,6 @@ use App\Models\FeeTemplate;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class FeeTemplateForm
@@ -19,21 +17,16 @@ class FeeTemplateForm
                 TextInput::make('name')
                     ->required()
                     ->maxLength(255),
-                Select::make('education_level')
-                    ->options(FeeTemplate::EducationLevelOptions)
-                    ->live()
-                    ->afterStateUpdated(fn (Set $set): null => $set('year_level', null))
-                    ->required(),
                 Select::make('program_id')
                     ->relationship('program', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('Leave blank only if this template applies to all programs for the selected education level.'),
+                    ->helperText('Leave blank only if this template applies to all College programs.'),
                 Select::make('year_level')
-                    ->label('Year/Grade')
-                    ->options(fn (Get $get): array => FeeTemplate::yearLevelOptionsFor($get('education_level')))
-                    ->placeholder('All year/grade levels')
-                    ->helperText('Leave blank only when this template applies to every year/grade in the selected education level.'),
+                    ->label('Year Level')
+                    ->options(FeeTemplate::yearLevelOptions())
+                    ->placeholder('All year levels')
+                    ->helperText('Leave blank only when this template applies to every College year level.'),
                 TextInput::make('tuition_fee')
                     ->required()
                     ->numeric()

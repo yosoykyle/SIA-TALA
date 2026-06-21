@@ -10,13 +10,12 @@ class CurriculumImportTemplate
     public static function headers(): array
     {
         return [
-            'Education Level',
             'Program Code',
             'Program Name',
             'Curriculum Version',
             'Effective Year',
             'Is Active',
-            'Year/Grade',
+            'Year Level',
             'Curriculum Period',
             'Subject Code',
             'Subject Title',
@@ -35,7 +34,6 @@ class CurriculumImportTemplate
         $rows = [
             self::headers(),
             [
-                'college',
                 'BSIT',
                 'Bachelor of Science in Information Technology',
                 'BSIT 2026',

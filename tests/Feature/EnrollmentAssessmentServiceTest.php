@@ -59,7 +59,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         $term = Term::factory()->create();
         $program = Program::factory()->create(['department' => 'college']);
         $studentProfile = StudentProfile::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'current_balance' => '0.00',
@@ -74,7 +73,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
 
         FeeTemplate::factory()->create([
             'name' => 'Generic college',
-            'education_level' => 'college',
             'program_id' => null,
             'year_level' => null,
             'tuition_fee' => '9000.00',
@@ -85,7 +83,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         ]);
         FeeTemplate::factory()->create([
             'name' => 'Program fallback',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => null,
             'tuition_fee' => '8000.00',
@@ -96,7 +93,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         ]);
         $specificTemplate = FeeTemplate::factory()->create([
             'name' => 'Program first year',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '1000.00',
@@ -143,7 +139,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         $term = Term::factory()->create();
         $program = Program::factory()->create(['department' => 'college']);
         $studentProfile = StudentProfile::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '2nd Year',
             'current_balance' => '0.00',
@@ -157,7 +152,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         $accounting = $this->userWithPermissions(['create-assessments', 'process-payments']);
 
         FeeTemplate::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '2nd Year',
             'tuition_fee' => '1000.00',

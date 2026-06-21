@@ -159,7 +159,7 @@ class CurriculumImportService
                     ['code' => $row['program_code']],
                     [
                         'name' => $row['program_name'],
-                        'department' => $row['education_level'],
+                        'department' => 'college',
                         'is_active' => true,
                     ],
                 );
@@ -170,7 +170,7 @@ class CurriculumImportService
                     [
                         'description' => $row['subject_title'],
                         'units' => $row['units'],
-                        'department' => $row['education_level'],
+                        'department' => 'college',
                         'category' => $row['category'],
                     ],
                 );
@@ -426,7 +426,6 @@ class CurriculumImportService
         $messages = [];
 
         foreach ([
-            'education_level',
             'program_code',
             'program_name',
             'curriculum_version',
@@ -445,14 +444,10 @@ class CurriculumImportService
             }
         }
 
-        $educationLevel = $this->choiceValue($row['education_level'] ?? null);
+        $educationLevel = 'college';
         $academicSubjectType = $this->choiceValue($row['academic_subject_type'] ?? null);
         $schedulingGroup = $this->choiceValue($row['scheduling_group'] ?? null);
         $deliveryRuleOverride = $this->choiceValue($row['delivery_rule_override'] ?? null);
-
-        if (filled($row['education_level'] ?? null) && ! in_array($educationLevel, ['college', 'shs'], true)) {
-            $messages[] = 'Education Level must be college or shs.';
-        }
 
         if (filled($row['effective_year'] ?? null) && ! preg_match('/^\d{4}$/', (string) $row['effective_year'])) {
             $messages[] = 'Effective Year must be a four-digit year.';
@@ -473,7 +468,7 @@ class CurriculumImportService
         }
 
         if (filled($row['year_level'] ?? null) && ! array_key_exists((string) $row['year_level'], Section::yearLevelOptions())) {
-            $messages[] = 'Year Level is not one of the approved section year/grade values.';
+            $messages[] = 'Year Level is not one of the approved College year levels.';
         }
 
         if (filled($row['curriculum_period'] ?? null) && ! array_key_exists((string) $row['curriculum_period'], Section::curriculumPeriodOptions())) {
@@ -524,7 +519,6 @@ class CurriculumImportService
     private function typedRow(array $row): array
     {
         return [
-            'education_level' => $this->choiceValue($row['education_level'] ?? null),
             'program_code' => strtoupper((string) $row['program_code']),
             'program_name' => (string) $row['program_name'],
             'curriculum_version' => (string) $row['curriculum_version'],
@@ -573,7 +567,7 @@ class CurriculumImportService
 
     private function key(string $header): string
     {
-        if ($header === 'Year/Grade') {
+        if ($header === 'Year Level') {
             return 'year_level';
         }
 

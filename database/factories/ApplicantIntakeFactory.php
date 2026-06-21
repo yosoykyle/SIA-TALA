@@ -42,7 +42,6 @@ class ApplicantIntakeFactory extends Factory
             'father_name' => fake()->name('male'),
             'father_occupation' => fake()->jobTitle(),
             'mother_occupation' => fake()->jobTitle(),
-            'education_level' => 'college',
             'year_level' => '1st Year',
             'applicant_type' => ApplicantIntake::ApplicantTypeNew,
             'preferred_modality' => 'online',

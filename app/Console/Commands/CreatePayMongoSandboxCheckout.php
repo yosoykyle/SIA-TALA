@@ -110,7 +110,6 @@ class CreatePayMongoSandboxCheckout extends Command
         return (int) DB::table('student_profiles')->insertGetId([
             'user_id' => $userId,
             'student_id' => 'TALA-SANDBOX-0001',
-            'education_level' => 'college',
             'year_level' => '1st Year',
             'operational_status' => 'Active',
             'current_balance' => $amount,

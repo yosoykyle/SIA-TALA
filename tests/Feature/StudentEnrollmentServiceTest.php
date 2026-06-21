@@ -178,7 +178,6 @@ class StudentEnrollmentServiceTest extends TestCase
         ]);
 
         FeeTemplate::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '1000.00',
@@ -296,7 +295,6 @@ class StudentEnrollmentServiceTest extends TestCase
             'user_id' => $user->id,
             'term_id' => $term->id,
             'program_id' => $program->id,
-            'education_level' => 'college',
             'year_level' => '1st Year',
             'applicant_type' => ApplicantIntake::ApplicantTypeNew,
             'preferred_modality' => 'on_site',

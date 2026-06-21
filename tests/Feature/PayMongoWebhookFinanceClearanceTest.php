@@ -49,7 +49,6 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
         $studentProfile = StudentProfile::factory()->create([
             'user_id' => $studentUser->id,
             'student_id' => 'TALA-2026-0100',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'modality' => 'on_site',
@@ -92,7 +91,6 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
         ]);
 
         FeeTemplate::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '1000.00',

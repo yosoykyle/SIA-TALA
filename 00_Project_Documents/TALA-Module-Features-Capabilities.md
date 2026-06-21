@@ -75,7 +75,7 @@
 
 ### 2.1 Pipeline A — New Student Intake (Applicant Portal)
 
-**Target**: Freshmen (Grade 11 / 1st Year) and Transferees
+**Target**: College freshmen, transferees, returnees/readmission cases, and approved College applicant pathways.
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
@@ -88,11 +88,11 @@
 | **Quality Filter** | `average_confidence ≥ 80.00` passes; below flags for Registrar manual review | System |
 | **Rejection Loop** | If Registrar rejects: Status → `Action_Required`, upload form unlocked, email notification sent; no billing for rejected applicants | Registrar → Applicant |
 | **Configurable Admission Offering** | Registrar publishes only supported term/program intake routes; unavailable routes remain inactive and cannot receive public or assisted applications | Registrar |
-| **Composable Requirement Resolution** | One admission lifecycle composes requirements from education level, entry route, prior credential, citizenship/compliance, program/grade, and lawful support attributes, then snapshots the resolved policy on intake | System / Registrar |
+| **Composable Requirement Resolution** | One admission lifecycle composes requirements from College entry route, prior credential, citizenship/compliance, program/year level, and lawful support attributes, then snapshots the resolved policy on intake | System / Registrar |
 | **Admission vs. Retention Documents** | Admission-gate evidence is required before handover; non-critical retention documents use itemized 30-to-60-day undertakings and documentary/next-cycle holds without removing current section, COR, class, or grade access | System / Registrar |
 | **Document-Class Storage Policy** | Catalog-driven treatment separates private credential originals, official transmissions, restricted medical/support files, ID photos, transaction evidence, generated official artifacts, import sources, OCR derivatives, verified structured data, and physical custody events | System / Registrar / Accounting |
 | **Academic Pathing — Freshmen** | Auto-assigned block section; moved to payment assessment | System / Registrar |
-| **Academic Pathing — Transferees** | OCR-assisted credit evaluation with pre-populated subject matches; Registrar adjusts; unlocks subject selection (College) or assigns block section (SHS) | Registrar / System |
+| **Academic Pathing — Transferees** | OCR-assisted credit evaluation with pre-populated subject matches; Registrar adjusts; unlocks College subject selection or assigns an approved College section | Registrar / System |
 | **Subject Selection (College Transferees)** | "Shopping Cart" interface for remaining subjects | Student |
 | **Official Handover (Account Migration)** | Triggered by accepted admission gates + confirmed payment/secured capacity + compatible placement; retention undertakings may remain active; credential rotation, welcome notification, and old-session invalidation are atomic with enrollment activation | System / Registrar / Cashier |
 
@@ -107,7 +107,6 @@
 | **Returnee Detection and Legacy Onboarding** | Registrar searches existing/imported records before readmission. If no reliable pre-TALA record exists, staff create a provenance-tagged baseline from verified evidence, run duplicate review, and continue through controlled readmission; no second public applicant identity is created | Registrar |
 | **Clearance & Eligibility Check** | Active holds (e.g. prior term balance) block enrollment; Failed grades detected → Flagged as Irregular | System |
 | **Regular Enrollment** | One-click enroll; auto-promoted to next block section | Student |
-| **Irregular Enrollment (SHS)** | Student submits proposed back subjects; Registrar manually assigns to appropriate section(s) per subject | Student / Registrar |
 | **Irregular Enrollment (College)** | System-guided subject selection with prerequisite enforcement, capacity checks, and schedule conflict prevention | Student / Registrar |
 | **Prerequisite Enforcement** | Blocks enrollment if prerequisite has active INC, failed, or missing grade; latest finalized attempt used for repeated subjects; approved equivalents supported | System |
 | **Academic Load Cap** | Enforces configured maximum load; proposed load > cap → enrollment blocked until resolved | System |
@@ -119,13 +118,13 @@
 | Feature | Description | Access |
 | --- | --- | --- |
 | **Offline COR/Schedule Viewing** | PWA caches COR, class schedule, latest grades for offline read-only access | Student |
-| **Modular Ownership Status** | Shows responsible faculty teacher/adviser ownership when available; printed-module pickup/submission logistics stay outside MVP | Student (Modular) |
+| **Modular Ownership Status** | Shows responsible faculty ownership when available; printed-module pickup/submission logistics stay outside MVP | Student |
 | **Pull-to-Refresh Sync** | Auto-refreshes data when internet returns | Student |
 | **Financial Dashboard** | Current balance, payment history, Pay Now action through an approved payment workflow, promissory note status, and exam-access visibility that respects approved accommodations/no blanket debt block | Student |
 | **Grade Viewing** | View finalized grades per term/subject | Student |
 | **Grade Correction Request** | Submit request with subject, current grade, desired correction, reason, optional attachments through a dedicated service-backed workflow | Student |
 | **Document Request Portal** | Request official documents (Form 137, COE, Good Moral, etc.) with pickup or delivery option through a dedicated service-backed workflow | Student |
-| **Shifting Request** | Submit program/strand shifting request through a dedicated service-backed workflow | Student |
+| **Shifting Request** | Submit College program shifting request through a dedicated service-backed workflow | Student |
 | **Interactive Onboarding** | First-login guidance highlighting COR, Grades, and Request Document areas when an approved onboarding workflow exists | Student |
 
 ---
@@ -136,18 +135,18 @@
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
-| **Academic Year Setup** | Configure academic year, education level, start/end dates, status, reference note | Registrar |
+| **Academic Year Setup** | Configure College academic year start/end dates, status, and reference note | Registrar |
 | **Term Setup (Calendar Contract)** | Configure term identity, dates, and 6 operational gates: `enrollment_starts_at`, `enrollment_ends_at`, `late_enrollment_ends_at`, `payment_deadline`, `adjustment_ends_at`, `scheduling_starts_at` | Registrar |
 | **Date-Driven Feature Locking** | Missing dates auto-lock affected features (enrollment, scheduling, class lists) | System |
-| **Per-Level Cutover** | SHS activates at quarter boundary; College at semester boundary; mid-term cutovers blocked | System |
+| **College Cutover** | College cutover activates at semester boundary; mid-term cutovers are blocked | System |
 
 ### 3.2 Curriculum Intake & Versioning
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
-| **Download Standardized Template** | Unified curriculum template with strict headers for education level, program, curriculum version, year/grade, period, subject, units, weekly contact hours, academic subject type, scheduling group, and delivery-rule override | Academic Head / Registrar |
+| **Download Standardized Template** | College curriculum template with strict headers for program, curriculum version, year level, period, subject, units, weekly contact hours, academic subject type, scheduling group, and delivery-rule override | Academic Head / Registrar |
 | **Upload & Parse Curriculum** | System validates headers and rows, rejects zero-valid-row batches, previews errors, commits only zero-error batches, and marks affected curriculum scopes `needs_review` until confirmed ready | Academic Head / Registrar |
-| **Curriculum Scope Readiness** | Scheduling can use only scopes marked `ready_for_scheduling` by program + curriculum version + year/grade + period | Academic Head / Registrar |
+| **Curriculum Scope Readiness** | Scheduling can use only scopes marked `ready_for_scheduling` by program + curriculum version + College year level + period | Academic Head / Registrar |
 | **Curriculum Versioning** | Immutable per batch; existing students bound to admission-year version; no mid-year replacements for active batches | System |
 | **Clerical Edits** | Academic Head can fix specific subject mapping (typo, prerequisite) via Filament UI without re-uploading entire sheet | Academic Head |
 
@@ -155,10 +154,10 @@
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
-| **Centralized Filament Data Table** | Global search with filters: Department, Program/Strand, Year/Term, Status (Active/Inactive/Graduated/Archived), Standing (Regular/Irregular) | Registrar |
+| **Centralized Filament Data Table** | Global search with filters: College program, year/term, status (Active/Inactive/Graduated/Archived), and standing (Regular/Irregular) | Registrar |
 | **Class-Aware Document Cabinet** | Shows authorized canonical evidence, versions, provenance, review/OCR status, requirement satisfaction, and physical custody without exposing raw storage paths; restricted medical/SEN/IP/immigration evidence uses a separate permission boundary | Registrar / Authorized Staff |
 | **Student Jacket (View/Edit)** | Direct edit: Contact, Civil Status. Formal change request: LRN, Name, Birthdate (with proof upload). Strictly view-only: Grades, Balances, Student ID, Audit Logs | Registrar |
-| **Program Shifting Rules** | Grade 12 SHS blocked; College up to 2nd-year limit; preserves all prior records; multi-step approval workflow | Student / Registrar / Academic Head / Accounting |
+| **Program Shifting Rules** | College shifting allowed only up to the approved 2nd-year limit; preserves all prior records; multi-step approval workflow | Student / Registrar / Academic Head / Accounting |
 
 ### 3.4 Scheduling & Sectioning
 
@@ -181,10 +180,9 @@
 | --- | --- | --- |
 | **Pending Applications Review** | Queue of students with submitted documents; Approve or Reject (triggers Rejection Loop) | Registrar |
 | **Transferee Evaluation (College)** | View TOR; OCR pre-fills credited subjects via regex/fuzzy matching against curriculum; Registrar reviews and approves → unlocks Subject Selection | Registrar |
-| **Transferee Evaluation (SHS)** | View Grade 11 Card; OCR highlights promotion signals; Registrar confirms → assigns block section | Registrar |
 | **Physical Document Verification** | Registrar verifies hard copies match digital uploads; clicks "Confirm Physical Submission" | Registrar |
 | **Finalize Applicant (Account Migration)** | Auto-triggered when physical docs confirmed + payment confirmed; generates Student ID, creates student profile, rotates credentials, emails welcome | System |
-| **Enrolled Student Roster & Export** | Read-only term roster of `Enrolled` students; filters by level, program/strand, year/grade, section, modality, and student type; audited generic CSV/XLSX export supports external reporting without regulator-specific templates or external-system completion tracking | Registrar |
+| **Enrolled Student Roster & Export** | Read-only term roster of `Enrolled` College students; filters by program, year level, section, modality, and student type; audited generic CSV/XLSX export supports external reporting without regulator-specific templates or external-system completion tracking | Registrar |
 | **Walk-In Entry** | Streamlined form for physically present students; optional document upload (bypasses OCR); enforces prerequisites, payments, capacity; tagged as `Staff_Assisted` | Registrar |
 | **Global Enrollment Lock & COR Generation** | Toggle "End Enrollment Period"; batch-generates PDF COR with QR Code for all finance-cleared students | Registrar |
 
@@ -207,9 +205,9 @@
 | **Global Fee Database** | Single `fees` table; each fee mapped to academic scope (grade/program); auto-tagged to student ledger upon enrollment | Accounting |
 | **Bulk Fee Import** | Optional Excel (.xlsx) import for global fees | Accounting |
 | **Manual Adjustments** | One-off charges or overrides added to student ledger | Accounting |
-| **Automated Freshmen Discount** | 50% Tuition Fee discount for `student_type = 'New'` AND (`year_level = '1st Year'` OR `year_level = 'Grade 11'`); applied as negative ledger entry; excludes Misc/Lab/Other fees | System |
+| **Automated Freshmen Discount** | 50% Tuition Fee discount for `student_type = 'New'` AND `year_level = '1st Year'`; applied as negative ledger entry; excludes Misc/Lab/Other fees | System |
 | **Irregular Assessment Flag** | Irregular students flagged as "Custom Calculation Required" for unit-based fee verification | System |
-| **Fee Template Downpayments** | `minimum_downpayment_percentage` configured through canonical education/program/year scoped fee templates; only one active fee template may govern a scope at a time | Accounting |
+| **Fee Template Downpayments** | `minimum_downpayment_percentage` configured through canonical College program/year scoped fee templates; only one active fee template may govern a scope at a time | Accounting |
 
 ### 4.2 Payment Processing
 
@@ -262,7 +260,6 @@
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
 | **Period-Level Entry** | Faculty enters one computed grade per grading period; component-level computation (Written Work, Performance Tasks, etc.) done offline | Faculty |
-| **SHS Grading (DepEd-Aligned)** | Input: transmuted grade (60–100) for Q1 and Q2; system averages for final grade; minimum transmuted = 60, minimum passing = 75 | Faculty / System |
 | **College Grading (Profile-Gated)** | College grading uses an approved effective-dated grading profile. A Prelim/Midterm/Final 30/30/40 profile may exist as a deployment-specific profile, but it must not be treated as a universal College policy without client approval and migration rules. | Faculty / System / Academic Head |
 | **INC (Incomplete) Lifecycle** | 365-day countdown from end of term; auto-fail to 5.0 on day 365 via nightly batch job; blocks prerequisite chain while active | Faculty / System |
 | **Grade Finalization & Locking** | Faculty clicks "Finalize Grades" → read-only; already-finalized shows notice (no state change); Academic Head may force-finalize or reopen with reason | Faculty / Academic Head |
@@ -395,8 +392,8 @@
 | --- | --- | --- |
 | **Document Catalog** | Registrar manages type metadata, requirements, processing notes, availability; Accounting manages free/paid classification and fee amounts | Registrar / Accounting |
 | **Activation Rule** | New document types not requestable until Accounting marks as `free` or assigns a positive fee | Accounting |
-| **Free Documents** | First Form 137 and first Grade 12 Card per student (with requesting-school basis); bypass Accounting | Student / Registrar |
-| **Paid Documents** | Good Moral, COE, Grade 11 Card, Dismissal Certificate; require Accounting fee confirmation before Registrar processing | Student / Accounting / Registrar |
+| **Free Documents** | First Form 137 and first Form 138 prior-school support request per student (with requesting-school basis); bypass Accounting | Student / Registrar |
+| **Paid Documents** | Good Moral, COE, COG, TOR, and Dismissal Certificate; require Accounting fee confirmation before Registrar processing unless an approved policy says otherwise | Student / Accounting / Registrar |
 | **Pickup Flow** | `processing` → `ready_for_pickup` → `completed` (after student claims) | Registrar / Student |
 | **Delivery Flow** | Mandatory Data Privacy consent (RA 10173); Registrar ships and records courier name, tracking, shipping fee, receipt photo; `pending_shipping_payment` until Accounting confirms | Registrar / Accounting / Student |
 | **Grace-Period Debt** | Unpaid shipping fee after 3 calendar days → posted as standard debt to ledger → `completed_with_debt` | System |
@@ -463,9 +460,9 @@
 
 | Feature | Description |
 | --- | --- |
-| **Public Page** (`/admission-requirements`) | Document checklists (SHS/College), modality options, enrollment steps overview, FAQ links |
+| **Public Page** (`/admission-requirements`) | College document checklists, modality options, enrollment steps overview, FAQ links |
 | **Configuration** | Admission requirement configuration is exposed only through a dedicated validated workflow; raw `system_settings` key/value editing is not a staff-facing capability |
-| **Faculty Quick Link** | "Copy SHS Requirements Link" / "Copy College Requirements Link" widget on Faculty Dashboard |
+| **Faculty Quick Link** | "Copy College Requirements Link" widget on Faculty Dashboard |
 
 ---
 

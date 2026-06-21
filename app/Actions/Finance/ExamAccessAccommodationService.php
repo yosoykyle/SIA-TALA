@@ -215,15 +215,9 @@ class ExamAccessAccommodationService
         }
 
         $academicYear = $term?->academicYear;
-        $scope = $studentProfile->education_level === 'shs'
-            ? ExamAccessAccommodation::ScopeAcademicYear
-            : ExamAccessAccommodation::ScopeTerm;
-        $defaultStart = $scope === ExamAccessAccommodation::ScopeAcademicYear
-            ? $academicYear?->school_year_start_date
-            : $term?->term_start_date;
-        $defaultEnd = $scope === ExamAccessAccommodation::ScopeAcademicYear
-            ? $academicYear?->school_year_end_date
-            : $term?->term_end_date;
+        $scope = ExamAccessAccommodation::ScopeTerm;
+        $defaultStart = $term?->term_start_date;
+        $defaultEnd = $term?->term_end_date;
         $validFrom = $this->parseDate($data['valid_from'] ?? $defaultStart);
         $validUntil = $this->parseDate($data['valid_until'] ?? $defaultEnd);
 
@@ -250,8 +244,8 @@ class ExamAccessAccommodationService
 
         return [
             'student_profile_id' => $studentProfile->id,
-            'academic_year_id' => $scope === ExamAccessAccommodation::ScopeAcademicYear ? $academicYear?->id : null,
-            'term_id' => $scope === ExamAccessAccommodation::ScopeTerm ? $term?->id : null,
+            'academic_year_id' => null,
+            'term_id' => $term?->id,
             'enrollment_id' => $enrollment?->id,
             'promissory_note_id' => $promissoryNoteId,
             'scope' => $scope,

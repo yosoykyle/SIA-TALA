@@ -391,7 +391,6 @@ class StudentEnrollmentService
             'user_id' => $intake->user_id,
             'student_id' => $this->studentIdFor($intake),
             'lrn' => $intake->lrn,
-            'education_level' => $intake->education_level,
             'program_id' => $intake->program_id,
             'year_level' => $intake->year_level,
             'operational_status' => 'Active',

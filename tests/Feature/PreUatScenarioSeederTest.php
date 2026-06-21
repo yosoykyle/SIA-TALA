@@ -45,7 +45,6 @@ class PreUatScenarioSeederTest extends TestCase
         ]);
         $this->assertDatabaseHas('student_profiles', [
             'student_id' => 'TALA-2026-0001',
-            'education_level' => 'college',
         ]);
         $this->assertDatabaseHas('payment_attempts', [
             'provider_event_id' => 'evt_pre_uat_payment_0001',

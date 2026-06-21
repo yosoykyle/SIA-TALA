@@ -20,12 +20,6 @@ class AcademicYearsTable
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
-                TextColumn::make('education_level')
-                    ->label('Education Level')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state, AcademicYear $record): string => $record->educationLevelLabel())
-                    ->searchable()
-                    ->sortable(),
                 TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (?string $state, AcademicYear $record): string => $record->statusLabel())
@@ -41,9 +35,6 @@ class AcademicYearsTable
                 TextColumn::make('reference_note')->limit(40)->placeholder('-')->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('education_level')
-                    ->label('Education Level')
-                    ->options(AcademicYear::educationLevelOptions()),
                 SelectFilter::make('status')
                     ->options(AcademicYear::statusOptions()),
             ])

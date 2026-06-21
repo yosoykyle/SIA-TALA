@@ -30,14 +30,6 @@ class AdmissionCapacityPlanForm
                             ->required()
                             ->live()
                             ->default(AdmissionCapacityPlan::ScopeCampus),
-                        Select::make('education_level')
-                            ->options(AdmissionCapacityPlan::educationLevelOptions())
-                            ->visible(fn (Get $get): bool => in_array($get('scope_type'), [
-                                AdmissionCapacityPlan::ScopeEducationLevel,
-                                AdmissionCapacityPlan::ScopeProgram,
-                                AdmissionCapacityPlan::ScopeYearLevel,
-                                AdmissionCapacityPlan::ScopeDeliverySetup,
-                            ], true)),
                         Select::make('program_id')
                             ->relationship('program', 'name')
                             ->searchable()
@@ -48,10 +40,8 @@ class AdmissionCapacityPlanForm
                                 AdmissionCapacityPlan::ScopeDeliverySetup,
                             ], true)),
                         Select::make('year_level')
-                            ->label('Year/Grade')
+                            ->label('Year Level')
                             ->options([
-                                'Grade 11' => 'Grade 11',
-                                'Grade 12' => 'Grade 12',
                                 '1st Year' => '1st Year',
                                 '2nd Year' => '2nd Year',
                                 '3rd Year' => '3rd Year',
@@ -66,7 +56,6 @@ class AdmissionCapacityPlanForm
                             ->options([
                                 'on_site' => 'On-site',
                                 'online' => 'Online',
-                                'modular' => 'Modular',
                                 'blended' => 'Blended',
                             ])
                             ->visible(fn (Get $get): bool => $get('scope_type') === AdmissionCapacityPlan::ScopeDeliverySetup),

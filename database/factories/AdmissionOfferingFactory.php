@@ -22,7 +22,6 @@ class AdmissionOfferingFactory extends Factory
             'term_id' => Term::factory(),
             'program_id' => null,
             'name' => 'Regular College Freshman',
-            'education_level' => 'college',
             'entry_route' => AdmissionOffering::EntryRouteRegular,
             'prior_credential_pathway' => AdmissionOffering::PriorCredentialRegular,
             'citizenship_compliance_profile' => null,

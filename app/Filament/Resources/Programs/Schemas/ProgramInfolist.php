@@ -13,9 +13,8 @@ class ProgramInfolist
         return $schema->components([
             TextEntry::make('code')->label('Code'),
             TextEntry::make('name')->label('Program'),
-            TextEntry::make('department')->label('Education Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
+            TextEntry::make('department')->label('Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
                 'college' => 'College',
-                'shs' => 'Senior High School',
                 default => str((string) $state)->headline()->toString(),
             }),
             IconEntry::make('is_active')->label('Active')->boolean(),

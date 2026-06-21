@@ -57,7 +57,6 @@ class ApplicantIntake extends Model
         'guardian_name',
         'guardian_contact_number',
         'guardian_address',
-        'education_level',
         'year_level',
         'applicant_type',
         'preferred_modality',

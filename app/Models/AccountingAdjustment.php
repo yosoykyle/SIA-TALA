@@ -50,7 +50,6 @@ class AccountingAdjustment extends Model
         return collect([
             $studentProfile->student_id,
             $studentProfile->user?->name,
-            strtoupper((string) $studentProfile->education_level),
             $studentProfile->program?->code,
         ])
             ->filter(fn (?string $part): bool => filled($part))

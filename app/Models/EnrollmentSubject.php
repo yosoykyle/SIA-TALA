@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Support\Str;
 
 class EnrollmentSubject extends Model
 {
@@ -85,16 +84,5 @@ class EnrollmentSubject extends Model
     public function canReceiveFacultyGrade(): bool
     {
         return $this->status === 'enrolled' && ! $this->is_dropped;
-    }
-
-    public function usesShsGrading(): bool
-    {
-        $this->loadMissing('enrollment.studentProfile.program');
-
-        $educationLevel = Str::of((string) $this->enrollment?->studentProfile?->education_level)->lower()->squish()->toString();
-        $department = Str::of((string) $this->enrollment?->studentProfile?->program?->department)->lower()->squish()->toString();
-
-        return in_array($educationLevel, ['shs', 'senior high school'], true)
-            || in_array($department, ['shs', 'senior high school'], true);
     }
 }

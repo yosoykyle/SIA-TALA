@@ -28,7 +28,7 @@ class SectionsTable
                     ->label('Program')
                     ->searchable(),
                 TextColumn::make('year_level')
-                    ->label('Year / Grade')
+                    ->label('Year Level')
                     ->searchable(),
                 TextColumn::make('curriculum_period')
                     ->label('Period')

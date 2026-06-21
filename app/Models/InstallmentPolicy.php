@@ -16,7 +16,6 @@ class InstallmentPolicy extends Model
      */
     protected $fillable = [
         'name',
-        'education_level',
         'program_id',
         'year_level',
         'max_months',
@@ -58,6 +57,6 @@ class InstallmentPolicy extends Model
 
     protected static function activeScopeConflictMessage(): string
     {
-        return 'Only one active installment policy may exist for the selected education level, program, and year/grade scope.';
+        return 'Only one active installment policy may exist for the selected program and year level scope.';
     }
 }

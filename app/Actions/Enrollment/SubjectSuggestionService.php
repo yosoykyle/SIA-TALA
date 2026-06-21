@@ -90,7 +90,7 @@ class SubjectSuggestionService
             }
 
             $latestGrade = $latestGrades->get($curriculumSubject->subject_id);
-            $subjectGradeStatus = $this->gradeStatus($latestGrade, $studentProfile);
+            $subjectGradeStatus = $this->gradeStatus($latestGrade);
 
             if ($subjectGradeStatus === self::GradeStatusPassed) {
                 $alreadyPassed[] = $this->subjectItem($curriculumSubject, self::StatusAlreadyPassed, $latestGrade);
@@ -115,7 +115,7 @@ class SubjectSuggestionService
                 continue;
             }
 
-            $prerequisiteEvaluation = $this->evaluatePrerequisites($curriculumSubject->subject, $latestGrades, $studentProfile);
+            $prerequisiteEvaluation = $this->evaluatePrerequisites($curriculumSubject->subject, $latestGrades);
 
             if ($prerequisiteEvaluation['blockers'] !== []) {
                 $blocked[] = $this->subjectItem(
@@ -144,7 +144,7 @@ class SubjectSuggestionService
 
             $latestGrade = $latestGrades->get($curriculumSubject->subject_id);
 
-            if ($this->gradeStatus($latestGrade, $studentProfile) === self::GradeStatusFailed) {
+            if ($this->gradeStatus($latestGrade) === self::GradeStatusFailed) {
                 $backSubjects[] = $this->subjectItem($curriculumSubject, self::StatusBackSubject, $latestGrade);
             }
         }
@@ -236,14 +236,14 @@ class SubjectSuggestionService
      * @param  Collection<int, Grade>  $latestGrades
      * @return array{prerequisites:list<array<string,mixed>>,blockers:list<array<string,mixed>>}
      */
-    private function evaluatePrerequisites(Subject $subject, Collection $latestGrades, StudentProfile $studentProfile): array
+    private function evaluatePrerequisites(Subject $subject, Collection $latestGrades): array
     {
         $prerequisites = [];
         $blockers = [];
 
         foreach ($subject->prerequisites as $prerequisite) {
             $latestGrade = $latestGrades->get($prerequisite->id);
-            $status = $this->gradeStatus($latestGrade, $studentProfile);
+            $status = $this->gradeStatus($latestGrade);
             $prerequisiteItem = $this->blockerFor($prerequisite, $status, $latestGrade);
 
             $prerequisites[] = $prerequisiteItem;
@@ -259,7 +259,7 @@ class SubjectSuggestionService
         ];
     }
 
-    private function gradeStatus(?Grade $grade, StudentProfile $studentProfile): string
+    private function gradeStatus(?Grade $grade): string
     {
         if (! $grade instanceof Grade) {
             return self::BlockerMissingHistory;
@@ -273,12 +273,12 @@ class SubjectSuggestionService
             return self::BlockerMissingHistory;
         }
 
-        return $this->isPassingGrade($grade, $studentProfile)
+        return $this->isPassingGrade($grade)
             ? self::GradeStatusPassed
             : self::GradeStatusFailed;
     }
 
-    private function isPassingGrade(Grade $grade, StudentProfile $studentProfile): bool
+    private function isPassingGrade(Grade $grade): bool
     {
         $remarks = Str::of((string) $grade->remarks)->lower()->squish()->toString();
 
@@ -296,18 +296,7 @@ class SubjectSuggestionService
 
         $gradeValue = (float) $grade->grade;
 
-        return $this->usesShsScale($studentProfile)
-            ? $gradeValue >= 75.0
-            : $gradeValue <= 3.0;
-    }
-
-    private function usesShsScale(StudentProfile $studentProfile): bool
-    {
-        $educationLevel = Str::of((string) $studentProfile->education_level)->lower()->squish()->toString();
-        $department = Str::of((string) $studentProfile->program?->department)->lower()->squish()->toString();
-
-        return in_array($educationLevel, ['shs', 'senior high school'], true)
-            || in_array($department, ['shs', 'senior high school'], true);
+        return $gradeValue <= 3.0;
     }
 
     /**

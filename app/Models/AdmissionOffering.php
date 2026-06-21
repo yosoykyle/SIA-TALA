@@ -31,8 +31,6 @@ class AdmissionOffering extends Model
 
     public const PriorCredentialOldCurriculum = 'old_curriculum';
 
-    public const PriorCredentialAlsJhs = 'als_jhs';
-
     /**
      * @return array<string, string>
      */
@@ -64,20 +62,8 @@ class AdmissionOffering extends Model
     public static function priorCredentialOptions(): array
     {
         return [
-            self::PriorCredentialRegular => 'Regular',
+            self::PriorCredentialRegular => 'Grade 12 / prior education',
             self::PriorCredentialOldCurriculum => 'Old curriculum',
-            self::PriorCredentialAlsJhs => 'ALS JHS to Grade 11',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public static function educationLevelOptions(): array
-    {
-        return [
-            'shs' => 'SHS',
-            'college' => 'College',
         ];
     }
 
@@ -88,7 +74,6 @@ class AdmissionOffering extends Model
         'term_id',
         'program_id',
         'name',
-        'education_level',
         'entry_route',
         'prior_credential_pathway',
         'citizenship_compliance_profile',

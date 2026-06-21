@@ -308,7 +308,6 @@ class PaymentConfirmationServiceTest extends TestCase
         $programPlan = AdmissionCapacityPlan::factory()->create([
             'term_id' => $enrollment->term_id,
             'scope_type' => AdmissionCapacityPlan::ScopeProgram,
-            'education_level' => $studentProfile->education_level,
             'program_id' => $studentProfile->program_id,
             'capacity_limit' => 1,
             'reserved_count' => 0,
@@ -564,7 +563,6 @@ class PaymentConfirmationServiceTest extends TestCase
             AdmissionCapacityPlan::factory()->create([
                 'term_id' => $enrollment->term_id,
                 'scope_type' => AdmissionCapacityPlan::ScopeProgram,
-                'education_level' => $studentProfile->education_level,
                 'program_id' => $studentProfile->program_id,
                 'year_level' => $enrollment->year_level,
                 'delivery_setup' => $enrollment->modality,
@@ -586,7 +584,6 @@ class PaymentConfirmationServiceTest extends TestCase
             'user_id' => $studentProfile->user_id,
             'term_id' => $enrollment->term_id,
             'program_id' => $studentProfile->program_id,
-            'education_level' => $studentProfile->education_level,
             'year_level' => $enrollment->year_level,
             'applicant_type' => ApplicantIntake::ApplicantTypeNew,
             'preferred_modality' => $enrollment->modality,
@@ -597,7 +594,6 @@ class PaymentConfirmationServiceTest extends TestCase
         $offering = AdmissionOffering::factory()->create([
             'term_id' => $enrollment->term_id,
             'program_id' => $studentProfile->program_id,
-            'education_level' => $studentProfile->education_level,
             'year_level' => $enrollment->year_level,
         ]);
         $policy = AdmissionRequirementPolicy::factory()->create([

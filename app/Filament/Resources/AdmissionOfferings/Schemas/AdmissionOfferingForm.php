@@ -32,24 +32,20 @@ class AdmissionOfferingForm
                             ->relationship('program', 'name')
                             ->searchable()
                             ->preload()
-                            ->helperText('Leave blank only for level-wide offerings.'),
-                        Select::make('education_level')
-                            ->options(AdmissionOffering::educationLevelOptions())
-                            ->required()
-                            ->live(),
+                            ->helperText('Leave blank only for all-program College offerings.'),
                         Select::make('entry_route')
                             ->options(AdmissionOffering::entryRouteOptions())
                             ->required(),
                         Select::make('prior_credential_pathway')
                             ->options(AdmissionOffering::priorCredentialOptions())
                             ->placeholder('Regular')
-                            ->helperText('Use ALS only for the approved Regular SHS Grade 11 pathway.'),
+                            ->helperText('ALS/equivalency stays inactive until a College pathway is approved.'),
                         TextInput::make('citizenship_compliance_profile')
                             ->maxLength(255)
                             ->helperText('Leave blank for MVP local applicants; foreign compliance profiles stay inactive until approved.'),
                         Select::make('year_level')
-                            ->label('Year/Grade')
-                            ->options(fn (Get $get): array => self::yearLevelOptions((string) $get('education_level')))
+                            ->label('Year Level')
+                            ->options(self::yearLevelOptions())
                             ->searchable(),
                         Select::make('status')
                             ->options(AdmissionOffering::statusOptions())
@@ -69,20 +65,13 @@ class AdmissionOfferingForm
     /**
      * @return array<string, string>
      */
-    private static function yearLevelOptions(string $educationLevel): array
+    private static function yearLevelOptions(): array
     {
-        return match ($educationLevel) {
-            'shs' => [
-                'Grade 11' => 'Grade 11',
-                'Grade 12' => 'Grade 12',
-            ],
-            'college' => [
-                '1st Year' => '1st Year',
-                '2nd Year' => '2nd Year',
-                '3rd Year' => '3rd Year',
-                '4th Year' => '4th Year',
-            ],
-            default => [],
-        };
+        return [
+            '1st Year' => '1st Year',
+            '2nd Year' => '2nd Year',
+            '3rd Year' => '3rd Year',
+            '4th Year' => '4th Year',
+        ];
     }
 }

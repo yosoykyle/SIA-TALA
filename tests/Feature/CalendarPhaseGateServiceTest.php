@@ -21,8 +21,7 @@ use Tests\TestCase;
  * 1. test_enrollment_gate_allows_when_cutover_is_active_and_window_is_open
  * 2. test_enrollment_gate_blocks_when_outside_window
  * 3. test_scheduling_gate_blocks_until_scheduling_starts_at_is_reached
- * 4. test_cutover_is_level_scoped_and_non_active_level_keeps_legacy_behavior
- * 5. test_enrollment_edit_middleware_blocks_after_enrollment_end_and_logs_audit_trail
+ * 4. test_enrollment_edit_middleware_blocks_after_enrollment_end_and_logs_audit_trail
  */
 class CalendarPhaseGateServiceTest extends TestCase
 {
@@ -43,17 +42,17 @@ class CalendarPhaseGateServiceTest extends TestCase
     public function test_enrollment_gate_allows_when_cutover_is_active_and_window_is_open(): void
     {
         $evaluatedAt = CarbonImmutable::parse('2026-07-15 09:00:00', 'Asia/Manila');
-        $termId = $this->createTerm('shs', [
-            'term_name' => 'Q1 AY 2026-2027',
+        $termId = $this->createTerm([
+            'term_name' => '1st Sem AY 2026-2027',
             'term_start_date' => '2026-07-01',
             'enrollment_starts_at' => '2026-07-10 00:00:00',
             'enrollment_ends_at' => '2026-07-20 23:59:59',
             'scheduling_starts_at' => '2026-07-05 00:00:00',
         ]);
 
-        $this->setCutover('shs', 'Q1 AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
+        $this->setCutover('1st Sem AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
 
-        app(CalendarPhaseGateService::class)->assertEnrollmentWindowOpen($termId, 'shs', $evaluatedAt);
+        app(CalendarPhaseGateService::class)->assertEnrollmentWindowOpen($termId, $evaluatedAt);
 
         $this->assertTrue(true);
     }
@@ -61,24 +60,24 @@ class CalendarPhaseGateServiceTest extends TestCase
     public function test_enrollment_gate_blocks_when_outside_window(): void
     {
         $evaluatedAt = CarbonImmutable::parse('2026-07-21 09:00:00', 'Asia/Manila');
-        $termId = $this->createTerm('shs', [
-            'term_name' => 'Q1 AY 2026-2027',
+        $termId = $this->createTerm([
+            'term_name' => '1st Sem AY 2026-2027',
             'term_start_date' => '2026-07-01',
             'enrollment_starts_at' => '2026-07-10 00:00:00',
             'enrollment_ends_at' => '2026-07-20 23:59:59',
         ]);
 
-        $this->setCutover('shs', 'Q1 AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
+        $this->setCutover('1st Sem AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
 
         $this->expectException(CalendarGateViolation::class);
         $this->expectExceptionMessage('Enrollment is outside the configured window.');
 
-        app(CalendarPhaseGateService::class)->assertEnrollmentWindowOpen($termId, 'shs', $evaluatedAt);
+        app(CalendarPhaseGateService::class)->assertEnrollmentWindowOpen($termId, $evaluatedAt);
     }
 
     public function test_scheduling_gate_blocks_until_scheduling_starts_at_is_reached(): void
     {
-        $termId = $this->createTerm('college', [
+        $termId = $this->createTerm([
             'term_name' => '1st Sem AY 2026-2027',
             'term_type' => 'semester',
             'term_start_date' => '2026-08-01',
@@ -87,54 +86,31 @@ class CalendarPhaseGateServiceTest extends TestCase
             'scheduling_starts_at' => '2026-07-15 00:00:00',
         ]);
 
-        $this->setCutover('college', '1st Sem AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
+        $this->setCutover('1st Sem AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
 
         $this->expectException(CalendarGateViolation::class);
         $this->expectExceptionMessage('Scheduling is not open yet for this term.');
 
         app(CalendarPhaseGateService::class)->assertSchedulingWindowOpen(
             $termId,
-            'college',
             CarbonImmutable::parse('2026-07-14 23:59:59', 'Asia/Manila'),
         );
     }
 
-    public function test_cutover_is_level_scoped_and_non_active_level_keeps_legacy_behavior(): void
-    {
-        $termId = $this->createTerm('college', [
-            'term_name' => '1st Sem AY 2026-2027',
-            'term_type' => 'semester',
-            'term_start_date' => '2026-08-01',
-            'enrollment_starts_at' => null,
-            'enrollment_ends_at' => null,
-        ]);
-
-        $this->setCutover('shs', 'Q1 AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
-
-        app(CalendarPhaseGateService::class)->assertEnrollmentWindowOpen(
-            $termId,
-            'college',
-            CarbonImmutable::parse('2026-08-05 10:00:00', 'Asia/Manila'),
-        );
-
-        $this->assertFalse(app(CalendarPhaseGateService::class)->isCutoverActive($termId, 'college'));
-    }
-
     public function test_enrollment_edit_middleware_blocks_after_enrollment_end_and_logs_audit_trail(): void
     {
-        $termId = $this->createTerm('shs', [
-            'term_name' => 'Q1 AY 2026-2027',
+        $termId = $this->createTerm([
+            'term_name' => '1st Sem AY 2026-2027',
             'term_start_date' => '2026-07-01',
             'enrollment_starts_at' => '2026-07-10 00:00:00',
             'enrollment_ends_at' => '2026-07-20 23:59:59',
         ]);
 
-        $this->setCutover('shs', 'Q1 AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
+        $this->setCutover('1st Sem AY 2026-2027', CarbonImmutable::parse('2026-07-01T00:00:00+08:00'));
         $this->travelTo(CarbonImmutable::parse('2026-07-25 08:00:00', 'Asia/Manila'));
 
         $response = $this->postJson('/_testing/enrollment/edit', [
             'term_id' => $termId,
-            'education_level' => 'shs',
         ]);
 
         $response->assertStatus(423);
@@ -148,19 +124,17 @@ class CalendarPhaseGateServiceTest extends TestCase
         ]);
     }
 
-    private function setCutover(string $educationLevel, string $effectiveTerm, CarbonImmutable $effectiveDatetime): void
+    private function setCutover(string $effectiveTerm, CarbonImmutable $effectiveDatetime): void
     {
-        $prefix = strtolower($educationLevel) === 'shs' ? 'shs' : 'college';
-
         DB::table('system_settings')
-            ->where('key', "{$prefix}_cutover_effective_term")
+            ->where('key', 'college_cutover_effective_term')
             ->update([
                 'value' => $effectiveTerm,
                 'updated_at' => now(),
             ]);
 
         DB::table('system_settings')
-            ->where('key', "{$prefix}_cutover_effective_datetime")
+            ->where('key', 'college_cutover_effective_datetime')
             ->update([
                 'value' => $effectiveDatetime->toIso8601String(),
                 'updated_at' => now(),
@@ -170,11 +144,10 @@ class CalendarPhaseGateServiceTest extends TestCase
     /**
      * @param  array<string, mixed>  $overrides
      */
-    private function createTerm(string $educationLevel, array $overrides = []): int
+    private function createTerm(array $overrides = []): int
     {
         $academicYearId = DB::table('academic_years')->insertGetId([
             'academic_year' => 'AY '.Str::of(Str::uuid())->substr(0, 8),
-            'education_level' => strtolower($educationLevel),
             'school_year_start_date' => '2026-06-01',
             'school_year_end_date' => '2027-05-31',
             'status' => 'active',
@@ -183,10 +156,9 @@ class CalendarPhaseGateServiceTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $defaultTermType = strtolower($educationLevel) === 'shs' ? 'quarter' : 'semester';
         $defaults = [
             'term_name' => 'Term '.Str::of(Str::uuid())->substr(0, 8),
-            'term_type' => $defaultTermType,
+            'term_type' => 'semester',
             'is_active' => true,
             'term_start_date' => '2026-07-01',
             'term_end_date' => '2026-09-30',
@@ -216,7 +188,6 @@ class CalendarPhaseGateServiceTest extends TestCase
         Schema::create('academic_years', function (Blueprint $table) {
             $table->id();
             $table->string('academic_year');
-            $table->string('education_level');
             $table->date('school_year_start_date');
             $table->date('school_year_end_date');
             $table->string('status')->default('draft');
@@ -295,18 +266,6 @@ class CalendarPhaseGateServiceTest extends TestCase
             [
                 'key' => 'admission_requirements',
                 'value' => '{"version":"1.0","items":[]}',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'key' => 'shs_cutover_effective_term',
-                'value' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'key' => 'shs_cutover_effective_datetime',
-                'value' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],

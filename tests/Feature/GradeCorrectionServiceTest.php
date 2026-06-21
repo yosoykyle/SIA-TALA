@@ -26,7 +26,7 @@ class GradeCorrectionServiceTest extends TestCase
 
     public function test_college_grade_correction_resolution_derives_final_grade_from_period_scores(): void
     {
-        [$grade, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [$grade, $correction] = $this->gradeCorrectionContext('college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
         app(GradeCorrectionService::class)->approveOfficialGradeChange(
@@ -59,16 +59,19 @@ class GradeCorrectionServiceTest extends TestCase
         $this->assertSame($academicHead->id, $correction->academic_head_reviewed_by);
     }
 
-    public function test_shs_grade_correction_resolution_derives_final_grade_from_quarter_grades(): void
+    public function test_grade_correction_resolution_rejects_deprecated_quarter_grade_payloads(): void
     {
-        [$grade, $correction] = $this->gradeCorrectionContext('shs', 'shs');
+        [, $correction] = $this->gradeCorrectionContext('college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
         app(GradeCorrectionService::class)->approveOfficialGradeChange(
             correction: $correction,
             academicHead: $academicHead,
-            approvalReason: 'Academic Head approved corrected SHS quarter grades.',
+            approvalReason: 'Academic Head approved a correction.',
         );
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Unsupported grade override fields were provided for this grading scheme.');
 
         app(GradeCorrectionService::class)->resolveWithGradeChange(
             correction: $correction,
@@ -79,21 +82,11 @@ class GradeCorrectionServiceTest extends TestCase
             ],
             resolutionNotes: 'Registrar recorded the approved official correction.',
         );
-
-        $grade->refresh();
-        $correction->refresh();
-
-        $this->assertSame('80.00', $grade->prelim_grade);
-        $this->assertSame('90.00', $grade->midterm_grade);
-        $this->assertSame('85.00', $grade->final_grade);
-        $this->assertSame('85.00', $grade->grade);
-        $this->assertSame('passed', $grade->remarks);
-        $this->assertSame(GradeCorrectionStatus::Resolved, $correction->status);
     }
 
     public function test_grade_correction_resolution_rejects_direct_final_grade_override_payloads(): void
     {
-        [, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [, $correction] = $this->gradeCorrectionContext('college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
         app(GradeCorrectionService::class)->approveOfficialGradeChange(
@@ -117,7 +110,7 @@ class GradeCorrectionServiceTest extends TestCase
 
     public function test_registrar_cannot_apply_official_grade_change_without_in_system_academic_head_approval(): void
     {
-        [, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [, $correction] = $this->gradeCorrectionContext('college');
         [$registrar] = $this->gradeCorrectionStaff();
 
         $this->expectException(ValidationException::class);
@@ -137,7 +130,7 @@ class GradeCorrectionServiceTest extends TestCase
 
     public function test_academic_head_rejection_blocks_official_grade_change_and_rejects_correction(): void
     {
-        [, $correction] = $this->gradeCorrectionContext('college', 'college');
+        [, $correction] = $this->gradeCorrectionContext('college');
         [$registrar, $academicHead] = $this->gradeCorrectionStaff();
 
         app(GradeCorrectionService::class)->rejectOfficialGradeChange(
@@ -171,7 +164,7 @@ class GradeCorrectionServiceTest extends TestCase
     /**
      * @return array{Grade, GradeCorrection}
      */
-    private function gradeCorrectionContext(string $educationLevel, string $department): array
+    private function gradeCorrectionContext(string $department): array
     {
         $student = User::factory()->create();
         $program = Program::factory()->create([
@@ -180,9 +173,7 @@ class GradeCorrectionServiceTest extends TestCase
         $studentProfile = StudentProfile::factory()
             ->for($student, 'user')
             ->for($program)
-            ->create([
-                'education_level' => $educationLevel,
-            ]);
+            ->create();
         $term = Term::factory()->create();
         $subject = Subject::factory()->create();
         $enrollment = Enrollment::factory()->create([
@@ -206,7 +197,7 @@ class GradeCorrectionServiceTest extends TestCase
             'prelim_grade' => '75.00',
             'midterm_grade' => '75.00',
             'final_grade' => '75.00',
-            'grade' => $educationLevel === 'shs' ? '75.00' : '3.00',
+            'grade' => '3.00',
             'remarks' => 'passed',
             'is_finalized' => true,
         ]);

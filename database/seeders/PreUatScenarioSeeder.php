@@ -265,7 +265,6 @@ class PreUatScenarioSeeder extends Seeder
             [
                 'user_id' => $studentUser->id,
                 'lrn' => '123456789012',
-                'education_level' => 'college',
                 'program_id' => $program->id,
                 'year_level' => '1st Year',
                 'operational_status' => 'Active',
@@ -315,7 +314,6 @@ class PreUatScenarioSeeder extends Seeder
         FeeTemplate::query()->updateOrCreate(
             [
                 'name' => 'Pre-UAT BSIT 1st Year Standard Fees',
-                'education_level' => 'college',
                 'program_id' => $program->id,
                 'year_level' => '1st Year',
             ],
@@ -526,7 +524,6 @@ class PreUatScenarioSeeder extends Seeder
         DB::table('academic_years')->updateOrInsert(
             [
                 'academic_year' => '2026-2027',
-                'education_level' => 'college',
             ],
             [
                 'school_year_start_date' => '2026-08-01',
@@ -540,7 +537,6 @@ class PreUatScenarioSeeder extends Seeder
 
         return (int) DB::table('academic_years')
             ->where('academic_year', '2026-2027')
-            ->where('education_level', 'college')
             ->value('id');
     }
 

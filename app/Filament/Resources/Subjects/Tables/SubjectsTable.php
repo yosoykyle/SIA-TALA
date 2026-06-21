@@ -18,26 +18,21 @@ class SubjectsTable
                 TextColumn::make('description')->label('Subject Title')->searchable()->sortable()->wrap(),
                 TextColumn::make('units')->numeric(decimalPlaces: 2)->sortable(),
                 TextColumn::make('lec_hours')->label('Legacy Lec Hours')->numeric(decimalPlaces: 2)->sortable()->placeholder('-'),
-                TextColumn::make('department')->label('Education Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
+                TextColumn::make('department')->label('Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
                     'college' => 'College',
-                    'shs' => 'Senior High School',
                     default => str((string) $state)->headline()->toString(),
                 })->searchable(),
                 TextColumn::make('subject_type')->label('Type')->placeholder('-')->searchable(),
                 TextColumn::make('category')->placeholder('-')->searchable(),
             ])
             ->filters([
-                SelectFilter::make('department')->label('Education Level')->options([
+                SelectFilter::make('department')->label('Level')->options([
                     'college' => 'College',
-                    'shs' => 'Senior High School',
                 ]),
                 SelectFilter::make('subject_type')->label('Type')->options([
                     'major' => 'Major / Professional',
                     'general_education' => 'General Education',
-                    'core' => 'SHS Core',
-                    'applied' => 'SHS Applied',
-                    'specialized' => 'SHS Specialized',
-                    'tvl' => 'TVL',
+                    'professional_tesda' => 'Professional / TESDA',
                 ]),
             ])
             ->recordActions([

@@ -18,7 +18,6 @@ class StudentProfileFactory extends Factory
             'user_id' => User::factory(),
             'student_id' => 'SIA-'.fake()->unique()->numerify('######'),
             'lrn' => fake()->optional()->numerify('############'),
-            'education_level' => 'college',
             'program_id' => Program::factory(),
             'year_level' => '1st Year',
             'operational_status' => 'Active',

@@ -81,7 +81,7 @@ class CurriculumsTable
     {
         return [
             Select::make('year_level')
-                ->label('Year / Grade')
+                ->label('Year Level')
                 ->options(Section::yearLevelOptions())
                 ->required(),
             Select::make('curriculum_period')

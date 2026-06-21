@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Programs\Schemas;
 
-use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
@@ -24,13 +24,9 @@ class ProgramForm
                     TextInput::make('name')
                         ->required()
                         ->maxLength(255),
-                    Select::make('department')
-                        ->label('Education Level')
-                        ->options([
-                            'college' => 'College',
-                            'shs' => 'Senior High School',
-                        ])
-                        ->required(),
+                    Hidden::make('department')
+                        ->default('college')
+                        ->dehydrated(),
                     Toggle::make('is_active')
                         ->label('Active')
                         ->default(true)

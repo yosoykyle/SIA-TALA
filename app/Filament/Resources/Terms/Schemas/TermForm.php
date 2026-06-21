@@ -30,7 +30,7 @@ class TermForm
                         ->searchable()
                         ->preload()
                         ->required()
-                        ->helperText('Select the SHS or College academic year umbrella that owns this operational term.'),
+                        ->helperText('Select the College academic year umbrella that owns this operational term.'),
                     Select::make('term_type')
                         ->label('Term Type')
                         ->options([

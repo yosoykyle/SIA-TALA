@@ -18,10 +18,6 @@ class AdmissionOfferingInfolist
                         TextEntry::make('name'),
                         TextEntry::make('term.term_name')->label('Term'),
                         TextEntry::make('program.name')->label('Program')->placeholder('All programs'),
-                        TextEntry::make('education_level')
-                            ->label('Level')
-                            ->badge()
-                            ->formatStateUsing(fn (string $state): string => AdmissionOffering::educationLevelOptions()[$state] ?? strtoupper($state)),
                         TextEntry::make('entry_route')
                             ->badge()
                             ->formatStateUsing(fn (string $state): string => AdmissionOffering::entryRouteOptions()[$state] ?? str($state)->headline()->toString()),
@@ -29,7 +25,7 @@ class AdmissionOfferingInfolist
                             ->label('Pathway')
                             ->placeholder('Regular')
                             ->formatStateUsing(fn (?string $state): string => $state === null ? 'Regular' : (AdmissionOffering::priorCredentialOptions()[$state] ?? str($state)->headline()->toString())),
-                        TextEntry::make('year_level')->label('Year/Grade')->placeholder('All'),
+                        TextEntry::make('year_level')->label('Year Level')->placeholder('All'),
                         TextEntry::make('status')->badge(),
                         TextEntry::make('published_at')->dateTime()->placeholder('Not published'),
                     ])

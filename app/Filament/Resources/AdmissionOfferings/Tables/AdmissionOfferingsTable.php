@@ -23,10 +23,6 @@ class AdmissionOfferingsTable
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('education_level')
-                    ->label('Level')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state): string => AdmissionOffering::educationLevelOptions()[$state] ?? strtoupper($state)),
                 TextColumn::make('entry_route')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => AdmissionOffering::entryRouteOptions()[$state] ?? str($state)->headline()->toString()),
@@ -39,7 +35,7 @@ class AdmissionOfferingsTable
                     ->placeholder('All programs')
                     ->searchable(),
                 TextColumn::make('year_level')
-                    ->label('Year/Grade')
+                    ->label('Year Level')
                     ->placeholder('All'),
                 TextColumn::make('status')
                     ->badge()
@@ -58,9 +54,6 @@ class AdmissionOfferingsTable
                     ->toggleable(),
             ])
             ->filters([
-                SelectFilter::make('education_level')
-                    ->label('Level')
-                    ->options(AdmissionOffering::educationLevelOptions()),
                 SelectFilter::make('entry_route')
                     ->options(AdmissionOffering::entryRouteOptions()),
                 SelectFilter::make('status')

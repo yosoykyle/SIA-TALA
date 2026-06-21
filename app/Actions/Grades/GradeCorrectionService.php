@@ -17,7 +17,6 @@ use RuntimeException;
 class GradeCorrectionService
 {
     public function __construct(
-        private readonly SHSGradingService $shsGrading,
         private readonly CollegeGradingService $collegeGrading,
     ) {}
 
@@ -670,9 +669,7 @@ class GradeCorrectionService
      */
     private function officialGradeChangeAttributes(Grade $grade, array $gradeAttributes): array
     {
-        return $grade->usesShsGrading()
-            ? $this->shsOfficialGradeChangeAttributes($gradeAttributes)
-            : $this->collegeOfficialGradeChangeAttributes($gradeAttributes);
+        return $this->collegeOfficialGradeChangeAttributes($gradeAttributes);
     }
 
     /**
@@ -702,38 +699,6 @@ class GradeCorrectionService
             'midterm_grade' => $result['midterm'],
             'final_grade' => $result['final_raw_average'],
             'grade' => $result['equivalent_grade'],
-            'remarks' => $result['remarks'],
-            'is_inc' => false,
-            'inc_expires_at' => null,
-        ];
-    }
-
-    /**
-     * @param  array<string, bool|float|int|string|null>  $gradeAttributes
-     * @return array{prelim_grade:string, midterm_grade:string, final_grade:string, grade:string, remarks:string, is_inc:false, inc_expires_at:null}
-     *
-     * @throws ValidationException
-     */
-    private function shsOfficialGradeChangeAttributes(array $gradeAttributes): array
-    {
-        $this->assertOnlyGradeOverrideFields($gradeAttributes, ['shs_q1', 'shs_q2']);
-
-        try {
-            $result = $this->shsGrading->calculateFinalGrade([
-                'q1' => $gradeAttributes['shs_q1'] ?? null,
-                'q2' => $gradeAttributes['shs_q2'] ?? null,
-            ]);
-        } catch (InvalidGradeException $exception) {
-            throw ValidationException::withMessages([
-                'grade' => $exception->getMessage(),
-            ]);
-        }
-
-        return [
-            'prelim_grade' => $result['q1'],
-            'midterm_grade' => $result['q2'],
-            'final_grade' => $result['final_grade'],
-            'grade' => $result['final_grade'],
             'remarks' => $result['remarks'],
             'is_inc' => false,
             'inc_expires_at' => null,

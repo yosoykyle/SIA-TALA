@@ -44,7 +44,7 @@ class SectionForm
                             ->required()
                             ->helperText('Curriculum must match the selected program; subject demand is derived from curriculum subjects.'),
                         Select::make('year_level')
-                            ->label('Year / Grade')
+                            ->label('Year Level')
                             ->options(Section::yearLevelOptions())
                             ->searchable()
                             ->required(),

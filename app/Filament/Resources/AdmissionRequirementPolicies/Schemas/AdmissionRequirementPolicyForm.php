@@ -38,7 +38,7 @@ class AdmissionRequirementPolicyForm
                             ->default(1),
                         TextInput::make('source_label')
                             ->maxLength(255)
-                            ->helperText('Optional source or approval note, for example Regular SHS 2026.'),
+                            ->helperText('Optional source or approval note, for example College Freshman 2026.'),
                         Select::make('status')
                             ->options(AdmissionRequirementPolicy::statusOptions())
                             ->required()

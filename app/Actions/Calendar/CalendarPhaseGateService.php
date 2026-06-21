@@ -7,19 +7,17 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use InvalidArgumentException;
 use stdClass;
 use Throwable;
 
 class CalendarPhaseGateService
 {
-    public function assertEnrollmentWindowOpen(int $termId, string $educationLevel, ?CarbonImmutable $at = null): void
+    public function assertEnrollmentWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
         $now = $at ?? CarbonImmutable::now();
         $term = $this->getTermContext($termId);
-        $this->assertEducationLevelMatchesTerm($educationLevel, $term, 'enrollment_window');
 
-        if (! $this->isCutoverActiveForTerm($term, $educationLevel, $now)) {
+        if (! $this->isCutoverActiveForTerm($term, $now)) {
             return;
         }
 
@@ -30,7 +28,7 @@ class CalendarPhaseGateService
             throw new CalendarGateViolation(
                 'Enrollment gate is not configured for this term.',
                 'enrollment_window',
-                ['term_id' => $termId, 'education_level' => $educationLevel],
+                ['term_id' => $termId],
             );
         }
 
@@ -40,7 +38,6 @@ class CalendarPhaseGateService
                 'enrollment_window',
                 [
                     'term_id' => $termId,
-                    'education_level' => $educationLevel,
                     'enrollment_starts_at' => $enrollmentStartsAt->toIso8601String(),
                     'enrollment_ends_at' => $enrollmentEndsAt->toIso8601String(),
                     'evaluated_at' => $now->toIso8601String(),
@@ -49,13 +46,12 @@ class CalendarPhaseGateService
         }
     }
 
-    public function assertSchedulingWindowOpen(int $termId, string $educationLevel, ?CarbonImmutable $at = null): void
+    public function assertSchedulingWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
         $now = $at ?? CarbonImmutable::now();
         $term = $this->getTermContext($termId);
-        $this->assertEducationLevelMatchesTerm($educationLevel, $term, 'scheduling_window');
 
-        if (! $this->isCutoverActiveForTerm($term, $educationLevel, $now)) {
+        if (! $this->isCutoverActiveForTerm($term, $now)) {
             return;
         }
 
@@ -65,7 +61,7 @@ class CalendarPhaseGateService
             throw new CalendarGateViolation(
                 'Scheduling gate is not configured for this term.',
                 'scheduling_window',
-                ['term_id' => $termId, 'education_level' => $educationLevel],
+                ['term_id' => $termId],
             );
         }
 
@@ -75,7 +71,6 @@ class CalendarPhaseGateService
                 'scheduling_window',
                 [
                     'term_id' => $termId,
-                    'education_level' => $educationLevel,
                     'scheduling_starts_at' => $schedulingStartsAt->toIso8601String(),
                     'evaluated_at' => $now->toIso8601String(),
                 ],
@@ -83,13 +78,12 @@ class CalendarPhaseGateService
         }
     }
 
-    public function assertEnrollmentEditWindowOpen(int $termId, string $educationLevel, ?CarbonImmutable $at = null): void
+    public function assertEnrollmentEditWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
         $now = $at ?? CarbonImmutable::now();
         $term = $this->getTermContext($termId);
-        $this->assertEducationLevelMatchesTerm($educationLevel, $term, 'enrollment_edit_window');
 
-        if (! $this->isCutoverActiveForTerm($term, $educationLevel, $now)) {
+        if (! $this->isCutoverActiveForTerm($term, $now)) {
             return;
         }
 
@@ -97,24 +91,23 @@ class CalendarPhaseGateService
         $enrollmentEndsAt = $this->parseTermTimestamp($term->enrollment_ends_at);
 
         if ($enrollmentStartsAt === null || $enrollmentEndsAt === null) {
-            $this->recordEnrollmentEditGateBlock($termId, $educationLevel, $now, 'missing_enrollment_window');
+            $this->recordEnrollmentEditGateBlock($termId, $now, 'missing_enrollment_window');
 
             throw new CalendarGateViolation(
                 'Enrollment edit window is not configured for this term.',
                 'enrollment_edit_window',
-                ['term_id' => $termId, 'education_level' => $educationLevel],
+                ['term_id' => $termId],
             );
         }
 
         if ($now->lt($enrollmentStartsAt) || $now->gt($enrollmentEndsAt)) {
-            $this->recordEnrollmentEditGateBlock($termId, $educationLevel, $now, 'outside_enrollment_window');
+            $this->recordEnrollmentEditGateBlock($termId, $now, 'outside_enrollment_window');
 
             throw new CalendarGateViolation(
                 'Enrollment edits are locked outside the enrollment window.',
                 'enrollment_edit_window',
                 [
                     'term_id' => $termId,
-                    'education_level' => $educationLevel,
                     'enrollment_starts_at' => $enrollmentStartsAt->toIso8601String(),
                     'enrollment_ends_at' => $enrollmentEndsAt->toIso8601String(),
                     'evaluated_at' => $now->toIso8601String(),
@@ -123,18 +116,17 @@ class CalendarPhaseGateService
         }
     }
 
-    public function isCutoverActive(int $termId, string $educationLevel, ?CarbonImmutable $at = null): bool
+    public function isCutoverActive(int $termId, ?CarbonImmutable $at = null): bool
     {
         $now = $at ?? CarbonImmutable::now();
         $term = $this->getTermContext($termId);
-        $this->assertEducationLevelMatchesTerm($educationLevel, $term, 'cutover_check');
 
-        return $this->isCutoverActiveForTerm($term, $educationLevel, $now);
+        return $this->isCutoverActiveForTerm($term, $now);
     }
 
-    private function isCutoverActiveForTerm(stdClass $term, string $educationLevel, CarbonImmutable $now): bool
+    private function isCutoverActiveForTerm(stdClass $term, CarbonImmutable $now): bool
     {
-        $keys = $this->resolveCutoverKeys($educationLevel);
+        $keys = $this->resolveCutoverKeys();
         $cutoverTerm = $this->getSystemSetting($keys['term_key']);
         $cutoverDatetime = $this->parseSettingTimestamp(
             $this->getSystemSetting($keys['datetime_key']),
@@ -161,21 +153,12 @@ class CalendarPhaseGateService
     /**
      * @return array{term_key: string, datetime_key: string}
      */
-    private function resolveCutoverKeys(string $educationLevel): array
+    private function resolveCutoverKeys(): array
     {
-        $normalized = strtolower(trim($educationLevel));
-
-        return match ($normalized) {
-            'shs' => [
-                'term_key' => 'shs_cutover_effective_term',
-                'datetime_key' => 'shs_cutover_effective_datetime',
-            ],
-            'college' => [
-                'term_key' => 'college_cutover_effective_term',
-                'datetime_key' => 'college_cutover_effective_datetime',
-            ],
-            default => throw new InvalidArgumentException("Unsupported education level [{$educationLevel}] for cutover checks."),
-        };
+        return [
+            'term_key' => 'college_cutover_effective_term',
+            'datetime_key' => 'college_cutover_effective_datetime',
+        ];
     }
 
     private function getSystemSetting(string $key): ?string
@@ -227,7 +210,6 @@ class CalendarPhaseGateService
                 'terms.enrollment_starts_at',
                 'terms.enrollment_ends_at',
                 'terms.scheduling_starts_at',
-                'academic_years.education_level as term_education_level',
             ])
             ->first();
 
@@ -242,30 +224,8 @@ class CalendarPhaseGateService
         return $term;
     }
 
-    private function assertEducationLevelMatchesTerm(string $educationLevel, stdClass $term, string $gate): void
-    {
-        if (! isset($term->term_education_level) || $term->term_education_level === null) {
-            return;
-        }
-
-        if (strtolower($term->term_education_level) === strtolower($educationLevel)) {
-            return;
-        }
-
-        throw new CalendarGateViolation(
-            'Term education level does not match the requested gate level.',
-            $gate,
-            [
-                'expected_level' => $term->term_education_level,
-                'requested_level' => $educationLevel,
-                'term_id' => $term->id,
-            ],
-        );
-    }
-
     private function recordEnrollmentEditGateBlock(
         int $termId,
-        string $educationLevel,
         CarbonImmutable $evaluatedAt,
         string $reason
     ): void {
@@ -278,7 +238,6 @@ class CalendarPhaseGateService
             'causer_type' => Auth::id() !== null ? 'App\\Models\\User' : null,
             'causer_id' => Auth::id(),
             'properties' => json_encode([
-                'education_level' => strtolower($educationLevel),
                 'reason' => $reason,
                 'evaluated_at' => $evaluatedAt->toIso8601String(),
             ], JSON_UNESCAPED_SLASHES),

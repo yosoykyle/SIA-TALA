@@ -32,7 +32,7 @@ class ExamAccessDecisionServiceTest extends TestCase
 
     public function test_zero_balance_allows_exam_access_without_a_promissory_or_accommodation(): void
     {
-        [$student, $term, $enrollment] = $this->context('college', '0.00');
+        [$student, $term, $enrollment] = $this->context('0.00');
 
         $decision = app(ExamAccessDecisionService::class)->decide(
             $student,
@@ -48,7 +48,7 @@ class ExamAccessDecisionServiceTest extends TestCase
 
     public function test_unpaid_student_is_denied_without_an_approved_current_accommodation(): void
     {
-        [$student, $term, $enrollment] = $this->context('college', '5000.00');
+        [$student, $term, $enrollment] = $this->context('5000.00');
 
         $decision = app(ExamAccessDecisionService::class)->decide(
             $student,
@@ -63,7 +63,7 @@ class ExamAccessDecisionServiceTest extends TestCase
 
     public function test_approved_ra11984_accommodation_allows_exam_access_without_finance_clearance(): void
     {
-        [$student, $term, $enrollment] = $this->context('college', '5000.00');
+        [$student, $term, $enrollment] = $this->context('5000.00');
         $reviewer = $this->reviewer();
         $service = app(ExamAccessAccommodationService::class);
         $request = $service->submit([
@@ -96,9 +96,9 @@ class ExamAccessDecisionServiceTest extends TestCase
         $this->assertSame('5000.00', $student->refresh()->current_balance);
     }
 
-    public function test_shs_accommodation_is_scoped_to_the_entire_academic_year(): void
+    public function test_college_accommodation_is_scoped_to_the_selected_term(): void
     {
-        [$student, $firstTerm, $firstEnrollment, $academicYear] = $this->context('shs', '5000.00');
+        [$student, $firstTerm, $firstEnrollment, $academicYear] = $this->context('5000.00');
         $secondTerm = Term::factory()->create([
             'academic_year_id' => $academicYear->id,
             'term_name' => 'Second Semester',
@@ -119,15 +119,15 @@ class ExamAccessDecisionServiceTest extends TestCase
             'certification_reference' => 'PSWDO-2026-0099',
             'certified_at' => '2026-08-20',
             'evidence_disk' => 'local',
-            'evidence_path' => 'exam-accommodations/private/shs-certification.pdf',
-            'evidence_file_name' => 'shs-certification.pdf',
+            'evidence_path' => 'exam-accommodations/private/certification.pdf',
+            'evidence_file_name' => 'certification.pdf',
             'evidence_mime_type' => 'application/pdf',
         ], $student->user);
         $approved = $service->approve($request, $this->reviewer(), 'Verified statutory certification.');
 
-        $this->assertSame(ExamAccessAccommodation::ScopeAcademicYear, $approved->scope);
-        $this->assertSame($academicYear->id, $approved->academic_year_id);
-        $this->assertNull($approved->term_id);
+        $this->assertSame(ExamAccessAccommodation::ScopeTerm, $approved->scope);
+        $this->assertNull($approved->academic_year_id);
+        $this->assertSame($firstTerm->id, $approved->term_id);
 
         $decision = app(ExamAccessDecisionService::class)->decide(
             $student,
@@ -136,12 +136,12 @@ class ExamAccessDecisionServiceTest extends TestCase
             CarbonImmutable::parse('2027-02-15'),
         );
 
-        $this->assertTrue($decision['allowed']);
+        $this->assertFalse($decision['allowed']);
     }
 
     public function test_college_accommodation_does_not_leak_to_another_term(): void
     {
-        [$student, $firstTerm, $firstEnrollment, $academicYear] = $this->context('college', '5000.00');
+        [$student, $firstTerm, $firstEnrollment, $academicYear] = $this->context('5000.00');
         $secondTerm = Term::factory()->create(['academic_year_id' => $academicYear->id]);
         $secondEnrollment = Enrollment::factory()->create([
             'student_profile_id' => $student->id,
@@ -166,7 +166,7 @@ class ExamAccessDecisionServiceTest extends TestCase
 
     public function test_statutory_basis_requires_private_certification_evidence_or_reference(): void
     {
-        [$student, $term, $enrollment] = $this->context('college', '5000.00');
+        [$student, $term, $enrollment] = $this->context('5000.00');
 
         try {
             app(ExamAccessAccommodationService::class)->submit([
@@ -202,10 +202,9 @@ class ExamAccessDecisionServiceTest extends TestCase
     /**
      * @return array{StudentProfile, Term, Enrollment, AcademicYear}
      */
-    private function context(string $educationLevel, string $balance): array
+    private function context(string $balance): array
     {
         $academicYear = AcademicYear::factory()->create([
-            'education_level' => $educationLevel,
             'school_year_start_date' => '2026-08-01',
             'school_year_end_date' => '2027-05-31',
         ]);
@@ -217,7 +216,6 @@ class ExamAccessDecisionServiceTest extends TestCase
         $user = User::factory()->create(['status' => User::StatusActive]);
         $user->assignRole('student');
         $student = StudentProfile::factory()->for($user, 'user')->create([
-            'education_level' => $educationLevel,
             'current_balance' => $balance,
         ]);
         $enrollment = Enrollment::factory()->create([

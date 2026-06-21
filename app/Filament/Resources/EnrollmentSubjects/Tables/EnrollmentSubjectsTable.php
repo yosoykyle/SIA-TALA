@@ -144,47 +144,26 @@ class EnrollmentSubjectsTable
             ->label('Encode Grade')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('warning')
-            ->modalHeading(fn (EnrollmentSubject $record): string => $record->usesShsGrading()
-                ? 'Encode SHS Grade'
-                : 'Encode College Grade')
-            ->modalDescription(fn (EnrollmentSubject $record): string => $record->usesShsGrading()
-                ? 'Enter the two active-semester SHS transmuted quarter grades for this student.'
-                : 'Enter College raw period scores. TALA averages the raw scores first, then transmutes once.')
+            ->modalHeading('Encode College Grade')
+            ->modalDescription('Enter College raw period scores. TALA averages the raw scores first, then transmutes once.')
             ->schema([
                 TextInput::make('prelim')
                     ->label('College Prelim Raw Score')
-                    ->visible(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
-                    ->required(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
+                    ->required()
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
                 TextInput::make('midterm')
                     ->label('College Midterm Raw Score')
-                    ->visible(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
-                    ->required(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
+                    ->required()
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
                 TextInput::make('final')
                     ->label('College Final Raw Score')
-                    ->visible(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
-                    ->required(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && ! $record->usesShsGrading())
+                    ->required()
                     ->numeric()
                     ->minValue(0)
-                    ->maxValue(100),
-                TextInput::make('q1')
-                    ->label('SHS Quarter 1 Grade')
-                    ->visible(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && $record->usesShsGrading())
-                    ->required(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && $record->usesShsGrading())
-                    ->numeric()
-                    ->minValue(60)
-                    ->maxValue(100),
-                TextInput::make('q2')
-                    ->label('SHS Quarter 2 Grade')
-                    ->visible(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && $record->usesShsGrading())
-                    ->required(fn (?EnrollmentSubject $record): bool => $record instanceof EnrollmentSubject && $record->usesShsGrading())
-                    ->numeric()
-                    ->minValue(60)
                     ->maxValue(100),
             ])
             ->modalSubmitActionLabel('Save Grade Draft')
@@ -257,13 +236,6 @@ class EnrollmentSubjectsTable
      */
     private static function periodPayload(EnrollmentSubject $record, array $data): array
     {
-        if ($record->usesShsGrading()) {
-            return [
-                'q1' => $data['q1'] ?? null,
-                'q2' => $data['q2'] ?? null,
-            ];
-        }
-
         return [
             'prelim' => $data['prelim'] ?? null,
             'midterm' => $data['midterm'] ?? null,

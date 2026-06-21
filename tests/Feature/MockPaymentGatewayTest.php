@@ -98,7 +98,6 @@ class MockPaymentGatewayTest extends TestCase
         return (int) DB::table('student_profiles')->insertGetId([
             'user_id' => 1,
             'student_id' => 'SIA-2026-0001',
-            'education_level' => 'college',
             'year_level' => '1st Year',
             'current_balance' => '1500.00',
             'created_at' => now(),
@@ -115,7 +114,6 @@ class MockPaymentGatewayTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
             $table->string('student_id')->unique();
-            $table->string('education_level');
             $table->string('year_level')->nullable();
             $table->decimal('current_balance', 12, 2)->default('0.00');
             $table->timestamps();

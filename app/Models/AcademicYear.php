@@ -18,7 +18,6 @@ class AcademicYear extends Model
      */
     protected $fillable = [
         'academic_year',
-        'education_level',
         'school_year_start_date',
         'school_year_end_date',
         'status',
@@ -44,17 +43,6 @@ class AcademicYear extends Model
     /**
      * @return array<string, string>
      */
-    public static function educationLevelOptions(): array
-    {
-        return [
-            'shs' => 'Senior High School',
-            'college' => 'College',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
     public static function statusOptions(): array
     {
         return [
@@ -69,15 +57,8 @@ class AcademicYear extends Model
     {
         return collect([
             $this->academic_year,
-            $this->educationLevelLabel(),
             $this->statusLabel(),
         ])->filter()->implode(' | ');
-    }
-
-    public function educationLevelLabel(): string
-    {
-        return self::educationLevelOptions()[$this->education_level]
-            ?? Str::of((string) $this->education_level)->headline()->toString();
     }
 
     public function statusLabel(): string

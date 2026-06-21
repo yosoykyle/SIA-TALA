@@ -64,7 +64,7 @@ The rescue baseline follows common SIS lifecycle patterns rather than inventing 
 | --- | --- |
 | Ellucian SIS overview: SIS platforms commonly cover admissions, enrollment, course scheduling, grades/academic records, performance tracking, and financial management. | Keep admission, enrollment, scheduling/classes, grades/records, and finance in core scope. |
 | EdVisorly SIS overview: SIS acts as the authoritative record from application through graduation/alumni status, including enrollment status, academic history, grades, transcripts, degree progress, and financial standing. | Keep applicant-to-completion lifecycle and student record as the baseline spine. |
-| OpenEduCat higher-education SIS comparison: higher education needs transcript/credit-transfer, prerequisite, registration, records, billing, and compliance support, while K-12 emphasizes grade-level progression. | Keep both SHS grade-level progression and College credit/prerequisite behavior, but defer advanced transcript and compliance automation. |
+| OpenEduCat higher-education SIS comparison: higher education needs transcript/credit-transfer, prerequisite, registration, records, billing, and compliance support, while K-12 emphasizes grade-level progression. | Keep College credit/prerequisite behavior in active scope; archived SHS grade-level progression evidence is historical only. Defer advanced transcript and compliance automation. |
 | Open-source/campus-management feature surveys consistently include admission/enrollment, fee/payment tracking, timetable/scheduling, exams/grades, student records, and role communication. | Treat advanced dashboards, courier automation, PWA polish, and external agency submission as enhancements unless needed for the demo path. |
 
 Sources: Ellucian SIS overview, EdVisorly SIS overview, OpenEduCat SIS guidance, and current open-source/campus-management feature surveys reviewed on 2026-06-21.
@@ -91,7 +91,7 @@ Sources: Ellucian SIS overview, EdVisorly SIS overview, OpenEduCat SIS guidance,
 | Refund lifecycle | Deferred | Complex finance side effect; should not block the main flow. |
 | Advanced analytics/dashboard widgets | Deferred | Not required for working SIS flow. |
 | PWA/offline polish | Deferred | Presentation enhancement, not core workflow. |
-| School-year/term enrolled-student inventory | Core/supporting | TALA must know who is enrolled per school year/term, level, program/strand, year/grade, and section so authorized staff can view the batch/roster. External DepEd/CHED/LIS encoding remains outside TALA. |
+| School-year/term enrolled-student inventory | Core/supporting | TALA must know who is enrolled per College school year/term, program, year level, and section so authorized staff can view the batch/roster. External DepEd/CHED/LIS encoding remains outside TALA. |
 
 ---
 

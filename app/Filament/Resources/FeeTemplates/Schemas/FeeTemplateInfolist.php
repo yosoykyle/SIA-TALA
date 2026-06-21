@@ -13,11 +13,11 @@ class FeeTemplateInfolist
         return $schema
             ->components([
                 TextEntry::make('name'),
-                TextEntry::make('education_level'),
                 TextEntry::make('program.name')
                     ->label('Program')
                     ->placeholder('-'),
                 TextEntry::make('year_level')
+                    ->label('Year Level')
                     ->placeholder('-'),
                 TextEntry::make('tuition_fee')
                     ->numeric(),

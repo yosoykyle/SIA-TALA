@@ -42,7 +42,6 @@ class AdmissionRequirementResolver
 
         $offerings = AdmissionOffering::query()
             ->where('term_id', $term->id)
-            ->where('education_level', $data['education_level'])
             ->where('entry_route', $entryRoute)
             ->where('status', AdmissionOffering::StatusPublished)
             ->where(function (Builder $query) use ($priorCredential): void {

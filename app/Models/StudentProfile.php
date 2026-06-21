@@ -20,7 +20,6 @@ class StudentProfile extends Model
         'user_id',
         'student_id',
         'lrn',
-        'education_level',
         'program_id',
         'year_level',
         'operational_status',

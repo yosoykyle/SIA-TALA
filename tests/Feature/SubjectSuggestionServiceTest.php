@@ -105,7 +105,6 @@ class SubjectSuggestionServiceTest extends TestCase
         $program = Program::factory()->create(['department' => 'college']);
         $curriculum = Curriculum::factory()->create(['program_id' => $program->id]);
         $studentProfile = StudentProfile::factory()->create([
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
         ]);

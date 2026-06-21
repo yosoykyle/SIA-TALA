@@ -15,14 +15,13 @@ class EnsureEnrollmentEditWindowOpen
     public function handle(Request $request, Closure $next): Response
     {
         $termId = (int) ($request->route('term_id') ?? $request->input('term_id', 0));
-        $educationLevel = (string) ($request->route('education_level') ?? $request->input('education_level', ''));
 
-        if ($termId <= 0 || $educationLevel === '') {
-            abort(422, 'term_id and education_level are required for enrollment edit gate checks.');
+        if ($termId <= 0) {
+            abort(422, 'term_id is required for enrollment edit gate checks.');
         }
 
         try {
-            $this->calendarPhaseGateService->assertEnrollmentEditWindowOpen($termId, $educationLevel);
+            $this->calendarPhaseGateService->assertEnrollmentEditWindowOpen($termId);
         } catch (CalendarGateViolation $exception) {
             abort(423, $exception->getMessage());
         }

@@ -18,12 +18,6 @@ class CurriculumSubject extends Model
 
     public const AcademicSubjectTypeGeneralEducation = 'general_education';
 
-    public const AcademicSubjectTypeCore = 'core';
-
-    public const AcademicSubjectTypeApplied = 'applied';
-
-    public const AcademicSubjectTypeSpecialized = 'specialized';
-
     public const SchedulingGroupLecture = 'lecture';
 
     public const SchedulingGroupLaboratory = 'laboratory';
@@ -53,9 +47,6 @@ class CurriculumSubject extends Model
             self::AcademicSubjectTypeMajor => 'Major / Professional / TESDA NC',
             self::AcademicSubjectTypeMinor => 'Minor / General Education',
             self::AcademicSubjectTypeGeneralEducation => 'General Education',
-            self::AcademicSubjectTypeCore => 'SHS Core',
-            self::AcademicSubjectTypeApplied => 'SHS Applied',
-            self::AcademicSubjectTypeSpecialized => 'SHS Specialized',
         ];
     }
 

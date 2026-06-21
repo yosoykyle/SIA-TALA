@@ -136,7 +136,6 @@ class EnrollmentFinanceClearanceService
     {
         return FeeTemplate::query()
             ->where('is_active', true)
-            ->where('education_level', $studentProfile->education_level)
             ->where(function ($query) use ($studentProfile): void {
                 $query->whereNull('program_id');
 

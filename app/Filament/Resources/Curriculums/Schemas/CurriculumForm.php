@@ -46,7 +46,7 @@ class CurriculumForm
                 ->columns(2)
                 ->columnSpanFull(),
             FormSection::make('Curriculum Subjects')
-                ->description('Map subjects to the year/grade and curriculum period used by section planning. This is the controlled TAL-12 legacy import repair boundary.')
+                ->description('Map subjects to the year level and curriculum period used by section planning.')
                 ->schema([
                     Repeater::make('curriculumSubjects')
                         ->relationship()
@@ -58,7 +58,7 @@ class CurriculumForm
                                 ->preload()
                                 ->required(),
                             Select::make('year_level')
-                                ->label('Year / Grade')
+                                ->label('Year Level')
                                 ->options(Section::yearLevelOptions())
                                 ->searchable()
                                 ->required(),

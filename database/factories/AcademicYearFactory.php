@@ -21,7 +21,6 @@ class AcademicYearFactory extends Factory
 
         return [
             'academic_year' => "{$startYear}-".($startYear + 1),
-            'education_level' => fake()->randomElement(array_keys(AcademicYear::educationLevelOptions())),
             'school_year_start_date' => "{$startYear}-08-01",
             'school_year_end_date' => ($startYear + 1).'-05-31',
             'status' => 'draft',

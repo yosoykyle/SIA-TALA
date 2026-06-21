@@ -8,8 +8,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class InstallmentPolicyForm
@@ -23,20 +21,15 @@ class InstallmentPolicyForm
                         TextInput::make('name')
                             ->maxLength(255)
                             ->required(),
-                        Select::make('education_level')
-                            ->options(InstallmentPolicy::EducationLevelOptions)
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set): null => $set('year_level', null))
-                            ->required(),
                         Select::make('program_id')
                             ->relationship('program', 'name')
                             ->searchable()
                             ->preload(),
                         Select::make('year_level')
-                            ->label('Year/Grade')
-                            ->options(fn (Get $get): array => InstallmentPolicy::yearLevelOptionsFor($get('education_level')))
-                            ->placeholder('All year/grade levels')
-                            ->helperText('Leave blank only when this policy applies to every year/grade in the selected education level.'),
+                            ->label('Year Level')
+                            ->options(InstallmentPolicy::yearLevelOptions())
+                            ->placeholder('All year levels')
+                            ->helperText('Leave blank only when this policy applies to every College year level.'),
                         Toggle::make('is_active')
                             ->label('Active')
                             ->default(true)

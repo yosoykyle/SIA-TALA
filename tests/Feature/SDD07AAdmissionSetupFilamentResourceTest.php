@@ -103,13 +103,14 @@ class SDD07AAdmissionSetupFilamentResourceTest extends TestCase
 
         foreach ([
             "Select::make('term_id')",
-            "Select::make('education_level')",
             "Select::make('entry_route')",
             "Select::make('status')",
             "DateTimePicker::make('published_at')",
         ] as $field) {
             $this->assertStringContainsString($field, $offeringForm);
         }
+        $this->assertStringNotContainsString("Hidden::make('education_level')", $offeringForm);
+        $this->assertStringNotContainsString("Select::make('education_level')", $offeringForm);
 
         foreach ([
             "Select::make('admission_offering_id')",

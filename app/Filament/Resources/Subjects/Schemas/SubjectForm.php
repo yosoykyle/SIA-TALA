@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Subjects\Schemas;
 
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -36,22 +37,15 @@ class SubjectForm
                         ->minValue(0)
                         ->maxValue(99.99)
                         ->default('3.00'),
-                    Select::make('department')
-                        ->label('Education Level')
-                        ->options([
-                            'college' => 'College',
-                            'shs' => 'Senior High School',
-                        ])
-                        ->required(),
+                    Hidden::make('department')
+                        ->default('college')
+                        ->dehydrated(),
                     Select::make('subject_type')
                         ->label('Subject Type')
                         ->options([
                             'major' => 'Major / Professional',
                             'general_education' => 'General Education',
-                            'core' => 'SHS Core',
-                            'applied' => 'SHS Applied',
-                            'specialized' => 'SHS Specialized',
-                            'tvl' => 'TVL',
+                            'professional_tesda' => 'Professional / TESDA',
                         ])
                         ->searchable(),
                     Select::make('category')

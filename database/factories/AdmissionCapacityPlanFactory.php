@@ -21,7 +21,6 @@ class AdmissionCapacityPlanFactory extends Factory
         return [
             'term_id' => Term::factory(),
             'scope_type' => AdmissionCapacityPlan::ScopeCampus,
-            'education_level' => null,
             'program_id' => null,
             'year_level' => null,
             'delivery_setup' => null,

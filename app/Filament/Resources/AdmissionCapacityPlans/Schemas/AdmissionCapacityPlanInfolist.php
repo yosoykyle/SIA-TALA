@@ -16,9 +16,8 @@ class AdmissionCapacityPlanInfolist
                     ->schema([
                         TextEntry::make('term.term_name')->label('Term'),
                         TextEntry::make('scope_type')->label('Scope')->badge(),
-                        TextEntry::make('education_level')->label('Level')->placeholder('All'),
                         TextEntry::make('program.name')->label('Program')->placeholder('All'),
-                        TextEntry::make('year_level')->label('Year/Grade')->placeholder('All'),
+                        TextEntry::make('year_level')->label('Year Level')->placeholder('All'),
                         TextEntry::make('delivery_setup')->label('Delivery')->placeholder('All'),
                         TextEntry::make('capacity_limit')->numeric(),
                         TextEntry::make('reserved_count')->numeric(),

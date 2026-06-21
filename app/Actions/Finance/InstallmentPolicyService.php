@@ -215,7 +215,6 @@ class InstallmentPolicyService
                 'enrollments.year_level',
                 'enrollments.enrolled_at',
                 'enrollments.created_at',
-                'student_profiles.education_level',
                 'student_profiles.program_id',
             ])
             ->where('enrollments.id', $enrollmentId)
@@ -232,7 +231,6 @@ class InstallmentPolicyService
     {
         return DB::table('installment_policies')
             ->where('is_active', true)
-            ->where('education_level', $enrollment->education_level)
             ->where(function ($query) use ($enrollment): void {
                 $query->whereNull('program_id');
 

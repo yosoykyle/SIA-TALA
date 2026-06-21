@@ -14,11 +14,11 @@ class InstallmentPolicyInfolist
         return $schema
             ->components([
                 TextEntry::make('name'),
-                TextEntry::make('education_level'),
                 TextEntry::make('program_id')
                     ->numeric()
                     ->placeholder('-'),
                 TextEntry::make('year_level')
+                    ->label('Year Level')
                     ->placeholder('-'),
                 TextEntry::make('max_months')
                     ->numeric(),

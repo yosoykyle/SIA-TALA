@@ -83,8 +83,6 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
             'maintenance_mode',
             'admission_requirements',
             'installment_policy_defaults',
-            'shs_cutover_effective_term',
-            'shs_cutover_effective_datetime',
             'college_cutover_effective_term',
             'college_cutover_effective_datetime',
         ] as $key) {

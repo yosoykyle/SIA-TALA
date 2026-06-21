@@ -18,7 +18,6 @@ class FeeTemplate extends Model
      */
     protected $fillable = [
         'name',
-        'education_level',
         'program_id',
         'year_level',
         'tuition_fee',
@@ -51,6 +50,6 @@ class FeeTemplate extends Model
 
     protected static function activeScopeConflictMessage(): string
     {
-        return 'Only one active fee template may exist for the selected education level, program, and year/grade scope.';
+        return 'Only one active fee template may exist for the selected program and year level scope.';
     }
 }

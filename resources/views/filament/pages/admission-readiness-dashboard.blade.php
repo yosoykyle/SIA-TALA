@@ -61,7 +61,7 @@
                                 <td class="px-4 py-4">
                                     <div class="font-medium text-gray-950 dark:text-white">{{ $offering['label'] }}</div>
                                     <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        {{ strtoupper((string) $offering['education_level']) }} · {{ $offering['program'] }} · {{ $offering['year_level'] }}
+                                        College · {{ $offering['program'] }} · {{ $offering['year_level'] }}
                                     </div>
                                 </td>
                                 <td class="px-4 py-4">

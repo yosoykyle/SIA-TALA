@@ -19,17 +19,12 @@ class FeeTemplatesTable
                 TextColumn::make('name')
                     ->label('Template')
                     ->searchable(),
-                TextColumn::make('education_level')
-                    ->label('Level')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => strtoupper((string) $state))
-                    ->searchable(),
                 TextColumn::make('program.name')
                     ->label('Program')
                     ->placeholder('All programs')
                     ->searchable(),
                 TextColumn::make('year_level')
-                    ->label('Year/Grade')
+                    ->label('Year Level')
                     ->placeholder('All year levels')
                     ->searchable(),
                 TextColumn::make('tuition_fee')
@@ -65,12 +60,6 @@ class FeeTemplatesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('education_level')
-                    ->label('Level')
-                    ->options([
-                        'shs' => 'SHS',
-                        'college' => 'College',
-                    ]),
                 SelectFilter::make('is_active')
                     ->label('Status')
                     ->options([

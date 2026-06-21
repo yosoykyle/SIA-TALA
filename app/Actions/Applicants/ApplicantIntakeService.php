@@ -89,7 +89,6 @@ class ApplicantIntakeService
                     'guardian_name',
                     'guardian_contact_number',
                     'guardian_address',
-                    'education_level',
                     'year_level',
                     'applicant_type',
                     'preferred_modality',
@@ -362,7 +361,6 @@ class ApplicantIntakeService
             'guardian_name' => ['nullable', 'string', 'max:255'],
             'guardian_contact_number' => ['nullable', 'regex:/^09\d{9}$/'],
             'guardian_address' => ['nullable', 'string', 'max:255'],
-            'education_level' => ['required', Rule::in(['shs', 'college'])],
             'year_level' => ['required', 'string', 'max:80'],
             'applicant_type' => ['required', Rule::in([
                 ApplicantIntake::ApplicantTypeNew,
@@ -404,18 +402,11 @@ class ApplicantIntakeService
                 $validator->errors()->add('guardian_contact_number', 'Guardian contact number is required for minor applicants.');
             }
 
-            if ($this->isGrade11($data['year_level'] ?? null) && $age < 10) {
-                $validator->errors()->add('birthdate', 'Grade 11 applicants must be at least 10 years old.');
-            }
-
-            $educationLevel = $data['education_level'] ?? null;
             $modality = $data['preferred_modality'] ?? null;
-            $allowedModalities = $educationLevel === 'shs'
-                ? ['modular', 'online']
-                : ['on_site', 'blended', 'online'];
+            $allowedModalities = ['on_site', 'blended', 'online'];
 
-            if ($educationLevel !== null && ! in_array($modality, $allowedModalities, true)) {
-                $validator->errors()->add('preferred_modality', 'Preferred modality is not valid for this education level.');
+            if (! in_array($modality, $allowedModalities, true)) {
+                $validator->errors()->add('preferred_modality', 'Preferred modality is not valid for the College deployment.');
             }
         });
 
@@ -495,15 +486,7 @@ class ApplicantIntakeService
     private function isFreshmenDiscountEligible(array $data): bool
     {
         return $data['applicant_type'] === ApplicantIntake::ApplicantTypeNew
-            && ($this->isGrade11($data['year_level']) || in_array($data['year_level'], ['1st Year', 'first_year'], true));
-    }
-
-    private function isGrade11(mixed $yearLevel): bool
-    {
-        return in_array(str((string) $yearLevel)->lower()->replace(['-', '_'], ' ')->squish()->toString(), [
-            'grade 11',
-            '11',
-        ], true);
+            && in_array($data['year_level'], ['1st Year', 'first_year'], true);
     }
 
     private function materializeDocumentRequirements(

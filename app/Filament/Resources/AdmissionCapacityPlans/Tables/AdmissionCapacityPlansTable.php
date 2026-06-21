@@ -24,16 +24,11 @@ class AdmissionCapacityPlansTable
                     ->label('Scope')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => AdmissionCapacityPlan::scopeTypeOptions()[$state] ?? str($state)->headline()->toString()),
-                TextColumn::make('education_level')
-                    ->label('Level')
-                    ->placeholder('All')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? 'All' : (AdmissionCapacityPlan::educationLevelOptions()[$state] ?? strtoupper($state))),
                 TextColumn::make('program.code')
                     ->label('Program')
                     ->placeholder('All'),
                 TextColumn::make('year_level')
-                    ->label('Year/Grade')
+                    ->label('Year Level')
                     ->placeholder('All'),
                 TextColumn::make('delivery_setup')
                     ->label('Delivery')
@@ -62,9 +57,6 @@ class AdmissionCapacityPlansTable
             ->filters([
                 SelectFilter::make('scope_type')
                     ->options(AdmissionCapacityPlan::scopeTypeOptions()),
-                SelectFilter::make('education_level')
-                    ->label('Level')
-                    ->options(AdmissionCapacityPlan::educationLevelOptions()),
                 SelectFilter::make('status')
                     ->options(AdmissionCapacityPlan::statusOptions()),
             ])

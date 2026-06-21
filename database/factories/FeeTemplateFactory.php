@@ -15,7 +15,6 @@ class FeeTemplateFactory extends Factory
     {
         return [
             'name' => 'Standard '.fake()->unique()->numberBetween(1000, 9999),
-            'education_level' => 'college',
             'program_id' => Program::factory(),
             'year_level' => '1st Year',
             'tuition_fee' => '20800.00',

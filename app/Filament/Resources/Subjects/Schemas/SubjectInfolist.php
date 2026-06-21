@@ -14,9 +14,8 @@ class SubjectInfolist
             TextEntry::make('description')->label('Subject Title'),
             TextEntry::make('units')->numeric(decimalPlaces: 2),
             TextEntry::make('lec_hours')->label('Legacy Lecture Hours')->numeric(decimalPlaces: 2)->placeholder('-'),
-            TextEntry::make('department')->label('Education Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
+            TextEntry::make('department')->label('Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
                 'college' => 'College',
-                'shs' => 'Senior High School',
                 default => str((string) $state)->headline()->toString(),
             }),
             TextEntry::make('subject_type')->label('Subject Type')->placeholder('-'),

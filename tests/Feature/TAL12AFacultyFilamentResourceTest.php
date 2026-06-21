@@ -72,10 +72,12 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         }
 
         $this->assertStringContainsString('Encode College Grade', $table);
-        $this->assertStringContainsString('Encode SHS Grade', $table);
-        $this->assertStringContainsString('usesShsGrading()', $table);
         $this->assertStringContainsString("TextInput::make('prelim')", $table);
-        $this->assertStringContainsString("TextInput::make('q1')", $table);
+        $this->assertStringContainsString("TextInput::make('midterm')", $table);
+        $this->assertStringContainsString("TextInput::make('final')", $table);
+        $this->assertStringNotContainsString('Encode SHS Grade', $table);
+        $this->assertStringNotContainsString('usesShsGrading()', $table);
+        $this->assertStringNotContainsString("TextInput::make('q1')", $table);
         $this->assertStringContainsString('GradeEncodingService', $table);
         $this->assertStringContainsString('GradeFinalizationService', $table);
     }
@@ -101,10 +103,9 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringContainsString("TextInput::make('college_prelim')", $table);
         $this->assertStringContainsString("TextInput::make('college_midterm')", $table);
         $this->assertStringContainsString("TextInput::make('college_final')", $table);
-        $this->assertStringContainsString("TextInput::make('shs_q1')", $table);
-        $this->assertStringContainsString("TextInput::make('shs_q2')", $table);
-        $this->assertStringContainsString('usesCollegeGrading', $table);
-        $this->assertStringContainsString('usesShsGrading', $table);
+        $this->assertStringNotContainsString("TextInput::make('shs_q1')", $table);
+        $this->assertStringNotContainsString("TextInput::make('shs_q2')", $table);
+        $this->assertStringNotContainsString('usesShsGrading', $table);
         $this->assertStringNotContainsString("TextInput::make('final_grade')", $table);
         $this->assertStringNotContainsString("TextInput::make('grade')", $table);
         $this->assertStringNotContainsString("TextInput::make('remarks')", $table);

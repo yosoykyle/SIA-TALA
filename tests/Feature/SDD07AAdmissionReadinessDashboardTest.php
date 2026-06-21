@@ -93,7 +93,6 @@ class SDD07AAdmissionReadinessDashboardTest extends TestCase
         $offering = AdmissionOffering::factory()->create([
             'term_id' => $term->id,
             'name' => 'Ready Offering',
-            'education_level' => 'college',
             'year_level' => '1st Year',
         ]);
         $policy = AdmissionRequirementPolicy::factory()->create([
@@ -104,8 +103,7 @@ class SDD07AAdmissionReadinessDashboardTest extends TestCase
         ]);
         AdmissionCapacityPlan::factory()->create([
             'term_id' => $term->id,
-            'scope_type' => AdmissionCapacityPlan::ScopeEducationLevel,
-            'education_level' => 'college',
+            'scope_type' => AdmissionCapacityPlan::ScopeCampus,
             'capacity_limit' => 10,
             'reserved_count' => 2,
         ]);

@@ -8,7 +8,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Validation\Rule;
 
@@ -18,20 +17,15 @@ class AcademicYearForm
     {
         return $schema->components([
             Section::make('Academic Year')
-                ->description('Maintain the parent calendar record for one education level. Terms under this record hold enrollment, billing, scheduling, and grading gates.')
+                ->description('Maintain the parent College calendar record. Terms under this record hold enrollment, billing, scheduling, and grading gates.')
                 ->schema([
                     TextInput::make('academic_year')
                         ->label('Academic Year')
                         ->required()
                         ->maxLength(255)
                         ->helperText('Use the school year label, for example 2026-2027.')
-                        ->rule(fn (Get $get, ?AcademicYear $record) => Rule::unique((new AcademicYear)->getTable(), 'academic_year')
-                            ->where('education_level', $get('education_level'))
+                        ->rule(fn (?AcademicYear $record) => Rule::unique((new AcademicYear)->getTable(), 'academic_year')
                             ->ignore($record?->id)),
-                    Select::make('education_level')
-                        ->label('Education Level')
-                        ->options(AcademicYear::educationLevelOptions())
-                        ->required(),
                     DatePicker::make('school_year_start_date')
                         ->label('School Year Start')
                         ->required(),
@@ -47,7 +41,7 @@ class AcademicYearForm
                         ->label('Reference Note')
                         ->rows(3)
                         ->maxLength(1000)
-                        ->helperText('Record DepEd, CHED, or school-approved reference context for this calendar.'),
+                        ->helperText('Record CHED or school-approved reference context for this calendar.'),
                 ])
                 ->columns(2)
                 ->columnSpanFull(),

@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling closure; delivery groups; curriculum readiness; publish lifecycle; workload overrides; PayMongo handover parity. |
 | 30.0 | 2026-06-18 | Student services; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; admission/retention/capacity requirements; UI test baseline. |
-| 32.0 | 2026-06-21 | System freeze; submission baseline; Feature Groups 3-11 hardening; legal/regulatory audit fixes. |
+| 32.0 | 2026-06-21 | System freeze; submission baseline; Feature Groups 3-11 hardening; legal/regulatory audit fixes; College-only scope correction. |
 
 ---
 
@@ -52,6 +52,8 @@ Versioning rule: major version increments once per update date; same-day updates
 **Code Example Boundary:** Code blocks in this TS are contract examples or pseudocode unless they point to a concrete source file. The implementation source of truth is the checked-in Laravel code, migrations, policies, tests, and lockfiles. When an example conflicts with the codebase, update the example or replace it with a contract/interface description instead of copying it blindly.
 
 **Technical Specification Scope Boundary:** This TS is the benchmark-grounded technical contract for the final-form TALA system. It is written so a developer can implement the approved FS baseline using Laravel services, policies, migrations, Filament staff resources, Livewire/TallStackUI student surfaces, queues/jobs, private files, audits, and focused tests. The TS must describe stable contracts and boundaries; implementation progress belongs in tracking artifacts.
+
+**College-Only Technical Boundary:** The active implementation target is College-only. SHS must not remain as an active UI option, validation branch, seed/default offering, grading engine path, fee scope, schedule/calendar branch, or UAT path. Grade 12/Form 138/Form 137 references are permitted only as prior-education evidence for College admission or archived historical evidence.
 
 ### Submission Baseline Technical Contract Map
 
@@ -64,7 +66,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | Finance and payments | Assessment, discount/installment policy, immutable ledger, PayMongo/manual channel parity, provider webhooks, idempotency, SOA/receipt artifacts, and computed clearance. | Accounting services, webhook storage/signature verification, queue jobs, ledger-entry invariants, PDF issuance. | Tests for assessment, payment confirmation, webhook retry/idempotency, overpayment, zero-balance edge, and finance privacy. |
 | Grades and academic records | Faculty class-list scope, grade encoding/submission, Registrar verification, finalization, correction/override, grade history, and transcript/report-card source data. | Service-owned grading workflows, policy-gated Filament actions, immutable finalization/correction audit. | Tests for assigned-faculty access, invalid role denial, grade finalization, correction approval, and transcript source integrity. |
 | Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only unless a mutation service is explicitly approved. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
-| Official generated artifacts | COR, SOA, receipts, TOR/Form 137 copies, report cards, diplomas/certificates, and verification pages are derived from source records and carry template, issuer, checksum, serial/reference, release, and revoke/supersede metadata. | DomPDF/Blade templates, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
+| Official generated artifacts | COR, SOA/payment evidence, TOR, diplomas/certificates, and verification pages are derived from College source records and carry template, issuer, checksum, serial/reference, release, and revoke/supersede metadata. Form 137/Form 138 handling is limited to prior-school admission evidence and controlled request/release records. | DomPDF/Blade templates, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
 | Imports, exports, and reporting | Controlled templates, private upload, validation preview, zero-error commit where required, audit, generic roster/report export, and external-boundary separation (no official DepEd School Forms, LIS submissions, or completion tracking generated). | Laravel Excel/PhpSpreadsheet services, import batch records, queueable processing, authorized export actions. | Tests for template headers, invalid rows, no partial unsafe commit, export authorization, and audit records. |
 | Security, privacy, and audit (RA 10173 & NPC 2023-06) | Privacy-by-design access controls, private-by-default files, signed/temporary access, role-scoped evidence visibility, webhook signature checks, purpose-limited retention, breach protocol readiness, activity logs, and sensitive-support data minimization. | Laravel filesystem, signed URLs, policies, activitylog, validation/FormRequests, webhook verifier services. | Security tests for unauthorized access, private path leakage, webhook rejection, upload validation, and audit creation. |
 
@@ -194,7 +196,7 @@ Example usage in Blade templates:
 
 **Architecture Decision**: T.A.L.A. uses a **hybrid document storage model**.
 
-> **Architecture Decision:** The generic pipeline, all four initial public-offering requirement contracts, Old Curriculum College pathway, inactive/no-public-route Old Curriculum SHS trace row, ALS Junior High School-to-Grade 11 pathway, inactive-by-default foreign compliance profile, purpose-limited IP/SEN support attributes, readiness-gated payment/enrollment handover, stacked capacity-plan enforcement, returning/legacy boundary, inactive cross-enrollee behavior, composable admission dimensions, and deterministic fail-closed resolution are approved. Versioned requirements, per-item evidence, immutable history, capacity locking, and typed services are retained controls.
+> **Architecture Decision:** The generic College pipeline, Regular College Freshman and College Transfer public-offering contracts, Old Curriculum College pathway, inactive-by-default foreign compliance profile, purpose-limited IP/SEN support attributes, readiness-gated payment/enrollment handover, stacked College capacity-plan enforcement, returning/legacy boundary, inactive cross-enrollee behavior, composable admission dimensions, and deterministic fail-closed resolution are approved. Versioned requirements, per-item evidence, immutable history, capacity locking, and typed services are retained controls.
 
 **Admissions and Document Review Technical Baseline**:
 This section adopts the benchmark matrix rule for admissions, applicant intake, requirement policies, and OCR. The implementation must behave like a service-owned lifecycle, not a set of unrelated forms: a published admission offering opens intake; a deterministic resolver snapshots requirement policy into checklist rows; evidence enters through self-service, Registrar-assisted, official-transmission, or physical-custody channels; OCR may add provisional derivatives; Registrar review decides satisfaction; and only the enrollment/handover services may promote the applicant into official student/enrollment records.
@@ -212,8 +214,8 @@ This section adopts the benchmark matrix rule for admissions, applicant intake, 
 
 **Versioned Admission Requirement Contract**:
 
-- `admission_offerings` owns the term-scoped applicant-facing route. It records education level, entry route, prior-credential pathway, citizenship/compliance profile, optional program/strand and grade/year scope, publication window/state, capacity-plan reference, and active requirement-policy version. Unpublished offerings cannot receive public or Registrar-assisted intake.
-- Initial seed data creates draft templates for all approved workflow profiles but publishes only Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer for acceptance. Cross-enrollee remains inactive. Old curriculum and ALS are controlled prior-credential pathway values; foreign is a compliance profile; IP and disability/SEN are purpose-limited support attributes. ALS is enabled only as `als_jhs` under Regular SHS Grade 11 for the active deployment. Foreign compliance templates are unpublished until a scoped offering and evidence policy are institution-approved. None creates a separate service or state machine.
+- `admission_offerings` owns the term-scoped applicant-facing route. It records entry route, prior-credential pathway, citizenship/compliance profile, optional College program and year-level scope, publication window/state, capacity-plan reference, and active requirement-policy version. Unpublished offerings cannot receive public or Registrar-assisted intake.
+- Initial seed data creates draft templates for approved College workflow profiles but publishes only Regular College Freshman and College Transfer for acceptance. Cross-enrollee remains inactive. Old curriculum is a controlled College prior-credential pathway; ALS/equivalency is inactive until institution-approved for College admission; foreign is a compliance profile; IP and disability/SEN are purpose-limited support attributes. None creates a separate service or state machine.
 - Draft requirement templates reproduce the client-declared admission/retention rows in FS 4.1.2 with source/version provenance. Seeding is not publication: activation validates non-empty coverage, regulator-compatible evidence methods/deadlines, deterministic resolution, and authorized Registrar approval. A binding regulator rule may change the active method or deadline without deleting the traceable client baseline.
 - `admission_requirement_policies` owns immutable Registrar-authored policy versions. `admission_requirement_rules` contains structured match criteria over approved dimensions plus explicit priority; publication validates that every offering resolves deterministically and rejects equal-priority conflicts, unknown dimensions, or missing coverage.
 - `document_requirement_items` owns the ordered normalized document-type keys produced by a policy rule plus `gate_type` (`admission` or `retention`), permitted evidence methods, storage class, sensitivity class, OCR policy, verified-field mapping, deadline strategy, retention policy, and nullable policy parameters. Items are configuration records, not applicant submissions. Admission and retention classification is scope/version specific; no deployment-wide all-physical constant is permitted.
@@ -242,21 +244,19 @@ This section adopts the benchmark matrix rule for admissions, applicant intake, 
 - `document_requirement_extensions` preserves prior/new deadlines, reason, actor, and timestamp. Scheduled monitoring marks overdue items, sends deduplicated notifications, and applies only configured documentary/next-cycle holds. It never silently cancels an active enrollment or removes section/COR/class access.
 - Runtime implementation currently materializes retention undertakings in `retention_document_undertakings` as one row per pending retention checklist item. Approval for payment creates active undertakings, handover attaches student/enrollment context, Registrar document approval resolves the undertaking, and `ProcessRetentionDocumentUndertakingsJob` marks due active undertakings overdue with `retention_document_overdue` hold evidence. Notification delivery and explicit extension workflow remain admin-surface follow-up work.
 - `DocumentComplianceService` derives admission completeness, retention obligations, missing labels, and hold reasons from the checklist. `student_profiles.hard_copy_received` is transitional compatibility data and must not remain an independent source of truth.
-- For Regular SHS, `DocumentComplianceService` evaluates two admission outcomes: verified identity and verified Grade 10 completion/eligibility. The materialized checklist records the specific accepted method and authority; it must not hardcode possession of a PSA certificate and physical Form 138 as the only valid combination. Good Moral, 2x2 photo, Certificate of Completion, and Form 137 default to retention/follow-up items for this scope.
 - Official school-to-school delivery is an external channel with an internal receipt record. MVP uses Registrar-assisted entry of sender/school, channel, receipt timestamp, provenance, verification, and optional private artifact; it does not integrate with DepEd LIS, email servers, or previous-school systems. Undertakings, deadlines, reminders, and holds are TALA-owned records. Alternative identity evidence uses the ordinary private upload/verification lifecycle.
-- For Regular College Freshman, admission outcomes are verified identity, verified SHS completion/eligibility, and accepted Good Moral evidence for the active deployment. Diploma/Certificate of Graduation and one normalized ID-photo obligation default to retention/follow-up. Policy publication rejects duplicate photo items with the same purpose.
+- For Regular College Freshman, admission outcomes are verified identity, verified Grade 12/prior-education completion or eligibility, and accepted Good Moral evidence for the active deployment. Diploma/Certificate of Graduation and one normalized ID-photo obligation default to retention/follow-up. Policy publication rejects duplicate photo items with the same purpose.
 - College entrance-exam completion/result is stored as a structured admission assessment linked to the intake. No score threshold affects eligibility until a versioned admission-assessment policy defines the exam, scoring/version, passing or placement effect, effective scope, and approving authority. An uploaded screenshot is never the authoritative exam result.
-- For SHS Transfer, admission outcomes are verified identity and verified latest-completed-grade eligibility. `AdmissionRequirementResolver` derives the applicable prior-grade evidence from the target grade and must not hardcode `Grade 12 grades`. Good Moral, one normalized ID-photo item, official transfer credentials, and Form 137 default to retention/follow-up.
 - `official_transmission` records are Registrar-created receipt/provenance records, not external-system integrations. Electronic artifacts are retained privately and checksummed; physical-only receipt creates a custody/inspection event without fabricating a file. Both methods may satisfy only requirement items whose active policy permits that evidence method.
 - For College Transfer, admission outcomes are verified identity, sufficient preliminary academic evidence for credit/eligibility evaluation, verified transfer-release eligibility, and accepted Good Moral evidence for the active deployment. Final TOR, remaining non-duplicate official transfer evidence, and one normalized ID-photo item default to retention/follow-up.
 - `document_types` must distinguish `honorable_dismissal` as transfer-release evidence from `final_tor` as the authoritative academic record. A generic `official_transfer_credentials` label may group staff display but must not materialize a duplicate obligation when its purpose is already satisfied by a specific item.
-- `old_curriculum` is a College prior-credential pathway, not an applicant type or separate state machine. It composes with Regular College Freshman and substitutes verified old-high-school eligibility evidence for SHS completion evidence. Requirement materialization deduplicates Form 137 when it already served as the accepted admission evidence and does not add a generic Certificate of Completion unless an active rule identifies the credential and purpose.
-- The workflow's `Old Curriculum SHS` row is retained only as inactive trace evidence from the client baseline. It is not seeded as a publishable offering in the active deployment because the clarified learner scenario is an old-curriculum high-school graduate continuing to College. It has no public route, no resolver fallback, and no hardcoded requirement list. Any future adult/remedial SHS route requires a separate client-approved scenario, target grade, eligibility authority, and non-conflicting requirement policy.
-- `als_jhs` is a Regular SHS Grade 11 prior-credential pathway only. Publication validation fails if ALS is attached to College, SHS transfer, Grade 12 transfer, or a non-Grade-11 offering in the active deployment. Requirement materialization requires one authoritative ALS Junior High School-level eligibility outcome and deduplicates Certificate of Rating, Certificate of Completion, and portfolio-assessment evidence when they prove the same Grade 11 eligibility purpose. Good Moral, photo, and any remaining ALS record default to retention unless the active policy marks a specific item as an admission gate with a recorded reason.
+- `old_curriculum` is a College prior-credential pathway, not an applicant type or separate state machine. It composes with Regular College Freshman and substitutes verified old-high-school eligibility evidence for Grade 12/prior-education completion evidence. Requirement materialization deduplicates Form 137 when it already served as the accepted admission evidence and does not add a generic Certificate of Completion unless an active rule identifies the credential and purpose.
+- Deprecated SHS pathways are archived trace evidence only. They are not seeded as publishable offerings, have no public route, no resolver fallback, and no hardcoded requirement list. Any future SHS restoration requires a separate client-approved scenario, target offering, eligibility authority, non-conflicting requirement policy, code slice, and test baseline.
+- ALS/equivalency for College admission is inactive until the institution approves a College pathway and evidence rule. If approved later, publication validation must require one authoritative eligibility outcome and deduplicate Certificate of Rating, Certificate of Completion, and equivalent evidence when they prove the same purpose.
 - `foreign` is a citizenship/compliance profile, not an applicant type or separate state machine. Publication validation fails unless the base offering is published, institution acceptance of foreign applicants is recorded for the term/scope, and the active policy requires legal stay/study authorization evidence appropriate to the offering. College and other higher-than-high-school offerings must distinguish Student Visa 9(f) evidence; basic-education, short-term, exchange, and non-degree cases must use the configured legal-stay or Special Study Permit evidence method where applicable. Passport, visa, permit, immigration, medical, and English-proficiency files use `restricted_support_file` controls by default. TALA stores evidence, verification state, deadlines, and holds only; it has no external immigration/regulator integration or status mutation.
 - IP and disability/SEN are optional support attributes, not applicant types, routes, or denial-producing dimensions. Requirement resolution must not add an admission gate solely because one of these attributes is present. Support evidence may be materialized only when a configured support purpose exists, such as scholarship/support program eligibility, culture-responsive coordination, accessibility accommodation, safety planning, or legally required inclusive-education service. IP/community, medical, psychological, functional, accessibility, and accommodation files use `restricted_support_file` controls, disable OCR by default, and require a purpose tag, role-scoped authorization, access audit, retention policy, and minimal verified-field promotion. These attributes must not be used for automated rejection, ranking, section assignment, billing, discipline, or public reporting unless a later approved rule explicitly permits the specific use.
-- `admission_capacity_plans` owns effective-dated approved intake limits by term and scope. Capacity scopes may be campus-wide, education-level-specific (SHS/College), program/strand-specific, year/grade-specific, or delivery-setup-specific. The current campus value may be 100 active enrolled students, but scope and value are configuration, not platform constants.
-- Capacity resolution returns every active matching plan as a stack. Payment may secure capacity only when every applicable plan has remaining room. If only a campus plan exists, SHS and College draw from the same OR-secured first-paid pool. If SHS/College sub-plans exist, the system enforces the sub-plan and the parent campus plan. Child caps may be stricter than the parent; the system must reject overlapping equal-scope plans that would make capacity resolution ambiguous.
+- `admission_capacity_plans` owns effective-dated approved College intake limits by term and scope. Capacity scopes may be campus-wide, program-specific, year-level-specific, or delivery-setup-specific. The current campus value may be 100 active enrolled students, but scope and value are configuration, not platform constants.
+- Capacity resolution returns every active matching plan as a stack. Payment may secure capacity only when every applicable plan has remaining room. Child caps may be stricter than the parent; the system must reject overlapping equal-scope plans that would make capacity resolution ambiguous.
 - `admission_capacity_placements` distinguishes `tentative` pre-payment planning, `secured` OR-backed admission capacity, and `placed` final section/delivery assignment. Tentative placement grants no account/COR/class access, consumes no protected capacity, and expires at the earlier of the configured payment deadline, admission-window close, or manual Registrar cancellation with reason.
 - Payment confirmation locks the resolved capacity-plan stack and atomically secures capacity with the immutable payment/ledger post. Idempotent retries cannot consume capacity twice. Section/group planning must cover the approved plan before payment opens, and final placement must respect section and delivery-group capacity separately from admission capacity.
 - Runtime implementation currently enforces configured approved plans through `admission_capacity_plans` and `admission_capacity_reservations`. `AdmissionCapacityReservationService` resolves every matching approved plan, locks the stack during finance clearance, creates one `secured` reservation per enrollment/plan, increments `reserved_count` idempotently, and throws before handover when any configured plan is full. For legacy/local data with no approved plan rows, reservation is a no-op until the remaining readiness gate/admin setup makes capacity plans mandatory before payment opens.
@@ -344,7 +344,7 @@ By using a Monolithic Laravel core, the **Registrar** and **Accounting** modules
 
 | Module | Primary Tech | Key Libraries | Key Features |
 | --- | --- | --- | --- |
-| Module 1 (Student) | **Laravel Livewire + TallStackUI + Tailwind + Alpine.js** | `tallstackui/tallstackui`, `alpinejs`, `erag/laravel-pwa` | PWA, Multi-Step Wizard, 3-Mode Section-Level Modality Selection (SHS: Modular/Online, College: On-Site/Online), external-reporting-ready data collection, and automated freshmen discount eligibility capture. **(Custom)** |
+| Module 1 (Student) | **Laravel Livewire + TallStackUI + Tailwind + Alpine.js** | `tallstackui/tallstackui`, `alpinejs`, `erag/laravel-pwa` | PWA, Multi-Step Wizard, College modality selection (On-Site/Blended/Online), external-reporting-ready data collection, and automated College freshmen discount eligibility capture. **(Custom)** |
 | Module 2 (Registrar) | FilamentPHP (Admin) | `filament/filament`, `google/cloud-vision` | Student Record Management (Filament Data Table), Scheduling (Curriculum Import, Modality-Aware Conflict Detection), Manual Credit Evaluation, Account Archiver, OCR Document Review, and filterable Enrolled Student Roster/export |
 | Module 3 (Accounting) | FilamentPHP + Excel Export | `filament/filament`, `maatwebsite/excel`, `chillerlan/php-qrcode` | Payment Queues (E-Wallets, OTC, Screenshots), Promissory Notes, COR with QR Code, Export Reports |
 | Module 4 (Faculty) | FilamentPHP | `filament/filament`, `maatwebsite/excel` | Grading Ecosystem, Manual INC Management, Grade Export, Modality-Aware Class Lists |
@@ -446,7 +446,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 |  | **First Name** | `string(50)` | Alphabetic + hyphen + apostrophe only |
 |  | **Middle Name** | `string(50)` | Alphabetic + hyphen + apostrophe only |
 |  | **Extended Name** | `string(10)` | Suffixes (Jr., Sr., II, III, IV) — optional |
-|  | **Birthdate** | `date` | Valid past date, age >= 10 for Grade 11 |
+|  | **Birthdate** | `date` | Valid past date; age rules are governed by active College admission policy |
 |  | **Place of Birth** | `string(100)` | City/Municipality, Province — student record/external reporting field |
 |  | **Gender** | `enum` | Male / Female — student record/external reporting field |
 |  | **Civil Status** | `enum` | Single / Married / Widowed / Separated / Annulled — default: Single |
@@ -465,10 +465,6 @@ The following domains are covered by schema and service contracts in this TS. Wh
 |  | **Guardian’s Contact Number** | `string(13)` | Same format as Contact Number |
 |  | **Guardian’s Address** | `text` | Can be same as home address (checkbox to copy) |
 | **Enrollment Context** | **School Year / Term** | `string` | Derived from system active configuration. Read-only for applicants; editable only by Registrar for backdated applications. |
-| **Academic (SHS)** | **Grade Level** | `enum` | Grade 11, Grade 12 |
-|  | **Strand** | `string(50)` | STEM, GAS, ICT, HE, ABM, HUMSS. Track is derived from strand. |
-|  | **Applicant Type** | `enum` | New / Transferee / Returnee — OCR-assisted recommendation, Registrar confirmation required |
-|  | **Assigned Class** | `string(50)` | Generated during queuing (e.g., “Grade 11-A”) |
 | **Academic (College)** | **Course / Program** | `string(50)` | IT, BM, THM, etc. |
 |  | **Year Level** | `enum` | 1st Year - 4th Year |
 |  | **Admission Category** | `enum` | Freshman / Transferee / Returnee / Second Degree |
@@ -476,9 +472,9 @@ The following domains are covered by schema and service contracts in this TS. Wh
 | **Last School Attended** | **School Name** | `string(150)` | Required for Transferees — basis for F137 request |
 |  | **School Address** | `text` | School location — transferee record/external reporting field |
 |  | **Year Graduated / Last Year Attended** | `year` | e.g., 2024, 2023 — dropdown or text |
-| **Modality** | **Learning Mode** | `enum` | **SHS**: `modular`, `online`. **College**: `on_site`, `blended`, `online`. `blended` remains active in Phase 1 as a room-required schedule modality that uses on-site-style room, delivery-group, and faculty conflict checks; online meeting/link tracking and alternating online/on-site pattern modeling are out of scope. Modality is captured as a declared enrollment preference and finalized through Registrar assignment to a section delivery group. |
+| **Modality** | **Learning Mode** | `enum` | **College**: `on_site`, `blended`, `online`. `blended` remains active in Phase 1 as a room-required schedule modality that uses on-site-style room, delivery-group, and faculty conflict checks; online meeting/link tracking and alternating online/on-site pattern modeling are out of scope. Modality is captured as a declared enrollment preference and finalized through Registrar assignment to a section delivery group. |
 | **Account Name Storage** | **Canonical Name Parts** | `users.first_name`, `users.middle_name`, `users.last_name`, `users.suffix`; composed `users.name` | Intake forms store legal/display name parts separately. The model/service layer composes `users.name` for search/display compatibility. |
-| **Discount Eligibility** | **Automated Freshmen Discount Flag** | `boolean` | Derived from intake data and validated by rules (`student_type = New` and year/grade level in scope) to trigger the 50% Tuition Fee discount. |
+| **Discount Eligibility** | **Automated Freshmen Discount Flag** | `boolean` | Derived from intake data and validated by rules (`student_type = New` and College `year_level = 1st Year`) to trigger the 50% Tuition Fee discount. |
 
 ---
 
@@ -491,14 +487,14 @@ Future student profile migrations must keep academic and financial context off t
 | Field Group | Required Contract |
 | --- | --- |
 | Identity | `user_id`, immutable `student_id`, unique `lrn` when applicable, legal name linkage through `users.first_name`, `users.middle_name`, `users.last_name`, `users.suffix`, and composed `users.name` |
-| Academic context | `education_level`, `program_id` or strand/program equivalent, grade/year level, curriculum/version context, current term context when needed |
+| Academic context | `program_id`, College year level, curriculum/version context, current term context when needed |
 | Lifecycle status | `operational_status` enum-like string with only `Active`, `Inactive`, `Graduated`, and `Archived` |
 | Status reason | `status_reason` nullable except required when `operational_status = 'Inactive'` |
 | Financial summary | `current_balance decimal(12,2)` as a denormalized read model fed by ledger services, not by direct UI edits |
 | Document flags | Hard-copy receipt flags and OCR review markers needed for grade/COR/request gating |
 | Audit timestamps | `created_at`, `updated_at`, plus workflow-specific timestamps such as `graduated_at`, `archived_at`, or `last_status_changed_at` when introduced |
 
-Do not add academic status, balances, hard-copy flags, LRN, student ID, program, strand, year level, or operational lifecycle fields to `users`. That table remains responsible for login identity, credentials, account availability, and authentication lifecycle.
+Do not add academic status, balances, hard-copy flags, LRN, student ID, program, year level, or operational lifecycle fields to `users`. That table remains responsible for login identity, credentials, account availability, and authentication lifecycle.
 
 #### 2.5.3 Financial Transaction Types (Enum)
 
@@ -517,7 +513,7 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 
 **Implementation Contract**: `PromissoryNoteResource` is an Accounting promise-tracking surface and approval queue. It registers list/create/view pages, where create means staff-assisted pending request creation, not direct approval. Applicant-owner or active-student-owner submission is supported at the backend service layer while Student Hub UI remains deferred. `PromissoryNote::validateAccountingScopeData()` and `PromissoryNoteLifecycleService` are the backend trust boundary: they reject cross-student, cross-term, or cross-enrollment submissions, require one open request per enrollment, and transition only through typed `pending -> approved/rejected/cancelled/expired/settled` lifecycle methods. The form must not expose unscoped raw ID relationship selects such as `relationship('enrollment', 'id')` or `relationship('ledgerEntry', 'id')`. List and detail views must show descriptive relationship labels for student, term, enrollment, ledger entry, requester, reviewer, and settlement context instead of raw numeric foreign keys. The resource must not register a generic edit page, edit action, delete action, or status selector for arbitrary lifecycle mutation.
 
-**Exam Access Accommodation Contract**: `exam_access_accommodations` is a separate private Accounting workflow for exam access exceptions. It stores student, term or academic-year scope, optional enrollment/promissory linkage, basis (`ra11984_certification` or `institutional_discretion`), status, validity dates, reviewer audit fields, and private certification evidence metadata. `ExamAccessDecisionService` returns only `{allowed, basis, accommodation_id}` and must never expose evidence paths, certification references, balances, payment channels, or promissory amounts. Senior High School statutory accommodations are academic-year scoped because RA 11984 applies the K-12 mandate for the entire school year; College accommodations are term-scoped by default. Promissory-note approval is not a substitute for an approved accommodation.
+**Exam Access Accommodation Contract**: `exam_access_accommodations` is a separate private Accounting workflow for exam access exceptions. It stores student, term scope, optional enrollment/promissory linkage, basis (`ra11984_certification` or `institutional_discretion`), status, validity dates, reviewer audit fields, and private certification evidence metadata. `ExamAccessDecisionService` returns only `{allowed, basis, accommodation_id}` and must never expose evidence paths, certification references, balances, payment channels, or promissory amounts. College accommodations are term-scoped by default. Promissory-note approval is not a substitute for an approved accommodation.
 
 ---
 
@@ -534,7 +530,7 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | `registrar_reviewed_by` | Foreign Key (Users) | The staff member who performed the review. |
 | `registrar_reviewed_at` | Timestamp | When the staff review occurred. |
 | `registrar_approved_payload` | JSON | Snapshot of data explicitly approved during document review. |
-| `document_type` | Catalog key | Normalized requirement-item type such as PSA, Report Card, Diploma, F137, Good Moral, or AF5. |
+| `document_type` | Catalog key | Normalized requirement-item type such as PSA, prior-school report card/Form 138, Diploma, F137, Good Moral, or another approved College admission evidence type. |
 | `checksum` | String | Detects duplicate uploads and supports safe OCR reprocessing |
 
 ---
@@ -610,75 +606,9 @@ The response must not expose balances, payment channels, transactions, promissor
 
 To ensure consistency, grading calculations are isolated in dedicated **Service Classes**:
 
-#### 3.1.1 SHS Engine
+#### 3.1.1 Deprecated SHS Engine Boundary
 
-
-
-```php
-class SHSGradingService
-{
-    /**
-     * Compute the final subject grade from quarterly transmuted grades.
-     *
-     * Faculty enters the transmuted grade (60-100) per quarter directly.
-     * Component-level computation (Written Work, Performance Tasks, Quarterly
-     * Assessment with DepEd weights) is performed offline by the faculty.
-     * TALA stores only the resulting transmuted grade per period.
-     *
-     * @param  array<string, int|float|string|null>  $quarterlyGrades  exactly ['q1' => 91, 'q2' => 94]
-     * @return array{final_grade: float, remarks: string}
-     * @throws \App\Exceptions\InvalidGradeException  if quarters are missing, extra, duplicated, null, blank, or outside 60-100
-     */
-    public function calculateFinalGrade(array $quarterlyGrades): array
-    {
-        $expectedPeriods = ['q1', 'q2'];
-        $submittedPeriods = array_keys($quarterlyGrades);
-
-        sort($submittedPeriods);
-
-        if ($submittedPeriods !== $expectedPeriods) {
-            throw new \App\Exceptions\InvalidGradeException(
-                'SHS final grade requires exactly q1 and q2 for the active semester.'
-            );
-        }
-
-        foreach ($quarterlyGrades as $period => $grade) {
-            if ($grade === null || $grade === '' || ! is_numeric($grade)) {
-                throw new \App\Exceptions\InvalidGradeException(
-                    "Missing or non-numeric transmuted grade for period {$period}."
-                );
-            }
-
-            $numericGrade = (float) $grade;
-
-            if (!$this->isValidTransmutedGrade($numericGrade)) {
-                throw new \App\Exceptions\InvalidGradeException(
-                    "Invalid transmuted grade {$grade} for period {$period}. Must be 60-100."
-                );
-            }
-
-            $quarterlyGrades[$period] = $numericGrade;
-        }
-
-        $finalGrade = collect($quarterlyGrades)->avg();
-
-        return [
-            'final_grade' => round($finalGrade, 2),
-            'remarks' => $finalGrade >= 75 ? 'passed' : 'failed',
-        ];
-    }
-
-    /**
-     * Validate that a submitted quarterly grade falls within the DepEd transmuted range.
-     * Per DepEd Order No. 8, s. 2015: transmuted grades range from 60 (lowest reportable) to 100.
-     * Note: 75 is the minimum PASSING grade, but grades 60-74 are valid (they represent failure).
-     */
-    public function isValidTransmutedGrade(float $grade): bool
-    {
-        return $grade >= 60 && $grade <= 100;
-    }
-}
-```
+SHS grading is no longer an active technical contract for the current deployment. `SHSGradingService`, SHS Q1/Q2 payloads, SHS grade validation, and SHS UI actions are cleanup targets under SDD-00C. They must not remain reachable from active Filament forms, validators, factories, seeders, or tests after the code cleanup slice.
 
 #### 3.1.2 College Engine
 
@@ -778,7 +708,7 @@ class CollegeGradingService
 }
 ```
 
-**SHS Quarter Payload Contract**: For v1, SHS final-grade calculation accepts only two active-semester keys: `q1` and `q2`. The request/FormRequest layer must normalize labels to these canonical keys before calling the service and reject missing quarters, blank values, `null`, duplicate quarter submissions, or extra keys such as `q3`, `q4`, `prelim`, or `final`. The service must not average incomplete SHS grades.
+**College Period Payload Contract**: For the active College deployment, grade calculation accepts only the published grading-profile periods for the resolved class and term. The request/FormRequest layer must normalize labels to canonical College period keys before calling the service and reject missing periods, blank values, `null`, duplicate submissions, or unsupported period keys. The service must not average incomplete grade payloads.
 
 **Deprecation Notice**: The system **MUST NOT** calculate the arithmetic mean of transmuted equivalents. Example: `(1.25 + 1.50) / 2 = 1.375` — this value cannot be resolved against the transmutation table without arbitrary secondary rounding, leading to data drift and registrar disputes. This legacy approach is **fully deprecated**.
 
@@ -848,7 +778,7 @@ Already-finalized grades return a user-facing `Already finalized` notice, HTTP/A
 
 **Filament Resource Mapping**: `GradeResource` is the Academic Head Grade Oversight surface and must be list/view plus typed override actions only. It must not register generic create/edit page routes, delete actions, or raw forms for `prelim_grade`, `midterm_grade`, `final_grade`, `grade`, `is_finalized`, `finalized_by`, `finalized_at`, `reopened_by`, or `reopened_at`. Faculty grade encoding/finalization belongs to assigned class-list or enrollment-subject actions backed by `GradeEncodingService` and `GradeFinalizationService`. Academic Head force-finalize/reopen remains available only through action modals that require a non-empty reason and policy authorization.
 
-**Faculty Class List Filament Mapping**: `EnrollmentSubjectResource` is the Faculty Class List / Academic Head submission-progress surface. It must register list/view pages only and must not expose generic create/edit page routes, delete actions, or raw forms for `enrollment_id`, `subject_id`, `section_meeting_id`, `units`, `lec_hours`, `status`, `is_dropped`, or `dropped_at`. Faculty mutation is limited to typed record actions backed by `GradeEncodingService` and `GradeFinalizationService`: `Encode Grade`, `Mark INC`, and `Finalize`. The encode modal must be program-specific: SHS records show required `q1` and `q2` transmuted-grade fields only, while College records show required `prelim`, `midterm`, and `final` raw-score fields only. Academic Head access to this resource remains read-only submission-progress oversight through `view-grade-submission-progress` or `view-global-records`; Academic Head grade mutation belongs to `GradeResource` override actions, not class-list row editing.
+**Faculty Class List Filament Mapping**: `EnrollmentSubjectResource` is the Faculty Class List / Academic Head submission-progress surface. It must register list/view pages only and must not expose generic create/edit page routes, delete actions, or raw forms for `enrollment_id`, `subject_id`, `section_meeting_id`, `units`, `lec_hours`, `status`, `is_dropped`, or `dropped_at`. Faculty mutation is limited to typed record actions backed by `GradeEncodingService` and `GradeFinalizationService`: `Encode Grade`, `Mark INC`, and `Finalize`. The encode modal must be College grading-profile aware and collect only the required College period fields for the resolved class and term, such as `prelim`, `midterm`, and `final` when that profile is active. Academic Head access to this resource remains read-only submission-progress oversight through `view-grade-submission-progress` or `view-global-records`; Academic Head grade mutation belongs to `GradeResource` override actions, not class-list row editing.
 
 #### 3.1.4 Goal-State Grade Profile and Submission Contract
 
@@ -953,7 +883,7 @@ Attachments are always optional for concern/issue resolution. Validation must en
 
 Faculty raw-computation verification is handled as an internal Registrar review note, attachment, or timeline entry while the correction remains `under_review`. It must not create a separate student-visible `for_faculty` status. Any correction that changes an official/finalized grade must be approved by the **Academic Head** through the override policy in §3.1.3 before the Registrar records the correction as `resolved`. The Academic Head approval is an audited action linked to the correction ticket; it does not require adding a separate public status.
 
-**The system Hardening Mapping**: `GradeCorrectionResource` implements the in-system approval path and must not treat Registrar-recorded offline approval as valid. `grade_corrections` stores `academic_head_review_status`, `academic_head_reviewed_by`, `academic_head_reviewed_at`, and `academic_head_review_note`. Official/finalized grade changes require `GradeCorrectionService::approveOfficialGradeChange()` before `GradeCorrectionService::resolveWithGradeChange()` can apply corrected values. Academic Head rejection uses `GradeCorrectionService::rejectOfficialGradeChange()` and rejects the correction without mutating the grade. The Registrar resolution modal remains grading-scheme aware after approval: College records collect `college_prelim`, `college_midterm`, and `college_final` raw scores; SHS records collect `shs_q1` and `shs_q2` transmuted grades. `GradeCorrectionService` then derives `prelim_grade`, `midterm_grade`, `final_grade`, `grade`, `remarks`, `is_inc`, and `inc_expires_at` through `CollegeGradingService` or `SHSGradingService`, and rejects direct `grade`, `final_grade`, or `remarks` override payloads.
+**The system Hardening Mapping**: `GradeCorrectionResource` implements the in-system approval path and must not treat Registrar-recorded offline approval as valid. `grade_corrections` stores `academic_head_review_status`, `academic_head_reviewed_by`, `academic_head_reviewed_at`, and `academic_head_review_note`. Official/finalized grade changes require `GradeCorrectionService::approveOfficialGradeChange()` before `GradeCorrectionService::resolveWithGradeChange()` can apply corrected values. Academic Head rejection uses `GradeCorrectionService::rejectOfficialGradeChange()` and rejects the correction without mutating the grade. The Registrar resolution modal remains College grading-profile aware after approval and collects only the permitted College period inputs for the resolved profile, such as `college_prelim`, `college_midterm`, and `college_final` when that profile is active. `GradeCorrectionService` then derives `prelim_grade`, `midterm_grade`, `final_grade`, `grade`, `remarks`, `is_inc`, and `inc_expires_at` through the College grading service and rejects direct `grade`, `final_grade`, or `remarks` override payloads.
 
 `GradeCorrectionResource` must be registered as a list/view lifecycle surface only. It must not register generic create/edit page routes, create/edit/delete header actions, or a raw form for direct `user_id`, `current_grade`, `attachment_paths`, `status`, `assigned_to`, Academic Head review metadata, `creator_id`, or `resolved_at` mutation. The student request API and `GradeCorrectionService::submit()` own ticket creation and server-derived fields; Registrar and Academic Head table actions own the allowed transitions.
 
@@ -984,7 +914,57 @@ namespace App\Enums;enum AcademicAdvisingStatus: string{    case NotAvailable = 
 
 
 ```php
-namespace App\Services;use App\Enums\AcademicAdvisingStatus;use App\Models\User;use App\Models\Grade;use Illuminate\Support\Collection;class AcademicAdvisingStatusService{    /**     * Compute the advising status from latest encoded current-term grades.     * Uses unfinalized grades for early advising.     *     * @return array{status: AcademicAdvisingStatus, reasons: string[]}     */    public function compute(User $student, int $termId): array    {        $grades = Grade::whereHas('enrollment', fn ($q) => $q            ->where('user_id', $student->id)            ->where('term_id', $termId)        )->get();        $hasActiveInc = $grades->contains('is_inc', true);        $isShs = $student->profile->program->department === 'shs';        $failedSubjects = [];        $lowPassSubjects = [];        foreach ($grades as $grade) {            if ($grade->grade === null) {                continue;            }            if ($isShs) {                // SHS: transmuted grade scale                if ($grade->grade < 75) {                    $failedSubjects[] = $grade->subject->code;                } elseif ($grade->grade >= 75 && $grade->grade <= 79) {                    $lowPassSubjects[] = [                        'subject' => $grade->subject->code,                        'grade' => $grade->grade,                    ];                }            } else {                // College: raw percentage scale                if ($grade->grade < 75) {                    $failedSubjects[] = $grade->subject->code;                } elseif ($grade->grade >= 75 && $grade->grade <= 79) {                    $lowPassSubjects[] = [                        'subject' => $grade->subject->code,                        'grade' => $grade->grade,                    ];                }            }        }        $reasons = [];        // Priority: any INC, any fail, or 2+ low-pass        if ($hasActiveInc || count($failedSubjects) > 0 || count($lowPassSubjects) >= 2) {            if ($hasActiveInc) {                $reasons[] = 'Active INC detected';            }            foreach ($failedSubjects as $code) {                $reasons[] = "Failed: {$code}";            }            foreach ($lowPassSubjects as $lp) {                $reasons[] = "Low-pass in {$lp['subject']} ({$lp['grade']})";            }            return ['status' => AcademicAdvisingStatus::Priority, 'reasons' => $reasons];        }        // Watch: exactly one low-pass subject        if (count($lowPassSubjects) === 1) {            $lp = $lowPassSubjects[0];            $reasons[] = "Low-pass in {$lp['subject']} ({$lp['grade']})";            return ['status' => AcademicAdvisingStatus::Watch, 'reasons' => $reasons];        }        // Good: has grades, no risk triggers        if ($grades->whereNotNull('grade')->isNotEmpty()) {            return ['status' => AcademicAdvisingStatus::Good, 'reasons' => []];        }        // Not Available: no grades yet        return ['status' => AcademicAdvisingStatus::NotAvailable, 'reasons' => []];    }}
+namespace App\Services;
+
+use App\Enums\AcademicAdvisingStatus;
+use App\Models\Grade;
+use App\Models\User;
+
+class AcademicAdvisingStatusService
+{
+    /**
+     * @return array{status: AcademicAdvisingStatus, reasons: string[]}
+     */
+    public function compute(User $student, int $termId): array
+    {
+        $grades = Grade::query()
+            ->whereHas('enrollment', fn ($query) => $query
+                ->where('user_id', $student->id)
+                ->where('term_id', $termId))
+            ->get();
+
+        $hasActiveInc = $grades->contains('is_inc', true);
+        $failedSubjects = [];
+        $lowPassSubjects = [];
+
+        foreach ($grades as $grade) {
+            if ($grade->grade === null) {
+                continue;
+            }
+
+            if ($grade->grade < 75) {
+                $failedSubjects[] = $grade->subject->code;
+            } elseif ($grade->grade <= 79) {
+                $lowPassSubjects[] = [
+                    'subject' => $grade->subject->code,
+                    'grade' => $grade->grade,
+                ];
+            }
+        }
+
+        if ($hasActiveInc || count($failedSubjects) > 0 || count($lowPassSubjects) >= 2) {
+            return ['status' => AcademicAdvisingStatus::Priority, 'reasons' => []];
+        }
+
+        if (count($lowPassSubjects) === 1) {
+            return ['status' => AcademicAdvisingStatus::Watch, 'reasons' => []];
+        }
+
+        return $grades->whereNotNull('grade')->isNotEmpty()
+            ? ['status' => AcademicAdvisingStatus::Good, 'reasons' => []]
+            : ['status' => AcademicAdvisingStatus::NotAvailable, 'reasons' => []];
+    }
+}
 ```
 
 **API**: `GET /api/faculty/students/{student_id}/advising-status`
@@ -1218,7 +1198,7 @@ class EnrollmentService
 
 **Student Section Assignment Contract**: Student-to-section assignment is an admin-owned operation for Phase 1. `StudentEnrollmentService` or any future enrollment finalization service must assign only to an existing term-scoped section and must lock the selected section and delivery-group rows before checking actual assigned capacity. It must reject full sections instead of auto-overflowing, auto-balancing across alternate sections, or creating a new section. An admission-capacity reservation is a plan-level institutional commitment, not a section hold, and remains absent from COR, schedules, class lists, and enrollment assignment columns until actual placement. If compatible section capacity is missing for a valid reservation, the backend records `pending_institutional_placement`; it must not silently create a section or blame the applicant.
 
-**Filament Configuration Target**: `EnrollmentResource` remains list/view with typed actions only. The profile-wide hard-copy receipt action must be replaced by per-requirement evidence/receipt actions backed by the applicant checklist and admission/retention services. Accounting payment confirmation secures capacity but must not activate the applicant while an admission gate or placement remains unresolved. Retention undertakings appear as itemized obligations and do not become a raw status-edit control. Generic create/edit/status/compliance mutation remains forbidden. A separate read-only `EnrolledStudentRosterResource` (or purpose-built list page) exposes required term plus optional education-level, program/strand, year/grade, section, modality, and student-type filters, with an audited Filament v5 `ExportAction` limited to CSV and XLSX; it has no create/edit/delete or external-status mutation action.
+**Filament Configuration Target**: `EnrollmentResource` remains list/view with typed actions only. The profile-wide hard-copy receipt action must be replaced by per-requirement evidence/receipt actions backed by the applicant checklist and admission/retention services. Accounting payment confirmation secures capacity but must not activate the applicant while an admission gate or placement remains unresolved. Retention undertakings appear as itemized obligations and do not become a raw status-edit control. Generic create/edit/status/compliance mutation remains forbidden. A separate read-only `EnrolledStudentRosterResource` (or purpose-built list page) exposes required term plus optional College program, year level, section, modality, and student-type filters, with an audited Filament v5 `ExportAction` limited to CSV and XLSX; it has no create/edit/delete or external-status mutation action.
 
 ### 3.4.1 Prerequisite Validation (INC Block)
 
@@ -1349,7 +1329,7 @@ class EnrollmentObserver{    public function created(Enrollment $enrollment)    
 
 
 
-**Faculty Availability Cadence Contract**: Availability is collected once per faculty per configured scheduling term. The Academic Year is not the availability submission scope. A College faculty member normally submits per semester, plus summer if a summer term is opened. SHS scheduling availability is approved as semester-scoped for Phase 1; quarter labels remain grading evidence unless a future quarter-based scheduling change is approved. The backend must reject duplicate submitted/locked availability for the same `faculty_id` and `term_id`; approved late revisions must use versioned change-request records rather than mutating the original locked submission.
+**Faculty Availability Cadence Contract**: Availability is collected once per faculty per configured College scheduling term. The Academic Year is not the availability submission scope. A College faculty member normally submits per semester, plus summer if a summer term is opened. The backend must reject duplicate submitted/locked availability for the same `faculty_id` and `term_id`; approved late revisions must use versioned change-request records rather than mutating the original locked submission.
 
 
 
@@ -1363,7 +1343,7 @@ class EnrollmentObserver{    public function created(Enrollment $enrollment)    
 
 **Section and Delivery-Group Planning Contract**:
 - Automatic scheduling is section/delivery-group driven. `sections` and `section_delivery_groups` are created before solver dispatch and are treated as immutable input for that generation run.
-- `sections` are academic parent records: term, program, curriculum, year/grade, curriculum period, name, and total section capacity.
+- `sections` are academic parent records: term, program, curriculum, College year level, curriculum period, name, and total section capacity.
 - `section_delivery_groups` are operational scheduling/enrollment records: parent section, delivery pattern/version, modality, delivery setup name, capacity, room requirement, optional fixed room, and status.
 - The solver does not create, split, merge, or rebalance sections or delivery groups. It assigns faculty, room where required, day, and time to each planned section-delivery-group-subject demand.
 - Each schedulable demand must have `section_id`, `section_delivery_group_id`, `term_id`, `program_id`, `curriculum_id`, `year_level`, `curriculum_period`, delivery pattern, modality, capacity data, and room when required.
@@ -1391,7 +1371,7 @@ class EnrollmentObserver{    public function created(Enrollment $enrollment)    
 - Faculty workload overload is a soft constraint requiring Academic Head approval, reason, and audit payload showing the exceeded limit. It must not bypass hard conflicts.
 
 **Implementation Components**:
-- `CurriculumScopeReadinessService`: reports and transitions curriculum coverage scopes by `curriculum_id + year_level + curriculum_period`, displaying the derived `program + curriculum version + year/grade + curriculum period` review label. It computes blockers live and stores transition snapshots when state changes. It blocks `ready_for_scheduling` when the scope has zero valid subject rows, unresolved classification, missing/invalid weekly contact hours, invalid delivery override, unresolved import errors, or all rows excluded from automatic scheduling without an explicit reviewer reason. It derives `blocked` from hard blockers; staff may mark clear scopes ready or return scopes to `needs_review`, but may not manually select `blocked`.
+- `CurriculumScopeReadinessService`: reports and transitions curriculum coverage scopes by `curriculum_id + year_level + curriculum_period`, displaying the derived `program + curriculum version + College year level + curriculum period` review label. It computes blockers live and stores transition snapshots when state changes. It blocks `ready_for_scheduling` when the scope has zero valid subject rows, unresolved classification, missing/invalid weekly contact hours, invalid delivery override, unresolved import errors, or all rows excluded from automatic scheduling without an explicit reviewer reason. It derives `blocked` from hard blockers; staff may mark clear scopes ready or return scopes to `needs_review`, but may not manually select `blocked`.
 - `DeliveryPatternService`: owns delivery-pattern creation, cloning/versioning, rule validation, and freeze-on-use behavior. It must reject direct mutation of a pattern version already used by enrollments or committed schedules.
 - `SectionDeliveryGroupService`: owns create/update/close behavior for delivery groups, section/delivery-group capacity validation, inherited delivery-pattern defaults, and delivery-group assignment suggestions.
 - `EnrollmentSectioningService`: records `section_id` and `section_delivery_group_id` together, ranks compatible delivery groups, rejects over-capacity assignments transactionally, and keeps Registrar confirmation authoritative.
@@ -1702,17 +1682,16 @@ class AdmissionRequirements extends Component
   "updated_by": 1,
   "offerings": [
     {
-      "key": "shs_new_grade_11",
+      "key": "college_freshman_bsit",
       "academic_term_id": 12,
-      "education_level": "shs",
       "entry_route": "regular",
-      "prior_credential_pathway": "grade_10",
+      "prior_credential_pathway": "grade_12",
       "citizenship_profile": "domestic",
-      "program_id": null,
-      "grade_or_year": "11",
-      "title": "New Grade 11",
+      "program_id": 3,
+      "year_level": "1st Year",
+      "title": "College Freshman - BSIT",
       "source_requirement_policy_version": 3,
-      "items": ["PSA Birth Certificate", "Grade 10 Card", "Good Moral"],
+      "items": ["PSA Birth Certificate", "Grade 12 Form 138", "Good Moral"],
       "is_published": true
     }
   ]
@@ -1724,11 +1703,10 @@ class AdmissionRequirements extends Component
 | `version` | Positive integer incremented on every settings save. |
 | `offerings[].key` | Stable unique string used for applicant selection, public anchors, and faculty share links. |
 | `offerings[].academic_term_id` | Required term owning the admission window and offering. |
-| `offerings[].education_level` | `shs` or `college`. |
 | `offerings[].entry_route` | Controlled route such as `regular`, `transfer`, `returning`, or `cross_enrollee`; this is not a demographic/support category. |
-| `offerings[].prior_credential_pathway` | Prior-schooling basis such as `grade_10`, `shs_graduate`, `old_curriculum`, or `als`; values are governed by a controlled catalog. |
+| `offerings[].prior_credential_pathway` | Prior-schooling basis such as `grade_12`, `old_curriculum`, `transfer_record`, or another approved College prior-credential catalog value. |
 | `offerings[].citizenship_profile` | Compliance profile such as `domestic` or `foreign`; it is independently combinable with entry route and support attributes. |
-| `offerings[].program_id`, `grade_or_year` | Optional narrowing dimensions when requirements or eligibility differ by program, strand, grade, or year. |
+| `offerings[].program_id`, `year_level` | Optional narrowing dimensions when requirements or eligibility differ by College program or year level. |
 | `offerings[].source_requirement_policy_version` | Published immutable policy version from which this public projection was generated. |
 | `offerings[].items` | Resolved, ordered public display labels only; compliance metadata remains in normalized policy and requirement tables. |
 | `offerings[].is_published` | Boolean; unpublished offerings cannot receive public or Registrar-assisted intake. |
@@ -1778,7 +1756,7 @@ Seeders may provide draft offering/policy templates, but the public page and fac
 
 **Applicant Intake Backend Contract**: `ApplicantIntakeService` is the application-layer authority for public applicant creation, applicant status updates, duplicate checks, required-document derivation, applicant-owned `document_uploads`, OCR job dispatch, and approval-for-payment prerequisites. It creates a pending applicant `users` row with the `applicant` role, creates one `applicant_intakes` staging record, and does not create `student_profiles`, `enrollments`, ledger entries, or official student credentials. Applicant document uploads may have `document_uploads.applicant_intake_id` with `student_profile_id = null` until Official Handover links official student records.
 
-**Admission Offering and Requirement Resolution Contract**: Replace hardcoded document derivation and flat `applicant_type` branching with an `AdmissionOffering` plus versioned `AdmissionRequirementPolicy`. The normalized intake dimensions are `education_level`, `entry_route`, `prior_credential_pathway`, `citizenship_profile`, target program/strand and grade/year, and purpose-limited support attributes. IP and disability/SEN attributes must not be exposed as public applicant categories or used as eligibility denials; they may select lawful evidence alternatives, accessibility accommodations, or authorized support workflows only. `AdmissionRequirementResolver` validates that the selected offering is published for the term, composes its base and conditional rules deterministically, rejects unknown dimensions or conflicting matches, and materializes an immutable checklist snapshot containing source rule IDs/versions. Applicant approval decisions and later student creation continue through the shared state machine; no category-specific service may bypass verification, finance, capacity, or audit contracts.
+**Admission Offering and Requirement Resolution Contract**: Replace hardcoded document derivation and flat `applicant_type` branching with an `AdmissionOffering` plus versioned `AdmissionRequirementPolicy`. The normalized intake dimensions are College entry route, prior-credential pathway, citizenship profile, target program, target year level, and purpose-limited support attributes. IP and disability/SEN attributes must not be exposed as public applicant categories or used as eligibility denials; they may select lawful evidence alternatives, accessibility accommodations, or authorized support workflows only. `AdmissionRequirementResolver` validates that the selected offering is published for the term, composes its base and conditional rules deterministically, rejects unknown dimensions or conflicting matches, and materializes an immutable checklist snapshot containing source rule IDs/versions. Applicant approval decisions and later student creation continue through the shared state machine; no category-specific service may bypass verification, finance, capacity, or audit contracts.
 
 **Returning/Legacy Intake Contract**: Returning students bypass public applicant-account creation and enter through an authenticated Registrar-assisted lookup. Matching order is immutable student ID when known, then LRN and verified identity attributes, then a guarded manual review; weak name-only matches never auto-merge. If no reliable pre-TALA record exists, `LegacyStudentOnboardingService` creates one provenance-tagged student/profile baseline from verified institutional evidence, records source references and unknown historical fields, and runs the same duplicate guard before readmission begins. This service does not approve readmission, fabricate grades/documents, clear balances/holds, or activate access. It may invoke `AdmissionRequirementResolver` for itemized missing legacy/readmission evidence. The readmission service remains responsible for eligibility, curriculum alignment, finance/document/discipline holds, capacity, lifecycle transition, and account reactivation.
 
@@ -1810,7 +1788,7 @@ Seeders may provide draft offering/policy templates, but the public page and fac
 
 `Completed` is historical and set by term close. System code must enforce the invariant inside the same transaction that applies payment clearance and account handover. The final implementation removes `lis_status`, `officially_enrolled_at`, and any LIS-only notes/timestamps from the target schema and all Student Hub/Admin projections; it preserves ordinary `enrolled_at` and `completed_at` evidence.
 
-**External Reporting Support**: `EnrollmentRosterQuery` is the read authority for the Registrar roster and export. It requires a term and includes only `status = enrolled`. Optional filters are education level, program/strand, year/grade, section, delivery modality, and student type. `EnrollmentRosterExporter` consumes that query and emits the same generic authorized column schema as CSV or XLSX; it does not contain regulator-specific layout branches. Export authorization is separate from record mutation, and every export records actor, format, filters, timestamp, row count, and generated-file audit evidence. No export action writes enrollment or external-system status.
+**External Reporting Support**: `EnrollmentRosterQuery` is the read authority for the Registrar roster and export. It requires a term and includes only `status = enrolled`. Optional filters are College program, year level, section, delivery modality, and student type. `EnrollmentRosterExporter` consumes that query and emits the same generic authorized column schema as CSV or XLSX; it does not contain regulator-specific layout branches. Export authorization is separate from record mutation, and every export records actor, format, filters, timestamp, row count, and generated-file audit evidence. No export action writes enrollment or external-system status.
 
 #### 3.12.2 Advance Payments (Negative Ledger Balance)
 
@@ -1853,9 +1831,9 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Data Contract**:
 -   The `fee_templates` table includes a `minimum_downpayment_percentage` (e.g., 20.00).
--   `fee_templates.education_level`, `program_id`, and `year_level` define the assessment scope. `program_id = null` means all programs for the education level. `year_level = null` means all year/grade levels for the education level.
--   The Filament form must expose `year_level` as a canonical select matching the exact values used by enrollment records (`Grade 11`, `Grade 12`, `1st Year`, `2nd Year`, `3rd Year`, `4th Year`), not a loose numeric/free-text field.
--   `FeeTemplate` normalizes blank `program_id`/`year_level` values to `null`, lowercases `education_level`, and rejects saving a second active template for the same education/program/year scope. Inactive historical templates may share a scope.
+-   `fee_templates.program_id` and `year_level` define the College assessment scope. `program_id = null` means all College programs. `year_level = null` means all College year levels.
+-   The Filament form must expose `year_level` as a canonical select matching the exact values used by College enrollment records (`1st Year`, `2nd Year`, `3rd Year`, `4th Year`), not a loose numeric/free-text field.
+-   `FeeTemplate` normalizes blank `program_id`/`year_level` values to `null` and rejects saving a second active template for the same College program/year scope. Inactive historical templates may share a scope.
 
 **Service Boundary**:
 -   Accounting configures the base fee templates and downpayment percentages.
@@ -1870,7 +1848,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   Installment plans are configurable up to **10 months** total.
 -   Installment due cadence is monthly with due date at **end of month**.
 -   Missed installment enters **3-day grace** before overdue consequence.
--   `InstallmentPolicy` uses the same normalized education/program/year scope contract as `FeeTemplate` and rejects a second active policy for the same scope. Milestone rows remain child schedule rows inside the policy form.
+-   `InstallmentPolicy` uses the same normalized College program/year scope contract as `FeeTemplate` and rejects a second active policy for the same scope. Milestone rows remain child schedule rows inside the policy form.
 -   Overdue installment applies **5% penalty** (aligned with SOA policy wording).
 -   Promissory notes remain non-payment records and do not satisfy installment clearance. They may be reported as active hold context, but a confirmed payment that satisfies the required installment/assessment threshold must still clear finance.
 -   Accounting appeal-based grace/exception handling remains outside normal automated flow unless later formalized in service contracts.
@@ -1887,7 +1865,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Rules**:
 - Triggered automatically during the enrollment assessment phase.
-- **Eligibility**: `student_type == 'New'` AND (`year_level == '1st Year'` OR `year_level == 'Grade 11'`). Transferees are excluded.
+- **Eligibility**: `student_type == 'New'` AND `year_level == '1st Year'`. Transferees are excluded.
 - **Computation**: The system calculates exactly 50% of the assessed `Tuition Fee`. Miscellaneous, Laboratory, and Other Fees are not discounted.
 - **Ledger Behavior**: The calculated discount is injected directly into the student's ledger as a **Negative Ledger Entry** (Credit), reducing their `current_balance` accordingly without requiring manual Accounting review.
 
@@ -1895,11 +1873,10 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Status**: Deferred business-policy module. Do not implement until shifting services, fee assessment behavior, audit links, and PHPUnit coverage are specified.
 
-**Purpose**: Track student program/strand shifting without corrupting existing curriculum binding, grades, financial history, or enrollment records.
+**Purpose**: Track College program shifting without corrupting existing curriculum binding, grades, financial history, or enrollment records.
 
 **Eligibility Rules**:
 
--   SHS Grade 12 shifting is blocked in the standard workflow.
 -   College shifting is allowed only up to the approved 2nd-year limit.
 -   Shifting preserves all prior grades, enrollments, payments, uploaded documents, and curriculum history.
 -   The approved shift takes effect only for the approved effective term and does not rewrite historical enrollment records.
@@ -1912,7 +1889,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Service Boundary**:
 
--   `ShiftingEligibilityService` evaluates Grade 12 and College 2nd-year eligibility before request submission is accepted.
+-   `ShiftingEligibilityService` evaluates the approved College 2nd-year eligibility limit before request submission is accepted.
 -   `ShiftingRequestService` owns request transitions: `submitted`, `under_review`, `approved_pending_fee`, `approved`, and `rejected`.
 -   Registrar owns academic review, curriculum fit, credited subjects, prerequisites, and effective-term recommendation.
 -   Accounting owns shifting fee amount, due date, payment confirmation, waiver handling, and ledger posting.
@@ -1924,7 +1901,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 **Fee structure and assessment ownership**:
 
-- Evolve the transitional `fee_templates` design into approved versioned fee structures with effective dates, academic-year/term and education/program/year-grade scope, lifecycle state, and non-overlapping active resolution. Component lines are child records, not new fixed amount columns for every fee type.
+- Evolve the transitional `fee_templates` design into approved versioned fee structures with effective dates, academic-year/term and College program/year-level scope, lifecycle state, and non-overlapping active resolution. Component lines are child records, not new fixed amount columns for every fee type.
 - A per-enrollment assessment header and assessment-line snapshot records the resolved structure/version, scope, quantities or units where applicable, component amounts, discount/scholarship/installment/downpayment policy versions, gross/net totals, actor, and assessment time. Ledger charge/discount entries reference this immutable assessment evidence.
 - Reassessment after a legitimate enrollment/schedule/policy change creates a superseding assessment or typed adjustment entries. It never edits the original assessment or ledger rows.
 - Assessment does not set `enrollments.enrolled_at`; official admission/finance/placement handover owns that timestamp.
@@ -2152,9 +2129,9 @@ Validation failure returns a standard Filament validation error and leaves the r
 -   Accounting users maintain the price list and can set `fee_mode` (`free_once_with_school_request` or `paid`) and `fee_amount` for approved document types.
 -   A document type remains hidden from student requests until Accounting assigns the approved free/paid policy.
 -   Adding a new selectable document type requires an approved FS/TS update before implementation.
--   Form 137 and Grade 12 Card are free only for the first qualifying request per student and document type, and only when a requesting-school basis is recorded.
--   Good Moral, Certificate of Enrollment (COE), Grade 11 Card, and Dismissal Certificate are paid document requests.
--   The system must track one-time free usage so the second Form 137 or Grade 12 Card request follows the paid policy.
+-   Form 137 and Form 138 prior-school support records are free only for the first qualifying request per student and document type, and only when a requesting-school basis is recorded.
+-   Good Moral, Certificate of Enrollment (COE), Certificate of Grades (COG), Transcript of Records (TOR), and Dismissal Certificate are paid document requests unless an approved policy says otherwise.
+-   The system must track one-time free usage so the second Form 137 or Form 138 support request follows the paid policy.
 
 
 
@@ -2348,14 +2325,14 @@ To mitigate parsing errors from heterogeneous `.docx` and `.xlsx` evaluation for
 
 | Field | Storage Target | Contract |
 | --- | --- | --- |
-| `Weekly Contact Hours` | `curriculum_subjects.weekly_contact_hours` | Scheduler-facing load/duration field; do not use raw SHS semester `Lec_Hours`, `subjects.lec_hours`, or College `Units` as meeting duration. `0.00` is allowed only for modular/no-recurring-meeting rows with `Scheduling Group = modular`; synchronous demand requires a positive value. |
+| `Weekly Contact Hours` | `curriculum_subjects.weekly_contact_hours` | Scheduler-facing load/duration field; do not use `subjects.lec_hours` or College `Units` as meeting duration. `0.00` is allowed only for modular/no-recurring-meeting rows with `Scheduling Group = modular`; synchronous demand requires a positive value. |
 | `Academic Subject Type` | `curriculum_subjects.academic_subject_type` | Academic meaning such as `general_education`, `professional_tesda`, `core`, `applied`, `specialized`, or `tvl`. |
 | `Scheduling Group` | `curriculum_subjects.scheduling_group` | Operational bucket such as `minor`, `major`, `modular`, or `online_only`. |
 | `Delivery Rule Override` | `curriculum_subjects.delivery_rule_override` | Nullable constrained code: blank, `force_online`, `force_on_site`, `force_modular`, or `exclude_from_auto_schedule`. Free text is not allowed. |
 
 **Readiness Behavior:**
 
-- Curriculum imports may be partial. SHS may be imported before College, or College may be imported before SHS. Scheduling readiness is scoped; a missing College curriculum blocks College scheduling only, and a missing SHS curriculum blocks SHS scheduling only.
+- Curriculum imports may be partial by College program, curriculum version, and term. Scheduling readiness is scoped; a missing or incomplete College curriculum blocks only the affected College scheduling scope.
 - A committed curriculum scope starts as `needs_review`.
 - `CurriculumScopeReadinessService` marks a scope `ready_for_scheduling` only when the scope has at least one valid subject row, required weekly contact hours, confirmed classification, valid delivery override, no unresolved import errors, and any required exception reason.
 - Existing legacy curriculum/subject rows stay in the database, but their scheduling readiness becomes `needs_review` until the new scheduling fields are confirmed.
@@ -2375,12 +2352,11 @@ Major mid-year curriculum overhauls are restricted to prevent data corruption. H
 
 ### 3.18 Academic Calendar Setup Architecture
 
-The academic calendar is separated into two hierarchical models to support divergent SHS and College rules: `academic_years` and `terms`. `academic_years` define the regulatory/school-year umbrella, while `terms` define the actual operational windows used by enrollment, scheduling, faculty availability, billing, class lists, and grade workflows.
+The academic calendar is separated into two hierarchical models for College operations: `academic_years` and `terms`. `academic_years` define the school-year umbrella, while `terms` define the actual operational windows used by enrollment, scheduling, faculty availability, billing, class lists, and grade workflows.
 
 **Hierarchy**:
 1. **Academic Year** (`academic_years` table): Defines the top-level boundary.
    - `academic_year` (string, e.g., "2025-2026")
-   - `education_level` (enum: `shs`, `college`)
    - `school_year_start_date` (date)
    - `school_year_end_date` (date)
    - `status` (enum: `draft`, `active`, `closed`, `archived`)
@@ -2392,27 +2368,25 @@ The academic calendar is separated into two hierarchical models to support diver
    - Operational Gates: `scheduling_starts_at`, `enrollment_starts_at`, `enrollment_ends_at`, `late_enrollment_ends_at`, `credential_submission_cutoff`, `payment_deadline`, `adjustment_ends_at`
 
 **Admin Interface Contract**:
-- Target staff workflow is two-level calendar setup: create/select the Academic Year for the correct `education_level`, then create Terms under it. Terms remain the operational records used by services.
+- Target staff workflow is two-level College calendar setup: create/select the Academic Year, then create Terms under it. Terms remain the operational records used by services.
 - `AcademicYearResource` provides Registrar/Academic Head create/view/edit for parent Academic Year rows and blocks delete/bulk-delete. `TermResource` provides Registrar/Academic Head create/view/edit for child operational terms and requires Academic Year selection through the `academicYear` relationship.
 - `AcademicYearPolicy` reuses `manage-terms` for create/update and `view-global-records` for read-only visibility. Delete, restore, and force-delete are always denied to preserve calendar history.
-- The Academic Year interface must allow separate SHS and College records even when the label is the same academic year, because SHS follows DepEd-aligned references while College follows CHED/school-approved higher-education calendars.
+- The Academic Year interface must not expose SHS/College branching in the active deployment; College is the only offered level.
 - The Term interface must remain the place for operational dates and gates: class dates, enrollment dates, late-enrollment cutoff, credential-submission cutoff, payment deadline, adjustment cutoff, and scheduling start.
 
 **Phase Locking Middleware / Service Rules**:
-- **Enrollment Service**: Throws exceptions if current timestamp is outside `[enrollment_starts_at, enrollment_ends_at]` for the applicable `education_level`, if no approved admission-capacity plan resolves, or if required document grace cannot fit the configured credential cutoff.
+- **Enrollment Service**: Throws exceptions if current timestamp is outside `[enrollment_starts_at, enrollment_ends_at]` for the applicable College term, if no approved admission-capacity plan resolves, or if required document grace cannot fit the configured credential cutoff.
 - **Scheduling Service**: Faculty availability and draft generation are blocked if `scheduling_starts_at` is null or if current time > `scheduling_starts_at`.
 - **Adjustment Gate**: Enrollment-affecting edits (irregular placements, drop/adds, section transfers) are allowed only within configured term adjustment windows. Outside the window, the system hard-blocks edits unless an approved late-edit override path exists.
 - **Late Enrollment Gate**: If enabled, `late_enrollment_ends_at` is the final cutoff for any late-enrollment path; after this timestamp, no enrollment-affecting action is allowed.
 - **Credential Gate**: `credential_submission_cutoff` is the ordinary finalization boundary. A requirement-specific regulator strategy may resolve a different deadline, but a generic Registrar extension cannot silently exceed the applicable authorized boundary.
 - **Payment Deadline Gate**: `payment_deadline` controls the initial required payment cutoff for term activation/clearance workflows.
 
-**Per-Level Cutover Activation (Approved)**:
-- SHS migration cutover activates at the next configured SHS semester boundary for Phase 1. Current SIA evidence uses SHS 1st/2nd semester periods for curriculum/SOA operations; quarter labels remain grading-period evidence unless a future quarter-based scheduling change is approved.
+**College Cutover Activation (Approved)**:
 - College migration cutover activates at the next College semester boundary.
-- Cutover is level-scoped and must not be executed mid-term for either level.
+- Cutover must not be executed mid-term.
 
 **Required Cutover Config Entries Before F1 De-Deferral**:
-- `shs_cutover_effective_term` + `shs_cutover_effective_datetime`
 - `college_cutover_effective_term` + `college_cutover_effective_datetime`
 
 #### 3.18.1 Academic Load & Summer Scheduling Contracts (Deferred)
@@ -2422,7 +2396,7 @@ The academic calendar is separated into two hierarchical models to support diver
 **30-Unit Load Cap**:
 
 -   `AcademicLoadValidator` must reject any proposed regular-term enrollment load above **30 academic units**.
--   The validator must run for regular promotion, SHS irregular multi-section assignment, College irregular selection, transferee subject selection, Registrar manual assignment, and adjustment-period changes.
+-   The validator must run for regular promotion, College irregular selection, transferee subject selection, Registrar manual assignment, and adjustment-period changes.
 -   Registrar overrides cannot bypass the 30-unit cap under the approved policy. Any overload exception requires an Academic Head override policy and its own audit contract.
 -   Unit totals must be calculated from the authoritative curriculum/subject records, not from client-provided totals.
 
@@ -2465,8 +2439,6 @@ An internal key-value registry for application-level runtime settings. The table
 | `maintenance_eta` | `null` | ISO 8601 datetime string for estimated completion |
 | `installment_policy_defaults` | Versioned JSON object | Internal read-only fallback defaults for Accounting-managed installment policy setup. Dedicated `installment_policies` records are the operational source once configured; this key must not be treated as the authoritative per-student ledger. Referenced by FS §6.2.3. |
 | `admission_requirements` | Versioned JSON object | Transitional seeded draft only. The final-form contract is the typed Registrar-owned admission offering, requirement policy, document item, and publication workflow described in §1.3.1. Generic key/value editing must not become the policy-management UI. |
-| `shs_cutover_effective_term` | `null` | First SHS term that activates the new F1 calendar model (level-scoped cutover). |
-| `shs_cutover_effective_datetime` | `null` | Timestamp when SHS cutover becomes enforceable in runtime gate checks. |
 | `college_cutover_effective_term` | `null` | First College term that activates the new F1 calendar model (level-scoped cutover). |
 | `college_cutover_effective_datetime` | `null` | Timestamp when College cutover becomes enforceable in runtime gate checks. |
 
@@ -2682,10 +2654,8 @@ class LegacyGradesImport implements ToCollection, WithHeadingRow, WithValidation
             'school_year' => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
             'term' => ['required', 'string'],
             'subject_code' => ['required', 'string', 'exists:subjects,code'],
-            'raw_score' => ['required_if:education_level,college', 'prohibited_if:education_level,shs', 'nullable', 'numeric', 'between:0,100'],
-            'transmuted_grade' => ['required_if:education_level,shs', 'prohibited_if:education_level,college', 'nullable', 'numeric', 'between:60,100'],
+            'raw_score' => ['required', 'numeric', 'between:0,100'],
             'remarks' => ['nullable', 'in:Passed,Failed,INC'],
-            'education_level' => ['required', 'in:shs,college'],
         ];
     }
 
@@ -2697,7 +2667,7 @@ class LegacyGradesImport implements ToCollection, WithHeadingRow, WithValidation
         return [
             'lrn.exists' => 'No student found with LRN :input.',
             'subject_code.exists' => 'Subject code :input does not exist in the curriculum.',
-            'transmuted_grade.between' => 'Transmuted grade must be between 60 and 100 for SHS.',
+            'raw_score.between' => 'Raw score must be between 0 and 100 for College grade imports.',
         ];
     }
 }
@@ -2916,7 +2886,7 @@ public function validateHeaders(Collection $rows, array $expectedHeaders): void
 
 - `getEnrollmentStats()`: Counts enrollments by status for the given term. Maps directly to FS §8.4 Enrollment row.
 - `getFinancialStats()`: `collection_rate = (total_revenue / (total_revenue + outstanding)) * 100`. Revenue is sum of confirmed payments; outstanding is sum of unpaid ledger balances. Maps to FS §8.4 Financial row.
-- `getAcademicStats()`: Pass threshold is grade ≤ 3.00 (College) or transmuted grade ≥ 75 (SHS). `pass_rate = (pass_count / (pass_count + fail_count)) * 100`. Grouped by subject and teacher. Maps to FS §8.4 Academic row.
+- `getAcademicStats()`: Pass/fail counts use the resolved College grading-profile remarks or equivalent-grade threshold. `pass_rate = (pass_count / (pass_count + fail_count)) * 100`. Grouped by subject and teacher. Maps to FS §8.4 Academic row.
 - `getEnrollmentTrends()`: Returns the last N terms' enrollment counts for Year-over-Year comparison charts. Maps to FS §8.4 History feature.
 
 #### 3.21.2 Filament Widget Architecture
@@ -3571,7 +3541,19 @@ Use Google Vision `DOCUMENT_TEXT_DETECTION` for school records and IDs. The OCR 
 
 
 ```php
-class TransfereeDetectionService{    public function detectFromReportCard($ocrText, $selectedGradeLevel): bool    {        // Check if document contains "Grade 11" completion indicators        $grade11Keywords = [            'grade 11',            'eleventh grade',            'year 11',            'g11',        ];                $completedIndicators = [            'passed',            'completed',            'promoted',            'final grade',        ];                $textLower = strtolower($ocrText);                $hasGrade11 = collect($grade11Keywords)->contains(fn($kw) => str_contains($textLower, $kw));        $hasCompletion = collect($completedIndicators)->contains(fn($ind) => str_contains($textLower, $ind));                // Auto-detect transferee if:        // 1. Document shows Grade 11 completion        // 2. Applicant selected Grade 12 or College        if ($hasGrade11 && $hasCompletion) {            if (in_array($selectedGradeLevel, ['grade_12', 'college_year_1', 'college_year_2'])) {                return true; // Transferee detected            }        }                return false; // Not a transferee based on document    }}
+class TransfereeDetectionService
+{
+    public function detectFromPriorRecord(string $ocrText, string $selectedCollegeRoute): bool
+    {
+        $text = strtolower($ocrText);
+
+        $collegeTransferSignals = ['transcript of records', 'tor', 'units earned', 'credited units'];
+        $hasTransferSignal = collect($collegeTransferSignals)
+            ->contains(fn (string $keyword): bool => str_contains($text, $keyword));
+
+        return $selectedCollegeRoute === 'transfer' && $hasTransferSignal;
+    }
+}
 ```
 
 **Note**: Manual override is available for Registrar if auto-detection fails.
@@ -3587,7 +3569,7 @@ System does **NOT** auto-detect document type.
 
 
 ```blade
-<select wire:model="documentType" class="form-input">    <option value="">Select Document Type</option>    <option value="psa">PSA Birth Certificate</option>    <option value="report_card">Report Card</option>    <option value="diploma">Diploma</option>    <option value="f137">Form 137</option>    <option value="good_moral">Good Moral Character</option>    <option value="af5">AF5 (Grade 11)</option></select>
+<select wire:model="documentType" class="form-input">    <option value="">Select Document Type</option>    <option value="psa">PSA Birth Certificate</option>    <option value="form_138">Form 138 / Prior-School Report Card</option>    <option value="diploma">Diploma / Certificate of Graduation</option>    <option value="f137">Form 137 / SF10</option>    <option value="tor">Transcript of Records</option>    <option value="good_moral">Good Moral Character</option></select>
 ```
 
 ---

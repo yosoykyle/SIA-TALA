@@ -21,8 +21,6 @@ class AdmissionCapacityPlan extends Model
 
     public const ScopeCampus = 'campus';
 
-    public const ScopeEducationLevel = 'education_level';
-
     public const ScopeProgram = 'program';
 
     public const ScopeYearLevel = 'year_level';
@@ -48,21 +46,9 @@ class AdmissionCapacityPlan extends Model
     {
         return [
             self::ScopeCampus => 'Campus',
-            self::ScopeEducationLevel => 'Education level',
             self::ScopeProgram => 'Program',
-            self::ScopeYearLevel => 'Year/grade',
+            self::ScopeYearLevel => 'Year level',
             self::ScopeDeliverySetup => 'Delivery setup',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public static function educationLevelOptions(): array
-    {
-        return [
-            'shs' => 'SHS',
-            'college' => 'College',
         ];
     }
 
@@ -72,7 +58,6 @@ class AdmissionCapacityPlan extends Model
     protected $fillable = [
         'term_id',
         'scope_type',
-        'education_level',
         'program_id',
         'year_level',
         'delivery_setup',
@@ -138,7 +123,6 @@ class AdmissionCapacityPlan extends Model
         return collect([
             $this->term?->term_name,
             self::scopeTypeOptions()[$this->scope_type] ?? $this->scope_type,
-            $this->education_level,
             $this->program?->code,
             $this->year_level,
             $this->delivery_setup,

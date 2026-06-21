@@ -13,7 +13,7 @@ class AccountingConfigurationScopeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_accounting_configuration_forms_use_canonical_year_grade_scope_selects(): void
+    public function test_accounting_configuration_forms_use_college_only_year_level_scope_selects(): void
     {
         $feeTemplateForm = file_get_contents(app_path('Filament/Resources/FeeTemplates/Schemas/FeeTemplateForm.php'));
         $installmentPolicyForm = file_get_contents(app_path('Filament/Resources/InstallmentPolicies/Schemas/InstallmentPolicyForm.php'));
@@ -23,9 +23,11 @@ class AccountingConfigurationScopeTest extends TestCase
 
         foreach ([$feeTemplateForm, $installmentPolicyForm] as $form) {
             $this->assertStringContainsString("Select::make('year_level')", $form);
-            $this->assertStringContainsString("->placeholder('All year/grade levels')", $form);
+            $this->assertStringContainsString("->placeholder('All year levels')", $form);
+            $this->assertStringContainsString('->options(', $form);
+            $this->assertStringNotContainsString("Hidden::make('education_level')", $form);
+            $this->assertStringNotContainsString("Select::make('education_level')", $form);
             $this->assertStringNotContainsString("TextInput::make('year_level')", $form);
-            $this->assertStringContainsString("->afterStateUpdated(fn (Set \$set): null => \$set('year_level', null))", $form);
         }
 
         $this->assertSame([
@@ -33,12 +35,7 @@ class AccountingConfigurationScopeTest extends TestCase
             '2nd Year' => '2nd Year',
             '3rd Year' => '3rd Year',
             '4th Year' => '4th Year',
-        ], FeeTemplate::yearLevelOptionsFor('college'));
-
-        $this->assertSame([
-            'Grade 11' => 'Grade 11',
-            'Grade 12' => 'Grade 12',
-        ], InstallmentPolicy::yearLevelOptionsFor('shs'));
+        ], FeeTemplate::yearLevelOptions());
     }
 
     public function test_fee_templates_allow_only_one_active_template_per_scope(): void
@@ -47,7 +44,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         FeeTemplate::query()->create([
             'name' => 'College Standard',
-            'education_level' => ' College ',
             'program_id' => $program->id,
             'year_level' => ' 1st Year ',
             'tuition_fee' => '10000.00',
@@ -62,7 +58,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         FeeTemplate::query()->create([
             'name' => 'Duplicate Active Scope',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '12000.00',
@@ -80,7 +75,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         FeeTemplate::query()->create([
             'name' => 'Active Scope',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '10000.00',
@@ -93,7 +87,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         $inactiveTemplate = FeeTemplate::query()->create([
             'name' => 'Inactive Historical Scope',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'tuition_fee' => '12000.00',
@@ -113,7 +106,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         InstallmentPolicy::query()->create($this->installmentPolicyData([
             'name' => 'College Policy',
-            'education_level' => ' College ',
             'program_id' => $program->id,
             'year_level' => ' 1st Year ',
             'is_active' => true,
@@ -123,7 +115,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         InstallmentPolicy::query()->create($this->installmentPolicyData([
             'name' => 'Duplicate Active Policy',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'is_active' => true,
@@ -136,7 +127,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         InstallmentPolicy::query()->create($this->installmentPolicyData([
             'name' => 'Active Policy',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'is_active' => true,
@@ -144,7 +134,6 @@ class AccountingConfigurationScopeTest extends TestCase
 
         $inactivePolicy = InstallmentPolicy::query()->create($this->installmentPolicyData([
             'name' => 'Inactive Historical Policy',
-            'education_level' => 'college',
             'program_id' => $program->id,
             'year_level' => '1st Year',
             'is_active' => false,
@@ -161,7 +150,6 @@ class AccountingConfigurationScopeTest extends TestCase
     {
         return array_merge([
             'name' => 'Default Policy',
-            'education_level' => 'college',
             'program_id' => null,
             'year_level' => null,
             'max_months' => 10,

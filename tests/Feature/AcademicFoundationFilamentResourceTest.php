@@ -60,7 +60,8 @@ class AcademicFoundationFilamentResourceTest extends TestCase
         $roomForm = $this->resourceSource('Rooms/Schemas/RoomForm.php');
 
         $this->assertStringContainsString("TextInput::make('academic_year')", $academicYearForm);
-        $this->assertStringContainsString("Select::make('education_level')", $academicYearForm);
+        $this->assertStringNotContainsString("Hidden::make('education_level')", $academicYearForm);
+        $this->assertStringNotContainsString("Select::make('education_level')", $academicYearForm);
         $this->assertStringContainsString("DatePicker::make('school_year_start_date')", $academicYearForm);
         $this->assertStringContainsString("DatePicker::make('school_year_end_date')", $academicYearForm);
         $this->assertStringContainsString("Textarea::make('reference_note')", $academicYearForm);
@@ -148,24 +149,22 @@ class AcademicFoundationFilamentResourceTest extends TestCase
         Livewire::test(CreateAcademicYear::class)
             ->fillForm([
                 'academic_year' => '2026-2027',
-                'education_level' => 'shs',
                 'school_year_start_date' => '2026-06-01',
                 'school_year_end_date' => '2027-03-31',
                 'status' => 'draft',
-                'reference_note' => 'DepEd-aligned Pre-UAT SHS calendar.',
+                'reference_note' => 'College calendar fixture.',
             ])
             ->call('create')
             ->assertHasNoFormErrors();
 
         $academicYear = AcademicYear::query()
             ->where('academic_year', '2026-2027')
-            ->where('education_level', 'shs')
             ->firstOrFail();
 
         Livewire::test(CreateTerm::class)
             ->fillForm([
                 'academic_year_id' => $academicYear->id,
-                'term_name' => 'SHS 1st Sem AY 2026-2027',
+                'term_name' => 'College 1st Sem AY 2026-2027',
                 'term_type' => 'semester',
                 'is_active' => true,
                 'term_start_date' => '2026-06-01',
@@ -183,7 +182,7 @@ class AcademicFoundationFilamentResourceTest extends TestCase
             ->assertHasNoFormErrors();
 
         $term = Term::query()
-            ->where('term_name', 'SHS 1st Sem AY 2026-2027')
+            ->where('term_name', 'College 1st Sem AY 2026-2027')
             ->firstOrFail();
 
         $this->assertTrue($term->academicYear->is($academicYear));

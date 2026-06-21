@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -86,25 +85,6 @@ class Grade extends Model
     public function reopenedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reopened_by');
-    }
-
-    public function usesShsGrading(): bool
-    {
-        $this->loadMissing([
-            'enrollment.studentProfile.program',
-            'enrollmentSubject.enrollment.studentProfile.program',
-        ]);
-
-        if ($this->enrollmentSubject instanceof EnrollmentSubject) {
-            return $this->enrollmentSubject->usesShsGrading();
-        }
-
-        $studentProfile = $this->enrollment?->studentProfile;
-        $educationLevel = Str::of((string) $studentProfile?->education_level)->lower()->squish()->toString();
-        $department = Str::of((string) $studentProfile?->program?->department)->lower()->squish()->toString();
-
-        return in_array($educationLevel, ['shs', 'senior high school'], true)
-            || in_array($department, ['shs', 'senior high school'], true);
     }
 
     public function getActivitylogOptions(): LogOptions

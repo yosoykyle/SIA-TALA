@@ -14,7 +14,6 @@ use stdClass;
 class GradeEncodingService
 {
     public function __construct(
-        private readonly SHSGradingService $shsGrading,
         private readonly CollegeGradingService $collegeGrading,
     ) {}
 
@@ -42,9 +41,7 @@ class GradeEncodingService
                 ]);
             }
 
-            $attributes = $this->isShs($enrollment)
-                ? $this->shsAttributes($periodGrades)
-                : $this->collegeAttributes($periodGrades);
+            $attributes = $this->collegeAttributes($periodGrades);
 
             $grade = $this->persistGrade($grade, $enrollmentSubject, $enrollment, $actor, $attributes);
             $this->recordAudit($grade, $actor, 'grade_encoded', $attributes['audit_payload'], $timestamp);
@@ -124,8 +121,6 @@ class GradeEncodingService
                 'enrollments.term_id',
                 'enrollments.section_id',
                 'enrollments.student_profile_id',
-                'student_profiles.education_level as student_education_level',
-                'programs.department as program_department',
                 'terms.term_end_date',
             ])
             ->lockForUpdate()
@@ -205,32 +200,6 @@ class GradeEncodingService
      * @param  array<string, int|float|string|null>  $periodGrades
      * @return array{prelim_grade:string, midterm_grade:string, final_grade:string, grade:string, remarks:string, is_inc:bool, inc_expires_at:null, audit_payload:array<string, mixed>}
      */
-    private function shsAttributes(array $periodGrades): array
-    {
-        $result = $this->shsGrading->calculateFinalGrade($periodGrades);
-
-        return [
-            // V1 schema stores the active-semester SHS quarters in the first two period columns.
-            'prelim_grade' => $result['q1'],
-            'midterm_grade' => $result['q2'],
-            'final_grade' => $result['final_grade'],
-            'grade' => $result['final_grade'],
-            'remarks' => $result['remarks'],
-            'is_inc' => false,
-            'inc_expires_at' => null,
-            'audit_payload' => [
-                'mode' => 'shs',
-                'q1' => $result['q1'],
-                'q2' => $result['q2'],
-                'final_grade' => $result['final_grade'],
-            ],
-        ];
-    }
-
-    /**
-     * @param  array<string, int|float|string|null>  $periodGrades
-     * @return array{prelim_grade:string, midterm_grade:string, final_grade:string, grade:string, remarks:string, is_inc:bool, inc_expires_at:null, audit_payload:array<string, mixed>}
-     */
     private function collegeAttributes(array $periodGrades): array
     {
         $result = $this->collegeGrading->calculateFinalGrade($periodGrades);
@@ -297,14 +266,5 @@ class GradeEncodingService
             ])
             ->createdAt($recordedAt)
             ->log('Grade encoding updated.');
-    }
-
-    private function isShs(stdClass $enrollment): bool
-    {
-        $educationLevel = mb_strtolower((string) $enrollment->student_education_level);
-        $department = mb_strtolower((string) $enrollment->program_department);
-
-        return in_array($educationLevel, ['shs', 'senior high school'], true)
-            || in_array($department, ['shs', 'senior high school'], true);
     }
 }

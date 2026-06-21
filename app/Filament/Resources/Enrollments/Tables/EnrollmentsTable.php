@@ -37,11 +37,6 @@ class EnrollmentsTable
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('studentProfile.education_level')
-                    ->label('Level')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => strtoupper((string) $state))
-                    ->sortable(),
                 TextColumn::make('studentProfile.program.code')
                     ->label('Program')
                     ->placeholder('-')
@@ -69,7 +64,7 @@ class EnrollmentsTable
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('year_level')
-                    ->label('Year/Grade')
+                    ->label('Year Level')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('studentProfile.current_balance')

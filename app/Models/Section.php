@@ -37,8 +37,6 @@ class Section extends Model
     public static function yearLevelOptions(): array
     {
         return [
-            'Grade 11' => 'Grade 11',
-            'Grade 12' => 'Grade 12',
             '1st Year' => '1st Year',
             '2nd Year' => '2nd Year',
             '3rd Year' => '3rd Year',

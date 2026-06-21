@@ -93,7 +93,6 @@ class StudentDashboardService
             'user_id' => $studentProfile->user_id !== null ? (int) $studentProfile->user_id : null,
             'name' => $studentProfile->user?->name,
             'student_id' => $studentProfile->student_id,
-            'education_level' => $studentProfile->education_level,
             'program_id' => $studentProfile->program_id !== null ? (int) $studentProfile->program_id : null,
             'program_code' => $studentProfile->program?->code,
             'program_name' => $studentProfile->program?->name,

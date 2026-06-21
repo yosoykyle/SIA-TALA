@@ -52,7 +52,6 @@ class AdmissionReadinessDashboardService
         $offerings = AdmissionOffering::query()
             ->with(['program', 'requirementPolicies.documentRequirementItems'])
             ->where('term_id', $selectedTerm->id)
-            ->orderBy('education_level')
             ->orderBy('program_id')
             ->orderBy('year_level')
             ->orderBy('name')
@@ -141,7 +140,6 @@ class AdmissionReadinessDashboardService
         return [
             'id' => (int) $offering->id,
             'label' => $offering->displayLabel(),
-            'education_level' => $offering->education_level,
             'program' => $offering->program?->code ?? 'All programs',
             'year_level' => $offering->year_level ?? 'All years',
             'status' => $offering->status,
@@ -341,10 +339,6 @@ class AdmissionReadinessDashboardService
                     ->orWhere('effective_until', '>=', $timestamp);
             })
             ->where(function (Builder $builder) use ($offering): void {
-                $builder->whereNull('education_level')
-                    ->orWhere('education_level', $offering->education_level);
-            })
-            ->where(function (Builder $builder) use ($offering): void {
                 $builder->whereNull('program_id');
 
                 if ($offering->program_id !== null) {
@@ -358,9 +352,8 @@ class AdmissionReadinessDashboardService
                     $builder->orWhere('year_level', $offering->year_level);
                 }
             })
-            ->orderByRaw('CASE scope_type WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 WHEN ? THEN 5 ELSE 9 END', [
+            ->orderByRaw('CASE scope_type WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 ELSE 9 END', [
                 AdmissionCapacityPlan::ScopeCampus,
-                AdmissionCapacityPlan::ScopeEducationLevel,
                 AdmissionCapacityPlan::ScopeProgram,
                 AdmissionCapacityPlan::ScopeYearLevel,
                 AdmissionCapacityPlan::ScopeDeliverySetup,

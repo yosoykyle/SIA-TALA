@@ -14,10 +14,6 @@ class AcademicYearInfolist
             Section::make('Academic Year')
                 ->schema([
                     TextEntry::make('academic_year')->label('Academic Year'),
-                    TextEntry::make('education_level')
-                        ->label('Education Level')
-                        ->badge()
-                        ->formatStateUsing(fn (?string $state, $record): string => $record->educationLevelLabel()),
                     TextEntry::make('status')
                         ->badge()
                         ->formatStateUsing(fn (?string $state, $record): string => $record->statusLabel())

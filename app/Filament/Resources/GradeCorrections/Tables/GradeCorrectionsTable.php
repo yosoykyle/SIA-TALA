@@ -212,41 +212,23 @@ class GradeCorrectionsTable
             ->schema([
                 TextInput::make('college_prelim')
                     ->label('College Prelim Raw Score')
-                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
-                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required()
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
                 TextInput::make('college_midterm')
                     ->label('College Midterm Raw Score')
-                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
-                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required()
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100),
                 TextInput::make('college_final')
                     ->label('College Final Raw Score')
-                    ->visible(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
-                    ->required(fn (?GradeCorrection $record): bool => self::usesCollegeGrading($record))
+                    ->required()
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100)
                     ->helperText('The final raw average, equivalent grade, and remarks are calculated by the same College grading service used by Faculty grade encoding.'),
-                TextInput::make('shs_q1')
-                    ->label('SHS Quarter 1 Grade')
-                    ->visible(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
-                    ->required(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
-                    ->numeric()
-                    ->minValue(60)
-                    ->maxValue(100),
-                TextInput::make('shs_q2')
-                    ->label('SHS Quarter 2 Grade')
-                    ->visible(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
-                    ->required(fn (?GradeCorrection $record): bool => self::usesShsGrading($record))
-                    ->numeric()
-                    ->minValue(60)
-                    ->maxValue(100)
-                    ->helperText('The final SHS grade and remarks are calculated by the same SHS grading service used by Faculty grade encoding.'),
                 Textarea::make('resolution_notes')
                     ->label('Resolution Notes')
                     ->helperText('The Academic Head approval reason is captured from the in-system approval action; this field records the Registrar resolution note.')
@@ -343,7 +325,7 @@ class GradeCorrectionsTable
     {
         $payload = [];
 
-        foreach (['college_prelim', 'college_midterm', 'college_final', 'shs_q1', 'shs_q2'] as $field) {
+        foreach (['college_prelim', 'college_midterm', 'college_final'] as $field) {
             if (($data[$field] ?? null) === null || $data[$field] === '') {
                 continue;
             }
@@ -352,18 +334,6 @@ class GradeCorrectionsTable
         }
 
         return $payload;
-    }
-
-    private static function usesCollegeGrading(?GradeCorrection $record): bool
-    {
-        return $record?->grade !== null && ! self::usesShsGrading($record);
-    }
-
-    private static function usesShsGrading(?GradeCorrection $record): bool
-    {
-        $record?->loadMissing('grade');
-
-        return $record?->grade?->usesShsGrading() ?? false;
     }
 
     /**

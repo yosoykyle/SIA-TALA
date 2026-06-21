@@ -17,18 +17,16 @@ class ProgramsTable
             ->columns([
                 TextColumn::make('code')->searchable()->sortable()->weight('bold'),
                 TextColumn::make('name')->label('Program')->searchable()->sortable(),
-                TextColumn::make('department')->label('Education Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
+                TextColumn::make('department')->label('Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
                     'college' => 'College',
-                    'shs' => 'Senior High School',
                     default => str((string) $state)->headline()->toString(),
                 })->searchable(),
                 IconColumn::make('is_active')->label('Active')->boolean(),
                 TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('department')->label('Education Level')->options([
+                SelectFilter::make('department')->label('Level')->options([
                     'college' => 'College',
-                    'shs' => 'Senior High School',
                 ]),
                 SelectFilter::make('is_active')->label('Status')->options([
                     '1' => 'Active',

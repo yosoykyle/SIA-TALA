@@ -20,7 +20,7 @@ class SectionInfolist
                     ->label('Curriculum')
                     ->placeholder('-'),
                 TextEntry::make('year_level')
-                    ->label('Year / Grade')
+                    ->label('Year Level')
                     ->placeholder('-'),
                 TextEntry::make('curriculum_period')
                     ->label('Curriculum Period')

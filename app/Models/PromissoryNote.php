@@ -85,7 +85,6 @@ class PromissoryNote extends Model
         return collect([
             $studentProfile->student_id,
             $studentProfile->user?->name,
-            $studentProfile->education_level,
             $studentProfile->year_level,
         ])
             ->filter(fn (?string $part): bool => filled($part))

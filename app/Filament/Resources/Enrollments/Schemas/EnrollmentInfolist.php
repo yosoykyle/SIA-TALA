@@ -25,16 +25,12 @@ class EnrollmentInfolist
                                 TextEntry::make('studentProfile.program.name')
                                     ->label('Program')
                                     ->placeholder('-'),
-                                TextEntry::make('studentProfile.education_level')
-                                    ->label('Education Level')
-                                    ->badge()
-                                    ->formatStateUsing(fn (?string $state): string => strtoupper((string) $state)),
                                 TextEntry::make('student_type')
                                     ->label('Student Type')
                                     ->badge()
                                     ->placeholder('-'),
                                 TextEntry::make('year_level')
-                                    ->label('Year/Grade')
+                                    ->label('Year Level')
                                     ->placeholder('-'),
                             ]),
                     ]),

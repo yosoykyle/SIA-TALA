@@ -10,25 +10,11 @@ trait HasAccountingConfigurationScope
     /**
      * @var array<string, string>
      */
-    public const EducationLevelOptions = [
-        'shs' => 'SHS',
-        'college' => 'College',
-    ];
-
-    /**
-     * @var array<string, array<string, string>>
-     */
     public const YearLevelOptions = [
-        'shs' => [
-            'Grade 11' => 'Grade 11',
-            'Grade 12' => 'Grade 12',
-        ],
-        'college' => [
-            '1st Year' => '1st Year',
-            '2nd Year' => '2nd Year',
-            '3rd Year' => '3rd Year',
-            '4th Year' => '4th Year',
-        ],
+        '1st Year' => '1st Year',
+        '2nd Year' => '2nd Year',
+        '3rd Year' => '3rd Year',
+        '4th Year' => '4th Year',
     ];
 
     protected static function bootHasAccountingConfigurationScope(): void
@@ -51,15 +37,9 @@ trait HasAccountingConfigurationScope
     /**
      * @return array<string, string>
      */
-    public static function yearLevelOptionsFor(?string $educationLevel): array
+    public static function yearLevelOptions(): array
     {
-        $educationLevel = self::normalizeEducationLevel($educationLevel);
-
-        if ($educationLevel !== null && isset(self::YearLevelOptions[$educationLevel])) {
-            return self::YearLevelOptions[$educationLevel];
-        }
-
-        return array_merge(...array_values(self::YearLevelOptions));
+        return self::YearLevelOptions;
     }
 
     /**
@@ -68,7 +48,6 @@ trait HasAccountingConfigurationScope
      */
     public static function normalizeScopeData(array $data): array
     {
-        $data['education_level'] = self::normalizeEducationLevel($data['education_level'] ?? null);
         $data['program_id'] = self::normalizeNullableInteger($data['program_id'] ?? null);
         $data['year_level'] = self::normalizeNullableString($data['year_level'] ?? null);
 
@@ -76,13 +55,12 @@ trait HasAccountingConfigurationScope
     }
 
     /**
-     * @param  array{education_level:string|null, program_id:int|null, year_level:string|null}  $scope
+     * @param  array{program_id:int|null, year_level:string|null}  $scope
      */
     public static function activeScopeConflictExists(array $scope, ?int $ignoreId = null): bool
     {
         $query = self::query()
-            ->where('is_active', true)
-            ->where('education_level', $scope['education_level']);
+            ->where('is_active', true);
 
         $scope['program_id'] === null
             ? $query->whereNull('program_id')
@@ -104,33 +82,23 @@ trait HasAccountingConfigurationScope
     protected function normalizeAccountingScope(): void
     {
         $scope = self::normalizeScopeData([
-            'education_level' => $this->education_level,
             'program_id' => $this->program_id,
             'year_level' => $this->year_level,
         ]);
 
-        $this->education_level = $scope['education_level'];
         $this->program_id = $scope['program_id'];
         $this->year_level = $scope['year_level'];
     }
 
     /**
-     * @return array{education_level:string|null, program_id:int|null, year_level:string|null}
+     * @return array{program_id:int|null, year_level:string|null}
      */
     protected function accountingScopeAttributes(): array
     {
         return [
-            'education_level' => $this->education_level,
             'program_id' => $this->program_id,
             'year_level' => $this->year_level,
         ];
-    }
-
-    private static function normalizeEducationLevel(mixed $value): ?string
-    {
-        $normalized = self::normalizeNullableString($value);
-
-        return $normalized !== null ? mb_strtolower($normalized) : null;
     }
 
     private static function normalizeNullableInteger(mixed $value): ?int

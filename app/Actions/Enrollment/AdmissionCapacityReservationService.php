@@ -85,10 +85,6 @@ class AdmissionCapacityReservationService
                     ->orWhere('effective_until', '>=', CarbonImmutable::now(config('app.timezone')));
             })
             ->where(function (Builder $builder) use ($studentProfile): void {
-                $builder->whereNull('education_level')
-                    ->orWhere('education_level', $studentProfile->education_level);
-            })
-            ->where(function (Builder $builder) use ($studentProfile): void {
                 $builder->whereNull('program_id');
 
                 if ($studentProfile->program_id !== null) {
@@ -109,9 +105,8 @@ class AdmissionCapacityReservationService
                     $builder->orWhere('delivery_setup', $enrollment->modality);
                 }
             })
-            ->orderByRaw('CASE scope_type WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 WHEN ? THEN 5 ELSE 9 END', [
+            ->orderByRaw('CASE scope_type WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 WHEN ? THEN 4 ELSE 9 END', [
                 AdmissionCapacityPlan::ScopeCampus,
-                AdmissionCapacityPlan::ScopeEducationLevel,
                 AdmissionCapacityPlan::ScopeProgram,
                 AdmissionCapacityPlan::ScopeYearLevel,
                 AdmissionCapacityPlan::ScopeDeliverySetup,
@@ -133,7 +128,6 @@ class AdmissionCapacityReservationService
         return [
             'plan_scope_type' => $plan->scope_type,
             'term_id' => $enrollment->term_id,
-            'education_level' => $studentProfile->education_level,
             'program_id' => $studentProfile->program_id,
             'year_level' => $enrollment->year_level,
             'delivery_setup' => $enrollment->modality,
