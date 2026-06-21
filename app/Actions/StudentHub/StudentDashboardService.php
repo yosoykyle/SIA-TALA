@@ -2,7 +2,6 @@
 
 namespace App\Actions\StudentHub;
 
-use App\Models\DocumentRequest;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
 use App\Models\Grade;
@@ -30,7 +29,7 @@ class StudentDashboardService
      *     schedule:array{current:list<array<string,mixed>>},
      *     financials:array<string,mixed>,
      *     grades:array{terms:list<array<string,mixed>>},
-     *     requests:array{document_requests:list<array<string,mixed>>,service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>},
+     *     requests:array{service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>},
      *     holds:list<array<string,mixed>>,
      *     notifications:list<array<string,mixed>>,
      *     help:array<string,mixed>,
@@ -311,30 +310,11 @@ class StudentDashboardService
     }
 
     /**
-     * @return array{document_requests:list<array<string,mixed>>,service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>}
+     * @return array{service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>}
      */
     private function requests(StudentProfile $studentProfile): array
     {
         return [
-            'document_requests' => DocumentRequest::query()
-                ->with('term')
-                ->where('student_profile_id', $studentProfile->id)
-                ->latest('id')
-                ->limit(5)
-                ->get()
-                ->map(fn (DocumentRequest $request): array => [
-                    'document_request_id' => (int) $request->id,
-                    'term_id' => $request->term_id !== null ? (int) $request->term_id : null,
-                    'term_name' => $request->term?->term_name,
-                    'document_type' => $request->document_type,
-                    'document_type_label' => DocumentRequest::documentTypeLabel($request->document_type),
-                    'status' => $request->status,
-                    'delivery_mode' => $request->delivery_mode,
-                    'shipping_fee' => $request->shipping_fee !== null ? $this->money->normalize((string) $request->shipping_fee) : null,
-                    'created_at' => $request->created_at?->toDateTimeString(),
-                ])
-                ->values()
-                ->all(),
             'service_requests' => ServiceRequest::query()
                 ->with('term')
                 ->where('student_profile_id', $studentProfile->id)

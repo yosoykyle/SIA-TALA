@@ -6,7 +6,6 @@ use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
 use App\Models\DeliveryPattern;
-use App\Models\DocumentRequest;
 use App\Models\DocumentUpload;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSubject;
@@ -424,22 +423,6 @@ class PreUatScenarioSeeder extends Seeder
             ],
         );
 
-        DocumentRequest::query()->updateOrCreate(
-            [
-                'student_profile_id' => $studentProfile->id,
-                'term_id' => $term->id,
-                'document_type' => DocumentRequest::TypeCertificateOfEnrollment,
-            ],
-            [
-                'status' => DocumentRequest::StatusProcessing,
-                'is_free_request' => false,
-                'delivery_consent' => false,
-                'delivery_mode' => DocumentRequest::DeliveryModePickup,
-                'created_by' => $studentUser->id,
-                'updated_by' => $registrar->id,
-            ],
-        );
-
         $firstEnrollmentSubject = EnrollmentSubject::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('subject_id', $subjects[0]->id)
@@ -495,16 +478,6 @@ class PreUatScenarioSeeder extends Seeder
                 'details' => 'Pre-UAT service request scenario.',
                 'attachment_paths' => ['pre-uat/service-request-evidence.pdf'],
                 'assigned_to' => $registrar->id,
-            ],
-        );
-
-        FaqEntry::query()->updateOrCreate(
-            ['question' => 'How do I request a document during Pre-UAT?'],
-            [
-                'answer' => 'Use the seeded Pre-UAT document request scenario to verify Registrar and Accounting actions.',
-                'category' => FaqEntry::CategoryDocumentsRequests,
-                'sort_order' => 10,
-                'is_published' => true,
             ],
         );
 

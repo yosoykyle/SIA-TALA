@@ -3,7 +3,6 @@
 use App\Jobs\ProcessInstallmentOverduesJob;
 use App\Jobs\ProcessPromissoryNoteDeadlinesJob;
 use App\Jobs\ProcessRetentionDocumentUndertakingsJob;
-use App\Jobs\ShippingFeeEnforcerJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -15,11 +14,6 @@ Artisan::command('inspire', function () {
 Schedule::job(new ProcessInstallmentOverduesJob)
     ->name('installments.process-overdues')
     ->dailyAt('00:10')
-    ->withoutOverlapping();
-
-Schedule::job(new ShippingFeeEnforcerJob)
-    ->name('document-requests.shipping-fee-enforcer')
-    ->dailyAt('00:30')
     ->withoutOverlapping();
 
 Schedule::job(new ProcessPromissoryNoteDeadlinesJob)

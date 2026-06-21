@@ -38,7 +38,6 @@ class AccountingAdjustment extends Model
         return [
             'assessment',
             'discount',
-            'shipping_fee',
             'installment_penalty',
             'penalty',
             'payment',

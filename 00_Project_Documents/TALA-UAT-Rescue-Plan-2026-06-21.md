@@ -65,7 +65,7 @@ The rescue baseline follows common SIS lifecycle patterns rather than inventing 
 | Ellucian SIS overview: SIS platforms commonly cover admissions, enrollment, course scheduling, grades/academic records, performance tracking, and financial management. | Keep admission, enrollment, scheduling/classes, grades/records, and finance in core scope. |
 | EdVisorly SIS overview: SIS acts as the authoritative record from application through graduation/alumni status, including enrollment status, academic history, grades, transcripts, degree progress, and financial standing. | Keep applicant-to-completion lifecycle and student record as the baseline spine. |
 | OpenEduCat higher-education SIS comparison: higher education needs transcript/credit-transfer, prerequisite, registration, records, billing, and compliance support, while K-12 emphasizes grade-level progression. | Keep College credit/prerequisite behavior in active scope; archived SHS grade-level progression evidence is historical only. Defer advanced transcript and compliance automation. |
-| Open-source/campus-management feature surveys consistently include admission/enrollment, fee/payment tracking, timetable/scheduling, exams/grades, student records, and role communication. | Treat advanced dashboards, courier automation, PWA polish, and external agency submission as enhancements unless needed for the demo path. |
+| Open-source/campus-management feature surveys consistently include admission/enrollment, fee/payment tracking, timetable/scheduling, exams/grades, student records, and role communication. | Prioritize those SIS foundations and approved integrations. Treat advanced dashboards, PWA polish, and external agency submission as enhancements unless needed for the demo path. |
 
 Sources: Ellucian SIS overview, EdVisorly SIS overview, OpenEduCat SIS guidance, and current open-source/campus-management feature surveys reviewed on 2026-06-21.
 
@@ -84,7 +84,7 @@ Sources: Ellucian SIS overview, EdVisorly SIS overview, OpenEduCat SIS guidance,
 | Student record/profile | Core | Central SIS record after intake and enrollment. |
 | Faculty class list and grade encoding/finalization | Core | Required to show academic operation after enrollment. |
 | Student Hub read-only status/profile/schedule/grades/balance | Core-lite | Needed as student-facing proof, but advanced polish and write actions can be deferred. |
-| Document request catalog and fulfillment | Supporting | Important Registrar flow, but full SLA/courier automation can be deferred if not presentation-critical. |
+| Document-request portal/catalog/fulfillment | Removed | Manual institutional process remains outside TALA; remove its runtime, UI, schema, tests, and UAT cases under SDD-00D. |
 | Enrollment adjustment workflows | Supporting/defer | Drop, withdrawal, shift, and transfer are valid SIS flows but not first-path UAT blockers unless already testable. |
 | Graduation evaluation/completion status | Core boundary | Need completion-state proof or boundary, but full diploma/SO/government submission can be deferred. |
 | Promissory notes | Deferred unless needed by demo data | Useful TALA feature but not required to prove the base SIS flow. |

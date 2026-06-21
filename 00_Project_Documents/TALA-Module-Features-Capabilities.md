@@ -8,6 +8,8 @@
 
 **Execution Status Boundary:** This document is a capability reference, not the active build tracker. Implementation order, local iteration status, and tracker mirroring rules live in `TALA-SDD-Execution-Map.md` and `TALA-Local-Iteration-Checklist.md`.
 
+**Document-Request Scope Boundary:** The document-request portal/catalog/fee/fulfillment/pickup/courier/shipping domain is removed from TALA. Admission-document review and generated COR/academic/finance/completion artifacts remain separate capabilities owned by their source workflows.
+
 ---
 
 ## Table of Contents
@@ -18,7 +20,7 @@
 4. [Module 3: Accounting Module](#4-module-3-accounting-module)
 5. [Module 4: Faculty Module](#5-module-4-faculty-module)
 6. [Module 5: Administration & Integration](#6-module-5-administration--integration)
-7. [Module 6: Service Requests & Documents](#7-module-6-service-requests--documents)
+7. [Module 6: Enrollment and Student Status Requests](#7-module-6-enrollment-and-student-status-requests)
 8. [Cross-Module Features](#8-cross-module-features)
 9. [System Lifecycle & Scheduled Jobs](#9-system-lifecycle--scheduled-jobs)
 
@@ -31,8 +33,8 @@
 | Role | Description | Constraint |
 | --- | --- | --- |
 | **Applicant** | Temporary account for enrollment workflow | Limited to applicant portal; no Student Hub access |
-| **Student** | Officially enrolled student | View-only for most data; self-service mutations (payments, documents, corrections, shifting, onboarding) are final-form capabilities that require dedicated service/UI workflows where noted |
-| **Registrar** | Academic records custodian | Full student records, scheduling, approvals, document SLAs, drop form consultations |
+| **Student** | Officially enrolled student | View-only for most data; approved payments, corrections, shifting, and onboarding mutations require dedicated service/UI workflows where noted |
+| **Registrar** | Academic records custodian | Full student records, scheduling, approvals, and enrollment/status consultations |
 | **Accounting / Cashier** | Financial transactions and ledger owner | OTC payment processing, assessments, promissory approval, fee template management |
 | **Faculty** | Teaching and grading | Class lists, grade encoding, availability submission |
 | **System Super Admin (IT)** | System administration | Full IT access, staff user management, seeded RBAC matrix review only; **Read-Only** for academics/financials |
@@ -53,7 +55,6 @@
 | Manage Schedules | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Submit Faculty Availability | ❌ | ❌ | ✅ (Review) | ❌ | ✅ | ✅ (Read-Only) | ❌ |
 | View Advising Status | ❌ | ✅ | ✅ | ❌ | ✅ (Read-Only) | ✅ | ✅ |
-| Request Documents | ❌ | ✅ (Final-form; service-backed workflow required) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Approve Promissory Note | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | View Promissory Tag | ❌ | ✅ | ✅ (Read-Only) | ✅ | ❌ | ✅ | ✅ |
 | Configure Fee Templates | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ (Read-Only) | ❌ |
@@ -123,9 +124,8 @@
 | **Financial Dashboard** | Current balance, payment history, Pay Now action through an approved payment workflow, promissory note status, and exam-access visibility that respects approved accommodations/no blanket debt block | Student |
 | **Grade Viewing** | View finalized grades per term/subject | Student |
 | **Grade Correction Request** | Submit request with subject, current grade, desired correction, reason, optional attachments through a dedicated service-backed workflow | Student |
-| **Document Request Portal** | Request official documents (Form 137, COE, Good Moral, etc.) with pickup or delivery option through a dedicated service-backed workflow | Student |
 | **Shifting Request** | Submit College program shifting request through a dedicated service-backed workflow | Student |
-| **Interactive Onboarding** | First-login guidance highlighting COR, Grades, and Request Document areas when an approved onboarding workflow exists | Student |
+| **Interactive Onboarding** | First-login guidance highlighting COR, Schedule, Grades, and Financials when an approved onboarding workflow exists | Student |
 
 ---
 
@@ -217,8 +217,6 @@
 | **Over-The-Counter (OTC) / Manual Bank Transfer** | Student uploads GCash screenshot, bank deposit slip, or receipt; Cashier reviews, enters amount/reference/date, confirms; ledger updates instantly | Student / Cashier |
 | **Promissory Note** | Student uploads signed note (one per academic year); Accounting/Cashier approves; records promise and expiry; does NOT clear balance, NOT satisfy downpayment, NOT move to `Enrolled` | Student / Cashier |
 | **Drop/Withdrawal Fee** | Policy-driven withdrawal/refund/disposition assessment based on approved effective-dated institutional and regulatory rules; no fixed amount is embedded in the capability map | System |
-| **Document Request Fees** | Paid documents require Accounting confirmation before Registrar fulfillment; free documents bypass Accounting | Accounting / Registrar |
-| **Shipping Fee (2-Phase Model)** | Document fee confirmed before fulfillment; Registrar records actual shipping fee after shipment; 3-day grace before debt posting | Registrar / Accounting |
 
 ### 4.3 Financial Business Rules
 
@@ -346,7 +344,6 @@
 | Module 3 | Account Unrestricted | "Account cleared — Full access restored" |
 | Module 4 | Grades Finalized | "Your grades are posted" |
 | Module 5 | Password Reset | "Security Alert: Password Changed" |
-| Module 6 | Document Shipped | "Your [Type] has been shipped via [Courier]" |
 | Module 7 | Student Info Updated | "Student [Name] updated their [field]" |
 
 ### 6.6 Data Migration & Provisioning (Hybrid Seed & Claim)
@@ -379,40 +376,22 @@
 
 | Feature | Description | Target |
 | --- | --- | --- |
-| **Student Onboarding (PWA)** | Auto-activates on first login; highlights My Documents, Grades, Request Document; saved to profile to prevent repeat | Student |
+| **Student Onboarding (PWA)** | Auto-activates on first login; highlights COR, Schedule, Grades, and Financials; saved to profile to prevent repeat | Student |
 | **Staff Onboarding (Admin Nexus)** | Staff training is delivered through operations guidance, acceptance scripts, role guidance, and maintained FAQ/help content. A Filament guided-tour runtime requires a separately approved and tested workflow before becoming a production surface. | Staff |
 
 ---
 
-## 7. Module 6: Service Requests & Documents
+## 7. Module 6: Enrollment and Student Status Requests
 
-### 7.1 Document Request Portal
-
-| Feature | Description | Roles Involved |
-| --- | --- | --- |
-| **Document Catalog** | Registrar manages type metadata, requirements, processing notes, availability; Accounting manages free/paid classification and fee amounts | Registrar / Accounting |
-| **Activation Rule** | New document types not requestable until Accounting marks as `free` or assigns a positive fee | Accounting |
-| **Free Documents** | First Form 137 and first Form 138 prior-school support request per student (with requesting-school basis); bypass Accounting | Student / Registrar |
-| **Paid Documents** | Good Moral, COE, COG, TOR, and Dismissal Certificate; require Accounting fee confirmation before Registrar processing unless an approved policy says otherwise | Student / Accounting / Registrar |
-| **Pickup Flow** | `processing` → `ready_for_pickup` → `completed` (after student claims) | Registrar / Student |
-| **Delivery Flow** | Mandatory Data Privacy consent (RA 10173); Registrar ships and records courier name, tracking, shipping fee, receipt photo; `pending_shipping_payment` until Accounting confirms | Registrar / Accounting / Student |
-| **Grace-Period Debt** | Unpaid shipping fee after 3 calendar days → posted as standard debt to ledger → `completed_with_debt` | System |
-
-### 7.2 Dropout Management & Grace Periods
+### 7.1 Enrollment and Status Request Boundary
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
 | **Drop Form Process** | Student files form and schedules mandatory consultation with Registrar/Guidance | Student / Registrar |
 | **Service Request Lifecycle Notes** | Registrar resolves service requests with optional resolution notes and must enter rejection/cancellation reasons; these are stored as lifecycle activity/notification context, not editable request fields | Registrar / Student |
+| **Typed Mutation Rule** | A generic service request is intake/evidence only; Drop Subject, Withdrawal, Section Transfer, Program Shift, Modality Change, LOA, Readmission, and data correction require dedicated authorized transactional services | System / Registrar |
 | **Drop/Withdrawal Fee** | Policy-driven withdrawal/refund/disposition assessment based on approved effective-dated institutional and regulatory rules; no fixed amount is embedded in the capability map | System |
 | **Grace Period** | One-term grace for non-formal drops; system sends warnings; archives account after expiry | System |
-| **Document Hold** | Dropped students cannot request documents until balance settled | System |
-
-### 7.3 Dynamic Queue Management (SLA)
-
-| Feature | Description |
-| --- | --- |
-| **Dynamic SLA** | Estimated processing times calculated from current queue volume (e.g., "3 days" vs "5 days") |
 | **No Hard Daily Cap** | Replaces fixed 30/day limit with volume-based dynamic estimation |
 
 ---
@@ -483,7 +462,6 @@
 | Job | Schedule | Description | Batch Limit |
 | --- | --- | --- | --- |
 | `GracePeriodEnforcerJob` | Daily 00:15 (Asia/Manila) | Warns approaching grace periods; archives expired accounts | 100/chunk, 1,000/run |
-| `ShippingFeeEnforcerJob` | Daily 00:30 | Posts unpaid shipping fees as debt after 3-day grace | 100/chunk, 1,000/run |
 | `CheckPromissoryNoteExpiry` | Daily 00:45 | Sends expiry warnings; deactivates expired promissory notes | 100/chunk, 1,000/run |
 | `IncAutoFailJob` | Daily 01:00 | Converts INC → 5.0/Failed after 365 days | 100/chunk, 1,000/run |
 | `PaymentHousekeepingJob` | Daily 01:30 | Auto-rejects pending payments older than 72 hours | 100/chunk, 1,000/run |
@@ -500,13 +478,13 @@
 - Create temporary account, complete profiling, upload documents, review OCR results, track application status, re-upload rejected documents, view payment instructions, upload payment proof.
 
 ### Student
-- View COR/grades/schedule and financial/advising status; final-form Student Hub mutations include payments, proof upload, document requests, grade correction requests, shifting requests, and onboarding, but each mutation requires its dedicated service-backed UI workflow before it becomes available.
+- View COR/grades/schedule and financial/advising status; approved Student Hub mutations include payments, proof upload, grade correction requests, shifting requests, and onboarding, but each mutation requires its dedicated service-backed UI workflow before it becomes available.
 
 ### Registrar
-- Configure academic year/terms/calendar gates, import curriculum, manage student records (view/edit with audit), review/approve/reject applicant documents, receive required physical credentials, evaluate transferee credits (OCR-assisted), assign sections and schedules (with conflict validation), manage section/delivery-group capacity with no bypass override, manage enrollment lifecycle (approve → finalize → COR), view/export enrolled-student rosters for external reporting, process walk-in enrollments, fulfill document requests (pickup/delivery/shipping), handle drop consultations, import legacy academic/enrollment data, manage admission requirements.
+- Configure academic year/terms/calendar gates, import curriculum, manage student records (view/edit with audit), review/approve/reject applicant documents, receive required physical credentials, evaluate transferee credits (OCR-assisted), assign sections and schedules (with conflict validation), manage section/delivery-group capacity with no bypass override, manage enrollment lifecycle (approve → finalize → COR), view/export enrolled-student rosters for external reporting, process walk-in enrollments, handle enrollment/status consultations, import legacy academic/enrollment data, and manage admission requirements.
 
 ### Accounting / Cashier
-- Maintain global fee database, configure canonical education/program/year scoped fee templates and downpayment percentages, configure scoped installment policies, process OTC payments, approve promissory notes, confirm online payment webhooks, confirm document request fees, confirm shipping fee payments, manage document pricing, assess drop fees, import legacy financial records.
+- Maintain global fee database, configure canonical program/year scoped fee templates and downpayment percentages, configure scoped installment policies, process OTC payments, approve promissory notes, confirm online payment webhooks, assess approved withdrawal/drop fees, and import legacy financial records.
 
 ### Faculty
 - View digital class list (finance-cleared students only), view student payment status pills (privacy-protected), submit pre-scheduling availability, view teaching schedule, encode grades (period-level entry), finalize grade sheets, upload grades via Excel template, manage INC grades, view Faculty Academic Advising Status modal, receive student info update notifications, share admission requirements link.

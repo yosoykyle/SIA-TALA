@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\FaqEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -65,9 +66,9 @@ class StudentHubAccessTest extends TestCase
         $student = $this->userWithRole('student');
 
         FaqEntry::query()->create([
-            'question' => 'How do I request documents?',
-            'answer' => 'Open the Documents page and follow the request flow.',
-            'category' => FaqEntry::CategoryDocumentsRequests,
+            'question' => 'How do I check my enrollment status?',
+            'answer' => 'Open the Dashboard and review your current enrollment status.',
+            'category' => FaqEntry::CategoryAdmissionEnrollment,
             'sort_order' => 1,
             'is_published' => true,
         ]);
@@ -83,10 +84,16 @@ class StudentHubAccessTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.help'))
             ->assertOk()
-            ->assertSee('Documents / Requests')
-            ->assertSee('How do I request documents?')
-            ->assertSee('Open the Documents page and follow the request flow.')
+            ->assertSee('Admission / Enrollment')
+            ->assertSee('How do I check my enrollment status?')
+            ->assertSee('Open the Dashboard and review your current enrollment status.')
             ->assertDontSee('Hidden staff draft');
+    }
+
+    public function test_document_request_page_is_not_registered(): void
+    {
+        $this->assertFalse(Route::has('student.documents'));
+        $this->assertFileDoesNotExist(resource_path('views/pages/student-hub/⚡documents.blade.php'));
     }
 
     /**
@@ -112,7 +119,6 @@ class StudentHubAccessTest extends TestCase
             'student.schedule' => 'Class Schedule',
             'student.grades' => 'Academic Grades',
             'student.financials' => 'Financial Account',
-            'student.documents' => 'Document Requests',
             'student.help' => 'Help & FAQ',
         ];
     }

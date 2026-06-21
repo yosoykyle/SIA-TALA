@@ -125,7 +125,7 @@ class ServiceRequestLifecycleServiceTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $registrar = User::factory()->create();
-        $registrar->givePermissionTo(Permission::findOrCreate('manage-document-requests'));
+        $registrar->givePermissionTo(Permission::findOrCreate('manage-service-requests'));
 
         return $registrar;
     }

@@ -123,7 +123,6 @@ class FacultyClassListService
     {
         return $this->hasPendingPaymentAttempt($enrollmentId, $studentProfileId)
             || $this->hasPromissoryHold($enrollmentId, $studentProfileId)
-            || $this->hasDocumentShippingHold($studentProfileId)
             || $this->hasPositiveRunningLedgerBalance($enrollmentId, $studentProfileId);
     }
 
@@ -142,14 +141,6 @@ class FacultyClassListService
             ->where('student_profile_id', $studentProfileId)
             ->where('enrollment_id', $enrollmentId)
             ->whereIn('status', ['approved', 'active', 'expired'])
-            ->exists();
-    }
-
-    private function hasDocumentShippingHold(int $studentProfileId): bool
-    {
-        return DB::table('document_requests')
-            ->where('student_profile_id', $studentProfileId)
-            ->whereIn('status', ['pending_shipping_payment', 'completed_with_debt'])
             ->exists();
     }
 

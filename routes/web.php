@@ -24,6 +24,5 @@ Route::prefix('student')->name('student.')->middleware(['auth', 'student.active'
     Route::livewire('/schedule', 'pages::student-hub.schedule')->name('schedule');
     Route::livewire('/grades', 'pages::student-hub.grades')->name('grades');
     Route::livewire('/financials', 'pages::student-hub.financials')->name('financials');
-    Route::livewire('/documents', 'pages::student-hub.documents')->name('documents');
     Route::livewire('/help', 'pages::student-hub.help')->name('help');
 });

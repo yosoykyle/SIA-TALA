@@ -75,7 +75,6 @@ class LedgerEntriesTable
                         'assessment' => 'Assessment',
                         'discount' => 'Discount',
                         'payment' => 'Payment',
-                        'shipping_fee' => 'Shipping Fee',
                         'penalty' => 'Penalty',
                         'accounting_adjustment' => 'Accounting Adjustment',
                     ]),
@@ -84,7 +83,6 @@ class LedgerEntriesTable
                     ->options([
                         'fee_template' => 'Fee Template',
                         'payment' => 'Payment',
-                        'document_request' => 'Document Request',
                         'accounting_adjustment' => 'Accounting Adjustment',
                     ]),
             ])

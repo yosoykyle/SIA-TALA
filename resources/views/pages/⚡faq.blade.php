@@ -53,7 +53,7 @@ new #[Layout('layouts.public')] class extends Component
                     Answers before you line up, email, or wait for office hours.
                 </h1>
                 <p class="mt-5 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
-                    Browse published guidance for admissions, payments, document requests, grades, accounts, and technical support.
+                    Browse published guidance for admissions, payments, grades, accounts, and technical support.
                 </p>
             </div>
             <div class="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur">

@@ -51,8 +51,8 @@ class PreUatScenarioSeederTest extends TestCase
             'status' => 'paid',
         ]);
         $this->assertDatabaseHas('faq_entries', [
-            'question' => 'How do I request a document during Pre-UAT?',
-            'is_published' => true,
+            'question' => 'Internal Pre-UAT unpublished FAQ',
+            'is_published' => false,
         ]);
 
         $this->assertSame(2, $this->tableCount('subjects'));
@@ -152,7 +152,6 @@ class PreUatScenarioSeederTest extends TestCase
             'payment_attempts',
             'payments',
             'document_uploads',
-            'document_requests',
             'grades',
             'grade_corrections',
             'service_requests',

@@ -17,7 +17,7 @@ class TermForm
     {
         return $schema->components([
             Section::make('Term Identity')
-                ->description('Configure the canonical term record used by enrollment, payment deadlines, scheduling, grades, and document requests.')
+                ->description('Configure the canonical term record used by enrollment, payment deadlines, scheduling, grades, and reporting.')
                 ->schema([
                     TextInput::make('term_name')
                         ->label('Term Name')

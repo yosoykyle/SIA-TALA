@@ -13,7 +13,6 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
     {
         $resources = [
             'Enrollments/EnrollmentResource.php' => ['Registrar', 'approve-documents'],
-            'DocumentRequests/DocumentRequestResource.php' => ['Registrar', 'manage-document-requests'],
             'DocumentUploads/DocumentUploadResource.php' => ['Registrar', 'approve-documents'],
             'ImportBatches/ImportBatchResource.php' => ['Registrar', 'manage-curricula'],
             'Sections/SectionResource.php' => ['Registrar', 'manage-schedules'],
@@ -33,62 +32,11 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         }
     }
 
-    public function test_document_request_table_exposes_registrar_processing_and_accounting_payment_boundaries(): void
+    public function test_document_request_resource_is_removed_from_admin_scope(): void
     {
-        $source = $this->resourceSource('DocumentRequests/Tables/DocumentRequestsTable.php');
-
-        $this->assertStringContainsString('manage-document-requests', $source);
-        $this->assertStringContainsString('process-payments', $source);
-        $this->assertStringContainsString('markReadyForPickup', $source);
-        $this->assertStringContainsString('markShipped', $source);
-        $this->assertStringContainsString('confirmDocumentFee', $source);
-        $this->assertStringContainsString('confirmShippingPayment', $source);
-        $this->assertStringContainsString('Payment::manualConfirmationChannelOptions()', $source);
-        $this->assertStringContainsString("TextInput::make('payment_reference')", $source);
-        $this->assertStringContainsString("DateTimePicker::make('confirmed_at')", $source);
-        $this->assertStringNotContainsString("'paymongo_reconciled' => 'PayMongo Reconciled'", $source);
-    }
-
-    public function test_document_requests_are_lifecycle_action_surfaces_not_generic_crud(): void
-    {
-        $resource = $this->resourceSource('DocumentRequests/DocumentRequestResource.php');
-        $listPage = $this->resourceSource('DocumentRequests/Pages/ListDocumentRequests.php');
-        $viewPage = $this->resourceSource('DocumentRequests/Pages/ViewDocumentRequest.php');
-        $table = $this->resourceSource('DocumentRequests/Tables/DocumentRequestsTable.php');
-
-        $this->assertStringNotContainsString("CreateDocumentRequest::route('/create')", $resource);
-        $this->assertStringNotContainsString("EditDocumentRequest::route('/{record}/edit')", $resource);
-        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Pages/CreateDocumentRequest.php'));
-        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Pages/EditDocumentRequest.php'));
-        $this->assertFileDoesNotExist(app_path('Filament/Resources/DocumentRequests/Schemas/DocumentRequestForm.php'));
-        $this->assertStringNotContainsString('function form(', $resource);
-        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
-        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
-        $this->assertStringContainsString('confirmDocumentFeeAction', $table);
-        $this->assertStringContainsString('confirmShippingPaymentAction', $table);
-        $this->assertStringContainsString('markReadyForPickupAction', $table);
-        $this->assertStringContainsString('completePickupAction', $table);
-        $this->assertStringContainsString('markShippedAction', $table);
-        $this->assertStringContainsString('cancelAction', $table);
-    }
-
-    public function test_document_request_shipping_receipt_uses_private_file_upload_not_raw_path_input(): void
-    {
-        $table = $this->resourceSource('DocumentRequests/Tables/DocumentRequestsTable.php');
-        $infolist = $this->resourceSource('DocumentRequests/Schemas/DocumentRequestInfolist.php');
-
-        $this->assertStringContainsString("FileUpload::make('courier_receipt_path')", $table);
-        $this->assertStringContainsString("->disk('local')", $table);
-        $this->assertStringContainsString('DocumentRequest::CourierReceiptDirectory', $table);
-        $this->assertStringContainsString("->visibility('private')", $table);
-        $this->assertStringContainsString('->preventFilePathTampering()', $table);
-        $this->assertStringContainsString('acceptedFileTypes', $table);
-        $this->assertStringNotContainsString("TextInput::make('courier_receipt_path')", $table);
-        $this->assertStringNotContainsString('Private receipt path', $table);
-        $this->assertStringContainsString("TextEntry::make('courier_receipt_path')", $infolist);
-        $this->assertStringContainsString("->label('Courier receipt proof')", $infolist);
-        $this->assertStringContainsString("filled(\$state) ? 'Uploaded' : 'Not uploaded'", $infolist);
-        $this->assertStringContainsString('->badge()', $infolist);
+        $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/DocumentRequests'));
+        $this->assertFileDoesNotExist(app_path('Models/DocumentRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Policies/DocumentRequestPolicy.php'));
     }
 
     public function test_enrollment_table_keeps_registrar_and_accounting_actions_permission_scoped(): void

@@ -224,6 +224,6 @@ class ServiceRequestsTable
 
     private static function registrarCanManage(): bool
     {
-        return auth()->user()?->can('manage-document-requests') ?? false;
+        return auth()->user()?->can('manage-service-requests') ?? false;
     }
 }

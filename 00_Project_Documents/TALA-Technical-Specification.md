@@ -43,7 +43,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 29.0 | 2026-06-17 | Scheduling closure; delivery groups; curriculum readiness; publish lifecycle; workload overrides; PayMongo handover parity. |
 | 30.0 | 2026-06-18 | Student services; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; admission/retention/capacity requirements; UI test baseline. |
-| 32.0 | 2026-06-21 | System freeze; submission baseline; Feature Groups 3-11 hardening; legal/regulatory audit fixes; College-only scope correction. |
+| 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
 
 ---
 
@@ -55,6 +55,8 @@ Versioning rule: major version increments once per update date; same-day updates
 
 **College-Only Technical Boundary:** The active implementation target is College-only. SHS must not remain as an active UI option, validation branch, seed/default offering, grading engine path, fee scope, schedule/calendar branch, or UAT path. Grade 12/Form 138/Form 137 references are permitted only as prior-education evidence for College admission or archived historical evidence.
 
+**Document-Request Technical Boundary:** Remove the document-request domain end to end: model/table, lifecycle service, Filament resource, Student Hub route/page, permissions, scheduled shipping job, seed/factory data, ledger entry options, and dedicated tests. The institution's manual document-request process remains outside TALA. Admission-document review and artifacts generated directly by enrollment, grade, finance, transfer, or completion workflows remain independent in-scope capabilities.
+
 ### Submission Baseline Technical Contract Map
 
 | Technical area | Baseline contract | Primary implementation pattern | Verification expectation |
@@ -65,8 +67,8 @@ Versioning rule: major version increments once per update date; same-day updates
 | Scheduling | Curriculum readiness, section delivery groups, faculty eligibility/availability, schedule snapshots, OR-Tools CP-SAT solve, draft review, commit, publish, and controlled overrides. | Laravel scheduling services plus authenticated Cloud Run/OR-Tools solver or equivalent constraint service. | Unit/feature tests for constraints, solver result ingest, commit/publish permissions, conflict rejection, and manual override audit. |
 | Finance and payments | Assessment, discount/installment policy, immutable ledger, PayMongo/manual channel parity, provider webhooks, idempotency, SOA/receipt artifacts, and computed clearance. | Accounting services, webhook storage/signature verification, queue jobs, ledger-entry invariants, PDF issuance. | Tests for assessment, payment confirmation, webhook retry/idempotency, overpayment, zero-balance edge, and finance privacy. |
 | Grades and academic records | Faculty class-list scope, grade encoding/submission, Registrar verification, finalization, correction/override, grade history, and transcript/report-card source data. | Service-owned grading workflows, policy-gated Filament actions, immutable finalization/correction audit. | Tests for assigned-faculty access, invalid role denial, grade finalization, correction approval, and transcript source integrity. |
-| Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only unless a mutation service is explicitly approved. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
-| Official generated artifacts | COR, SOA/payment evidence, TOR, diplomas/certificates, and verification pages are derived from College source records and carry template, issuer, checksum, serial/reference, release, and revoke/supersede metadata. Form 137/Form 138 handling is limited to prior-school admission evidence and controlled request/release records. | DomPDF/Blade templates, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
+| Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only unless a mutation service is explicitly approved. No document-request route or page exists. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
+| Official generated artifacts | COR, SOA/payment evidence, academic records, and completion credentials are derived directly from College source workflows and carry template, issuer, checksum, serial/reference, release, and revoke/supersede metadata. Form 137/Form 138 remain prior-school admission evidence. | DomPDF/Blade templates, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
 | Imports, exports, and reporting | Controlled templates, private upload, validation preview, zero-error commit where required, audit, generic roster/report export, and external-boundary separation (no official DepEd School Forms, LIS submissions, or completion tracking generated). | Laravel Excel/PhpSpreadsheet services, import batch records, queueable processing, authorized export actions. | Tests for template headers, invalid rows, no partial unsafe commit, export authorization, and audit records. |
 | Security, privacy, and audit (RA 10173 & NPC 2023-06) | Privacy-by-design access controls, private-by-default files, signed/temporary access, role-scoped evidence visibility, webhook signature checks, purpose-limited retention, breach protocol readiness, activity logs, and sensitive-support data minimization. | Laravel filesystem, signed URLs, policies, activitylog, validation/FormRequests, webhook verifier services. | Security tests for unauthorized access, private path leakage, webhook rejection, upload validation, and audit creation. |
 
@@ -174,12 +176,11 @@ Example usage in Blade templates:
 | --- | --- | --- | --- |
 | **OCR Engine** | Google Cloud Vision API | `google/cloud-vision` ^2.1 | **Text extraction only** from uploaded documents across the academic lifecycle (Admissions, Credit Evaluation, Payment Proofs). Manual review by staff. |
 | **Document Storage** | Hybrid file + relational metadata model | Laravel Filesystem + MySQL | Original files remain in private storage; OCR text, confidence scores, parsed payloads, and reviewed extracted fields are stored in MySQL. |
-| **Document Fulfillment** | Manual courier workflow | Laravel + Filament | Supports two-phase document request payment without a paid logistics API. Registrar records courier details and actual shipping fees after shipment. |
 | **Background Jobs** | Laravel Queue + Laravel Scheduler | Built-in; `laravel/horizon` installed but requires Redis queue configuration and `config/horizon.php` before use | Runs asynchronous OCR, notifications, webhook processing, and scheduled maintenance. Local development uses database queues; production may use Redis queues with Supervisor-managed workers and Horizon only after Horizon is installed/configured for the environment. |
 | **Webhooks** | Spatie Webhook Client | `spatie/laravel-webhook-client` | Safely receives, verifies signatures, and prevents double processing (idempotency) of GCash webhooks. |
 | **Audit Trails** | Spatie Activity Log | `spatie/laravel-activitylog` | Tracks all model changes and user actions for strict accountability on financial and grading overrides. |
 | **Audit UI** | Filament Activity Log | `pxlrbt/filament-activity-log` | Provides a Filament staff-panel GUI to view the `spatie/laravel-activitylog` records. |
-| **State Machine** | Spatie Model States | `spatie/laravel-model-states` | Enforces rigid transition rules for Enrollment and Document Request lifecycles (e.g., Pending -> Processing -> Shipped). |
+| **State Machine** | Spatie Model States | `spatie/laravel-model-states` | Enforces approved lifecycle transitions where a domain requires explicit state control. |
 | **Email** | Laravel Mail (SMTP) | Built-in | Account-related notifications |
 | **Excel I/O** | Laravel Excel / PhpSpreadsheet | `maatwebsite/excel` ^3.1 | Final schedule exports, curriculum template import/export, report exports, and optional strict staff fallback imports. Faculty availability is collected in-app, not primarily by Excel. |
 | **PDF Gen** | DomPDF | `barryvdh/laravel-dompdf` ^3.1 | COR and Report Card generation (Module 2) |
@@ -270,7 +271,7 @@ Raw uploaded documents are preserved as the canonical evidence, while OCR output
 
 | Storage Layer | Stores | Purpose |
 | --- | --- | --- |
-| **Private File/Object Storage** | Original images/PDFs, payment screenshots, courier receipts, generated previews | Canonical evidence for review, audit, reprocessing, and dispute handling |
+| **Private File/Object Storage** | Original images/PDFs, payment screenshots, generated previews | Canonical evidence for review, audit, reprocessing, and dispute handling |
 | **MySQL Metadata Tables** | Owner, document type, storage disk/path, MIME type, checksum, file size, upload status, review status | Fast workflow queries, RBAC filtering, audit joins, and lifecycle tracking |
 | **MySQL OCR Tables** | Raw OCR text, confidence score, OCR engine, parser version, processing errors, parsed JSON payload | Search, registrar side-by-side review, retry/reprocess support, and confidence-based queues |
 | **Domain Tables** | Verified profile fields, credited subjects, discount entries, payment references | Operational source of truth after staff verification |
@@ -283,7 +284,7 @@ Raw uploaded documents are preserved as the canonical evidence, while OCR output
 | `official_transmission` | School-to-school Form 137/TOR/transfer credential or other regulator-permitted official transmission | Received artifact plus sender, channel, received time, provenance/signature evidence, and verification state | Optional | Requirement satisfaction references the transmission; applicant upload is not fabricated or required when this method is accepted |
 | `identity_photo` | 2x2/recent ID photo | Private source image and versioned approved derivative | Disabled | Image access remains private; public use requires a separately generated purpose-bound artifact |
 | `restricted_support_file` | Medical/psychological, disability/SEN, IP/community, immigration, and medical-clearance evidence | Versioned private source file | Disabled by default; explicit purpose approval required | Separate restricted permission, purpose limitation, access audit, minimal field promotion, retention/disposal schedule |
-| `transaction_evidence` | Payment proof, promissory attachment, receipt image, courier receipt | Private source file linked to immutable transaction/request/shipment | Optional reference extraction only | OCR cannot confirm payment or lifecycle state; Accounting/Registrar service remains authoritative |
+| `transaction_evidence` | Payment proof, promissory attachment, receipt image | Private source file linked to an immutable transaction or approval record | Optional reference extraction only | OCR cannot confirm payment or lifecycle state; Accounting service remains authoritative |
 | `generated_official_artifact` | COR, report card, assessment, requested official document, system-issued receipt | Immutable issuance snapshot and/or PDF with template version, issuer, issued time, checksum, subject/term/request, token, and lifecycle state | Search text may be derived; no review OCR | Supersede/revoke instead of overwrite; verification and re-render reproducibility where applicable |
 | `structured_record` | Applicant, requirement status, enrollment, schedule, grades, ledger, holds | Authorized normalized database row plus audit evidence | Not applicable | A screenshot/PDF/export is never the operational source of truth |
 | `import_source` | Curriculum, roster, fee, grade, enrollment, or legacy CSV/XLSX | Private source file plus checksum, uploader, template/parser version, validation report, and batch state | Parser output is provisional until commit | Zero-error/approved commit rules; normalized accepted rows become operational records |
@@ -412,7 +413,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 - Enrollment/profile flow (`student_profiles`, `enrollments`, `enrollment_subjects`)
 - Applicant intake staging (`applicant_intakes` plus applicant-linked `document_uploads` before handover)
 - Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`, `promissory_notes`, installment tables)
-- Document/OCR/request flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`, `document_requests`)
+- Admission document/OCR flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`)
 - Grade/correction flow (`grades`, `grade_corrections`)
 - Service/shift/COR flow (`service_requests`, `shifting_requests`, `shifting_fee_assessments`, `cor_verifications`, `faq_entries`)
 
@@ -504,7 +505,6 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | `payment` | OTC Payment, E-wallet (GCash Webhook validation) |
 | `promissory_note` | Records Accounting-reviewed promise/expiry/settlement evidence only; does not clear balance, enrollment, COR, class-list, or exam access by itself |
 | `discount` | Automated or authorized Discount/Credit ledger entry (including the Freshmen Tuition discount) |
-| `shipping_fee` | Deferred post-fulfillment courier charge. Posted as standard debt only if unpaid after 3 calendar days from shipment. |
 | `drop_fee` | Effective-dated assessment triggered when officially withdrawing, based on approved institutional policy |
 | `adjustment` | Manual Correction |
 | `legacy_balance_forward` | Initial balance imported from legacy SIA system via the Bulk Data Import Framework (§3.20). Posted during student seed (FS §8.8). |
@@ -1802,7 +1802,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   The ledger remains immutable: overpayments create standard `payment` transactions.
 -   When a new fee is assessed, it simply adds to the ledger, automatically offsetting against any negative balance.
 
-**Filament Resource Mapping**: `LedgerEntryResource` is the Accounting Ledger Review surface and must be list/view only. It must not register generic create/edit page routes, create/edit header actions, delete actions, or raw forms for `entry_type`, `reference_type`, `reference_id`, `amount`, `running_balance`, `posted_at`, or `posted_by`. Ledger entries are written by domain services such as enrollment assessment, automated discounts, manual payment confirmation, PayMongo webhook processing, installment overdue processing, document-request shipping/payment services, and the typed Accounting adjustment workflow.
+**Filament Resource Mapping**: `LedgerEntryResource` is the Accounting Ledger Review surface and must be list/view only. It must not register generic create/edit page routes, create/edit header actions, delete actions, or raw forms for `entry_type`, `reference_type`, `reference_id`, `amount`, `running_balance`, `posted_at`, or `posted_by`. Ledger entries are written by domain services such as enrollment assessment, automated discounts, manual payment confirmation, PayMongo webhook processing, installment overdue processing, refunds, and the typed Accounting adjustment workflow.
 
 
 
@@ -2039,110 +2039,16 @@ Manual reconciliation may mark a payment as paid only by retrieving the provider
 
 **Filament Resource Mapping**: `PaymentAttemptResource` is the Accounting Payment Queue and `PaymentResource` is Confirmed Payments evidence. Both resources are list/view only. They must not register generic create/edit page routes, create/edit header actions, delete actions, or raw `meta`/provider-reference forms. Payment attempts are created by checkout/manual-upload/service workflows, and payment records are created by webhook processing, manual confirmation, or reconciliation services. Any manual confirmation UI must be an authorized Accounting action that validates amount, reference, date, and eligible state before posting ledger effects.
 
-**Payment Confirmation Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, promissory settlement check, and audit evidence atomically. The authorized document-shipping confirmation action reuses the same channel, reference, explicit-date, and atomic posting boundary without closing the remaining document-fulfillment scope. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
+**Payment Confirmation Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, promissory settlement check, and audit evidence atomically. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
 
-#### 3.14.2 Document Request Fulfillment Service
+#### 3.14.2 Official Generated Artifact Issuance Service Contract
 
-**Purpose**: Support a zero-budget manual courier workflow with two separate payment events: document fee before fulfillment and actual shipping fee after shipment.
-
-**Document Type Contract**:
-
-`document_requests.document_type` is selected from the approved catalog below. Store the normalized value; show the label in Filament/public views.
-
-| Stored Value | UI Label |
-| --- | --- |
-| `certificate_of_registration` | Certificate of Registration |
-| `certificate_of_enrollment` | Certificate of Enrollment |
-| `good_moral_character` | Certificate of Good Moral Character |
-| `transcript_of_records` | Transcript of Records |
-| `form_137` | Form 137 |
-| `form_138` | Form 138 |
-| `diploma` | Diploma |
-| `other` | Other |
-
-**State Machine (`spatie/laravel-model-states`)**:
-
-**Paid Requests** (documents with `fee_mode = 'paid'`):
-
--   `pending_document_fee` → `processing` when Accounting confirms the document fee.
--   `processing` → `ready_for_pickup` when a pickup document is ready.
--   `ready_for_pickup` → `completed` when the student claims the document.
-
-**Free Requests** (documents with `fee_mode = 'free'`):
-
--   Bypass `pending_document_fee` entirely. Initial state is `processing`.
--   `processing` → `ready_for_pickup` when a pickup document is ready.
--   `ready_for_pickup` → `completed` when the student claims the document.
-
-**Delivery Requests** (either paid or free, with `fulfillment_type = 'delivery'`):
-
--   `processing` → `pending_shipping_payment` when the Registrar records courier details.
--   `pending_shipping_payment` → `completed` when Accounting confirms the shipping fee payment.
--   `pending_shipping_payment` → `completed_with_debt` when the shipping fee is unpaid after 3 calendar days from `shipped_at`.
-
-**Cancellation** (any active state):
-
--   `pending_document_fee` and `processing` may transition to `cancelled` if the request is withdrawn or rejected before fulfillment.
-
-**Initial State Logic**:
-
-
-
-```php
-public static function resolveInitialState(DocumentRequest $request): string
-{
-    return $request->documentType->fee_mode === 'free'
-        ? 'processing'
-        : 'pending_document_fee';
-}
-```
-
-**Service**: `DocumentRequestLifecycleService`
-
--   `markReadyForPickup(DocumentRequest $request, User $registrar)`: validates `processing` state, transitions to `ready_for_pickup`, and logs the action.
--   `markShipped(DocumentRequest $request, array $data, User $registrar)`: validates `processing` state and delivery consent, requires `courier_name`, `shipping_fee`, a private `courier_receipt_path` created by the shipment receipt upload field, and `tracking_number` or `N/A`, then transitions to `pending_shipping_payment`.
--   `confirmShippingPayment(DocumentRequest $request, Transaction $payment, User $cashier)`: links the shipping payment transaction and transitions to `completed`.
-
-**Filament Resource Mapping**: `DocumentRequestResource` and `ServiceRequestResource` are list/view lifecycle-action surfaces. `DocumentRequestResource` must not register generic create/edit page routes, create/edit header actions, delete actions, or forms for direct `student_profile_id`, `term_id`, `document_type`, `status`, `is_free_request`, `delivery_mode`, or `delivery_consent` editing. Document request records are created by student/request intake or approved service workflows, and staff handle them through authorized actions such as document-fee confirmation, Registrar fulfillment, shipment recording, pickup completion, shipping-payment confirmation, and cancellation. The shipment recording action must collect courier receipt proof with a private, file-path-tamper-protected `FileUpload` control stored under `DocumentRequest::CourierReceiptDirectory`; it must not expose a raw text field for `courier_receipt_path`. The detail infolist must present courier receipt evidence as uploaded/not-uploaded proof status rather than exposing the private storage path. `ServiceRequestResource` must not register generic create/edit page routes, create/edit header actions, delete actions, or forms for direct `student_profile_id`, `attachment_paths`, `assigned_to`, `resolved_by`, or arbitrary status editing. Service requests are created by student/request intake or approved backend workflows; staff handle them through authorized actions such as review, resolve, reject, cancel, and fulfillment-specific transitions. The Resolve action must submit optional `resolution_note`; Reject must require `rejection_reason`; Registrar Cancel must require `cancellation_reason`. `ServiceRequestLifecycleService` normalizes those fields and stores them in lifecycle activity properties and `GeneralSystemNotification` metadata/body. No `service_requests` migration is required for this slice because the notes are transition evidence, not mutable request attributes.
-
-**`markShipped()` Input Contract**:
-
-| Field | Type / Validation | Notes |
-| --- | --- | --- |
-| `courier_name` | required string, max 100 characters | Name shown to the student notification |
-| `shipping_fee` | required decimal string, `>= 0.01`, max two decimal places | Never accept PHP `float`; posts later as standard debt only after the 3-day grace period |
-| `courier_receipt_path` | required private file path from shipment receipt upload validation | Upload accepts `jpg`, `jpeg`, `png`, `webp`, or `pdf`, max 5 MB, stored on the private `local` disk under `document-request-receipts/`; the Filament field prevents file-path tampering and the service rejects arbitrary paths outside that directory |
-| `tracking_number` | required string, max 100 characters | Trimmed before save; blank is invalid |
-| `tracking_number_normalized` | derived string | If tracking is unavailable, staff enter any case variant of `N/A`; the service stores uppercase `N/A` |
-
-Validation failure returns a standard Filament validation error and leaves the request in `processing`. A successful shipment stores courier fields, `shipped_at`, and the Registrar actor inside the same transaction as the state transition.
-
-**Atomicity**:
-
--   Shipment marking, courier fields, state transition, activity log context, and notification dispatch are wrapped in `DB::transaction()`.
--   `DocumentShippedNotification` uses queued Laravel notifications with `afterCommit()` so the student is notified only after courier details and state changes are committed.
--   The service records `shipping_fee_assessment_transaction_id` only when debt is posted and `shipping_fee_payment_transaction_id` only when payment is confirmed, preventing fee/payment ambiguity.
-
-**Role Ownership**:
-
--   Registrar users can edit metadata, processing requirements, school-request evidence rules, and availability for the approved document type catalog.
--   Accounting users maintain the price list and can set `fee_mode` (`free_once_with_school_request` or `paid`) and `fee_amount` for approved document types.
--   A document type remains hidden from student requests until Accounting assigns the approved free/paid policy.
--   Adding a new selectable document type requires an approved FS/TS update before implementation.
--   Form 137 and Form 138 prior-school support records are free only for the first qualifying request per student and document type, and only when a requesting-school basis is recorded.
--   Good Moral, Certificate of Enrollment (COE), Certificate of Grades (COG), Transcript of Records (TOR), and Dismissal Certificate are paid document requests unless an approved policy says otherwise.
--   The system must track one-time free usage so the second Form 137 or Form 138 support request follows the paid policy.
-
-
-
-#### 3.14.2.1 Official Document Issuance Service Contract
-
-**Purpose**: Convert an approved document request or system event into a controlled issued artifact without making the artifact the source of truth.
+**Purpose**: Convert an authorized source-workflow event into a controlled issued artifact without making the artifact the source of truth or introducing a document-request lifecycle.
 
 **Service ownership**:
 
 - `OfficialDocumentIssuanceService` resolves document type, eligibility, release holds, source read model, template version, and issuance state.
-- COR issuance is called from the enrollment handover/COR flow. COE, Good Moral, TOR/Form 137 copy, Form 138/report-card, COG, diploma/certificate, SOA, and receipt issuance are called by their owning workflow after prerequisites pass.
+- COR issuance is called from the enrollment handover/COR flow. Other academic, transfer, completion, SOA, and payment artifacts are called only by their owning authorized workflow after prerequisites pass.
 - Finance artifacts remain owned by Accounting services; academic/student-record artifacts remain owned by Registrar/student-record services.
 
 **Eligibility sources**:
@@ -2151,7 +2057,7 @@ Validation failure returns a standard Filament validation error and leaves the r
 | --- | --- |
 | COR / COE | Canonical enrolled student, active/requested term, section/delivery assignment where needed |
 | COG / report card / Form 138 | Registrar-verified finalized grades and applicable grading/reporting profile |
-| TOR / Form 137 copy / transfer credential | Permanent academic record, transfer/request basis, finalized grade history, release holds, requester authority |
+| TOR / Form 137 copy / transfer credential | Permanent academic record, transfer basis, finalized grade history, release holds, and recipient authority |
 | Diploma / certificate | Approved graduation/completion evaluation and credential release authorization |
 | SOA / receipt | Immutable ledger/payment/assessment data and Accounting issuance lifecycle |
 
@@ -2161,9 +2067,8 @@ Validation failure returns a standard Filament validation error and leaves the r
 
 **Release evidence**:
 
-- Pickup release stores claimant name, claimant relationship/authority, ID/evidence note when required by policy, releasing staff, release time, and acknowledgement marker.
-- Courier release stores explicit delivery consent, courier, tracking number or normalized `N/A`, shipping fee, private courier receipt proof, and Accounting confirmation or debt posting where applicable.
-- School-to-school record transfer stores requesting school, request basis, receiving contact/channel, release channel, released artifact/evidence, and Registrar actor. TALA does not submit to DepEd LIS or a receiving school's external portal.
+- In-person credential release stores recipient name, relationship/authority, ID/evidence note when required by policy, releasing staff, release time, and acknowledgement marker.
+- School-to-school record transfer stores requesting school, transfer basis, receiving contact/channel, release channel, released artifact/evidence, and Registrar actor. TALA does not submit to DepEd LIS or a receiving school's external portal.
 
 **Testing expectation**: Focused tests must cover eligible issuance, missing eligibility, hold denial, private artifact authorization, checksum/source snapshot immutability, QR token minimal disclosure, revoked/superseded verification response, release evidence validation, and unauthorized issue/release denial.
 
@@ -2207,7 +2112,6 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 | Job | Scheduler Contract | Batch Limit | Idempotency / Failure Rule |
 | --- | --- | --- | --- |
 | `GracePeriodEnforcerJob` | Daily `00:15` Asia/Manila | 100 per chunk, 1,000 per run | Lock user row before archive; skip if already active/archived by staff. |
-| `ShippingFeeEnforcerJob` | Daily `00:30` Asia/Manila | 100 per chunk, 1,000 per run | Lock document request; skip if assessment transaction already exists. |
 | `ProcessPromissoryNoteDeadlinesJob` | Daily `00:45` Asia/Manila | Pending/approved rows, idempotent by timestamp field | Sends one expiring-soon notification per approved note, expires overdue approved/active notes, and never treats expiry as payment or refund evidence. |
 | `IncAutoFailJob` | Daily `01:00` Asia/Manila | 100 per chunk, 1,000 per run | Lock grade row; skip if INC was already cleared or failed. |
 | `PaymentHousekeepingJob` | Daily `01:30` Asia/Manila | 100 per chunk, 1,000 per run | Skip if payment already confirmed/cancelled; no ledger reversal without Accounting action. |
@@ -2222,19 +2126,7 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 2.  If `grace_period_end_date` is approaching (e.g., one week before expiry), the system sends a warning email.
 3.  If `grace_period_end_date` is today, the system executes an automated `ArchiveUser` action, preserving their historical ledger but locking access.
 
-#### 3.15.2 Shipping Fee Enforcer
-
-**Job**: `ShippingFeeEnforcerJob` (scheduled daily at `00:30` Asia/Manila)
-
-**Logic**:
-
-1.  Finds `document_requests` in `pending_shipping_payment` where `shipped_at` is older than 3 calendar days.
-2.  Opens a `DB::transaction()` and reloads each request with `lockForUpdate()` to prevent duplicate processing.
-3.  Skips any request that already has `shipping_fee_assessment_transaction_id` or is no longer in `pending_shipping_payment`.
-4.  Creates an immutable `shipping_fee` transaction for the unpaid shipping amount, links it to `shipping_fee_assessment_transaction_id`, and transitions the request to `completed_with_debt`.
-5.  Existing financial hold logic then applies through the student’s current balance. Before this debt is posted, `pending_shipping_payment` blocks only future document requests.
-
-#### 3.15.3 Term Close Job
+#### 3.15.2 Term Close Job
 
 **Job**: `TermCloseJob` (triggered manually by Registrar via “End Enrollment Period” action, dispatched as a queued batch job for off-hours execution unless urgent)
 
@@ -2249,7 +2141,7 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 
 **Queue Priority**: `low` (runs as a batch during off-hours after the Registrar triggers it).
 
-#### 3.15.4 INC Auto-Fail Job
+#### 3.15.3 INC Auto-Fail Job
 
 **Job**: `IncAutoFailJob` (scheduled daily at `01:00` Asia/Manila)
 
@@ -3028,7 +2920,7 @@ This section applies the benchmark matrix identity/access rule to the technical 
 
 Given the presence of financial overrides (e.g., Cashier approving Promissory Notes, policy-driven Drop/Withdrawal Fee assessments) and academic data mutations (Registrar overriding prerequisites, Faculty modifying grades), strict accountability is enforced.
 
--   **Model Tracking**: All mutations on `Ledger`, `Grade`, `Enrollment`, and `DocumentRequest` models are automatically logged.
+-   **Model Tracking**: All mutations on ledger, grade, enrollment, student-record, and generated-artifact lifecycle records are automatically logged.
 -   **Log Contents**: Each log captures the `causer` (User ID who made the change), the `subject` (Model changed), and the exact `diff` (Old Value vs New Value).
 -   **System Super Admin Visibility**: The **System Super Admin** can view these logs directly in the Filament Dashboard to investigate unauthorized adjustments.
 -   **Filament Resource Mapping**: `ActivityResource` is list/view only and is guarded by `ActivityPolicy::viewAny()` / `view()` through `view-audit-logs`. `ActivityInfolist` must show immutable activity metadata through formatted labeled evidence lines derived by `ActivityPropertiesFormatter`, not through editable fields, raw JSON textareas, or a generic key-value payload dump. Destructive actions remain unavailable.
@@ -3267,7 +3159,7 @@ To minimize Super Admin operational overhead and eliminate the security risks of
 | **4\. SCHEDULE** | Current Term’s Class Schedule (Subject, Time, Room, Instructor). List View (Mobile) / Table View (Desktop) | Class schedule reference |
 | **5\. GRADES** | Latest Term to Oldest Term. Separate visual blocks (Divs) per Term. Content: Subject Code, Description, Grade, Remarks (Passed/Failed) | Academic history |
 
-**Student Dashboard Backend Contract**: `App\Actions\StudentHub\StudentDashboardService` is the read-only data contract for the Student Hub dashboard and tab UI. It accepts a `StudentProfile` resolved by the authenticated active student boundary and returns profile context, current enrollment/history, current schedule, financial balance and term summaries, latest confirmed payments, finalized grade history, recent document requests, recent service requests, recent grade-correction requests, holds, latest notifications, and published FAQ/help links.
+**Student Dashboard Backend Contract**: `App\Actions\StudentHub\StudentDashboardService` is the read-only data contract for the Student Hub dashboard and tab UI. It accepts a `StudentProfile` resolved by the authenticated active student boundary and returns profile context, current enrollment/history, current schedule, financial balance and term summaries, latest confirmed payments, finalized grade history, recent approved service requests, recent grade-correction requests, holds, latest notifications, and published FAQ/help links.
 
 **Data Scope Rules**:
 - Schedule rows come from the current enrollment's section/term and, when present, its section delivery group.
@@ -3806,7 +3698,6 @@ These rules define stable staff-facing admin boundaries. They are not an executi
 | Automatic scheduling solver | Scheduling uses IAM-private GCP Cloud Run OR-Tools CP-SAT, Google ID-token dispatch, immutable snapshots, solver-result ingestion, Laravel validation, draft review, and commit to `section_meetings` / `section_teacher`. Committed rows require 100% hard-constraint validity. | The solver does not create academic sections by itself; section/year-level planning and curriculum demand readiness precede solving. |
 | Faculty subject eligibility and availability | Faculty-subject eligibility is Registrar/Academic Head/System Super Admin managed; faculty cannot self-approve teaching subjects. Locked availability and approved post-lock revisions are solver inputs. | Direct faculty edits to locked availability are forbidden. Post-commit schedule changes use official schedule-change workflows. |
 | Service request detail labels | Staff-facing service request tables and detail views should use relationship-backed labels and model-owned status helpers rather than raw IDs as primary labels. | Raw FK/payload display is only acceptable as internal audit evidence when no staff decision depends on it. |
-| Document shipping | Manual Registrar fulfillment remains the Phase 1 boundary. Shipment proof uses private upload controls and detail views show proof status rather than private paths. | Courier integrations, rich shipping UX, and advanced shipping-fee automation are deferred unless separately approved and tested. |
 
 #### Verification Rules for Admin UI Changes
 

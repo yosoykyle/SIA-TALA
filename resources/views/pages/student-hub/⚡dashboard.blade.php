@@ -54,7 +54,6 @@ new #[Layout('layouts.student')] class extends Component
     <div class="mt-8">
         <h2 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Quick Actions</h2>
         <div class="flex flex-wrap gap-4">
-            <x-button text="Request Documents" icon="document-text" :href="route('student.documents')" wire:navigate />
             <x-button text="View Report Card" icon="academic-cap" :href="route('student.grades')" wire:navigate />
             <x-button text="Make a Payment" icon="credit-card" :href="route('student.financials')" wire:navigate />
         </div>

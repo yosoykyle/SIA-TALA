@@ -14,8 +14,6 @@ class FaqEntry extends Model
 
     public const CategoryPaymentsFees = 'payments_fees';
 
-    public const CategoryDocumentsRequests = 'documents_requests';
-
     public const CategoryGradesAcademics = 'grades_academics';
 
     public const CategoryAccountLogin = 'account_login';
@@ -72,7 +70,6 @@ class FaqEntry extends Model
             self::CategoryGeneral => 'General',
             self::CategoryAdmissionEnrollment => 'Admission / Enrollment',
             self::CategoryPaymentsFees => 'Payments / Fees',
-            self::CategoryDocumentsRequests => 'Documents / Requests',
             self::CategoryGradesAcademics => 'Grades / Academics',
             self::CategoryAccountLogin => 'Account / Login',
             self::CategoryTechnicalSupport => 'Technical Support',

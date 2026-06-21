@@ -13,7 +13,7 @@ class ServiceRequestPolicy
     public function viewAny(User $user): bool
     {
         return $this->canAny($user, [
-            'manage-document-requests',
+            'manage-service-requests',
             'view-global-records',
         ]);
     }

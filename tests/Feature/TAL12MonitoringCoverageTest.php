@@ -6,7 +6,6 @@ use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Jobs\ProcessDocumentOcrJob;
 use App\Jobs\ProcessInstallmentOverduesJob;
 use App\Jobs\ProcessPayMongoWebhookCall;
-use App\Jobs\ShippingFeeEnforcerJob;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -58,33 +57,24 @@ class TAL12MonitoringCoverageTest extends TestCase
 
         $tasks = collect(json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR));
         $this->assertNotNull($tasks->firstWhere('command', 'installments.process-overdues'));
-        $this->assertNotNull($tasks->firstWhere('command', 'document-requests.shipping-fee-enforcer'));
 
         $events = collect(Schedule::events());
         $installmentTask = $events->firstWhere('description', 'installments.process-overdues');
-        $shippingTask = $events->firstWhere('description', 'document-requests.shipping-fee-enforcer');
 
         $this->assertIsObject($installmentTask);
         $this->assertSame('10 0 * * *', $installmentTask->expression);
         $this->assertTrue($installmentTask->withoutOverlapping);
 
-        $this->assertIsObject($shippingTask);
-        $this->assertSame('30 0 * * *', $shippingTask->expression);
-        $this->assertTrue($shippingTask->withoutOverlapping);
     }
 
     public function test_queue_jobs_have_explicit_retry_backoff_metadata(): void
     {
         $installmentJob = new ProcessInstallmentOverduesJob;
-        $shippingJob = new ShippingFeeEnforcerJob;
         $payMongoJob = new ProcessPayMongoWebhookCall(1);
         $ocrJob = new ProcessDocumentOcrJob(1);
 
         $this->assertSame(3, $installmentJob->tries);
         $this->assertSame([60, 300, 900], $installmentJob->backoff());
-
-        $this->assertSame(3, $shippingJob->tries);
-        $this->assertSame([60, 300, 900], $shippingJob->backoff());
 
         $this->assertSame(3, $payMongoJob->tries);
         $this->assertSame([60, 300, 900], $payMongoJob->backoff());

@@ -15,7 +15,6 @@ class DocumentUploadPolicy
         return $this->canAny($user, [
             'approve-documents',
             'evaluate-transferees',
-            'manage-document-requests',
             'view-global-records',
         ]);
     }

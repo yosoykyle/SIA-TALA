@@ -40,8 +40,6 @@
                 <x-side-bar.item text="Schedule" icon="calendar" :route="route('student.schedule')" />
                 <x-side-bar.item text="Grades" icon="academic-cap" :route="route('student.grades')" />
                 <x-side-bar.item text="Financials" icon="credit-card" :route="route('student.financials')" />
-                <x-side-bar.item text="Documents" icon="document-text" :route="route('student.documents')" />
-
                 <x-side-bar.separator text="Support" />
 
                 <x-side-bar.item text="Help" icon="information-circle" :route="route('student.help')" />

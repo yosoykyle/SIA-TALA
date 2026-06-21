@@ -14,7 +14,6 @@ class TAL12AAcademicHeadFilamentResourceTest extends TestCase
             'EnrollmentSubjects/EnrollmentSubjectResource.php',
             'SectionMeetings/SectionMeetingResource.php',
             'Enrollments/EnrollmentResource.php',
-            'DocumentRequests/DocumentRequestResource.php',
         ] as $relativePath) {
             $source = $this->resourceSource($relativePath);
 

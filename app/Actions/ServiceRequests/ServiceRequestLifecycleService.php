@@ -20,7 +20,7 @@ class ServiceRequestLifecycleService
     {
         $studentProfile = StudentProfile::query()->findOrFail((int) $data['student_profile_id']);
 
-        if (! $actor->can('request-documents') || (int) $studentProfile->user_id !== (int) $actor->id) {
+        if (! $actor->can('submit-service-requests') || (int) $studentProfile->user_id !== (int) $actor->id) {
             throw new AuthorizationException('Only the student owner can submit service requests.');
         }
 
@@ -94,7 +94,7 @@ class ServiceRequestLifecycleService
 
     public function cancel(ServiceRequest $request, User $actor, ?string $cancellationReason = null): ServiceRequest
     {
-        if (! $this->actorOwnsRequest($request, $actor) && ! $actor->can('manage-document-requests')) {
+        if (! $this->actorOwnsRequest($request, $actor) && ! $actor->can('manage-service-requests')) {
             throw new AuthorizationException('Only the requesting student or Registrar can cancel this service request.');
         }
 
@@ -201,7 +201,7 @@ class ServiceRequestLifecycleService
 
     private function authorizeRegistrar(User $registrar): void
     {
-        if (! $registrar->can('manage-document-requests')) {
+        if (! $registrar->can('manage-service-requests')) {
             throw new AuthorizationException('Only Registrar can manage service requests.');
         }
     }

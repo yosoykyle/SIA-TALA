@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentDashboardService;
 use App\Enums\GradeCorrectionStatus;
-use App\Models\DocumentRequest;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSubject;
 use App\Models\FaqEntry;
@@ -154,12 +153,6 @@ class StudentDashboardServiceTest extends TestCase
             'approved_at' => now(),
         ]);
 
-        DocumentRequest::factory()->create([
-            'student_profile_id' => $studentProfile->id,
-            'term_id' => $term->id,
-            'document_type' => DocumentRequest::TypeForm137,
-            'status' => DocumentRequest::StatusProcessing,
-        ]);
         ServiceRequest::factory()->create([
             'student_profile_id' => $studentProfile->id,
             'term_id' => $term->id,
@@ -214,7 +207,6 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertSame(['financial_balance', 'hard_copy_missing', 'active_promissory'], array_column($dashboard['holds'], 'code'));
         $this->assertSame('IT101', $dashboard['grades']['terms'][0]['grades'][0]['subject_code']);
         $this->assertSame('1.75', $dashboard['grades']['terms'][0]['grades'][0]['grade']);
-        $this->assertSame(DocumentRequest::StatusProcessing, $dashboard['requests']['document_requests'][0]['status']);
         $this->assertSame(ServiceRequest::StatusUnderReview, $dashboard['requests']['service_requests'][0]['status']);
         $this->assertSame(GradeCorrectionStatus::Submitted->value, $dashboard['requests']['grade_corrections'][0]['status']);
         $this->assertSame('How do I view my balance?', $dashboard['help']['faq_entries'][0]['question']);
@@ -242,7 +234,6 @@ class StudentDashboardServiceTest extends TestCase
 
         $this->finalizedGrade($ownEnrollment, $ownSubject, '2.00');
         $this->finalizedGrade($otherEnrollment, $otherSubject, '1.00');
-        DocumentRequest::factory()->create(['student_profile_id' => $otherStudent->id, 'term_id' => $term->id]);
         LedgerEntry::factory()->create([
             'student_profile_id' => $otherStudent->id,
             'term_id' => $term->id,
@@ -254,7 +245,6 @@ class StudentDashboardServiceTest extends TestCase
         $dashboard = app(StudentDashboardService::class)->forStudent($studentProfile);
 
         $this->assertSame(['OWN101'], array_column($dashboard['grades']['terms'][0]['grades'], 'subject_code'));
-        $this->assertSame([], $dashboard['requests']['document_requests']);
         $this->assertSame([], $dashboard['financials']['term_summaries']);
     }
 
