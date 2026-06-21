@@ -1,7 +1,7 @@
 # TALA SDD Execution Map
 
 **Purpose:** Active spec-driven execution map for finishing the smallest working SIS core before UAT, then continuing deferred SDD slices in dependency order.
-**Last Updated:** 2026-06-21
+**Last Updated:** 2026-06-22
 **Scope:** UAT rescue baseline first for the College-only deployment: role access, applicant intake, admission documents, enrollment/section/finance clearance, student record, faculty class/grade operation, read-only student visibility, and completion/graduation boundary.
 **Status:** Active execution map under the 2026-06-21 UAT rescue overlay. Scheduling/curriculum decisions from the 2026-06-17 audit remain locked unless the user reopens a specific decision.
 
@@ -167,6 +167,8 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 **Two-day execution boundary:** Backend domain correctness and required integrations are completed first. Admin and Student Hub UI connect only to stable backend contracts; quality-of-life features that do not support the College SIS lifecycle or approved integrations remain deferred. Existing correct implementation is retained, so this is a controlled rebaseline rather than a source-code restart.
 
 **Done when:** The active specs, code inventory, test evidence, local checklist, and Linear share one ranked backlog; removed scope is absent from runtime; every P0 item has an evidence status and dependency owner; the next micro-sprint is selected from the critical path rather than from the next historical SDD number.
+
+**SDD-00D audit result (2026-06-22):** The foundation dashboard is now published in `TALA-Local-Iteration-Checklist.md`. Current count is 13 audited areas: 3 `PROVEN`, 7 `PARTIAL`, 2 `MISSING`, 1 `REMOVED`, with P2 deferred work explicitly excluded from the two-day critical path. The selected next micro-sprint is `SDD-03R CP-SAT Scheduling Closure`, because scheduling already has the integration/service/test foundation and needs two narrow correctness fixes before the demo can rely on it: normalize solver outcome semantics and allow approved post-publication Apply while keeping direct schedule edits blocked.
 
 ### SDD-01: Curriculum Template and Readiness Scopes (`TAL-20`)
 

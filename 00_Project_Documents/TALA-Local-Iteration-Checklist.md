@@ -1,7 +1,7 @@
 # TALA Local Iteration Checklist (DB-First)
 
 **Location Purpose:** Local execution checklist aligned with the 3 main specs and Linear roadmap.
-**Last Updated:** 2026-06-21
+**Last Updated:** 2026-06-22
 **Linear Project:** TALA Iterative Implementation Map (DB-First)
 
 ---
@@ -50,9 +50,30 @@
 - [x] Run focused PHPUnit, migration, route, schedule, permission, and repository-reference verification; do not run the destructive table-drop migration against a database containing request data without backup/approval.
   - 2026-06-21 SDD-00D removal verification: 44 focused tests passed after one stale Pre-UAT FAQ assertion was corrected; `DocumentRequestScopeRemovalTest` confirms the dropped schema under `RefreshDatabase`; route and scheduler scans show no document-request surface; runtime scans show no positive references outside immutable migration history, the forward removal migration, and negative absence tests; `migrate --pretend --path=database/migrations/2026_06_21_093258_drop_document_requests_table.php` emits only the two permission renames and table drop. The working database has zero request rows, but the migration remains pending so an unrelated pending College-only migration is not applied implicitly.
   - 2026-06-21 Linear mirror: created urgent in-progress `TAL-30` (`SDD-00D - Foundation rebaseline and completion audit`) under `TAL-12`; `TAL-30` blocks `TAL-28`. Added supersession/blocker comments to `TAL-28` (`f1c021aa-23c3-4562-bf18-216fa401521b`) and `TAL-12` (`dedfcd08-6a04-4894-b9d4-82b050cf840f`).
-- [ ] Audit every FS/TS baseline area against models, migrations, services, policies, UI surfaces, integrations, and tests; classify `PROVEN`, `PARTIAL`, `MISSING`, `EXTERNAL`, `REMOVED`, or `DEFERRED`.
-- [ ] Rank remaining work by dependency and two-day priority: P0 SIS foundation/integrations, P1 supporting workflows, P2 quality-of-life.
-- [ ] Publish completion counts, critical-path blockers, and the next micro-sprint in this checklist and Linear before resuming SDD-07A or another feature slice.
+- [x] Audit every FS/TS baseline area against models, migrations, services, policies, UI surfaces, integrations, and tests; classify `PROVEN`, `PARTIAL`, `MISSING`, `EXTERNAL`, `REMOVED`, or `DEFERRED`.
+- [x] Rank remaining work by dependency and two-day priority: P0 SIS foundation/integrations, P1 supporting workflows, P2 quality-of-life.
+- [x] Publish completion counts, critical-path blockers, and the next micro-sprint in this checklist and Linear before resuming SDD-07A or another feature slice.
+  - 2026-06-22 SDD-00D completion dashboard: 13 audited foundation areas: 3 `PROVEN`, 7 `PARTIAL`, 2 `MISSING`, 1 `REMOVED`; no active foundation area is treated as `DEFERRED` when it blocks the College SIS spine. `EXTERNAL` items remain bounded inside their owning rows rather than counted as implementation requirements.
+  - 2026-06-22 priority rule: implement P0 backend/integration correctness first; connect Admin/Student UI only to stable services; keep quality-of-life, advanced PWA/offline behavior, analytics, and non-demo self-service outside the two-day critical path.
+
+| FS/TS foundation area | Status | Priority | Current evidence | Smallest remaining slice |
+| --- | --- | --- | --- | --- |
+| Identity, staff accounts, RBAC, protected routes, audit visibility | `PROVEN` | P0 done | Fortify/auth routes, role policies, `UserAccountLifecycleService`, `RoleResource`, `ActivityResource`, RBAC/direct-route tests | Keep as regression guard; no new sprint unless login/UAT seed fails. |
+| College-only academic foundation: programs, subjects, curriculum, terms, sections, rooms, readiness | `PROVEN` | P0 done | Filament resources, `CurriculumImportService`, readiness scopes, term/calendar gates, academic foundation/import/readiness tests | Keep College-only schema migration pending-control visible; do not reintroduce SHS/education-level choices. |
+| Scheduling and CP-SAT generation/publication | `PARTIAL` | P0 next | Delivery groups, availability, solver snapshot, Cloud Run adapter, ingestion, review, commit, publish, schedule-change services/tests exist | `SDD-03R`: normalize solver/domain outcomes (`model_invalid`, `partial`, timeout), and permit approved post-publication Apply while direct edit/create remains blocked. |
+| Applicant intake, admission offerings, requirement policies, document review, OCR | `PARTIAL` | P0 | `ApplicantIntakeService`, requirement resolver, offering/policy resources, `DocumentUploadReviewService`, Google Vision/mock OCR tests | Finish only the admission pieces needed by enrollment handover: published offering/checklist execution, gate/retention evidence, and staff-operable review path. |
+| Enrollment handover, capacity, roster, COR readiness | `PARTIAL` | P0 | `StudentEnrollmentService`, capacity plans/reservations, finance readiness gate, COR verification token model/service | Canonical `enrolled` state, placement-aware handover, generic enrolled-roster export, COR issuance/PDF/QR permission cleanup. |
+| Finance, payment gateway, ledger, promissory, exam access | `PARTIAL` | P0/P1 | Assessment/payment/webhook/ledger/promissory/exam-accommodation services/resources/tests | P0: stop assessment from owning official handover fields where it conflicts with enrollment. P1: effective-dated fee structures, OR/SOA artifact lifecycle, daily reconciliation, refund execution. |
+| Faculty class list and College grading | `PARTIAL` | P0 | College grade encoding/finalization/correction services/resources/tests, class-list service | Package-level Registrar verification/finalization, active College grading profile approval, remove finance-derived class-list exposure if it affects UAT. |
+| Student Hub read-only visibility | `PARTIAL` | P0-lite | `/student/*` protected routes, active-student middleware, layout, Help/FAQ, `StudentDashboardService`, access/dashboard tests | Connect Dashboard/Schedule/Grades/Financials to the service-backed aggregate; remove sample/static values; advanced PWA cache/offline proof stays P2. |
+| Controlled imports and generic exports/reports | `PARTIAL` | P1 | Curriculum import is proven through `ImportBatch`/template/service/resource/tests | Build only generic enrolled-roster export as P0 if needed by enrollment demo; broader reporting/export artifacts stay P1. |
+| Student status, withdrawal/readmission/transfer/completion/graduation | `MISSING` | P1/P0 boundary | Storage fields and generic service requests exist, but no typed lifecycle services | For two-day UAT, expose truthful completion/graduation boundary only unless promoted. Typed status/graduation services are later slices. |
+| Privacy, retention, consent, access-log compliance controls | `MISSING` | P1 security | RBAC/audit exists, but no complete privacy notice, retention/deletion, consent/processor boundary implementation | Add only blockers required for submitted legal baseline or UAT risk; full privacy operations remain a dedicated SDD-04 follow-up. |
+| Document-request portal/catalog/fee/fulfillment/courier/shipping | `REMOVED` | Closed | Runtime/UI/schema/permissions/jobs/seeds/UAT rows removed and verified | Do not restore. Manual institutional document request stays outside TALA. |
+| Attendance, discipline, guidance, interventions, advanced analytics/PWA/self-service | `DEFERRED` | P2 | No typed evidence sources; benchmark-gated in reconciliation | Do not spend two-day rescue time unless the user explicitly promotes a specific slice. |
+
+**Selected next micro-sprint:** `SDD-03R CP-SAT Scheduling Closure`. This is selected before another broad SDD-07A pass because it is a narrow P0 integration correction with existing services/tests, aligns with the integration-first rescue goal, and prevents the scheduling demo from depending on ambiguous solver outcomes or blocked post-publication change handling.
+- 2026-06-22 Linear mirror: closed `TAL-30` as Done with the SDD-00D completion dashboard, created urgent in-progress `TAL-31` (`SDD-03R - CP-SAT scheduling rescue closure`) under `TAL-12`, and related it to historical completed `TAL-22`.
 
 ### UAT Rescue Alignment - 2026-06-21
 

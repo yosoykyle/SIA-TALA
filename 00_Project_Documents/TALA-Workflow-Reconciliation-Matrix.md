@@ -198,15 +198,16 @@ All eleven benchmark feature groups now have a goal-state FS acceptance contract
 
 ## Dependency-Ordered Execution
 
-1. **SDD-00D:** finish permanent scope removal, FS/TS-to-code evidence inventory, dependency ranking, and measurable completion dashboard.
-2. **Next P0 slice selected by SDD-00D:** likely admission/enrollment, finance, scheduling correction, or grade policy based on dependency evidence; historical SDD order is not authority.
-3. **SDD-06E/06F finance policy closure:** maker-checker reconciliation, receipt evidence, private reminders, and refund/disposition execution before withdrawal/cancellation side effects.
-4. **SDD-05C-R and SDD-08A policy closure:** College progression plus versioned College grading profiles. Do not change historical or current grades without an approved profile and migration rule.
-5. **SDD-07C:** drop/withdrawal, section transfer, program shift, and modality change using settled calendar, capacity, curriculum, and finance policies.
-6. **SDD-07D:** personal correction, LOA, readmission, transfer-out, inactivity, archive, and reactivation.
-7. **SDD-08B:** attendance, guidance, behavior, and discipline evidence required by clearance/progression gates.
-8. **SDD-07E:** graduation audit, deficiencies, clearances, diploma/release evidence, and external export.
-9. **SDD-09:** cross-module Admin QA, reporting/export checks, and Pre-UAT gate.
+1. **SDD-00D:** permanent scope removal, FS/TS-to-code evidence inventory, dependency ranking, and measurable completion dashboard are recorded locally; Linear mirror remains active.
+2. **SDD-03R CP-SAT Scheduling Closure:** selected P0 integration micro-sprint. Normalize solver/domain outcome semantics (`model_invalid`, `partial`, timeout) and allow approved post-publication Apply while direct create/edit remains blocked.
+3. **SDD-07A enrollment handover continuation:** canonical `enrolled` state, placement-aware handover, generic roster export, COR issuance/PDF/QR permission cleanup, and the minimum admission gate/retention evidence needed for handover.
+4. **SDD-06E/06F finance policy closure:** maker-checker reconciliation, receipt evidence, private reminders, and refund/disposition execution before withdrawal/cancellation side effects.
+5. **SDD-05C-R and SDD-08A policy closure:** College progression plus versioned College grading profiles. Do not change historical or current grades without an approved profile and migration rule.
+6. **SDD-08B/TAL-13 Student Hub read-only connection:** connect Dashboard, Schedule, Grades, and Financials to service-backed read models after backend contracts are stable; keep advanced PWA/offline work deferred.
+7. **SDD-07C:** drop/withdrawal, section transfer, program shift, and modality change using settled calendar, capacity, curriculum, and finance policies.
+8. **SDD-07D:** personal correction, LOA, readmission, transfer-out, inactivity, archive, and reactivation.
+9. **SDD-07E:** graduation audit, deficiencies, clearances, diploma/release evidence, and external export.
+10. **SDD-09:** cross-module Admin QA, reporting/export checks, and Pre-UAT gate.
 
 ## Open Decisions Requiring Grill
 
