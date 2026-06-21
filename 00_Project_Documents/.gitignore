@@ -1,9 +1,7 @@
 *
 !.gitignore
 !README.md
-!TALA-Module-Features-Capabilities.md
-!TALA-Workflow-Reconciliation-Matrix.md
+!TALA-Active-Execution-Plan.md
+!TALA-Functional-Specification.md
+!TALA-Technical-Specification.md
 !TALA-Master-System-Test-Cases.md
-!TALA-SIS-Benchmark-Baseline-Matrix.md
-!TALA-Specification-Benchmarking-Process.md
-!TALA-UAT-Rescue-Plan-2026-06-21.md
