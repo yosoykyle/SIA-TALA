@@ -214,7 +214,7 @@
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
 | **Online Payment (PayMongo — GCash/E-Wallet)** | Student pays via hosted checkout; confirmation via `checkout_session.payment.paid` webhook only; redirect URL is not proof of payment; idempotent processing | Student / System |
-| **Over-The-Counter (OTC) / Manual Bank Transfer** | Student uploads GCash screenshot, bank deposit slip, or receipt; Cashier reviews, enters amount/reference/date, confirms; ledger updates instantly | Student / Cashier |
+| **Over-The-Counter (OTC) / Manual Bank Transfer** | Student uploads GCash screenshot, bank deposit slip, or externally issued receipt/reference evidence; Cashier reviews, enters amount/reference/date, confirms; ledger updates instantly | Student / Cashier |
 | **Promissory Note** | Student uploads signed note (one per academic year); Accounting/Cashier approves; records promise and expiry; does NOT clear balance, NOT satisfy downpayment, NOT move to `Enrolled` | Student / Cashier |
 | **Drop/Withdrawal Fee** | Policy-driven withdrawal/refund/disposition assessment based on approved effective-dated institutional and regulatory rules; no fixed amount is embedded in the capability map | System |
 
