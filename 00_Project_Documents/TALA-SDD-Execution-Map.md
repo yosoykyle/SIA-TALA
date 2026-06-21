@@ -2,7 +2,7 @@
 
 **Purpose:** Active spec-driven execution map for finishing the smallest working SIS core before UAT, then continuing deferred SDD slices in dependency order.
 **Last Updated:** 2026-06-21
-**Scope:** UAT rescue baseline first: role access, applicant intake, admission documents, enrollment/section/finance clearance, student record, faculty class/grade operation, read-only student visibility, and completion/graduation boundary.
+**Scope:** UAT rescue baseline first for the College-only deployment: role access, applicant intake, admission documents, enrollment/section/finance clearance, student record, faculty class/grade operation, read-only student visibility, and completion/graduation boundary.
 **Status:** Active execution map under the 2026-06-21 UAT rescue overlay. Scheduling/curriculum decisions from the 2026-06-17 audit remain locked unless the user reopens a specific decision.
 
 ---
@@ -13,7 +13,7 @@ This map is the current execution control document after the 2026-06-19 consolid
 
 1. `TALA-Functional-Specification.md` defines business workflows and role boundaries.
 2. `TALA-Technical-Specification.md` defines service, schema, UI, security, and verification contracts.
-3. `business-evidence/INSTITUTION WORK  FLOW CURRENT.md` is the newest client-approved business baseline; other evidence supplies forms/sheets for field and policy validation.
+3. `business-evidence/INSTITUTION WORK  FLOW CURRENT.md` is the newest client-approved College-only business baseline; other active evidence supplies College forms/sheets for field and policy validation.
 4. `TALA-Specification-Benchmarking-Process.md` defines the repeatable feature-group process for benchmark-hardening FS/TS before implementation.
 5. `TALA-Workflow-Reconciliation-Matrix.md` records the requirement-by-requirement FS/TS/code classification, benchmark gate, SDD owner, and dependency order.
 6. The Laravel codebase proves current implementation state through migrations, models, services, policies, Filament resources, and tests.
@@ -65,6 +65,10 @@ Feature Group 10 passed its deep submission-lock audit on 2026-06-21. Controlled
 
 Feature Group 11 passed its deep submission-lock audit on 2026-06-21. Attendance, behavior, discipline, guidance, and interventions remain benchmark-gated/deferred because current code has no typed attendance, guidance-case, behavior, discipline, intervention, notice, appeal, or clearance-effect source. The approved boundary is protective: missing Group 11 data cannot silently block the rescue SIS flow. SDD-08B owns any future implementation after institution-approved attendance/discipline/guidance policies define evidence, responsible office, privacy class, notice/response, appeal/review, resolution, effective dates, and exact effects. Guidance/counseling details require restricted access and redacted clearance summaries rather than ordinary Faculty, Accounting, or Registrar data-table visibility.
 
+### College-Only Scope Correction Overlay (2026-06-21)
+
+The institution has removed SHS from the target deployment. `SDD-00C College-Only Scope Correction` is now a blocking cleanup slice before further `SDD-07A` implementation. It supersedes earlier SHS/College branching guidance in this map. SHS references may remain only as archived historical evidence or Grade 12/Form 138/Form 137 prior-credential evidence for College admission.
+
 ---
 
 ## Execution Rule
@@ -91,10 +95,9 @@ Student Hub UI screens, PWA offline behavior, and student presentation polish ar
 | Evidence source | Use in SDD |
 | --- | --- |
 | `BM-Evaluation.md`, `IT-Evaluation-done.md`, `THM-Evaluation.md` | Transferee evaluation fields, subject equivalency, bridging subject, and grade evidence. |
-| `Copy-of-SIA-SHS-EVALUATION-FORM.md` | SHS evaluation/intake structure and learner record expectations. |
-| `shs-tf.md` | SHS semester fee, downpayment, and monthly tuition assumptions. |
-| `SOA-SHS-1.md`, `SOA-2nd-year-COLLEGE-1.md` | LRN/course/balance/paid/remaining/monthly payment/penalty shapes for ledger and assessment logic. |
-| `shs sample classrecord.md`, `MS.-OLIMBERIO-Blended-Online.Final-Grade-1.md` | Faculty class-record/final-grade layouts, SHS quarterly grades, college equivalent grade scales, pass/fail, INC, and DRP evidence. |
+| `archive/deprecated-shs-scope-2026-06-21/` | Historical SHS-only evidence retained for audit/import reference only; not active workflow guidance. |
+| `SOA-2nd-year-COLLEGE-1.md` | College LRN/course/balance/paid/remaining/monthly payment/penalty shapes for ledger and assessment logic. |
+| `MS.-OLIMBERIO-Blended-Online.Final-Grade-1.md` | College final-grade layout, equivalent grade scale, pass/fail, INC, and DRP evidence. |
 | `INSTITUTION WORK  FLOW CURRENT.md` | Subject-offering, enrollment, faculty grade submission, Registrar verification, and archived-grade lifecycle evidence. |
 
 Use business evidence to clarify fields and policies. Do not copy raw sheet layout into the app as the UI contract.
@@ -111,7 +114,7 @@ Use business evidence to clarify fields and policies. Do not copy raw sheet layo
 | Enrollment/student records | `StudentProfile`, `Enrollment`, `EnrollmentSubject`; `ApplicantIntakeService`, `StudentEnrollmentService`, `SubjectSuggestionService`, `StudentDashboardService`, `EnrollmentHardCopyReceiptService`, `EnrollmentAssessmentService`; list/view admin resources plus TAL-13 applicant, enrollment, subject-suggestion, and dashboard backend contracts exist. |
 | Finance | `PaymentConfirmationService`, `EnrollmentFinanceClearanceService`, `PayMongoWebhookProcessor`, `InstallmentPolicyService`, `AccountingAdjustmentService`, `FeeTemplateResource`, `PaymentAttemptResource`, `PaymentResource`, `LedgerEntryResource`, `PromissoryNoteResource`, `AccountingAdjustmentResource`; payment, webhook, assessment, promissory, and accounting-adjustment tests. |
 | Documents/OCR/requests | `DocumentUploadReviewService`, `DocumentRequestLifecycleService`, `ServiceRequestLifecycleService`; document/request Filament resources and tests. |
-| Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, SHS/College grading services; class-list, grades, and grade-correction resources/tests. |
+| Grades/faculty | `GradeEncodingService`, `GradeFinalizationService`, `GradeCorrectionService`, College grading service, class-list, grades, and grade-correction resources/tests; SHS services/tests remain cleanup targets under SDD-00C. |
 | Student Hub access | `/student/*` route protection and FAQ/help consumption are tested. `StudentDashboardService` now provides the dashboard aggregate contract for profile, enrollment, schedule, financials, finalized grades, requests, holds, notifications, and published FAQ/help links before UI work. |
 
 Explicit remaining TAL-13 backend contracts after SDD-05D:
@@ -133,6 +136,19 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 | Status | Active. |
 | Done when | README, local checklist, FS/TS, and Linear point to this SDD map as the current execution control. |
 
+### SDD-00C: College-Only Scope Correction
+
+**Goal:** Remove SHS from active source-of-truth guidance and prepare the codebase for a clean College-only implementation before resuming SDD-07A.
+
+| Feature slice | FS/TS anchors | Current evidence | Target |
+| --- | --- | --- | --- |
+| Business evidence correction | Workflow scope note and reconciliation matrix | SHS-only files archived; active workflow rewritten as College-only | Keep SHS evidence historical only; allow Grade 12/Form 138/Form 137 solely as College admission credentials. |
+| Specification and test-case correction | FS/TS, capability map, master test cases | Specs and UAT rows still contain SHS-era assumptions | Remove active SHS offerings, grading, fee, schedule, and UAT scenarios; keep College-only goal-state requirements. |
+| Runtime cleanup plan | Laravel models, migrations, services, seeders, factories, Filament resources, tests | Runtime still exposes education-level and SHS branches in multiple areas | Remove active SHS options/validation/service paths and then drop schema fields that exist only for SHS-vs-College branching. |
+| Verification | Reconciliation matrix, local checklist, focused tests | Existing tests still include SHS expectations | Add guard tests proving SHS cannot be selected or created, and College applicant/enrollment/grade flows still work. |
+
+**Done when:** FS/TS, SDD map, local checklist, master test cases, and code agree that active deployment is College-only; SHS references are either archived history or College prior-credential evidence.
+
 ### SDD-01: Curriculum Template and Readiness Scopes (`TAL-20`)
 
 **Goal:** Make curriculum data safe for scheduling and sectioning before changing scheduler behavior.
@@ -140,7 +156,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 | Feature slice | FS/TS anchors | Current evidence | Target |
 | --- | --- | --- | --- |
 | Unified curriculum template | FS 5.1.2, TS 3.17 | `CurriculumImportTemplate`, `CurriculumImportService` | Replace old `Lec_Hours` scheduling dependency with `Weekly Contact Hours`; add `Academic Subject Type`, `Scheduling Group`, and `Delivery Rule Override`. |
-| Import validation | FS 5.1.2, TS 3.17 | import preview/commit services | Store zero-valid-row files only as non-committable preview/audit evidence; commit requires `error_rows = 0` and `valid_rows > 0`; allow partial SHS-only or College-only imports scoped to affected curriculum scopes. |
+| Import validation | FS 5.1.2, TS 3.17 | import preview/commit services | Store zero-valid-row files only as non-committable preview/audit evidence; commit requires `error_rows = 0` and `valid_rows > 0`; allow partial College imports scoped to affected curriculum scopes. |
 | Curriculum scope readiness | FS 5.1.2, TS 3.17, TS 3.6.3 | Implemented (`CurriculumScopeReadinessService`, `needs_review`) | Add explicit readiness by `curriculum_id + year_level + curriculum_period`, displayed as `program + curriculum version + year/grade + period`; old rows become `needs_review` until confirmed. |
 | Filament admin surface | TS 3.17, TS 5 | current Import Batches and Curriculum resources | Add coverage/readiness view/action using Filament v5 tables, filters, infolists, and actions; keep business rules in services. |
 
@@ -149,7 +165,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 - Add an explicit readiness model/table keyed by `curriculum_id + year_level + curriculum_period`; derive program through the curriculum relationship.
 - Store scheduler-facing offering fields on `curriculum_subjects`: `weekly_contact_hours`, `academic_subject_type`, `scheduling_group`, and constrained nullable `delivery_rule_override`.
 - Keep the existing database `department` column as the education-level storage for MVP, but template/UI wording must use `Education Level`; legacy `Department` template headers fail strict validation.
-- Import preview may store zero-valid-row files as non-committable audit evidence. Commit requires `error_rows = 0` and `valid_rows > 0`; partial SHS-only or College-only imports are valid and affect only imported scopes.
+- Import preview may store zero-valid-row files as non-committable audit evidence. Commit requires `error_rows = 0` and `valid_rows > 0`; partial College imports are valid and affect only imported scopes.
 - Imports require explicit classification fields for MVP. No silent auto-fill from GE/TESDA/NC/title patterns; helper suggestions may be added later only if staff still confirm before readiness.
 - Committed imports create/update affected readiness scopes as `needs_review`. Any import or scheduler-facing edit touching a ready scope returns it to `needs_review` with audit evidence.
 - Readiness statuses are `needs_review`, `ready_for_scheduling`, and service-derived `blocked`. Current state lives on the scope row; every transition writes to `activity_log`.
@@ -329,7 +345,7 @@ Do not build the Student Hub pages in this phase. Tests may call services direct
 
 | Feature slice | FS/TS anchors | Business evidence | Current evidence | Target |
 | --- | --- | --- | --- | --- |
-| **SDD-07A - Admission documents and enrollment handover** | FS 4.1, FS 5.4, FS 8.1.1, TS 1.3.1, TS 3.12.1, TS 6.1 | Latest approved admission-gate/retention-document split, Registrar workflow, provisional undertaking, payment/receipt slot rule, and external government encoding | `ApplicantIntakeService`, `StudentEnrollmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentHardCopyReceiptService`, `DocumentUploadReviewService`, enrollment/LIS columns and projections, COR permission, OCR services/resources | Requirements closed for implementation planning. Implement one generic admission lifecycle. Initially publish Regular SHS, SHS Transfer, Regular College Freshman, and College Transfer; keep cross-enrollee inactive. Treat old curriculum/ALS, foreign compliance, and support attributes as composable rules. Add readiness-gated payment/handover, stacked admission-capacity plans, tentative placement expiry, OR-secured capacity, and `PendingInstitutionalPlacement` fallback. Add assisted legacy onboarding for pre-TALA returnees without reliable records, while SDD-07D retains readmission approval/reactivation ownership. |
+| **SDD-07A - Admission documents and enrollment handover** | FS 4.1, FS 5.4, FS 8.1.1, TS 1.3.1, TS 3.12.1, TS 6.1 | Latest approved College-only admission-gate/retention-document split, Registrar workflow, provisional undertaking, payment/receipt slot rule, and external roster boundary | `ApplicantIntakeService`, `StudentEnrollmentService`, `EnrollmentFinanceClearanceService`, `EnrollmentHardCopyReceiptService`, `DocumentUploadReviewService`, enrollment/LIS columns and projections, COR permission, OCR services/resources | Requirements are reopened only for SDD-00C College-only correction. After SDD-00C, implement one generic College admission lifecycle, initially publishing College Freshman and College Transfer only. Treat old curriculum, ALS, foreign compliance, IP, PWD/SEN, and support attributes as composable College rules only when approved. Add readiness-gated payment/handover, stacked College admission-capacity plans, tentative placement expiry, OR-secured capacity, and `PendingInstitutionalPlacement` fallback. Add assisted legacy onboarding for pre-TALA returnees without reliable records, while SDD-07D retains readmission approval/reactivation ownership. |
 | **SDD-07B - Official document catalog, issuance, and fulfillment** | FS 5.6, FS 9.1-9.3, TS 2.6.2, TS 3.14.2, TS 3.14.2.1 | Manual document-request, payment, three-working-day preparation, identity/authorization, school-record confidentiality, and release-log evidence | `DocumentRequestLifecycleService`, `DocumentRequestResource`, fixed model-owned type list, shipping/payment tests, `CorVerificationLifecycleService`, `CorVerificationResource`; no full issuance/PDF/source-snapshot service yet | Implement versioned catalog/fee activation, eligibility/holds, source snapshot/checksum, private generated artifact storage, release evidence, and request/release audit. Preserve current request/shipping transitions. Keep COR issuance and public QR verification in the COR-owned SDD-07A/08A path, finance OR/SOA in SDD-06E, and diploma/credential release in SDD-07E. |
 | **SDD-07C - Enrollment adjustment requests** | FS 5.3, FS 9.4, TS 3.14.2, TS 3.18 | Drop-subject, section transfer, program transfer, and modality-change workflows | Generic `ServiceRequestLifecycleService`; section/delivery-group capacity and calendar services exist, but no typed request applies these domain changes | Define separate typed workflows for drop subject, section transfer, program transfer, and modality change. Each approval must validate its calendar window, curriculum/prerequisites, capacity/schedule effects, and fee delta, then apply changes atomically. Resolving a generic service request must never mutate enrollment records by itself. |
 | **SDD-07D - Student record and status lifecycle** | FS 4.1, FS 5.2, FS 9.4, TS 2.5, TS 3.14.2 | Personal-data update/correction, missing-requirement receipt, withdrawal, LOA, readmission, transfer-out, inactivity, archive, and reactivation workflows | Generic `ServiceRequestLifecycleService`; `users` and `student_profiles` contain inactive/archived values, but no approved transition services implement these workflows | Define typed evidence, approvals, effective dates, notifications, access effects, financial/document holds, and reversible versus terminal transitions. Keep missing admission-document receipt in SDD-07A. Do not infer inactivity from attendance until an attendance source exists. |
@@ -423,7 +439,7 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Continue SDD-07A implementation. Remaining SDD-07A work: tentative placement expiry, canonical enrollment-state cleanup, enrolled-roster export, extension/reminder UI, notification delivery. Day 2 first practical target: canonical enrollment-state cleanup + enrolled-roster export. Follow the matrix dependency order: SDD-07A, SDD-06E/06F, SDD-05C-R/08A, SDD-07B, SDD-07C, SDD-07D, SDD-08B, SDD-07E, then SDD-09.
+Pause SDD-07A and complete `SDD-00C College-Only Scope Correction` first. The first practical target is aligning FS/TS, capability map, master test cases, and runtime cleanup scope to the College-only business baseline. After SDD-00C, resume SDD-07A remaining work: tentative placement expiry, canonical enrollment-state cleanup, enrolled-roster export, extension/reminder UI, and notification delivery.
 
 **Status context**
 
@@ -431,5 +447,5 @@ Continue SDD-07A implementation. Remaining SDD-07A work: tentative placement exp
 - **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
 - **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries; SDD-06C verifies promissory lifecycle, payment-driven settlement, deadline processing, and exam-access accommodation separation; SDD-06D verifies typed Accounting adjustments without generic ledger CRUD.
 - **Reconciliation audit:** The 2026-06-19 workflow matrix cross-references shared policy, admission, documents, status, graduation, faculty, grading, attendance, finance, and Academic Head requirements against FS/TS/code. It reopens only classified deltas and preserves completed compatible evidence.
-- **Active target:** SDD-07A implementation is underway. Completed backend/admin passes now cover versioned admission offerings, requirement policies, normalized document items, materialized applicant checklist snapshots, resolver-driven intake creation, fail-closed missing/ambiguous offering behavior, admission-gate-only payment approval, retention-item non-blocking behavior, checklist-state sync from document review, itemized retention undertakings, deadline processing, overdue hold evidence, student/enrollment context attachment, configured admission-capacity plan stacks, OR-backed secured reservations, idempotent reservation retries, full-capacity rollback before handover, the mandatory backend readiness gate for materialized SDD-07A applicant-checklist flows before finance-cleared capacity security/handover, first-pass Filament setup surfaces for offerings, policies, requirement items, and capacity plans under `manage-admission-setup`, and the Registrar admission readiness dashboard/service exposing term/offering blockers, policy/item counts, capacity remaining, schedule/readiness status, and setup drilldowns under `manage-admission-setup`/`view-global-records`. Remaining SDD-07A work: tentative placement expiry, canonical enrollment-state cleanup, enrolled-roster export, extension/reminder UI, and notification delivery. Confirmed follow-on work includes SDD-06E/06F, SDD-05C-R, SDD-07B through 07E, and SDD-08A/08B.
+- **Active target:** SDD-00C is now the blocking slice because the institution removed SHS from active scope. SDD-07A implementation is paused until active specs, test cases, and runtime cleanup scope no longer instruct developers to publish SHS offerings, SHS grading, SHS fee/schedule behavior, or SHS UAT paths. Completed SDD-07A backend/admin evidence remains preserved where compatible with College-only flow.
 - **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.

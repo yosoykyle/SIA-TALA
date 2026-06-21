@@ -29,11 +29,11 @@ Use these only when running QA, UAT, or launch preparation.
 
 ## Business Evidence
 
-Raw converted evaluation, SOA, SHS template, and legacy grade evidence is kept here. It is not deleted because it supports migration/import decisions.
+Use this folder for the active College-only institutional workflow and current College evidence. SHS-specific source files were moved out of active evidence because SHS is no longer offered in the target deployment. Grade 12/Form 138/Form 137 records may still appear in the active workflow only as prior-education admission evidence for College applicants.
 
 | Purpose | Folder |
 | --- | --- |
-| SIA evaluation forms, legacy finance sheets, legacy grade samples | [business-evidence/](./business-evidence/) |
+| Active College workflow, College evaluation forms, College finance sheets, College grade samples | [business-evidence/](./business-evidence/) |
 
 ## Archived Material
 
@@ -44,6 +44,7 @@ Use archived material only for history, not as the current implementation guide.
 | Old progress artifacts and one-off helper reports | [archive/project-progress/](./archive/project-progress/) |
 | Historical approved rescue plan | [archive/project-progress/TALA-Rescue-Plan.md](./archive/project-progress/TALA-Rescue-Plan.md) |
 | Historical client prototype walkthrough | [archive/CLIENT_PROTOTYPE_WALKTHROUGH.md](./archive/CLIENT_PROTOTYPE_WALKTHROUGH.md) |
+| Deprecated SHS scope evidence retained for history only | [archive/deprecated-shs-scope-2026-06-21/](./archive/deprecated-shs-scope-2026-06-21/) |
 | Older research/prototype/system proposal archive | [archive/](./archive/) |
 | Raw source files retained from earlier consolidation | [archive/raw-source-files/](./archive/raw-source-files/) |
 

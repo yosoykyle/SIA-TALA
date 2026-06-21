@@ -9,6 +9,7 @@
 ## Scope Lock (Approved)
 
 - Current active scope is the **2026-06-21 UAT rescue baseline**: finish the smallest working SIS core before expanding again.
+- Late 2026-06-21 scope correction: the active deployment is **College-only**. SHS is removed from active workflows and is retained only as archived historical evidence or as Grade 12/Form 138/Form 137 prior-credential evidence for College admission.
 - Core rescue flow: login and role access -> applicant intake -> admission review/documents -> enrollment/section/finance clearance -> student record -> faculty class/grade operation -> student read-only view -> completion/graduation boundary.
 - Shared student-domain backend logic required by this flow is **not deferred**. This includes applicant intake, student profiles, enrollments, subject suggestion, assessment/payment clearance, document review state, class-list visibility, grades, student dashboard aggregation, and calendar/capacity gates.
 - Student Hub is **Core-lite** for UAT: authenticated read-only visibility matters; advanced PWA polish, offline mutation, and student write-actions remain deferred unless explicitly promoted.
@@ -32,10 +33,10 @@
 - The 2026-06-17 scheduling/curriculum grilling decisions are locked unless a specific decision is reopened by the user/client.
 - Work is targeted as one module-feature vertical slice at a time: FS/TS contract, business-evidence check, code audit, backend service/policy/test, Filament admin UI/action/test, then docs and Linear sync.
 - Older refinement lists are historical unless a specific item is mapped into the active SDD execution map.
-- Current execution order is: Day 1 docs completion -> Day 2 SDD-07A target (canonical enrollment-state cleanup + enrolled-roster export) -> remaining SDD slices -> remaining module closures -> Pre-UAT QA.
+- Current execution order is: Day 1 docs completion -> SDD-00C College-only scope correction -> Day 2 SDD-07A target (canonical enrollment-state cleanup + enrolled-roster export) -> remaining SDD slices -> remaining module closures -> Pre-UAT QA.
 - TAL-13 backend contracts remain active before UAT: `ApplicantIntakeService`, `StudentEnrollmentService`, `SubjectSuggestionService`, and `StudentDashboardService` are implemented; Student Hub UI remains deferred.
 - TAL-13 Student Hub UI remains deferred. Do not spend implementation time on Student Hub presentation until the backend contracts above are stable or explicitly descoped.
-- Scheduling availability cadence is term-scoped, not whole-academic-year-scoped. Approved Pre-UAT rule: SHS scheduling terms and availability are semester-scoped; SHS quarters remain grading-period evidence only unless a future quarter-based scheduling change is approved.
+- Scheduling availability cadence is term-scoped, not whole-academic-year-scoped. SDD-00C supersedes prior SHS cadence rules for the active deployment; only College terms remain active.
 - Filament feasibility confirmed: the planned admin UI uses Filament v5 resources, forms, tables, filters, relation managers, infolists, and action modals. Business rules must stay in Laravel services/actions; Filament resources call those services.
 
 ### UAT Rescue Alignment - 2026-06-21
@@ -68,6 +69,8 @@
 - [x] Completed the Feature Group 9 submission-lock audit across student status/readmission/transfer/completion/graduation, BM-01/BM-02/BM-15/BM-25, FS/TS, reconciliation, SDD, `StudentProfile`, `Enrollment`, generic service requests, staff account lifecycle separation, and UAT rows. Specification is lock-ready; SDD-07D retains typed academic status transitions and SDD-07E retains graduation evaluation/completion/credential readiness. Runtime does not yet have dedicated student-status or graduation services.
 - [x] Completed the Feature Group 10 submission-lock audit across controlled imports/exports/reports/external boundaries, BM-01/BM-10/SIA-01, FS/TS, reconciliation, SDD, `ImportBatch`, `CurriculumImportTemplate`, `CurriculumImportService`, `ImportBatchLifecycleService`, `ImportBatchResource`, and import-focused tests. Specification is lock-ready; current runtime implements controlled curriculum import only. SDD-07A retains enrolled-roster export and SDD-09 retains broader report/export artifact checks, while DepEd/CHED/LIS submission automation remains external.
 - [x] Completed the Feature Group 11 submission-lock audit across attendance/behavior/discipline/guidance/interventions, BM-01/BM-05/BM-26/BM-27/SIA-01, FS/TS, reconciliation, SDD, code search, and focused no-hidden-gate tests. Specification is lock-ready; SDD-08B retains the future typed case/evidence workflows, and current runtime must not silently enforce attendance/discipline/guidance blocks.
+- [x] Added SDD-00C College-only scope correction as a blocking slice before further SDD-07A implementation.
+- [ ] Align FS/TS, capability map, master test cases, and code cleanup scope with the College-only business baseline.
 - [x] Adopted benchmark/default SIS lifecycle as the scope filter: admission, enrollment, records, scheduling/classes, grades, finance, role access, and completion boundary.
 - [x] Added rescue overlay to the SDD execution map.
 - [x] Added rescue overlay to the reconciliation matrix.
