@@ -3,9 +3,10 @@
 **Total Academic Lifecycle Automation System**
 **Servitech Institute Asia (SIA)**
 
-> This document consolidates every feature, capability, and role boundary across all T.A.L.A. modules as defined in the Functional Specification (FS) and Technical Specification (TS). It serves as a single, authoritative quick-reference for developers, QA, stakeholders, and onboarding personnel.
+> [!WARNING]
+> **SECONDARY CAPABILITY REFERENCE:** This document is a secondary reference derived from the Functional Specification (FS) and Technical Specification (TS). It is NOT the normative source of truth. If any capability, role, or boundary here conflicts with the FS, TS, Workflow Reconciliation Matrix, or SDD Execution Map, those primary documents ALWAYS win.
 
-**Execution Status Boundary:** This document is a capability reference, not the active build tracker. Current implementation order, backend/admin closure scope, TAL-13 backend split, and Linear mirroring rules live in `TALA-SDD-Execution-Map.md`.
+**Execution Status Boundary:** This document is a capability reference, not the active build tracker. Implementation order, local iteration status, and tracker mirroring rules live in `TALA-SDD-Execution-Map.md` and `TALA-Local-Iteration-Checklist.md`.
 
 ---
 
@@ -30,7 +31,7 @@
 | Role | Description | Constraint |
 | --- | --- | --- |
 | **Applicant** | Temporary account for enrollment workflow | Limited to applicant portal; no Student Hub access |
-| **Student** | Officially enrolled student | View-only for most data; self-service for payments, documents, grade corrections |
+| **Student** | Officially enrolled student | View-only for most data; self-service mutations (payments, documents, corrections, shifting, onboarding) are final-form capabilities that require dedicated service/UI workflows where noted |
 | **Registrar** | Academic records custodian | Full student records, scheduling, approvals, document SLAs, drop form consultations |
 | **Accounting / Cashier** | Financial transactions and ledger owner | OTC payment processing, assessments, promissory approval, fee template management |
 | **Faculty** | Teaching and grading | Class lists, grade encoding, availability submission |
@@ -52,21 +53,21 @@
 | Manage Schedules | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Submit Faculty Availability | ❌ | ❌ | ✅ (Review) | ❌ | ✅ | ✅ (Read-Only) | ❌ |
 | View Advising Status | ❌ | ✅ | ✅ | ❌ | ✅ (Read-Only) | ✅ | ✅ |
-| Request Documents | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Request Documents | ❌ | ✅ (Final-form; service-backed workflow required) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Approve Promissory Note | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | View Promissory Tag | ❌ | ✅ | ✅ (Read-Only) | ✅ | ❌ | ✅ | ✅ |
 | Configure Fee Templates | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ (Read-Only) | ❌ |
 | Drop/Transfer Consult | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Review Shifting Requests | ❌ | ✅ (Request) | ✅ | ❌ | ❌ | ✅ (Override) | ❌ |
+| Review Shifting Requests | ❌ | ✅ (Request; service-backed workflow required) | ✅ | ❌ | ❌ | ✅ (Override) | ❌ |
 | Manage Summer Schedules | ❌ | ✅ (View) | ✅ | ❌ | ✅ (Assigned) | ✅ (Read-Only) | ❌ |
-| Manage Admission Reqs | ❌ | ❌ | ❌ (Deferred) | ❌ | ❌ | ❌ | ❌ (Deferred) |
+| Manage Admission Reqs | ❌ | ❌ | ✅ (Final-form owner; typed workflow required) | ❌ | ❌ | ✅ (Read-Only) | ❌ |
 | Staff User Management | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | RBAC Matrix Review | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ (Read-Only) |
 | System Settings | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ (Internal Registry) |
 | Authorize Override | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | FAQ Management | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Audit Trail Access | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Bulk Data Import | ❌ | ❌ | ✅ (Academic) | ✅ (Financial) | ❌ | ❌ | ❌ |
+| Bulk Data Import | ❌ | ❌ | ✅ (Curriculum import proven; others final-form controlled) | ✅ (Final-form controlled only) | ❌ | ❌ | ❌ |
 
 ---
 
@@ -104,12 +105,12 @@
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
 | **Returnee Detection and Legacy Onboarding** | Registrar searches existing/imported records before readmission. If no reliable pre-TALA record exists, staff create a provenance-tagged baseline from verified evidence, run duplicate review, and continue through controlled readmission; no second public applicant identity is created | Registrar |
-| **Clearance & Eligibility Check** | Balance > 0 → Blocked; Failed grades detected → Flagged as Irregular | System |
+| **Clearance & Eligibility Check** | Active holds (e.g. prior term balance) block enrollment; Failed grades detected → Flagged as Irregular | System |
 | **Regular Enrollment** | One-click enroll; auto-promoted to next block section | Student |
 | **Irregular Enrollment (SHS)** | Student submits proposed back subjects; Registrar manually assigns to appropriate section(s) per subject | Student / Registrar |
 | **Irregular Enrollment (College)** | System-guided subject selection with prerequisite enforcement, capacity checks, and schedule conflict prevention | Student / Registrar |
 | **Prerequisite Enforcement** | Blocks enrollment if prerequisite has active INC, failed, or missing grade; latest finalized attempt used for repeated subjects; approved equivalents supported | System |
-| **Academic Load Cap (30 Units)** | Proposed load > 30 units → enrollment blocked until resolved; no overload exception in current scope | System |
+| **Academic Load Cap** | Enforces configured maximum load; proposed load > cap → enrollment blocked until resolved | System |
 | **Automatic Summer-Class Split** | Overflow subjects separated into proposed summer bucket; advisory until Registrar confirms | System / Registrar |
 | **Payment & Activation** | Upload proof → Cashier confirms finance clearance and secures capacity → admission/placement gates complete → `Enrolled` and COR available; retention undertakings remain separate holds | Student / Cashier / Registrar |
 
@@ -120,12 +121,12 @@
 | **Offline COR/Schedule Viewing** | PWA caches COR, class schedule, latest grades for offline read-only access | Student |
 | **Modular Ownership Status** | Shows responsible faculty teacher/adviser ownership when available; printed-module pickup/submission logistics stay outside MVP | Student (Modular) |
 | **Pull-to-Refresh Sync** | Auto-refreshes data when internet returns | Student |
-| **Financial Dashboard** | Current balance, payment history, Pay Now button, promissory note status, exam permit access indicator | Student |
+| **Financial Dashboard** | Current balance, payment history, Pay Now action through an approved payment workflow, promissory note status, and exam-access visibility that respects approved accommodations/no blanket debt block | Student |
 | **Grade Viewing** | View finalized grades per term/subject | Student |
-| **Grade Correction Request** | Submit request with subject, current grade, desired correction, reason, optional attachments (max 3 files, 5 MB each) | Student |
-| **Document Request Portal** | Request official documents (Form 137, COE, Good Moral, etc.) with pickup or delivery option | Student |
-| **Shifting Request** | Submit program/strand shifting request (deferred module) | Student |
-| **Interactive Onboarding** | First-login guided tutorial highlighting COR, Grades, and Request Document areas | Student |
+| **Grade Correction Request** | Submit request with subject, current grade, desired correction, reason, optional attachments through a dedicated service-backed workflow | Student |
+| **Document Request Portal** | Request official documents (Form 137, COE, Good Moral, etc.) with pickup or delivery option through a dedicated service-backed workflow | Student |
+| **Shifting Request** | Submit program/strand shifting request through a dedicated service-backed workflow | Student |
+| **Interactive Onboarding** | First-login guidance highlighting COR, Grades, and Request Document areas when an approved onboarding workflow exists | Student |
 
 ---
 
@@ -217,7 +218,7 @@
 | **Online Payment (PayMongo — GCash/E-Wallet)** | Student pays via hosted checkout; confirmation via `checkout_session.payment.paid` webhook only; redirect URL is not proof of payment; idempotent processing | Student / System |
 | **Over-The-Counter (OTC) / Manual Bank Transfer** | Student uploads GCash screenshot, bank deposit slip, or receipt; Cashier reviews, enters amount/reference/date, confirms; ledger updates instantly | Student / Cashier |
 | **Promissory Note** | Student uploads signed note (one per academic year); Accounting/Cashier approves; records promise and expiry; does NOT clear balance, NOT satisfy downpayment, NOT move to `Enrolled` | Student / Cashier |
-| **Drop-Out Fee** | Automatic ₱3,500 fee assessed to ledger upon official withdrawal | System |
+| **Drop/Withdrawal Fee** | Policy-driven withdrawal/refund/disposition assessment based on approved effective-dated institutional and regulatory rules; no fixed amount is embedded in the capability map | System |
 | **Document Request Fees** | Paid documents require Accounting confirmation before Registrar fulfillment; free documents bypass Accounting | Accounting / Registrar |
 | **Shipping Fee (2-Phase Model)** | Document fee confirmed before fulfillment; Registrar records actual shipping fee after shipment; 3-day grace before debt posting | Registrar / Accounting |
 
@@ -226,19 +227,19 @@
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
 | **Downpayment Clearance** | Finance clearance when minimum downpayment is received or full balance is paid; `Enrolled` still requires physical documents and placement; promissory notes do NOT trigger this | System / Accounting |
-| **Exam Permit Visibility** | Viewable only if `Current_Balance <= 0` (fully paid); promissory does not grant access | System |
-| **Financial Disposition Policy** | Current institution uses strict no refund; typed cancellation/discrepancy causes resolve through the active deployment policy; excess remains credit unless policy authorizes another disposition | System |
+| **Exam Permit Visibility** | Visibility follows the approved exam-access policy: no blanket debt-based exam block; full payment, the institution's no-debt-block rule, or a separately approved Exam Access Accommodation may allow access. Promissory-note approval is promise-tracking evidence only and is not exam-access approval by itself. | System |
+| **Financial Disposition Policy** | Typed cancellation, withdrawal, refund, duplicate payment, and discrepancy causes resolve through the active deployment policy; excess remains credit unless policy authorizes another disposition | System |
 | **Advance Payments (Negative Balance)** | Overpayment drives balance below zero; new assessments automatically offset; no separate "Student Wallet" | System |
 | **Immutable Ledger** | All financial entries are write-once; errors corrected via reversal transactions, never deletion | System |
 | **Real-Time Synchronization** | Payment confirmed at 10:00 AM → Student Hub and Faculty lists reflect "Paid" within ~1 minute | System |
 
-### 4.4 Deferred: Installment Policy (F10 Target)
+### 4.4 Installment Policy Capability
 
 | Feature | Description | Status |
 | --- | --- | --- |
-| **Installment Plans** | Configurable up to 10 months; monthly due at end-of-month | Deferred |
-| **Grace Period** | 3-day grace before overdue | Deferred |
-| **Penalty** | 5% on overdue installment | Deferred |
+| **Installment Plans** | Configurable up to 10 months; monthly due at end-of-month | Requires approved policy workflow |
+| **Grace Period** | 3-day grace before overdue | Requires approved policy workflow |
+| **Penalty** | 5% on overdue installment | Requires approved policy workflow |
 
 ---
 
@@ -248,8 +249,8 @@
 
 | Feature | Description | Roles Involved |
 | --- | --- | --- |
-| **Digital Class List** | Populated by Accounting logic (paid students only); real-time updates; late enrollees marked "New" for 3 days; pending-payment students invisible | Faculty (Read-Only) |
-| **Payment Status Pill (Privacy-Protected)** | Faculty sees only `Paid/Cleared` (green) or `With Balance` (amber/orange); no balance amount, transaction history, or payment channel exposed | Faculty (Read-Only) |
+| **Digital Class List** | Populated from canonical enrolled subject assignments and committed/published faculty assignment; finance details are not displayed to Faculty | Faculty (Read-Only) |
+| **Academic Visibility Pill (Privacy-Protected)** | Faculty sees only academic roster/availability status needed for class handling; balance amount, transaction history, payment channel, and finance-derived badges are hidden | Faculty (Read-Only) |
 | **Student Info Update Indicators** | In-app notification + "Updated" badge (48 hrs) when a student changes contact, modality, guardian, or enrollment info; diff view available | Faculty |
 | **View Teaching Schedule** | Assigned classes: Subject, Day, Time, Room; sourced from committed Registrar schedules | Faculty |
 | **Faculty Availability Submission** | Self-service entry of available days/time windows during Registrar-opened submission period; editable while `draft` and window open | Faculty |
@@ -262,7 +263,7 @@
 | --- | --- | --- |
 | **Period-Level Entry** | Faculty enters one computed grade per grading period; component-level computation (Written Work, Performance Tasks, etc.) done offline | Faculty |
 | **SHS Grading (DepEd-Aligned)** | Input: transmuted grade (60–100) for Q1 and Q2; system averages for final grade; minimum transmuted = 60, minimum passing = 75 | Faculty / System |
-| **College Grading (Profile-Gated)** | Current runtime uses raw Prelim 30%, Midterm 30%, Final 40% and the raw-evidence SIA scale. The updated workflow conflicts; SDD-08A must add effective-dated profiles and obtain client approval before changing calculations or historical grades. | Faculty / System / Academic Head |
+| **College Grading (Profile-Gated)** | College grading uses an approved effective-dated grading profile. A Prelim/Midterm/Final 30/30/40 profile may exist as a deployment-specific profile, but it must not be treated as a universal College policy without client approval and migration rules. | Faculty / System / Academic Head |
 | **INC (Incomplete) Lifecycle** | 365-day countdown from end of term; auto-fail to 5.0 on day 365 via nightly batch job; blocks prerequisite chain while active | Faculty / System |
 | **Grade Finalization & Locking** | Faculty clicks "Finalize Grades" → read-only; already-finalized shows notice (no state change); Academic Head may force-finalize or reopen with reason | Faculty / Academic Head |
 | **Grade Upload (Excel Template)** | Faculty downloads pre-populated `.xlsx` template; uploads with Student ID cross-check against official class list | Faculty |
@@ -290,7 +291,7 @@
 | **Custom COR & Document Templates** | Modify COR layout/fields to match institutional branding; changes apply globally for future COR generations | System Super Admin |
 | **HR Management & Account Archiving** | Phase 1: Archive account (session flush, role stripping, status → `archived`); Phase 2: Historical integrity (never delete user record, name appears as `[Inactive]`); Phase 3: Restore account for rehire | System Super Admin |
 | **User Management** | Create, edit other non-archived staff, archive, restore staff accounts; assign exactly one approved role | System Super Admin |
-| **System Settings (Internal Registry)** | Seeded runtime keys read by backend services; no generic admin control panel or raw key/value/JSON editing during TAL-12. Future maintenance/admission settings require dedicated typed pages. | System |
+| **System Settings (Internal Registry)** | Runtime keys are read by backend services; no generic admin control panel or raw key/value/JSON editing is exposed. Maintenance/admission settings require dedicated typed pages. | System |
 | **Term Management** | Create new terms; carry-over logic (profiles/balances carry, enrollment resets); supports overlapping terms | Registrar / System Super Admin |
 | **FAQ Management** | CRUD for FAQ entries; explicit sort order; publish toggle; filter by category; only `system-super-admin` with `manage-faqs` can create/edit/publish/delete | System Super Admin |
 | **Two-Layer Maintenance Mode** | Application-level UI toggle with custom message/ETA (staff read-only bypass) AND Infrastructure-level CLI (`php artisan down`) | System Super Admin |
@@ -382,7 +383,7 @@
 | Feature | Description | Target |
 | --- | --- | --- |
 | **Student Onboarding (PWA)** | Auto-activates on first login; highlights My Documents, Grades, Request Document; saved to profile to prevent repeat | Student |
-| **Staff Onboarding (Admin Nexus)** | Staff training is delivered through operations guidance, UAT scripts, role guidance, and maintained FAQ/help content. A Filament guided-tour runtime is not part of the approved TAL-12 production surface unless a later reviewed slice reintroduces it. | Staff |
+| **Staff Onboarding (Admin Nexus)** | Staff training is delivered through operations guidance, acceptance scripts, role guidance, and maintained FAQ/help content. A Filament guided-tour runtime requires a separately approved and tested workflow before becoming a production surface. | Staff |
 
 ---
 
@@ -406,7 +407,7 @@
 | --- | --- | --- |
 | **Drop Form Process** | Student files form and schedules mandatory consultation with Registrar/Guidance | Student / Registrar |
 | **Service Request Lifecycle Notes** | Registrar resolves service requests with optional resolution notes and must enter rejection/cancellation reasons; these are stored as lifecycle activity/notification context, not editable request fields | Registrar / Student |
-| **Drop Fee** | Automatic ₱3,500 assessed to ledger upon official withdrawal | System |
+| **Drop/Withdrawal Fee** | Policy-driven withdrawal/refund/disposition assessment based on approved effective-dated institutional and regulatory rules; no fixed amount is embedded in the capability map | System |
 | **Grace Period** | One-term grace for non-formal drops; system sends warnings; archives account after expiry | System |
 | **Document Hold** | Dropped students cannot request documents until balance settled | System |
 
@@ -463,7 +464,7 @@
 | Feature | Description |
 | --- | --- |
 | **Public Page** (`/admission-requirements`) | Document checklists (SHS/College), modality options, enrollment steps overview, FAQ links |
-| **Configuration** | Stored internally in `system_settings.admission_requirements` as seeded versioned JSON; Registrar/System Super Admin typed editing is deferred until a dedicated validated workflow exists |
+| **Configuration** | Admission requirement configuration is exposed only through a dedicated validated workflow; raw `system_settings` key/value editing is not a staff-facing capability |
 | **Faculty Quick Link** | "Copy SHS Requirements Link" / "Copy College Requirements Link" widget on Faculty Dashboard |
 
 ---
@@ -502,7 +503,7 @@
 - Create temporary account, complete profiling, upload documents, review OCR results, track application status, re-upload rejected documents, view payment instructions, upload payment proof.
 
 ### Student
-- View COR/grades/schedule (online + offline via PWA), pay tuition (online/OTC), upload payment proof, view financial dashboard (balance/history/promissory/exam permit), request documents (pickup/delivery), submit grade correction requests, submit shifting requests, view advising status, complete onboarding tutorial.
+- View COR/grades/schedule and financial/advising status; final-form Student Hub mutations include payments, proof upload, document requests, grade correction requests, shifting requests, and onboarding, but each mutation requires its dedicated service-backed UI workflow before it becomes available.
 
 ### Registrar
 - Configure academic year/terms/calendar gates, import curriculum, manage student records (view/edit with audit), review/approve/reject applicant documents, receive required physical credentials, evaluate transferee credits (OCR-assisted), assign sections and schedules (with conflict validation), manage section/delivery-group capacity with no bypass override, manage enrollment lifecycle (approve → finalize → COR), view/export enrolled-student rosters for external reporting, process walk-in enrollments, fulfill document requests (pickup/delivery/shipping), handle drop consultations, import legacy academic/enrollment data, manage admission requirements.
@@ -517,7 +518,7 @@
 - Read-only oversight across all domains, authorize overrides (grade finalization force/reopen, schedule exceptions, shifting exceptions), upload curriculum templates, make clerical curriculum edits, monitor grade submission progress widget, send bulk grade reminders, receive SLA escalation notifications.
 
 ### System Super Admin (IT)
-- Full staff user management (create/archive/restore and edit other non-archived staff), read-only seeded RBAC matrix review, FAQ content, audit trails, system maintenance mode, enrollment/reporting visibility, and administrative dashboard. Generic runtime settings/admission requirements are internal or deferred until dedicated typed workflows exist; academic and financial operations remain read-only.
+- Full staff user management (create/archive/restore and edit other non-archived staff), read-only seeded RBAC matrix review, FAQ content, audit trails, system maintenance mode, enrollment/reporting visibility, and administrative dashboard. Generic runtime settings/admission requirements are internal unless exposed through dedicated typed workflows; academic and financial operations remain read-only.
 
 ---
 

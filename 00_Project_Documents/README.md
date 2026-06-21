@@ -16,8 +16,7 @@ This folder is split by document purpose so the main directory stays readable.
 | UAT rescue scope-freeze tracker | [TALA-UAT-Rescue-Plan-2026-06-21.md](./TALA-UAT-Rescue-Plan-2026-06-21.md) |
 | Migration/schema wave control | [TALA-Foundation-Migration-Control-Log.md](./TALA-Foundation-Migration-Control-Log.md) |
 | Tech stack and package rationale | [TECH_STACK_SUMMARY.md](./TECH_STACK_SUMMARY.md) |
-| Feature/capability quick reference | [TALA-Module-Features-Capabilities.md](./TALA-Module-Features-Capabilities.md) |
-| Client-expected features and business flows for a new system | [Client-Expected-Features-and-Business-Flows.md](./Client-Expected-Features-and-Business-Flows.md) |
+| Feature/capability quick reference (Secondary/Historical; defer to FS/TS) | [TALA-Module-Features-Capabilities.md](./TALA-Module-Features-Capabilities.md) |
 | Top-level architecture | [TALA-System-Architecture-Top-Level.md](./TALA-System-Architecture-Top-Level.md) |
 
 ## Execution Packages
@@ -44,6 +43,7 @@ Use archived material only for history, not as the current implementation guide.
 | --- | --- |
 | Old progress artifacts and one-off helper reports | [archive/project-progress/](./archive/project-progress/) |
 | Historical approved rescue plan | [archive/project-progress/TALA-Rescue-Plan.md](./archive/project-progress/TALA-Rescue-Plan.md) |
+| Historical client prototype walkthrough | [archive/CLIENT_PROTOTYPE_WALKTHROUGH.md](./archive/CLIENT_PROTOTYPE_WALKTHROUGH.md) |
 | Older research/prototype/system proposal archive | [archive/](./archive/) |
 | Raw source files retained from earlier consolidation | [archive/raw-source-files/](./archive/raw-source-files/) |
 

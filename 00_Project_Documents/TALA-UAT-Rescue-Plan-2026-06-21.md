@@ -45,12 +45,12 @@ Day 1 is successful when the active project documents clearly answer:
 | --- | --- | --- |
 | 1. Re-read institutional workflow | Core business flow extracted from `business-evidence/INSTITUTION WORK  FLOW CURRENT.md` | Completed |
 | 2. Benchmark default SIS lifecycle | Baseline modules confirmed from external SIS patterns and reused as scope filter | Completed |
-| 3. Audit FS/TS scope language | Goal-state, implemented, deferred, and transitional claims separated | Initial pass completed; benchmark matrix and benchmarking process created |
-| 4. Classify modules | Every major feature marked Core, Supporting, Deferred, External Boundary, or Remove/Park | Initial pass completed |
-| 5. Update reconciliation matrix | UAT-impacting gaps separated from safe-to-defer gaps | Initial overlay completed |
-| 6. Update SDD execution map | Active work reordered around working SIS flow instead of full feature wishlist | Initial overlay completed |
-| 7. Update local iteration checklist | Current local progress mirrors the rescue scope and active blockers | Initial overlay completed |
-| 8. Update UAT/manual test tracking | Testable-now cases separated from goal-state cases | Initial overlay completed |
+| 3. Audit FS/TS scope language | Goal-state, implemented, deferred, and transitional claims separated | Completed after benchmark hardening Groups 1-11 |
+| 4. Classify modules | Every major feature marked Core, Supporting, Deferred, External Boundary, or Remove/Park | Completed after benchmark hardening Groups 1-11 |
+| 5. Update reconciliation matrix | UAT-impacting gaps separated from safe-to-defer gaps | Completed after benchmark hardening Groups 1-11 |
+| 6. Update SDD execution map | Active work reordered around working SIS flow instead of full feature wishlist | Completed after benchmark hardening Groups 1-11 |
+| 7. Update local iteration checklist | Current local progress mirrors the rescue scope and active blockers | Completed after benchmark hardening Groups 1-11 |
+| 8. Update UAT/manual test tracking | Testable-now cases separated from goal-state cases | Completed after benchmark hardening Groups 1-11 |
 | 9. Update Linear `TAL-28` | Tracker reflects the rescue pivot, completed docs, and next implementation target | Completed |
 | 10. Commit/tag rescue baseline when stable | Git checkpoint records the exact baseline used for UAT preparation | Pending |
 
@@ -147,6 +147,7 @@ Day 2 is successful when the system has a tested, repeatable, manually demonstra
 | 2026-06-21 | Benchmarking process applied to Feature Group 2 admissions/applicant intake/document OCR. | FS/TS now summarize published-offering intake, materialized requirement checklists, self-service and Registrar-assisted evidence channels, OCR-as-assistive-review, admission-gate versus retention-undertaking effects, and fail-closed setup behavior without claiming runtime completion. |
 | 2026-06-21 | Benchmark-hardening queue completed for Feature Groups 3-11. | FS §2.3 and TS §1.4 now provide synchronized goal-state acceptance and technical contracts for enrollment, scheduling, finance, grades, official documents, Student Hub, status/completion, data exchange, and attendance/guidance. Reconciliation and SDD priority remain controlling; no runtime completion is claimed. |
 | 2026-06-21 | Feature Group 3 passed submission-lock audit. | Canonical enrollment states, tentative/secured capacity, atomic payment-to-handover, roster/export, COR issuance/verification, and external LIS boundaries are specification-complete. Transitional runtime states, placement-aware handover, roster export, and complete COR issuance remain SDD-07A implementation work. |
+| 2026-06-21 | Feature Groups 4-11 passed deep submission-lock audits. | Baseline is now specification-complete. Runtime gaps assigned to SDD slices. Group 10 (curriculum import) is implemented but roster/export gaps remain. Group 11 (attendance/discipline) is benchmark-gated/deferred with no hidden blocks. |
 
 ---
 
@@ -154,7 +155,7 @@ Day 2 is successful when the system has a tested, repeatable, manually demonstra
 
 | Risk | Impact | Handling |
 | --- | --- | --- |
-| FS/TS still imply some deferred features are active | Professor or future developers may expect unfinished behavior | Harden wording and add explicit deferred/core classification. |
+| FS/TS still imply some deferred features are active | Professor or future developers may expect unfinished behavior | Mitigated; monitor future edits. Baseline hardening completed. |
 | UAT test cases may include non-testable goal-state flows | Failed demo if marked as passed | Split goal-state from testable-now before submission/presentation. |
 | Filament UI contains unfinished or messy surfaces | Demo may enter unsupported paths | Prioritize core path and label/hide unsafe unfinished areas where feasible. |
 | Demo data may not match committed system state | Professor may test a different version | Commit/tag tested build and document seed/login credentials. |

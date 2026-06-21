@@ -59,6 +59,12 @@ Feature Group 7 passed its deep submission-lock audit on 2026-06-21. COR remains
 
 Feature Group 8 passed its deep submission-lock audit on 2026-06-21. Student Hub/PWA remains UAT Core-lite: route protection, active-student middleware, published Help/FAQ, layout PWA directives, and the `StudentDashboardService` backend aggregate are valid evidence. Runtime gaps remain that prevent manual pass of most Student Hub rows: five pages are placeholder/static rather than service-backed, student mutation forms remain deferred, and `public/sw.js` only provides generic offline fallback rather than protected read-only cache/freshness/clear-on-logout/offline-mutation proof. SDD-08B/TAL-13 owns the connected Student Hub UI and PWA acceptance slice after core admin/backend rescue items are stable or explicitly promoted.
 
+Feature Group 9 passed its deep submission-lock audit on 2026-06-21. Student status/completion is now benchmark-locked as typed academic lifecycle work, not profile-field editing. Current runtime proves only partial storage fields and generic service-request handling. SDD-07D owns LOA, readmission, transfer-out, withdrawal, archive/reactivation, and other student-status transitions with allowed source/target states, reasons, evidence, notices, access effects, and audit. SDD-07E owns graduation evaluation snapshots, deficiency resolution, completion/graduate status, and credential-release readiness. External CHED/SO/government processing remains an external boundary unless separately promoted.
+
+Feature Group 10 passed its deep submission-lock audit on 2026-06-21. Controlled curriculum import is real current runtime evidence: the Import Batch Filament surface is non-CRUD, uses private CSV/XLSX upload, creates validation previews, blocks invalid/error batches, commits curriculum rows through a service, and records audit evidence. Generic enrolled-roster export, broader reports, export artifact lifecycle, and non-curriculum legacy imports remain implementation gaps. SDD-07A owns the enrolled-roster export that supports external manual encoding; SDD-09 owns broader Admin QA/reporting/export checks. DepEd/CHED/LIS, bank, courier, and receiving-school portals remain external unless a separate approved integration slice defines the credentials, privacy, retry, and audit contract.
+
+Feature Group 11 passed its deep submission-lock audit on 2026-06-21. Attendance, behavior, discipline, guidance, and interventions remain benchmark-gated/deferred because current code has no typed attendance, guidance-case, behavior, discipline, intervention, notice, appeal, or clearance-effect source. The approved boundary is protective: missing Group 11 data cannot silently block the rescue SIS flow. SDD-08B owns any future implementation after institution-approved attendance/discipline/guidance policies define evidence, responsible office, privacy class, notice/response, appeal/review, resolution, effective dates, and exact effects. Guidance/counseling details require restricted access and redacted clearance summaries rather than ordinary Faculty, Accounting, or Registrar data-table visibility.
+
 ---
 
 ## Execution Rule
@@ -135,7 +141,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 | --- | --- | --- | --- |
 | Unified curriculum template | FS 5.1.2, TS 3.17 | `CurriculumImportTemplate`, `CurriculumImportService` | Replace old `Lec_Hours` scheduling dependency with `Weekly Contact Hours`; add `Academic Subject Type`, `Scheduling Group`, and `Delivery Rule Override`. |
 | Import validation | FS 5.1.2, TS 3.17 | import preview/commit services | Store zero-valid-row files only as non-committable preview/audit evidence; commit requires `error_rows = 0` and `valid_rows > 0`; allow partial SHS-only or College-only imports scoped to affected curriculum scopes. |
-| Curriculum scope readiness | FS 5.1.2, TS 3.17, TS 3.6.3 | no explicit current readiness marker | Add explicit readiness by `curriculum_id + year_level + curriculum_period`, displayed as `program + curriculum version + year/grade + period`; old rows become `needs_review` until confirmed. |
+| Curriculum scope readiness | FS 5.1.2, TS 3.17, TS 3.6.3 | Implemented (`CurriculumScopeReadinessService`, `needs_review`) | Add explicit readiness by `curriculum_id + year_level + curriculum_period`, displayed as `program + curriculum version + year/grade + period`; old rows become `needs_review` until confirmed. |
 | Filament admin surface | TS 3.17, TS 5 | current Import Batches and Curriculum resources | Add coverage/readiness view/action using Filament v5 tables, filters, infolists, and actions; keep business rules in services. |
 
 **Locked SDD-01 decision closure (2026-06-17):**
@@ -182,6 +188,7 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 | --- | --- | --- | --- |
 | Readiness and snapshot | FS 5.3, TS 3.6.3 | Locally implemented in `ScheduleSolverSnapshotService` schema v3 and tests | Include ready curriculum scopes, delivery groups, weekly contact hours, delivery patterns, and section/group capacity. |
 | Solver runtime and ingestion | TS 3.6.3 | Implemented in `cloud/scheduler-solver` and `ScheduleCloudResultIngestor`; deployed revision `tala-scheduler-solver-00004-wtx` smoke-tested with delivery-group sample payload | Update Cloud Run solver and Laravel ingestor for `section_delivery_group_id`; preserve >98% feasible-input target and 100% hard validity. |
+| Scheduling solver execution | FS/TS | Implemented (solver payload generation, ingestion) | Add Python solver payload generation, execution, and solution ingestion. |
 | Manual official assignment | FS 5.3.2, TS 3.6.3 | Locally implemented in `SectionMeetingAssignmentService`, `SectionMeetingResource`, and tests | Require delivery group; preserve eligibility and hard conflicts; availability override remains reasoned/audited. |
 | Workload soft overrides | FS 5.3, TS 3.6.3 | `max_weekly_hours` exists but solver does not enforce broadly | Add configurable caps and Academic Head-approved soft override; never bypass hard conflicts. |
 | Publish lifecycle | FS 5.3, TS 3.6.3 | Locally implemented in `SchedulePublishService`, run metadata, Filament actions, and tests | Add `committed official` -> `published` with Academic Head approval; System Super Admin emergency publish only with reason. |
@@ -416,7 +423,7 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Continue SDD-07A implementation. The generic pipeline, all four initial public-offering requirement contracts, Old Curriculum College pathway, inactive/no-public-route Old Curriculum SHS trace row, ALS Junior High School-to-Grade-11 pathway, inactive-by-default foreign compliance profile, purpose-limited IP/SEN support attributes, readiness-gated payment/handover, stacked capacity-plan enforcement, readiness dashboard, tentative placement expiry, returning/legacy boundary, and inactive cross-enrollee decision are locked. Follow the matrix dependency order: SDD-07A, SDD-06E/06F, SDD-05C-R/08A, SDD-07B, SDD-07C, SDD-07D, SDD-08B, SDD-07E, then SDD-09.
+Continue SDD-07A implementation. Remaining SDD-07A work: tentative placement expiry, canonical enrollment-state cleanup, enrolled-roster export, extension/reminder UI, notification delivery. Day 2 first practical target: canonical enrollment-state cleanup + enrolled-roster export. Follow the matrix dependency order: SDD-07A, SDD-06E/06F, SDD-05C-R/08A, SDD-07B, SDD-07C, SDD-07D, SDD-08B, SDD-07E, then SDD-09.
 
 **Status context**
 
