@@ -159,7 +159,7 @@ The goal-state user interface is specified at the level needed for acceptance te
 | --- | --- | --- |
 | Public landing and applicant intake | Laravel Blade/Livewire with TallStackUI-compatible public components | Public users can start enrollment, check application status, access FAQ/help, and reach the correct login route without seeing protected staff/student data. |
 | Applicant portal | Livewire/TallStackUI forms, cards, upload controls, status banners, and toast feedback | Applicants complete staged intake, submit required data/documents, receive validation errors inline, see action-required status when rejected, and remain blocked from Student Hub until official handover. |
-| Student Hub / PWA | Livewire + TallStackUI + Tailwind + Alpine.js, mobile-first tabs/cards/tables, read-only PWA cache for approved offline data | Active students can view dashboard, COR, schedule, grades, balance, payment/document/request status, notifications, and FAQ/help. Offline mode is read-only and must disable mutation actions. |
+| Student Hub / PWA | Livewire + TallStackUI + Tailwind + Alpine.js, mobile-first tabs/cards/tables, read-only PWA cache for approved offline data | Active students can view dashboard, COR, schedule, grades, balance, payment status, admission-document status, approved service-request status, notifications, and FAQ/help. Offline mode is read-only and must disable mutation actions. |
 | Loading, splash, and offline fallback layer | Student Hub PWA via `erag/laravel-pwa`, manifest/service worker assets, TallStackUI buttons/alerts/progress, Livewire loading/offline directives, and Tailwind motion-safe/reduced-motion utilities | Installed Student Hub launches with branded manifest icon/splash behavior on supported platforms, shows stable loading/progress states for navigation/forms/uploads, disables duplicate submissions and offline mutations, provides a safe offline fallback, and respects reduced-motion/accessibility labels. |
 | Admin Nexus staff panel | Filament v5 resources/pages/tables/forms/infolists/actions/widgets with policy-based navigation | Registrar, Accounting/Cashier, Faculty, Academic Head, and System Super Admin see only authorized menus, tables, actions, filters, widgets, and lifecycle buttons. Staff workflows use typed actions instead of raw CRUD where a lifecycle or audit rule exists. |
 | Notification and feedback layer | Filament Notifications for Admin Nexus; TallStackUI toasts and inline errors for Student Hub/applicant forms | Success, warning, blocking, info, and error messages follow the standard message catalog in §8.2.3. Required-field and validation errors appear below fields, while workflow outcomes use toast/banner feedback. |
@@ -231,7 +231,7 @@ For every row, the master test-case matrix may describe the goal-state happy pat
 | Manage Schedules            | ❌        | ❌      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
 | Submit Faculty Availability | ❌        | ❌      | ✅ (Review/Lock)   | ❌         | ✅                 | ✅ (Read-Only) | ❌                 |
 | **View Advising Status**    | ❌        | ✅      | ✅                 | ❌         | ✅ **(Read-Only)** | ✅             | ✅                 |
-| Request Documents           | ❌        | ✅      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
+| Submit Service Requests     | ❌        | ✅      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
 | **Approve Promissory Note** | ❌        | ❌      | ❌                 | ✅         | ❌                 | ❌             | ❌                 |
 | **View Promissory Tag**     | ❌        | ✅      | ✅ **(Read-Only)** | ✅         | ❌                 | ✅             | ✅                 |
 | **Configure Fee Template Downpayments** | ❌     | ❌      | ❌                 | ✅         | ❌                 | ✅ **(Read-Only)** | ❌              |
@@ -643,7 +643,7 @@ Each configured Academic Year supports multiple College operational terms (semes
 
 Required term identity and date fields:
 - `term_name`
-- `term_type` (`quarter`, `semester`, `summer`)
+- `term_type` (`semester`, `summer`)
 - `term_start_date`
 - `term_end_date`
 - `class_start_date`
@@ -1431,7 +1431,7 @@ The system applies the active College grading calculation profile for the studen
 - Current Grade (auto-filled).
 - Desired Correction / Requested Action (text).
 - Reason (text, 250 chars max).
-- Attachments (optional evidence files: screenshot/photo/PDF of rubric, graded paper, LMS entry, computation proof, or similar academic evidence). Accepted types are `jpg`, `jpeg`, `png`, and `pdf`, with a maximum of 3 files and 5 MB per file.
+- Attachments (optional evidence files: screenshot/photo/PDF of rubric, graded paper, externally obtained class-record evidence, computation proof, or similar academic evidence). Accepted types are `jpg`, `jpeg`, `png`, and `pdf`, with a maximum of 3 files and 5 MB per file.
 
 **Attachment Rule**: Attachments are always optional for issue/concern resolution. Registrar may add review notes or request clarification, but the system must not require a supporting file upload before a concern can be reviewed or resolved.
 
@@ -1860,8 +1860,7 @@ Each template defines the minimum required columns. Templates are downloadable a
 | `Middle_Name` | No | max 100 characters | |
 | `Email` | No | valid email, unique | For account claim notification |
 | `Contact_Number` | No | PH mobile format | |
-| `Education_Level` | Yes | `shs` or `college` | Determines grading engine |
-| `Program_Code` | Conditional | must exist in programs table | Required for College students |
+| `Program_Code` | Yes | must exist in programs table | Required for College students |
 | `Year_Level` | Yes | e.g., `1st Year`, `2nd Year` | |
 | `Legacy_Financial_Balance` | No | decimal, default 0.00 | Posted as `Legacy Balance Forward` |
 
@@ -1871,7 +1870,7 @@ Each template defines the minimum required columns. Templates are downloadable a
 | --- | --- | --- | --- |
 | `LRN` | Yes | must match `student_profiles.lrn` for an existing student | |
 | `School_Year` | Yes | e.g., `2024-2025` | |
-| `Term` | Yes | e.g., `1st Semester`, `Q1` | |
+| `Term` | Yes | e.g., `1st Semester` | |
 | `Subject_Code` | Yes | must exist in subjects table | |
 | `Raw_Score` | Conditional | numeric 0–100 | Required when the active College grading profile expects raw score input |
 | `Equivalent_Grade` | Conditional | approved College grade scale value | Required when the active College grading profile expects equivalent-grade input |

@@ -194,7 +194,7 @@ Example usage in Blade templates:
 | **PWA** | Laravel PWA | `erag/laravel-pwa` ^2.1 | Progressive Web App support for offline COR access and mobile installation. Provides `@PwaHead` and `@RegisterServiceWorkerScript` Blade directives, Livewire-compatible, supports Laravel 8–13. |
 | **Icons** | Blade Heroicons | Built-in (via `filament/filament`) | Filament v5 bundles `blade-ui-kit/blade-heroicons` as a transitive dependency. No separate install needed. |
 | **Staff Onboarding** | External operations guidance | No runtime package | The Admin Nexus does not load a guided-tour plugin. Staff onboarding is handled through maintained operations guidance and acceptance scripts unless a future approved item reintroduces a tested tour surface. |
-| **Student Onboarding** | Driver.js | `driver.js` (NPM) | Provides interactive guided tours for the Livewire/TallStackUI Student PWA. |
+| **Student Onboarding** | Student Hub help content and operations guidance | No runtime package | Student guidance is delivered through maintained page content, published FAQ/help, and acceptance scripts. No guided-tour runtime is part of the active baseline. |
 
 ---
 
@@ -1945,7 +1945,7 @@ The legacy Artisan command approach (`SeedContinuingStudents`) is superseded by 
 ```php
 // The ContinuingStudentsImport class is now governed by §3.20
 // Template A headers: LRN, Last_Name, First_Name, Middle_Name, Email,
-//   Contact_Number, Education_Level, Program_Code, Year_Level, Legacy_Financial_Balance
+//   Contact_Number, Program_Code, Year_Level, Legacy_Financial_Balance
 // Each imported row creates:
 //   - User (status: 'unclaimed', source: 'legacy_import', import_batch_id: uuid)
 //   - StudentProfile (linked via LRN)
@@ -2260,7 +2260,7 @@ The academic calendar is separated into two hierarchical models for College oper
    - `reference_note` (string, nullable)
 2. **Term** (`terms` table): Inherits from an Academic Year and uses the canonical calendar contract:
    - `academic_year_id` (foreign key)
-   - `term_name`, `term_type` (quarter / semester / summer)
+   - `term_name`, `term_type` (semester / summer)
    - Date ranges: `term_start_date`, `term_end_date`, `class_start_date`, `class_end_date`
    - Operational Gates: `scheduling_starts_at`, `enrollment_starts_at`, `enrollment_ends_at`, `late_enrollment_ends_at`, `credential_submission_cutoff`, `payment_deadline`, `adjustment_ends_at`
 
@@ -2576,8 +2576,8 @@ class LegacyGradesImport implements ToCollection, WithHeadingRow, WithValidation
 
 | Class | Template | Key Validation Rules |
 | --- | --- | --- |
-| `StudentDataImport` | Template A | LRN unique, Education_Level enum, Program_Code exists (conditional) |
-| `LegacyGradesImport` | Template B | LRN exists, Subject_Code exists, conditional Raw_Score/Transmuted_Grade by Education_Level |
+| `StudentDataImport` | Template A | LRN unique, Program_Code exists, College year level valid |
+| `LegacyGradesImport` | Template B | LRN exists, Subject_Code exists, Program_Code exists, conditional Raw_Score/Equivalent_Grade by active College grading profile |
 | `LegacyFinancialImport` | Template C | LRN exists, Transaction_Type enum, Amount positive, Transaction_Date valid |
 | `EnrollmentRecordsImport` | Template D | LRN exists, Program_Code exists, Enrollment_Status enum |
 
@@ -2596,7 +2596,7 @@ class LegacyGradesTemplateExport implements WithHeadings, WithStyles
     {
         return [
             'LRN', 'School_Year', 'Term', 'Subject_Code',
-            'Raw_Score', 'Transmuted_Grade', 'Remarks', 'Education_Level',
+            'Raw_Score', 'Equivalent_Grade', 'Remarks', 'Program_Code',
         ];
     }
 
@@ -2618,8 +2618,8 @@ class LegacyGradesTemplateExport implements WithHeadings, WithStyles
 
 | Class | Headers |
 | --- | --- |
-| `StudentDataTemplateExport` | LRN, Last_Name, First_Name, Middle_Name, Email, Contact_Number, Education_Level, Program_Code, Year_Level, Legacy_Financial_Balance |
-| `LegacyGradesTemplateExport` | LRN, School_Year, Term, Subject_Code, Raw_Score, Transmuted_Grade, Remarks, Education_Level |
+| `StudentDataTemplateExport` | LRN, Last_Name, First_Name, Middle_Name, Email, Contact_Number, Program_Code, Year_Level, Legacy_Financial_Balance |
+| `LegacyGradesTemplateExport` | LRN, School_Year, Term, Subject_Code, Raw_Score, Equivalent_Grade, Remarks, Program_Code |
 | `LegacyFinancialTemplateExport` | LRN, School_Year, Description, Transaction_Type, Amount, Reference_Number, Transaction_Date |
 | `EnrollmentRecordsTemplateExport` | LRN, School_Year, Term, Section_Name, Program_Code, Year_Level, Enrollment_Status |
 

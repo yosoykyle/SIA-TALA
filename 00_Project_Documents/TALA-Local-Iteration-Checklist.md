@@ -16,7 +16,7 @@
 - Shared student-domain backend logic required by this flow is **not deferred**. This includes applicant intake, student profiles, enrollments, subject suggestion, assessment/payment clearance, document review state, class-list visibility, grades, student dashboard aggregation, and calendar/capacity gates.
 - Student Hub is **Core-lite** for UAT: authenticated read-only visibility matters; advanced PWA polish, offline mutation, and student write-actions remain deferred unless explicitly promoted.
 - Advanced promissory, refund, analytics polish, and non-demo UI enhancements are deferred unless the rescue tracker promotes them. DepEd/CHED/LIS portal submission/status tracking, BIR/CAS/e-receipting, courier/shipping automation, and LMS/Zoom/Google Meet link handling are not active TALA integration targets.
-- Linear `TAL-28` must be updated when this checklist or the rescue baseline changes materially.
+- The active Linear slice must be updated when this checklist or the rescue baseline changes materially: `TAL-32` while SDD-00E is being mirrored, then `TAL-31` when CP-SAT closure resumes.
 
 ---
 
@@ -74,7 +74,8 @@
 
 **Selected next micro-sprint:** `SDD-03R CP-SAT Scheduling Closure`. This is selected before another broad SDD-07A pass because it is a narrow P0 integration correction with existing services/tests, aligns with the integration-first rescue goal, and prevents the scheduling demo from depending on ambiguous solver outcomes or blocked post-publication change handling.
 - 2026-06-22 Linear mirror: closed `TAL-30` as Done with the SDD-00D completion dashboard, created urgent in-progress `TAL-31` (`SDD-03R - CP-SAT scheduling rescue closure`) under `TAL-12`, and related it to historical completed `TAL-22`.
-- 2026-06-22 pivot: `SDD-00E Scope Pruning and Role-Feature Rebaseline` temporarily blocks `TAL-31` before code resumes. Client-selected removals: cross-enrollee intake, BIR/CAS/e-receipt/official-receipt generation, DepEd/CHED/LIS portal submission/status tracking, courier/shipping automation, and LMS/Zoom/Google Meet link handling. Keep only school-year/term enrolled-student roster visibility/export and internal SOA/payment/reference evidence.
+- 2026-06-22 pivot before acceptance: `SDD-00E Scope Pruning and Role-Feature Rebaseline` temporarily blocked `TAL-31`. Client-selected removals: cross-enrollee intake, BIR/CAS/e-receipt/official-receipt generation, DepEd/CHED/LIS portal submission/status tracking, courier/shipping automation, and LMS/Zoom/Google Meet link handling. Keep only school-year/term enrolled-student roster visibility/export and internal SOA/payment/reference evidence.
+- 2026-06-22 acceptance: the user accepted the compact FS/TS role-module classification baseline. `SDD-03R/TAL-31` is the next P0 sprint; the unblock/acceptance was mirrored to Linear.
 
 ### SDD-00E Scope Pruning and Role-Feature Rebaseline
 
@@ -88,15 +89,17 @@
 - [x] Publish the role/module rebaseline matrix in `TALA-SDD-Execution-Map.md`.
 - [x] Mirror the role/module matrix to Linear `TAL-32` and decide whether `TAL-31` remains the next unblocked sprint after user acceptance.
   - 2026-06-22 Linear mirror: posted the SDD-00E role/module backlog effect and lane decisions to `TAL-32` as comment `818ada5f-71eb-4128-89c4-aacb7f610d1e`. `TAL-31` remains blocked until the user accepts the rebaseline; if accepted, it remains the next P0 integration sprint unless enrollment/COR/LIS cleanup is promoted first.
+  - 2026-06-22 acceptance mirror: posted the accepted rebaseline and unblock decision to `TAL-32` as comment `d64829c4-aeeb-42de-9558-ab05e9da1603` and to `TAL-31` as comment `4572d2c7-0721-40ab-9228-8a1c52154993`.
 - [ ] Follow-up code slice: remove LIS-only runtime coupling (`lis_status`, `manage-lis` permission naming, Filament labels, seed/factory defaults, and tests) through a controlled migration/service/test pass.
-- [ ] Follow-up planning slice: review features by role/module against FS/TS, code reality, mature-system benchmark, SMART scope, dependency priority, and two-day UAT value before creating the next micro-sprint.
+- [x] Follow-up planning slice: review features by role/module against FS/TS, code reality, mature-system benchmark, SMART scope, dependency priority, and two-day UAT value before creating the next micro-sprint.
+  - 2026-06-22 accepted classification baseline: Keep identity/RBAC, College academic foundation, freshman/transfer admissions, requirement policies, enrollment handover, scheduling, finance ledger/payment evidence, faculty grades, read-only Student Hub, COR/SOA evidence, generic roster export, controlled curriculum import, privacy/audit, and FAQ. Remove SHS active paths, cross-enrollee intake, document-request portal/catalog/fulfillment, guided tours, and official receipt/e-receipt/CAS issuance. Externalize DepEd/CHED/LIS portal work, courier/shipping, meeting-link/LMS handling, school-to-school transmission, and printed-module logistics. Keep ALS/foreign/IP/SEN, OCR depth, returnee/legacy onboarding, summer load, PayMongo, promissory/installments, grade appeals/advising, advanced PWA, non-COR artifacts, legacy imports, student-status/graduation, and attendance/discipline/guidance as REVIEW/backlog items unless promoted.
 
 | Role/module lane | Active outcome after SDD-00E | Tracker effect |
 | --- | --- | --- |
 | System Super Admin / Identity | Keep as P0 regression guard only. | No new issue unless login/RBAC/UAT seed fails. |
 | Registrar admissions and records | Keep College offerings, requirement policies, checklist/OCR/manual review, retention undertakings, Registrar-assisted legacy/readmission setup. | Continue through SDD-07A; cross-enrollee and document-request rows are removed. |
 | Registrar enrollment and COR | Keep canonical enrolled state, payment/capacity/placement handover, roster/export, COR/PDF/QR, dedicated COR permissions. | SDD-07A owns this; LIS-only runtime cleanup becomes a controlled follow-up slice. |
-| Registrar scheduling/classes | Keep CP-SAT solve/review/commit/publish and approved post-publication Apply. | `TAL-31` remains candidate next P0 sprint after SDD-00E acceptance. |
+| Registrar scheduling/classes | Keep CP-SAT solve/review/commit/publish and approved post-publication Apply. | `TAL-31` is the next P0 sprint after SDD-00E acceptance. |
 | Accounting finance | Keep assessment, payment parity, ledger, promissory promise tracking, exam accommodation, SOA/payment evidence, external receipt/reference recording. | SDD-06E/06F remain P0/P1; BIR/CAS/e-receipt/official-receipt issuance is removed. |
 | Faculty grades | Keep assigned class lists, College grade encoding, Registrar verification/finalization, corrections, history. | SDD-08A remains P0 after enrollment/scheduling dependencies. |
 | Academic Head | Keep curriculum readiness oversight, schedule publication, workload exceptions, grade-change approval, read-only oversight. | Reuse SDD-01/03/08A owners; no broad admin shortcut issue. |

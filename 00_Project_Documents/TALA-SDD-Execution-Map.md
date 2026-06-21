@@ -194,9 +194,9 @@ Explicit remaining TAL-13 backend contracts after SDD-05D:
 | Student status/completion | Truthful status boundary, withdrawal/readmission/transfer/completion/graduation as typed future lifecycles | Document-request fulfillment, government portal completion automation | P1, promote only if UAT path requires it | SDD-07C/07D/07E |
 | Attendance/discipline/guidance/analytics | No hidden blocker; future typed privacy-safe evidence only after approved policy | Any silent holds, debt-based attendance/LMS/exam blocks, broad analytics polish | P2/deferred | SDD-08B only after policy approval |
 
-**Decision rule:** The next implementation sprint is selected by the highest-priority unresolved dependency that is both still in scope and close enough to verify. That currently keeps `SDD-03R/TAL-31` as the next P0 integration sprint after `SDD-00E` closes, while `SDD-07A` owns the enrollment/COR/LIS-cleanup path immediately after or when the demo path needs enrollment before scheduling.
+**Decision rule:** The next implementation sprint is selected by the highest-priority unresolved dependency that is both still in scope and close enough to verify. The user accepted the role/module rebaseline on 2026-06-22, so `SDD-03R/TAL-31` is the next P0 integration sprint. `SDD-07A` still owns the enrollment/COR/LIS-cleanup path immediately after or if the demo path promotes enrollment before scheduling.
 
-**Done when:** This role/module matrix is mirrored in the local checklist and Linear; removed/external features no longer appear as active backlog; `TAL-31` can be unblocked only after the user accepts the rebaseline or asks to reopen a specific role/module decision.
+**Done when:** This role/module matrix is mirrored in the local checklist and Linear; removed/external features no longer appear as active backlog; `TAL-31` is unblocked after the 2026-06-22 user acceptance and Linear mirror.
 
 ### SDD-01: Curriculum Template and Readiness Scopes (`TAL-20`)
 
@@ -487,7 +487,7 @@ Mirror this map logically, not mechanically:
 
 ## Immediate Next Slice
 
-Execute `SDD-00E Role/Module Feature Rebaseline` before new code. Confirm the active role/module backlog, keep `TAL-31` blocked during the rebaseline, then resume `SDD-03R CP-SAT Scheduling Closure` unless the accepted role/module review promotes an enrollment/COR/LIS cleanup slice ahead of scheduling.
+Resume `SDD-03R CP-SAT Scheduling Closure` as the next P0 integration micro-sprint. `SDD-00E Role/Module Feature Rebaseline` has been accepted and mirrored to Linear. Enrollment/COR/LIS cleanup stays owned by `SDD-07A` unless the demo path explicitly promotes it ahead of scheduling.
 
 **Status context**
 
@@ -495,5 +495,5 @@ Execute `SDD-00E Role/Module Feature Rebaseline` before new code. Confirm the ac
 - **Completed TAL-13 backend evidence:** SDD-05A through SDD-05D cover applicant intake, student enrollment, PayMongo linked-enrollment finance-clearance parity, subject suggestion, and student dashboard aggregation.
 - **Completed Accounting evidence:** SDD-06A verifies assessment/downpayment behavior; SDD-06B verifies payment/ledger immutability, idempotency, retry handling, finance-clearance parity, and admin action boundaries; SDD-06C verifies promissory lifecycle, payment-driven settlement, deadline processing, and exam-access accommodation separation; SDD-06D verifies typed Accounting adjustments without generic ledger CRUD.
 - **Reconciliation audit:** The 2026-06-19 workflow matrix cross-references shared policy, admission, documents, status, graduation, faculty, grading, attendance, finance, and Academic Head requirements against FS/TS/code. It reopens only classified deltas and preserves completed compatible evidence.
-- **Active target:** SDD-00E is blocking feature development. It recomputes role/module backlog priority after scope pruning and decides which in-progress/backlog issues remain active, blocked, removed, or external.
+- **Active target:** SDD-03R is the next implementation target. SDD-00E reclassified the backlog after scope pruning and removed/externalized stale features.
 - **Deferred boundary:** Student Hub UI remains deferred until the backend/Admin closure slices are complete and Pre-UAT QA can begin.
