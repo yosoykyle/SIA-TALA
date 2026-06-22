@@ -104,7 +104,7 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
         $accounting->givePermissionTo(Permission::findOrCreate('create-assessments'));
         app(EnrollmentAssessmentService::class)->assess($enrollment->id, $accounting);
 
-        $this->assertSame('500.00', number_format((float) $studentProfile->refresh()->current_balance, 2, '.', ''));
+        $this->assertSame('1000.00', number_format((float) $studentProfile->refresh()->current_balance, 2, '.', ''));
 
         $attemptId = (int) DB::table('payment_attempts')->insertGetId([
             'student_profile_id' => $studentProfile->id,
@@ -118,7 +118,7 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
             'provider_checkout_session_id' => 'cs_clearance_123',
             'provider_payment_id' => null,
             'provider_payment_intent_id' => null,
-            'amount' => '100.00',
+            'amount' => '200.00',
             'meta' => json_encode(['checkout_url' => 'https://checkout.paymongo.test/cs_clearance_123'], JSON_UNESCAPED_SLASHES),
             'paid_at' => null,
             'created_at' => now(),
@@ -128,7 +128,7 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
         $this->postJson('/api/webhooks/paymongo', $this->checkoutPaidPayload(
             eventId: 'evt_clearance_123',
             checkoutSessionId: 'cs_clearance_123',
-            amountCentavos: 10000,
+            amountCentavos: 20000,
         ))->assertAccepted();
 
         $this->assertDatabaseHas('payment_attempts', [
@@ -140,7 +140,7 @@ class PayMongoWebhookFinanceClearanceTest extends TestCase
         $clearedEnrollment = $enrollment->fresh(['studentProfile.user']);
         $user = $studentUser->refresh();
 
-        $this->assertSame('400.00', number_format((float) $studentProfile->refresh()->current_balance, 2, '.', ''));
+        $this->assertSame('800.00', number_format((float) $studentProfile->refresh()->current_balance, 2, '.', ''));
         $this->assertSame('pre_enrolled', $clearedEnrollment->status);
         $this->assertNotNull($clearedEnrollment->pre_enrolled_at);
         $this->assertSame(User::StatusActive, $user->status);

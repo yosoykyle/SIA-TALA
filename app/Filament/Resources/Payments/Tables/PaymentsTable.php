@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\Payments\Tables;
 
 use App\Models\Payment;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -92,6 +94,12 @@ class PaymentsTable
             ])
             ->recordActions([
                 ViewAction::make(),
+                Action::make('acknowledgement')
+                    ->label('Acknowledgement')
+                    ->icon(Heroicon::OutlinedDocumentText)
+                    ->url(fn (Payment $record): string => route('finance.payments.acknowledgement', $record))
+                    ->openUrlInNewTab()
+                    ->visible(fn (Payment $record): bool => auth()->user()?->can('viewAcknowledgement', $record) ?? false),
             ])
             ->toolbarActions([]);
     }

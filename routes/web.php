@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\CorVerificationController;
+use App\Http\Controllers\FinanceStatementController;
+use App\Http\Controllers\PaymentAcknowledgementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,6 +21,13 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/cor/verify/{token}', CorVerificationController::class)->name('cor.verify');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/finance/statements/enrollments/{enrollment}', FinanceStatementController::class)
+        ->name('finance.statements.show');
+    Route::get('/finance/payments/{payment}/acknowledgement', PaymentAcknowledgementController::class)
+        ->name('finance.payments.acknowledgement');
+});
 
 Route::livewire('/faq', 'pages::faq')->name('faq');
 

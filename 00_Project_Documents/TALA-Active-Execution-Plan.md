@@ -38,12 +38,16 @@ Completed:
 1. Extracted FS/TS feature inventory by lifecycle module and role.
 2. Classified features in 8 small user-approved batches.
 3. Removed or externalized rejected features from active FS/TS language.
+4. Completed survival micro-sprints `S1` through `S4` with focused regression evidence and Linear/git checkpoints.
+5. Completed `S5 Finance and PayMongo`: College-scoped fee assessment; manual and PayMongo payment posting; signature/idempotency guards; immutable ledger, balance, overpayment, finance clearance, Accounting adjustments, and authorized internal SOA/payment acknowledgement evidence.
+6. Removed unapproved automatic freshmen-discount execution and active discount/promissory permissions; these remain `REVIEW`, not active finance behavior.
+7. Applied the College-only schema correction, including removal of redundant `education_level` finance and foundation discriminators.
 
 Current:
 
-1. Close `S4 Enrollment, COR, and Capacity`.
-2. Update Linear with the sprint evidence.
-3. Select `S5 Finance and PayMongo` after user review.
+1. Record `S5` test, schema, Linear, and git evidence.
+2. Human-review the `S5` finance evidence boundary and manual Accounting output.
+3. Benchmark and code-audit `S6 Scheduling and CP-SAT` before implementation.
 
 ## Approved Feature Batch 1
 

@@ -12,7 +12,6 @@ class LedgerEntryPolicy
         return $this->canAny($user, [
             'process-payments',
             'create-assessments',
-            'apply-discounts',
         ]);
     }
 

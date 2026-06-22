@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class Enrollment extends Model
 {
@@ -81,15 +80,6 @@ class Enrollment extends Model
     public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);
-    }
-
-    public function isFreshmenDiscountEligible(): bool
-    {
-        $studentType = Str::of((string) $this->student_type)->lower()->replace(['-', '_'], ' ')->squish()->toString();
-        $yearLevel = Str::of((string) $this->year_level)->lower()->replace(['-', '_'], ' ')->squish()->toString();
-
-        return in_array($studentType, ['new', 'freshman', 'freshmen'], true)
-            && in_array($yearLevel, ['grade 11', '11', '1st year', 'first year', '1'], true);
     }
 
     public function displayLabel(): string

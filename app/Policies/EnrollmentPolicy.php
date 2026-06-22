@@ -58,6 +58,12 @@ class EnrollmentPolicy
         return $user->can('process-payments');
     }
 
+    public function viewStatement(User $user, Enrollment $enrollment): bool
+    {
+        return $this->canAny($user, ['create-assessments', 'process-payments'])
+            || $enrollment->studentProfile()->where('user_id', $user->id)->exists();
+    }
+
     public function markHardCopyReceived(User $user, Enrollment $enrollment): bool
     {
         return $this->canAny($user, [

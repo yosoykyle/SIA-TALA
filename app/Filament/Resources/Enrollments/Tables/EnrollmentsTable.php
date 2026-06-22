@@ -103,6 +103,12 @@ class EnrollmentsTable
             ])
             ->recordActions([
                 ViewAction::make(),
+                Action::make('statement')
+                    ->label('SOA')
+                    ->icon(Heroicon::OutlinedDocumentText)
+                    ->url(fn (Enrollment $record): string => route('finance.statements.show', $record))
+                    ->openUrlInNewTab()
+                    ->visible(fn (Enrollment $record): bool => auth()->user()?->can('viewStatement', $record) ?? false),
                 self::markHardCopyReceivedAction(),
                 self::assessAction(),
                 self::confirmPaymentAction(),

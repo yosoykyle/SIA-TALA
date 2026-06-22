@@ -104,9 +104,7 @@ class ApplicantIntakeService
                 'duplicate_check_payload' => ['matches' => []],
                 'required_documents' => $requiredDocuments,
                 'submitted_at' => $timestamp,
-                'meta' => [
-                    'discount_eligible' => $this->isFreshmenDiscountEligible($validated),
-                ],
+                'meta' => [],
             ]);
 
             $this->materializeDocumentRequirements($intake, $requirementResolution);
@@ -475,15 +473,6 @@ class ApplicantIntakeService
         }
 
         return $matches;
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function isFreshmenDiscountEligible(array $data): bool
-    {
-        return $data['applicant_type'] === ApplicantIntake::ApplicantTypeNew
-            && in_array($data['year_level'], ['1st Year', 'first_year'], true);
     }
 
     private function materializeDocumentRequirements(

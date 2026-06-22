@@ -20,28 +20,12 @@ class EnrollmentAssessmentServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_freshmen_discount_eligibility_is_limited_to_new_grade_11_or_first_year_students(): void
-    {
-        $this->assertTrue($this->enrollment('new', 'grade 11')->isFreshmenDiscountEligible());
-        $this->assertTrue($this->enrollment('freshman', '1st year')->isFreshmenDiscountEligible());
-        $this->assertTrue($this->enrollment('freshmen', '1')->isFreshmenDiscountEligible());
-
-        $this->assertFalse($this->enrollment('transferee', '1st year')->isFreshmenDiscountEligible());
-        $this->assertFalse($this->enrollment('new', '2nd year')->isFreshmenDiscountEligible());
-        $this->assertFalse($this->enrollment('old', 'grade 11')->isFreshmenDiscountEligible());
-    }
-
-    public function test_assessment_service_applies_automated_discount_to_tuition_fee_only(): void
+    public function test_assessment_service_does_not_apply_unapproved_automatic_discounts(): void
     {
         $source = $this->source(EnrollmentAssessmentService::class);
 
-        $this->assertStringContainsString('$feeTemplate->tuition_fee', $source);
-        $this->assertStringContainsString("multiplyPercent((string) \$feeTemplate->tuition_fee, '50.00')", $source);
-        $this->assertStringContainsString('Automated Freshmen Discount - 50% Tuition Fee', $source);
-        $this->assertStringNotContainsString("multiplyPercent(\$grossAssessment, '50.00')", $source);
-        $this->assertStringNotContainsString("multiplyPercent((string) \$feeTemplate->misc_fee, '50.00')", $source);
-        $this->assertStringNotContainsString("multiplyPercent((string) \$feeTemplate->laboratory_fee, '50.00')", $source);
-        $this->assertStringNotContainsString("multiplyPercent((string) \$feeTemplate->other_fee, '50.00')", $source);
+        $this->assertStringNotContainsString('Automated Freshmen Discount', $source);
+        $this->assertStringNotContainsString('multiplyPercent', $source);
     }
 
     public function test_assessment_service_is_idempotent_for_existing_assessment_entries(): void
@@ -54,7 +38,7 @@ class EnrollmentAssessmentServiceTest extends TestCase
         $this->assertStringContainsString("'already_assessed' => \$alreadyAssessed", $source);
     }
 
-    public function test_assessment_uses_most_specific_template_posts_freshmen_discount_and_is_idempotent(): void
+    public function test_assessment_uses_most_specific_template_without_unapproved_discount_and_is_idempotent(): void
     {
         $term = Term::factory()->create();
         $program = Program::factory()->create(['department' => 'college']);
@@ -106,27 +90,22 @@ class EnrollmentAssessmentServiceTest extends TestCase
 
         $this->assertSame($specificTemplate->id, $summary['fee_template_id']);
         $this->assertSame('2000.00', $summary['gross_assessment']);
-        $this->assertSame('500.00', $summary['discount_amount']);
-        $this->assertSame('1500.00', $summary['net_assessment']);
-        $this->assertSame('1500.00', $summary['current_balance']);
+        $this->assertSame('0.00', $summary['discount_amount']);
+        $this->assertSame('2000.00', $summary['net_assessment']);
+        $this->assertSame('2000.00', $summary['current_balance']);
         $this->assertFalse($summary['already_assessed']);
-        $this->assertSame('1500.00', $studentProfile->fresh()->current_balance);
-        $this->assertSame(5, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
-        $this->assertDatabaseHas(LedgerEntry::class, [
+        $this->assertSame('2000.00', $studentProfile->fresh()->current_balance);
+        $this->assertSame(4, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
+        $this->assertDatabaseMissing(LedgerEntry::class, [
             'enrollment_id' => $enrollment->id,
             'entry_type' => 'discount',
-            'description' => 'Automated Freshmen Discount - 50% Tuition Fee',
-            'amount' => '-500.00',
-            'running_balance' => '1500.00',
-            'reference_type' => 'fee_template',
-            'reference_id' => $specificTemplate->id,
         ]);
 
         $secondSummary = app(EnrollmentAssessmentService::class)->assess($enrollment->id, $accounting);
 
         $this->assertTrue($secondSummary['already_assessed']);
         $this->assertSame($summary['current_balance'], $secondSummary['current_balance']);
-        $this->assertSame(5, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
+        $this->assertSame(4, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
         $this->assertDatabaseHas('activity_log', [
             'subject_type' => Enrollment::class,
             'subject_id' => $enrollment->id,
@@ -189,14 +168,6 @@ class EnrollmentAssessmentServiceTest extends TestCase
         $this->assertTrue($secondPayment['finance_cleared']);
         $this->assertSame('pre_enrolled', $enrollment->fresh()->status);
         $this->assertTrue($studentProfile->user->fresh()->hasRole('student'));
-    }
-
-    private function enrollment(string $studentType, string $yearLevel): Enrollment
-    {
-        return new Enrollment([
-            'student_type' => $studentType,
-            'year_level' => $yearLevel,
-        ]);
     }
 
     private function source(string $class): string

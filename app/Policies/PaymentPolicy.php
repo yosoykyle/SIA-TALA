@@ -44,6 +44,16 @@ class PaymentPolicy
         return false;
     }
 
+    public function viewAcknowledgement(User $user, Payment $payment): bool
+    {
+        if ($payment->status !== 'confirmed') {
+            return false;
+        }
+
+        return $user->can('process-payments')
+            || $payment->studentProfile()->where('user_id', $user->id)->exists();
+    }
+
     /**
      * @param  list<string>  $permissions
      */

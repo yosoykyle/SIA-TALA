@@ -37,7 +37,6 @@ class TAL12ASeededStaffAccountWorkflowTest extends TestCase
             'approve-documents',
             'create-assessments',
             'process-payments',
-            'approve-promissory-notes',
             'view-class-list',
             'encode-grades',
             'finalize-grades',

@@ -74,24 +74,6 @@ class EnrollmentAssessmentService
                 );
             }
 
-            if ($enrollment->isFreshmenDiscountEligible() && $this->money->greaterThanZero((string) $feeTemplate->tuition_fee)) {
-                $discountAmount = $this->money->multiplyPercent((string) $feeTemplate->tuition_fee, '50.00');
-                $negativeDiscount = $this->money->subtract('0.00', $discountAmount);
-
-                $currentBalance = $this->postLedgerEntry(
-                    enrollment: $enrollment,
-                    studentProfile: $studentProfile,
-                    entryType: 'discount',
-                    description: 'Automated Freshmen Discount - 50% Tuition Fee',
-                    amount: $negativeDiscount,
-                    runningBalance: $currentBalance,
-                    referenceType: 'fee_template',
-                    referenceId: $feeTemplate->id,
-                    actor: $actor,
-                    postedAt: $timestamp,
-                );
-            }
-
             $enrollment->forceFill([
                 'enrolled_at' => $enrollment->enrolled_at ?? $timestamp,
             ])->save();
