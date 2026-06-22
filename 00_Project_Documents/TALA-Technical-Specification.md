@@ -68,10 +68,10 @@ Versioning rule: major version increments once per update date; same-day updates
 | Admissions and documents | Published offerings, versioned requirement policies, materialized applicant checklist snapshots, per-item admission/retention state, private evidence storage, OCR derivative text, and Registrar verification. | Laravel services/actions, private filesystem, Google Vision OCR client/job, Filament actions for staff review. | Service/feature tests for intake, checklist resolution, review state changes, retention undertaking, and OCR fallback/manual review. |
 | Enrollment and student records | Atomic handover from approved applicant to canonical student profile/enrollment, secured capacity, section/delivery placement, enrolled roster, and lifecycle audit. | Transactional services with row locking, model states/enums, capacity services, roster queries/export actions. | Tests for happy path, missing gate, full capacity, duplicate/idempotent handover, and roster authorization/export. |
 | Scheduling | Curriculum readiness, section delivery groups, Registrar-confirmed subject/faculty assignment, faculty availability, schedule snapshots, OR-Tools CP-SAT solve, draft review, commit, publish, and controlled overrides. | Laravel scheduling services plus authenticated Cloud Run/OR-Tools solver or equivalent constraint service. | Unit/feature tests for constraints, solver result ingest, commit/publish permissions, conflict rejection, and manual override audit. |
-| Finance and payments | Assessment, discount/installment policy, immutable ledger, PayMongo/manual channel parity, provider webhooks, idempotency, SOA/payment evidence, externally issued receipt/reference recording, and computed clearance. | Accounting services, webhook storage/signature verification, queue jobs, ledger-entry invariants, internal artifact issuance. | Tests for assessment, payment confirmation, webhook retry/idempotency, overpayment, zero-balance edge, and finance privacy. |
-| Grades and academic records | Faculty class-list scope, grade encoding/submission, Registrar verification, finalization, correction/override, grade history, and transcript/report-card source data. | Service-owned grading workflows, policy-gated Filament actions, immutable finalization/correction audit. | Tests for assigned-faculty access, invalid role denial, grade finalization, correction approval, and transcript source integrity. |
+| Finance and payments | Assessment, approved discount policy, immutable ledger, PayMongo/manual channel parity, provider webhooks, idempotency, SOA/payment evidence, externally issued receipt/reference evidence recording, and computed clearance. Installments, promissory tracking, exam-access accommodation, and refund/disposition automation remain review candidates. | Accounting services, webhook storage/signature verification, queue jobs, ledger-entry invariants, internal artifact issuance. | Tests for assessment, payment confirmation, webhook retry/idempotency, overpayment, zero-balance edge, and finance privacy. |
+| Grades and academic records | Faculty class-list scope, grade encoding/submission, Registrar verification, finalization, correction/override, and grade history. Transcript/report-card generation is outside active scope. | Service-owned grading workflows, policy-gated Filament actions, immutable finalization/correction audit. | Tests for assigned-faculty access, invalid role denial, grade finalization, correction approval, and grade-history integrity. |
 | Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only unless a mutation service is explicitly approved. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
-| Official generated artifacts | COR, SOA/payment evidence, academic records, and completion credentials are derived directly from College source workflows and carry template, issuer, checksum, serial/reference, release, and revoke/supersede metadata. Form 137/Form 138 remain prior-school admission evidence. | DomPDF/Blade templates, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
+| COR, SOA/payment evidence, and QR verification | COR is derived from canonical enrolled state. SOA/payment acknowledgements are derived from Accounting-owned ledger/payment state. TOR, Form 137, diploma, report-card, and full credential issuance are outside active TALA scope; Form 137/Form 138 remain prior-school admission evidence only. | DomPDF/Blade templates for COR/internal finance evidence, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
 | Imports, exports, and reporting | Controlled templates, private upload, validation preview, zero-error commit where required, audit, and generic roster/report export. | Laravel Excel/PhpSpreadsheet services, import batch records, queueable processing, authorized export actions. | Tests for template headers, invalid rows, no partial unsafe commit, export authorization, and audit records. |
 | Security, privacy, and audit (RA 10173 & NPC 2023-06) | Privacy-by-design access controls, private-by-default files, signed/temporary access, role-scoped evidence visibility, webhook signature checks, purpose-limited retention, breach protocol readiness, activity logs, and sensitive-support data minimization. | Laravel filesystem, signed URLs, policies, activitylog, validation/FormRequests, webhook verifier services. | Security tests for unauthorized access, private path leakage, webhook rejection, upload validation, and audit creation. |
 
@@ -287,8 +287,8 @@ Raw uploaded documents are preserved as the canonical evidence, while OCR output
 | `official_transmission` | School-to-school Form 137/TOR/transfer credential or other regulator-permitted official transmission | Received artifact plus sender, channel, received time, provenance/signature evidence, and verification state | Optional | Requirement satisfaction references the transmission; applicant upload is not fabricated or required when this method is accepted |
 | `identity_photo` | 2x2/recent ID photo | Private source image and versioned approved derivative | Disabled | Image access remains private; public use requires a separately generated purpose-bound artifact |
 | `restricted_support_file` | Medical/psychological, disability/SEN, IP/community, immigration, and medical-clearance evidence | Versioned private source file | Disabled by default; explicit purpose approval required | Separate restricted permission, purpose limitation, access audit, minimal field promotion, retention/disposal schedule |
-| `transaction_evidence` | Payment proof, promissory attachment, receipt image | Private source file linked to an immutable transaction or approval record | Optional reference extraction only | OCR cannot confirm payment or lifecycle state; Accounting service remains authoritative |
-| `generated_official_artifact` | COR, report card, assessment, SOA/payment acknowledgement, completion credential | Immutable issuance snapshot and/or PDF with template version, issuer, issued time, checksum, subject/term/request, token, and lifecycle state | Search text may be derived; no review OCR | Supersede/revoke instead of overwrite; verification and re-render reproducibility where applicable |
+| `transaction_evidence` | Payment proof, externally issued receipt/reference image, and promissory attachment only if that review feature is later promoted | Private source file linked to an immutable transaction or approval record | Optional reference extraction only | OCR cannot confirm payment or lifecycle state; Accounting service remains authoritative |
+| `generated_tala_artifact` | COR, assessment, SOA/payment acknowledgement | Immutable issuance snapshot and/or PDF with template version, issuer, issued time, checksum, subject/term/request, token, and lifecycle state | Search text may be derived; no review OCR | Supersede/revoke instead of overwrite; verification and re-render reproducibility where applicable. TOR, Form 137, report cards, diplomas, and full credential issuance are outside active TALA scope. |
 | `structured_record` | Applicant, requirement status, enrollment, schedule, grades, ledger, holds | Authorized normalized database row plus audit evidence | Not applicable | A screenshot/PDF/export is never the operational source of truth |
 | `import_source` | Curriculum, roster, fee, grade, enrollment, or legacy CSV/XLSX | Private source file plus checksum, uploader, template/parser version, validation report, and batch state | Parser output is provisional until commit | Zero-error/approved commit rules; normalized accepted rows become operational records |
 | `processing_derivative` | OCR text, candidate fields, parser payload, thumbnail/preview | Exact source-version-linked derivative | Regenerable | No independent authority; track engine/parser/attempt; purge independently when policy permits |
@@ -350,7 +350,7 @@ By using a Monolithic Laravel core, the **Registrar** and **Accounting** modules
 | --- | --- | --- | --- |
 | Module 1 (Student) | **Laravel Livewire + TallStackUI + Tailwind + Alpine.js** | `tallstackui/tallstackui`, `alpinejs`, `erag/laravel-pwa` | PWA, Multi-Step Wizard, College modality selection (On-Site/Blended/Online), external-reporting-ready data collection, and automated College freshmen discount eligibility capture. **(Custom)** |
 | Module 2 (Registrar) | FilamentPHP (Admin) | `filament/filament`, `google/cloud-vision` | Student Record Management (Filament Data Table), Scheduling (Curriculum Import, Modality-Aware Conflict Detection), Manual Credit Evaluation, Account Archiver, OCR Document Review, and filterable Enrolled Student Roster/export |
-| Module 3 (Accounting) | FilamentPHP + Excel Export | `filament/filament`, `maatwebsite/excel`, `chillerlan/php-qrcode` | Payment Queues (E-Wallets, OTC, Screenshots), Promissory Notes, COR with QR Code, Export Reports |
+| Module 3 (Accounting) | FilamentPHP + Excel Export | `filament/filament`, `maatwebsite/excel`, `chillerlan/php-qrcode` | Payment Queues (E-Wallets, OTC, Screenshots), internal SOA/payment evidence, COR with QR Code, Export Reports |
 | Module 4 (Faculty) | FilamentPHP | `filament/filament`, `maatwebsite/excel` | Grading Ecosystem, Manual INC Management, Grade Export, Modality-Aware Class Lists |
 | Module 5 (Administration & Integration) | FilamentPHP + Laravel Mail + Audit Logs | `filament/filament`, `spatie/laravel-permission` | RBAC, User Mgmt, Dashboard, Email, Audit Trail, FAQ/Inquiry Management |
 
@@ -364,9 +364,9 @@ These contracts summarize mandatory implementation boundaries across the remaini
 | --- | --- | --- |
 | Enrollment, sectioning, finance clearance, inventory, and COR | One handover application service owns duplicate-safe person/student matching, prerequisite evaluation, row-locked capacity reservation, enrollment creation, section/delivery assignment, account activation, and post-commit events. The transaction is idempotent by applicant/term and fails closed on missing readiness. Roster queries are policy-scoped and generic exports are audited. COR generation reads canonical enrolled state and creates a versioned issuance snapshot. | Happy handover, each blocked prerequisite, duplicate retry, concurrent last-seat attempt, rollback after failure, role denial, roster filter/export field boundary, and COR unavailable before enrollment. |
 | Scheduling and CP-SAT generation | A scheduling input builder creates an immutable versioned snapshot of term, sections/delivery groups, subjects, meeting requirements, rooms, Registrar-confirmed subject/faculty assignments, faculty availability/workload, and policies. An after-commit queued adapter invokes OR-Tools CP-SAT with hard constraints, weighted soft objectives, a time limit, and deterministic metadata. Raw CP-SAT outcomes are normalized to `optimal`, `feasible`, `infeasible`, `model_invalid`, or `unknown`; TALA may return `partial` when a feasible/optimal solve leaves demand unassigned. Timeout is separate boolean/diagnostic evidence, not a sixth solver status. Proposal review, commit, approval, publication, and later change are distinct service transitions. | Constraint-unit tests; infeasible/unknown/model-invalid/timeout/no-publish tests; partial-demand non-commit proof; snapshot reproducibility; after-commit dispatch/retry proof; concurrent commit protection; hard-conflict denial for manual changes; authorized override reason/audit; published visibility only. |
-| Finance, payments, ledger, SOA, and receipts | Assessment services resolve effective-dated fee and accommodation policy into immutable charge projections. All confirmed payment channels call one ledger-posting service with unique provider/reference idempotency, database transaction, row locking, and auditable actor/channel evidence. Webhooks are signature-verified, stored, replay-safe, and processed asynchronously after commit. Balance/clearance are projections over immutable entries. PDFs use issuance snapshots and void/supersede state. | Assessment derivation, manual and webhook parity, invalid signature, duplicate callback/reference, pending/failed outcome, overpayment credit, reversal/adjustment, concurrent post, clearance recomputation, private authorization, PDF snapshot/void. |
+| Finance, payments, ledger, SOA, and payment evidence | Assessment services resolve effective-dated fee, approved discount, scholarship, and downpayment policy into immutable charge projections. All confirmed payment channels call one ledger-posting service with unique provider/reference idempotency, database transaction, row locking, and auditable actor/channel evidence. Webhooks are signature-verified, stored, replay-safe, and processed asynchronously after commit. Balance/clearance are projections over immutable entries. SOA/payment acknowledgement PDFs use issuance snapshots and void/supersede state. Installments, promissory tracking, exam-access accommodation, and refund/disposition automation remain review candidates. | Assessment derivation, manual and webhook parity, invalid signature, duplicate callback/reference, pending/failed outcome, overpayment credit, reversal/adjustment, concurrent post, clearance recomputation, private authorization, PDF snapshot/void. |
 | Faculty classes and grades | Published schedule/enrollment assignments scope faculty queries. A grade lifecycle service validates period/profile/range/completeness, locks submission/finalization, stores immutable grade history, and emits post-commit notifications. Correction requests snapshot old/new values and evidence; Academic Head decision and Registrar application are separately authorized transitions. | Assigned/unassigned access, unpublished exclusion, valid/invalid grade entry, incomplete submission, duplicate/concurrent finalization, finalized mutation denial, correction approve/reject/apply, old/new audit preservation. |
-| Official documents and verification | A document issuance service resolves eligibility/holds, renders from authoritative read models, stores immutable issuance metadata and checksum, and owns issued/void/revoked/superseded transitions. Files remain private unless intentionally public. QR payloads contain only opaque tokens or signed verification URLs; verification responses disclose minimal status metadata and are rate limited/audited where appropriate. | Eligibility and hold denial, deterministic source snapshot, private file access, token tamper/expiry/revocation, minimal disclosure, supersede history, unauthorized issue/release, and source-record change behavior. |
+| COR and finance artifact verification | COR and SOA/payment acknowledgement issuance resolves eligibility/source state, renders from authoritative read models, stores immutable issuance metadata and checksum, and owns issued/void/revoked/superseded transitions. Files remain private unless intentionally public. QR payloads contain only opaque tokens or signed verification URLs; verification responses disclose minimal status metadata and are rate limited/audited where appropriate. TOR, Form 137, report cards, diplomas, and full credential issuance are outside active scope. | Eligibility and source-state denial, deterministic source snapshot, private file access, token tamper/expiry/revocation, minimal disclosure, supersede history, unauthorized issue/release, and source-record change behavior. |
 | Student Hub/PWA | Student-facing read models aggregate authoritative services under student ownership policies; Livewire components do not reproduce domain calculations. PWA caches only an approved read-only subset with version/freshness metadata, removes protected caches on logout/account denial, and disables mutations offline. Loading/error responses use safe messages and prevent duplicate submission. | Cross-student denial, applicant/inactive denial, unpublished data exclusion, balance/grade/COR service parity, offline read-only behavior, cache clearing, stale indicator, loading/duplicate-action protection, responsive accessibility smoke. |
 | Student status and completion | Typed transition services validate allowed source/target states, effective dates, reasons, evidence, notices, and role authority while preserving history. Readmission performs duplicate/provenance review. Graduation evaluation stores a reproducible snapshot of curriculum, finalized grades, deficiencies, and clearance results; completion and credential eligibility are separate transitions. | Allowed/invalid transitions, rollback/reactivation rules, duplicate legacy match, unauthorized action, missing reason/evidence, incomplete curriculum/hold denial, reproducible evaluation, concurrent status update, external-submission boundary. |
 | Imports, exports, and reports | Import batches store private source, template/schema version, checksum, uploader, scope, parsed rows, validation results, preview state, commit state, and audit. Commit services use normalized identifiers, row-level validation, transaction/idempotency rules, and queued chunks only where atomicity semantics remain explicit. Export/report queries apply policies, field allowlists, filters, and audit; generated files are temporary or lifecycle-managed artifacts. | Wrong template/version, invalid headers/types/references, duplicate upload/commit, zero-error atomic rollback, authorized partial policy where explicitly allowed, large chunk behavior, export field leakage denial, external-format absence. |
@@ -415,7 +415,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 
 - Enrollment/profile flow (`student_profiles`, `enrollments`, `enrollment_subjects`)
 - Applicant intake staging (`applicant_intakes` plus applicant-linked `document_uploads` before handover)
-- Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`, `promissory_notes`, installment tables)
+- Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`; promissory and installment tables remain review scope)
 - Admission document/OCR flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`)
 - Grade/correction flow (`grades`, `grade_corrections`)
 - Service/shift/COR flow (`service_requests`, `shifting_requests`, `shifting_fee_assessments`, `cor_verifications`, `faq_entries`)
@@ -506,7 +506,7 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | --- | --- |
 | `assessment` | Initial Fee/Debit (Tuition, Lab Fees, Miscellaneous) |
 | `payment` | OTC Payment, E-wallet (GCash Webhook validation) |
-| `promissory_note` | Records Accounting-reviewed promise/expiry/settlement evidence only; does not clear balance, enrollment, COR, class-list, or exam access by itself |
+| `promissory_note` | Review candidate only. If promoted, records Accounting-reviewed promise/expiry/settlement evidence only; does not clear balance, enrollment, COR, class-list, or exam access by itself |
 | `discount` | Automated or authorized Discount/Credit ledger entry (including the Freshmen Tuition discount) |
 | `drop_fee` | Effective-dated assessment triggered when officially withdrawing, based on approved institutional policy |
 | `adjustment` | Manual Correction |
@@ -514,9 +514,9 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 
 **Display Logic**: Portal groups transactions by type to show “Tuition vs. Misc vs. Discounts”
 
-**Implementation Contract**: `PromissoryNoteResource` is an Accounting promise-tracking surface and approval queue. It registers list/create/view pages, where create means staff-assisted pending request creation, not direct approval. Applicant-owner or active-student-owner submission is supported at the backend service layer while Student Hub UI remains deferred. `PromissoryNote::validateAccountingScopeData()` and `PromissoryNoteLifecycleService` are the backend trust boundary: they reject cross-student, cross-term, or cross-enrollment submissions, require one open request per enrollment, and transition only through typed `pending -> approved/rejected/cancelled/expired/settled` lifecycle methods. The form must not expose unscoped raw ID relationship selects such as `relationship('enrollment', 'id')` or `relationship('ledgerEntry', 'id')`. List and detail views must show descriptive relationship labels for student, term, enrollment, ledger entry, requester, reviewer, and settlement context instead of raw numeric foreign keys. The resource must not register a generic edit page, edit action, delete action, or status selector for arbitrary lifecycle mutation.
+**Promissory Review Boundary**: Promissory-note automation is not active core sprint scope. If promoted later, it must remain Accounting-owned promise tracking only, must not clear balance/enrollment/COR/class-list/exam access, and must use typed lifecycle services rather than generic status editing.
 
-**Exam Access Accommodation Contract**: `exam_access_accommodations` is a separate private Accounting workflow for exam access exceptions. It stores student, term scope, optional enrollment/promissory linkage, basis (`ra11984_certification` or `institutional_discretion`), status, validity dates, reviewer audit fields, and private certification evidence metadata. `ExamAccessDecisionService` returns only `{allowed, basis, accommodation_id}` and must never expose evidence paths, certification references, balances, payment channels, or promissory amounts. College accommodations are term-scoped by default. Promissory-note approval is not a substitute for an approved accommodation.
+**Exam Access Accommodation Review Boundary**: Exam-access accommodation automation is not active core sprint scope. TALA must not create an undocumented debt-based exam block, and promissory-note approval is not exam-access approval. If promoted later, decision responses must never expose evidence paths, certification references, balances, payment channels, or promissory amounts.
 
 ---
 
@@ -540,21 +540,9 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 
 ### 2.6 Key Computed Logic
 
-#### 2.6.1 Examination Access Decision
+#### 2.6.1 Examination Access Boundary
 
-
-
-```php
-use App\Models\Term;
-use App\Models\User;
-
-function canAccessScheduledExamination(User $student, Term $term, ExamAccessDecisionService $examAccess): bool
-{
-    return $examAccess->decideForUser($student, $term)['allowed'];
-}
-```
-
-**Decision Contract**: Outstanding balance and promissory status do not deny an enrolled student's scheduled examination access. `ExamAccessDecisionService` treats the current institution's no-debt-based-exam-block policy as the default and may retain accommodation/certification evidence for Republic Act No. 11984 compliance. Finance collection, next-cycle enrollment clearance, and lawful record-release holds remain separate services. Faculty and class-facing UI must not expose delinquent lists or balance amounts.
+Outstanding balance and promissory status do not deny an enrolled student's scheduled examination access. Digital exam-permit and accommodation automation remain review scope, not active core implementation. Finance collection, next-cycle enrollment clearance, and lawful record-release holds remain separate services. Faculty and class-facing UI must not expose delinquent lists or balance amounts.
 
 #### 2.6.2 COR QR Code Verification Contract
 
@@ -799,7 +787,7 @@ Already-finalized grades return a user-facing `Already finalized` notice, HTTP/A
 
 **Transactional boundary**: Submission locks the package and snapshots roster/profile/items in one transaction. Registrar verification locks the package and included grade rows, revalidates roster/profile/item completeness, records reviewer evidence, and finalizes all items atomically. Partial package finalization is prohibited. Idempotency keys prevent duplicate submit, verify, return, and correction application.
 
-**Release boundary**: Student Hub, prerequisite/progression, TOR/Form 137/report-card generation, and official exports read only `verified_finalized` grade history. Draft, submitted, and returned values may support authorized early-advising views only when clearly labeled non-official and never exported as final records.
+**Release boundary**: Student Hub, prerequisite/progression, and authorized internal academic views read only `verified_finalized` grade history. Draft, submitted, and returned values may support authorized early-advising views only when clearly labeled non-official. TOR/Form 137/report-card generation and full credential exports are outside active TALA scope.
 
 **Correction boundary**: A pre-final `returned` package is not a grade correction. After finalization, a correction records original and proposed period values, derived old/new result, reason, optional evidence, Academic Head approval/rejection, Registrar application, actor/time, source package, and supersession link. Direct update/delete of official history is forbidden.
 
@@ -1805,21 +1793,20 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 -   The ledger remains immutable: overpayments create standard `payment` transactions.
 -   When a new fee is assessed, it simply adds to the ledger, automatically offsetting against any negative balance.
 
-**Filament Resource Mapping**: `LedgerEntryResource` is the Accounting Ledger Review surface and must be list/view only. It must not register generic create/edit page routes, create/edit header actions, delete actions, or raw forms for `entry_type`, `reference_type`, `reference_id`, `amount`, `running_balance`, `posted_at`, or `posted_by`. Ledger entries are written by domain services such as enrollment assessment, automated discounts, manual payment confirmation, PayMongo webhook processing, installment overdue processing, refunds, and the typed Accounting adjustment workflow.
+**Filament Resource Mapping**: `LedgerEntryResource` is the Accounting Ledger Review surface and must be list/view only. It must not register generic create/edit page routes, create/edit header actions, delete actions, or raw forms for `entry_type`, `reference_type`, `reference_id`, `amount`, `running_balance`, `posted_at`, or `posted_by`. Core ledger entries are written by domain services such as enrollment assessment, automated discounts, manual payment confirmation, PayMongo webhook processing, and the typed Accounting adjustment workflow. Installment overdue processing and refunds remain review scope.
 
 
 
 #### 3.12.3 Financial Disposition Policy Contract
 
-**Purpose**: Apply institution-approved, effective-dated financial outcomes to typed payment and enrollment events, including the current 15-day admission/enrollment-fee refund window and non-refundable tuition after official enrollment.
+**Purpose**: Review institution-approved, effective-dated financial outcomes for typed payment and enrollment events. Automated cancellation/refund/withdrawal-fee disposition is not active core scope until the institution approves the policy, authority, audit, reconciliation, and tests.
 
 **Rules**:
 
--   `financial_disposition_policies` stores a versioned policy name, scope (deployment plus optional education level, term, and program), typed event cause, disposition (`retain_payment`, `percentage_schedule`, `account_credit`, `transfer_to_term`, `manual_review`, or `provider_refund`), effective dates, state (`draft`, `active`, or `retired`), and approval evidence. Overlapping active scopes are rejected.
--   `financial_disposition_schedule_rows` stores ordered effective windows or relative day ranges, refundable percentage, and fixed retained fee for policies that use a dated percentage schedule.
--   `FinancialDispositionResolver` resolves exactly one active policy for the event date and cause. Missing or ambiguous policy blocks automatic closure and routes the case to authorized Accounting review; no payment code may guess a disposition.
--   The active institution policy profile must distinguish admission/enrollment-fee and tuition components, externally issued receipt/payment-reference date, official-enrollment effective time, payment channel, and prior disposition. A blanket `retain_payment` profile must be replaced before refund/cancellation implementation.
--   Outside-system discrepancies, cancelled enrollment, duplicate successful payments, and overpayments do not trigger PayMongo provider refunds or cash refund workflows unless the resolved policy explicitly enables an implemented refund channel.
+-   Future `financial_disposition_policies` may store versioned policy name, scope, typed event cause, disposition, effective dates, state, and approval evidence. Overlapping active scopes must be rejected.
+-   Future dated percentage schedules must distinguish fee components, externally issued receipt/payment-reference date, official-enrollment effective time, payment channel, and prior disposition.
+-   Missing or ambiguous policy must block automatic closure and route the case to authorized Accounting review; no payment code may guess a disposition.
+-   Outside-system discrepancies, cancelled enrollment, duplicate successful payments, and overpayments must not trigger PayMongo provider refunds or cash refund workflows unless the resolved policy explicitly enables an implemented refund channel.
 -   Duplicate webhook retries are suppressed by idempotency and do not create duplicate ledger entries.
 -   A separate second successful payment remains a standard immutable `payment` credit and may drive the ledger balance below zero until its resolved disposition is applied; no separate wallet transaction is created.
 -   Cancelled or ineligible enrollment keeps immutable payment history for audit; access/COR/class-list state is changed separately from financial refund behavior.
@@ -1830,7 +1817,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 #### 3.12.4 Downpayment Rule
 
-**Purpose**: Define the active finance-clearance rule while full installment policy tables/services remain deferred.
+**Purpose**: Define the active finance-clearance rule while full installment policy tables/services remain review scope.
 
 **Data Contract**:
 -   The `fee_templates` table includes a `minimum_downpayment_percentage` (e.g., 20.00).
@@ -1846,21 +1833,11 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 
 
 
-**Approved F10 Target Policy (Deferred Until Migration + Service/Test Readiness)**:
+**Installment Review Boundary**:
 
--   Installment plans are configurable up to **10 months** total.
--   Installment due cadence is monthly with due date at **end of month**.
--   Missed installment enters **3-day grace** before overdue consequence.
--   `InstallmentPolicy` uses the same normalized College program/year scope contract as `FeeTemplate` and rejects a second active policy for the same scope. Milestone rows remain child schedule rows inside the policy form.
--   Overdue installment applies **5% penalty** (aligned with SOA policy wording).
--   Promissory notes remain non-payment records and do not satisfy installment clearance. They may be reported as active hold context, but a confirmed payment that satisfies the required installment/assessment threshold must still clear finance.
--   Accounting appeal-based grace/exception handling remains outside normal automated flow unless later formalized in service contracts.
-
-**Filament Resource Mapping**: `InstallmentPolicyResource` is the Accounting-owned installment policy configuration surface. It must expose typed fields for policy scope, maximum months, due rule, grace days, penalty rate/frequency, partial-payment behavior, promissory clearing behavior, and active status. Milestone schedule rows must be maintained through a `milestones` relationship repeater with typed `sequence`, `month_offset`, `required_percentage`, and active-toggle fields. `InstallmentPolicyMilestoneResource` is retained only as a list/view schedule reference surface and must not register standalone create/edit page routes, generic create/edit actions, or a raw `Select::make('status')` milestone form.
-
-**Service Boundary**: Installment policy milestone rows describe reusable policy thresholds only. Per-student states such as `paid`, `in_grace`, `overdue`, penalties, balances, and clearance remain calculated by installment/payment services from ledger evidence, due dates, grace windows, and posted payments. Do not use inline mutable table columns such as `ToggleColumn`/`CheckboxColumn` for lifecycle or finance-state changes unless explicit authorization, service calls, audit logging, and tests are added.
-
-**Database Impact**: No Phase 1 migration is required for the current policy-schedule UI refactor. The existing `installment_policies` and `installment_policy_milestones` tables already support the parent policy and child milestone relationship. If future work needs per-enrollment milestone state history, add a dedicated operational table instead of overloading policy milestone rows.
+-   Installment plans, penalty schedules, grace periods, and per-student installment-state automation remain review scope.
+-   Promissory notes remain non-payment records and must not satisfy installment or finance clearance if promoted later.
+-   Per-student installment states such as `paid`, `in_grace`, `overdue`, penalties, balances, and clearance must not be implemented through inline mutable table columns. If promoted later, installment behavior requires explicit authorization, service calls, audit logging, and tests.
 
 #### 3.12.5 Automated Freshmen Discounts
 
@@ -1905,7 +1882,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 **Fee structure and assessment ownership**:
 
 - Evolve the transitional `fee_templates` design into approved versioned fee structures with effective dates, academic-year/term and College program/year-level scope, lifecycle state, and non-overlapping active resolution. Component lines are child records, not new fixed amount columns for every fee type.
-- A per-enrollment assessment header and assessment-line snapshot records the resolved structure/version, scope, quantities or units where applicable, component amounts, discount/scholarship/installment/downpayment policy versions, gross/net totals, actor, and assessment time. Ledger charge/discount entries reference this immutable assessment evidence.
+- A per-enrollment assessment header and assessment-line snapshot records the resolved structure/version, scope, quantities or units where applicable, component amounts, discount/scholarship/downpayment policy versions, gross/net totals, actor, and assessment time. Ledger charge/discount entries reference this immutable assessment evidence.
 - Reassessment after a legitimate enrollment/schedule/policy change creates a superseding assessment or typed adjustment entries. It never edits the original assessment or ledger rows.
 - Assessment does not set `enrollments.enrolled_at`; official admission/finance/placement handover owns that timestamp.
 
@@ -1918,7 +1895,7 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 **SOA and payment-evidence artifacts**:
 
 - A confirmed collection may record payment/reference evidence with unique reference metadata, payment links, channel, payer, amount, recorded actor/time, source evidence, checksum, and correction state. TALA does not generate official tax document numbers, PDFs, or tax documents.
-- An SOA issuance snapshots the authorized ledger cutoff, opening/closing balance, charge/payment/credit lines, due/installment context, template version, issuer/time, checksum, and state. Regeneration after new transactions creates a new issuance rather than altering a previously issued statement.
+- An SOA issuance snapshots the authorized ledger cutoff, opening/closing balance, charge/payment/credit lines, due context, template version, issuer/time, checksum, and state. Regeneration after new transactions creates a new issuance rather than altering a previously issued statement.
 - Generated PDFs are private derived artifacts. Authorization is owner/accounting scoped; raw storage paths are never exposed.
 
 **Daily reconciliation and segregation**:
@@ -2042,27 +2019,25 @@ Manual reconciliation may mark a payment as paid only by retrieving the provider
 
 **Filament Resource Mapping**: `PaymentAttemptResource` is the Accounting Payment Queue and `PaymentResource` is Confirmed Payments evidence. Both resources are list/view only. They must not register generic create/edit page routes, create/edit header actions, delete actions, or raw `meta`/provider-reference forms. Payment attempts are created by checkout/manual-upload/service workflows, and payment records are created by webhook processing, manual confirmation, or reconciliation services. Any manual confirmation UI must be an authorized Accounting action that validates amount, reference, date, and eligible state before posting ledger effects.
 
-**Payment Confirmation Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover, promissory settlement check, and audit evidence atomically. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
+**Payment Confirmation Implementation Contract**: `PaymentConfirmationService` accepts only Cash, GCash Manual, and Bank Transfer, requires a normalized unique reference and non-future payment date, rejects unassessed enrollments, and posts payment, negative ledger credit, running balance, clearance/handover evaluation, and audit evidence atomically. `PayMongoWebhookProcessor` links each paid attempt to its resulting ledger entry and shares `EnrollmentFinanceClearanceService`; an enrollment without positive assessment evidence cannot finance-clear even if its balance is zero or negative. PayMongo reconciliation is not exposed as a free-form manual channel and must use a verified provider retrieval path. Payment, Payment Attempt, and Ledger Entry Filament resources remain list/view-only evidence surfaces.
 
-#### 3.14.2 Official Generated Artifact Issuance Service Contract
+#### 3.14.2 COR and Finance Artifact Issuance Service Contract
 
-**Purpose**: Convert an authorized source-workflow event into a controlled issued artifact without making the artifact the source of truth or introducing a document-request lifecycle.
+**Purpose**: Convert authorized enrollment and Accounting source-workflow events into controlled COR and SOA/payment evidence artifacts without making the artifact the source of truth or introducing a document-request lifecycle.
 
 **Service ownership**:
 
-- `OfficialDocumentIssuanceService` resolves document type, eligibility, release holds, source read model, template version, and issuance state.
-- COR issuance is called from the enrollment handover/COR flow. Other academic, transfer, completion, SOA, and payment artifacts are called only by their owning authorized workflow after prerequisites pass.
-- Finance artifacts remain owned by Accounting services; academic/student-record artifacts remain owned by Registrar/student-record services.
+- The artifact issuance service resolves document type, eligibility, source read model, template version, and issuance state for COR and Accounting evidence only.
+- COR issuance is called from the enrollment handover/COR flow.
+- SOA/payment acknowledgement artifacts are called only by their owning Accounting workflow after prerequisites pass.
+- TOR, Form 137, report cards, diplomas, certificates, and full credential issuance are outside active TALA scope.
 
 **Eligibility sources**:
 
 | Document family | Required authoritative source |
 | --- | --- |
-| COR / COE | Canonical enrolled student, active/requested term, section/delivery assignment where needed |
-| COG / report card / Form 138 | Registrar-verified finalized grades and applicable grading/reporting profile |
-| TOR / Form 137 copy / transfer credential | Permanent academic record, transfer basis, finalized grade history, release holds, and recipient authority |
-| Diploma / certificate | Approved graduation/completion evaluation and credential release authorization |
-| SOA / receipt | Immutable ledger/payment/assessment data and Accounting issuance lifecycle |
+| COR | Canonical enrolled student, active/requested term, section/delivery assignment where needed |
+| SOA / payment acknowledgement | Immutable ledger/payment/assessment data and Accounting issuance lifecycle |
 
 **State machine**:
 
@@ -2070,10 +2045,10 @@ Manual reconciliation may mark a payment as paid only by retrieving the provider
 
 **Release evidence**:
 
-- In-person credential release stores recipient name, relationship/authority, ID/evidence note when required by policy, releasing staff, release time, and acknowledgement marker.
-- School-to-school record transfer stores requesting school, transfer basis, receiving contact/channel, release channel, released artifact/evidence, and Registrar actor. TALA does not submit to receiving-school systems.
+- Student-facing COR and Accounting evidence access remains role-scoped and private unless a dedicated verification URL intentionally exposes minimal validity data.
+- External credential release, school-to-school transfer, TOR/Form 137 fulfillment, diploma release, and document-request fulfillment are outside active TALA scope.
 
-**Testing expectation**: Focused tests must cover eligible issuance, missing eligibility, hold denial, private artifact authorization, checksum/source snapshot immutability, QR token minimal disclosure, revoked/superseded verification response, release evidence validation, and unauthorized issue/release denial.
+**Testing expectation**: Focused tests must cover eligible COR/finance artifact issuance, missing eligibility/source-state denial, private artifact authorization, checksum/source snapshot immutability, QR token minimal disclosure, revoked/superseded verification response, and unauthorized issue/release denial.
 
 
 
@@ -2115,7 +2090,6 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 | Job | Scheduler Contract | Batch Limit | Idempotency / Failure Rule |
 | --- | --- | --- | --- |
 | `GracePeriodEnforcerJob` | Daily `00:15` Asia/Manila | 100 per chunk, 1,000 per run | Lock user row before archive; skip if already active/archived by staff. |
-| `ProcessPromissoryNoteDeadlinesJob` | Daily `00:45` Asia/Manila | Pending/approved rows, idempotent by timestamp field | Sends one expiring-soon notification per approved note, expires overdue approved/active notes, and never treats expiry as payment or refund evidence. |
 | `IncAutoFailJob` | Daily `01:00` Asia/Manila | 100 per chunk, 1,000 per run | Lock grade row; skip if INC was already cleared or failed. |
 | `PaymentHousekeepingJob` | Daily `01:30` Asia/Manila | 100 per chunk, 1,000 per run | Skip if payment already confirmed/cancelled; no ledger reversal without Accounting action. |
 | `TermCloseJob` | Manual Registrar action; queue for off-hours execution unless urgent | 100 per chunk, no more than one term per batch | Requires Registrar confirmation; cannot run twice for the same closed term. |
@@ -2136,7 +2110,7 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 **Logic**:
 
 1.  Marks the current `terms.is_active` as `false` and sets the new term (if pre-created) as active.
-2.  Resets all student `enrollments.status` for the closing term to `completed` (preserving the record as historical data). Enrollment records are **never deleted** — they remain for transcript and audit purposes.
+2.  Resets all student `enrollments.status` for the closing term to `completed` (preserving the record as historical data). Enrollment records are **never deleted** - they remain for academic-history and audit purposes.
 3.  **Balance Carry-Forward**: Financial balances on `student_profiles.current_balance` persist across terms. Unpaid balances from the previous term automatically apply to the next enrollment clearance check defined in the FS finance-clearance and ledger-balance rules.
 4.  **INC Preservation**: Grades marked as `INC` are not affected by term close. The existing `INC Auto-Fail` nightly job (§3.5) handles their 365-day lifecycle independently.
 5.  **Enrolled Count Reset**: Resets `sections.enrolled_count` to `0` for all sections in the closing term to prepare for the next term’s scheduling.
@@ -2305,7 +2279,7 @@ The academic calendar is separated into two hierarchical models for College oper
 **Manual Summer Scheduling Panel**:
 
 -   Registrar owns summer class opening, section assignment, schedule commitment, and conflict resolution.
--   Accounting owns tuition/installment milestone effects for summer loads and any shifting-related fees.
+-   Accounting owns tuition effects for summer loads and any shifting-related fees; installment milestone effects remain review scope.
 -   Faculty see summer assignments only after Registrar commitment.
 -   Student-facing output must distinguish `proposed_summer`, `confirmed_summer`, and `unscheduled` subjects.
 
@@ -2332,7 +2306,7 @@ An internal key-value registry for application-level runtime settings. The table
 | `maintenance_mode` | `"false"` | Boolean flag; `"true"` activates application-level maintenance |
 | `maintenance_message` | `null` | Custom message displayed to blocked users |
 | `maintenance_eta` | `null` | ISO 8601 datetime string for estimated completion |
-| `installment_policy_defaults` | Versioned JSON object | Internal read-only fallback defaults for Accounting-managed installment policy setup. Dedicated `installment_policies` records are the operational source once configured; this key must not be treated as the authoritative per-student ledger. Referenced by FS §6.2.3. |
+| `installment_policy_defaults` | Versioned JSON object | Review-scope fallback defaults only. This key must not be treated as active per-student ledger authority unless installment automation is promoted, implemented, and tested. |
 | `admission_requirements` | Versioned JSON object | Transitional seeded draft only. The final-form contract is the typed Registrar-owned admission offering, requirement policy, document item, and publication workflow described in §1.3.1. Generic key/value editing must not become the policy-management UI. |
 | `college_cutover_effective_term` | `null` | First College term that activates the new F1 calendar model (level-scoped cutover). |
 | `college_cutover_effective_datetime` | `null` | Timestamp when College cutover becomes enforceable in runtime gate checks. |
@@ -2921,7 +2895,7 @@ This section applies the benchmark matrix identity/access rule to the technical 
 
 **Packages**: `spatie/laravel-activitylog` & `pxlrbt/filament-activity-log`
 
-Given the presence of financial overrides (e.g., Cashier approving Promissory Notes, policy-driven Drop/Withdrawal Fee assessments) and academic data mutations (Registrar overriding prerequisites, Faculty modifying grades), strict accountability is enforced.
+Given the presence of financial adjustments, policy-driven Drop/Withdrawal Fee review candidates, and academic data mutations (Registrar overriding prerequisites, Faculty modifying grades), strict accountability is enforced.
 
 -   **Model Tracking**: All mutations on ledger, grade, enrollment, student-record, and generated-artifact lifecycle records are automatically logged.
 -   **Log Contents**: Each log captures the `causer` (User ID who made the change), the `subject` (Model changed), and the exact `diff` (Old Value vs New Value).
@@ -2940,7 +2914,7 @@ The permission seed mapping is implemented in `database/seeders/DatabaseSeeder.p
 
 **Scheduling Ownership Rule**: Do not create a separate Scheduling Officer role. The existing `registrar` role owns term academic setup, availability period management, draft generation, conflict resolution, final schedule commitment, and schedule export. The existing `academic-head` role may authorize exceptional overrides through `authorize-overrides`. The `system-super-admin` role remains limited to system/user/settings operations and does not receive academic schedule write access.
 
-**Academic Head Finance Visibility Rule**: The `academic-head` role may view only read-only finance status surfaces, fee template/downpayment rules, installment policy summaries, and promissory note status/tag. It must not access Accounting payment queues, confirmed-payment ledgers, full ledger-entry review, or installment milestone maintenance screens. Academic Head has no finance mutation actions: no payment processing, no assessment creation, no discount application, no promissory approval, and no installment policy edits.
+**Academic Head Finance Visibility Rule**: The `academic-head` role may view only read-only finance status surfaces and fee template/downpayment rules. It must not access Accounting payment queues, confirmed-payment ledgers, full ledger-entry review, installment milestone maintenance screens, or promissory queues if those review features are later promoted. Academic Head has no finance mutation actions: no payment processing, no assessment creation, no discount application, no promissory approval, and no installment policy edits.
 
 ### 4.6 Middleware Implementation
 
@@ -3494,7 +3468,7 @@ If mismatch found → **Request Re-upload** (manual decision).
 **Consolidated General System Notification**:
 
 -   All fragmented notification classes have been removed to prevent system bloat.
--   `GeneralSystemNotification`: A single, unified notification class is used for all approved system triggers (Welcome Applicant, Document Rejection, Payment Confirmation, Financial Holds, Promissory Notes, etc.).
+-   `GeneralSystemNotification`: A single, unified notification class is used for approved system triggers such as Welcome Applicant, Document Rejection, Payment Confirmation, and Financial Holds.
 -   This class accepts a `type` (enum/string), `subject`, and `body` payload to dynamically format both email and in-app notifications.
 
 ---
@@ -3510,7 +3484,7 @@ If mismatch found → **Request Re-upload** (manual decision).
 -   GCash/E-Wallet (via PayMongo Checkout — primary)
 -   GCash/Bank Transfer (Screenshot upload — fallback)
 -   Over-the-Counter (Manual encoding by Accounting)
--   Promissory Note (digital promise request / Accounting review; not a payment method and not a document upload)
+-   Promissory Note remains a review candidate only; it is not a payment method and not a document upload.
 
 ---
 
@@ -3697,7 +3671,7 @@ These rules define stable staff-facing admin boundaries. They are not an executi
 | FAQ content management | `FaqEntryResource` provides System Super Admin CRUD for question, answer, category, sort order, and publish state, guarded by `manage-faqs`. Public `/faq` and Student Hub Help consume only published entries. | Registrar, Accounting, Faculty, Academic Head, Student, and public users cannot mutate FAQ content. FAQ categories remain model-owned fixed options, not arbitrary text. |
 | System settings | `SystemSettingResource` is hidden/blocked, exposes no raw key/value/JSON editing, and direct `/admin/system-settings` returns 403 even for System Super Admin. | `system_settings` remains an internal runtime registry. Dedicated typed domain settings pages require validated service handlers, authorization, audit, and cache invalidation. |
 | Accounting adjustments | `AccountingAdjustmentService` and `AccountingAdjustmentResource` provide typed debit, credit, and ledger-entry reversal posts with policy checks, immutable ledger posting, balance recalculation, duplicate-reversal blocking, and activity logging. | Generic ledger CRUD, refund shortcuts, raw balance editing, and silent account-handover reversal are forbidden. |
-| Promissory notes | Applicant/student-owner backend request, Accounting staff-assisted pending creation, approve/reject/cancel, deadline processing, payment-driven settlement, and scoped relationship labels are implemented through typed lifecycle services/actions. | Student Hub UI remains deferred; generic status editing and amount/private-detail exposure remain forbidden. |
+| Promissory notes | Review candidate only. If promoted, promissory notes are Accounting-owned promise tracking, not payment clearance or exam access. | Student Hub UI remains deferred; generic status editing and amount/private-detail exposure remain forbidden. |
 | Automatic scheduling solver | Scheduling uses IAM-private GCP Cloud Run OR-Tools CP-SAT, Google ID-token dispatch, immutable snapshots, solver-result ingestion, Laravel validation, draft review, and commit to `section_meetings` / `section_teacher`. Committed rows require 100% hard-constraint validity. | The solver does not create academic sections by itself; section/year-level planning and curriculum demand readiness precede solving. |
 | Faculty assignment and availability | Subject/faculty assignment is Registrar/Academic Head/System Super Admin managed; faculty cannot self-approve teaching subjects. Locked availability and approved post-lock revisions are solver inputs. | Direct faculty edits to locked availability are forbidden. Post-commit schedule-change automation remains review scope until approved. |
 | Service request detail labels | Staff-facing service request tables and detail views should use relationship-backed labels and model-owned status helpers rather than raw IDs as primary labels. | Raw FK/payload display is only acceptable as internal audit evidence when no staff decision depends on it. |
