@@ -14,7 +14,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | --- | --- | --- |
 | 1.0 | 2026-04-02 | TS baseline consolidated. |
 | 2.0 | 2026-04-30 | Hybrid ingestion; private storage; staff verification. |
-| 3.0 | 2026-05-01 | Queue, scheduler, Redis, Supervisor, Horizon job strategy. |
+| 3.0 | 2026-05-01 | Queue, scheduler, and worker strategy. |
 | 4.0 | 2026-05-02 | Student Hub/PWA architecture; baseline tables; period grading. |
 | 5.0 | 2026-05-03 | Prerequisite validator; modality enum; PUP transmutation; PayMongo/GCV. |
 | 6.0 | 2026-05-04 | PHPUnit alignment; Term Close job; returnee states; document transitions. |
@@ -44,7 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-18 | Student services; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; admission/retention/capacity requirements; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, student lifecycle, administration, imports, and automated text extraction. |
+| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, student lifecycle, administration, imports, automated text extraction, security, and operations. |
 
 ---
 
@@ -116,8 +116,8 @@ System acceptance depends on the following technical requirements. These are acc
 | **Staff Operations UI** | **FilamentPHP v5** | `filament/filament` | 5.6.2 | **The Command Center.** Powering the **Registrar, Accounting/Cashier, Faculty, Academic Head, and System Super Admin** dashboards. It leverages “TALL Stack” (Tailwind, Alpine, Livewire, Laravel) to auto-generate 80% of the UI (Tables, Forms, Notifications, Modals), drastically reducing development time. |
 | **Student Hub UI** | **Laravel + Livewire + TallStackUI + Tailwind CSS + Alpine.js** | `livewire/livewire`, `tallstackui/tallstackui`, `tailwindcss`, `alpinejs` | 4.3.0, 3.0.0, 4.1.18, 3.15.10 | **The Public Face.** Uses **Server-Side Rendering (Blade)** with **TallStackUI Components** for premium aesthetics and **Alpine.js** for client-side interactivity. It leverages **Multi-Route SPA routing with wire:navigate** for instantaneous transitions, PWA offline caching, and SEO. Includes **PWA Service Workers**. |
 | **Database** | **MySQL** | \- | 8.0+ | **The Memory.** Relational source of truth for academic, financial, audit, document metadata, and staff-verified fields. Raw uploaded files are not stored as database BLOBs. |
-| **File/Object Storage** | **Laravel Filesystem (Private Local/S3-Compatible Disk)** | Built-in / Flysystem | \- | **The Evidence Vault.** Stores original uploaded documents, payment proofs, certificates, receipts, and generated previews outside the database with private visibility and temporary signed access. |
-| **Infrastructure** | **Cloud VPS (DigitalOcean/AWS)** | \- | \- | **The Environment.** Scalable cloud hosting to ensure 24/7 availability, queue worker support, and security (vs. local servers). |
+| **File/Object Storage** | **Laravel Filesystem (Private Disk)** | Built-in / Flysystem | \- | **The Evidence Vault.** Stores uploaded documents, payment evidence, and generated artifacts outside the database with private visibility and authorized temporary access. The deployment selects the storage provider. |
+| **Infrastructure** | **Supported PHP/MySQL Web Runtime** | Deployment-managed | \- | Runs HTTPS web traffic, the Laravel scheduler, persistent database-queue workers, protected storage, and backup/restore controls without prescribing a hosting vendor or fixed server size. |
 
 ---
 
@@ -125,7 +125,7 @@ System acceptance depends on the following technical requirements. These are acc
 
 ### 1.2.0 Implementation Readiness Snapshot
 
-The lockfiles and local package manager output are authoritative for exact installed versions during implementation planning. This document records major-version contracts only: PHP 8.2, Laravel 12, MySQL, Filament 5, Livewire 4, Laravel Boost 2, Laravel Horizon 5, Tailwind CSS 4, Alpine.js 3, and PHPUnit 11. Re-check `composer.lock`, `package-lock.json`, or `composer show` / `npm list` before using version-sensitive APIs.
+The lockfiles and local package manager output are authoritative for exact installed versions during implementation planning. This document records major-version contracts only: PHP 8.2, Laravel 12, MySQL, Filament 5, Livewire 4, Laravel Boost 2, Tailwind CSS 4, Alpine.js 3, and PHPUnit 11. Re-check `composer.lock`, `package-lock.json`, or `composer show` / `npm list` before using version-sensitive APIs.
 
 The approved core implementation tools include `spatie/laravel-permission`, `spatie/laravel-model-states`, `spatie/laravel-activitylog`, `spatie/laravel-webhook-client`, `luigel/laravel-paymongo`, `tallstackui/tallstackui`, `erag/laravel-pwa`, `maatwebsite/excel`, `barryvdh/laravel-dompdf`, and `chillerlan/php-qrcode`. Exact installed packages remain lockfile-controlled.
 
@@ -135,7 +135,7 @@ The following runtime boundaries apply across environments:
 
 | Runtime Area | Boundary | Implementation Impact |
 |--------------|----------|-----------------------|
-| Horizon | `laravel/horizon` is installed, but `config/horizon.php` is absent. | Local development must use the database queue. Production may use Redis + Horizon only after Horizon config is installed and queue workers are configured. |
+| Queue Workers | The approved queue connection is the Laravel database driver. | Local and deployed environments run persistent `queue:work` processes with retry/backoff and failed-job storage; the deployment process monitor restarts failed workers. |
 | API Routes | `routes/api.php` exists for integration endpoints such as PayMongo webhooks. | New API endpoints must be registered deliberately, signed or authenticated where appropriate, and covered by focused feature tests. |
 | Webhooks | PayMongo webhooks use the local `webhook_calls` storage table plus application signature verification and processing services. | Provider callbacks must be stored, signature-verified, idempotent, and covered by smoke evidence before acceptance. |
 | File Storage | The `local` disk already roots to `storage/app/private`. | Uploaded student documents and payment evidence must remain private by default. Public disks are only for intentionally public assets. |
@@ -178,7 +178,7 @@ Example usage in Blade templates:
 | Component | Technology / Approach | Package | Purpose |
 | --- | --- | --- | --- |
 | **Document Storage** | Hybrid file + relational metadata model | Laravel Filesystem + MySQL | Original files remain in private storage; review state, reviewer, timestamps, reasons, and approved verified fields are stored in MySQL. |
-| **Background Jobs** | Laravel Queue + Laravel Scheduler | Built-in; `laravel/horizon` installed but requires Redis queue configuration and `config/horizon.php` before use | Runs notifications, webhook processing, imports, and scheduled operations. Local development uses database queues; production may use Redis queues with Supervisor-managed workers and Horizon only after Horizon is installed/configured for the environment. |
+| **Background Jobs** | Laravel Database Queue + Laravel Scheduler | Built-in | Runs webhook processing, solver dispatch, notifications, controlled imports, and approved scheduled operations. Persistent workers are deployment-managed and failed jobs remain inspectable. |
 | **Webhooks** | Spatie Webhook Client | `spatie/laravel-webhook-client` | Safely receives, verifies signatures, and prevents double processing (idempotency) of GCash webhooks. |
 | **Audit Trails** | Spatie Activity Log | `spatie/laravel-activitylog` | Tracks all model changes and user actions for strict accountability on financial and grading overrides. |
 | **Audit UI** | Filament Activity Log | `pxlrbt/filament-activity-log` | Provides a Filament staff-panel GUI to view the `spatie/laravel-activitylog` records. |
@@ -419,7 +419,6 @@ The following domains are covered by schema and service contracts in this TS. Wh
 **Migration Status Boundary**:
 - This TS defines the required schema contracts and relationships, not a live migration-status ledger.
 - Current migration execution must be checked with `php artisan migrate:status --no-interaction` in the target environment.
-- Fortify two-factor and passkey tables may exist in the schema, but `config/fortify.php` remains the runtime authority for whether those features are enabled.
 
 ---
 
@@ -1244,8 +1243,7 @@ class PrerequisiteValidator
 | --- | --- |
 | Repeated subject | Use the latest finalized attempt for that subject. A later finalized passing attempt satisfies the prerequisite even if an older attempt failed. |
 | Approved equivalent subject | Treat as satisfying the prerequisite only if the equivalency is configured by Registrar/Academic Head and the equivalent subject has a finalized passing grade. |
-| Active INC | Blocks enrollment in downstream subjects until cleared or auto-failed. |
-| Expired INC | The nightly INC auto-fail job converts it to failed; prerequisite validation then treats it as failed. |
+| Active INC | Blocks enrollment in downstream subjects until resolved through the authorized grading workflow or an effective institutional policy. |
 | Missing historical grade | Blocks enrollment as `missing_history` unless the Registrar applies an audited prerequisite override. |
 | Registrar override | Requires reason, target subject, prerequisite subject, actor ID, and activity-log entry; it does not change the historical grade itself. |
 
@@ -1257,57 +1255,55 @@ class PrerequisiteValidator
 
 ---
 
-### 3.5 Automated Jobs (Queue)
+### 3.5 Database Queue and Scheduled Work
 
-| Job | Priority | Description |
+Laravel's database queue is the approved runtime for the current deployment. Queue workers are persistent deployment processes, not staff-facing features.
+
+| Work item | Trigger | Queue / behavior |
 | --- | --- | --- |
-| **Document Review Queue** | High | Newly submitted or corrected private evidence pending Registrar review |
-| **Webhook Processing** | High | GCash payment asynchronous confirmation logic |
-| **Payment Housekeeping** | Default | Nightly Job to auto-reject pending payments older than 72 hours |
-| **INC Auto-Fail** | Low | Nightly batch job converts “INC” → “5.0 / Failed” after 365 days |
-| **Term Close** | Low | Registrar-triggered batch completes closing-term enrollments without resetting student profiles/accounts |
+| PayMongo webhook processing | Valid callback stored after signature verification | High priority; idempotent; retries rethrow failures and never duplicate ledger effects. |
+| Schedule solver dispatch | Registrar creates a ready generation run | `scheduling`; dispatched after commit; immutable snapshot; bounded timeout and retry/backoff. |
+| Critical lifecycle notifications | Approved domain transition | Default; owner-scoped payload; no sensitive values in queued data. |
+| Controlled import processing | Authorized commit when batch size requires async work | Default/low; importer-specific idempotency and explicit atomicity rules. |
+| Retention-document monitoring | Approved scheduler event | Marks due undertakings and applies only approved documentary/next-cycle holds. |
+| Term close | Manual Registrar action | May queue for off-hours; idempotent per term; never resets student profiles/accounts. |
 
-**Queue Configuration**:
+Document-review and staff operational queues are database queries over lifecycle state, not Laravel worker queues. Automatic pending-payment rejection, installment processing, promissory processing, and INC expiry jobs have no active schedule unless their underlying review feature is separately approved.
 
+**Worker Contract**:
 
+- Use `QUEUE_CONNECTION=database` in local, acceptance, and initial deployed environments.
+- A deployment process monitor runs `php artisan queue:work database` and restarts workers after failure or deployment.
+- Jobs define bounded attempts, backoff, timeout, failure visibility, and idempotency appropriate to their side effects.
+- A job timeout remains lower than the queue connection's `retry_after` value.
+- Jobs that depend on newly committed rows dispatch after commit.
+- Failed jobs remain inspectable and retryable only after the underlying cause is understood.
 
-```php
-// config/queue.php'queues' => [    'high' => ['payment_webhooks'],    'default' => ['emails', 'notifications'],    'low' => ['imports', 'batch_jobs'],],
-```
+**Scheduler Contract**:
 
-**Environment Policy**:
-
--   Local Windows development defaults to `QUEUE_CONNECTION=database` and may run `php artisan queue:listen` or `php artisan queue:work database` for simple local processing.
--   Production Ubuntu deployment may use `QUEUE_CONNECTION=redis` with Supervisor-managed `php artisan queue:work redis --queue=high,default,low`.
--   Laravel Horizon is optional and requires Redis, a published `config/horizon.php`, dashboard authorization, queue supervisors, and scheduled `horizon:snapshot` metrics before it is treated as the production queue monitor/worker dashboard.
+The environment invokes Laravel's scheduler every minute. Only approved jobs are registered in `routes/console.php`; removed or review-scope workflows have no scheduled event.
 
 ---
 
-### 3.6 Term Scoping & Performance
+### 3.6 Explicit Term Context and Capacity Integrity
 
-#### 3.6.1 Term Scoping
+Term-scoped workflows receive an explicit term from the route, authenticated workflow context, selected staff filter, or service command. The system must not apply a global Eloquent scope that silently limits every enrollment, payment, grade, or schedule query to one active term. Historical records remain authorized and queryable.
 
-The `terms` table is the central backbone. All enrollments, payments, and schedules are strictly scoped to the `active_term_id` (Global Setting).
+Reusable query scopes such as `forTerm(Term|int $term)`, policy-gated staff filters, and service-owned current-term resolution may reduce duplication without hiding history. Missing or ambiguous term context fails safely for mutations.
 
-**Global Scope**:
+Section capacity is enforced inside the authoritative enrollment/placement transaction:
 
+1. Lock the target section and applicable capacity records.
+2. Re-read authoritative enrolled/secured placement state.
+3. Reject when the approved maximum would be exceeded.
+4. Apply placement/enrollment and any retained counter in the same transaction.
+5. Preserve idempotency for retries and concurrent handover.
 
+An Eloquent observer alone must not increment/decrement `enrolled_count`. A retained counter is a transactionally maintained optimization that can be reconciled against canonical enrollment/placement rows; otherwise use indexed count queries. Lists use eager loading, selected columns, pagination, and indexes on common term/status/relationship filters.
 
-```php
-class TermScope implements Scope{    public function apply(Builder $builder, Model $model)    {        // Cached via once() to prevent N+1 — only one DB query per request lifecycle        $activeTermId = once(fn () => Term::active()->value('id'));        if ($activeTermId) {            $builder->where('term_id', $activeTermId);        }    }}
-```
+---
 
-#### 3.6.2 Performance Optimizations
-
-**Observer Caching**: `sections` table uses an `enrolled_count` column updated via Model Observers to prevent slow `count(*)` queries on the schedule view.
-
-
-
-```php
-class EnrollmentObserver{    public function created(Enrollment $enrollment)    {        $enrollment->section->increment('enrolled_count');    }        public function deleted(Enrollment $enrollment)    {        $enrollment->section->decrement('enrolled_count');    }}
-```
-
-#### 3.6.3 Digital Faculty Availability and Assisted Scheduling
+#### 3.6.1 Digital Faculty Availability and Assisted Scheduling
 
 **Purpose**: Replace brittle faculty availability Excel intake with authenticated, term-scoped faculty self-service availability and Registrar-controlled subject/faculty assignment plus draft schedule generation.
 
@@ -1319,7 +1315,6 @@ class EnrollmentObserver{    public function created(Enrollment $enrollment)    
 
 **Constraint Boundary**: The scheduling architecture extends solver snapshots, solver runtime, Laravel ingestion, commit validation, Filament review actions, and tests for section delivery groups, delivery patterns, delivery-group capacity, scoped curriculum readiness, Registrar-confirmed subject/faculty assignment, and weekly contact hours. The approved MVP hard constraints are: faculty time overlap, section/delivery-group time overlap, room conflict, missing Registrar-confirmed faculty assignment, invalid school calendar day/time, missing required curriculum scope, missing required delivery group, and invalid room requirement. Missing/outside faculty availability and faculty workload overload are soft constraints only where an approved reason and audit payload are captured. Lunch-break blocking, max back-to-back load, exact daily/weekly workload caps, and lecture/laboratory split rules remain configurable policy inputs until exact values and executable tests are added.
 
-**Feature Group 4 runtime audit boundary (2026-06-21)**: The repository contains the Python OR-Tools CP-SAT package and tests, Laravel immutable snapshots, after-commit queued dispatch with retry/backoff, IAM-authenticated Cloud Run client, result ingestion, review, hard-conflict commit validation, and Academic Head publication. The runtime currently emits `partial` and `model_invalid` in addition to CP-SAT feasibility outcomes; `model_invalid` is also incorrectly folded into the timeout boolean and needs a focused correction. The controlled schedule-change lifecycle exists, but `SectionMeetingAssignmentService::prepareForScheduleChange()` calls the normal published-term creation guard, so approved changes cannot currently be applied after publication. These are implementation/test gaps; the normative post-publication revision contract remains request -> approval -> conflict revalidation -> apply -> audit/notification.
 
 **Approved Rescue Scheduling Architecture**: Automatic schedule generation is implemented as deterministic cloud optimization through an IAM-private Google Cloud Run service running Google OR-Tools CP-SAT. Vertex AI is explicitly not the primary scheduler for Phase 1 because schedule generation requires hard-constraint satisfaction, not ML prediction. Laravel remains the system of record, validator, review surface, and final committer.
 
@@ -1508,6 +1503,7 @@ Manual assignment may override missing/outside faculty availability only with a 
 **Financials**: Simple Ledger logic (encoded amounts). No complex real-time formula calculations.
 
 ---
+
 
 ### 3.7 Faculty Class-List Privacy Boundary
 
@@ -1993,51 +1989,20 @@ Manual reconciliation may mark a payment as paid only by retrieving the provider
 
 ---
 
-### 3.15 Background Tasks & Automation
+### 3.15 Approved Background Tasks
 
-Scheduled tasks are registered through Laravel Scheduler. Local development may use `php artisan schedule:work`; production uses a server cron entry that runs `php artisan schedule:run` every minute. Scheduled tasks may dispatch queued jobs, and those jobs are processed by the configured queue worker.
+Scheduled events are limited to approved system-owned workflows. The deployment invokes Laravel's scheduler every minute; only the following application tasks are active:
 
-**Global Scheduled Job Contract**:
+| Task | Trigger | Contract |
+| --- | --- | --- |
+| Retention-document monitoring | Scheduled off-hours | Lock eligible undertaking rows, mark newly due items, apply only configured documentary/next-cycle hold evidence, deduplicate notices, and never cancel active enrollment. |
+| Term close | Explicit Registrar action; may dispatch an off-hours batch | Close one selected term once, transition only eligible term enrollments, preserve student/account history and unresolved INC records, and audit the Registrar action. |
 
-- All school housekeeping schedules use `config('app.timezone')`; production default is `Asia/Manila`.
-- Scheduler definitions use `withoutOverlapping()`. Production deployments with a shared cache store use `onOneServer()` and a unique schedule name for each job.
-- Default chunk size is 100 records. A single scheduled run processes at most 1,000 records unless a job-specific stricter limit is documented.
-- Default queued-job retry policy is 3 attempts with `$backoff = [60, 300, 900]`. External API jobs may use 5 attempts when the provider call is idempotent.
-- Each job must use an idempotency key or locked row update before mutating financial, enrollment, grade, or access state. Failed jobs remain in Laravel's failed jobs table for staff review after final failure.
+PayMongo webhook processing and CP-SAT solver dispatch are event-driven queue jobs, not scheduled polling tasks. Automatic payment rejection, installment deadlines, promissory deadlines, and INC expiry/failing conversion are not registered because their policies remain unapproved.
 
-| Job | Scheduler Contract | Batch Limit | Idempotency / Failure Rule |
-| --- | --- | --- | --- |
-| `IncAutoFailJob` | Daily `01:00` Asia/Manila | 100 per chunk, 1,000 per run | Lock grade row; skip if INC was already cleared or failed. |
-| `PaymentHousekeepingJob` | Daily `01:30` Asia/Manila | 100 per chunk, 1,000 per run | Skip if payment already confirmed/cancelled; no ledger reversal without Accounting action. |
-| `TermCloseJob` | Manual Registrar action; queue for off-hours execution unless urgent | 100 per chunk, no more than one term per batch | Requires Registrar confirmation; cannot run twice for the same closed term. |
-
-#### 3.15.1 Term Close Job
-
-**Job**: `TermCloseJob` (triggered manually by Registrar via “End Enrollment Period” action, dispatched as a queued batch job for off-hours execution unless urgent)
-
-**Logic**:
-
-1.  Marks the current `terms.is_active` as `false` and sets the new term (if pre-created) as active.
-2.  Transitions only closing-term `Enrolled` records to `Completed` (preserving each record as historical data). Existing `Withdrawn`, `LeaveOfAbsence`, `Ineligible`, and `EnrollmentCancelled` outcomes remain unchanged.
-3.  **Balance Carry-Forward**: Financial balances on `student_profiles.current_balance` persist across terms. Unpaid balances from the previous term automatically apply to the next enrollment clearance check defined in the FS finance-clearance and ledger-balance rules.
-4.  **INC Preservation**: Grades marked as `INC` are not affected by term close. The existing `INC Auto-Fail` nightly job (§3.5) handles their 365-day lifecycle independently.
-5.  **Profile/Section Preservation**: Does not reset `student_profiles.operational_status`, `users.status`, or historical section enrollment counts. The next term uses separate term-scoped enrollment and section records.
-6.  Logs the term close action via `spatie/laravel-activitylog` with the Registrar’s user ID.
-
-**Queue Priority**: `low` (runs as a batch during off-hours after the Registrar triggers it).
-
-#### 3.15.2 INC Auto-Fail Job
-
-**Job**: `IncAutoFailJob` (scheduled daily at `01:00` Asia/Manila)
-
-**Logic**:
-
-1.  Finds all `grades` where `is_inc = true` AND `inc_expires_at <= now()`.
-2.  Updates each grade: `grade = 5.0`, `remarks = 'failed'`, `is_inc = false`.
-3.  Logs each auto-conversion via `spatie/laravel-activitylog` with `causer = system`.
+Every background task defines authorization at its trigger, row locking or an idempotency key, bounded batches where needed, retry/backoff, safe failure visibility, and tests proving repeated execution does not duplicate effects.
 
 ---
-
 ### 3.16 FAQ Module Implementation
 
 **Purpose**: Technical mapping for FS §8.7. Provides a curated FAQ accessible via the public landing page and the Student Hub.
@@ -2249,7 +2214,7 @@ Focused tests cover role visibility, direct component authorization, term scopin
 
 ### 4.1 Identity and Access Baseline Contract
 
-This section applies the benchmark matrix identity/access rule to the technical baseline. Authentication is implemented through Laravel/Fortify-compatible backend behavior, role and permission ownership is implemented through Spatie Permission plus Laravel policies, and staff UI authorization is enforced through Filament policy/navigation checks. Login throttling, password reset, email verification, and optional two-factor/passkey behavior must follow the active Laravel/Fortify configuration rather than undocumented hardcoded UI rules.
+This section applies the benchmark matrix identity/access rule to the technical baseline. Laravel Fortify owns login, logout, password reset, email verification, password updates, and configured login throttling. Role and permission ownership uses Spatie Permission plus Laravel policies, while Filament and Livewire enforce the same authorization at navigation, route, resource, record, and action boundaries.
 
 | Contract area | Technical baseline |
 | --- | --- |
@@ -2268,19 +2233,19 @@ This section applies the benchmark matrix identity/access rule to the technical 
 
 **Package**: `spatie/laravel-permission`
 
-### 4.3 Audit Trails & Accountability
+### 4.3 Audit Trails and Accountability
 
-**Packages**: `spatie/laravel-activitylog` & `pxlrbt/filament-activity-log`
+**Package**: `spatie/laravel-activitylog`
 
-Given the presence of financial adjustments, policy-driven Drop/Withdrawal Fee review candidates, and academic data mutations (Registrar overriding prerequisites, Faculty modifying grades), strict accountability is enforced.
+Audit coverage is event-driven and purpose-limited. Required events include staff role assignment and archive/restore; protected export/access where policy requires; applicant/document decisions; enrollment/placement transitions; ledger/payment/adjustment posts; schedule generation commitment, override, approval, and publication; grade submission/finalization/correction; and generated-artifact issue/revoke/supersede.
 
--   **Model Tracking**: All mutations on ledger, grade, enrollment, student-record, and generated-artifact lifecycle records are automatically logged.
--   **Log Contents**: Each log captures the `causer` (User ID who made the change), the `subject` (Model changed), and the exact `diff` (Old Value vs New Value).
--   **System Super Admin Visibility**: The **System Super Admin** can view these logs directly in the Filament Dashboard to investigate unauthorized adjustments.
--   **Filament Resource Mapping**: `ActivityResource` is list/view only and is guarded by `ActivityPolicy::viewAny()` / `view()` through `view-audit-logs`. `ActivityInfolist` must show immutable activity metadata through formatted labeled evidence lines derived by `ActivityPropertiesFormatter`, not through editable fields, raw JSON textareas, or a generic key-value payload dump. Destructive actions remain unavailable.
+Each entry records an event key, actor, subject identifier/type, occurred time, approved reason or decision reference, correlation/batch identifier where useful, and an allowlisted before/after summary. It must not store passwords, password hashes, reset/session/API tokens, provider credentials, full private documents, unrestricted request payloads, or unnecessary medical/support/financial detail.
 
-**Vendor Model Policy Registration**: Laravel policy discovery does not automatically map project policies onto vendor models. `AppServiceProvider::boot()` must explicitly register `Spatie\Permission\Models\Role` with `RolePolicy` and `Spatie\Activitylog\Models\Activity` with `ActivityPolicy`. Without this registration, Filament may expose Roles or Audit Logs to roles that should not see them.
+`ActivityResource` is System Super Admin list/view only and uses explicit policy registration for the vendor activity model. Detail views render readable labeled evidence and never expose editing or destructive actions. Retention follows the effective institutional records/privacy policy and legal holds; indefinite retention is not assumed.
 
+Critical integrity/security events may create a minimized System Super Admin alert. The alert links to authorized evidence rather than copying restricted data into notification content.
+
+---
 ### 4.4 Role Definitions
 
 Approved role definitions are implemented in `database/seeders/DatabaseSeeder.php`. The approved role set is: `applicant`, `student`, `registrar`, `accounting`, `faculty`, `academic-head`, and `system-super-admin`. Do not add a generic `admin` role or a separate scheduling officer role without an approved role-model change.
@@ -2321,57 +2286,15 @@ Route::middleware(['auth', 'role:registrar'])->group(function () {
 
 ---
 
-### 4.7 Audit Trail Implementation
+### 4.7 Audit Implementation Contract
 
-> **Superseded Pattern**: The custom `AuditLog::create()` observer pattern shown in earlier versions is replaced by `spatie/laravel-activitylog`. All model mutation auditing must use Spatie's `LogsActivity` trait and `activity()` helper. Do not create a separate `audit_logs` table.
+Lifecycle services emit named activity events only after authorization and successful state validation. When the domain mutation is transactional, its audit record is written in the same transaction or through a reliable after-commit mechanism that preserves correlation.
 
-**Grade Audit via Spatie**:
+The `LogsActivity` trait may be used only with an explicit allowlist, dirty-value filtering, and minimized properties. Complex approval and integration workflows use explicit `activity()` calls so the event name, reason, correlation, and authoritative actor are unambiguous.
 
-```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
-
-class Grade extends Model
-{
-    use LogsActivity;
-
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logOnly(['grade', 'remarks', 'is_finalized', 'is_inc'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs();
-    }
-}
-```
-
-**Critical Actions Alert**:
-
-```php
-use Spatie\Activitylog\Models\Activity;
-use App\Notifications\CriticalActionAlert;
-use Illuminate\Support\Facades\Notification;
-
-class AuditAlertServiceProvider extends ServiceProvider
-{
-    public function boot(): void
-    {
-        Activity::created(function (Activity $activity) {
-            $criticalEvents = ['bulk_grade_change', 'historic_balance_clear'];
-
-            if (in_array($activity->event, $criticalEvents)) {
-                Notification::send(
-                    User::role('system-super-admin')->get(),
-                    new CriticalActionAlert($activity)
-                );
-            }
-        });
-    }
-}
-```
+Focused tests cover required-event creation, actor/subject linkage, allowlisted change summaries, unauthorized action denial, secret/sensitive-field exclusion, read-only audit UI, policy-driven retention metadata, and minimized critical alerts.
 
 ---
-
 ## 5. Frontend Implementation
 
 ### 5.1 Design Philosophy
@@ -2807,7 +2730,7 @@ TALA does not use automated document text extraction, document classification, c
 | **Foundation Schema** | Use the implemented migration files and foundation migration control log as the schema implementation reference, then verify with Laravel Boost `database_schema` and migration tests. |
 | **Domain Services & States** | Implement model states, ledger services, enrollment transitions, document-review services, and authorization policies against the verified schema. |
 | **Filament/Livewire UI** | Build Registrar, Accounting/Cashier, Faculty, Academic Head, System Super Admin, and Student Hub screens only after the underlying contracts and services exist. |
-| **Integrations, Jobs, and Ops** | Add PayMongo webhooks, CP-SAT solver dispatch, queued notifications, PWA acceptance, Horizon/Redis production config, and operational monitoring after core workflows pass tests. |
+| **Integrations, Jobs, and Ops** | Add PayMongo webhooks, CP-SAT solver dispatch, queued notifications, PWA acceptance, database-worker deployment, failed-job visibility, health checks, and provider-neutral operational monitoring after core workflows pass tests. |
 
 **Benefit**: Prevents UI-first implementation drift. CRUD screens are fast only after the schema, state transitions, and ownership rules are stable.
 
@@ -2820,148 +2743,99 @@ TALA does not use automated document text extraction, document classification, c
 | **Unit Tests** | Service classes, Models | PHPUnit |
 | **Feature Tests** | API endpoints, Form submissions, Livewire components | PHPUnit + Laravel HTTP Testing |
 | **Integration Tests** | Module workflows | PHPUnit |
-| **Browser Smoke / E2E Tests** | Student Hub routes, read-only PWA offline behavior, and critical enrollment/payment flows | Manual browser smoke tests now; Laravel Dusk or Playwright only after dependency approval |
+| **Browser Smoke / E2E Tests** | Student Hub routes, read-only PWA offline behavior, and critical enrollment/payment flows | Manual browser checks or the already available browser automation toolchain; no mandatory new browser-test dependency |
 | **PWA / Loading Acceptance** | Manifest metadata, install prompt/splash behavior where platform-supported, service-worker offline fallback, Livewire loading/offline button states, upload progress labels, and reduced-motion handling | Manual browser/device smoke tests now; Playwright/Lighthouse or device-specific checks only after dependency approval |
-| **Performance Tests** | Load testing | Apache Bench, k6 |
+| **Performance Checks** | Query counts, pagination, queue latency, solver timeout, representative critical-flow response time, and large-import behavior | Existing Laravel tests, database/query evidence, worker logs, and an approved external load tool only when a measured acceptance target requires it |
 
 ---
 
 ## 8. Deployment & Operations
 
-### 8.1 Infrastructure
+### 8.1 Deployment Runtime Profile
 
-**Recommended**: Cloud VPS (DigitalOcean/AWS)
+The deployment environment must support the locked PHP/Laravel/MySQL versions, HTTPS, private persistent file storage, a persistent database-queue worker, the Laravel scheduler, outbound SMTP, PayMongo callbacks, and authenticated CP-SAT solver dispatch. Hosting vendor, operating-system image, instance size, storage vendor, and scaling topology are selected from measured deployment needs rather than fixed by this specification.
 
-**Minimum Requirements**:
+The built-in `/up` health route verifies that the application boots. Deeper readiness evidence is obtained from database connectivity, queue/failed-job state, recent scheduler outcomes, PayMongo webhook processing state, and schedule-generation run state without exposing protected diagnostics publicly.
 
--   **CPU**: 2 cores
--   **RAM**: 4 GB
--   **Storage**: 40 GB SSD
--   **OS**: Ubuntu 22.04 LTS
+### 8.2 Production Configuration Boundary
 
----
-
-### 8.2 Server Configuration
-
-#### 8.2.1 Required Services
-
-| Service | Purpose |
+| Area | Required contract |
 | --- | --- |
-| **PHP 8.2+** | Laravel runtime |
-| **MySQL 8.0+** | Database |
-| **Redis** | Production cache, session, and queue backend |
-| **Nginx** | Web server |
-| **Supervisor** | Keeps `queue:work` or `horizon` running in production |
-| **SSL (Let’s Encrypt)** | HTTPS encryption |
+| Application | `APP_ENV=production`, `APP_DEBUG=false`, valid `APP_KEY`, canonical HTTPS `APP_URL` |
+| Database | Least-privilege application credentials supplied through the deployment secret mechanism |
+| Sessions | Database-backed session or another approved durable driver; secure, HTTP-only, same-site cookies in HTTPS production |
+| Cache | Approved Laravel cache store; cache loss must not destroy authoritative SIS state |
+| Queue | `QUEUE_CONNECTION=database`, persistent worker, failed-job storage, bounded retry/backoff |
+| Files | Private persistent disk with authorized temporary delivery; public disk only for intentional public assets |
+| Mail | Institution-approved SMTP credentials and sender identity |
+| Payments | PayMongo mode, keys, and webhook secret stored outside source control |
+| Scheduling | Solver URL/audience and dedicated invocation credentials stored outside source control |
+| Logging | Production log level and channel configured to exclude secrets and unnecessary personal data |
 
-#### 8.2.2 Environment Variables
+Environment examples must use placeholders only. Real passwords, provider secrets, private keys, and credentials never appear in documentation, source control, logs, test fixtures, or public error output.
 
+### 8.3 Deployment and CI Guardrails
 
+The chosen deployment pipeline or runbook must:
 
-```env
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://tala.servitech.edu.ph
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_DATABASE=tala_production
-DB_USERNAME=tala_user
-DB_PASSWORD=secure_password
-QUEUE_CONNECTION=redis
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-SESSION_DRIVER=redis
-CACHE_STORE=redis
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=noreply@servitech.edu.ph
-MAIL_PASSWORD=app_password
-```
+1. Install PHP and Node dependencies from lockfiles.
+2. Run focused PHPUnit/static/formatting checks and build production assets.
+3. Put the release in the approved migration/deployment state and take the required pre-change backup for destructive/high-risk changes.
+4. Run reviewed migrations once against the target environment.
+5. Cache production configuration/routes/views only after environment values are present.
+6. restart PHP and database-queue workers so long-lived processes load the new release.
+7. Verify `/up`, critical routes, worker processing, scheduler registration, storage access, and configured integration smoke evidence.
+8. Roll forward or restore through the approved recovery procedure if acceptance checks fail.
 
----
+The implementation may use any reviewed CI/CD platform. A named provider or repository workflow is not part of the SIS feature contract.
 
-### 8.3 CI/CD Pipeline
+### 8.4 Monitoring and Failure Visibility
 
+TALA exposes the minimum operational evidence needed to detect and diagnose system-owned failures:
 
+- Laravel application logs with personal data and secrets minimized.
+- `jobs` and `failed_jobs` visibility for database queues.
+- PayMongo callback storage, processed timestamp, exception summary, and idempotent retry evidence.
+- Schedule-generation run status, solver diagnostics, timeout/failure state, and correlation identifiers.
+- Scheduled-task registration plus latest success/failure evidence for approved tasks.
+- Public `/up` health response without sensitive diagnostics.
+- Role-scoped System Super Admin alerts for critical security/integrity failures.
 
-Deployment automation must live in `.github/workflows/` and be reviewed as executable CI/CD code, not copied from this document. The technical contract is:
+Host metrics, uptime probes, centralized error collection, and log aggregation are deployment-selected tools. This specification does not require a named monitoring vendor.
 
-- install PHP and Node dependencies from lockfiles
-- run focused tests and build assets before deployment
-- run `php artisan migrate --force` only in the approved deployment phase
-- cache config/routes/views after environment variables are present
-- restart PHP-FPM, queue workers/Horizon, and Nginx through the production process manager
+### 8.5 Backup and Restore Contract
 
----
+Backups protect the relational database, private uploaded/generated files, and the configuration/key references required to restore encrypted or signed data. The deployment must:
 
-### 8.4 Monitoring & Logging
+- define policy-approved frequency, retention, encryption, access, and off-host/redundant storage;
+- preserve database/file consistency or document the recovery reconciliation process;
+- protect backups from ordinary application-user access and destructive compromise;
+- record backup success/failure;
+- perform and document periodic restore verification in a non-production environment;
+- retain or dispose audit data according to the same effective institutional policy and legal holds.
 
-#### 8.4.1 Application Monitoring
-
-| Tool | Purpose |
-| --- | --- |
-| **Laravel Telescope** | Local debugging |
-| **Sentry** | Error tracking |
-| **Laravel Horizon** | Optional Redis queue monitoring and worker dashboard when Horizon is enabled |
-
-#### 8.4.2 Server Monitoring
-
-| Metric | Tool | Alert Threshold |
-| --- | --- | --- |
-| CPU Usage | Prometheus/Grafana | \> 80% for 5 min |
-| Memory Usage | Prometheus/Grafana | \> 85% for 5 min |
-| Disk Space | Prometheus/Grafana | \> 90% |
-| Response Time | Uptime Kuma | \> 2 seconds |
-
----
-
-### 8.5 Backup Strategy
-
-| Data Type | Frequency | Retention | Method |
-| --- | --- | --- | --- |
-| **Database** | Daily | 30 days | `mysqldump` + S3 |
-| **File Uploads** | Daily | 30 days | `rsync` + S3 |
-| **Audit Logs** | Weekly | Effective-dated institutional retention policy plus legal hold | Protected backup/archive storage |
-
-
-
-```bash
-#!/bin/bash# backup.shDATE=$(date +%Y%m%d_%H%M%S)mysqldump -u tala_user -p tala_production > /backups/db_$DATE.sqlaws s3 cp /backups/db_$DATE.sql s3://tala-backups/database/
-```
-
----
+Exact schedules, retention days, storage provider, and command syntax belong to the approved deployment runbook, not this system specification.
 
 ### 8.6 Security Hardening
 
-| Measure | Implementation |
+| Control | Required implementation |
 | --- | --- |
-| **HTTPS** | Let’s Encrypt SSL (auto-renewal) |
-| **Firewall** | UFW (allow only 80, 443, 22) |
-| **Rate Limiting** | Laravel throttle middleware |
-| **SQL Injection** | Eloquent ORM (parameterized queries) |
-| **XSS Protection** | Blade auto-escaping |
-| **CSRF Protection** | Laravel CSRF tokens |
-| **Password Hashing** | bcrypt (cost factor 12) |
-| **Session Security** | HTTP-only, Secure cookies |
+| Transport | HTTPS; trusted-proxy configuration limited to the deployed network model; HSTS only after HTTPS coverage is confirmed |
+| Sessions | Secure, HTTP-only, same-site cookies; session regeneration on authentication/privilege change; invalidation for archived/inactive accounts |
+| Browser requests | CSRF protection for state-changing browser requests and restrictive CORS for any credentialed API |
+| Authorization | Active-account middleware, fixed seeded roles, policies/gates, direct-URL denial, owner/record checks |
+| Input and uploads | Form Request/component validation, explicit attribute mapping, extension plus detected MIME checks, size limits, generated storage names, private storage |
+| Output | Blade escaping by default, sanitized trusted rich text only, safe errors without stack traces/private paths |
+| Integrations | PayMongo signature/idempotency; IAM-private solver audience and dedicated credentials |
+| Secrets | Environment/secret-store delivery, no committed credentials, rotation after exposure |
+| Headers | Appropriate content-type, framing, referrer, content-security, and HTTPS security headers for the deployed UI/assets |
+| Dependencies | Lockfile-controlled installation plus Composer/NPM security auditing and reviewed remediation |
+
+### 8.7 Verification Boundary
+
+Acceptance evidence includes focused PHPUnit tests, authorization and validation tests, migration checks, browser smoke checks for critical staff/student flows, queue retry/failure tests, scheduler registration tests, integration smoke evidence, private-file denial, dependency audits, and backup restore evidence where a deployment target exists. New testing products are introduced only when an approved measurable requirement cannot be verified with the available toolchain.
 
 ---
-
-### 8.7 Variable-Cost Service Projections
-
-Projections based on a school of ~500-1,000 students per academic year.
-
-| Service | Free Tier | Projected Usage | Monthly Cost | Annual Cost | Budget Cap |
-| --- | --- | --- | --- | --- | --- |
-| **S3/Private Storage** (document uploads) | N/A | ~30 MB per student × 1,000 students = ~30 GB total | ~$0.69 | ~$8.28 | No cap needed |
-| **PayMongo** (GCash transaction fees) | N/A | ~2.5% per transaction (pass-through) | Variable | Variable | N/A (student-absorbed) |
-| **VPS Hosting** (2 cores / 4GB RAM / 40GB SSD) | N/A | Fixed | ~$24 | ~$288 | Fixed |
-
-**S3 Storage Alternative**: Local private disk storage on the VPS (40GB SSD) costs $0 additional. S3 is recommended only if backup automation or multi-region redundancy is required.
-
----
-
 ### 8.8 Admin UI Boundary Rules
 
 These rules define stable staff-facing admin boundaries. They are not an execution ledger; QA status and implementation ownership belong in project management artifacts.

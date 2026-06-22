@@ -14,7 +14,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | --- | --- | --- |
 | 1.0 | 2026-04-02 | FS baseline consolidated. |
 | 2.0 | 2026-04-30 | Hybrid uploads; document review; staff verification. |
-| 3.0 | 2026-05-01 | Queue, scheduler, Redis, Horizon job strategy. |
+| 3.0 | 2026-05-01 | Queue and scheduler job strategy. |
 | 4.0 | 2026-05-02 | Student Hub/PWA; period grading; ToC and appendix fixes. |
 | 5.0 | 2026-05-03 | Offline POST descoped; INC blocks; 3 modalities; PUP transmutation; PayMongo. |
 | 6.0 | 2026-05-04 | Historical grading, Student Hub finance, and promissory updates. |
@@ -44,7 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-18 | Student-domain backend contracts; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; roster/admissions benchmarks; Old Curriculum decision; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: document review, administration, Student Hub, student lifecycle, outside-office automation. |
+| 33.0 | 2026-06-22 | Scope pruning: document review, administration, Student Hub, student lifecycle, security, and operations. |
 
 ---
 
@@ -532,7 +532,7 @@ The latest approved workflow prepares a section and schedule before payment, whi
 **Irregulars (Failures/Back subjects)**:
 
 - **Automated Subject Suggestion**: The system cross-checks their academic record with the curriculum to suggest allowable subjects and back subjects.
-- **Prerequisite Enforcement**: Prevents enrollment in courses whose prerequisites are not yet passed. A prerequisite is satisfied by a finalized passing grade for the same subject or an approved equivalent subject. If a student repeated a subject, the latest finalized attempt is used. _An "Incomplete" (INC) grade acts as a hard block. Students cannot enroll in advanced subjects if the prerequisite holds an active INC._ Expired INC grades are handled by the nightly auto-fail job and then treated as failed. Missing grade history blocks enrollment unless the Registrar applies an audited prerequisite override.
+- **Prerequisite Enforcement**: Prevents enrollment in courses whose prerequisites are not yet passed. A prerequisite is satisfied by a finalized passing grade for the same subject or an approved equivalent subject. If a student repeated a subject, the latest finalized attempt is used. An unresolved "Incomplete" (INC) grade blocks advanced subjects that require it. Missing grade history blocks enrollment unless the Registrar applies an audited prerequisite override.
 - **Grade-History Authority**: Subject suggestion consumes registrar-verified finalized grade history only. Faculty class records, component scores, and working grade sheets are evidence for grade computation and review, but they become enrollment eligibility data only after faculty submission, Registrar verification, finalization, and archival in the student's academic record.
 - **Backend Boundary**: The subject-suggestion backend returns suggested current subjects, back subjects, blocked subjects, and already-passed current subjects. Active INC, failed prerequisites, and missing historical grades remain blocking. Approved-equivalent or credited-subject satisfaction remains a business rule, but it requires controlled equivalency/credit-evaluation records before the system may auto-treat an alternate subject as satisfying a prerequisite.
 - **Modality Choice**: Must select a College learning mode each term from the active delivery options approved for the program/section.
@@ -1367,9 +1367,8 @@ The system applies the active College grading calculation profile for the studen
 #### 7.2.2 Step 2: INC (Incomplete) Lifecycle
 
 - **Action**: Faculty selects "INC" status
-- **Time-Bound Rule**: The system starts a **365-day countdown** from the end of the term
-- **Auto-Fail**: On day 365, a nightly batch job automatically converts "INC" → "5.0 / Failed" to ensure no grades are left in limbo indefinitely
-- **Prerequisite Block**: While the student has 365 days to clear the INC, they are completely blocked from advancing in that specific subject chain. An INC prevents enrollment in any advanced subjects that require it as a prerequisite.
+- **Resolution**: INC remains unresolved until the authorized grading workflow records completion or an effective institutional grading policy defines another outcome. TALA does not hardcode an automatic expiry or failing grade.
+- **Prerequisite Block**: While INC remains unresolved, it prevents enrollment in advanced subjects that require it as a prerequisite.
 
 #### 7.2.3 Step 3: Grade Submission, Registrar Verification, and Finalization
 
@@ -1462,7 +1461,6 @@ Future schema changes must be added through new migration files and reflected in
 **Migration Status Boundary**:
 - This FS defines functional behavior and references schema control artifacts; it does not maintain live migration counts or pending/applied status.
 - Current migration execution must be checked in the target environment with `php artisan migrate:status --no-interaction`.
-- Fortify two-factor and passkey schema may exist, but `config/fortify.php` remains the runtime authority for whether those flows are active.
 
 #### 8.1.1 Enrolled Student Roster and External Reporting Export
 
@@ -1492,12 +1490,24 @@ Future schema changes must be added through new migration files and reflected in
 
 **Policy Registration Requirement**: The read-only seeded RBAC matrix and audit-log viewer are System Super Admin surfaces only. Because those resources are backed by vendor models (`Spatie\Permission\Models\Role` and `Spatie\Activitylog\Models\Activity`), their policies must be explicitly registered in Laravel so Registrar, Accounting, Faculty, and Academic Head users do not see or access them by accident. No runtime role or permission mutation is exposed.
 
+**Authentication and Data-Protection Baseline**:
+
+- Laravel Fortify owns login, logout, password reset, email verification, password updates, and configured login throttling.
+- Every protected request rechecks authenticated account status, approved role, and resource/action policy; hidden navigation alone is not authorization.
+- Production traffic uses HTTPS with secure, HTTP-only, same-site session cookies. CSRF protection remains enabled for browser mutations.
+- Uploaded evidence remains private, validates allowed extension, detected MIME type, file size, ownership, and requirement context, and is accessed only through authorized temporary delivery.
+- Provider credentials, application keys, database passwords, and signing secrets remain outside source control and user-visible logs.
+- PayMongo callbacks require signature verification, stored callback evidence, idempotent processing, and safe retry behavior before financial state changes.
+- Security and privacy controls follow least privilege, purpose limitation, data minimization, policy-driven retention, and safe error handling.
+
 #### 8.2.2 Audit Trail
 
 - **Retention**: Effective-dated institutional privacy/records policy with legal-hold support; indefinite retention is not assumed.
 - **Visibility**: Users CANNOT see their own logs. **System Super Admin** access only
-- **Detail Display**: Audit detail screens must present metadata as readable labeled evidence lines. Raw JSON/key-value payload editing or dump-style presentation is not a staff workflow.
-- **Alerts**: System flags "Critical Actions" (e.g., Bulk Grade Changes, Historic Balance Clearing) → Alerts **System Super Admin** Dashboard
+- **Coverage**: Audit approved lifecycle transitions, staff-role assignment, archive/restore, protected exports/access where required, payment/ledger posts, schedule publication/override, grade finalization/correction, document decisions, and generated-artifact lifecycle changes. Blanket logging of every model mutation is not required.
+- **Data Minimization**: Logs must not store passwords, session/token values, provider secrets, full private documents, or unnecessary sensitive field values. Record identifiers, event, actor, time, approved reason, and an allowlisted change summary.
+- **Detail Display**: Audit detail screens present metadata as readable labeled evidence lines. Raw JSON/key-value payload editing or dump-style presentation is not a staff workflow.
+- **Alerts**: Critical security and integrity events notify the System Super Admin operational dashboard without exposing restricted academic, financial, or support details.
 
 #### 8.2.3 Resilience & Error Handling
 
@@ -1807,12 +1817,11 @@ The T.A.L.A. system is "State-Aware", meaning feature availability changes autom
 
 ### 10.5 Scheduled Job Operations
 
-School housekeeping jobs run off-hours in `Asia/Manila` to reduce daytime load. The standard batch size is 100 records, with a maximum of 1,000 records per run unless a stricter rule is defined. Jobs retry 3 times with backoff intervals of 60, 300, and 900 seconds; external API jobs may retry up to 5 times when the provider operation is idempotent. Failed jobs require staff review after final failure.
+Approved jobs use bounded batches, retry/backoff, idempotency, and visible final failure. Exact run time and batch size are implementation values selected from measured workload rather than universal business rules.
 
 | Job Area | Normal Run Window | Functional Limit |
 | --- | --- | --- |
-| INC auto-fail | After midnight | Must skip grades already cleared by staff. |
-| Payment housekeeping | After midnight | Must not cancel or reverse a confirmed payment without Accounting action. |
+| Retention-document monitoring | Scheduled off-hours | Marks due undertakings and applies only approved documentary/next-cycle holds. |
 | Term close | Manual Registrar trigger, queued for off-hours unless urgent | Must not close the same term twice. |
 
 ---
