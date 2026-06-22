@@ -44,7 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-18 | Student services; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; admission/retention/capacity requirements; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, outside-office automation. |
+| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, student lifecycle, outside-office automation. |
 
 ---
 
@@ -368,7 +368,7 @@ These contracts summarize mandatory implementation boundaries across the remaini
 | Faculty classes and grades | Published schedule/enrollment assignments scope faculty queries. A grade lifecycle service validates period/profile/range/completeness, locks submission/finalization, stores immutable grade history, and emits post-commit notifications. Correction requests snapshot old/new values and evidence; Academic Head decision and Registrar application are separately authorized transitions. | Assigned/unassigned access, unpublished exclusion, valid/invalid grade entry, incomplete submission, duplicate/concurrent finalization, finalized mutation denial, correction approve/reject/apply, old/new audit preservation. |
 | COR and finance artifact verification | COR and SOA/payment acknowledgement issuance resolves eligibility/source state, renders from authoritative read models, stores immutable issuance metadata and checksum, and owns issued/void/revoked/superseded transitions. Files remain private unless intentionally public. QR payloads contain only opaque tokens or signed verification URLs; verification responses disclose minimal status metadata and are rate limited/audited where appropriate. Formal TOR, Form 137, report-card PDF, diploma, and full credential issuance/fulfillment are outside active scope. | Eligibility and source-state denial, deterministic source snapshot, private file access, token tamper/expiry/revocation, minimal disclosure, supersede history, unauthorized issue/release, and source-record change behavior. |
 | Student Hub/PWA | Student-facing read models aggregate authoritative services under student ownership policies; Livewire components do not reproduce domain calculations. PWA caches only an approved read-only subset with version/freshness metadata, removes protected caches on logout/account denial, and disables mutations offline. Loading/error responses use safe messages and prevent duplicate submission. | Cross-student denial, applicant/inactive denial, unpublished data exclusion, balance/grade/COR service parity, offline read-only behavior, cache clearing, stale indicator, loading/duplicate-action protection, responsive accessibility smoke. |
-| Student status and completion | Typed transition services validate allowed source/target states, effective dates, reasons, evidence, notices, and role authority while preserving history. Readmission performs duplicate/provenance review. Graduation evaluation stores a reproducible snapshot of curriculum, finalized grades, deficiencies, and clearance results; completion and credential eligibility are separate transitions. | Allowed/invalid transitions, rollback/reactivation rules, duplicate legacy match, unauthorized action, missing reason/evidence, incomplete curriculum/hold denial, reproducible evaluation, concurrent status update, external-submission boundary. |
+| Student status and completion | Registrar-owned typed transition services validate allowed source/target states, effective dates, reasons, evidence references, notices, access effects, and role authority while preserving history. Readmission performs duplicate/provenance review. Graduation evaluation stores a reproducible snapshot of curriculum, finalized grades, deficiencies, and clearance results; completion and credential eligibility are separate transitions. Generic request records/routes and direct status editing are forbidden. | Allowed/invalid transitions, rollback/reactivation rules, duplicate legacy match, unauthorized action, missing reason/evidence, incomplete curriculum/hold denial, reproducible evaluation, concurrent status update, external-submission boundary. |
 | Imports, exports, and reports | Import batches store private source, template/schema version, checksum, uploader, scope, parsed rows, validation results, preview state, commit state, and audit. Commit services use normalized identifiers, row-level validation, transaction/idempotency rules, and queued chunks only where atomicity semantics remain explicit. Export/report queries apply policies, field allowlists, filters, and audit; generated files are temporary or lifecycle-managed artifacts. | Wrong template/version, invalid headers/types/references, duplicate upload/commit, zero-error atomic rollback, authorized partial policy where explicitly allowed, large chunk behavior, export field leakage denial, external-format absence. |
 | Attendance, behavior, discipline, and guidance | No enrollment/clearance gate may consume these domains until typed schemas, case/evidence ownership, privacy policy, resolution/appeal transitions, effective-dated rules, and authorized services exist. Sensitive records require least-privilege policies, private attachments, purpose-limited retention, and audit. | Until promoted, tests assert no hidden dependency blocks enrollment/progression. After promotion: role/privacy denial, evidence lifecycle, notice/response/appeal, policy versioning, resolution effects, retention/deletion, and no free-text-only automated sanction. |
 
@@ -418,7 +418,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 - Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`; promissory and installment tables remain review scope)
 - Admission document/OCR flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`)
 - Grade/correction flow (`grades`, `grade_corrections`)
-- Student-status/COR flow (`shifting_requests`, `shifting_fee_assessments`, `cor_verifications`, `faq_entries`)
+- Student-status/COR flow (`student_status_transitions`, `program_shift_cases`, `shifting_credit_evaluations`, `cor_verifications`, `faq_entries`)
 
 **Migration Status Boundary**:
 - This TS defines the required schema contracts and relationships, not a live migration-status ledger.
@@ -492,10 +492,10 @@ Future student profile migrations must keep academic and financial context off t
 | --- | --- |
 | Identity | `user_id`, immutable `student_id`, unique `lrn` when applicable, legal name linkage through `users.first_name`, `users.middle_name`, `users.last_name`, `users.suffix`, and composed `users.name` |
 | Academic context | `program_id`, College year level, curriculum/version context, current term context when needed |
-| Lifecycle status | `operational_status` enum-like string with only `Active`, `Inactive`, `Graduated`, and `Archived` |
-| Status reason | `status_reason` nullable except required when `operational_status = 'Inactive'` |
+| Lifecycle status | `operational_status` enum-like string with `Active`, `LeaveOfAbsence`, `Withdrawn`, `TransferredOut`, `Graduated`, `Inactive`, and `Archived`; Readmission and Reactivation are audited transitions back to `Active`, not permanent statuses |
+| Status reason | `status_reason` required for every transition away from `Active` and every archive/reactivation correction |
 | Financial summary | `current_balance decimal(12,2)` as a denormalized read model fed by ledger services, not by direct UI edits |
-| Document flags | Hard-copy receipt flags and OCR review markers needed for grade/COR/request gating |
+| Document flags | Hard-copy receipt flags and OCR review markers needed for admission, retention, grade, and COR gating |
 | Audit timestamps | `created_at`, `updated_at`, plus workflow-specific timestamps such as `graduated_at`, `archived_at`, or `last_status_changed_at` when introduced |
 
 Do not add academic status, balances, hard-copy flags, LRN, student ID, program, year level, or operational lifecycle fields to `users`. That table remains responsible for login identity, credentials, account availability, and authentication lifecycle.
@@ -508,7 +508,7 @@ Do not add academic status, balances, hard-copy flags, LRN, student ID, program,
 | `payment` | OTC Payment, E-wallet (GCash Webhook validation) |
 | `promissory_note` | Review candidate only. If promoted, records Accounting-reviewed promise/expiry/settlement evidence only; does not clear balance, enrollment, COR, class-list, or exam access by itself |
 | `discount` | Automated or authorized Discount/Credit ledger entry (including the Freshmen Tuition discount) |
-| `drop_fee` | Effective-dated assessment triggered when officially withdrawing, based on approved institutional policy |
+| `drop_fee` | Review-only typed assessment; unavailable until an effective-dated institution-approved and regulator-bounded withdrawal policy is promoted |
 | `adjustment` | Manual Correction |
 | `legacy_balance_forward` | Initial balance imported from legacy SIA system via the Bulk Data Import Framework (§3.20). Posted during student seed (FS §8.8). |
 
@@ -1270,9 +1270,8 @@ class PrerequisiteValidator
 | **Document Review Queue** | High | OCR-extracted text flagged for Registrar review (confidence < 80%) |
 | **Webhook Processing** | High | GCash payment asynchronous confirmation logic |
 | **Payment Housekeeping** | Default | Nightly Job to auto-reject pending payments older than 72 hours |
-| **Grace Period Enforcer** | Default | Nightly job checks inactive accounts, sends warnings, and archives if grace period expires |
 | **INC Auto-Fail** | Low | Nightly batch job converts “INC” → “5.0 / Failed” after 365 days |
-| **Term Close** | Low | End-of-semester batch job resets enrollment status |
+| **Term Close** | Low | Registrar-triggered batch completes closing-term enrollments without resetting student profiles/accounts |
 
 **Queue Configuration**:
 
@@ -1719,7 +1718,7 @@ Seeders may provide draft offering/policy templates, but the public page and fac
     -   `for_evaluation` → transferee needs credit evaluation
     -   `approved` → documents verified, ready for payment
     -   `active` → fully enrolled student account with Student Hub access
-    -   `dropped` / `inactive` → withdrawn or archived
+    -   `inactive` / `archived` → authentication availability only; student lifecycle meaning remains on `student_profiles.operational_status`
 2.  **Enrollment State** — tracked on `enrollments.status` via `spatie/laravel-model-states`. Governs document, finance, placement, active enrollment, ineligibility, and term-close transitions. Created when Application State reaches `approved`.
 
 **Payment Evidence Boundary**: TALA acts as a subsidiary ledger for student accounts. Generated SOA and payment-acknowledgement documents are internal tracking artifacts, not official tax receipts.
@@ -1736,12 +1735,14 @@ Seeders may provide draft offering/policy templates, but the public page and fac
 | `PendingPayment` | Assessment exists but minimum required payment is not confirmed. | `PendingAdmissionGate`, `PendingInstitutionalPlacement`, `Enrolled`, `EnrollmentCancelled` |
 | `PendingAdmissionGate` | Payment may exist, but one or more configured admission-gate requirements remain unresolved. Tentative placement does not grant protected access. | `PendingPayment`, `PendingInstitutionalPlacement`, `Enrolled`, `EnrollmentCancelled` |
 | `PendingInstitutionalPlacement` | Admission and finance gates are clear and capacity is secured, but the institution has not completed compatible section/delivery-group placement. The account remains inactive; this is institution responsibility, not applicant noncompliance. | `Enrolled`, controlled institution-caused resolution |
-| `Enrolled` | Admission, finance, secured-capacity, and placement gates are clear; account handover completed; COR and class access available. Retention undertakings may remain active as separate holds. | `Ineligible`, `Completed` |
+| `Enrolled` | Admission, finance, secured-capacity, and placement gates are clear; account handover completed; COR and class access available. Retention undertakings may remain active as separate holds. | `LeaveOfAbsence`, `Withdrawn`, `Completed` |
+| `LeaveOfAbsence` | Registrar approved an interruption for the active term through a typed action. Active class-list rights stop; readmission creates or activates a later term enrollment through the readmission workflow. | None for the closed/interrupted term |
+| `Withdrawn` | Registrar recorded full withdrawal with effective date, reason, evidence reference, and separately resolved financial disposition. Subject-only drops do not use this state. | None for the withdrawn term |
 | `Ineligible` | Registrar resolved a disqualifying institutional enrollment conflict through an audited workflow. | Controlled repair only |
 | `Completed` | Historical enrollment after term close. | None |
 | `EnrollmentCancelled` | Enrollment stopped before institutional activation through an authorized typed cause and financial disposition. Retention-document delinquency alone does not silently cancel an active enrollment. | Controlled restart only |
 
-**Canonical Enrollment Boundary**: Accepted admission-gate evidence plus finance clearance, secured capacity, and compatible placement triggers `Enrolled`. This is the only active institutional enrollment state: the student can download COR, attend classes, and appears in class lists and the Registrar Enrolled Student Roster. Retention undertakings remain separate itemized obligations. A later discovered institutional conflict uses a typed resolution workflow, and term close transitions `Enrolled` to `Completed`.
+**Canonical Enrollment Boundary**: Accepted admission-gate evidence plus finance clearance, secured capacity, and compatible placement triggers `Enrolled`. This is the only active institutional enrollment state: the student can download COR, attend classes, and appears in class lists and the Registrar Enrolled Student Roster. Retention undertakings remain separate itemized obligations. Drop Subject changes an enrollment-subject relation rather than this state. Registrar-approved LOA or full Withdrawal creates its corresponding terminal term outcome; term close transitions remaining `Enrolled` records to `Completed`.
 
 **Bridge Between Phase 1 and Phase 2**: An approved scoped capacity plan may create a tentative placement before payment, but that placement consumes no secured seat and grants no protected access. Accepted admission-gate evidence unlocks the approved payment path. Confirmed minimum/full payment atomically secures capacity against the plan. When a compatible final placement is available, the system completes Account Handover to `Enrolled`; otherwise it records `PendingInstitutionalPlacement` without blaming the applicant. Non-critical retention documents use a separate undertaking/hold lifecycle. Promissory approval does not trigger finance clearance.
 
@@ -1773,9 +1774,10 @@ Seeders may provide draft offering/policy templates, but the public page and fac
 | `active` | `Enrolled` | Yes | Finance-, document-, and placement-cleared account; COR and class access are available. |
 | `active` | `PendingPayment`, `PendingAdmissionGate`, or `PendingInstitutionalPlacement` | No | Account must not activate before finance, admission, secured-capacity, and institutional-placement clearance. |
 | `approved` | `Enrolled` | No | Successful admission/finance/placement handover must activate `users.status` in the same transaction. |
-| any non-active status | `Enrolled` | No, except audited rollback | Enrolled-but-inactive is invalid and must be corrected by the same transaction or staff repair flow. |
+| any non-active account status | `Enrolled` | No, except audited rollback | Active enrollment requires an account access effect consistent with the approved student lifecycle transition. |
 | `inactive` | `EnrollmentCancelled` | Yes | A temporary applicant enrollment was closed before activation; no protected student access exists. |
-| `dropped` or `inactive` | historical `Completed` or `Ineligible` | Yes | Re-enrollment requires the returnee reactivation flow before new protected access. |
+| `active` | historical `Completed` | Yes | Between terms, an eligible student may retain read-only Student Hub access while no current-term enrollment exists. |
+| `inactive` or `archived` | historical `LeaveOfAbsence`, `Withdrawn`, `Completed`, or `Ineligible` | Yes | Readmission/reactivation requires the Registrar-owned lifecycle flow before a new active enrollment. |
 
 `Completed` is historical and set by term close. System code must enforce the invariant inside the same transaction that applies payment clearance and account handover. The final implementation removes external-reporting-only status/timestamp columns from the target schema and all Student Hub/Admin projections; it preserves ordinary `enrolled_at` and `completed_at` evidence.
 
@@ -1849,30 +1851,28 @@ To handle overpayments flexibly, the system uses the ledger's natural math rathe
 - **Computation**: The system calculates exactly 50% of the assessed `Tuition Fee`. Miscellaneous, Laboratory, and Other Fees are not discounted.
 - **Ledger Behavior**: The calculated discount is injected directly into the student's ledger as a **Negative Ledger Entry** (Credit), reducing their `current_balance` accordingly without requiring manual Accounting review.
 
-#### 3.12.6 Shifting Request Contract (Deferred)
+#### 3.12.6 Registrar-Owned Program Shift Contract
 
-**Status**: Deferred business-policy module. Do not implement until shifting services, fee assessment behavior, audit links, and PHPUnit coverage are specified.
-
-**Purpose**: Track College program shifting without corrupting existing curriculum binding, grades, financial history, or enrollment records.
+**Purpose**: Apply Registrar-recorded College program shifts without corrupting existing curriculum binding, grades, financial history, or enrollment records. Student Hub does not submit or manage program-shift cases.
 
 **Eligibility Rules**:
 
--   College shifting is allowed only up to the approved 2nd-year limit.
+-   College program shifting is allowed only up to the approved 2nd-year limit.
 -   Shifting preserves all prior grades, enrollments, payments, uploaded documents, and curriculum history.
 -   The approved shift takes effect only for the approved effective term and does not rewrite historical enrollment records.
 
-**Future Data Contract**:
+**Data Contract**:
 
--   `shifting_requests`: student, current program, requested program, current year level, requested effective term, status, reason, and audit metadata.
+-   `program_shift_cases`: student, current program, target program, current year level, approved effective term, state, reason, evidence reference, recorder, reviewer, and audit metadata.
 -   `shifting_credit_evaluations`: Registrar-reviewed subject equivalency and prerequisite notes for the requested program.
--   `shifting_fee_assessments`: Accounting-owned fee assessment linked to the shifting request and ledger transaction.
+-   Financial assessment links exist only if a separately approved program-shift fee policy is promoted.
 
 **Service Boundary**:
 
--   `ShiftingEligibilityService` evaluates the approved College 2nd-year eligibility limit before request submission is accepted.
--   `ShiftingRequestService` owns request transitions: `submitted`, `under_review`, `approved_pending_fee`, `approved`, and `rejected`.
+-   `ProgramShiftEligibilityService` evaluates the approved College 2nd-year eligibility limit before Registrar review.
+-   `ProgramShiftService` owns typed transitions: `Recorded`, `UnderReview`, `Approved`, `Rejected`, and `Applied`.
 -   Registrar owns academic review, curriculum fit, credited subjects, prerequisites, and effective-term recommendation.
--   Accounting owns shifting fee amount, due date, payment confirmation, waiver handling, and ledger posting.
+-   Accounting participates only if a promoted fee policy defines the amount, due date, confirmation, waiver, and ledger behavior.
 -   Academic Head may authorize exceptions only if a later approved policy explicitly permits them.
 
 ---
@@ -2089,36 +2089,26 @@ Scheduled tasks are registered through Laravel Scheduler. Local development may 
 
 | Job | Scheduler Contract | Batch Limit | Idempotency / Failure Rule |
 | --- | --- | --- | --- |
-| `GracePeriodEnforcerJob` | Daily `00:15` Asia/Manila | 100 per chunk, 1,000 per run | Lock user row before archive; skip if already active/archived by staff. |
 | `IncAutoFailJob` | Daily `01:00` Asia/Manila | 100 per chunk, 1,000 per run | Lock grade row; skip if INC was already cleared or failed. |
 | `PaymentHousekeepingJob` | Daily `01:30` Asia/Manila | 100 per chunk, 1,000 per run | Skip if payment already confirmed/cancelled; no ledger reversal without Accounting action. |
 | `TermCloseJob` | Manual Registrar action; queue for off-hours execution unless urgent | 100 per chunk, no more than one term per batch | Requires Registrar confirmation; cannot run twice for the same closed term. |
 
-#### 3.15.1 Grace Period Enforcer
-
-**Job**: `GracePeriodEnforcerJob` (scheduled daily at `00:15` Asia/Manila; see global contract above)  
-**Logic**:
-
-1.  Scans the database for students tagged as “Inactive” or “Dropped” without clearance.
-2.  If `grace_period_end_date` is approaching (e.g., one week before expiry), the system sends a warning email.
-3.  If `grace_period_end_date` is today, the system executes an automated `ArchiveUser` action, preserving their historical ledger but locking access.
-
-#### 3.15.2 Term Close Job
+#### 3.15.1 Term Close Job
 
 **Job**: `TermCloseJob` (triggered manually by Registrar via “End Enrollment Period” action, dispatched as a queued batch job for off-hours execution unless urgent)
 
 **Logic**:
 
 1.  Marks the current `terms.is_active` as `false` and sets the new term (if pre-created) as active.
-2.  Resets all student `enrollments.status` for the closing term to `completed` (preserving the record as historical data). Enrollment records are **never deleted** - they remain for academic-history and audit purposes.
+2.  Transitions only closing-term `Enrolled` records to `Completed` (preserving each record as historical data). Existing `Withdrawn`, `LeaveOfAbsence`, `Ineligible`, and `EnrollmentCancelled` outcomes remain unchanged.
 3.  **Balance Carry-Forward**: Financial balances on `student_profiles.current_balance` persist across terms. Unpaid balances from the previous term automatically apply to the next enrollment clearance check defined in the FS finance-clearance and ledger-balance rules.
 4.  **INC Preservation**: Grades marked as `INC` are not affected by term close. The existing `INC Auto-Fail` nightly job (§3.5) handles their 365-day lifecycle independently.
-5.  **Enrolled Count Reset**: Resets `sections.enrolled_count` to `0` for all sections in the closing term to prepare for the next term’s scheduling.
+5.  **Profile/Section Preservation**: Does not reset `student_profiles.operational_status`, `users.status`, or historical section enrollment counts. The next term uses separate term-scoped enrollment and section records.
 6.  Logs the term close action via `spatie/laravel-activitylog` with the Registrar’s user ID.
 
 **Queue Priority**: `low` (runs as a batch during off-hours after the Registrar triggers it).
 
-#### 3.15.3 INC Auto-Fail Job
+#### 3.15.2 INC Auto-Fail Job
 
 **Job**: `IncAutoFailJob` (scheduled daily at `01:00` Asia/Manila)
 

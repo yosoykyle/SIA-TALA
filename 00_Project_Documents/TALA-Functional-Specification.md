@@ -44,7 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-18 | Student-domain backend contracts; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; roster/admissions benchmarks; Old Curriculum decision; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, outside-office automation. |
+| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, student lifecycle, outside-office automation. |
 
 ---
 
@@ -70,7 +70,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | Faculty class lists and grades | Faculty sees only assigned College classes; grades are encoded under versioned College grading profiles, submitted, verified/finalized, and corrected only through authorized audited workflows. | SIS Student Records/gradebook patterns; SIA College class-record evidence. | Core |
 | Student Hub and applicant/student self-service | Student-facing visibility for profile, enrollment status, COR, schedule, grades, balance/payment status, notifications, and FAQ/help. Student Hub does not include document-request, credential-request, courier, or generic service-request workflows. | Campus self-service benchmark; Livewire/TallStackUI/PWA pattern. | Core-lite |
 | COR, SOA/payment evidence, and QR verification | COR is generated only from canonical enrolled data. SOA/payment acknowledgement artifacts are generated only from Accounting-owned ledger/payment evidence. Formal TOR, Form 137, diploma, report-card PDF, and credential issuance/fulfillment are outside active TALA scope; Form 137/Form 138 remain prior-education admission evidence only. Finalized grade history and Student Hub grade viewing remain active. | Enrollment-verification, student-financials, PDF/QR verification baseline. | COR and finance evidence Core; formal credential issuance outside scope |
-| Student status, adjustments, and graduation | Drop/withdraw/shift/transfer/modality changes, LOA/readmission, transfer-out, completion/graduation eligibility, deficiency review, and internal credential-eligibility outcomes use typed stateful workflows. Formal credential release remains outside active TALA scope. | Mature SIS student lifecycle and graduation processing; SIA status/graduation workflow. | Boundary/Supporting |
+| Student status, adjustments, and graduation | Registrar-owned drop/withdraw/shift/section-transfer, LOA/readmission, transfer-out, completion/graduation eligibility, deficiency review, and internal credential-eligibility outcomes use typed stateful workflows. Student-level modality changes remain review scope; formal credential release remains outside active TALA scope. | Mature SIS student lifecycle and graduation processing; SIA status/graduation workflow. | Core/Supporting |
 | Reports, imports, exports, and external systems | Controlled imports/exports support rosters, schedules, finance, grades, and source evidence. Government portals and outside office systems remain external; TALA provides authorized school-year/term enrolled-student visibility and generic exports only. | Laravel Excel/import-export benchmark; mature SIS reporting boundary; SIA external workflow clarification. | Supporting/External Boundary |
 | Security, privacy, audit, and evidence | Sensitive student, finance, document, OCR, support, and generated-artifact data remain role-scoped, privately stored where required, audited, and exposed only through authorized workflows. | Data Privacy Act controls, file-upload/security benchmarks, private-storage design. | Core |
 
@@ -88,7 +88,7 @@ This FS is submission-ready only when each baseline area above has enough detail
 6. [Module 3: Accounting Module](#6-module-3-accounting-module)
 7. [Module 4: Faculty Module](#7-module-4-faculty-module)
 8. [Module 5: Administration & Integration](#8-module-5-administration--integration)
-9. [Module 6: Enrollment and Student Status Requests](#9-module-6-enrollment-and-student-status-requests)
+9. [Module 6: Enrollment and Student Status Lifecycle](#9-module-6-enrollment-and-student-status-lifecycle)
 10. [System Lifecycle](#10-system-lifecycle)
 11. [User Onboarding Guidance](#11-user-onboarding-guidance)
 12. [Appendices](#12-appendices)
@@ -123,7 +123,7 @@ This specification integrates new requirements gathered from stakeholders:
 - **Modality Support**: Both modular and on-campus learning modes
 - **Automated Freshmen Discount**: 50% Tuition Fee discount for eligible New/Freshmen College students (1st Year)
 - **Expanded Payment Methods**: E-wallets, OTC, and manual bank-transfer evidence. Promissory notes are promise-tracking review candidates, not payment methods.
-- **Enrollment and Student Status Requests**: Typed Drop, Withdrawal, Section Transfer, Program Shift, Modality Change, LOA, Readmission, and data-correction workflows
+- **Enrollment and Student Status Lifecycle**: Registrar-owned typed Drop Subject, Withdrawal, Section Transfer, Program Shift, LOA, Readmission, Transfer-Out, Completion/Graduation, archive/reactivation, and controlled data-correction workflows. Student-level Modality Change remains review scope.
 - **Data Privacy & Security**: RA 10173 and NPC 2023-06 controls for consent, retention, breach protocol, and security of personal data
 
 ---
@@ -188,7 +188,7 @@ The following contracts define the feature-group baseline. Detailed module rules
 | Faculty class lists, grades, verification, and correction | Faculty sees only officially assigned and published classes. Grade entry follows the applicable effective-dated grading profile; submission locks a review snapshot; Registrar verifies completeness and Academic Head authorizes corrections to finalized grades before application. | Unassigned faculty, unpublished classes, invalid periods/scales, incomplete rows, concurrent finalization, or missing correction evidence are blocked. Finalized history is never silently overwritten; every correction preserves old/new values, reason, actors, and timestamps. | Phase 1 / Core; BM-01, BM-05, SIA-01; faculty, Academic Head, and Registrar grade cases. |
 | COR, SOA/payment evidence, and QR verification | COR is available only from canonical enrolled data. SOA/payment acknowledgements derive only from Accounting-owned ledger/payment evidence. Issuance records preserve type, subject, source snapshot, template version, issuer, issue time, reference/serial, checksum, state, and authorized release evidence. QR verification uses an opaque token or signed route and reveals only minimal validity metadata. | Missing eligibility, invalid enrollment, revoked/superseded COR, unauthorized access, or invalid finance source state blocks generation/release. Corrections create superseding or revoking history; generated files never become the operational source of truth. Formal TOR, Form 137, diploma, report-card PDF, and credential issuance/fulfillment are outside active scope; grade records remain active structured data. | COR and finance evidence Phase 1; formal credential issuance outside scope |
 | Student Hub and PWA visibility | An active student sees only their own profile, enrollment status, COR, published schedule, released grades, computed balance/transactions, applicable requirement or hold status, notices, and FAQ through service-backed read models. Loading, empty, offline, and error states remain stable and accessible. | Applicant, inactive, archived, dropped, unclaimed, or unauthorized identities cannot enter. Unpublished or unfinalized data stays hidden. Offline mode is read-only, labels data freshness, disables mutations, and does not cache unnecessarily sensitive content. Student Hub does not expose document-request, credential-request, courier, or generic service-request workflows. | Phase 1 / Core Lite; advanced install/offline polish Deferred; BM-01, BM-02, BM-12; Student Hub access and visibility cases. |
-| Student status, readmission, transfer, completion, and graduation | Registrar owns typed, reasoned, effective-dated transitions for leave, return/readmission, transfer-out, withdrawal, completion, graduation, archive, and reactivation. Graduation evaluation snapshots curriculum completion, finalized grades, deficiencies, and approved clearances before completion status and credential eligibility. | Status is not inferred from missing attendance or unpaid balance alone. Invalid transitions, unresolved academic deficiencies, active holds, or duplicate legacy identity block completion. Returning students use assisted lookup/readmission and controlled legacy provenance rather than public duplicate creation. Outside-office completion work does not create another TALA lifecycle state. | Completion boundary Phase 1; full lifecycle Phase 2/Deferred; BM-01, BM-02, SIA-01; student-status and graduation cases. |
+| Student status, readmission, transfer, completion, and graduation | Registrar owns typed, reasoned, effective-dated transitions for leave, return/readmission, transfer-out, withdrawal, completion, graduation, archive, and reactivation. Graduation evaluation snapshots curriculum completion, finalized grades, deficiencies, and approved clearances before completion status and credential eligibility. | Status is not inferred from missing attendance or unpaid balance alone. Invalid transitions, unresolved academic deficiencies, active holds, or duplicate legacy identity block completion. Returning students use assisted lookup/readmission and controlled legacy provenance rather than public duplicate creation. Outside-office completion work does not create another TALA lifecycle state. | Core/Supporting; BM-01, BM-02, SIA-01; student-status and graduation cases. |
 | Imports, exports, and reports | Authorized staff use versioned templates, private uploads, validation preview, explicit commit, row-level results, and import-batch audit for controlled data ingestion. Exports query authoritative records and expose only role-authorized fields. | Wrong template/version, unknown references, duplicate keys, partial invalid batches where zero-error commit is required, unauthorized fields, or stale scopes block commit/export. Generated CSV/XLSX/PDF files are internal evidence artifacts. | Supporting, promoted to Phase 1 only for demo-required foundation data; BM-01, BM-10, SIA-01; import/export/reporting cases. |
 | Attendance, behavior, discipline, guidance, and interventions | These domains require typed evidence sources, authorized case ownership, privacy classification, notices, response/appeal opportunity, resolution, effective dates, and explicit policy before they can affect enrollment, clearance, progression, or graduation. | TALA must not infer misconduct, absence, guidance clearance, or enrollment blocks from missing data, free-text notes, or unsupported thresholds. Sensitive case details are restricted to authorized roles and are not exposed in general student/finance views. | Deferred unless promoted by approved policy and complete data ownership; BM-01, BM-05, SIA-01; future student-support cases. |
 
@@ -229,10 +229,10 @@ For every row, the master test-case matrix may describe the goal-state happy pat
 | Manage Schedules            | ❌        | ❌      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
 | Submit Faculty Availability | ❌        | ❌      | ✅ (Review/Lock)   | ❌         | ✅                 | ✅ (Read-Only) | ❌                 |
 | **View Advising Status**    | ❌        | ✅      | ✅                 | ❌         | ✅ **(Read-Only)** | ✅             | ✅                 |
-| Submit Service Requests     | ❌        | ✅      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
+| View Own Status/Holds       | ❌        | ✅      | ✅                 | ❌         | ❌                 | ✅             | ✅ (Read-Only)     |
 | **Configure Fee Template Downpayments** | ❌     | ❌      | ❌                 | ✅         | ❌                 | ✅ **(Read-Only)** | ❌              |
-| Drop/Transfer Consult       | ❌        | ❌      | ✅                 | ❌         | ❌                 | ❌             | ❌                 |
-| **Review Shifting Requests** | ❌       | ✅ (Request) | ✅              | ❌         | ❌                 | ✅ (Override)  | ❌                 |
+| Record Drop/Transfer Decision | ❌      | ❌      | ✅                 | ❌         | ❌                 | ✅ (Oversight) | ❌                 |
+| **Process Program Shift**   | ❌        | ❌      | ✅                 | ✅ (Fee only if approved) | ❌ | ✅ (Exception policy only) | ❌ |
 | **Manage Summer Schedules** | ❌        | ✅ (View) | ✅                | ❌         | ✅ (Assigned)      | ✅ **(Read-Only)** | ❌              |
 | Manage Admission Requirements | ❌      | ❌      | ✅ (Versioned setup) | ❌      | ❌                 | ✅ (Read-Only/Oversight) | ❌ (System maintenance only) |
 | User Management             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ✅                 |
@@ -778,9 +778,9 @@ To maintain data integrity and strict RBAC alignment, fields in the Student Jack
 - Civil Status
 *(Note: Direct edits do not send an email notification to the student or require student acknowledgment. These changes are saved instantly, display a success toast to the Registrar, and are securely recorded in the immutable Audit Trail.)*
 
-*Editable by Registrar (Formal Change Request Required)*:
-- **Identity Fields**: LRN, Name, Birthdate. (Requires proof upload to prevent duplicate or mismatched institutional/external records).
-- **Enrollment Status**: Changing to `Inactive` (with reason "Dropped") triggers the policy-driven Drop/Withdrawal Fee assessment.
+*Registrar Action Required (Not Direct Edit)*:
+- **Identity Fields**: LRN, Name, Birthdate. A typed correction action requires supporting evidence and immutable before/after history.
+- **Student/Enrollment Status**: Drop Subject, Withdrawal, LOA, Readmission, Transfer-Out, Graduation, Archive, and Reactivation use dedicated lifecycle actions. Any withdrawal-fee/refund disposition remains review scope and cannot be triggered by directly editing `Inactive`.
 
 *Strictly View-Only*:
 - **Academic Grades**: Managed by Faculty grading workflows.
@@ -790,25 +790,25 @@ To maintain data integrity and strict RBAC alignment, fields in the Student Jack
 
 #### 5.2.1 Program Shifting Rules
 
-**Purpose**: Control student-initiated shifting without corrupting curriculum binding, academic history, or financial assessment.
+**Purpose**: Control Registrar-recorded College program shifting without corrupting curriculum binding, academic history, or financial assessment.
 
 **Eligibility Boundaries**:
 
-- **College Program Shift Restriction**: College shifting follows the active program/term/year-level policy. Any exceptional handling must be outside the normal self-service flow and must be explicitly approved as a separate school policy.
-- **College 2nd-Year Limit**: College students may request shifting only up to the approved 2nd-year limit. Requests beyond that limit are blocked by default and require a separately approved Academic Head exception policy before they can be processed.
+- **College Program Shift Restriction**: College shifting follows the active program/term/year-level policy. Any exceptional handling must be explicitly approved as a separate school policy.
+- **College 2nd-Year Limit**: College program shifts may be processed only up to the approved 2nd-year limit. Cases beyond that limit are blocked by default and require a separately approved Academic Head exception policy.
 - **Academic Record Preservation**: Shifting never deletes prior grades, enrollments, payments, documents, or curriculum history. The new program binding starts from the approved effective term.
 
 **Workflow Ownership**:
 
-1. Student submits a shifting request from the Student Hub.
-2. Registrar reviews academic eligibility, curriculum fit, credited subjects, prerequisites, and available sections.
+1. Student completes the institution's outside-office program-shift filing or Registrar receives equivalent authorized evidence.
+2. Registrar opens the typed program-shift case and reviews academic eligibility, curriculum fit, credited subjects, prerequisites, and available sections.
 3. Academic Head may authorize exceptions only where school policy allows them.
-4. Accounting/Cashier assesses and manages any shifting fee or financial adjustment after Registrar academic review.
-5. The shift becomes effective only after academic approval and required fee handling are complete.
+4. Accounting/Cashier handles a shifting fee or financial adjustment only if a separately approved fee policy is promoted.
+5. Registrar applies the approved shift for the effective term without rewriting historical records.
 
-**Student-Facing Statuses**: `Submitted`, `Under Review`, `Approved - Pending Fee`, `Approved`, `Rejected`.
+**Student Visibility**: Student Hub may show the resulting program and effective-term status after the Registrar decision; it does not submit or manage the shift case.
 
-**Fee Boundary**: Shifting fee amounts and due dates are Accounting-owned configurable policy. The Registrar must not set or waive shifting fees.
+**Fee Boundary**: Program-shift fee automation remains review scope. If promoted, amounts and due dates are Accounting-owned policy; Registrar cannot set or waive them.
 
 ---
 
@@ -1680,7 +1680,7 @@ System Super Admin may view the seeded role/permission matrix for audit and veri
 
 - **New Term**: Created Manually (e.g., "1st Sem 2026-2027")
 - **Required Dates**: Registrar must configure `term_start_date`, `term_end_date`, and `scheduling_starts_at` before faculty availability or schedule generation unlocks
-- **Carry-Over Logic**: Student Profile/Balances carry over; Enrollment Status resets to "Not Enrolled"
+- **Carry-Over Logic**: Student Profile/Balances carry over unchanged. Closing-term enrollment transitions to `Completed`; the next term creates a separate enrollment record and does not reset the student profile or account to `Not Enrolled`.
 - **Co-Existence**: Supports overlapping terms (e.g., Finishing Term 1 while Term 2 enrolls)
 
 ---
@@ -1921,20 +1921,22 @@ The implementation details for this framework — including the `import_batches`
 
 ---
 
-## 9. Module 6: Enrollment and Student Status Requests
+## 9. Module 6: Enrollment and Student Status Lifecycle
 
-### 9.1 Service Request Boundary
+### 9.1 Registrar-Owned Lifecycle Boundary
 
-- Service requests may initiate approved typed enrollment or student-status workflows such as Drop Subject, Withdrawal, Section Transfer, Program Shift, Modality Change, LOA, Readmission, and controlled data correction.
-- A generic request record is intake and communication evidence only. It must not directly mutate enrollment, curriculum, grades, balances, or student status. Each approved mutation requires its own validated, authorized, transactional service.
-- Registrar-facing screens are list/view lifecycle-action surfaces for review, resolution, rejection, and cancellation. They must not expose raw student IDs, attachment paths, assignee/resolver IDs, or arbitrary status mutation.
-- The student and Registrar permissions for this module are `submit-service-requests` and `manage-service-requests`. Document-request permissions and routes do not exist.
+- TALA does not provide a generic service-request record, permission, route, queue, or Student Hub submission form.
+- Registrar records authorized Drop Subject, Withdrawal, Section Transfer, Program Shift, LOA, Readmission, Transfer-Out, Completion/Graduation, archive/reactivation, and controlled correction decisions through dedicated typed actions.
+- Every action validates the source state, target state, effective date, reason, evidence reference, role authority, access effect, notice effect, and immutable history inside a transaction.
+- Drop Subject changes the scoped enrollment-subject record and class-list/schedule visibility; full Withdrawal changes the term enrollment state. Neither is implemented by directly editing the student profile.
+- Student-level Modality Change remains review scope because it may require schedule, delivery-group, room, laboratory-fee, and class-list reconciliation.
+- Formal filing, signatures, guidance consultation, credential release, CHED Special Order submission, and school-to-school transfer remain outside-office processes. TALA records only the authorized internal decision and eligibility/clearance evidence.
 
-### 9.2 Dropout Management & Grace Periods
+### 9.2 Withdrawal, Inactivity, and Archive Boundary
 
-- **Drop Form Process**: A student wishing to drop must file a form and schedule a mandatory consultation with the Registrar/Guidance.
-- **Drop Fee**: An effective-dated withdrawal/refund fee is assessed to their ledger upon official withdrawal, based on approved institutional policy bounding the fee by regulatory refund periods.
-- **Grace Period Control**: A Registrar-confirmed no-show/inactivity case may use a configurable one-term grace period, warnings, and archive review. TALA must not infer inactivity or archive a student from attendance until an approved attendance source, review, and appeal path exist.
+- **Outside-Office Filing**: Paper forms, signatures, and guidance consultation occur outside TALA. Registrar records the approved result and evidence reference.
+- **Financial Disposition**: No fee/refund is assessed automatically until an effective-dated institution-approved and regulator-bounded financial-disposition policy is promoted with Accounting authority, audit, and tests.
+- **No Automatic Archive**: TALA does not infer inactivity or archive a student from attendance, no-show, missing data, or elapsed grace period. Archive/reactivation requires an authorized Registrar lifecycle action with reason and history.
 
 ---
 
@@ -2002,7 +2004,7 @@ The T.A.L.A. system is "State-Aware", meaning feature availability changes autom
 **Module 2 (Registrar)**:
 
 - **Action**: Dec 20 (Semester End) triggers "Term Close" batch job
-- **System Action**: Status resets to "Not Enrolled" for next term
+- **System Action**: The closing term's `Enrolled` records transition to `Completed`. Student profile and account lifecycle states are not reset; next-term participation is represented by a new term enrollment.
 
 ### 10.5 Scheduled Job Operations
 
@@ -2010,7 +2012,6 @@ School housekeeping jobs run off-hours in `Asia/Manila` to reduce daytime load. 
 
 | Job Area | Normal Run Window | Functional Limit |
 | --- | --- | --- |
-| Grace period/account archive checks | After midnight | Must not archive users already restored or manually corrected. |
 | INC auto-fail | After midnight | Must skip grades already cleared by staff. |
 | Payment housekeeping | After midnight | Must not cancel or reverse a confirmed payment without Accounting action. |
 | Term close | Manual Registrar trigger, queued for off-hours unless urgent | Must not close the same term twice. |

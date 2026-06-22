@@ -73,6 +73,14 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 - EXTERNAL: official document release, outside-office credential handling, school-to-school records transfer, and any registrar-office fulfillment that is not represented as system-owned admission evidence or generated COR/SOA/payment evidence.
 - Boundary clarification: Student Hub is visibility-first. Removing document/service requests does not remove applicant admission evidence upload, Registrar document review, payment evidence, COR access, finalized grade viewing, or published schedule viewing.
 
+## Approved Feature Batch 6
+
+- KEEP: separate account, student-profile, and term-enrollment states; Registrar-owned typed drop-subject, withdrawal, section-transfer, program-shift, LOA, readmission, transfer-out, completion/graduation, archive/reactivation, hold, and deficiency workflows; immutable status history; internal graduation eligibility and approved-graduate roster.
+- REVIEW: student-level modality changes that affect schedules or fees; withdrawal-fee/refund/financial-disposition automation; any program-shift fee automation.
+- REMOVE: generic service-request records/permissions/routes; Student Hub status-request forms; student-facing graduation application; automatic inactivity/archive from attendance or no-show; fixed grace-period archiving; term-close reset of student profile status to `Not Enrolled`; direct raw lifecycle-status editing.
+- EXTERNAL: paper form collection/signatures, guidance consultation, official TOR/Honorable Dismissal/diploma/credential release, CHED Special Order submission, and school-to-school records transfer.
+- Boundary clarification: TALA records the authorized internal decision, effective date, reason, evidence reference, access effect, and history. Subject drops affect enrollment-subject records; full withdrawal affects the term enrollment; term close completes the term enrollment without resetting the student profile or authentication account.
+
 ## Sprint Selection Rule
 
 Next implementation work must come from the approved feature inventory, not from old SDD numbering. Highest priority goes to SIS lifecycle dependencies and capstone integrations that can be tested within the remaining time.
