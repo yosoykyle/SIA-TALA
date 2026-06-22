@@ -144,9 +144,7 @@ return [
     */
 
     'features' => [
-        // Registration is disabled — student accounts are created via
-        // the Applicant Intake workflow (TS §5.6.1) and upgraded on enrollment.
-        // Features::registration(),
+        // Registration is disabled; accounts are created by controlled workflows.
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::updatePasswords(),

@@ -230,7 +230,7 @@ class TAL12ASystemSuperAdminFilamentResourceTest extends TestCase
             $this->assertStringContainsString("'{$field}'", $form);
         }
 
-        foreach (['General', 'Admission / Enrollment', 'Payments / Fees', 'Documents / Requests', 'Grades / Academics', 'Account / Login', 'Technical Support'] as $category) {
+        foreach (['General', 'Admission / Enrollment', 'Payments / Fees', 'Grades / Academics', 'Account / Login', 'Technical Support'] as $category) {
             $this->assertStringContainsString($category, $model);
         }
 

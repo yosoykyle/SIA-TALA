@@ -19,7 +19,7 @@ Route::get('/', function () {
 
 Route::livewire('/faq', 'pages::faq')->name('faq');
 
-Route::prefix('student')->name('student.')->middleware(['auth', 'student.active'])->group(function () {
+Route::prefix('student')->name('student.')->middleware(['auth', 'verified', 'student.active'])->group(function () {
     Route::livewire('/dashboard', 'pages::student-hub.dashboard')->name('dashboard');
     Route::livewire('/schedule', 'pages::student-hub.schedule')->name('schedule');
     Route::livewire('/grades', 'pages::student-hub.grades')->name('grades');

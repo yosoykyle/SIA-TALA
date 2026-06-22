@@ -142,6 +142,17 @@ S0 cleanup result:
 - Remaining review-sensitive surfaces, including promissory notes, installment policies, exam access accommodations, shifting requests, and Student Hub wording, must be handled through their own promoted sprint decisions.
 - External-reporting wording such as LIS/CHED remains roster/export evidence only, not active regulator submission workflow.
 
+S1 identity/RBAC result:
+
+- Fortify now boots through an explicit provider with login, password reset, reset password, and email verification notice views.
+- Public Fortify login is role-aware: verified active students land in Student Hub; verified active staff land in the Admin Panel.
+- Inactive accounts cannot authenticate through the public login.
+- Student Hub routes require authenticated, verified, active student accounts.
+- Admin Panel access requires active, verified staff accounts through `User::canAccessPanel()`.
+- Registration, passkeys, and two-factor authentication remain out of active scope.
+- Staff account UI keeps one role per account; role CRUD remains read-only/seeded rather than runtime-editable.
+- S1 is covered by focused Fortify/RBAC tests plus adjacent Student Hub, internal route denial, system-admin, seeded account, and RBAC matrix tests.
+
 ## Survival Micro-Sprint Backlog
 
 Use this order until replaced by a newer user-approved execution controller:
