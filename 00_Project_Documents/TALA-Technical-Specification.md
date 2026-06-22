@@ -44,7 +44,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | 30.0 | 2026-06-18 | Student services; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; admission/retention/capacity requirements; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: non-client workflows and outside-office automation. |
+| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, outside-office automation. |
 
 ---
 
@@ -70,7 +70,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | Scheduling | Curriculum readiness, section delivery groups, Registrar-confirmed subject/faculty assignment, faculty availability, schedule snapshots, OR-Tools CP-SAT solve, draft review, commit, publish, and controlled overrides. | Laravel scheduling services plus authenticated Cloud Run/OR-Tools solver or equivalent constraint service. | Unit/feature tests for constraints, solver result ingest, commit/publish permissions, conflict rejection, and manual override audit. |
 | Finance and payments | Assessment, approved discount policy, immutable ledger, PayMongo/manual channel parity, provider webhooks, idempotency, SOA/payment evidence, externally issued receipt/reference evidence recording, and computed clearance. Installments, promissory tracking, exam-access accommodation, and refund/disposition automation remain review candidates. | Accounting services, webhook storage/signature verification, queue jobs, ledger-entry invariants, internal artifact issuance. | Tests for assessment, payment confirmation, webhook retry/idempotency, overpayment, zero-balance edge, and finance privacy. |
 | Grades and academic records | Faculty class-list scope, grade encoding/submission, Registrar verification, finalization, correction/override, finalized grade history, and Student Hub grade viewing. Formal transcript/report-card PDF generation is outside active scope. | Service-owned grading workflows, policy-gated Filament actions, immutable finalization/correction audit. | Tests for assigned-faculty access, invalid role denial, grade finalization, correction approval, and grade-history integrity. |
-| Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only unless a mutation service is explicitly approved. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
+| Student Hub and public UI | Livewire/TallStackUI pages read from backend services; Student Hub is protected by active student status; offline/PWA behavior is read-only. Approved PayMongo payment entry must route through the finance service path; document-request, credential-request, courier, and generic service-request UIs are outside active scope. | Livewire components, TallStackUI controls, service-returned view models, PWA cache for approved read-only data. | Browser/feature tests for access, dashboard data, validation/error states, read-only offline boundaries, and no cross-student leakage. |
 | COR, SOA/payment evidence, and QR verification | COR is derived from canonical enrolled state. SOA/payment acknowledgements are derived from Accounting-owned ledger/payment state. Formal TOR, Form 137, diploma, report-card PDF, and full credential issuance/fulfillment are outside active TALA scope; Form 137/Form 138 remain prior-school admission evidence only. Student grade history and grade viewing remain active under the Grades and Student Hub contracts. | DomPDF/Blade templates for COR/internal finance evidence, private storage, QR token/signed URL verification, issuance services, lifecycle states. | Tests for source-state eligibility, private artifact access, QR verification, revocation/supersede, and no private data in QR payloads. |
 | Imports, exports, and reporting | Controlled templates, private upload, validation preview, zero-error commit where required, audit, and generic roster/report export. | Laravel Excel/PhpSpreadsheet services, import batch records, queueable processing, authorized export actions. | Tests for template headers, invalid rows, no partial unsafe commit, export authorization, and audit records. |
 | Security, privacy, and audit (RA 10173 & NPC 2023-06) | Privacy-by-design access controls, private-by-default files, signed/temporary access, role-scoped evidence visibility, webhook signature checks, purpose-limited retention, breach protocol readiness, activity logs, and sensitive-support data minimization. | Laravel filesystem, signed URLs, policies, activitylog, validation/FormRequests, webhook verifier services. | Security tests for unauthorized access, private path leakage, webhook rejection, upload validation, and audit creation. |
@@ -418,7 +418,7 @@ The following domains are covered by schema and service contracts in this TS. Wh
 - Financial flow (`fee_templates`, `ledger_entries`, `payment_attempts`, `payments`; promissory and installment tables remain review scope)
 - Admission document/OCR flow (`document_uploads`, `document_ocr_results`, `document_extracted_fields`)
 - Grade/correction flow (`grades`, `grade_corrections`)
-- Service/shift/COR flow (`service_requests`, `shifting_requests`, `shifting_fee_assessments`, `cor_verifications`, `faq_entries`)
+- Student-status/COR flow (`shifting_requests`, `shifting_fee_assessments`, `cor_verifications`, `faq_entries`)
 
 **Migration Status Boundary**:
 - This TS defines the required schema contracts and relationships, not a live migration-status ledger.
@@ -2148,7 +2148,7 @@ FAQ table migration exists as `2026_05_23_173901_create_faq_entries_table.php` a
     -   `general` = General
     -   `admission_enrollment` = Admission / Enrollment
     -   `payments_fees` = Payments / Fees
-    -   `documents_requests` = Documents / Requests
+    -   `admission_requirements` = Admission Evidence / Requirements
     -   `grades_academics` = Grades / Academics
     -   `account_login` = Account / Login
     -   `technical_support` = Technical Support
@@ -2172,7 +2172,7 @@ FAQ table migration exists as `2026_05_23_173901_create_faq_entries_table.php` a
 
 #### 3.16.5 FAQ and Student Help Implementation Contract
 
-`FaqEntry`, the `faq_entries` migration, `FaqEntryResource`, Filament pages, and `FaqEntryPolicy` keep FAQ content maintainable without hardcoding. Categories are model-owned fixed options; author/updater fields remain system-derived. The public `/faq` route uses `pages::faq` and has only `web` middleware, so guests can read published entries without gaining mutation capability. Student Hub routes are protected by `EnsureActiveStudentHubUser`, which accepts only authenticated active users with the `student` role, and `pages::student-hub.help` renders only published FAQ entries. Student dashboard, schedule, grades, financials, requests, holds, notifications, and help links are covered by `StudentDashboardService`; Student Hub pages must wire to that service contract before acceptance.
+`FaqEntry`, the `faq_entries` migration, `FaqEntryResource`, Filament pages, and `FaqEntryPolicy` keep FAQ content maintainable without hardcoding. Categories are model-owned fixed options; author/updater fields remain system-derived. The public `/faq` route uses `pages::faq` and has only `web` middleware, so guests can read published entries without gaining mutation capability. Student Hub routes are protected by `EnsureActiveStudentHubUser`, which accepts only authenticated active users with the `student` role, and `pages::student-hub.help` renders only published FAQ entries. Student dashboard, schedule, grades, financials, holds, notifications, and help links are covered by `StudentDashboardService`; Student Hub pages must wire to that service contract before acceptance.
 
 ---
 
@@ -3015,8 +3015,8 @@ The UI goal state must be testable without requiring pixel-perfect design assert
 | Surface | Approved Component Pattern | Acceptance-Test Expectations |
 | --- | --- | --- |
 | Public/applicant forms | Blade/Livewire pages using TallStackUI-compatible cards, inputs, selects, file-upload controls, alerts, and toasts | Required fields show inline validation errors; file inputs enforce type/size policy; duplicate or unavailable-offering cases fail closed with user-safe messages; successful submissions create auditable applicant/intake records. |
-| Student Hub dashboard and tabs | Livewire components with TallStackUI cards, badges, tabs/navigation, tables or stacked mobile cards, notification list, and PWA read-only cache | Dashboard data comes from service contracts such as `StudentDashboardService`; mutation buttons call dedicated backend services; offline mode shows cached read-only COR/schedule/grades and disables submit buttons. |
-| Student Hub PWA launch/loading layer | `erag/laravel-pwa` directives in the Student Hub layout, `public/manifest.json`, service worker/offline fallback files, generated icon/splash assets, TallStackUI `Button` loading/`Progress`/`Alert` components, Livewire `wire:loading` and `wire:offline`, and Tailwind `motion-safe`/`motion-reduce` variants | Installed app launch shows branded splash behavior where the platform supports it; route changes and slow service-backed sections show stable skeleton/progress feedback; forms/uploads disable duplicate submits; progress indicators are labelled; offline states block mutation and show safe fallback messaging. |
+| Student Hub dashboard and tabs | Livewire components with TallStackUI cards, badges, tabs/navigation, tables or stacked mobile cards, notification list, and PWA read-only cache | Dashboard data comes from service contracts such as `StudentDashboardService`; approved PayMongo payment entry routes through finance services; no document-request, credential-request, courier, or generic service-request buttons are exposed; offline mode shows cached read-only COR/schedule/grades and disables online-only actions. |
+| Student Hub PWA launch/loading layer | `erag/laravel-pwa` directives in the Student Hub layout, `public/manifest.json`, service worker/offline fallback files, generated icon/splash assets, TallStackUI `Button` loading/`Progress`/`Alert` components, Livewire `wire:loading` and `wire:offline`, and Tailwind `motion-safe`/`motion-reduce` variants | Installed app launch shows branded splash behavior where the platform supports it; route changes and slow service-backed sections show stable skeleton/progress feedback; approved online actions disable duplicate submits; progress indicators are labelled; offline states block mutation and show safe fallback messaging. |
 | Staff Admin Nexus lists | Filament v5 `Resource`/`Page` table surfaces with filters, searchable relationship labels, badges, infolists, and widgets | Tables must show human-readable labels instead of raw IDs; filters map to approved business states; empty states are allowed; navigation visibility follows policies/permissions. |
 | Staff lifecycle actions | Filament v5 actions with modal forms, typed `Select`, `Toggle`, `Repeater`, `FileUpload`, `Textarea`, confirmation prompts, and notifications | Lifecycle actions call service/model-owned transitions, require reasons/evidence where documented, block invalid transitions, and emit success/error notifications using the FS message catalog. |
 | Staff dashboards/readiness views | Filament widgets/pages with scoped filters, cards/stats, tables, and drilldown links | Widgets/pages may show zero/empty states until data exists, but must not fabricate readiness; blocker lists and drilldowns must reflect service output and role visibility. |
@@ -3074,7 +3074,7 @@ css
     -   **Global navigation**: Page transitions use a top-bar progress loader or Livewire navigation loading state. The loader must not cover validation errors, field focus, or critical action buttons after the request completes.
     -   **Local actions**: Submit buttons use TallStackUI button `loading` behavior or Livewire `wire:loading.attr="disabled"` with a clear spinner/text state to prevent double submission.
     -   **Uploads**: Heavy file uploads, OCR handoff, and import previews show labelled progress using TallStackUI `Progress` or a native `<progress>` element with an accessible label. Upload success/failure then moves to the normal status/toast layer.
-    -   **Offline states**: Mutation controls use `wire:offline.attr="disabled"` or equivalent Livewire/Alpine state. Offline warnings must be visible near the affected action and must not queue hidden payments, uploads, grade corrections, or enrollment changes.
+    -   **Offline states**: Online-only controls use `wire:offline.attr="disabled"` or equivalent Livewire/Alpine state. Offline warnings must be visible near the affected action and must not queue hidden payments, uploads, grade corrections, enrollment changes, document requests, or credential requests.
     -   **Accessibility and reduced motion**: Loading regions set `aria-busy` or status text where appropriate. Tailwind animation utilities must use `motion-safe:`/`motion-reduce:` variants for spinners, shimmer, and transitions.
 
 ---
@@ -3099,13 +3099,15 @@ css
 -   **Tech Stack**: Laravel Livewire + TallStackUI (Auth Layout)
 -   **Auth Guard**: `web` (Standard User table)
 -   **Key Components**:
-    -   **Subject Cart**: Sticky footer for unit selection & Transcript-based Pre-requisite suggestions
-    -   **Inquiries & Adjustments**: Direct form for Section Changes or system inquiries
-    -   **Drop Request Form**: Ability to download an auto-filled drop/withdrawal form
-    -   **Offline COR**: Service Worker caching
-    -   **Grade Viewer**: Read-only grid
+    -   **Dashboard**: Student profile, enrollment status, holds/notices, and notifications
+    -   **Enrollment/COR**: Current enrollment state and COR view/download when eligible
+    -   **Accounts**: Balance, payment status, latest confirmed payments, and approved PayMongo payment entry
+    -   **Schedule**: Published class schedule reference
+    -   **Grades**: Read-only finalized grade history
+    -   **Help**: Published FAQ/help entries
+    -   **Offline Read-Only Cache**: Approved COR, schedule, and grade data with freshness labels
 -   **Access**: Only accessible via Official Student Credentials (emailed upon acceptance)
--   **Implementation Boundary**: Student Hub routes and SFC pages live under `resources/views/pages/student-hub/`, the Student layout includes PWA directives, and access control is covered by feature tests. `StudentDashboardService` is the backend aggregate source for owned profile, enrollment, schedule, financial, grade, request, hold, notification, and FAQ/help data. Dashboard, Schedule, Grades, Financials, and Documents must wire to the service contract, loading states, empty/error states, offline guards, and PWA acceptance before they can be marked passed.
+-   **Implementation Boundary**: Student Hub routes and SFC pages live under `resources/views/pages/student-hub/`, the Student layout includes PWA directives, and access control is covered by feature tests. `StudentDashboardService` is the backend aggregate source for owned profile, enrollment, schedule, financial, grade, hold, notification, and FAQ/help data. Dashboard, Enrollment/COR, Schedule, Grades, Financials, and Help must wire to the service contract, loading states, empty/error states, offline guards, and PWA acceptance before they can be marked passed. A Student Hub Documents tab, document-request workflow, generic service-request workflow, credential-request workflow, and courier tracking are removed from active scope. Student-side enrollment or grade-correction mutation UI remains review-only unless separately promoted by feature audit.
 
 ---
 
@@ -3130,21 +3132,21 @@ To minimize Super Admin operational overhead and eliminate the security risks of
 
 | Tab | Content | Goal |
 | --- | --- | --- |
-| **1\. HOME (Dashboard)** | Student Profile Summary (Name, ID, Program) + **Notification Center** (Latest on top). Displays system-triggered alerts (e.g., “Documents Approved”, “Payment Confirmed”) | Immediate “State of Affairs” check |
+| **1\. HOME (Dashboard)** | Student Profile Summary (Name, ID, Program) + **Notification Center** (Latest on top). Displays system-triggered alerts (e.g., requirement reviewed, payment confirmed, schedule published) | Immediate “State of Affairs” check |
 | **2\. ENROLLMENT** | **State A (Enrollment OPEN)**: Shows “One-Click Enroll” card (Regulars) or “Subject Selection” (Irregulars). **State B (Enrollment CLOSED/Enrolled)**: Shows **Downloadable COR** (PDF) and “You are officially enrolled” status | Never an empty state |
-| **3\. ACCOUNTS (Financials)** | Accordion/List grouped by **Semester** (Latest first). Card Content: `Term Label`, `Total Assessment`, `Total Paid`, `Remaining Balance`. **“Pay Now” Button** visible only if `Balance > 0` | Historical view of all previous interactions |
+| **3\. ACCOUNTS (Financials)** | Accordion/List grouped by **Semester** (Latest first). Card Content: `Term Label`, `Total Assessment`, `Total Paid`, `Remaining Balance`. **Pay Now** action appears only when an approved online-payment route is active and a payable balance exists. | Historical view of finance evidence |
 | **4\. SCHEDULE** | Current Term’s Class Schedule (Subject, Time, Room, Instructor). List View (Mobile) / Table View (Desktop) | Class schedule reference |
 | **5\. GRADES** | Latest Term to Oldest Term. Separate visual blocks (Divs) per Term. Content: Subject Code, Description, Grade, Remarks (Passed/Failed) | Academic history |
 
-**Student Dashboard Backend Contract**: `App\Actions\StudentHub\StudentDashboardService` is the read-only data contract for the Student Hub dashboard and tab UI. It accepts a `StudentProfile` resolved by the authenticated active student boundary and returns profile context, current enrollment/history, current schedule, financial balance and term summaries, latest confirmed payments, finalized grade history, recent approved service requests, recent grade-correction requests, holds, latest notifications, and published FAQ/help links.
+**Student Dashboard Backend Contract**: `App\Actions\StudentHub\StudentDashboardService` is the read-only data contract for the Student Hub dashboard and tab UI. It accepts a `StudentProfile` resolved by the authenticated active student boundary and returns profile context, current enrollment/history, current schedule, financial balance and term summaries, latest confirmed payments, finalized grade history, holds, latest notifications, and published FAQ/help links.
 
 **Data Scope Rules**:
 - Schedule rows come from the current enrollment's section/term and, when present, its section delivery group.
 - Grades are limited to finalized grade records attached to the student's enrollments.
 - Financial summaries are limited to the student's ledger/payment records and do not treat promissory notes as clearance.
-- Request summaries are limited to the student's profile or student user account.
+- Hold and notice summaries are limited to the student's profile or student user account.
 - FAQ/help output includes only published FAQ entries.
-- The service does not submit enrollment, payment, document, or grade-correction mutations; any Student Hub mutation UI must call the appropriate backend services rather than writing directly to domain records.
+- The service does not submit enrollment, document, credential, service-request, courier, or grade-correction mutations. Approved PayMongo payment entry uses the finance service path and remains online-only.
 - PWA caching of protected Student Hub data must be opt-in by data family. A generic offline fallback does not prove safe cached COR/schedule/grade pages, freshness labels, clear-on-logout behavior, or offline mutation denial.
 
 ---
@@ -3381,7 +3383,7 @@ graph TD
 
 The OCR engine is a **Text Extraction Assistant**, not a classifier.
 
-All OCR work runs as an asynchronous document-processing job after the raw upload is stored. The original file remains the reviewable source of evidence; OCR text and parsed fields are stored as provisional data until staff verification. A low-confidence or failed OCR result must route the document to manual review instead of blocking the enrollment or service-request workflow.
+All OCR work runs as an asynchronous document-processing job after the raw upload is stored. The original file remains the reviewable source of evidence; OCR text and parsed fields are stored as provisional data until staff verification. A low-confidence or failed OCR result must route the document to manual review instead of blocking the admission or enrollment-evidence workflow.
 
 **Storage Boundary**:
 
@@ -3667,14 +3669,14 @@ These rules define stable staff-facing admin boundaries. They are not an executi
 | Controlled curriculum/foundation import | `ImportBatchResource` supports curriculum template download, private CSV/XLSX upload, strict row validation, validation preview/error report, zero-error commit, and audit evidence. It exposes no generic create/edit routes and no freeform in-browser spreadsheet repair. | Student, grade, financial, and enrollment legacy imports require separate controlled services before being treated as implemented. |
 | PayMongo payment evidence | Payment confirmation is provider/service-owned. `PaymentAttemptResource` and `PaymentResource` are list/view evidence surfaces; webhook processing must be signed, idempotent, and ledger-posting safe. | Generic payment CRUD, raw gateway payload editing, and redirect-only paid status are forbidden. |
 | Google Vision OCR evidence | OCR is a routing/prefill assistant. Document review stores private source evidence, OCR metadata, confidence, parser output, and manual-review routing without promoting OCR output directly into official records. | Raw OCR payload editing and private path editing are forbidden. Manual review remains available when confidence is unavailable or below threshold. |
-| Student Hub boundary | `/student/*` is protected by `auth` and `student.active`; published FAQ consumption exists for Help. `StudentDashboardService` provides the read-only dashboard aggregate for profile, enrollment, schedule, financials, finalized grades, requests, holds, notifications, and help links. Future student-side payment, document, enrollment, and grade-correction mutation UI must call the appropriate dedicated backend services. | draft or sample Student Hub screens do not count as backend/admin readiness evidence. Student Hub UI remains deferred until the UI phase is explicitly activated. |
+| Student Hub boundary | `/student/*` is protected by `auth` and `student.active`; published FAQ consumption exists for Help. `StudentDashboardService` provides the read-only dashboard aggregate for profile, enrollment, schedule, financials, finalized grades, holds, notifications, and help links. Approved PayMongo payment entry uses the finance service path. Document-request, credential-request, courier, and generic service-request UI are removed from active Student Hub scope; enrollment-mutation and grade-correction mutation UI remain review-only unless promoted by feature audit. | draft or sample Student Hub screens do not count as backend/admin readiness evidence. Student Hub UI remains deferred until the UI phase is explicitly activated. |
 | FAQ content management | `FaqEntryResource` provides System Super Admin CRUD for question, answer, category, sort order, and publish state, guarded by `manage-faqs`. Public `/faq` and Student Hub Help consume only published entries. | Registrar, Accounting, Faculty, Academic Head, Student, and public users cannot mutate FAQ content. FAQ categories remain model-owned fixed options, not arbitrary text. |
 | System settings | `SystemSettingResource` is hidden/blocked, exposes no raw key/value/JSON editing, and direct `/admin/system-settings` returns 403 even for System Super Admin. | `system_settings` remains an internal runtime registry. Dedicated typed domain settings pages require validated service handlers, authorization, audit, and cache invalidation. |
 | Accounting adjustments | `AccountingAdjustmentService` and `AccountingAdjustmentResource` provide typed debit, credit, and ledger-entry reversal posts with policy checks, immutable ledger posting, balance recalculation, duplicate-reversal blocking, and activity logging. | Generic ledger CRUD, refund shortcuts, raw balance editing, and silent account-handover reversal are forbidden. |
 | Promissory notes | Review candidate only. If promoted, promissory notes are Accounting-owned promise tracking, not payment clearance or exam access. | Student Hub UI remains deferred; generic status editing and amount/private-detail exposure remain forbidden. |
 | Automatic scheduling solver | Scheduling uses IAM-private GCP Cloud Run OR-Tools CP-SAT, Google ID-token dispatch, immutable snapshots, solver-result ingestion, Laravel validation, draft review, and commit to `section_meetings` / `section_teacher`. Committed rows require 100% hard-constraint validity. | The solver does not create academic sections by itself; section/year-level planning and curriculum demand readiness precede solving. |
 | Faculty assignment and availability | Subject/faculty assignment is Registrar/Academic Head/System Super Admin managed; faculty cannot self-approve teaching subjects. Locked availability and approved post-lock revisions are solver inputs. | Direct faculty edits to locked availability are forbidden. Post-commit schedule-change automation remains review scope until approved. |
-| Service request detail labels | Staff-facing service request tables and detail views should use relationship-backed labels and model-owned status helpers rather than raw IDs as primary labels. | Raw FK/payload display is only acceptable as internal audit evidence when no staff decision depends on it. |
+| Student-status workflow detail labels | Staff-facing status, shift, withdrawal, readmission, and related lifecycle tables/detail views should use relationship-backed labels and model-owned status helpers rather than raw IDs as primary labels. | Raw FK/payload display is only acceptable as internal audit evidence when no staff decision depends on it. |
 
 #### Verification Rules for Admin UI Changes
 

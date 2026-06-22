@@ -65,6 +65,14 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 - REMOVE: formal report-card PDF, transcript/TOR, Form 137, diploma, certificate, and full credential generation/release/fulfillment from grade records.
 - Boundary clarification: removing formal credential issuance does not remove grade records, grade finalization, academic history, prerequisite use, or student grade viewing.
 
+## Approved Feature Batch 5
+
+- KEEP: read-only Student Hub dashboard; owned profile/enrollment summary; COR view/download; published schedule view; finalized grades view; balance/payment status; notifications; FAQ/help; PWA installability and read-only cache for approved data; PayMongo payment entry only through the approved finance service path.
+- REVIEW: student proof upload for manual-payment evidence; student-initiated grade-correction request UI, SLA, and escalation; offline cache families, freshness labels, and clear-on-logout acceptance.
+- REMOVE: document-request portal/catalog/fulfillment; generic Student Hub service requests; credential request pages; TOR/Form 137/diploma/certificate request flows; courier/fulfillment tracking; Student Hub Documents tab as an active feature.
+- EXTERNAL: official document release, outside-office credential handling, school-to-school records transfer, and any registrar-office fulfillment that is not represented as system-owned admission evidence or generated COR/SOA/payment evidence.
+- Boundary clarification: Student Hub is visibility-first. Removing document/service requests does not remove applicant admission evidence upload, Registrar document review, payment evidence, COR access, finalized grade viewing, or published schedule viewing.
+
 ## Sprint Selection Rule
 
 Next implementation work must come from the approved feature inventory, not from old SDD numbering. Highest priority goes to SIS lifecycle dependencies and capstone integrations that can be tested within the remaining time.
