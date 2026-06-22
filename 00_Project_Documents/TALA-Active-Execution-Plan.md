@@ -58,6 +58,13 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 - REMOVE: official BIR receipt/tax invoice generation; promissory note as payment clearance or exam access; generic ledger/payment CRUD; full COR template editor; formal TOR/Form 137/report-card PDF/diploma/certificate credential issuance or fulfillment. This does not remove student grade history, finalized grade viewing, or internal academic records.
 - EXTERNAL: outside-office official receipts, tax documents, school-to-school credential release, and document-request fulfillment.
 
+## Approved Feature Batch 4
+
+- KEEP: College grading profiles; assigned-faculty class lists; grade encoding; INC marking and prerequisite blocking; Registrar verification/return/finalization; Academic Head approval for post-finalization grade changes; immutable finalized grade history; Student Hub grade viewing; prerequisite and subject-suggestion use of finalized grade history; internal academic/advising visibility.
+- REVIEW: grade upload templates; INC auto-fail policy timing; student-initiated grade-correction request UI, SLA, and escalation; early-advising views that consume unfinalized current-term grades; legacy grade import.
+- REMOVE: formal report-card PDF, transcript/TOR, Form 137, diploma, certificate, and full credential generation/release/fulfillment from grade records.
+- Boundary clarification: removing formal credential issuance does not remove grade records, grade finalization, academic history, prerequisite use, or student grade viewing.
+
 ## Sprint Selection Rule
 
 Next implementation work must come from the approved feature inventory, not from old SDD numbering. Highest priority goes to SIS lifecycle dependencies and capstone integrations that can be tested within the remaining time.
