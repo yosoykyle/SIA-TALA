@@ -163,6 +163,17 @@ S2 academic foundation result:
 - S2 prepares data for S6 Scheduling and CP-SAT but does not implement solver dispatch, solve logic, or published schedule workflows.
 - S2 is tracked in Linear as `TAL-36` and covered by the focused academic foundation, college-only scope, import, readiness, delivery-pattern, section-planning, and scheduling-readiness tests.
 
+S3 admissions-to-handover result:
+
+- College applicant intake is implemented through a staged applicant record with duplicate checks, applicant account status, term/program/year-level scope, and approved offering/policy resolution.
+- Admission requirement policies materialize applicant document requirements by gate type, keeping admission-gate evidence separate from retention undertakings.
+- Admission uploads use private stored evidence and manual Registrar review; OCR/text extraction remains removed from active scope.
+- Admission setup resources and readiness dashboard are permission-gated and College-only; they do not expose SHS or `education_level` choices.
+- Readiness evaluation checks published offerings, active requirement policies, enrollment/payment calendar fields, approved capacity plans, scheduling readiness, and published schedule evidence.
+- Approved applicants can be handed over into student profile/enrollment records through the typed enrollment service; final student-role activation/COR readiness is gated by finance-cleared handover.
+- Capacity reservation is linked to the admission finance-clearance gate and secured when finance clearance completes.
+- S3 is tracked in Linear as `TAL-37` and covered by focused applicant intake, document review, admission setup, readiness dashboard, handover, college-only scope, and admission finance-clearance tests.
+
 ## Survival Micro-Sprint Backlog
 
 Use this order until replaced by a newer user-approved execution controller:
