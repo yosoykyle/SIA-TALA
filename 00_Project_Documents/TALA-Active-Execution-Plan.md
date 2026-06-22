@@ -27,7 +27,7 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 - College-only SIS.
 - SHS is removed from active product scope.
 - External portals and manual outside-office work are not TALA features.
-- Capstone integration priority: CP-SAT scheduling, Google Vision OCR, PayMongo/payment flow, and read-only Student Hub/PWA only if approved by feature audit.
+- Capstone integration priority: CP-SAT scheduling, PayMongo/payment flow, and read-only Student Hub/PWA.
 
 ## Immediate Work
 
@@ -40,7 +40,7 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 
 ## Approved Feature Batch 1
 
-- KEEP: auth/RBAC/login/logout/session security; staff roles; applicant intake/admissions; admission document upload/review; Google Vision OCR; student master record; enrollment handover; College academic foundation; SOA/payment acknowledgement/internal payment evidence.
+- KEEP: auth/RBAC/login/logout/session security; staff roles; applicant intake/admissions; private admission document upload/manual review; student master record; enrollment handover; College academic foundation; SOA/payment acknowledgement/internal payment evidence.
 - REMOVE: active non-College offering paths; official document-request portal/catalog/fulfillment; official tax receipt/e-receipt/CAS behavior.
 - EXTERNAL: outside-office portal/submission/status work. TALA only owns enrolled-student roster visibility/export and audited internal lifecycle state.
 
@@ -80,6 +80,16 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 - REMOVE: generic service-request records/permissions/routes; Student Hub status-request forms; student-facing graduation application; automatic inactivity/archive from attendance or no-show; fixed grace-period archiving; term-close reset of student profile status to `Not Enrolled`; direct raw lifecycle-status editing.
 - EXTERNAL: paper form collection/signatures, guidance consultation, official TOR/Honorable Dismissal/diploma/credential release, CHED Special Order submission, and school-to-school records transfer.
 - Boundary clarification: TALA records the authorized internal decision, effective date, reason, evidence reference, access effect, and history. Subject drops affect enrollment-subject records; full withdrawal affects the term enrollment; term close completes the term enrollment without resetting the student profile or authentication account.
+
+## Approved Feature Batch 7
+
+- KEEP: System Super Admin staff-account create/archive/restore; assignment of exactly one seeded approved staff role; read-only RBAC matrix; critical audit logs under policy-driven retention; COR verification/revoke/supersede controls; typed term/curriculum/fee/admission settings; minimal role-specific dashboards and actionable queues; in-app lifecycle notifications; critical account/admission/payment/schedule/grade email notifications; public/Student Hub FAQ with System Super Admin CRUD; audited enrolled-student roster CSV/XLSX export; shared controlled-import infrastructure; dedicated curriculum/foundation and legacy-student importers.
+- REVIEW: grade-submission progress/reminder widget; email bounce/retry and editable-template behavior; legacy grade, finance, and enrollment-history importers based on actual client source data.
+- REMOVE: runtime role/permission creation or editing; indefinite audit retention; generic raw settings UI; broad enrollment/revenue/collection/pass-rate analytics; generic ticketing; universal any-entity importer UI; self-service account-claim portal; dedicated walk-in impersonation/session mode; custom database-driven maintenance service/settings UI; all automated text-extraction/document-reading integrations.
+- EXTERNAL: regulator-specific templates/submissions/completion tracking and Laravel CLI infrastructure maintenance.
+- Global scope correction: automated document text extraction is removed from TALA, superseding its earlier Batch 1 approval. Admissions and legacy onboarding use private uploads plus authorized manual review only.
+- Mandatory code cleanup after feature audit: remove the document-reading SDK dependency, service clients, config/env keys, credentials, jobs/commands, provider-specific tables/columns, review UI fields, factories/seeders/tests, test cases, and stale Linear/backlog references in one tested implementation slice. Do not remove only the dependency while dependent code remains.
+- Import boundary: shared parsing, private source storage, batch tracking, preview/validation, transactional commit, and audit may be reused, but every approved import domain owns a dedicated template, authorization rule, validator, and service. No arbitrary entity/column mapping is exposed.
 
 ## Sprint Selection Rule
 

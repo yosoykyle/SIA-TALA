@@ -13,18 +13,18 @@ Versioning rule: major version increments once per update date; same-day updates
 | Version | Date | Description |
 | --- | --- | --- |
 | 1.0 | 2026-04-02 | FS baseline consolidated. |
-| 2.0 | 2026-04-30 | Hybrid uploads; OCR review; staff verification. |
+| 2.0 | 2026-04-30 | Hybrid uploads; document review; staff verification. |
 | 3.0 | 2026-05-01 | Queue, scheduler, Redis, Horizon job strategy. |
 | 4.0 | 2026-05-02 | Student Hub/PWA; period grading; ToC and appendix fixes. |
 | 5.0 | 2026-05-03 | Offline POST descoped; INC blocks; 3 modalities; PUP transmutation; PayMongo. |
 | 6.0 | 2026-05-04 | Historical grading, Student Hub finance, and promissory updates. |
 | 7.0 | 2026-05-05 | Advising, COR/roster, load, TallStackUI, and role updates. |
 | 8.0 | 2026-05-12 | Curriculum intake; faculty availability self-service; role split. |
-| 9.0 | 2026-05-13 | Applicant, OCR, payment, and calendar workflow refinements. |
-| 10.0 | 2026-05-14 | Maintenance mode; user messages; legacy import framework. |
-| 11.0 | 2026-05-18 | Student records simplification; PayMongo/OCR/advising locks; grade-correction states. |
+| 9.0 | 2026-05-13 | Applicant, document, payment, and calendar workflow refinements. |
+| 10.0 | 2026-05-14 | User messages; controlled import framework. |
+| 11.0 | 2026-05-18 | Student records simplification; payment/advising locks; grade-correction states. |
 | 12.0 | 2026-05-20 | Walk-in metadata; fee/installment rules; enrollment/payment/import policies. |
-| 13.0 | 2026-05-21 | Complexity audit: delivery, Google Vision OCR, calendar, fees, ledger, rate limits. |
+| 13.0 | 2026-05-21 | Complexity audit: delivery, document review, calendar, fees, ledger, rate limits. |
 | 14.0 | 2026-05-22 | Imports, notifications, curriculum, grading, and fee terminology. |
 | 15.0 | 2026-05-23 | Subsidy workflow replaced by freshmen discount. |
 | 16.0 | 2026-05-24 | Calendar/installment locks; migration/Fortify/FAQ boundaries. |
@@ -38,13 +38,13 @@ Versioning rule: major version increments once per update date; same-day updates
 | 24.0 | 2026-06-09 | Scheduling planning order; solver deployment; promissory and returnee boundaries. |
 | 25.0 | 2026-06-10 | Guided tour removed; Phase 1 boundary; foundation admin resources. |
 | 26.0 | 2026-06-11 | Controlled import; Academic Head approval; PayMongo smoke command. |
-| 27.0 | 2026-06-12 | Google Vision evidence; live OCR/PayMongo smoke; FAQ governance cleanup. |
+| 27.0 | 2026-06-12 | Integration evidence; live payment smoke; FAQ governance cleanup. |
 | 28.0 | 2026-06-14 | Backend services active; Student Hub UI pending; scheduling readiness hardened. |
 | 29.0 | 2026-06-17 | Scheduling closure; delivery groups; curriculum readiness; publish lifecycle; workload overrides; PayMongo handover parity. |
 | 30.0 | 2026-06-18 | Student-domain backend contracts; assessment/payment/promissory/adjustment contracts; document lifecycle requirements. |
 | 31.0 | 2026-06-19 | Workflow reconciliation; roster/admissions benchmarks; Old Curriculum decision; UI test baseline. |
 | 32.0 | 2026-06-21 | Submission baseline; benchmark/legal hardening; College-only correction; document-request removal. |
-| 33.0 | 2026-06-22 | Scope pruning: non-client workflows, Student Hub requests, student lifecycle, outside-office automation. |
+| 33.0 | 2026-06-22 | Scope pruning: document review, administration, Student Hub, student lifecycle, outside-office automation. |
 
 ---
 
@@ -72,7 +72,7 @@ Versioning rule: major version increments once per update date; same-day updates
 | COR, SOA/payment evidence, and QR verification | COR is generated only from canonical enrolled data. SOA/payment acknowledgement artifacts are generated only from Accounting-owned ledger/payment evidence. Formal TOR, Form 137, diploma, report-card PDF, and credential issuance/fulfillment are outside active TALA scope; Form 137/Form 138 remain prior-education admission evidence only. Finalized grade history and Student Hub grade viewing remain active. | Enrollment-verification, student-financials, PDF/QR verification baseline. | COR and finance evidence Core; formal credential issuance outside scope |
 | Student status, adjustments, and graduation | Registrar-owned drop/withdraw/shift/section-transfer, LOA/readmission, transfer-out, completion/graduation eligibility, deficiency review, and internal credential-eligibility outcomes use typed stateful workflows. Student-level modality changes remain review scope; formal credential release remains outside active TALA scope. | Mature SIS student lifecycle and graduation processing; SIA status/graduation workflow. | Core/Supporting |
 | Reports, imports, exports, and external systems | Controlled imports/exports support rosters, schedules, finance, grades, and source evidence. Government portals and outside office systems remain external; TALA provides authorized school-year/term enrolled-student visibility and generic exports only. | Laravel Excel/import-export benchmark; mature SIS reporting boundary; SIA external workflow clarification. | Supporting/External Boundary |
-| Security, privacy, audit, and evidence | Sensitive student, finance, document, OCR, support, and generated-artifact data remain role-scoped, privately stored where required, audited, and exposed only through authorized workflows. | Data Privacy Act controls, file-upload/security benchmarks, private-storage design. | Core |
+| Security, privacy, audit, and evidence | Sensitive student, finance, document, support, and generated-artifact data remain role-scoped, privately stored where required, audited, and exposed only through authorized workflows. | Data Privacy Act controls, file-upload/security benchmarks, private-storage design. | Core |
 
 ### Submission Readiness Rule
 
@@ -109,10 +109,10 @@ System acceptance depends on the following functional requirements. These are fu
 
 - **Academic foundation behavior**: Registrar/Academic Head-approved staff must be able to maintain or import Programs, Subjects, Curricula/Curriculum Subjects, Terms, Sections, and the minimum safe room input needed by scheduling. Local seeders are QA support only and are not the production/staff starting point.
 - **Academic Head approval**: Any grade correction or override that changes an official/finalized grade must receive an authenticated in-system Academic Head approval action before Registrar resolution applies the corrected values. Registrar-only recording of prior offline approval is not sufficient for system acceptance.
-- **Live integrations**: PayMongo and Google Cloud Vision OCR must pass live sandbox/configured-environment smoke checks before readiness. Mock drivers remain for automated tests and local fallback, not for final Phase 1 sign-off.
+- **Live integration**: PayMongo must pass live sandbox/configured-environment smoke checks before readiness. Its mock driver remains for automated tests and local fallback, not final sign-off.
 - **Controlled import**: Legacy/curriculum import must support strict template download, upload, validation preview, commit, and audit evidence. Audit-only import batch viewing is not enough.
 
-**Core Implementation Boundary:** Registrar/authorized staff can manage Programs, Subjects, Curricula/Curriculum Subjects, Terms, Sections, Section Delivery Groups, Delivery Patterns, and Rooms through typed Filament resources and guarded policies. On-site/blended delivery groups must select an active Room when their meeting rows are room-required; online/modular delivery groups keep room blank unless a later approved policy requires otherwise. Curriculum/foundation import must support strict template download, private upload, parse/validation preview, zero-error commit, explicit per-scope `ready_for_scheduling` confirmation, and audit evidence. Faculty provide availability only; Registrar/setup staff own subject/faculty assignment from curriculum-derived demand and approved faculty records. Official/finalized grade correction changes require an Academic Head approve/reject action before Registrar resolution applies corrected grade values. Official schedule publication requires Academic Head approval after Registrar review/commit; post-publication changes remain a reviewed follow-up unless the feature audit promotes them. PayMongo and Google Cloud Vision OCR code paths must provide operator smoke commands for webhook/ledger evidence and OCR/manual-review evidence; execution results belong in acceptance readiness artifacts. Internal runtime settings must remain blocked from generic raw Admin CRUD. FAQ content must remain maintainable through permission-gated System Super Admin CRUD while public and Student Hub users can read only published entries. Student, grade, financial, and enrollment legacy imports require separate controlled pipelines if they become required for acceptance. Backend contracts for applicant intake, student enrollment, subject suggestion, and student dashboard aggregation are part of the system acceptance boundary.
+**Core Implementation Boundary:** Registrar/authorized staff can manage Programs, Subjects, Curricula/Curriculum Subjects, Terms, Sections, Section Delivery Groups, Delivery Patterns, and Rooms through typed Filament resources and guarded policies. On-site/blended delivery groups must select an active Room when their meeting rows are room-required; online/modular delivery groups keep room blank unless a later approved policy requires otherwise. Curriculum/foundation import must support strict template download, private upload, parse/validation preview, zero-error commit, explicit per-scope `ready_for_scheduling` confirmation, and audit evidence. Faculty provide availability only; Registrar/setup staff own subject/faculty assignment from curriculum-derived demand and approved faculty records. Official/finalized grade correction changes require an Academic Head approve/reject action before Registrar resolution applies corrected grade values. Official schedule publication requires Academic Head approval after Registrar review/commit; post-publication changes remain a reviewed follow-up unless the feature audit promotes them. PayMongo must provide an operator smoke command for webhook/ledger evidence; execution results belong in acceptance readiness artifacts. Internal runtime settings must remain blocked from generic raw Admin CRUD. FAQ content must remain maintainable through permission-gated System Super Admin CRUD while public and Student Hub users can read only published entries. Student, grade, financial, and enrollment legacy imports require separate controlled pipelines if they become required for acceptance. Backend contracts for applicant intake, student enrollment, subject suggestion, and student dashboard aggregation are part of the system acceptance boundary.
 
 ### Key Enhancements (Revised Requirements)
 
@@ -169,7 +169,7 @@ Each role/module scenario in the master test-case matrix must trace back to this
 
 | Innovation                        | Description                                                                                                                           | User Benefit                                                             |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Smart Document Validation**     | Hybrid upload + Google Cloud Vision OCR: raw documents remain canonical evidence, while OCR text-matching helps staff review | Reduces manual checking time without treating extracted fields as the official record |
+| **Controlled Document Review**   | Private uploads and physical-receipt evidence are reviewed through typed Registrar actions | Preserves authoritative manual review and evidence history |
 | **Conflict-Validated Scheduling** | Real-time room/teacher conflict detection                                                                                             | Prevents double-bookings                                                 |
 | **Unified Financial Ledger**      | Seamless enrollment-billing pipeline                                                                                                  | Instant balance visibility                                               |
 | **Offline-Ready Student Portal**  | PWA with cached COR and schedules                                                                                                     | Access without internet                                                  |
@@ -234,7 +234,7 @@ For every row, the master test-case matrix may describe the goal-state happy pat
 | Record Drop/Transfer Decision | ❌      | ❌      | ✅                 | ❌         | ❌                 | ✅ (Oversight) | ❌                 |
 | **Process Program Shift**   | ❌        | ❌      | ✅                 | ✅ (Fee only if approved) | ❌ | ✅ (Exception policy only) | ❌ |
 | **Manage Summer Schedules** | ❌        | ✅ (View) | ✅                | ❌         | ✅ (Assigned)      | ✅ **(Read-Only)** | ❌              |
-| Manage Admission Requirements | ❌      | ❌      | ✅ (Versioned setup) | ❌      | ❌                 | ✅ (Read-Only/Oversight) | ❌ (System maintenance only) |
+| Manage Admission Requirements | ❌      | ❌      | ✅ (Versioned setup) | ❌      | ❌                 | ✅ (Read-Only/Oversight) | ❌ |
 | User Management             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ✅                 |
 | System Settings             | ❌        | ❌      | ❌                 | ❌         | ❌                 | ❌             | ❌ (Internal Registry) |
 | **Authorize Override**      | ❌        | ❌      | ❌                 | ❌         | ❌                 | ✅             | ❌                 |
@@ -349,7 +349,7 @@ Before applicant intake opens for a term, the Registrar must publish a College a
 All supported scopes use the same lifecycle: published offering -> applicant record -> materialized checklist -> submission and verification -> eligibility decision -> student-record creation -> program enrollment. The system composes base and conditional requirement rules, resolves one deterministic effective policy, and snapshots the resulting document items and rule versions onto the applicant intake. Later revisions apply only to new intakes unless the Registrar performs an explicit, audited reassignment; they must not silently change an existing checklist. An unpublished offering is unavailable to applicants. Missing, ambiguous, or conflicting active policies block new intake for the affected scope and produce a staff-facing setup error.
 
 **Admissions Baseline Acceptance Contract**:
-This slice adopts the benchmark pattern used by mature SIS platforms: admissions begins from a published admission process/offering, creates a candidate/applicant record, tracks checklist requirements, supports staff communications/review, and converts an accepted applicant into an enrolled student only after the configured academic, document, finance, capacity, and placement gates are satisfied. TALA adapts that pattern to the SIA workflow by keeping school-to-school credential transmission external, separating admission gates from retention undertakings, and treating OCR as staff-assistive evidence only.
+This slice adopts the benchmark pattern used by mature SIS platforms: admissions begins from a published admission process/offering, creates a candidate/applicant record, tracks checklist requirements, supports staff communications/review, and converts an accepted applicant into an enrolled student only after the configured academic, document, finance, capacity, and placement gates are satisfied. TALA adapts that pattern to the SIA workflow by keeping school-to-school credential transmission external and separating admission gates from retention undertakings.
 
 | Capability | Final-form user-visible rule | Negative or edge-case behavior |
 | --- | --- | --- |
@@ -357,7 +357,7 @@ This slice adopts the benchmark pattern used by mature SIS platforms: admissions
 | Applicant profile creation | Self-service intake creates an applicant account and staging record only; Registrar-assisted intake uses the same lifecycle for walk-in applicants. | Duplicate identity signals, weak name-only matches, or returning-student matches route to Registrar review instead of creating a second official student record. |
 | Requirement checklist | Intake materializes the exact requirement-policy version into applicant-owned checklist rows with gate/retention classification, accepted evidence methods, deadlines, and review states. | Later policy edits do not silently rewrite existing applicants. Required checklist items are not waived by free-text notes or generic admin edits. |
 | Document/evidence submission | Applicants upload private files; Registrar may record physical inspection or attach a scan; official school-to-school transmission is recorded as a receipt/provenance event. | A physical-only inspection does not fabricate a file; an applicant upload does not replace an official transmission when the active policy requires one. |
-| OCR-assisted review | Google Vision OCR may extract text, confidence, and candidate fields for staff review when the document type enables OCR. | Low-confidence OCR, missing text, mismatched identity, or external-service failure routes to manual review; OCR never approves authenticity or final values by itself. |
+| Manual evidence review | Registrar reviews the original private upload or recorded physical receipt and enters only verified operational values through typed actions. | Unreadable, incomplete, mismatched, or unauthorized evidence routes to correction/rejection; no automated extraction approves authenticity or values. |
 | Admission-gate decision | Only accepted admission-gate requirements unlock the next payment/enrollment path. | Payment attempts, tentative section previews, or uploaded-but-unreviewed documents do not activate Student Hub, COR, class-list access, or official enrollment. |
 | Retention undertaking | Non-critical retention items may remain pending after enrollment only through itemized undertakings with due dates, reminders, extensions, receipt history, and hold effects. | Overdue retention items do not silently cancel current enrollment; they apply only configured documentary/next-cycle holds through audited actions. |
 | Safe feedback | Applicants and staff receive clear status messages: pending, needs correction, rejected, approved, blocked by setup, or manual review required. | UI messages must not expose private storage paths, stack traces, raw provider errors, or unsupported internal IDs. |
@@ -376,27 +376,27 @@ TALA supports two channels into the same requirement checklist and review lifecy
 
 **Step 3: Document Submission & Pre-Check**
 
-- **Self-Service Action**: Student clicks "Upload Document" (selects file from device). When OCR is enabled for that requirement type, Google Cloud Vision extracts candidate text for provisional student confirmation.
+- **Self-Service Action**: Student clicks "Upload Document" and selects a file from the device.
 - **Registrar-Assisted Action**: Registrar selects the applicant and outstanding requirement, records the walk-in inspection, and may attach a scan. Staff entry uses the same checklist and review history rather than a separate walk-in document store.
 - **Constraint**: No Direct Camera Capture (file must be pre-captured/scanned)
-- **Storage Rule**: The uploaded file is retained as the canonical evidence in private storage. Extracted text, confidence, and candidate fields are stored separately for review.
-- **Verification Rule**: OCR output and student-confirmed fields are provisional. Identity, academic, and financial fields become official only after staff side-by-side review and verification.
+- **Storage Rule**: The uploaded file is retained as canonical evidence in private storage with checksum, version, uploader, context, and review history.
+- **Verification Rule**: Identity, academic, and financial fields become official only after authorized staff review and verified-field entry.
 
 **Document Storage Classification**:
 
-The requirement catalog must assign every document type a storage class, sensitivity level, allowed evidence methods, OCR policy, verified-field mapping, and retention/disposal policy. Storage class does not determine whether an item is an admission gate or retention requirement; that classification remains scope- and policy-version-specific.
+The requirement catalog must assign every document type a storage class, sensitivity level, allowed evidence methods, verified-field mapping, and retention/disposal policy. Storage class does not determine whether an item is an admission gate or retention requirement; that classification remains scope- and policy-version-specific.
 
 | Document/evidence family | Examples aligned to the institutional workflow | Required system treatment |
 | --- | --- | --- |
-| **Identity and academic credentials** | PSA/birth certificate, Form 138/report card, Form 137, TOR/copy of grades, Good Moral, diploma/completion certificate, Honorable Dismissal, ALS rating/completion records, entrance-exam results, passport/visa | Preserve each submitted image/PDF privately as canonical submission evidence with owner, source, checksum, MIME type, size, version, and review history. OCR may create provisional search/prefill data. Verified operational values are stored separately; replacements create new versions and never overwrite prior evidence. |
+| **Identity and academic credentials** | PSA/birth certificate, Form 138/report card, Form 137, TOR/copy of grades, Good Moral, diploma/completion certificate, Honorable Dismissal, ALS rating/completion records, entrance-exam results, passport/visa | Preserve each submitted image/PDF privately as canonical submission evidence with owner, source, checksum, MIME type, size, version, and review history. Verified operational values are entered separately; replacements create new versions and never overwrite prior evidence. |
 | **Official institution-to-institution records** | Form 137, final TOR, transfer credentials, official electronic/scanned school records | Preserve the received file or transmission artifact plus sender, receiving channel, received time, provenance, and verification result. Link it to the same requirement item; do not require an applicant upload when an approved official transmission satisfies the active policy. |
-| **ID photographs** | 2x2 or other recent ID photos | Store the private source image and approved derivative, with checksum and review status. OCR is disabled. The photo must not become public merely because it is later used on a school ID or document. |
-| **Restricted support/compliance evidence** | Medical certificate, medical/psychological assessment, disability/SEN evidence, IP/community certification, scholarship/support-program evidence, immigration files, medical clearance | Store privately under a restricted sensitivity class with purpose-limited access and audit. OCR is off by default and may be enabled only for an approved field-extraction purpose. These records must not be exposed in ordinary applicant/student views or used as automatic denial criteria. |
-| **Financial and transaction evidence** | Payment proof and externally issued receipt/reference image; promissory-note attachment only if that review feature is later promoted | Preserve privately and link immutably to the payment or accounting event. OCR may suggest references/amounts but never confirms payment, approval, or settlement. |
+| **ID photographs** | 2x2 or other recent ID photos | Store the private source image and approved derivative, with checksum and review status. The photo must not become public merely because it is later used on a school ID or document. |
+| **Restricted support/compliance evidence** | Medical certificate, medical/psychological assessment, disability/SEN evidence, IP/community certification, scholarship/support-program evidence, immigration files, medical clearance | Store privately under a restricted sensitivity class with purpose-limited access and audit. These records must not be exposed in ordinary applicant/student views or used as automatic denial criteria. |
+| **Financial and transaction evidence** | Payment proof and externally issued receipt/reference image; promissory-note attachment only if that review feature is later promoted | Preserve privately and link immutably to the payment or accounting event. Accounting manually verifies references and amounts; the file never confirms payment, approval, or settlement by itself. |
 | **Generated TALA artifacts** | COR, assessment, SOA/payment acknowledgement | Store an immutable issuance snapshot or reproducible PDF artifact with document type, subject, term/request, template version, issuer, issue time, checksum, verification token where applicable, and lifecycle state. Corrections supersede or revoke prior artifacts; they do not overwrite issued history. Formal TOR, Form 137, report-card PDF, diploma, and full credential issuance/fulfillment are outside active TALA scope. Finalized grade history and Student Hub grade viewing remain active records, not removed documents. |
 | **Structured operational records** | Applicant profile, checklist status, enrollment, section/schedule, grades, ledger, holds, requirement satisfaction | Store as authorized database records and audit events, not as screenshots or PDFs as the primary source of truth. PDF/CSV/XLSX outputs are derived artifacts. |
 | **Controlled import sources** | Curriculum, legacy roster, grade, enrollment, or fee CSV/XLSX files | Preserve the private source file, checksum, uploader, parser/template version, validation report, and batch status. Accepted rows become normalized database records; the spreadsheet is not the live operational source. |
-| **OCR/parser derivatives and previews** | Extracted text, confidence, candidate fields, thumbnails | Store separately from the source file and link to its exact version, engine/parser version, and processing attempt. Derivatives have no independent authority and may be regenerated or disposed according to policy. |
+| **Preview derivatives** | Authorized thumbnails or display previews | Link to the exact private source version. Previews have no independent authority and follow the source file's access and disposal policy. |
 | **Physical-only custody evidence** | Original/certified credential inspected without a scan | Record requirement item, evidence method, inspecting/receiving staff, receipt time, custody status/location, and return or transfer event when applicable. A scan is optional unless the active policy requires one; a scan never proves that TALA still holds the physical original. |
 
 For all file-bearing classes, uploads must use allowlisted extensions and verified MIME/signature checks, generated storage names, size limits, malware scanning where available, authorization, private storage outside the public web root, and controlled temporary preview/download access. Retention must be purpose- and policy-based; legal holds or active disputes suspend disposal without converting every file into permanent storage.
@@ -441,25 +441,21 @@ For school-to-school transmission, the sending school and receiving Registrar pe
 
 Capacity is handled through a stack of effective-dated College admission-capacity plans rather than a single hardcoded campus value. The current institution may seed a top-level `100 active enrolled students` campus cap, with optional sub-caps by term, program, year level, or delivery setup when the institution approves those values. Section and delivery-group capacities remain separate operational capacities for exact placement; they cannot exceed or bypass the approved admission-capacity plan.
 
-**UI Response**: Instant Preview (100px thumbnail) appears immediately
+**UI Response**: An authorized preview appears immediately after upload.
 
 **Feedback**: If blurry, a Red "Retake" button allows immediate replacement
 
-**System Logic (Quality Filter)**:
+**System Logic (Manual Quality Review)**:
 
-- The system sends the image to Google Vision `DOCUMENT_TEXT_DETECTION`.
-- Extraction begins after upload; the student may see a `Processing` status until it finishes
-- **Quality Check**: `average_confidence` is a normalized `0.00` to `100.00` value computed from returned word confidence values. If confidence is unavailable or `< 80.00`, the system flags the upload for Registrar manual review. If `average_confidence >= 80.00`, the upload passes the automated quality check.
-- **User Feedback**: "Image looks blurry or low quality. You may proceed, but this might be rejected later."
-- **Provisional Status**: Enrollment is Conditional until Registrar approves
-
-
-
-**Scope**: The student manually selects the document type. Google Cloud Vision OCR assists with text extraction, name/LRN comparison, and quality signals; it does not independently approve document type accuracy.
+- The student manually selects the document type before upload.
+- The system validates extension, MIME/signature, file size, and image/PDF readability constraints that do not require document interpretation.
+- Registrar reviews the original private file for legibility, identity consistency, completeness, and correct document type.
+- Unreadable, incomplete, mismatched, or wrong-type evidence is returned through the correction loop.
+- Enrollment remains conditional until Registrar approval and the other enrollment gates pass.
 
 **Step 4: Verification & The "Rejection Loop"**
 
-- **Action**: Registrar reviews the original document, extracted text, and student-confirmed fields side by side.
+- **Action**: Registrar reviews the original document and applicant-entered profile data side by side.
 - **SLA**: The Registrar must process pending documents within **48 business hours** to maintain enrollment velocity
 
 **Rejection Loop Business Rule**:
@@ -473,7 +469,7 @@ If Registrar clicks "Reject" (e.g., blurry, wrong document):
 **Step 5: Admission-Gate and Retention-Document Lifecycle**
 
 - **Approved Business Rule**: The consolidated institutional workflow distinguishes **Admission Gate Documents**, required upfront before the applicant may complete registration, from non-critical **Retention Documents**, which may remain pending after enrollment under a Registrar-issued undertaking.
-- **Admission Gate**: The active versioned requirement set identifies the documents and evidence methods that must be accepted before registration/payment can produce official enrollment. Online uploads and OCR may support preliminary review, but they do not override the configured acceptance method or a binding regulator rule.
+- **Admission Gate**: The active versioned requirement set identifies the documents and evidence methods that must be accepted before registration/payment can produce official enrollment. Online uploads support preliminary review but do not override the configured acceptance method or a binding regulator rule.
 - **Retention Undertaking**: Missing non-critical retention documents use an applicant-specific due date within the current institution's approved 30-to-60-day window. The undertaking records each missing item, issue date, due date, responsible party, Registrar, reminders, submissions, and resolution.
 - **Retention Effects**: An unresolved retention requirement creates a documentary hold and monitoring obligation. It does not automatically remove the current section, schedule, COR, or class access after the admission and payment gates have produced official enrollment. It may block controlled document release and the next enrollment/registration cycle according to the active policy.
 - **Regulator-Aware Satisfaction**: Each requirement defines permitted evidence methods, including physical original, certified true copy, or official school-to-school electronic transmission where applicable. Applicant-submitted photos/scans remain preliminary unless the active requirement and regulator explicitly permit them as final evidence.
@@ -497,10 +493,10 @@ The latest approved workflow prepares a section and schedule before payment, whi
 **Path B: Transferees (Credit Evaluation & Selection)**
 
 - **Status**: For_Evaluation
-- **Automated Extraction (Google Cloud Vision OCR)**: The system uses Google Cloud Vision OCR to extract text from the uploaded Transcript of Records (TOR) or Report Card.
-- **OCR-Assisted Credit Evaluation**: The system pre-populates proposed credited subjects by matching extracted text data against the school curriculum using regular expressions and fuzzy text-matching patterns.
-- The Registrar reviews and adjusts this pre-filled list before unlocking prerequisites and subject selection.
-- Approved credit decisions are stored as structured academic records; raw extracted text remains supporting evidence only.
+- Registrar reviews the uploaded TOR/copy of grades against the active curriculum and records proposed credited subjects through the controlled credit-evaluation surface.
+- The system may suggest curriculum subjects only from Registrar-entered verified subject codes/grades; it does not read values from document images.
+- The Registrar approves the final credited-subject decision before prerequisites and subject selection unlock.
+- Approved credit decisions are stored as structured academic records linked to the reviewed source evidence.
 
 **Subject Selection (College Only)**:
 
@@ -509,7 +505,7 @@ The latest approved workflow prepares a section and schedule before payment, whi
 
 **Step 7: The "Official Handover" (Account Migration)**
 
-- **Admission Trigger**: Official handover requires accepted admission-gate evidence, confirmed minimum payment/full payment, and a secured placement/capacity reservation. A preliminary upload, OCR result, tentative section, or unconfirmed payment never activates the account.
+- **Admission Trigger**: Official handover requires accepted admission-gate evidence, confirmed minimum payment/full payment, and a secured placement/capacity reservation. A preliminary upload, tentative section, or unconfirmed payment never activates the account.
 - **Retention Documents**: Missing non-critical retention documents do not prevent handover when an approved undertaking exists. They create itemized monitoring and documentary-hold effects, not automatic loss of section, schedule, COR, or class access.
 - **Placement Rule**: A pre-payment section/schedule is tentative only. Confirmed payment/reference evidence secures capacity. The final transaction must atomically activate the account, finalize a compatible section/delivery group, write `enrolled_at`, and enable COR/class-list eligibility; institution-caused placement failure is not applicant noncompliance.
 
@@ -849,7 +845,7 @@ Modality is no longer treated as a single immutable property of the whole sectio
 
 **Correct Scheduling Sequence**: The business flow is curriculum-derived demand and section planning first, Registrar-owned subject/faculty assignment second, then room/day/time solving. Faculty availability is the only faculty-owned scheduling input. Faculty availability does not replace section planning, does not determine section count, and does not let faculty choose official teaching subjects. A section can be scheduled only when it has explicit year-level/curriculum-period scope, a valid curriculum subject set, and Registrar-confirmed subject/faculty assignment inputs.
 
-**Cloud Solver Security Boundary**: The Cloud Run solver must require authentication and must not allow public unauthenticated invocation. Laravel calls the solver with a Google-signed ID token whose audience is the solver service URL. The invoking service account must be restricted to the Cloud Run Invoker role for the scheduler service; OCR credentials must not be reused unless a later security review explicitly approves shared credentials.
+**Cloud Solver Security Boundary**: The Cloud Run solver must require authentication and must not allow public unauthenticated invocation. Laravel calls the solver with a Google-signed ID token whose audience is the solver service URL. The invoking service account must be dedicated to scheduling and restricted to the Cloud Run Invoker role for the scheduler service.
 
 **Scheduling Source-of-Truth Layers**:
 
@@ -1029,7 +1025,7 @@ Modality is no longer treated as a single immutable property of the whole sectio
 #### 5.4.2 Step 2: Transferee Evaluation (For Transferees Only)
 
 - **View**: Registrar sees students in For_Evaluation status
-- **Action (College)**: Views uploaded TOR/Grades. The system presents a pre-filled list of "Credited Subjects" generated via Google Cloud Vision OCR extraction and regex/fuzzy text-matching against the curriculum. The Registrar reviews the automated matches, makes adjustments, and approves → Unlocks "Subject Selection" (Shopping Cart).
+- **Action (College)**: Views uploaded TOR/Grades, records verified subject codes/grades, and reviews curriculum-matched credited-subject suggestions. Registrar approves the final credit evaluation before subject selection unlocks.
 - **Outcome**: Student moves to Payment Phase (Payment instructions/checkout only enabled after this Registrar approval).
 
 #### 5.4.3 Step 3: Verification & Physical Handover
@@ -1073,12 +1069,12 @@ Modality is no longer treated as a single immutable property of the whole sectio
 **Constraints & Digital Retention**:
 
 - **Optional Document Upload**: The Registrar form includes an *optional* secure file upload field for scanned copies or photos of the student's physical documents.
-- **OCR Rule**: Registrar-assisted submissions use OCR only when a scan is attached and the configured requirement item enables OCR. Physical inspection without a scan remains manual and does not call Google Vision.
+- **Review Rule**: Registrar-assisted submissions are manually reviewed whether evidence is a private scan or a recorded physical inspection.
 - **Name Capture**: Registrar walk-in intake captures First Name, Middle Name (optional), Last Name, and Extended Name/Suffix using the canonical account-name fields; it must not store a separate student-only full-name value.
 - **Enforces**: Prerequisites, Payments, and Capacity (Same rules as online)
-- **Audit**: Tagged as Source: Walk-In (or `Staff_Assisted`) in logs. Uploaded files are logged with `ocr_review_status = manual_entry`.
+- **Audit**: Tagged as Source: Walk-In (or `Staff_Assisted`) in logs with the actual staff actor and evidence method.
 
-**Registrar Document Review Surface Boundary**: The Registrar Document Review screen is a list/view review queue. Staff may inspect source upload evidence, OCR/manual-review metadata, and lifecycle review actions such as approve, needs correction, or reject. It must not expose a generic create/edit Document Upload CRUD form, raw OCR text as a normal editable field, or student/Registrar-approved payload snapshots as free-text admin inputs. Review transitions must call a backend lifecycle service that validates `approve-documents`, accepts only active review states, treats approved/rejected records as terminal lifecycle evidence, requires typed reasons for correction/rejection decisions, copies student-confirmed payload data only on approval, and records document-review activity evidence. Detail views must show descriptive student, uploader, term, reviewer, review-status, and source-file evidence labels, not raw internal foreign-key IDs or the private storage `file_path`.
+**Registrar Document Review Surface Boundary**: The Registrar Document Review screen is a list/view review queue. Staff may inspect the private source file, applicant-entered data, physical-receipt evidence, and lifecycle actions such as approve, needs correction, or reject. It must not expose a generic create/edit Document Upload CRUD form, private storage paths, or arbitrary review-state editing. Review transitions must call a backend lifecycle service that validates `approve-documents`, accepts only active review states, treats approved/rejected records as terminal lifecycle evidence, requires typed reasons for correction/rejection decisions, records verified fields only through approved controls, and records document-review activity evidence. Detail views must show descriptive student, uploader, term, reviewer, review status, and source-file evidence labels, not raw internal foreign-key IDs or the private storage `file_path`.
 
 
 
@@ -1454,7 +1450,6 @@ The system applies the active College grading calculation profile for the studen
 
 **Schema Implementation Reference**: This functional specification remains the source of truth for business workflows, role ownership, deadlines, approvals, locks, and official-record behavior. Table names, columns, indexes, foreign keys, and migration status are maintained in the implementation artifacts below:
 
-- `00_Project_Documents/TALA-Foundation-Migration-Control-Log.md`
 - `database/migrations/2026_05_12_055403_add_tala_account_fields_to_users_table.php`
 - `database/migrations/2026_05_12_055403_create_academic_foundation_tables.php`
 - `database/migrations/2026_05_12_055403_create_scheduling_foundation_tables.php`
@@ -1462,7 +1457,7 @@ The system applies the active College grading calculation profile for the studen
 - `database/migrations/2026_05_12_055414_add_event_column_to_activity_log_table.php`
 - `database/migrations/2026_05_12_055415_add_batch_uuid_column_to_activity_log_table.php`
 
-Future schema changes must be added through new migration files and summarized in the control log instead of duplicating table-by-table schema contracts inside this functional specification.
+Future schema changes must be added through new migration files and reflected in the TS data contract instead of duplicating table-by-table schema contracts inside this functional specification.
 
 **Migration Status Boundary**:
 - This FS defines functional behavior and references schema control artifacts; it does not maintain live migration counts or pending/applied status.
@@ -1492,14 +1487,14 @@ Future schema changes must be added through new migration files and summarized i
 | **Cashier**   | Read/Write Payments. NO ACCESS to Grades                     |
 | **Faculty**   | Read/Write Grades. NO ACCESS to Financial Balances (Privacy) |
 | **Registrar** | Read/Write Records. Read-Only Payments (Cannot Modify)       |
-| **System Super Admin** | User Management, Audit Logs, and permission-gated FAQ content maintenance. **Read-Only** for academics/financials; generic runtime settings registry is internal and not exposed as a general-purpose admin surface. |
+| **System Super Admin** | Staff account management, read-only seeded RBAC matrix, Audit Logs, and permission-gated FAQ content maintenance. **Read-Only** for academics/financials; no generic settings or role/permission editor. |
 | **Academic Head**      | **Read-Only** oversight across all domains. Authorize Override for grade/schedule exceptions |
 
-**Policy Registration Requirement**: Role management and audit-log viewing are System Super Admin surfaces only. Because those resources are backed by vendor models (`Spatie\Permission\Models\Role` and `Spatie\Activitylog\Models\Activity`), their policies must be explicitly registered in Laravel so Registrar, Accounting, Faculty, and Academic Head users do not see or access Roles/Audit Logs by accident.
+**Policy Registration Requirement**: The read-only seeded RBAC matrix and audit-log viewer are System Super Admin surfaces only. Because those resources are backed by vendor models (`Spatie\Permission\Models\Role` and `Spatie\Activitylog\Models\Activity`), their policies must be explicitly registered in Laravel so Registrar, Accounting, Faculty, and Academic Head users do not see or access them by accident. No runtime role or permission mutation is exposed.
 
 #### 8.2.2 Audit Trail
 
-- **Retention**: Indefinite (Logs are kept forever; storage is cheap)
+- **Retention**: Effective-dated institutional privacy/records policy with legal-hold support; indefinite retention is not assumed.
 - **Visibility**: Users CANNOT see their own logs. **System Super Admin** access only
 - **Detail Display**: Audit detail screens must present metadata as readable labeled evidence lines. Raw JSON/key-value payload editing or dump-style presentation is not a staff workflow.
 - **Alerts**: System flags "Critical Actions" (e.g., Bulk Grade Changes, Historic Balance Clearing) → Alerts **System Super Admin** Dashboard
@@ -1508,7 +1503,6 @@ Future schema changes must be added through new migration files and summarized i
 
 | Scenario             | Fallback                                                            |
 | -------------------- | ------------------------------------------------------------------- |
-| Google Cloud Vision OCR Failure | Manual Review (Upload Raw Image)                                    |
 | Payment Gateway Down | OTC Mode or Manual Screenshot Upload                                |
 | System Error         | Friendly error messages ("Service Busy") instead of raw codes (500) |
 
@@ -1525,12 +1519,12 @@ All user-facing feedback (toast notifications, banners, and inline messages) mus
 | Validation | `warning` | Missing Required Fields | "Please complete all required fields before submitting." | Form validation failure (generic) |
 | Validation | `warning` | Invalid File Format | "Please upload a valid file. Accepted formats: {formats}." | File type validation |
 | Blocking | `danger` | Action Not Permitted | "You do not have permission to perform this action." | RBAC denial (403) |
-| Blocking | `danger` | System Under Maintenance | "The system is currently undergoing scheduled maintenance. Please try again later." | Application-level maintenance mode active (§8.9) |
+| Blocking | `danger` | Service Temporarily Unavailable | "The system is temporarily unavailable. Please try again later." | Infrastructure or dependency outage |
 | Blocking | `danger` | Financial Hold Active | "Your account has a financial hold. Please visit the Cashier's Office for settlement." | Student attempts action blocked by financial restriction |
-| Info | `info` | Processing Request | "Your request is being processed. You will be notified when complete." | Async operations (OCR queue, document generation) |
+| Info | `info` | Processing | "Processing is in progress. You will be notified when complete." | Approved asynchronous operations |
 | Info | `info` | Schedule In Progress | "Schedule generation is in progress. Please check back shortly." | Registrar draft generation running |
 | Error | `danger` | Something Went Wrong | "An unexpected error occurred. Please try again. If the issue persists, contact support." | Unhandled server errors (500) |
-| Error | `danger` | Service Temporarily Unavailable | "This service is temporarily unavailable. Please try again later." | External service failure (PayMongo, Google Cloud Vision OCR) |
+| Error | `danger` | Service Temporarily Unavailable | "This service is temporarily unavailable. Please try again later." | External payment or scheduling-service failure |
 | Error | `danger` | Session Expired | "Your session has expired. Please log in again." | Authentication timeout (419/401) |
 
 **Display Rules**:
@@ -1577,96 +1571,33 @@ System Super Admin may view the seeded role/permission matrix for audit and veri
 
 - If a former staff member returns, the **System Super Admin** can "Restore Account." The system preserves their historical link while assigning a fresh set of roles
 
-**Staff Walk-In Access**:
-
-- A dedicated "Walk-In" session flag exists for staff who need to assist students physically present at the office. This is logged as `Source: Staff_Assisted` in the audit logs
-
 ---
 
 ### 8.4 Administrative Dashboard (Overview Stats)
 
-**Update Frequency**: Real-Time
+The Admin Nexus dashboard is an operational entry point, not a business-intelligence product. Each role sees only authorized current-term counts, blockers, and links that lead to an owned workflow.
 
+- Registrar: pending applicant review, enrollment-placement blockers, current enrolled count, and active requirement/hold queues.
+- Accounting/Cashier: pending manual payment confirmations and reconciliation blockers without exposing finance data to unauthorized roles.
+- Faculty: assigned current classes and grade-entry status.
+- Academic Head: read-only approval/exception queues and current operational readiness.
+- System Super Admin: staff-account/security alerts, failed operational jobs, and audit access; no academic or finance mutation.
 
-
-**Features**:
-
-- **Filtering**: Date Range (This Term vs Last Term)
-- **History**: Enrollment Trends (Year-over-Year comparison)
-
-**Key Metrics**:
-
-| Category       | Metrics                                   |
-| -------------- | ----------------------------------------- |
-| **Enrollment** | Enrolled / Pending / Dropped / Transferee |
-| **Financial**  | Revenue / Outstanding / Collection Rate   |
-| **Academic**   | Pass/Fail Rates per Subject/Teacher       |
+Year-over-year enrollment trends, revenue/collection analytics, teacher pass/fail comparisons, and generalized institutional KPI charts are outside active TALA scope.
 
 ---
 
 ### 8.4.1 Grade Submission Progress Widget (Administrative Dashboard)
 
-**Purpose**: Proactive monitoring of faculty grade submission progress BEFORE the deadline, enabling the **Academic Head** to identify non-compliant faculty and send reminders.
-
-**Location**: Administrative Dashboard (top section, above overview stats)
-
-**Deadline Countdown Banner** (shown during encoding period):
-
-- Displays: "⏰ Grade Encoding Deadline: **Dec 12, 2025 11:59 PM** — **X days, Y hours remaining**"
-- Color coding: Green (> one week), Yellow (3 days to one week), Red (< 3 days), Black (expired)
-- Deadline source: `settings.grade_encoding_deadline`, stored as an ISO 8601 datetime with timezone. If not configured, the widget shows "Not configured" and no faculty is marked overdue.
-
-**Summary Stats Bar**:
-
-| Metric            | Description                                            |
-| ----------------- | ------------------------------------------------------ |
-| **Total Faculty** | Count of faculty with assigned sections this term      |
-| **Submitted**     | Faculty who finalized ALL grades (green)               |
-| **In Progress**   | Faculty who started encoding but not finalized (amber) |
-| **Not Started**   | Faculty with no grade records yet (gray)               |
-| **Overdue**       | Faculty past deadline with incomplete grades (red)     |
-
-**Detail Table** (expandable per faculty):
-
-| Column                | Description                                             | Display           |
-| --------------------- | ------------------------------------------------------- | ----------------- |
-| **Faculty**           | Teacher name (linked to profile)                        | Text              |
-| **Section**           | Assigned College section (e.g., "BSIT 1A")              | Text              |
-| **Subject**           | Subject code + description (e.g., "MATH101 — Calculus") | Text              |
-| **Enrolled Students** | Count of students in this section                       | Number            |
-| **Grades Finalized**  | "X / Y" (e.g., "18 / 25")                               | Progress fraction |
-| **Completion %**      | Percentage of grades finalized                          | Progress bar      |
-| **Status**            | Submission state                                        | Badge (see below) |
-
-**Status Badge Values**:
-
-| Badge           | Condition                                       | Color |
-| --------------- | ----------------------------------------------- | ----- |
-| **Submitted**   | 100% grades finalized BEFORE deadline           | Green |
-| **In Progress** | 1-99% grades finalized, deadline not yet passed | Amber |
-| **Not Started** | 0% grades finalized, deadline not yet passed    | Gray  |
-| **Overdue**     | Deadline passed, < 100% grades finalized        | Red   |
-
-**Bulk Actions**:
-
-- **Send Reminder**: Select one or more faculty → System sends email + in-app notification: "Reminder: Grade encoding deadline is [date]. Please finalize your grades for [section/subject]."
-- **Export Report**: Download Excel (.xlsx) of submission status for all faculty
-
-**Filtering**:
-
-- Filter by Status (All / Submitted / In Progress / Not Started / Overdue)
-- Filter by College Program
-- Filter by Faculty name (search)
-
-**Auto-Refresh**: Widget refreshes every 60 seconds during encoding period.
+This widget remains review scope. If promoted, it may show current-term assigned-class completion states and send authorized reminders, but it must not rank faculty, expose student grades, or become a generalized performance-analytics feature.
 
 ---
 
-### 8.5 System Configuration & Flexibility (Control Panel)
+### 8.5 Typed Domain Configuration
 
 **Concept**: T.A.L.A. is "State-Aware" but **Configuration-Driven**. The Rules are fixed, but the Variables are adjustable.
 
-**Global Settings (Filament Staff Panel → Settings)**:
+Configuration is exposed only through role-owned typed domain resources/pages. TALA does not expose a generic key/value/JSON settings editor.
 
 | Setting            | Description                                                               |
 | ------------------ | ------------------------------------------------------------------------- |
@@ -1685,19 +1616,17 @@ System Super Admin may view the seeded role/permission matrix for audit and veri
 
 ---
 
-### 8.6 Email Notifications (Account-Related Only)
+### 8.6 Critical In-App and Email Notifications
 
 **Policies**:
 
-- **Delivery**: System Retries bounced emails. If permanent fail, flags account "Invalid Email"
-- **Backup**: In-App Notification Center mirrors all emails
-- **Opt-Out**: No. Account updates are mandatory
-- **Customization**:
-    - Language: English Only
-    - Branding: Templates include School Logo and Colors (**System Super Admin** Editable Text)
+- **In-App Baseline**: Approved lifecycle events produce owner-scoped database notifications.
+- **Email Baseline**: Authentication/account security and critical applicant, enrollment, payment, schedule, and released-grade events may send email.
+- **Privacy**: Messages contain no balances, private evidence paths, credentials, or sensitive support details unless the authorized workflow explicitly requires a safe value.
+- **Review Scope**: Bounce tracking, advanced retry policy, and editable message-template behavior require a separate approved implementation contract.
+- **No Broadcast Module**: Parent messaging, class-group announcements, marketing, and generalized newsletters are outside active scope.
 
-**Consolidated General System Notification Implementation**:
-All notifications listed below are dispatched using a single, unified `GeneralSystemNotification` class that accepts a `type`, `subject`, and `body`. This prevents class fragmentation and standardizes the notification delivery architecture.
+Notification implementation may share a validated payload/value object and channel dispatcher, but authorization, privacy, and event-specific tests remain explicit per trigger.
 
 **Triggers**:
 
@@ -1709,12 +1638,10 @@ All notifications listed below are dispatched using a single, unified `GeneralSy
 | Module 3 | Payment Confirmed                               | "Payment Received - Ref #12345"                                     | Cashier confirms payment                                                                 |
 | Module 4 | Grades Finalized                                | "Your grades are posted"                                            | Faculty finalizes grade sheet                                                            |
 | Module 5 | Password Reset                                  | "Security Alert: Password Changed"                                  | User resets password                                                                     |
-| Module 3 | Financial Hold Applied                      | "Action Required: Minimum downpayment required"                    | Balance > 0 and minimum downpayment not met                |
+| Module 3 | Finance Clearance Pending                   | "Action Required: Minimum downpayment required"                    | Assessment exists and confirmed qualifying payment remains below the approved minimum |
 | Module 3 | Payment Follow-up Required                  | "Your balance remains due. You may still take scheduled examinations; contact Accounting for settlement options." | Student with a balance views exam-period account guidance                                |
 | Module 1 | Physical Documents Overdue                  | "Required physical documents are overdue — contact the Registrar"  | One or more required physical items pass their effective deadline unresolved             |
-| Module 1 | Temporary Enrollment Cancelled              | "Enrollment not completed — required physical documents were not submitted" | Registrar cancels the temporary enrollment after the unresolved physical-document deadline |
-| Module 3 | Account Unrestricted                        | "Account cleared — Full access restored"                            | Balance <= 0 (payment clears existing hold)                                              |
-| Module 7 | Student Info Updated (Faculty Notification) | "Student [Name] in your [Section] section updated their [field]"    | Student modifies contact, modality, guardian, or enrollment info (monitored fields only) |
+| Module 2 | Schedule Published                          | "Your class schedule is available"                                  | Academic Head approves and publishes the official schedule                                |
 
 ---
 
@@ -1747,180 +1674,52 @@ The system includes an FAQ/help content module accessible via the public landing
 
 ---
 
-### 8.8 Data Migration & Provisioning (Hybrid Seed & Claim)
+### 8.8 Legacy Student Import and Registrar-Assisted Activation
 
-**Purpose**: Seamlessly onboard continuing students (non-freshmen) and their historical data from the legacy 'SIA' system without creating a massive operational bottleneck.
+**Purpose**: Onboard continuing students from verified legacy master records without creating duplicate identities or unsafe self-service activation.
 
-**Strategy**: T.A.L.A. uses a "Hybrid Seed & Claim" workflow to balance security with scalability.
-
-**Phase 1: The Seed (Registrar-Initiated Bulk Import)**
+**Phase 1: Registrar-Initiated Controlled Import**
 
 - The Registrar performs a bulk Excel (.xlsx) import of the legacy masterlist.
-- **Required Fields**: `LRN`, `First_Name`, `Last_Name`, `Legacy_Financial_Balance` (from Accounting).
-- **System Action**: Creates "Skeleton Accounts" (Status: `Unclaimed`). No passwords are generated. Financial balances are posted as `Legacy Balance Forward`.
+- **Required Fields**: immutable student identifier when known, legal name parts, program, year level, source/provenance, and only the minimum verified contact information available.
+- **Financial Boundary**: Legacy financial balance is imported only through the Accounting-owned legacy-ledger importer if that review feature is promoted; Registrar student import does not post finance entries.
+- **System Action**: Creates or updates one provenance-tagged `Unclaimed` student account/profile candidate after duplicate validation. No password is generated and no protected access is granted.
 
-**Phase 2: The Claim (Self-Service + OCR Verification)**
+**Phase 2: Registrar-Assisted Verification and Activation**
 
-- The continuing student visits the "Claim Account" portal and inputs their `LRN`.
-- **The Proof**: The student must upload a photo of their previous Report Card.
-- **Automated Extraction (Google Cloud Vision OCR)**: Google Cloud Vision OCR extracts raw text containing the student's past subjects and grades.
-- **OCR-Assisted Match**: The system compares extracted Name/LRN text patterns against the seeded Skeleton Account. OCR is used for routing and prefill only; it is not final identity authority.
-- **Result**: If the OCR quality check passes and identity signals match, the student is allowed to set a password. The account becomes `Active`, and the extracted academic history is pushed to a Registrar review queue.
-- **Manual Review Route**: If OCR confidence is low, text is incomplete, or identity signals conflict, the claim is routed to Registrar manual review. The student receives a "manual review required" message and cannot activate the account until approval.
-- **Lockout Rule**: Uses standard Laravel RateLimiter (e.g., 5 attempts per minute per IP) to prevent brute force. Custom complex mismatch lockout logic is removed.
-- **Record Rule**: Extracted academic history is not official until the Registrar verifies and promotes it into the student's structured academic record.
+- Registrar searches the imported record using immutable student ID/LRN when available plus verified identity attributes.
+- Registrar checks approved institutional evidence and records the verification source; weak name-only matches never activate or merge accounts.
+- Registrar activates the matched account through a typed action and initiates the normal password setup/reset path.
+- Historical academic, finance, or enrollment records remain separate controlled imports and are not inferred from uploaded images.
+- There is no public account-claim route or self-service identity activation.
 
 ---
 
-### 8.9 System Maintenance Mode
+### 8.9 Controlled Domain Imports
 
-The system leverages **Laravel's Built-In Maintenance Mode** to handle downtime securely and efficiently, without maintaining a custom, secondary database-driven maintenance layer.
+TALA may reuse private file handling, batch tracking, validation previews, error reporting, commit evidence, and audit helpers across imports. It must not expose a universal importer, arbitrary entity/column mapping, or a generic spreadsheet editor.
 
-#### 8.9.1 Built-in Maintenance (CLI)
-
-- **Mechanism**: Laravel's built-in `php artisan down` command.
-- **Activation**: **System Super Admin** executes via server CLI during infrastructure updates (database migrations, server patches, dependency upgrades). `php artisan down --secret={token}` allows bypass.
-- **Behavior**: All web traffic (except those with the bypass token) receives a 503 Service Unavailable HTTP response. Filament naturally supports customized 503 pages.
-- **Deactivation**: `php artisan up`
-
-#### 8.9.2 In-Flight Transaction Protection
-
-- **Payment Webhooks**: To ensure payments are not lost during maintenance, the PayMongo webhook endpoints in `routes/api.php` are explicitly excluded from the `PreventRequestsDuringMaintenance` middleware.
-- **Queue Impact**: Active queued jobs will complete, but no new jobs are dispatched by user requests since the system blocks HTTP traffic.
-
----
-
-### 8.10 Bulk Data Import Framework
-
-All legacy data imports — including the student seed described in §8.8 — must follow a strict, system-generated Excel template approach with a mandatory preview/validation step before data is committed to official records. This framework standardizes how historical data migrates from the legacy SIA system into T.A.L.A. while preventing corruption of official academic, financial, and enrollment records.
-
-#### 8.10.1 Policy
-
-- **Strict Templates Only**: Staff must download the official `.xlsx` template from the system before filling it. The template contains locked headers that define the exact column structure. Freeform uploads with arbitrary column layouts are rejected.
-- **No Blind Import**: Every import passes through a mandatory **Preview & Validation** screen where staff review parsed data before committing. There is no "skip preview" shortcut.
-- **Non-Destructive**: Imports never overwrite existing records. If a duplicate is detected (e.g., same LRN + Subject + Term already has a grade), the row is flagged as a warning and skipped.
-- **Immutable Source Tagging**: Every imported record carries `source: legacy_import`, a unique `import_batch_id`, and the `imported_by` staff reference for full audit traceability.
-- **Curriculum Import**: The existing Curriculum Import workflow (§5.1.1 / Tech Spec §3.17) should also adopt this preview/validation pipeline for consistency. When a curriculum template is uploaded, it passes through the same 3-phase process before creating or modifying curriculum subject mappings.
-
-#### 8.10.2 Role Authorization
-
-| Import Type | Authorized Roles | Rationale |
+| Import domain | Decision | Required behavior |
 | --- | --- | --- |
-| Student Data (Skeleton Accounts) | Registrar | Registrar owns student enrollment records |
-| Legacy Grades | Registrar | Registrar is the custodian of academic records |
-| Legacy Financial Records | Accounting | Accounting owns the financial ledger |
-| Enrollment History | Registrar | Registrar owns section/term assignment records |
+| Curriculum/foundation | Keep | Registrar/Academic Head uses a dedicated versioned template and validator for approved academic setup records. |
+| Legacy student baseline | Keep | Registrar uses a dedicated identity/profile template. It creates verified baseline profiles and inactive accounts only. |
+| Legacy grades | Review | Requires actual source data plus approved authority, duplicate, grading-profile, and correction rules before implementation. |
+| Legacy finance | Review | Requires actual source data plus approved opening-balance, reconciliation, and maker-checker rules before implementation. |
+| Legacy enrollment | Review | Requires actual source data plus approved term/curriculum mapping, historical status semantics, and authority rules before implementation. |
 
-**System Super Admin Boundary**: System Super Admin may view import audit logs and maintain system infrastructure, but cannot upload, preview, commit, or approve academic/enrollment/financial import templates. The role remains read-only for academic and financial operations.
+Every approved importer must:
 
-**Import Requirement**: The curriculum/foundation import path must satisfy the controlled import boundary: staff download the system template, upload a private CSV/XLSX file, receive a strict parse/validation preview, and can commit only zero-error curriculum batches. Commit re-validates the stored source, writes Programs, Subjects, Curricula, and Curriculum Subjects, and records audit activity. Generic create/edit routes, raw file-path/error-log forms, and freeform in-browser spreadsheet repair remain forbidden. Student data, legacy grades, legacy financial records, and enrollment-history imports are not automatically covered by the curriculum importer and require separate controlled services before they can be claimed as system acceptance-ready.
+1. Provide its own downloadable template and fixed header/version contract.
+2. Store uploaded CSV/XLSX sources privately with uploader, scope, checksum, and provenance.
+3. Validate authorization, types, references, duplicates, and domain invariants before writing.
+4. Show a preview and downloadable row-level errors.
+5. Require explicit authorized commit and re-validation.
+6. Preserve batch results and audit evidence.
+7. Use a named domain service; shared infrastructure must never directly write arbitrary models.
 
-#### 8.10.3 Template Definitions
-
-Each template defines the minimum required columns. Templates are downloadable as `.xlsx` files from the Filament panel via a "Download Template" button on each import page.
-
-**Template A — Student Data** (extends §8.8 Hybrid Seed)
-
-| Column | Required | Validation | Notes |
-| --- | --- | --- | --- |
-| `LRN` | Yes | 12-digit unique string | Universal student identifier |
-| `Last_Name` | Yes | max 100 characters | |
-| `First_Name` | Yes | max 100 characters | |
-| `Middle_Name` | No | max 100 characters | |
-| `Email` | No | valid email, unique | For account claim notification |
-| `Contact_Number` | No | PH mobile format | |
-| `Program_Code` | Yes | must exist in programs table | Required for College students |
-| `Year_Level` | Yes | e.g., `1st Year`, `2nd Year` | |
-| `Legacy_Financial_Balance` | No | decimal, default 0.00 | Posted as `Legacy Balance Forward` |
-
-**Template B — Legacy Grades**
-
-| Column | Required | Validation | Notes |
-| --- | --- | --- | --- |
-| `LRN` | Yes | must match `student_profiles.lrn` for an existing student | |
-| `School_Year` | Yes | e.g., `2024-2025` | |
-| `Term` | Yes | e.g., `1st Semester` | |
-| `Subject_Code` | Yes | must exist in subjects table | |
-| `Raw_Score` | Conditional | numeric 0–100 | Required when the active College grading profile expects raw score input |
-| `Equivalent_Grade` | Conditional | approved College grade scale value | Required when the active College grading profile expects equivalent-grade input |
-| `Remarks` | No | `Passed`, `Failed`, `INC` | Defaults to computed result |
-| `Program_Code` | Yes | existing College program code | Determines curriculum/grade-profile scope |
-
-Imported grades are automatically marked `status: finalized` and `is_legacy: true`. They bypass the normal faculty submission workflow.
-
-**Template C — Legacy Financial Records**
-
-| Column | Required | Validation | Notes |
-| --- | --- | --- | --- |
-| `LRN` | Yes | must match `student_profiles.lrn` for an existing student | |
-| `School_Year` | Yes | e.g., `2024-2025` | |
-| `Description` | Yes | e.g., `Tuition Balance`, `Payment` | |
-| `Transaction_Type` | Yes | `assessment` or `payment` | Must match TS §2.5.3 canonical enum |
-| `Amount` | Yes | positive decimal | |
-| `Reference_Number` | No | legacy payment/reference number | |
-| `Transaction_Date` | Yes | `YYYY-MM-DD` format | |
-
-Each row creates an immutable ledger entry tagged `source: legacy_import`. The Atomic Ledger principle (§6.1) applies — imported entries cannot be edited, only reversed.
-
-**Template D — Enrollment Records**
-
-| Column | Required | Validation | Notes |
-| --- | --- | --- | --- |
-| `LRN` | Yes | must match `student_profiles.lrn` for an existing student | |
-| `School_Year` | Yes | e.g., `2024-2025` | |
-| `Term` | Yes | e.g., `1st Semester` | |
-| `Section_Name` | Yes | e.g., `BSIT-1A` | |
-| `Program_Code` | Yes | must exist in programs table | |
-| `Year_Level` | Yes | e.g., `1st Year` | |
-| `Enrollment_Status` | Yes | `completed`, `dropped`, `incomplete` | |
-
-Imported enrollment records are tagged `source: legacy_import` and do not trigger the enrollment state machine or financial workflows.
-
-#### 8.10.4 Mandatory 3-Phase Import Pipeline
-
-**Phase 1 — Upload & Parse**
-
-1. Staff navigates to the import page in the Admin Nexus and selects the import type
-2. Staff clicks "Download Template" to obtain the official `.xlsx` template with locked headers
-3. Staff fills the template, uploads it, and clicks "Parse & Validate"
-4. System checks: file format (`.xlsx` only), header match against the strict template, and file size limit
-5. If headers don't match → immediate rejection: "Template mismatch. Please download the official template."
-
-**Header Rule**: Header order and names must match the official template exactly after trimming whitespace. Blank trailing columns are ignored, but hidden or extra non-empty columns, renamed headers, translated headers, and formula-generated headers are rejected.
-
-**Phase 2 — Preview & Validation**
-
-1. System parses all rows and applies row-level validation:
-    - Required field presence
-    - Data type conformity (numbers, dates, enums)
-    - Foreign key existence (LRN exists? Subject code exists? Program code exists?)
-    - Business rule checks (College grade value valid for profile? Amount is positive? Date is valid?)
-    - Duplicate detection (same LRN + Subject + Term = grade already exists?)
-2. A **Preview Table** is displayed with color-coded row status:
-    - ✅ **Valid** (green) — ready to import
-    - ⚠️ **Warning** (amber) — duplicate detected or non-critical issue; will be skipped on commit
-    - ❌ **Error** (red) — validation failure; must be fixed in the source file
-3. A **Summary Banner** shows: "{total} rows parsed. {valid} valid. {warnings} warnings. {errors} errors."
-4. Staff can download an **Error Report** (`.xlsx`) listing all failed rows with error descriptions for correction
-5. Staff clicks "Confirm Import" to proceed, or "Cancel" to discard
-
-**Phase 3 — Commit**
-
-1. All valid rows are inserted inside a `DB::transaction()` block
-2. Each record is tagged with:
-    - `source: 'legacy_import'`
-    - `import_batch_id`: a unique UUID linking all records from this upload
-    - `imported_by`: the authenticated staff member's user ID
-    - `imported_at`: the current timestamp
-3. An audit log entry records the import event: import type, file name, row counts (valid/skipped/rejected), and the responsible staff member
-4. Staff sees a Filament success notification: "{valid} records imported. {skipped} skipped. {errors} rejected."
-
-#### 8.10.5 Technical Implementation Reference
-
-The implementation details for this framework — including the `import_batches` tracking table, `DataImportService` base class, Laravel Excel import/export classes, and Filament import pages — are defined in Technical Specification §3.20.
+Review-scope importers have no active route, permission, UI, seeder, or acceptance claim until separately approved.
 
 ---
-
 ## 9. Module 6: Enrollment and Student Status Lifecycle
 
 ### 9.1 Registrar-Owned Lifecycle Boundary
@@ -2089,7 +1888,6 @@ This appendix lists active College admission evidence. Grade 12/Form 138/Form 13
 | **COR**  | Certificate of Registration - Official enrollment document |
 | **LRN**  | Learner Reference Number                                   |
 | **PWA**  | Progressive Web App                                        |
-| **OCR**  | Optical Character Recognition                              |
 | **RBAC** | Role-Based Access Control                                  |
 | **SLA**  | Service Level Agreement                                    |
 | **TOR**  | Transcript of Records                                      |
