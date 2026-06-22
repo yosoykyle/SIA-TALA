@@ -4,6 +4,8 @@
 
 Active reset: `SDD-00F Feature Approval and Survival Rebaseline`.
 
+Feature classification is complete for all 8/8 approved batches. The active gate is now benchmark-backed dependency mapping, code-reality cleanup, and survival micro-sprint selection.
+
 This file is the only local execution controller. Deleted SDD maps, local checklists, rescue plans, benchmark matrices, capability trackers, and migration-control logs are historical and must not be treated as active instructions. Linear and git history retain the previous execution record.
 
 ## SDLC
@@ -31,12 +33,17 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 
 ## Immediate Work
 
-1. Extract FS/TS feature inventory by lifecycle module and role.
-2. Ask the user to classify features in small batches.
-3. Remove rejected and externalized features from active FS/TS language.
-4. Benchmark approved features only.
-5. Rebuild a tiny sprint backlog from approved P0 dependencies.
-6. Update Linear with the reset, retired local execution layer, and new sprint issues.
+Completed:
+
+1. Extracted FS/TS feature inventory by lifecycle module and role.
+2. Classified features in 8 small user-approved batches.
+3. Removed or externalized rejected features from active FS/TS language.
+
+Current:
+
+1. Benchmark approved features only.
+2. Rebuild a tiny sprint backlog from approved P0 dependencies.
+3. Update Linear with the reset, retired local execution layer, and new sprint issues.
 
 ## Approved Feature Batch 1
 
@@ -103,3 +110,52 @@ This file is the only local execution controller. Deleted SDD maps, local checkl
 ## Sprint Selection Rule
 
 Next implementation work must come from the approved feature inventory, not from old SDD numbering. Highest priority goes to SIS lifecycle dependencies and capstone integrations that can be tested within the remaining time.
+
+## Benchmark Use Rule
+
+`business-evidence/INSTITUTION WORK  FLOW CURRENT.md` remains required local evidence, but it is not an automatic feature source. It supplies local constraints, role ownership, terminology, manual-office boundaries, capacity rules, clearance rules, and paper-process evidence. TALA implements only features that survived the 8/8 feature audit as `KEEP` or unresolved `REVIEW`.
+
+Do not benchmark removed or externalized scope back into the product. Manual document requests, courier handling, official TOR/Form 137/diploma release, official BIR receipts, SHS workflows, regulator portal submission queues, OCR/text extraction, runtime role editing, passkeys, Horizon/Redis requirements, and generic service requests remain outside active implementation unless the feature audit is reopened.
+
+## Benchmark Anchors
+
+| Feature family | Benchmark anchor | Adopted lesson for TALA |
+|---|---|---|
+| Admissions to student master | Frappe Education Student Applicant and Program Enrollment; openSIS Admissions | Applicant record, approval/rejection, and student-master/enrollment creation are separate states. TALA keeps applicant staging separate until approved handover. |
+| Academic foundation | Frappe Academic Year/Term, Program, Course, Student Group, Program Enrollment | Terms, programs, curricula, subjects/courses, groups/sections, and fee structures must exist before enrollment and scheduling. |
+| Finance and payments | Frappe Fees; openSIS Billing & Fees; PayMongo webhook docs | Fee assessment and payment evidence should be structured, idempotent, and visible to authorized students/staff without implying official tax receipt issuance. |
+| Scheduling | UniTime course timetabling and instructor/student scheduling; Google OR-Tools CP-SAT | Scheduling requires prepared input data, hard conflicts, solver statuses, draft review, and publish/commit separation. Faculty availability is input only; Registrar owns subject/faculty assignment. |
+| Student self-service | Frappe Student Portal; openSIS mobile self-service | Student Hub should expose timetable/schedule, grades, fee/payment status, and profile data as read-only owned views before adding mutations. |
+| Auth, queues, and operations | Laravel Fortify/authentication/rate limiting and Laravel queues | Use framework-backed throttling/session/auth behavior, database queue workers, retries/backoff, failed-job visibility, and small focused tests. |
+
+## Code Reality Snapshot
+
+High-level inspection shows substantial foundation code exists: academic foundation models/resources, applicant intake, document upload review, enrollment services, payment attempts/webhook processing, ledger/payment resources, scheduling services, faculty availability, schedule drafts/commit/publish, grades/grade corrections, Student Hub routes, PWA package, imports, FAQ, and tests.
+
+The first implementation pass must remove stale rejected scope before building new behavior:
+
+- OCR/text extraction still exists in dependencies, config, service classes, commands, seeders, Filament evidence, and tests.
+- Passkey/WebAuthn remnants still exist in Fortify config, composer lock transitive packages, migration, and tests.
+- Horizon/Redis dependency/config assumptions still exist even though active operations use database queues and external process monitoring.
+- Removed or review-only business domains still have schema/resources, including document requests, service requests, promissory notes, installment policies, exam access accommodations, shifting requests, and related UI/tests. These must be deleted, hidden, or retained only after an explicit review promotion.
+- Student Hub UI exists but remains thin and has stale wording such as `View Report Card`; it must be made service-backed and aligned to finalized grade viewing, COR, schedule, financials, and help only.
+- External-reporting wording such as LIS/CHED must remain roster/export evidence only, not active regulator submission workflow.
+
+## Survival Micro-Sprint Backlog
+
+Use this order until replaced by a newer user-approved execution controller:
+
+1. `S0 Scope Cleanup`: remove OCR, passkey, Horizon/Redis, document-request/service-request, and stale removed-scope UI/test remnants that would mislead implementation or UAT.
+2. `S1 Identity and RBAC`: prove Fortify login/logout/password reset/email verification/session expiry/throttling, fixed seeded roles, one-role assignment, active-account gate, and direct URL denial.
+3. `S2 Academic Foundation`: prove terms, programs, curricula, subjects, sections/delivery groups, rooms, delivery patterns, readiness flags, and controlled curriculum/foundation import.
+4. `S3 Admissions to Handover`: prove College applicant intake, requirement-policy resolution, private uploads/manual Registrar review, readiness dashboard, capacity reservation, and applicant-to-student handover without Student Hub access before approval.
+5. `S4 Enrollment, COR, and Capacity`: prove canonical enrollment state, section placement, capacity locking, subject/prerequisite suggestion, finance-clearance gate, COR generation, and COR QR verify/revoke/supersede.
+6. `S5 Finance and PayMongo`: prove fee templates/assessment, manual payment confirmation, PayMongo checkout/webhook signature/idempotency, immutable ledger posting, balance/overpayment, SOA/payment evidence, and Accounting adjustments.
+7. `S6 Scheduling and CP-SAT`: prove faculty availability, Registrar subject/faculty assignment from curriculum demand, schedule snapshot generation, solver dispatch/result ingest, draft conflict review, commit, and Academic Head publish.
+8. `S7 Grades`: prove faculty class lists, College grading profile, grade encoding/submission, Registrar verification/finalization/return, INC/prerequisite effects, Academic Head-approved finalized grade correction, and immutable grade history.
+9. `S8 Student Hub/PWA`: prove read-only dashboard, COR, published schedule, finalized grades, financial status/payment entry, notifications, FAQ/help, private access, loading/empty/error states, and read-only offline cache boundaries.
+10. `S9 Roster, Export, Ops, and UAT`: prove enrolled-student roster CSV/XLSX, controlled import evidence, queues/failed jobs/health/log visibility, backup/restore expectation, master test case rebuild, and manual UAT pass/fail marking.
+
+## Sprint Acceptance Rule
+
+Every sprint must finish with code/tests, a concise local tracker update, a Linear update, and a user manual-test note when a UI is affected. A sprint is not accepted because a file exists; it is accepted only when the approved behavior is testable and removed-scope behavior is absent.
