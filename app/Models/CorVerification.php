@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,6 +13,10 @@ class CorVerification extends Model
     public const StatusSuperseded = 'superseded';
 
     public const StatusRevoked = 'revoked';
+
+    public const StatusExpired = 'expired';
+
+    public const StatusNotFound = 'not_found';
 
     /**
      * @var list<string>
@@ -49,6 +54,7 @@ class CorVerification extends Model
             self::StatusValid => 'Valid',
             self::StatusSuperseded => 'Superseded',
             self::StatusRevoked => 'Revoked',
+            self::StatusExpired => 'Expired',
         ];
     }
 
@@ -61,6 +67,7 @@ class CorVerification extends Model
             'success' => self::StatusValid,
             'warning' => self::StatusSuperseded,
             'danger' => self::StatusRevoked,
+            'gray' => self::StatusExpired,
         ];
     }
 
@@ -72,6 +79,24 @@ class CorVerification extends Model
     public function isRevoked(): bool
     {
         return $this->status === self::StatusRevoked;
+    }
+
+    public function isExpired(?CarbonImmutable $checkedAt = null): bool
+    {
+        $checkedAt ??= CarbonImmutable::now(config('app.timezone'));
+
+        return $this->isValid()
+            && $this->expires_at !== null
+            && $this->expires_at->lessThanOrEqualTo($checkedAt);
+    }
+
+    public function publicVerificationStatus(?CarbonImmutable $checkedAt = null): string
+    {
+        if ($this->isExpired($checkedAt)) {
+            return self::StatusExpired;
+        }
+
+        return (string) $this->status;
     }
 
     public function studentProfile(): BelongsTo

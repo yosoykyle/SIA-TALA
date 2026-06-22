@@ -21,7 +21,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
             'FacultyAvailabilityPeriods/FacultyAvailabilityPeriodResource.php' => ['Registrar', 'review-lock-faculty-availability'],
             'FacultyAvailabilitySubmissions/FacultyAvailabilitySubmissionResource.php' => ['Registrar', 'review-lock-faculty-availability'],
             'ScheduleChanges/ScheduleChangeResource.php' => ['Registrar', 'manage-schedules'],
-            'CorVerifications/CorVerificationResource.php' => ['Registrar', 'manage-lis'],
+            'CorVerifications/CorVerificationResource.php' => ['Registrar', 'manage-cor-verifications'],
         ];
 
         foreach ($resources as $relativePath => [$navigationGroup, $permission]) {

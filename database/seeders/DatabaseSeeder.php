@@ -54,6 +54,7 @@ class DatabaseSeeder extends Seeder
             'manage-sections',
             'evaluate-transferees',
             'manage-lis',
+            'manage-cor-verifications',
             'review-lock-faculty-availability',
             'manage-faculty-subject-eligibilities',
             'generate-schedule-drafts',
@@ -111,6 +112,7 @@ class DatabaseSeeder extends Seeder
             'manage-sections',
             'evaluate-transferees',
             'manage-lis',
+            'manage-cor-verifications',
             'manage-grade-corrections',
             'review-lock-faculty-availability',
             'manage-faculty-subject-eligibilities',
@@ -159,6 +161,7 @@ class DatabaseSeeder extends Seeder
             'view-audit-logs',
             'manage-system-health',
             'manage-cor-templates',
+            'manage-cor-verifications',
         ]);
 
         $systemSuperAdmin = User::firstOrCreate(

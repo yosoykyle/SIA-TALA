@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CorVerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
+
+Route::get('/cor/verify/{token}', CorVerificationController::class)->name('cor.verify');
 
 Route::livewire('/faq', 'pages::faq')->name('faq');
 

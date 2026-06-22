@@ -137,6 +137,6 @@ class CorVerificationsTable
 
     private static function registrarCanControlCor(): bool
     {
-        return auth()->user()?->can('manage-lis') ?? false;
+        return auth()->user()?->can('manage-cor-verifications') ?? false;
     }
 }

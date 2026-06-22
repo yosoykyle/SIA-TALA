@@ -14,7 +14,7 @@ class CorVerificationPolicy
     {
         return $this->canAny($user, [
             'view-cor',
-            'manage-lis',
+            'manage-cor-verifications',
             'view-global-records',
         ]);
     }

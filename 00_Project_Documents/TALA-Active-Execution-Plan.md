@@ -41,9 +41,9 @@ Completed:
 
 Current:
 
-1. Benchmark approved features only.
-2. Rebuild a tiny sprint backlog from approved P0 dependencies.
-3. Update Linear with the reset, retired local execution layer, and new sprint issues.
+1. Close `S4 Enrollment, COR, and Capacity`.
+2. Update Linear with the sprint evidence.
+3. Select `S5 Finance and PayMongo` after user review.
 
 ## Approved Feature Batch 1
 
@@ -173,6 +173,16 @@ S3 admissions-to-handover result:
 - Approved applicants can be handed over into student profile/enrollment records through the typed enrollment service; final student-role activation/COR readiness is gated by finance-cleared handover.
 - Capacity reservation is linked to the admission finance-clearance gate and secured when finance clearance completes.
 - S3 is tracked in Linear as `TAL-37` and covered by focused applicant intake, document review, admission setup, readiness dashboard, handover, college-only scope, and admission finance-clearance tests.
+
+S4 enrollment, COR, and capacity result:
+
+- Benchmark check: Frappe Program Enrollment separates term/program/course/fee enrollment state; openSIS exposes schedules, grades, fees, and student records from official student/enrollment data; registrar verification patterns treat enrollment proof as a public verification surface derived from official enrollment records.
+- Existing enrollment services prove canonical term enrollment, finance-cleared handover, section placement, transactional capacity locking, and subject/prerequisite suggestion from curriculum and finalized grade history.
+- COR verification now issues an opaque token only from a ready finance-cleared enrollment with active student account, assigned section, and assigned delivery group.
+- COR token issuance is idempotent while a valid unexpired token already exists for the enrollment.
+- Public COR verification route reports `valid`, `superseded`, `revoked`, `expired`, and `not_found` states without exposing internal database IDs.
+- COR revoke/supersede controls now use the dedicated `manage-cor-verifications` permission instead of the external-reporting `manage-lis` permission.
+- S4 is tracked in Linear as `TAL-38` and covered by focused COR lifecycle, enrollment, sectioning, subject suggestion, payment-clearance, PayMongo finance-clearance, Registrar resource, and RBAC matrix tests.
 
 ## Survival Micro-Sprint Backlog
 
