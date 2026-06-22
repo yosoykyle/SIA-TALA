@@ -24,7 +24,6 @@ use App\Models\Program;
 use App\Models\Room;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
-use App\Models\ServiceRequest;
 use App\Models\StudentProfile;
 use App\Models\Subject;
 use App\Models\Term;
@@ -415,11 +414,7 @@ class PreUatScenarioSeeder extends Seeder
                 'file_size' => 204800,
                 'checksum' => 'pre-uat-report-card',
                 'upload_status' => 'uploaded',
-                'ocr_review_status' => DocumentUpload::ReviewStatusNeedsManualReview,
-                'ocr_confidence' => '71.50',
-                'ocr_text' => 'Pre-UAT OCR sample requiring Registrar review.',
-                'ocr_processed_at' => '2026-07-19 09:00:00',
-                'parser_version' => 'pre-uat',
+                'review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
             ],
         );
 
@@ -463,21 +458,6 @@ class PreUatScenarioSeeder extends Seeder
                 'status' => 'submitted',
                 'assigned_to' => $registrar->id,
                 'creator_id' => $studentUser->id,
-            ],
-        );
-
-        ServiceRequest::query()->updateOrCreate(
-            [
-                'student_profile_id' => $studentProfile->id,
-                'term_id' => $term->id,
-                'category' => 'student_record',
-                'sub_type' => 'profile_update',
-            ],
-            [
-                'status' => ServiceRequest::StatusSubmitted,
-                'details' => 'Pre-UAT service request scenario.',
-                'attachment_paths' => ['pre-uat/service-request-evidence.pdf'],
-                'assigned_to' => $registrar->id,
             ],
         );
 

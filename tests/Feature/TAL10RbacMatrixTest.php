@@ -35,7 +35,6 @@ class TAL10RbacMatrixTest extends TestCase
             'PaymentPolicy.php' => 'process-payments',
             'GradePolicy.php' => 'authorize-overrides',
             'EnrollmentSubjectPolicy.php' => 'encode-grades',
-            'ServiceRequestPolicy.php' => 'manage-service-requests',
             'DocumentUploadPolicy.php' => 'approve-documents',
             'FaqEntryPolicy.php' => 'manage-faqs',
         ];

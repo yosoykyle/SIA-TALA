@@ -10,7 +10,6 @@ use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PromissoryNote;
 use App\Models\SectionMeeting;
-use App\Models\ServiceRequest;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Support\DecimalMoney;
@@ -29,7 +28,7 @@ class StudentDashboardService
      *     schedule:array{current:list<array<string,mixed>>},
      *     financials:array<string,mixed>,
      *     grades:array{terms:list<array<string,mixed>>},
-     *     requests:array{service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>},
+     *     requests:array{grade_corrections:list<array<string,mixed>>},
      *     holds:list<array<string,mixed>>,
      *     notifications:list<array<string,mixed>>,
      *     help:array<string,mixed>,
@@ -310,29 +309,11 @@ class StudentDashboardService
     }
 
     /**
-     * @return array{service_requests:list<array<string,mixed>>,grade_corrections:list<array<string,mixed>>}
+     * @return array{grade_corrections:list<array<string,mixed>>}
      */
     private function requests(StudentProfile $studentProfile): array
     {
         return [
-            'service_requests' => ServiceRequest::query()
-                ->with('term')
-                ->where('student_profile_id', $studentProfile->id)
-                ->latest('id')
-                ->limit(5)
-                ->get()
-                ->map(fn (ServiceRequest $request): array => [
-                    'service_request_id' => (int) $request->id,
-                    'term_id' => $request->term_id !== null ? (int) $request->term_id : null,
-                    'term_name' => $request->term?->term_name,
-                    'category' => $request->category,
-                    'sub_type' => $request->sub_type,
-                    'status' => $request->status,
-                    'resolved_at' => $request->resolved_at?->toDateTimeString(),
-                    'created_at' => $request->created_at?->toDateTimeString(),
-                ])
-                ->values()
-                ->all(),
             'grade_corrections' => $this->gradeCorrections($studentProfile),
         ];
     }

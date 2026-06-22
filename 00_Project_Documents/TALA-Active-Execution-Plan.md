@@ -132,14 +132,15 @@ Do not benchmark removed or externalized scope back into the product. Manual doc
 
 High-level inspection shows substantial foundation code exists: academic foundation models/resources, applicant intake, document upload review, enrollment services, payment attempts/webhook processing, ledger/payment resources, scheduling services, faculty availability, schedule drafts/commit/publish, grades/grade corrections, Student Hub routes, PWA package, imports, FAQ, and tests.
 
-The first implementation pass must remove stale rejected scope before building new behavior:
+S0 cleanup result:
 
-- OCR/text extraction still exists in dependencies, config, service classes, commands, seeders, Filament evidence, and tests.
-- Passkey/WebAuthn remnants still exist in Fortify config, composer lock transitive packages, migration, and tests.
-- Horizon/Redis dependency/config assumptions still exist even though active operations use database queues and external process monitoring.
-- Removed or review-only business domains still have schema/resources, including document requests, service requests, promissory notes, installment policies, exam access accommodations, shifting requests, and related UI/tests. These must be deleted, hidden, or retained only after an explicit review promotion.
-- Student Hub UI exists but remains thin and has stale wording such as `View Report Card`; it must be made service-backed and aligned to finalized grade viewing, COR, schedule, financials, and help only.
-- External-reporting wording such as LIS/CHED must remain roster/export evidence only, not active regulator submission workflow.
+- Removed OCR/text extraction from active dependencies, config, service bindings, commands, jobs, schema, seeders, Filament evidence, and tests.
+- Removed app-level passkey/WebAuthn migration and Fortify configuration. `laravel/passkeys` remains only as a Fortify transitive package and must not be enabled/configured unless the feature audit is reopened.
+- Removed the Horizon dependency and app-level Horizon assumptions. Active operations use database queues, retries/backoff, failed-job visibility, and external process monitoring.
+- Removed document-request and generic service-request runtime artifacts from active schema, models, policies, resources, permissions, seeders, Student Hub summaries, and tests.
+- Removed automatic installment/promissory scheduled jobs until those maintenance automations are explicitly promoted.
+- Remaining review-sensitive surfaces, including promissory notes, installment policies, exam access accommodations, shifting requests, and Student Hub wording, must be handled through their own promoted sprint decisions.
+- External-reporting wording such as LIS/CHED remains roster/export evidence only, not active regulator submission workflow.
 
 ## Survival Micro-Sprint Backlog
 

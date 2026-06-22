@@ -1,21 +1,6 @@
 <?php
 
 return [
-    'ocr' => [
-        'driver' => env('TALA_OCR_DRIVER', 'mock'),
-        'confidence_threshold' => env('TALA_OCR_CONFIDENCE_THRESHOLD', '80.00'),
-        'mock' => [
-            'engine' => env('TALA_OCR_MOCK_ENGINE', 'mock_vision'),
-            'text' => env('TALA_OCR_MOCK_TEXT', 'Mock OCR text extracted from the uploaded document.'),
-            'confidence' => env('TALA_OCR_MOCK_CONFIDENCE', '95.00'),
-        ],
-        'google_vision' => [
-            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID'),
-            'credentials_path' => env('GOOGLE_APPLICATION_CREDENTIALS'),
-            'monthly_call_limit' => env('TALA_OCR_MONTHLY_CALL_LIMIT', 2000),
-        ],
-    ],
-
     'scheduling_solver' => [
         'driver' => env('TALA_SCHEDULING_SOLVER_DRIVER', 'local_stub'),
         'auth' => env('TALA_SCHEDULING_SOLVER_AUTH', 'iam_private'),

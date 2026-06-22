@@ -50,7 +50,7 @@ class DocumentRequirementItemForm
                             ->options(DocumentRequirementItem::evidenceMethodOptions())
                             ->required()
                             ->columns(2)
-                            ->helperText('Applicant uploads and OCR remain preliminary unless this policy permits that evidence method.'),
+                            ->helperText('Applicant uploads remain preliminary until an authorized Registrar review satisfies the requirement.'),
                         Select::make('storage_class')
                             ->options(DocumentRequirementItem::storageClassOptions())
                             ->required()
@@ -59,10 +59,6 @@ class DocumentRequirementItemForm
                             ->options(DocumentRequirementItem::sensitivityClassOptions())
                             ->required()
                             ->default(DocumentRequirementItem::SensitivityStandard),
-                        Select::make('ocr_policy')
-                            ->options(DocumentRequirementItem::ocrPolicyOptions())
-                            ->required()
-                            ->default(DocumentRequirementItem::OcrPolicyOptional),
                         TextInput::make('deadline_strategy')
                             ->maxLength(255)
                             ->helperText('Optional strategy label for retention deadlines.'),

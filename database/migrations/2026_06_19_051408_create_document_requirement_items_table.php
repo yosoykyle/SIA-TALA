@@ -21,7 +21,6 @@ return new class extends Migration
             $table->json('permitted_evidence_methods');
             $table->string('storage_class')->default('credential_file');
             $table->string('sensitivity_class')->default('standard');
-            $table->string('ocr_policy')->default('optional');
             $table->json('verified_field_mapping')->nullable();
             $table->string('deadline_strategy')->nullable();
             $table->string('retention_policy')->nullable();

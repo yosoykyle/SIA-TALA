@@ -154,7 +154,6 @@ class PreUatScenarioSeederTest extends TestCase
             'document_uploads',
             'grades',
             'grade_corrections',
-            'service_requests',
             'faq_entries',
             'section_meetings',
         ])

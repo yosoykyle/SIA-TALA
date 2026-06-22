@@ -126,7 +126,6 @@ class SDD07AAdmissionSetupFilamentResourceTest extends TestCase
             "Select::make('gate_type')",
             "Select::make('storage_class')",
             "Select::make('sensitivity_class')",
-            "Select::make('ocr_policy')",
         ] as $field) {
             $this->assertStringContainsString($field, $itemForm);
         }

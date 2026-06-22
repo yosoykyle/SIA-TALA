@@ -27,7 +27,6 @@ class DocumentRequirementItemFactory extends Factory
             'permitted_evidence_methods' => ['applicant_upload', 'registrar_assisted_upload'],
             'storage_class' => DocumentRequirementItem::StorageClassCredentialFile,
             'sensitivity_class' => DocumentRequirementItem::SensitivityStandard,
-            'ocr_policy' => DocumentRequirementItem::OcrPolicyOptional,
             'verified_field_mapping' => [],
             'deadline_strategy' => null,
             'retention_policy' => null,

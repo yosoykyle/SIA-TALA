@@ -24,11 +24,7 @@ return new class extends Migration
             $table->unsignedBigInteger('file_size')->nullable();
             $table->string('checksum', 128)->nullable()->index();
             $table->string('upload_status')->default('uploaded')->index();
-            $table->string('ocr_review_status')->default('uploaded')->index();
-            $table->decimal('ocr_confidence', 5, 2)->nullable();
-            $table->text('ocr_text')->nullable();
-            $table->timestamp('ocr_processed_at')->nullable();
-            $table->string('parser_version')->nullable();
+            $table->string('review_status')->default('uploaded')->index();
             $table->foreignId('registrar_reviewed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('registrar_reviewed_at')->nullable();
             $table->json('student_confirmed_payload')->nullable();
@@ -36,7 +32,7 @@ return new class extends Migration
             $table->json('registrar_approved_payload')->nullable();
             $table->timestamps();
 
-            $table->index(['document_type', 'ocr_review_status']);
+            $table->index(['document_type', 'review_status']);
             $table->index(['student_profile_id', 'created_at']);
         });
     }

@@ -40,15 +40,11 @@ class DocumentUploadsTable
                     ->label('Document')
                     ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->headline()->toString())
                     ->searchable(),
-                TextColumn::make('ocr_review_status')
+                TextColumn::make('review_status')
                     ->label('Review')
                     ->badge()
-                    ->colors(DocumentUpload::reviewStatusColors())
+                    ->color(fn (DocumentUpload $record): string => DocumentUpload::reviewStatusColor($record->review_status))
                     ->searchable(),
-                TextColumn::make('ocr_confidence')
-                    ->numeric(decimalPlaces: 2)
-                    ->placeholder('-')
-                    ->sortable(),
                 TextColumn::make('file_name')
                     ->searchable()
                     ->toggleable(),
@@ -67,7 +63,7 @@ class DocumentUploadsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('ocr_review_status')
+                SelectFilter::make('review_status')
                     ->label('Review Status')
                     ->options(DocumentUpload::reviewStatusOptions()),
             ])

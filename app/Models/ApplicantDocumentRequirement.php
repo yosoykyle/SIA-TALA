@@ -37,7 +37,6 @@ class ApplicantDocumentRequirement extends Model
         'permitted_evidence_methods',
         'storage_class',
         'sensitivity_class',
-        'ocr_policy',
         'deadline_strategy',
         'evidence_state',
         'satisfied_by_document_upload_id',

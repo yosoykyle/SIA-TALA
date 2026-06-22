@@ -48,31 +48,16 @@ class DocumentUploadInfolist
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
-                Section::make('OCR Review Evidence')
+                Section::make('Registrar Review Evidence')
                     ->schema([
                         TextEntry::make('upload_status')
                             ->label('Upload Status')
                             ->badge(),
-                        TextEntry::make('ocr_review_status')
+                        TextEntry::make('review_status')
                             ->label('Review Status')
                             ->badge()
                             ->formatStateUsing(fn (?string $state): string => DocumentUpload::reviewStatusOptions()[$state] ?? 'Unknown')
-                            ->color(fn (DocumentUpload $record): string => DocumentUpload::reviewStatusColor($record->ocr_review_status)),
-                        TextEntry::make('ocr_confidence')
-                            ->label('OCR Confidence')
-                            ->numeric()
-                            ->placeholder('-'),
-                        TextEntry::make('parser_version')
-                            ->label('Parser Version')
-                            ->placeholder('-'),
-                        TextEntry::make('ocr_text')
-                            ->label('OCR Text')
-                            ->placeholder('-')
-                            ->columnSpanFull(),
-                        TextEntry::make('ocr_processed_at')
-                            ->label('OCR Processed At')
-                            ->dateTime()
-                            ->placeholder('-'),
+                            ->color(fn (DocumentUpload $record): string => DocumentUpload::reviewStatusColor($record->review_status)),
                     ])
                     ->columns(2),
                 Section::make('Review Timeline')

@@ -44,12 +44,10 @@ class DatabaseSeeder extends Seeder
             'view-schedule',
             'view-cor',
             'upload-payment-proof',
-            'submit-service-requests',
             'request-grade-corrections',
             'approve-documents',
             'manage-admission-setup',
             'manage-grade-corrections',
-            'manage-service-requests',
             'manage-curricula',
             'manage-terms',
             'manage-schedules',
@@ -100,7 +98,6 @@ class DatabaseSeeder extends Seeder
             'view-schedule',
             'view-cor',
             'upload-payment-proof',
-            'submit-service-requests',
             'request-grade-corrections',
             'view-advising-status',
         ]);
@@ -108,7 +105,6 @@ class DatabaseSeeder extends Seeder
         Role::findByName('registrar')->syncPermissions([
             'approve-documents',
             'manage-admission-setup',
-            'manage-service-requests',
             'manage-curricula',
             'manage-terms',
             'manage-schedules',

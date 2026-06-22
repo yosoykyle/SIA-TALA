@@ -34,7 +34,7 @@ class DocumentUploadReviewServiceTest extends TestCase
         $upload->refresh();
         $properties = $this->activityProperties($upload, 'document_upload_approved');
 
-        $this->assertSame(DocumentUpload::ReviewStatusRegistrarApproved, $upload->ocr_review_status);
+        $this->assertSame(DocumentUpload::ReviewStatusRegistrarApproved, $upload->review_status);
         $this->assertSame($registrar->id, $upload->registrar_reviewed_by);
         $this->assertNotNull($upload->registrar_reviewed_at);
         $this->assertSame([
@@ -59,7 +59,7 @@ class DocumentUploadReviewServiceTest extends TestCase
         $upload->refresh();
         $properties = $this->activityProperties($upload, 'document_upload_needs_correction');
 
-        $this->assertSame(DocumentUpload::ReviewStatusNeedsCorrection, $upload->ocr_review_status);
+        $this->assertSame(DocumentUpload::ReviewStatusNeedsCorrection, $upload->review_status);
         $this->assertSame($registrar->id, $upload->registrar_reviewed_by);
         $this->assertSame('LRN is not readable on the uploaded card.', $properties['reason']);
     }
@@ -78,7 +78,7 @@ class DocumentUploadReviewServiceTest extends TestCase
         $upload->refresh();
         $properties = $this->activityProperties($upload, 'document_upload_rejected');
 
-        $this->assertSame(DocumentUpload::ReviewStatusRejected, $upload->ocr_review_status);
+        $this->assertSame(DocumentUpload::ReviewStatusRejected, $upload->review_status);
         $this->assertSame('Uploaded file is not an approved enrollment document.', $properties['reason']);
     }
 
@@ -91,7 +91,7 @@ class DocumentUploadReviewServiceTest extends TestCase
             app(DocumentUploadReviewService::class)->approve($upload, $actor);
             $this->fail('Expected document review to require approve-documents permission.');
         } catch (AuthorizationException) {
-            $this->assertSame(DocumentUpload::ReviewStatusPendingRegistrarReview, $upload->refresh()->ocr_review_status);
+            $this->assertSame(DocumentUpload::ReviewStatusPendingRegistrarReview, $upload->refresh()->review_status);
         }
     }
 
@@ -99,7 +99,7 @@ class DocumentUploadReviewServiceTest extends TestCase
     {
         $registrar = $this->registrar();
         $upload = $this->documentUpload([
-            'ocr_review_status' => DocumentUpload::ReviewStatusRegistrarApproved,
+            'review_status' => DocumentUpload::ReviewStatusRegistrarApproved,
             'registrar_reviewed_by' => $registrar->id,
             'registrar_reviewed_at' => now(),
         ]);
@@ -117,19 +117,15 @@ class DocumentUploadReviewServiceTest extends TestCase
     {
         $this->assertSame([
             DocumentUpload::ReviewStatusUploaded => 'Uploaded',
-            DocumentUpload::ReviewStatusOcrExtracted => 'OCR Extracted',
-            DocumentUpload::ReviewStatusStudentConfirmed => 'Student Confirmed',
             DocumentUpload::ReviewStatusPendingRegistrarReview => 'Pending Registrar Review',
             DocumentUpload::ReviewStatusRegistrarApproved => 'Registrar Approved',
             DocumentUpload::ReviewStatusNeedsCorrection => 'Needs Correction',
             DocumentUpload::ReviewStatusRejected => 'Rejected',
-            DocumentUpload::ReviewStatusNeedsManualReview => 'Needs Manual Review',
             DocumentUpload::ReviewStatusManualEntry => 'Manual Entry',
         ], DocumentUpload::reviewStatusOptions());
 
         $this->assertSame([
             'gray' => DocumentUpload::ReviewStatusUploaded,
-            'info' => DocumentUpload::ReviewStatusOcrExtracted,
             'warning' => DocumentUpload::ReviewStatusPendingRegistrarReview,
             'success' => DocumentUpload::ReviewStatusRegistrarApproved,
             'danger' => DocumentUpload::ReviewStatusRejected,
@@ -157,14 +153,14 @@ class DocumentUploadReviewServiceTest extends TestCase
             'student_profile_id' => $studentProfile->id,
             'user_id' => $studentProfile->user_id,
             'term_id' => Term::factory()->create()->id,
-            'document_type' => 'grade_11_card',
+            'document_type' => 'grade_12_card',
             'file_disk' => 'local',
             'file_path' => 'documents/grade-11-card.jpg',
             'file_name' => 'grade-11-card.jpg',
             'mime_type' => 'image/jpeg',
             'file_size' => 1024,
             'upload_status' => 'uploaded',
-            'ocr_review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
+            'review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
             'student_confirmed_payload' => [],
             ...$attributes,
         ]);

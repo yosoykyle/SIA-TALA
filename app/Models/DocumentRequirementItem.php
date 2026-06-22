@@ -20,8 +20,6 @@ class DocumentRequirementItem extends Model
 
     public const SensitivityStandard = 'standard';
 
-    public const OcrPolicyOptional = 'optional';
-
     public const EvidenceMethodApplicantUpload = 'applicant_upload';
 
     public const EvidenceMethodRegistrarAssistedUpload = 'registrar_assisted_upload';
@@ -39,10 +37,6 @@ class DocumentRequirementItem extends Model
     public const StorageClassGeneratedArtifact = 'generated_artifact';
 
     public const SensitivityRestricted = 'restricted';
-
-    public const OcrPolicyDisabled = 'disabled';
-
-    public const OcrPolicyRequired = 'required';
 
     /**
      * @return array<string, string>
@@ -96,15 +90,6 @@ class DocumentRequirementItem extends Model
     /**
      * @return array<string, string>
      */
-    public static function ocrPolicyOptions(): array
-    {
-        return [
-            self::OcrPolicyDisabled => 'Disabled',
-            self::OcrPolicyOptional => 'Optional',
-            self::OcrPolicyRequired => 'Required',
-        ];
-    }
-
     /**
      * @var list<string>
      */
@@ -117,7 +102,6 @@ class DocumentRequirementItem extends Model
         'permitted_evidence_methods',
         'storage_class',
         'sensitivity_class',
-        'ocr_policy',
         'verified_field_mapping',
         'deadline_strategy',
         'retention_policy',
@@ -132,7 +116,6 @@ class DocumentRequirementItem extends Model
         'sort_order' => 0,
         'storage_class' => self::StorageClassCredentialFile,
         'sensitivity_class' => self::SensitivityStandard,
-        'ocr_policy' => self::OcrPolicyOptional,
     ];
 
     /**

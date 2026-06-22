@@ -140,7 +140,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString("TextEntry::make('user.name')", $infolist);
         $this->assertStringContainsString("TextEntry::make('term.term_name')", $infolist);
         $this->assertStringContainsString("TextEntry::make('registrarReviewer.name')", $infolist);
-        $this->assertStringContainsString('DocumentUpload::reviewStatusColor($record->ocr_review_status)', $infolist);
+        $this->assertStringContainsString('DocumentUpload::reviewStatusColor($record->review_status)', $infolist);
         $this->assertStringNotContainsString("TextEntry::make('student_profile_id')", $infolist);
         $this->assertStringNotContainsString("TextEntry::make('user_id')", $infolist);
         $this->assertStringNotContainsString("TextEntry::make('term_id')", $infolist);
@@ -148,7 +148,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString("TextEntry::make('file_path')", $infolist);
         $this->assertStringNotContainsString('DB::transaction', $table);
         $this->assertStringNotContainsString('json_encode', $table);
-        $this->assertStringNotContainsString("'ocr_review_status' =>", $table);
+        $this->assertStringNotContainsString("'review_status' =>", $table);
     }
 
     public function test_cor_controls_are_token_evidence_with_lifecycle_actions_not_generic_crud(): void
@@ -265,29 +265,16 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringContainsString('return false;', $policy);
     }
 
-    public function test_service_requests_are_lifecycle_action_surfaces_not_generic_crud(): void
+    public function test_generic_service_request_resource_is_removed_from_registrar_scope(): void
     {
-        $resource = $this->resourceSource('ServiceRequests/ServiceRequestResource.php');
-        $listPage = $this->resourceSource('ServiceRequests/Pages/ListServiceRequests.php');
-        $viewPage = $this->resourceSource('ServiceRequests/Pages/ViewServiceRequest.php');
-        $table = $this->resourceSource('ServiceRequests/Tables/ServiceRequestsTable.php');
-
-        $this->assertStringNotContainsString("CreateServiceRequest::route('/create')", $resource);
-        $this->assertStringNotContainsString("EditServiceRequest::route('/{record}/edit')", $resource);
+        $this->assertFileDoesNotExist(app_path('Models/ServiceRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Policies/ServiceRequestPolicy.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/ServiceRequests/ServiceRequestLifecycleService.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/ServiceRequestResource.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Pages/CreateServiceRequest.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Pages/EditServiceRequest.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/ServiceRequests/Schemas/ServiceRequestForm.php'));
-        $this->assertStringNotContainsString('function form(', $resource);
-        $this->assertStringNotContainsString('CreateAction::make()', $listPage);
-        $this->assertStringNotContainsString('EditAction::make()', $viewPage);
-        $this->assertStringContainsString('startReviewAction', $table);
-        $this->assertStringContainsString('resolveAction', $table);
-        $this->assertStringContainsString('rejectAction', $table);
-        $this->assertStringContainsString('cancelAction', $table);
-        $this->assertStringContainsString("Textarea::make('resolution_note')", $table);
-        $this->assertStringContainsString("Textarea::make('rejection_reason')", $table);
-        $this->assertStringContainsString("Textarea::make('cancellation_reason')", $table);
-        $this->assertStringNotContainsString("Textarea::make('note')", $table);
+        $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/ServiceRequests'));
     }
 
     public function test_schedule_change_form_uses_typed_fields_not_raw_json_textareas(): void

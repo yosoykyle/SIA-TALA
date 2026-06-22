@@ -15,7 +15,6 @@ use App\Models\Program;
 use App\Models\PromissoryNote;
 use App\Models\Section;
 use App\Models\SectionMeeting;
-use App\Models\ServiceRequest;
 use App\Models\StudentProfile;
 use App\Models\Subject;
 use App\Models\Term;
@@ -153,13 +152,6 @@ class StudentDashboardServiceTest extends TestCase
             'approved_at' => now(),
         ]);
 
-        ServiceRequest::factory()->create([
-            'student_profile_id' => $studentProfile->id,
-            'term_id' => $term->id,
-            'category' => 'registrar',
-            'sub_type' => 'drop_form',
-            'status' => ServiceRequest::StatusUnderReview,
-        ]);
         GradeCorrection::factory()->create([
             'user_id' => $user->id,
             'grade_id' => $grade->id,
@@ -207,7 +199,6 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertSame(['financial_balance', 'hard_copy_missing', 'active_promissory'], array_column($dashboard['holds'], 'code'));
         $this->assertSame('IT101', $dashboard['grades']['terms'][0]['grades'][0]['subject_code']);
         $this->assertSame('1.75', $dashboard['grades']['terms'][0]['grades'][0]['grade']);
-        $this->assertSame(ServiceRequest::StatusUnderReview, $dashboard['requests']['service_requests'][0]['status']);
         $this->assertSame(GradeCorrectionStatus::Submitted->value, $dashboard['requests']['grade_corrections'][0]['status']);
         $this->assertSame('How do I view my balance?', $dashboard['help']['faq_entries'][0]['question']);
         $this->assertSame('Payment Confirmed', $dashboard['notifications'][0]['title']);

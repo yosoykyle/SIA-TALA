@@ -31,23 +31,26 @@ class DocumentRequestScopeRemovalTest extends TestCase
         $this->assertNotContains('document-requests.shipping-fee-enforcer', $scheduledDescriptions);
     }
 
-    public function test_service_request_permissions_no_longer_use_document_request_names(): void
+    public function test_generic_service_request_runtime_is_removed(): void
     {
         $sources = [
             file_get_contents(database_path('seeders/DatabaseSeeder.php')),
-            file_get_contents(app_path('Actions/ServiceRequests/ServiceRequestLifecycleService.php')),
-            file_get_contents(app_path('Policies/ServiceRequestPolicy.php')),
+            file_get_contents(app_path('Actions/StudentHub/StudentDashboardService.php')),
         ];
 
         foreach ($sources as $source) {
             $this->assertIsString($source);
             $this->assertStringNotContainsString('manage-document-requests', $source);
             $this->assertStringNotContainsString('request-documents', $source);
+            $this->assertStringNotContainsString('manage-service-requests', $source);
+            $this->assertStringNotContainsString('submit-service-requests', $source);
+            $this->assertStringNotContainsString('service_requests', $source);
         }
 
-        $combinedSource = implode("\n", $sources);
-
-        $this->assertStringContainsString('manage-service-requests', $combinedSource);
-        $this->assertStringContainsString('submit-service-requests', $combinedSource);
+        $this->assertFalse(Schema::hasTable('service_requests'));
+        $this->assertFileDoesNotExist(app_path('Models/ServiceRequest.php'));
+        $this->assertFileDoesNotExist(app_path('Policies/ServiceRequestPolicy.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/ServiceRequests/ServiceRequestLifecycleService.php'));
+        $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/ServiceRequests'));
     }
 }

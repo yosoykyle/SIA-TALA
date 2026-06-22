@@ -22,7 +22,6 @@ class DocumentRequirementItemInfolist
                         TextEntry::make('permitted_evidence_methods')->badge()->separator(','),
                         TextEntry::make('storage_class')->badge(),
                         TextEntry::make('sensitivity_class')->badge(),
-                        TextEntry::make('ocr_policy')->badge(),
                         TextEntry::make('deadline_strategy')->placeholder('-'),
                         TextEntry::make('retention_policy')->placeholder('-'),
                     ])

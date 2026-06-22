@@ -319,7 +319,7 @@ class StudentEnrollmentServiceTest extends TestCase
             'mime_type' => 'image/jpeg',
             'file_size' => 1024,
             'upload_status' => 'uploaded',
-            'ocr_review_status' => DocumentUpload::ReviewStatusRegistrarApproved,
+            'review_status' => DocumentUpload::ReviewStatusRegistrarApproved,
             'student_confirmed_payload' => [],
         ]);
     }

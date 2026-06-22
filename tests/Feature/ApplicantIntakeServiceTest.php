@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Applicants\ApplicantIntakeService;
 use App\Actions\Applicants\RetentionDocumentUndertakingService;
 use App\Actions\Registrar\DocumentUploadReviewService;
-use App\Jobs\ProcessDocumentOcrJob;
 use App\Models\AdmissionOffering;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantDocumentRequirement;
@@ -18,7 +17,6 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -100,10 +98,8 @@ class ApplicantIntakeServiceTest extends TestCase
         }
     }
 
-    public function test_it_records_applicant_owned_document_upload_and_dispatches_ocr(): void
+    public function test_it_records_applicant_owned_document_upload_for_manual_registrar_review(): void
     {
-        Queue::fake();
-
         $intake = ApplicantIntake::factory()->create([
             'required_documents' => [
                 'psa_birth_certificate',
@@ -132,14 +128,9 @@ class ApplicantIntakeServiceTest extends TestCase
         $this->assertSame($requirement->id, $upload->applicant_document_requirement_id);
         $this->assertNull($upload->student_profile_id);
         $this->assertSame($intake->user_id, $upload->user_id);
-        $this->assertSame(DocumentUpload::ReviewStatusUploaded, $upload->ocr_review_status);
+        $this->assertSame(DocumentUpload::ReviewStatusPendingRegistrarReview, $upload->review_status);
         $this->assertSame(['first_name' => 'Juan'], $upload->student_confirmed_payload);
         $this->assertSame(ApplicantDocumentRequirement::EvidenceStateSubmitted, $requirement->refresh()->evidence_state);
-
-        Queue::assertPushed(
-            ProcessDocumentOcrJob::class,
-            fn (ProcessDocumentOcrJob $job): bool => $job->documentUploadId === $upload->id,
-        );
     }
 
     public function test_approval_for_payment_requires_every_required_document_to_be_registrar_approved(): void
@@ -168,7 +159,7 @@ class ApplicantIntakeServiceTest extends TestCase
 
         $intake->documentUploads()
             ->where('document_type', 'grade_12_card')
-            ->update(['ocr_review_status' => DocumentUpload::ReviewStatusRegistrarApproved]);
+            ->update(['review_status' => DocumentUpload::ReviewStatusRegistrarApproved]);
 
         $approved = app(ApplicantIntakeService::class)->approveForPayment($intake->refresh(), $registrar);
 
@@ -391,7 +382,7 @@ class ApplicantIntakeServiceTest extends TestCase
             'mime_type' => 'image/jpeg',
             'file_size' => 1024,
             'upload_status' => 'uploaded',
-            'ocr_review_status' => $reviewStatus,
+            'review_status' => $reviewStatus,
             'student_confirmed_payload' => [],
         ]);
     }

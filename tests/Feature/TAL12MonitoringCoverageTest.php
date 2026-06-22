@@ -3,9 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
-use App\Jobs\ProcessDocumentOcrJob;
-use App\Jobs\ProcessInstallmentOverduesJob;
 use App\Jobs\ProcessPayMongoWebhookCall;
+use App\Jobs\ProcessRetentionDocumentUndertakingsJob;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +26,7 @@ class TAL12MonitoringCoverageTest extends TestCase
     {
         $this->get('/up')->assertOk();
 
-        foreach (['jobs', 'failed_jobs', 'webhook_calls', 'document_ocr_results', 'payment_attempts'] as $table) {
+        foreach (['jobs', 'failed_jobs', 'webhook_calls', 'payment_attempts'] as $table) {
             $this->assertTrue(Schema::hasTable($table), "{$table} table should exist for monitoring coverage.");
         }
 
@@ -43,44 +42,33 @@ class TAL12MonitoringCoverageTest extends TestCase
             $this->assertTrue(Schema::hasColumn('webhook_calls', $column), "webhook_calls.{$column} should exist.");
         }
 
-        foreach (['status', 'processing_error'] as $column) {
-            $this->assertTrue(Schema::hasColumn('document_ocr_results', $column), "document_ocr_results.{$column} should exist.");
-        }
-
         $this->assertSame(0, Artisan::call('queue:failed'));
         $this->assertStringContainsString('No failed jobs found', Artisan::output());
     }
 
     public function test_required_scheduled_jobs_are_registered_with_overlap_mutexes(): void
     {
-        $this->assertSame(0, Artisan::call('schedule:list', ['--json' => true]));
-
-        $tasks = collect(json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR));
-        $this->assertNotNull($tasks->firstWhere('command', 'installments.process-overdues'));
-
         $events = collect(Schedule::events());
-        $installmentTask = $events->firstWhere('description', 'installments.process-overdues');
+        $retentionTask = $events->firstWhere('description', 'retention-documents.process-undertakings');
 
-        $this->assertIsObject($installmentTask);
-        $this->assertSame('10 0 * * *', $installmentTask->expression);
-        $this->assertTrue($installmentTask->withoutOverlapping);
+        $this->assertIsObject($retentionTask);
+        $this->assertSame('0 1 * * *', $retentionTask->expression);
+        $this->assertTrue($retentionTask->withoutOverlapping);
 
+        $this->assertNull($events->firstWhere('description', 'installments.process-overdues'));
+        $this->assertNull($events->firstWhere('description', 'promissory-notes.process-deadlines'));
     }
 
     public function test_queue_jobs_have_explicit_retry_backoff_metadata(): void
     {
-        $installmentJob = new ProcessInstallmentOverduesJob;
         $payMongoJob = new ProcessPayMongoWebhookCall(1);
-        $ocrJob = new ProcessDocumentOcrJob(1);
-
-        $this->assertSame(3, $installmentJob->tries);
-        $this->assertSame([60, 300, 900], $installmentJob->backoff());
+        $retentionJob = new ProcessRetentionDocumentUndertakingsJob;
 
         $this->assertSame(3, $payMongoJob->tries);
         $this->assertSame([60, 300, 900], $payMongoJob->backoff());
 
-        $this->assertSame(5, $ocrJob->tries);
-        $this->assertSame([10, 30, 60], $ocrJob->backoff());
+        $this->assertSame(3, $retentionJob->tries);
+        $this->assertSame([60, 300, 900], $retentionJob->backoff());
     }
 
     public function test_paymongo_webhook_processing_failures_are_visible_on_webhook_call(): void
@@ -128,7 +116,7 @@ class TAL12MonitoringCoverageTest extends TestCase
 
     private function prepareSchema(): void
     {
-        foreach (['payment_attempts', 'document_ocr_results', 'webhook_calls', 'failed_jobs', 'jobs'] as $table) {
+        foreach (['payment_attempts', 'webhook_calls', 'failed_jobs', 'jobs'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -160,19 +148,6 @@ class TAL12MonitoringCoverageTest extends TestCase
             $table->json('payload')->nullable();
             $table->json('attachments')->nullable();
             $table->text('exception')->nullable();
-            $table->timestamp('processed_at')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('document_ocr_results', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('document_upload_id');
-            $table->string('ocr_engine')->default('google_vision')->index();
-            $table->string('parser_version')->nullable();
-            $table->longText('ocr_text')->nullable();
-            $table->decimal('ocr_confidence', 5, 2)->nullable();
-            $table->string('status')->default('ocr_extracted')->index();
-            $table->text('processing_error')->nullable();
             $table->timestamp('processed_at')->nullable();
             $table->timestamps();
         });

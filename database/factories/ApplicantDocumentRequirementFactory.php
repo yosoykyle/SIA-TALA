@@ -30,7 +30,6 @@ class ApplicantDocumentRequirementFactory extends Factory
             'permitted_evidence_methods' => ['applicant_upload', 'registrar_assisted_upload'],
             'storage_class' => DocumentRequirementItem::StorageClassCredentialFile,
             'sensitivity_class' => DocumentRequirementItem::SensitivityStandard,
-            'ocr_policy' => DocumentRequirementItem::OcrPolicyOptional,
             'deadline_strategy' => null,
             'evidence_state' => ApplicantDocumentRequirement::EvidenceStatePending,
             'meta' => [],

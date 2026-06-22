@@ -3,7 +3,6 @@
 namespace App\Actions\Applicants;
 
 use App\Actions\Fortify\PasswordValidationRules;
-use App\Jobs\ProcessDocumentOcrJob;
 use App\Models\ApplicantDocumentRequirement;
 use App\Models\ApplicantIntake;
 use App\Models\DocumentUpload;
@@ -180,7 +179,7 @@ class ApplicantIntakeService
                 'file_size' => $validated['file_size'] ?? null,
                 'checksum' => $validated['checksum'] ?? null,
                 'upload_status' => 'uploaded',
-                'ocr_review_status' => DocumentUpload::ReviewStatusUploaded,
+                'review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
                 'student_confirmed_payload' => $validated['student_confirmed_payload'] ?? [],
                 'student_confirmed_at' => array_key_exists('student_confirmed_payload', $validated)
                     ? $timestamp
@@ -211,15 +210,13 @@ class ApplicantIntakeService
                 properties: [
                     'document_upload_id' => $documentUpload->id,
                     'document_type' => $documentUpload->document_type,
-                    'ocr_review_status' => $documentUpload->ocr_review_status,
+                    'review_status' => $documentUpload->review_status,
                 ],
                 timestamp: $timestamp,
             );
 
             return $documentUpload;
         }, attempts: 3);
-
-        ProcessDocumentOcrJob::dispatch($upload->id);
 
         return $upload->refresh()->load(['applicantIntake', 'user', 'term']);
     }
@@ -505,7 +502,6 @@ class ApplicantIntakeService
                 'permitted_evidence_methods' => $item->permitted_evidence_methods,
                 'storage_class' => $item->storage_class,
                 'sensitivity_class' => $item->sensitivity_class,
-                'ocr_policy' => $item->ocr_policy,
                 'deadline_strategy' => $item->deadline_strategy,
                 'evidence_state' => ApplicantDocumentRequirement::EvidenceStatePending,
                 'meta' => [

@@ -23,7 +23,6 @@ return new class extends Migration
             $table->json('permitted_evidence_methods');
             $table->string('storage_class');
             $table->string('sensitivity_class');
-            $table->string('ocr_policy');
             $table->string('deadline_strategy')->nullable();
             $table->string('evidence_state')->default('pending')->index();
             $table->foreignId('satisfied_by_document_upload_id')->nullable()->constrained('document_uploads')->nullOnDelete();

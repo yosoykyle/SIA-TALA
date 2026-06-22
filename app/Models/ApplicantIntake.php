@@ -178,7 +178,7 @@ class ApplicantIntake extends Model
     public function missingApprovedDocumentTypes(): array
     {
         $approvedDocuments = $this->documentUploads()
-            ->where('ocr_review_status', DocumentUpload::ReviewStatusRegistrarApproved)
+            ->where('review_status', DocumentUpload::ReviewStatusRegistrarApproved)
             ->pluck('document_type')
             ->all();
 
@@ -210,7 +210,7 @@ class ApplicantIntake extends Model
     public function missingApprovedAdmissionGateDocumentTypes(): array
     {
         $approvedDocuments = $this->documentUploads()
-            ->where('ocr_review_status', DocumentUpload::ReviewStatusRegistrarApproved)
+            ->where('review_status', DocumentUpload::ReviewStatusRegistrarApproved)
             ->pluck('document_type')
             ->all();
 

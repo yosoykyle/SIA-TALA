@@ -9,10 +9,6 @@ class DocumentUpload extends Model
 {
     public const ReviewStatusUploaded = 'uploaded';
 
-    public const ReviewStatusOcrExtracted = 'ocr_extracted';
-
-    public const ReviewStatusStudentConfirmed = 'student_confirmed';
-
     public const ReviewStatusPendingRegistrarReview = 'pending_registrar_review';
 
     public const ReviewStatusRegistrarApproved = 'registrar_approved';
@@ -21,8 +17,6 @@ class DocumentUpload extends Model
 
     public const ReviewStatusRejected = 'rejected';
 
-    public const ReviewStatusNeedsManualReview = 'needs_manual_review';
-
     public const ReviewStatusManualEntry = 'manual_entry';
 
     /**
@@ -30,11 +24,8 @@ class DocumentUpload extends Model
      */
     public const RegistrarReviewableStatuses = [
         self::ReviewStatusUploaded,
-        self::ReviewStatusOcrExtracted,
-        self::ReviewStatusStudentConfirmed,
         self::ReviewStatusPendingRegistrarReview,
         self::ReviewStatusNeedsCorrection,
-        self::ReviewStatusNeedsManualReview,
         self::ReviewStatusManualEntry,
     ];
 
@@ -55,11 +46,7 @@ class DocumentUpload extends Model
         'file_size',
         'checksum',
         'upload_status',
-        'ocr_review_status',
-        'ocr_confidence',
-        'ocr_text',
-        'ocr_processed_at',
-        'parser_version',
+        'review_status',
         'registrar_reviewed_by',
         'registrar_reviewed_at',
         'student_confirmed_payload',
@@ -73,8 +60,6 @@ class DocumentUpload extends Model
     protected function casts(): array
     {
         return [
-            'ocr_confidence' => 'decimal:2',
-            'ocr_processed_at' => 'datetime',
             'registrar_reviewed_at' => 'datetime',
             'student_confirmed_payload' => 'array',
             'student_confirmed_at' => 'datetime',
@@ -89,13 +74,10 @@ class DocumentUpload extends Model
     {
         return [
             self::ReviewStatusUploaded => 'Uploaded',
-            self::ReviewStatusOcrExtracted => 'OCR Extracted',
-            self::ReviewStatusStudentConfirmed => 'Student Confirmed',
             self::ReviewStatusPendingRegistrarReview => 'Pending Registrar Review',
             self::ReviewStatusRegistrarApproved => 'Registrar Approved',
             self::ReviewStatusNeedsCorrection => 'Needs Correction',
             self::ReviewStatusRejected => 'Rejected',
-            self::ReviewStatusNeedsManualReview => 'Needs Manual Review',
             self::ReviewStatusManualEntry => 'Manual Entry',
         ];
     }
@@ -107,7 +89,6 @@ class DocumentUpload extends Model
     {
         return [
             'gray' => self::ReviewStatusUploaded,
-            'info' => self::ReviewStatusOcrExtracted,
             'warning' => self::ReviewStatusPendingRegistrarReview,
             'success' => self::ReviewStatusRegistrarApproved,
             'danger' => self::ReviewStatusRejected,
@@ -117,10 +98,9 @@ class DocumentUpload extends Model
     public static function reviewStatusColor(?string $status): string
     {
         return match ($status) {
-            self::ReviewStatusOcrExtracted => 'info',
             self::ReviewStatusPendingRegistrarReview,
             self::ReviewStatusNeedsCorrection,
-            self::ReviewStatusNeedsManualReview => 'warning',
+            self::ReviewStatusManualEntry => 'warning',
             self::ReviewStatusRegistrarApproved => 'success',
             self::ReviewStatusRejected => 'danger',
             default => 'gray',
@@ -129,17 +109,17 @@ class DocumentUpload extends Model
 
     public function isRegistrarApproved(): bool
     {
-        return $this->ocr_review_status === self::ReviewStatusRegistrarApproved;
+        return $this->review_status === self::ReviewStatusRegistrarApproved;
     }
 
     public function isRejected(): bool
     {
-        return $this->ocr_review_status === self::ReviewStatusRejected;
+        return $this->review_status === self::ReviewStatusRejected;
     }
 
     public function isRegistrarReviewable(): bool
     {
-        return in_array($this->ocr_review_status, self::RegistrarReviewableStatuses, true);
+        return in_array($this->review_status, self::RegistrarReviewableStatuses, true);
     }
 
     public function studentProfile(): BelongsTo

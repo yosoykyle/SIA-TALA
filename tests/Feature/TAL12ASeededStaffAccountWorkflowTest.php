@@ -47,15 +47,16 @@ class TAL12ASeededStaffAccountWorkflowTest extends TestCase
         }
     }
 
-    public function test_two_factor_and_passkey_migrations_remain_present_but_admin_flow_is_disabled_for_now(): void
+    public function test_two_factor_migration_remains_while_passkeys_are_removed_from_scope(): void
     {
         $this->assertFileExists(database_path('migrations/2026_05_21_222158_add_two_factor_columns_to_users_table.php'));
-        $this->assertFileExists(database_path('migrations/2026_05_21_222159_create_passkeys_table.php'));
+        $this->assertFileDoesNotExist(database_path('migrations/2026_05_21_222159_create_passkeys_table.php'));
 
         $fortifyConfig = file_get_contents(config_path('fortify.php'));
 
         $this->assertIsString($fortifyConfig);
         $this->assertStringNotContainsString('Features::twoFactorAuthentication', $fortifyConfig);
         $this->assertStringNotContainsString('Features::passkeys', $fortifyConfig);
+        $this->assertStringNotContainsString("'passkeys'", $fortifyConfig);
     }
 }

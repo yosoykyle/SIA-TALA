@@ -83,14 +83,14 @@ class DocumentUploadReviewService
 
             if (! $locked->isRegistrarReviewable()) {
                 throw ValidationException::withMessages([
-                    'ocr_review_status' => 'Only active Registrar review documents can transition.',
+                    'review_status' => 'Only active Registrar review documents can transition.',
                 ]);
             }
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
 
             $locked->forceFill([
-                'ocr_review_status' => $status,
+                'review_status' => $status,
                 'registrar_reviewed_by' => $registrar->id,
                 'registrar_reviewed_at' => $timestamp,
                 'registrar_approved_payload' => $status === DocumentUpload::ReviewStatusRegistrarApproved
