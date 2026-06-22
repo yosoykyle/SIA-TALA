@@ -153,6 +153,16 @@ S1 identity/RBAC result:
 - Staff account UI keeps one role per account; role CRUD remains read-only/seeded rather than runtime-editable.
 - S1 is covered by focused Fortify/RBAC tests plus adjacent Student Hub, internal route denial, system-admin, seeded account, and RBAC matrix tests.
 
+S2 academic foundation result:
+
+- College academic setup is present for academic years, terms, programs, subjects, curricula, rooms, sections, section delivery groups, delivery patterns, curriculum readiness scopes, and controlled curriculum imports.
+- Academic setup resources are permission-gated for Registrar, Academic Head, curriculum managers, term managers, schedule managers, and global viewers as applicable.
+- Active academic setup forms do not expose SHS or `education_level` choices; Grade 12 remains only prior-education admissions evidence outside this sprint.
+- Curriculum imports use a dedicated template, private upload path, preview validation, authorized commit, transactional writes, and audit evidence.
+- Curriculum readiness scopes block scheduling until subject demand has required scheduling fields; subject edits reset ready scopes to review.
+- S2 prepares data for S6 Scheduling and CP-SAT but does not implement solver dispatch, solve logic, or published schedule workflows.
+- S2 is tracked in Linear as `TAL-36` and covered by the focused academic foundation, college-only scope, import, readiness, delivery-pattern, section-planning, and scheduling-readiness tests.
+
 ## Survival Micro-Sprint Backlog
 
 Use this order until replaced by a newer user-approved execution controller:
