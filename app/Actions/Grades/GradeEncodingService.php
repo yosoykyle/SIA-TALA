@@ -3,6 +3,7 @@
 namespace App\Actions\Grades;
 
 use App\Models\Grade;
+use App\Models\GradeSubmissionPackage;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -41,6 +42,8 @@ class GradeEncodingService
                 ]);
             }
 
+            $this->assertNotLockedBySubmittedPackage($enrollmentSubject, $grade);
+
             $attributes = $this->collegeAttributes($periodGrades);
 
             $grade = $this->persistGrade($grade, $enrollmentSubject, $enrollment, $actor, $attributes);
@@ -71,6 +74,8 @@ class GradeEncodingService
                     'grade' => 'Finalized grades cannot be edited.',
                 ]);
             }
+
+            $this->assertNotLockedBySubmittedPackage($enrollmentSubject, $grade);
 
             $incExpiresAt = CarbonImmutable::parse((string) $enrollment->term_end_date, config('app.timezone'))
                 ->addDays(365)
@@ -194,6 +199,27 @@ class GradeEncodingService
             ->where('subject_id', $enrollmentSubject->subject_id)
             ->lockForUpdate()
             ->first();
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertNotLockedBySubmittedPackage(stdClass $enrollmentSubject, ?Grade $grade): void
+    {
+        $isLocked = DB::table('grade_submission_package_items')
+            ->join('grade_submission_packages', 'grade_submission_packages.id', '=', 'grade_submission_package_items.grade_submission_package_id')
+            ->where('grade_submission_package_items.enrollment_subject_id', $enrollmentSubject->id)
+            ->when($grade instanceof Grade, fn ($query) => $query->where('grade_submission_package_items.grade_id', $grade->id))
+            ->where('grade_submission_packages.state', GradeSubmissionPackage::StateSubmitted)
+            ->exists();
+
+        if (! $isLocked) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'grade' => 'Submitted grade packages cannot be edited until Registrar returns them.',
+        ]);
     }
 
     /**

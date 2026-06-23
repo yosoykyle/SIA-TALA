@@ -4,7 +4,7 @@
 
 Active reset: `SDD-00F Feature Approval and Survival Rebaseline`.
 
-Feature classification is complete for all 8/8 approved batches. S1-S6 implementation and Cloud Run redeployment smoke evidence are complete. Next implementation sprint is S7 Grades unless the user redirects.
+Feature classification is complete for all 8/8 approved batches. S1-S6 implementation and Cloud Run redeployment smoke evidence are complete. S7 Grades is in progress; S7A package lifecycle backend is implemented and the next S7 slice is the Registrar verification/return Filament queue unless the user redirects.
 
 This file is the only local execution controller. Deleted SDD maps, local checklists, rescue plans, benchmark matrices, capability trackers, and migration-control logs are historical and must not be treated as active instructions. Linear and git history retain the previous execution record.
 
@@ -45,7 +45,7 @@ Completed:
 
 Current:
 
-1. Continue to `S7 Grades` after user acceptance of S6 evidence.
+1. Continue S7B: Registrar grade-submission package queue UI/actions for submitted, returned, and verified/finalized packages.
 
 ## Approved Feature Batch 1
 
@@ -207,6 +207,17 @@ S4 enrollment, COR, and capacity result:
 - Verified: focused S6 scheduling/service, solver dispatch, snapshot, Cloud Run client, Filament resource, registrar-resource, and Python CP-SAT solver tests passed after implementation.
 - Completed: Cloud Build `a9323fcd-a371-448d-8e47-92c7e52b6a21` deployed image `asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc` to Cloud Run revision `tala-scheduler-solver-00005-42w`, serving 100% traffic at `https://tala-scheduler-solver-783866300038.asia-southeast1.run.app`.
 - Verified: Cloud Run `/health` returned `{"status":"ok","service":"tala-scheduler-solver"}` and `/solve` against `samples/minimal_snapshot.json` returned `solver_status=optimal`, `assigned_count=2`, `unassigned_count=0`, `hard_violation_count=0`, `timeout=false`, and two `ok` draft rows.
+
+## S7 Grades Implementation Checkpoint
+
+- Completed S7A backend package lifecycle: `grade_submission_packages` and `grade_submission_package_items` snapshot the term, section, subject, faculty, roster checksum, College grading-profile metadata, submitted grade rows, Registrar reviewer, return reason, and verified-finalized timestamp.
+- Completed Faculty class-list action correction: Faculty no longer directly finalizes official grade rows from the class-list action. The active action submits a section/subject package for Registrar verification.
+- Completed pending-review edit lock: submitted packages block Faculty grade edits until the Registrar returns the package. Returned packages remain editable and can be resubmitted.
+- Completed Registrar backend transitions: Registrar can return a submitted package without finalizing grades, or verify/finalize the whole package atomically. Verification marks included grade rows official and sets `finalized_by` to the Registrar reviewer.
+- Completed permission boundary: Registrar package verification uses the explicit `verify-grade-submissions` permission assigned to the seeded Registrar role.
+- Verified: focused grade package, grade encoding, grade correction, Faculty/Academic Head Filament contract, Student Dashboard grade visibility, and prerequisite/subject-suggestion tests passed after implementation.
+- Tracked in Linear as `TAL-40`.
+- Remaining S7B: build/test the Registrar Filament package queue for list/view, return, and verify/finalize actions; add package visibility filters/status columns; update any manual UAT cases after UI exists.
 
 ## Survival Micro-Sprint Backlog
 

@@ -74,6 +74,11 @@ class EnrollmentSubjectPolicy
 
     public function finalizeGrade(User $user, EnrollmentSubject $enrollmentSubject): bool
     {
+        return $this->submitGradePackage($user, $enrollmentSubject);
+    }
+
+    public function submitGradePackage(User $user, EnrollmentSubject $enrollmentSubject): bool
+    {
         return $user->hasRole('faculty')
             && $user->can('finalize-grades')
             && $enrollmentSubject->isAssignedToFaculty($user)

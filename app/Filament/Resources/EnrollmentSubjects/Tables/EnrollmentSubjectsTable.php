@@ -4,7 +4,7 @@ namespace App\Filament\Resources\EnrollmentSubjects\Tables;
 
 use App\Actions\Faculty\FacultyClassListService;
 use App\Actions\Grades\GradeEncodingService;
-use App\Actions\Grades\GradeFinalizationService;
+use App\Actions\Grades\GradeSubmissionPackageService;
 use App\Models\EnrollmentSubject;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -132,7 +132,7 @@ class EnrollmentSubjectsTable
                 ViewAction::make(),
                 self::encodeGradeAction(),
                 self::markIncompleteAction(),
-                self::finalizeGradeAction(),
+                self::submitGradePackageAction(),
             ])
             ->toolbarActions([])
             ->defaultSort('created_at', 'desc');
@@ -209,24 +209,33 @@ class EnrollmentSubjectsTable
             });
     }
 
-    private static function finalizeGradeAction(): Action
+    private static function submitGradePackageAction(): Action
     {
-        return Action::make('finalizeGrade')
-            ->label('Finalize')
+        return Action::make('submitGradePackage')
+            ->label('Submit Package')
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->requiresConfirmation()
-            ->visible(fn (EnrollmentSubject $record): bool => auth()->user()?->can('finalizeGrade', $record) ?? false)
+            ->modalHeading('Submit Grade Package')
+            ->modalDescription('Submit this section and subject grade package for Registrar verification. Faculty editing locks until Registrar returns the package.')
+            ->visible(fn (EnrollmentSubject $record): bool => auth()->user()?->can('submitGradePackage', $record) ?? false)
             ->action(function (EnrollmentSubject $record): void {
                 $actor = auth()->user();
 
-                if (! $actor instanceof User || $record->grade === null) {
+                $record->loadMissing('enrollment');
+
+                if (! $actor instanceof User || $record->grade === null || $record->enrollment?->section_id === null) {
                     return;
                 }
 
                 self::handleGradeAction(function () use ($record, $actor): void {
-                    app(GradeFinalizationService::class)->finalize($record->grade, $actor);
-                }, 'Grade sheet finalized');
+                    app(GradeSubmissionPackageService::class)->submit(
+                        termId: $record->enrollment->term_id,
+                        sectionId: $record->enrollment->section_id,
+                        subjectId: $record->subject_id,
+                        faculty: $actor,
+                    );
+                }, 'Grade package submitted for Registrar verification');
             });
     }
 

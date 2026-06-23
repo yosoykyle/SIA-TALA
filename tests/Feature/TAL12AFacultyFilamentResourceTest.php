@@ -19,18 +19,19 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringContainsString("hasRole('faculty')", $sectionMeetings);
     }
 
-    public function test_faculty_grade_actions_are_policy_scoped_to_encoding_incomplete_and_finalization(): void
+    public function test_faculty_grade_actions_are_policy_scoped_to_encoding_incomplete_and_package_submission(): void
     {
         $table = $this->resourceSource('EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php');
         $policy = file_get_contents(app_path('Policies/EnrollmentSubjectPolicy.php'));
 
         $this->assertIsString($policy);
 
-        foreach (['encodeGrade', 'markIncomplete', 'finalizeGrade'] as $action) {
+        foreach (['encodeGrade', 'markIncomplete', 'submitGradePackage'] as $action) {
             $this->assertStringContainsString($action, $table);
             $this->assertStringContainsString($action, $policy);
         }
 
+        $this->assertStringContainsString('finalizeGrade', $policy);
         $this->assertStringContainsString('encode-grades', $policy);
         $this->assertStringContainsString('finalize-grades', $policy);
         $this->assertStringContainsString('isAssignedToFaculty', $policy);
@@ -79,7 +80,8 @@ class TAL12AFacultyFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('usesShsGrading()', $table);
         $this->assertStringNotContainsString("TextInput::make('q1')", $table);
         $this->assertStringContainsString('GradeEncodingService', $table);
-        $this->assertStringContainsString('GradeFinalizationService', $table);
+        $this->assertStringContainsString('GradeSubmissionPackageService', $table);
+        $this->assertStringContainsString('Submit Grade Package', $table);
     }
 
     public function test_grade_correction_actions_follow_registrar_review_and_resolution_flow(): void
