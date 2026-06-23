@@ -49,7 +49,7 @@ class SectionMeetingPolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('manage-schedules');
+        return false;
     }
 
     /**

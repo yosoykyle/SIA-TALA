@@ -35,11 +35,6 @@ class ScheduleGenerationRunInfolist
                 TextEntry::make('published_at')
                     ->dateTime()
                     ->placeholder('-'),
-                TextEntry::make('emergency_published')
-                    ->label('Emergency Publish')
-                    ->badge()
-                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Yes' : 'No')
-                    ->color(fn (?bool $state): string => $state ? 'danger' : 'gray'),
                 TextEntry::make('publish_note')
                     ->placeholder('-')
                     ->columnSpanFull(),

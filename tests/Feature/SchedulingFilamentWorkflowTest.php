@@ -44,7 +44,7 @@ class SchedulingFilamentWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_scheduling_can_be_driven_from_filament_surfaces_until_commit(): void
+    public function test_scheduling_can_be_driven_from_filament_surfaces_until_publication(): void
     {
         Queue::fake();
 
@@ -177,13 +177,16 @@ class SchedulingFilamentWorkflowTest extends TestCase
             ->assertCanSeeTableRecords($draftRows);
 
         Livewire::test(ListScheduleGenerationRuns::class)
-            ->callAction(TestAction::make('commitSchedule')->table($run))
+            ->callAction(TestAction::make('publishSchedule')->table($run), data: [
+                'publish_note' => 'Registrar reviewed generated schedule.',
+            ])
             ->assertHasNoFormErrors();
 
         $run->refresh();
 
-        $this->assertSame(ScheduleGenerationRun::StatusCommitted, $run->status);
+        $this->assertSame(ScheduleGenerationRun::StatusPublished, $run->status);
         $this->assertSame($registrar->id, $run->committed_by);
+        $this->assertSame($registrar->id, $run->published_by);
         $this->assertSame(2, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
 
         foreach ($subjects as $subject) {

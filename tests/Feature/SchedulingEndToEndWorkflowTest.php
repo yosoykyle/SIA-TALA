@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Scheduling\FacultyAvailabilityService;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
-use App\Actions\Scheduling\ScheduleCommitService;
 use App\Actions\Scheduling\ScheduleGenerationService;
+use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
@@ -35,7 +35,7 @@ class SchedulingEndToEndWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registrar_can_generate_ingest_review_and_commit_schedule_from_locked_faculty_availability(): void
+    public function test_registrar_can_generate_ingest_review_and_publish_schedule_from_locked_faculty_availability(): void
     {
         Queue::fake();
 
@@ -100,10 +100,11 @@ class SchedulingEndToEndWorkflowTest extends TestCase
         $this->assertSame(0, $run->constraint_summary['solver_ingestion']['conflict_count']);
         $this->assertSame(2, ScheduleDraftRow::query()->where('generation_run_id', $run->id)->where('status', ScheduleDraftRow::StatusOk)->count());
 
-        $committedRun = app(ScheduleCommitService::class)->commit($run, $registrar);
+        $publishedRun = app(SchedulePublishService::class)->publish($run, $registrar, 'Registrar reviewed generated schedule.');
 
-        $this->assertSame(ScheduleGenerationRun::StatusCommitted, $committedRun->status);
-        $this->assertSame($registrar->id, $committedRun->committed_by);
+        $this->assertSame(ScheduleGenerationRun::StatusPublished, $publishedRun->status);
+        $this->assertSame($registrar->id, $publishedRun->committed_by);
+        $this->assertSame($registrar->id, $publishedRun->published_by);
         $this->assertSame(2, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
 
         foreach ($subjects as $subject) {

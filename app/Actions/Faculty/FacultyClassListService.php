@@ -2,6 +2,7 @@
 
 namespace App\Actions\Faculty;
 
+use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -104,6 +105,16 @@ class FacultyClassListService
             ->where('section_id', $sectionId)
             ->where('subject_id', $subjectId)
             ->where('faculty_id', $faculty->id)
+            ->where(function ($query): void {
+                $query->whereNull('schedule_generation_run_id')
+                    ->orWhereExists(function ($runQuery): void {
+                        $runQuery
+                            ->selectRaw('1')
+                            ->from('schedule_generation_runs')
+                            ->whereColumn('schedule_generation_runs.id', 'section_meetings.schedule_generation_run_id')
+                            ->where('schedule_generation_runs.status', '!=', ScheduleGenerationRun::StatusSuperseded);
+                    });
+            })
             ->exists();
 
         $assignedViaSectionTeacher = DB::table('section_teacher')

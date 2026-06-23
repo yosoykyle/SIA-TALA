@@ -60,7 +60,8 @@ class ScheduleSolverDispatchJobTest extends TestCase
         $this->assertSame('local_stub', $run->constraint_summary['solver_dispatch']['result_summary']['solver_status']);
         $this->assertSame(0, $run->constraint_summary['solver_dispatch']['result_summary']['draft_row_count']);
         $this->assertSame(0, $run->constraint_summary['solver_dispatch']['result_summary']['hard_violation_count']);
-        $this->assertSame('ingested', $run->constraint_summary['solver_ingestion']['status']);
+        $this->assertSame('blocked', $run->constraint_summary['solver_ingestion']['status']);
+        $this->assertSame('missing_draft_rows', $run->constraint_summary['solver_ingestion']['blocked_reason']);
         $this->assertSame(0, $run->constraint_summary['solver_dispatch']['ingestion_summary']['draft_row_count']);
     }
 

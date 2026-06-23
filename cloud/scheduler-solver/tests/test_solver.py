@@ -80,6 +80,97 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual(1, result["assigned_count"])
         self.assertEqual(1, result["unassigned_count"])
 
+    def test_configured_faculty_weekly_workload_limits_solver_assignments(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["faculty_eligibility"] = [
+            {
+                "faculty_id": 200,
+                "subject_id": 100,
+                "scope": "default",
+                "priority": 1,
+                "max_weekly_hours": "1.00",
+            },
+            {
+                "faculty_id": 200,
+                "subject_id": 101,
+                "scope": "default",
+                "priority": 1,
+                "max_weekly_hours": "1.00",
+            },
+        ]
+        snapshot["faculty_availability"] = [
+            {
+                "faculty_id": 200,
+                "status": "locked",
+                "version": 1,
+                "windows": [
+                    {
+                        "day_of_week": 1,
+                        "starts_at": "08:00:00",
+                        "ends_at": "12:00:00",
+                    }
+                ],
+            }
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        ok_rows = [row for row in result["draft_rows"] if row["status"] == "ok"]
+        conflict_rows = [row for row in result["draft_rows"] if row["status"] == "conflict"]
+
+        self.assertEqual("partial", result["solver_status"])
+        self.assertEqual(1, result["assigned_count"])
+        self.assertEqual(1, result["unassigned_count"])
+        self.assertEqual(1, len(ok_rows))
+        self.assertEqual(1, len(conflict_rows))
+
+    def test_existing_faculty_commitments_count_against_weekly_workload_limit(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["faculty_eligibility"] = [
+            {
+                "faculty_id": 200,
+                "subject_id": 100,
+                "scope": "default",
+                "priority": 1,
+                "max_weekly_hours": "1.00",
+            },
+        ]
+        snapshot["faculty_availability"] = [
+            {
+                "faculty_id": 200,
+                "status": "locked",
+                "version": 1,
+                "windows": [
+                    {
+                        "day_of_week": 1,
+                        "starts_at": "08:00:00",
+                        "ends_at": "12:00:00",
+                    }
+                ],
+            }
+        ]
+        snapshot["curriculum_subject_demand"] = snapshot["curriculum_subject_demand"][:1]
+        snapshot["existing_commitments"] = [
+            {
+                "section_meeting_id": 99,
+                "section_id": 999,
+                "section_delivery_group_id": 9999,
+                "subject_id": 999,
+                "faculty_id": 200,
+                "room": "R-999",
+                "day_of_week": 2,
+                "starts_at": "08:00:00",
+                "ends_at": "09:00:00",
+                "modality": "on_site",
+            }
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("partial", result["solver_status"])
+        self.assertEqual(0, result["assigned_count"])
+        self.assertEqual(1, result["unassigned_count"])
+
     def snapshot(self) -> dict:
         path = Path(__file__).resolve().parents[1] / "samples" / "minimal_snapshot.json"
         return copy.deepcopy(json.loads(path.read_text(encoding="utf-8-sig")))

@@ -296,7 +296,7 @@ class SectionMeetingAssignmentServiceTest extends TestCase
         $this->assertSame($faculty->id, $payload['faculty_id']);
     }
 
-    public function test_prepare_for_create_requires_reason_when_faculty_has_no_submitted_or_locked_availability(): void
+    public function test_prepare_for_create_rejects_faculty_without_submitted_or_locked_availability(): void
     {
         [$term, $section, $subject, $registrar, $faculty, $deliveryGroup] = $this->scheduleFixtures(createAvailability: false);
 
@@ -317,12 +317,12 @@ class SectionMeetingAssignmentServiceTest extends TestCase
             $this->fail('Expected missing faculty availability to require an override reason.');
         } catch (ValidationException $exception) {
             $this->assertSame([
-                'Registrar override reason is required because the selected faculty has no submitted or locked availability for this term.',
-            ], $exception->errors()['availability_override_reason']);
+                'The selected faculty has no submitted or locked availability for this term.',
+            ], $exception->errors()['faculty_id']);
         }
     }
 
-    public function test_prepare_for_create_records_reasoned_override_when_meeting_is_outside_availability(): void
+    public function test_prepare_for_create_rejects_meeting_outside_faculty_availability_even_with_review_reason(): void
     {
         [$term, $section, $subject, $registrar, $faculty, $deliveryGroup] = $this->scheduleFixtures(
             availabilityStartsAt: '08:00:00',
@@ -330,95 +330,27 @@ class SectionMeetingAssignmentServiceTest extends TestCase
         );
         $committedAt = CarbonImmutable::parse('2026-06-15 09:00:00', config('app.timezone'));
 
-        $payload = app(SectionMeetingAssignmentService::class)->prepareForCreate([
-            'term_id' => $term->id,
-            'section_id' => $section->id,
-            'section_delivery_group_id' => $deliveryGroup->id,
-            'subject_id' => $subject->id,
-            'faculty_id' => $faculty->id,
-            'room' => 'RUT 201',
-            'day_of_week' => 2,
-            'starts_at' => '10:00',
-            'ends_at' => '11:00',
-            'modality' => 'on_site',
-            'availability_override_reason' => 'Faculty confirmed availability by signed message after the period closed.',
-        ], $registrar, $committedAt);
+        try {
+            app(SectionMeetingAssignmentService::class)->prepareForCreate([
+                'term_id' => $term->id,
+                'section_id' => $section->id,
+                'section_delivery_group_id' => $deliveryGroup->id,
+                'subject_id' => $subject->id,
+                'faculty_id' => $faculty->id,
+                'room' => 'RUT 201',
+                'day_of_week' => 2,
+                'starts_at' => '10:00',
+                'ends_at' => '11:00',
+                'modality' => 'on_site',
+                'availability_override_reason' => 'Faculty confirmed availability by signed message after the period closed.',
+            ], $registrar, $committedAt);
 
-        $this->assertSame('Faculty confirmed availability by signed message after the period closed.', $payload['availability_override_reason']);
-        $this->assertSame($registrar->id, $payload['availability_override_by']);
-        $this->assertSame($committedAt, $payload['availability_override_at']);
-        $this->assertSame('outside_availability_window', $payload['availability_override_payload']['type']);
-        $this->assertSame($faculty->id, $payload['availability_override_payload']['faculty_id']);
-        $this->assertSame($term->id, $payload['availability_override_payload']['term_id']);
-    }
-
-    public function test_prepare_for_schedule_change_ignores_the_current_meeting_but_rejects_other_conflicts(): void
-    {
-        [$term, $section, $subject, $registrar, $faculty, $deliveryGroup] = $this->scheduleFixtures();
-        $otherFaculty = User::factory()->create();
-        FacultySubjectEligibility::factory()->create([
-            'faculty_id' => $otherFaculty->id,
-            'subject_id' => $subject->id,
-            'term_id' => null,
-        ]);
-
-        $meeting = SectionMeeting::query()->create([
-            'term_id' => $term->id,
-            'section_id' => $section->id,
-            'section_delivery_group_id' => $deliveryGroup->id,
-            'subject_id' => $subject->id,
-            'faculty_id' => $faculty->id,
-            'room' => 'RUT 201',
-            'day_of_week' => 2,
-            'starts_at' => '08:00',
-            'ends_at' => '10:00',
-            'modality' => 'on_site',
-            'committed_by' => $registrar->id,
-            'committed_at' => now(),
-        ]);
-
-        $payload = app(SectionMeetingAssignmentService::class)->prepareForScheduleChange($meeting, [
-            'section_delivery_group_id' => $deliveryGroup->id,
-            'faculty_id' => $faculty->id,
-            'room' => 'RUT 201',
-            'day_of_week' => 2,
-            'starts_at' => '08:30',
-            'ends_at' => '10:30',
-            'modality' => 'on_site',
-        ]);
-
-        $this->assertSame('08:30', $payload['starts_at']);
-        $this->assertSame('10:30', $payload['ends_at']);
-
-        $otherSection = Section::factory()->for($term)->for(Program::factory())->create();
-        $otherDeliveryGroup = $this->deliveryGroupFor($otherSection, room: 'RUT 301');
-
-        SectionMeeting::query()->create([
-            'term_id' => $term->id,
-            'section_id' => $otherSection->id,
-            'section_delivery_group_id' => $otherDeliveryGroup->id,
-            'subject_id' => Subject::factory()->create()->id,
-            'faculty_id' => $otherFaculty->id,
-            'room' => 'RUT 301',
-            'day_of_week' => 2,
-            'starts_at' => '10:00',
-            'ends_at' => '12:00',
-            'modality' => 'on_site',
-            'committed_by' => $registrar->id,
-            'committed_at' => now(),
-        ]);
-
-        $this->expectException(ValidationException::class);
-
-        app(SectionMeetingAssignmentService::class)->prepareForScheduleChange($meeting, [
-            'section_delivery_group_id' => $deliveryGroup->id,
-            'faculty_id' => $otherFaculty->id,
-            'room' => 'RUT 302',
-            'day_of_week' => 2,
-            'starts_at' => '10:30',
-            'ends_at' => '11:30',
-            'modality' => 'on_site',
-        ]);
+            $this->fail('Expected outside faculty availability to remain a hard block.');
+        } catch (ValidationException $exception) {
+            $this->assertSame([
+                'The proposed meeting is outside the selected faculty availability. Review notes do not override this hard scheduling constraint.',
+            ], $exception->errors()['faculty_id']);
+        }
     }
 
     /**

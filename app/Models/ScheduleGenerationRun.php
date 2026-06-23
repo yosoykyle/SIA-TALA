@@ -96,7 +96,7 @@ class ScheduleGenerationRun extends Model
     /**
      * @return list<string>
      */
-    public static function committableStatuses(): array
+    public static function publishableStatuses(): array
     {
         return [
             self::StatusGenerated,
@@ -104,14 +104,14 @@ class ScheduleGenerationRun extends Model
         ];
     }
 
-    public function canBeCommitted(): bool
-    {
-        return in_array($this->status, self::committableStatuses(), true);
-    }
-
     public function canBePublished(): bool
     {
-        return $this->status === self::StatusCommitted;
+        return in_array($this->status, self::publishableStatuses(), true);
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->status === self::StatusPublished;
     }
 
     public function term(): BelongsTo

@@ -22,6 +22,8 @@ class Candidate:
     ends_minute: int
     modality: str
     priority: int
+    duration_minutes: int
+    max_weekly_minutes: int | None
 
 
 def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict[str, Any]:
@@ -117,6 +119,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
                         ends_minute=ends_minute,
                         modality=modality,
                         priority=int(faculty.get("priority") or 100),
+                        duration_minutes=duration,
+                        max_weekly_minutes=faculty.get("max_weekly_minutes"),
                     )
 
                     if _conflicts_existing(candidate, existing_commitments):
@@ -146,6 +150,28 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
             if same_delivery_group or same_faculty or same_room:
                 model.add(variables[left_index] + variables[right_index] <= 1)
+
+    existing_faculty_minutes = _existing_faculty_minutes(existing_commitments)
+    for faculty_id in {candidate.faculty_id for candidate in candidates if candidate.max_weekly_minutes is not None}:
+        faculty_candidates = [
+            (index, candidate)
+            for index, candidate in enumerate(candidates)
+            if candidate.faculty_id == faculty_id
+        ]
+        limits = [
+            candidate.max_weekly_minutes
+            for _, candidate in faculty_candidates
+            if candidate.max_weekly_minutes is not None
+        ]
+
+        if not limits:
+            continue
+
+        model.add(
+            sum(candidate.duration_minutes * variables[index] for index, candidate in faculty_candidates)
+            + existing_faculty_minutes.get(faculty_id, 0)
+            <= min(limits)
+        )
 
     model.maximize(sum(_candidate_weight(candidate) * variables[index] for index, candidate in enumerate(candidates)))
 
@@ -250,6 +276,7 @@ def _eligibility(snapshot: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
         grouped.setdefault(subject_id, []).append({
             "faculty_id": faculty_id,
             "priority": _int_or_none(row.get("priority")) or 100,
+            "max_weekly_minutes": _hours_to_minutes(row.get("max_weekly_hours")),
         })
 
     for rows in grouped.values():
@@ -284,6 +311,22 @@ def _existing_commitments(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _existing_faculty_minutes(commitments: list[dict[str, Any]]) -> dict[int, int]:
+    totals: dict[int, int] = {}
+
+    for commitment in commitments:
+        faculty_id = _int_or_none(commitment.get("faculty_id"))
+        starts_at = _time_to_minutes(commitment.get("starts_at"))
+        ends_at = _time_to_minutes(commitment.get("ends_at"))
+
+        if faculty_id is None or starts_at is None or ends_at is None or starts_at >= ends_at:
+            continue
+
+        totals[faculty_id] = totals.get(faculty_id, 0) + (ends_at - starts_at)
+
+    return totals
+
+
 def _duration_minutes(demand: dict[str, Any]) -> int:
     value = demand.get("weekly_contact_hours") or demand.get("lec_hours") or demand.get("units") or 1
 
@@ -293,6 +336,18 @@ def _duration_minutes(demand: dict[str, Any]) -> int:
         hours = 1.0
 
     return max(30, int(hours * 60))
+
+
+def _hours_to_minutes(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+
+    try:
+        hours = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    return max(0, int(hours * 60))
 
 
 def _conflicts_existing(candidate: Candidate, commitments: list[dict[str, Any]]) -> bool:

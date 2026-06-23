@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -40,6 +41,20 @@ class SectionMeeting extends Model
             'availability_override_at' => 'datetime',
             'availability_override_payload' => 'array',
         ];
+    }
+
+    /**
+     * @param  Builder<SectionMeeting>  $query
+     * @return Builder<SectionMeeting>
+     */
+    public function scopeActiveOfficial(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->whereNull('schedule_generation_run_id')
+                ->orWhereHas('scheduleGenerationRun', function (Builder $query): void {
+                    $query->where('status', '!=', ScheduleGenerationRun::StatusSuperseded);
+                });
+        });
     }
 
     /**
@@ -84,6 +99,7 @@ class SectionMeeting extends Model
 
         return self::query()
             ->with(['section', 'sectionDeliveryGroup', 'subject', 'faculty'])
+            ->activeOfficial()
             ->where('term_id', $termId)
             ->orderBy('day_of_week')
             ->orderBy('starts_at')

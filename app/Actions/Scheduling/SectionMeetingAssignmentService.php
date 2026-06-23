@@ -46,62 +46,6 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array<string, mixed>  $newPayload
-     * @return array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string, availability_override_by:?int, availability_override_at:?CarbonImmutable, availability_override_payload:?array<string, mixed>}
-     *
-     * @throws ValidationException
-     */
-    public function prepareForScheduleChange(
-        SectionMeeting $sectionMeeting,
-        array $newPayload,
-        ?User $registrar = null,
-        ?string $availabilityOverrideReason = null,
-        ?CarbonImmutable $changedAt = null,
-        array $availabilityOverrideContext = [],
-    ): array {
-        $payload = [
-            'term_id' => $sectionMeeting->term_id,
-            'section_id' => $sectionMeeting->section_id,
-            'section_delivery_group_id' => array_key_exists('section_delivery_group_id', $newPayload)
-                ? $newPayload['section_delivery_group_id']
-                : $sectionMeeting->section_delivery_group_id,
-            'subject_id' => $sectionMeeting->subject_id,
-            'faculty_id' => array_key_exists('faculty_id', $newPayload)
-                ? $newPayload['faculty_id']
-                : $sectionMeeting->faculty_id,
-            'room' => $newPayload['room'] ?? null,
-            'day_of_week' => $newPayload['day_of_week'] ?? null,
-            'starts_at' => $newPayload['starts_at'] ?? null,
-            'ends_at' => $newPayload['ends_at'] ?? null,
-            'modality' => $newPayload['modality'] ?? null,
-            'availability_override_reason' => $availabilityOverrideReason,
-        ];
-
-        $normalized = $this->normalizeAssignmentData($payload);
-
-        $this->assertTermIsNotPublished($normalized['term_id']);
-        $this->assertNoConflicts($normalized, $sectionMeeting->id);
-        $overrideAttributes = $this->availabilityOverrideAttributes(
-            payload: $normalized,
-            registrar: $registrar,
-            timestamp: $changedAt ?? CarbonImmutable::now(config('app.timezone')),
-            includeNulls: true,
-            context: $availabilityOverrideContext,
-        );
-
-        return [
-            'section_delivery_group_id' => $normalized['section_delivery_group_id'],
-            'faculty_id' => $normalized['faculty_id'],
-            'room' => $normalized['room'],
-            'day_of_week' => $normalized['day_of_week'],
-            'starts_at' => $normalized['starts_at'],
-            'ends_at' => $normalized['ends_at'],
-            'modality' => $normalized['modality'],
-            ...$overrideAttributes,
-        ];
-    }
-
-    /**
      * @param  array<string, mixed>  $data
      * @return array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason:?string}
      *
@@ -156,7 +100,7 @@ class SectionMeetingAssignmentService
 
         if ($payload['availability_override_reason'] !== null && mb_strlen($payload['availability_override_reason']) > 1000) {
             throw ValidationException::withMessages([
-                'availability_override_reason' => 'Availability override reason may not be greater than 1000 characters.',
+                'availability_override_reason' => 'Review reason may not be greater than 1000 characters.',
             ]);
         }
 
@@ -189,6 +133,7 @@ class SectionMeetingAssignmentService
     private function assertNoConflicts(array $payload, ?int $exceptSectionMeetingId = null): void
     {
         $overlappingMeetings = SectionMeeting::query()
+            ->activeOfficial()
             ->where('term_id', $payload['term_id'])
             ->where('day_of_week', $payload['day_of_week'])
             ->where('starts_at', '<', $payload['ends_at'])
@@ -316,35 +261,9 @@ class SectionMeetingAssignmentService
 
         $reason = $payload['availability_override_reason'] ?? null;
 
-        if ($reason === null) {
-            throw ValidationException::withMessages([
-                'availability_override_reason' => $this->availabilityOverrideRequiredMessage($issue['type']),
-            ]);
-        }
-
-        if (! $registrar instanceof User) {
-            throw ValidationException::withMessages([
-                'availability_override_by' => 'An authenticated Registrar is required to record a faculty availability override.',
-            ]);
-        }
-
-        return [
-            'availability_override_reason' => $reason,
-            'availability_override_by' => $registrar->id,
-            'availability_override_at' => $timestamp,
-            'availability_override_payload' => [
-                ...$issue,
-                ...$context,
-                'term_id' => $payload['term_id'],
-                'section_id' => $payload['section_id'],
-                'section_delivery_group_id' => $payload['section_delivery_group_id'],
-                'subject_id' => $payload['subject_id'],
-                'faculty_id' => $payload['faculty_id'],
-                'day_of_week' => $payload['day_of_week'],
-                'starts_at' => $payload['starts_at'],
-                'ends_at' => $payload['ends_at'],
-            ],
-        ];
+        throw ValidationException::withMessages([
+            'faculty_id' => $this->availabilityHardBlockMessage($issue['type'], $reason),
+        ]);
     }
 
     /**
@@ -403,11 +322,13 @@ class SectionMeetingAssignmentService
         ];
     }
 
-    private function availabilityOverrideRequiredMessage(string $issueType): string
+    private function availabilityHardBlockMessage(string $issueType, ?string $reason): string
     {
+        $suffix = $reason !== null ? ' Review notes do not override this hard scheduling constraint.' : '';
+
         return match ($issueType) {
-            'missing_submitted_or_locked_availability' => 'Registrar override reason is required because the selected faculty has no submitted or locked availability for this term.',
-            default => 'Registrar override reason is required because the proposed meeting is outside the selected faculty availability.',
+            'missing_submitted_or_locked_availability' => 'The selected faculty has no submitted or locked availability for this term.'.$suffix,
+            default => 'The proposed meeting is outside the selected faculty availability.'.$suffix,
         };
     }
 
@@ -424,7 +345,7 @@ class SectionMeetingAssignmentService
         }
 
         throw ValidationException::withMessages([
-            'term_id' => 'This term already has a published schedule. Use the schedule-change workflow for post-publish edits.',
+            'term_id' => 'This term already has a published schedule. Publish a superseding schedule run for post-publication corrections.',
         ]);
     }
 

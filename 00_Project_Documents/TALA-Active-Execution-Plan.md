@@ -4,7 +4,7 @@
 
 Active reset: `SDD-00F Feature Approval and Survival Rebaseline`.
 
-Feature classification is complete for all 8/8 approved batches. The active gate is now benchmark-backed dependency mapping, code-reality cleanup, and survival micro-sprint selection.
+Feature classification is complete for all 8/8 approved batches. S1-S6 implementation and Cloud Run redeployment smoke evidence are complete. Next implementation sprint is S7 Grades unless the user redirects.
 
 This file is the only local execution controller. Deleted SDD maps, local checklists, rescue plans, benchmark matrices, capability trackers, and migration-control logs are historical and must not be treated as active instructions. Linear and git history retain the previous execution record.
 
@@ -45,9 +45,7 @@ Completed:
 
 Current:
 
-1. Record `S5` test, schema, Linear, and git evidence.
-2. Human-review the `S5` finance evidence boundary and manual Accounting output.
-3. Benchmark and code-audit `S6 Scheduling and CP-SAT` before implementation.
+1. Continue to `S7 Grades` after user acceptance of S6 evidence.
 
 ## Approved Feature Batch 1
 
@@ -57,8 +55,8 @@ Current:
 
 ## Approved Feature Batch 2
 
-- KEEP: CP-SAT-assisted scheduling; faculty availability input; curriculum-derived subject demand; Registrar-owned subject/faculty assignment; manual schedule assignment; draft review before commit; Academic Head publish approval; delivery groups/patterns where needed; room conflict checking when room-required delivery exists.
-- REVIEW: simplest viable sectioning approach; post-publish schedule-change workflow; summer/remedial scheduling; faculty advising status.
+- KEEP: CP-SAT-assisted scheduling; faculty availability input; curriculum-derived subject demand; Registrar-owned subject/faculty assignment; manual schedule assignment; draft review; Registrar-owned publication; delivery groups/patterns where needed; room conflict checking when room-required delivery exists.
+- REVIEW: simplest viable sectioning approach; superseding schedule-version correction path; summer/remedial scheduling; faculty advising status.
 - REMOVE: online meeting-link/LMS handling; automatic section creation/balancing as an active implementation promise.
 - Clarification: faculty provide availability only. They do not choose teaching subjects or resolve scheduling conflicts. Registrar/setup staff select subjects/faculty from curriculum-derived demand and approved staff records.
 
@@ -128,13 +126,13 @@ Do not benchmark removed or externalized scope back into the product. Manual doc
 | Admissions to student master | Frappe Education Student Applicant and Program Enrollment; openSIS Admissions | Applicant record, approval/rejection, and student-master/enrollment creation are separate states. TALA keeps applicant staging separate until approved handover. |
 | Academic foundation | Frappe Academic Year/Term, Program, Course, Student Group, Program Enrollment | Terms, programs, curricula, subjects/courses, groups/sections, and fee structures must exist before enrollment and scheduling. |
 | Finance and payments | Frappe Fees; openSIS Billing & Fees; PayMongo webhook docs | Fee assessment and payment evidence should be structured, idempotent, and visible to authorized students/staff without implying official tax receipt issuance. |
-| Scheduling | UniTime course timetabling and instructor/student scheduling; Google OR-Tools CP-SAT | Scheduling requires prepared input data, hard conflicts, solver statuses, draft review, and publish/commit separation. Faculty availability is input only; Registrar owns subject/faculty assignment. |
+| Scheduling | UniTime course timetabling, instructional offerings, instructor scheduling, and student-scheduling prerequisites; Frappe Course Schedule/Program Enrollment; Google OR-Tools CP-SAT | Prepare term, curriculum demand, sections, rooms, faculty eligibility, availability, and workload before solving. Planned sections and availability may proceed in parallel after academic setup; Registrar then confirms faculty assignments. Feasibility precedes optimization. Registrar reviews and publishes through one user-facing action; publication transactionally creates official rows and makes them visible. |
 | Student self-service | Frappe Student Portal; openSIS mobile self-service | Student Hub should expose timetable/schedule, grades, fee/payment status, and profile data as read-only owned views before adding mutations. |
 | Auth, queues, and operations | Laravel Fortify/authentication/rate limiting and Laravel queues | Use framework-backed throttling/session/auth behavior, database queue workers, retries/backoff, failed-job visibility, and small focused tests. |
 
 ## Code Reality Snapshot
 
-High-level inspection shows substantial foundation code exists: academic foundation models/resources, applicant intake, document upload review, enrollment services, payment attempts/webhook processing, ledger/payment resources, scheduling services, faculty availability, schedule drafts/commit/publish, grades/grade corrections, Student Hub routes, PWA package, imports, FAQ, and tests.
+High-level inspection shows substantial foundation code exists: academic foundation models/resources, applicant intake, document upload review, enrollment services, payment attempts/webhook processing, ledger/payment resources, scheduling services, faculty availability, schedule drafts/publish, grades/grade corrections, Student Hub routes, PWA package, imports, FAQ, and tests.
 
 S0 cleanup result:
 
@@ -188,6 +186,28 @@ S4 enrollment, COR, and capacity result:
 - COR revoke/supersede controls now use the dedicated `manage-cor-verifications` permission instead of the external-reporting `manage-lis` permission.
 - S4 is tracked in Linear as `TAL-38` and covered by focused COR lifecycle, enrollment, sectioning, subject suggestion, payment-clearance, PayMongo finance-clearance, Registrar resource, and RBAC matrix tests.
 
+## S6 Scheduling Benchmark Decision
+
+- Dependency spine: term and ready curriculum -> projected-demand sections/delivery groups plus faculty availability and room inventory in parallel -> Registrar faculty assignment -> readiness snapshot -> CP-SAT solve -> Laravel validation -> Registrar review/publish -> payment clearance/final placement -> COR.
+- Solver scope: assign day, time, and room only. Section creation, student placement, subject selection, and faculty selection remain outside CP-SAT.
+- Hard inputs: approved subject/faculty eligibility, submitted availability windows, configured faculty maximum weekly hours, section/faculty/room conflicts, capacities, room requirements, calendar grid, and existing official commitments.
+- Result gate: infeasible, unknown, timed-out, malformed, or hard-conflicted results cannot publish. Diagnostics remain review evidence.
+- Publication: user-visible lifecycle is `Generated Draft -> Registrar Review -> Registrar Publish`. One Publish action creates official `section_meetings`, synchronizes `section_teacher`, and marks the run published in one transaction. Academic Head and System Super Admin do not publish schedules.
+- Published schedule: immutable. Corrections require a new superseding draft/version and re-publication; no direct edit or automatic post-publication re-solve.
+- Cross-sprint retention: S3/S5 keep published schedule as a finance-clearance prerequisite. S4 keeps Registrar-assisted irregular subject placement and overlap checking against the published master schedule; individual irregular students are not solver variables.
+- Runtime decision: Google OR-Tools CP-SAT on IAM-private Cloud Run remains the selected solver. Existing solver code is provisional until S6 constraint fixtures, status handling, ingest validation, and redeployment smoke evidence pass.
+
+## S6 Implementation Checkpoint
+
+- Completed: removed the user-facing and production `ScheduleCommitService` path. Registrar publication now creates official schedule rows, synchronizes faculty assignment, records activity, marks the run published, and supersedes an older published run for the same term.
+- Completed: Academic Head and System Super Admin no longer receive normal or emergency publish actions. Official Schedules are read-only; direct official schedule creation is removed from the active Filament route/policy path.
+- Completed: missing/outside faculty availability is a hard scheduling block. Review notes do not override availability. Active schedule consumers filter out meetings attached to superseded runs.
+- Completed: configured faculty workload is enforced inside the CP-SAT solver and again during Laravel solver-result ingestion; non-feasible, timed-out, hard-violating, malformed, or empty solver results block publication and retain diagnostics.
+- Completed: removed inactive schedule-change UI/runtime surfaces. Published corrections use superseding schedule runs, not direct schedule-change records.
+- Verified: focused S6 scheduling/service, solver dispatch, snapshot, Cloud Run client, Filament resource, registrar-resource, and Python CP-SAT solver tests passed after implementation.
+- Completed: Cloud Build `a9323fcd-a371-448d-8e47-92c7e52b6a21` deployed image `asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc` to Cloud Run revision `tala-scheduler-solver-00005-42w`, serving 100% traffic at `https://tala-scheduler-solver-783866300038.asia-southeast1.run.app`.
+- Verified: Cloud Run `/health` returned `{"status":"ok","service":"tala-scheduler-solver"}` and `/solve` against `samples/minimal_snapshot.json` returned `solver_status=optimal`, `assigned_count=2`, `unassigned_count=0`, `hard_violation_count=0`, `timeout=false`, and two `ok` draft rows.
+
 ## Survival Micro-Sprint Backlog
 
 Use this order until replaced by a newer user-approved execution controller:
@@ -198,7 +218,7 @@ Use this order until replaced by a newer user-approved execution controller:
 4. `S3 Admissions to Handover`: prove College applicant intake, requirement-policy resolution, private uploads/manual Registrar review, readiness dashboard, capacity reservation, and applicant-to-student handover without Student Hub access before approval.
 5. `S4 Enrollment, COR, and Capacity`: prove canonical enrollment state, section placement, capacity locking, subject/prerequisite suggestion, finance-clearance gate, COR generation, and COR QR verify/revoke/supersede.
 6. `S5 Finance and PayMongo`: prove fee templates/assessment, manual payment confirmation, PayMongo checkout/webhook signature/idempotency, immutable ledger posting, balance/overpayment, SOA/payment evidence, and Accounting adjustments.
-7. `S6 Scheduling and CP-SAT`: prove faculty availability, Registrar subject/faculty assignment from curriculum demand, schedule snapshot generation, solver dispatch/result ingest, draft conflict review, commit, and Academic Head publish.
+7. `S6 Scheduling and CP-SAT`: prove projected-demand section readiness, faculty eligibility/availability/configured workload, Registrar subject/faculty assignment, immutable snapshot generation, CP-SAT feasibility/optimization, authenticated dispatch, validated result ingest, draft review, transactional Registrar publication, published immutability, and benchmark fixture coverage.
 8. `S7 Grades`: prove faculty class lists, College grading profile, grade encoding/submission, Registrar verification/finalization/return, INC/prerequisite effects, Academic Head-approved finalized grade correction, and immutable grade history.
 9. `S8 Student Hub/PWA`: prove read-only dashboard, COR, published schedule, finalized grades, financial status/payment entry, notifications, FAQ/help, private access, loading/empty/error states, and read-only offline cache boundaries.
 10. `S9 Roster, Export, Ops, and UAT`: prove enrolled-student roster CSV/XLSX, controlled import evidence, queues/failed jobs/health/log visibility, backup/restore expectation, master test case rebuild, and manual UAT pass/fail marking.

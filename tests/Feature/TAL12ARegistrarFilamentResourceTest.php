@@ -2,9 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ScheduleChange;
-use App\Models\User;
-use App\Policies\ScheduleChangePolicy;
 use Tests\TestCase;
 
 class TAL12ARegistrarFilamentResourceTest extends TestCase
@@ -20,7 +17,6 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
             'ScheduleGenerationRuns/ScheduleGenerationRunResource.php' => ['Registrar', 'manage-schedules'],
             'FacultyAvailabilityPeriods/FacultyAvailabilityPeriodResource.php' => ['Registrar', 'review-lock-faculty-availability'],
             'FacultyAvailabilitySubmissions/FacultyAvailabilitySubmissionResource.php' => ['Registrar', 'review-lock-faculty-availability'],
-            'ScheduleChanges/ScheduleChangeResource.php' => ['Registrar', 'manage-schedules'],
             'CorVerifications/CorVerificationResource.php' => ['Registrar', 'manage-cor-verifications'],
         ];
 
@@ -200,10 +196,10 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringContainsString('DraftRowsRelationManager::class', $resource);
-        $this->assertStringContainsString('commitAction', $table);
-        $this->assertStringContainsString('ScheduleCommitService', $table);
+        $this->assertStringContainsString('publishAction', $table);
+        $this->assertStringContainsString('SchedulePublishService', $table);
         $this->assertStringContainsString('ScheduleGenerationRun::statusOptions()', $table);
-        $this->assertStringContainsString('canBeCommitted()', $table);
+        $this->assertStringContainsString('canBePublished()', $table);
         $this->assertStringNotContainsString('DB::transaction', $table);
         $this->assertStringNotContainsString("'status' => 'committed'", $table);
     }
@@ -219,7 +215,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $policy = file_get_contents(app_path('Policies/SectionMeetingPolicy.php'));
 
         $this->assertIsString($policy);
-        $this->assertStringContainsString("CreateSectionMeeting::route('/create')", $resource);
+        $this->assertStringNotContainsString("CreateSectionMeeting::route('/create')", $resource);
         $this->assertStringNotContainsString("EditSectionMeeting::route('/{record}/edit')", $resource);
         $this->assertFileDoesNotExist(app_path('Filament/Resources/SectionMeetings/Pages/EditSectionMeeting.php'));
 
@@ -260,7 +256,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('EditAction::make()', $table);
         $this->assertStringNotContainsString('DeleteAction::make()', $table);
         $this->assertStringContainsString('public function create', $policy);
-        $this->assertStringContainsString("can('manage-schedules')", $policy);
+        $this->assertStringNotContainsString('return $user->can(\'manage-schedules\');', $policy);
         $this->assertStringContainsString('public function update', $policy);
         $this->assertStringContainsString('return false;', $policy);
     }
@@ -277,59 +273,13 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/ServiceRequests'));
     }
 
-    public function test_schedule_change_form_uses_typed_fields_not_raw_json_textareas(): void
+    public function test_schedule_change_resource_is_removed_from_registrar_scope(): void
     {
-        $form = $this->resourceSource('ScheduleChanges/Schemas/ScheduleChangeForm.php');
-        $createPage = $this->resourceSource('ScheduleChanges/Pages/CreateScheduleChange.php');
-        $editPage = $this->resourceSource('ScheduleChanges/Pages/EditScheduleChange.php');
-        $table = $this->resourceSource('ScheduleChanges/Tables/ScheduleChangesTable.php');
-        $policy = file_get_contents(app_path('Policies/ScheduleChangePolicy.php'));
-
-        $this->assertIsString($policy);
-
-        foreach (['new_faculty_id', 'new_room', 'new_day_of_week', 'new_starts_at', 'new_ends_at', 'new_modality'] as $field) {
-            $this->assertStringContainsString($field, $form);
-        }
-
-        $this->assertStringNotContainsString("Textarea::make('old_payload')", $form);
-        $this->assertStringNotContainsString("Textarea::make('new_payload')", $form);
-        $this->assertStringNotContainsString("->relationship('sectionMeeting', 'id')", $form);
-        $this->assertStringContainsString('SectionMeeting::scheduleChangeOptionsFor', $form);
-        $this->assertStringContainsString('->live()', $form);
-        $this->assertStringContainsString('->afterStateUpdated', $form);
-        $this->assertStringContainsString("->disabled(fn (Get \$get): bool => blank(\$get('term_id')))", $form);
-        $this->assertStringContainsString('ScheduleChange::validateTargetMeetingData', $createPage);
-        $this->assertStringContainsString('ScheduleChange::validateTargetMeetingData', $editPage);
-        $this->assertStringContainsString('ScheduleChangePayload::fromSectionMeeting', $createPage);
-        $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $createPage);
-        $this->assertStringContainsString('ScheduleChangePayload::fromFormData', $editPage);
-        $this->assertStringContainsString('ScheduleChangeLifecycleService', $table);
-        $this->assertStringContainsString('ScheduleChange::statusOptions()', $table);
-        $this->assertStringContainsString('isProposed()', $table);
-        $this->assertStringContainsString('isApproved()', $table);
-        $this->assertStringNotContainsString('SectionMeetingAssignmentService', $table);
-        $this->assertStringNotContainsString('DB::transaction', $table);
-        $this->assertStringNotContainsString('json_encode', $table);
-        $this->assertStringContainsString("\$scheduleChange->status === 'proposed'", $policy);
-        $this->assertStringContainsString('$record->isProposed()', $table);
-    }
-
-    public function test_schedule_change_direct_edit_policy_is_limited_to_proposed_requests(): void
-    {
-        $policy = app(ScheduleChangePolicy::class);
-        $registrar = new class extends User
-        {
-            public function can($abilities, $arguments = []): bool
-            {
-                return $abilities === 'manage-schedules';
-            }
-        };
-
-        $this->assertTrue($policy->update($registrar, new ScheduleChange(['status' => 'proposed'])));
-
-        foreach (['approved', 'applied', 'rejected'] as $status) {
-            $this->assertFalse($policy->update($registrar, new ScheduleChange(['status' => $status])));
-        }
+        $this->assertFileDoesNotExist(app_path('Models/ScheduleChange.php'));
+        $this->assertFileDoesNotExist(app_path('Policies/ScheduleChangePolicy.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/Scheduling/ScheduleChangeLifecycleService.php'));
+        $this->assertFileDoesNotExist(app_path('Support/Scheduling/ScheduleChangePayload.php'));
+        $this->assertDirectoryDoesNotExist(app_path('Filament/Resources/ScheduleChanges'));
     }
 
     private function resourceSource(string $relativePath): string

@@ -139,6 +139,7 @@ class StudentDashboardService
 
         return SectionMeeting::query()
             ->with(['subject', 'faculty', 'sectionDeliveryGroup'])
+            ->activeOfficial()
             ->where('term_id', $enrollment->term_id)
             ->where('section_id', $enrollment->section_id)
             ->when($enrollment->section_delivery_group_id !== null, function ($query) use ($enrollment): void {

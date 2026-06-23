@@ -211,7 +211,7 @@ class DraftRowsRelationManager extends RelationManager
                     ->rows(3),
             ])
             ->modalHeading('Revise Draft Row')
-            ->modalDescription('The row and the full draft set will be revalidated before commit is allowed.')
+            ->modalDescription('The row and the full draft set will be revalidated before publication is allowed.')
             ->modalSubmitActionLabel('Save and Revalidate')
             ->action(function (array $data, ScheduleDraftRow $record): void {
                 $actor = auth()->user();
@@ -225,7 +225,7 @@ class DraftRowsRelationManager extends RelationManager
 
                     Notification::make()
                         ->title('Draft row revalidated')
-                        ->body('The full draft set was rechecked. Remaining conflicts, if any, are still blocking commit.')
+                        ->body('The full draft set was rechecked. Remaining conflicts, if any, are still blocking publication.')
                         ->success()
                         ->send();
                 } catch (Throwable $exception) {

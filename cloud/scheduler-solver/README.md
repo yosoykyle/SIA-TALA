@@ -95,15 +95,20 @@ In Google Cloud Console:
 
 1. Select project `tala-dev-ocr-3s`.
 2. Open Cloud Shell.
-3. Upload `cloud/scheduler-solver.zip` through the Cloud Shell upload menu.
+3. If replacing a previous deployment, remove the old files first to prevent Cloud Shell from renaming your upload:
+   `rm -rf scheduler-solver scheduler-solver.zip`
+4. Upload `cloud/scheduler-solver.zip` through the Cloud Shell upload menu.
 
-Then run in Cloud Shell:
+5. **Extract the uploaded file:**
 
 ```bash
-rm -rf scheduler-solver
 unzip scheduler-solver.zip
 cd scheduler-solver
+```
 
+6. **First-time setup** (Skip if you've already deployed this project before):
+
+```bash
 gcloud config set project tala-dev-ocr-3s
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
 
@@ -115,7 +120,12 @@ gcloud artifacts repositories describe tala-containers \
     --location=asia-southeast1 \
     --description="TALA container images" \
     --project=tala-dev-ocr-3s
+```
 
+7. **Build and Deploy** (Run this every time you update the code):
+
+```bash
+gcloud config set project tala-dev-ocr-3s
 IMAGE="asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc"
 
 gcloud builds submit \
@@ -149,6 +159,8 @@ curl -s -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences
 
 ### Deploy with local Docker + gcloud
 
+1. **First-time setup** (Skip if you've already deployed this project before):
+
 ```powershell
 gcloud auth login
 gcloud config set project tala-dev-ocr-3s
@@ -160,7 +172,12 @@ gcloud artifacts repositories create tala-containers `
   --description="TALA container images"
 
 gcloud auth configure-docker asia-southeast1-docker.pkg.dev
+```
 
+2. **Build and Deploy** (Run this every time you update the code):
+
+```powershell
+gcloud config set project tala-dev-ocr-3s
 $image = 'asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc'
 docker build -t $image .\cloud\scheduler-solver
 docker push $image

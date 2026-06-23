@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
-use App\Actions\Scheduling\ScheduleCommitService;
+use App\Actions\Scheduling\SchedulePublishService;
 use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultyAvailabilityWindow;
@@ -31,11 +31,9 @@ class ScheduleCloudResultIngestorTest extends TestCase
     {
         [$run, $section, $subject, $faculty] = $this->readyRun();
 
-        $summary = app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty),
-            ],
-        ]);
+        $summary = app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty),
+        ]));
 
         $draftRow = ScheduleDraftRow::query()->first();
         $deliveryGroup = $section->deliveryGroups()->firstOrFail();
@@ -55,19 +53,17 @@ class ScheduleCloudResultIngestorTest extends TestCase
     {
         [$run, $section, $subject, $faculty] = $this->readyRun(createEligibility: false);
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, null, [
-                    'status' => ScheduleDraftRow::StatusOk,
-                    'modality' => 'modular',
-                    'room' => null,
-                ]),
-                $this->solverRow($section, $subject, $faculty, [
-                    'starts_at' => '10:00:00',
-                    'ends_at' => '11:00:00',
-                ]),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, null, [
+                'status' => ScheduleDraftRow::StatusOk,
+                'modality' => 'modular',
+                'room' => null,
+            ]),
+            $this->solverRow($section, $subject, $faculty, [
+                'starts_at' => '10:00:00',
+                'ends_at' => '11:00:00',
+            ]),
+        ]));
 
         $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
 
@@ -78,24 +74,22 @@ class ScheduleCloudResultIngestorTest extends TestCase
         $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'missing_faculty_subject_eligibility'));
     }
 
-    public function test_warning_rows_with_hard_valid_assignments_can_be_committed(): void
+    public function test_warning_rows_with_hard_valid_assignments_can_be_published(): void
     {
         [$run, $section, $subject, $faculty, $registrar] = $this->readyRun(registrar: $this->registrar());
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty, [
-                    'status' => ScheduleDraftRow::StatusWarning,
-                    'warning_payload' => [
-                        ['type' => 'soft_preference_miss', 'message' => 'Faculty preferred a later slot.'],
-                    ],
-                ]),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty, [
+                'status' => ScheduleDraftRow::StatusWarning,
+                'warning_payload' => [
+                    ['type' => 'soft_preference_miss', 'message' => 'Faculty preferred a later slot.'],
+                ],
+            ]),
+        ]));
 
         $this->assertSame(ScheduleDraftRow::StatusWarning, ScheduleDraftRow::query()->value('status'));
 
-        app(ScheduleCommitService::class)->commit($run->fresh(), $registrar);
+        app(SchedulePublishService::class)->publish($run->fresh(), $registrar);
 
         $this->assertDatabaseHas('section_meetings', [
             'schedule_generation_run_id' => $run->id,
@@ -112,11 +106,9 @@ class ScheduleCloudResultIngestorTest extends TestCase
 
         $this->expectException(ValidationException::class);
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty),
+        ]));
     }
 
     public function test_availability_and_internal_delivery_group_overlaps_are_stored_as_conflicts(): void
@@ -141,22 +133,20 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ])->save();
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty),
-                $this->solverRow($section, $secondSubject, $secondFaculty, [
-                    'starts_at' => '08:30:00',
-                    'ends_at' => '09:30:00',
-                    'room' => 'R-102',
-                ]),
-                $this->solverRow($section, $secondSubject, $secondFaculty, [
-                    'day_of_week' => 2,
-                    'starts_at' => '08:30:00',
-                    'ends_at' => '09:30:00',
-                    'room' => 'R-102',
-                ]),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty),
+            $this->solverRow($section, $secondSubject, $secondFaculty, [
+                'starts_at' => '08:30:00',
+                'ends_at' => '09:30:00',
+                'room' => 'R-102',
+            ]),
+            $this->solverRow($section, $secondSubject, $secondFaculty, [
+                'day_of_week' => 2,
+                'starts_at' => '08:30:00',
+                'ends_at' => '09:30:00',
+                'room' => 'R-102',
+            ]),
+        ]));
 
         $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
 
@@ -206,23 +196,21 @@ class ScheduleCloudResultIngestorTest extends TestCase
             'committed_at' => now(),
         ]);
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty, [
-                    'room' => null,
-                ]),
-                $this->solverRow($section, $subject, $faculty, [
-                    'room' => 'R-101',
-                    'starts_at' => '10:00:00',
-                    'ends_at' => '10:00:00',
-                ]),
-                $this->solverRow($section, $subject, $faculty, [
-                    'room' => 'R-101',
-                    'starts_at' => '13:30:00',
-                    'ends_at' => '14:30:00',
-                ]),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty, [
+                'room' => null,
+            ]),
+            $this->solverRow($section, $subject, $faculty, [
+                'room' => 'R-101',
+                'starts_at' => '10:00:00',
+                'ends_at' => '10:00:00',
+            ]),
+            $this->solverRow($section, $subject, $faculty, [
+                'room' => 'R-101',
+                'starts_at' => '13:30:00',
+                'ends_at' => '14:30:00',
+            ]),
+        ]));
 
         $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
 
@@ -236,13 +224,11 @@ class ScheduleCloudResultIngestorTest extends TestCase
     {
         [$run, $section, $subject, $faculty] = $this->readyRun();
 
-        app(ScheduleCloudResultIngestor::class)->ingest($run, [
-            'draft_rows' => [
-                $this->solverRow($section, $subject, $faculty, [
-                    'room' => 'R-999',
-                ]),
-            ],
-        ]);
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty, [
+                'room' => 'R-999',
+            ]),
+        ]));
 
         $draftRow = ScheduleDraftRow::query()->first();
 
@@ -251,10 +237,48 @@ class ScheduleCloudResultIngestorTest extends TestCase
         $this->assertTrue(collect($draftRow->conflict_payload['items'])->contains('type', 'room_mismatch_fixed_delivery_group_room'));
     }
 
+    public function test_non_feasible_solver_result_blocks_the_run_without_creating_draft_rows(): void
+    {
+        [$run, $section, $subject, $faculty] = $this->readyRun();
+
+        $summary = app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty),
+        ], [
+            'solver_status' => 'infeasible',
+        ]));
+
+        $this->assertSame('blocked', $summary['status']);
+        $this->assertSame('non_feasible_solver_status', $summary['blocked_reason']);
+        $this->assertSame(ScheduleGenerationRun::StatusBlocked, $run->refresh()->status);
+        $this->assertSame(0, ScheduleDraftRow::query()->count());
+    }
+
+    public function test_configured_faculty_weekly_workload_limit_is_a_hard_conflict(): void
+    {
+        [$run, $section, $subject, $faculty] = $this->readyRun(maxWeeklyHours: '1.50');
+
+        app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
+            $this->solverRow($section, $subject, $faculty, [
+                'starts_at' => '08:00:00',
+                'ends_at' => '09:00:00',
+            ]),
+            $this->solverRow($section, $subject, $faculty, [
+                'starts_at' => '09:00:00',
+                'ends_at' => '10:00:00',
+            ]),
+        ]));
+
+        $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
+
+        $this->assertSame(ScheduleDraftRow::StatusOk, $draftRows[0]->status);
+        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[1]->status);
+        $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'faculty_workload_exceeded'));
+    }
+
     /**
      * @return array{ScheduleGenerationRun, Section, Subject, User, User}
      */
-    private function readyRun(?User $registrar = null, bool $createEligibility = true): array
+    private function readyRun(?User $registrar = null, bool $createEligibility = true, ?string $maxWeeklyHours = null): array
     {
         $registrar ??= User::factory()->create();
         $term = Term::factory()->create();
@@ -274,6 +298,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
                 'faculty_id' => $faculty->id,
                 'subject_id' => $subject->id,
                 'term_id' => null,
+                'max_weekly_hours' => $maxWeeklyHours,
             ]);
         }
         $this->createFacultyAvailability($term, $faculty);
@@ -386,6 +411,39 @@ class ScheduleCloudResultIngestorTest extends TestCase
                 ])
                 ->values()
                 ->all(),
+            'faculty_eligibility' => FacultySubjectEligibility::query()
+                ->whereIn('faculty_id', array_keys($availability))
+                ->whereIn('subject_id', collect($subjects)->pluck('id')->all())
+                ->get()
+                ->map(fn (FacultySubjectEligibility $eligibility): array => [
+                    'faculty_id' => $eligibility->faculty_id,
+                    'subject_id' => $eligibility->subject_id,
+                    'scope' => $eligibility->term_id === null ? 'default' : 'term',
+                    'max_weekly_hours' => $eligibility->max_weekly_hours,
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $draftRows
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function solverResult(array $draftRows, array $overrides = []): array
+    {
+        return [
+            'solver_status' => 'feasible',
+            'assigned_count' => count($draftRows),
+            'unassigned_count' => 0,
+            'hard_violation_count' => 0,
+            'warning_count' => 0,
+            'timeout' => false,
+            'objective_score' => 1000,
+            'solve_time_ms' => 1,
+            'draft_rows' => $draftRows,
+            ...$overrides,
         ];
     }
 

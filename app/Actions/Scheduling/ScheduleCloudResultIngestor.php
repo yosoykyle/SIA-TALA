@@ -38,9 +38,10 @@ class ScheduleCloudResultIngestor
             if (in_array($lockedRun->status, [
                 ScheduleGenerationRun::StatusCommitted,
                 ScheduleGenerationRun::StatusPublished,
+                ScheduleGenerationRun::StatusSuperseded,
             ], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Committed or published schedule runs cannot ingest new solver results.',
+                    'status' => 'Committed, published, or superseded schedule runs cannot ingest new solver results.',
                 ]);
             }
 
@@ -52,6 +53,24 @@ class ScheduleCloudResultIngestor
             $draftRows = $this->draftRows($solverResult);
             $acceptedRows = collect();
             $summary = $this->emptySummary($timestamp, count($draftRows));
+            $blockingSolverOutcome = $this->blockingSolverOutcome($solverResult, $draftRows);
+
+            if ($blockingSolverOutcome !== null) {
+                $summary['status'] = 'blocked';
+                $summary['blocked_reason'] = $blockingSolverOutcome;
+
+                $constraintSummary = $lockedRun->constraint_summary ?? [];
+                $constraintSummary['solver_ingestion'] = $summary;
+
+                $lockedRun->forceFill([
+                    'status' => ScheduleGenerationRun::StatusBlocked,
+                    'constraint_summary' => $constraintSummary,
+                ])->save();
+
+                $run->refresh();
+
+                return $summary;
+            }
 
             foreach ($draftRows as $index => $rawRow) {
                 if (! is_array($rawRow)) {
@@ -141,6 +160,7 @@ class ScheduleCloudResultIngestor
         $deliveryGroups = $this->snapshotDeliveryGroups($snapshot);
         $demandKeys = $this->snapshotDemandKeys($snapshot);
         $availability = $this->snapshotAvailability($snapshot);
+        $eligibility = $this->snapshotFacultyEligibility($snapshot);
 
         $sectionId = $this->integerValue($rawRow['section_id'] ?? null);
         $deliveryGroupId = $this->integerValue($rawRow['section_delivery_group_id'] ?? null);
@@ -219,7 +239,7 @@ class ScheduleCloudResultIngestor
 
         $this->appendFieldConflicts($payload, $conflicts);
         $this->appendSnapshotRoomConflicts($payload, $deliveryGroupSnapshot, $conflicts);
-        $this->appendFacultyConflicts($run, $payload, $availability, $conflicts);
+        $this->appendFacultyConflicts($run, $payload, $availability, $eligibility, $acceptedRows, $conflicts);
         $this->appendOverlapConflicts($run, $payload, $acceptedRows, $conflicts);
 
         return [
@@ -305,12 +325,16 @@ class ScheduleCloudResultIngestor
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<int, list<array<string, mixed>>>  $availability
+     * @param  array<int, list<array<string, mixed>>>  $eligibility
+     * @param  Collection<int, array<string, mixed>>  $acceptedRows
      * @param  list<array<string, mixed>>  $conflicts
      */
     private function appendFacultyConflicts(
         ScheduleGenerationRun $run,
         array $payload,
         array $availability,
+        array $eligibility,
+        Collection $acceptedRows,
         array &$conflicts,
     ): void {
         if ($payload['faculty_id'] === null) {
@@ -340,6 +364,23 @@ class ScheduleCloudResultIngestor
         if (! $insideWindow) {
             $conflicts[] = $this->conflict('outside_faculty_availability', 'The proposed meeting is outside the faculty availability snapshot.');
         }
+
+        $maxWeeklyHours = $this->maxWeeklyHoursFor($eligibility, $payload);
+
+        if ($maxWeeklyHours === null) {
+            return;
+        }
+
+        $proposedWeeklyHours = $this->durationHours($payload['starts_at'], $payload['ends_at'])
+            + $this->acceptedFacultyHours($acceptedRows, $payload['faculty_id'])
+            + $this->activeOfficialFacultyHours((int) $run->term_id, $payload['faculty_id']);
+
+        if ($proposedWeeklyHours > $maxWeeklyHours) {
+            $conflicts[] = $this->conflict('faculty_workload_exceeded', 'The proposed meeting exceeds the configured faculty weekly workload limit.', [
+                'max_weekly_hours' => $maxWeeklyHours,
+                'proposed_weekly_hours' => round($proposedWeeklyHours, 2),
+            ]);
+        }
     }
 
     /**
@@ -358,6 +399,7 @@ class ScheduleCloudResultIngestor
         }
 
         $overlappingMeetings = SectionMeeting::query()
+            ->activeOfficial()
             ->where('term_id', $run->term_id)
             ->where('day_of_week', $payload['day_of_week'])
             ->where('starts_at', '<', $payload['ends_at'])
@@ -443,6 +485,38 @@ class ScheduleCloudResultIngestor
     }
 
     /**
+     * @param  array<string, mixed>  $solverResult
+     * @param  list<mixed>  $draftRows
+     */
+    private function blockingSolverOutcome(array $solverResult, array $draftRows): ?string
+    {
+        $status = $this->stringValue($solverResult['solver_status'] ?? null);
+        $normalizedStatus = $status !== null ? mb_strtolower($status) : null;
+
+        if ($status === null) {
+            return 'missing_solver_status';
+        }
+
+        if (! in_array($normalizedStatus, ['optimal', 'feasible', 'test_optimal', 'local_stub', 'ok'], true)) {
+            return 'non_feasible_solver_status';
+        }
+
+        if ((bool) ($solverResult['timeout'] ?? false)) {
+            return 'solver_timeout';
+        }
+
+        if ($this->integerValue($solverResult['hard_violation_count'] ?? 0) > 0) {
+            return 'solver_hard_violation';
+        }
+
+        if ($draftRows === []) {
+            return 'missing_draft_rows';
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{type:string, message:string, context?:mixed}
      */
     private function conflict(string $type, string $message, mixed $context = null): array
@@ -515,6 +589,19 @@ class ScheduleCloudResultIngestor
     }
 
     /**
+     * @param  array<string, mixed>  $snapshot
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function snapshotFacultyEligibility(array $snapshot): array
+    {
+        return collect($snapshot['faculty_eligibility'] ?? [])
+            ->filter(fn (mixed $eligibility): bool => is_array($eligibility) && isset($eligibility['faculty_id']))
+            ->groupBy(fn (array $eligibility): int => (int) $eligibility['faculty_id'])
+            ->map(fn (Collection $items): array => $items->values()->all())
+            ->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function emptySummary(CarbonImmutable $timestamp, int $solverRowCount): array
@@ -573,6 +660,66 @@ class ScheduleCloudResultIngestor
         $time = strlen($time) === 5 ? $time.':00' : $time;
 
         return strlen($time) > 8 ? substr($time, 0, 8) : $time;
+    }
+
+    /**
+     * @param  array<int, list<array<string, mixed>>>  $eligibility
+     * @param  array<string, mixed>  $payload
+     */
+    private function maxWeeklyHoursFor(array $eligibility, array $payload): ?float
+    {
+        $facultyId = $payload['faculty_id'] ?? null;
+        $subjectId = $payload['subject_id'] ?? null;
+
+        if ($facultyId === null || $subjectId === null) {
+            return null;
+        }
+
+        $matching = collect($eligibility[$facultyId] ?? [])
+            ->filter(fn (array $item): bool => (int) ($item['subject_id'] ?? 0) === (int) $subjectId)
+            ->sortByDesc(fn (array $item): int => ($item['scope'] ?? null) === 'term' ? 1 : 0)
+            ->first();
+
+        if (! is_array($matching) || ($matching['max_weekly_hours'] ?? null) === null) {
+            return null;
+        }
+
+        return (float) $matching['max_weekly_hours'];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $acceptedRows
+     */
+    private function acceptedFacultyHours(Collection $acceptedRows, int $facultyId): float
+    {
+        return (float) $acceptedRows
+            ->filter(fn (array $row): bool => (int) ($row['faculty_id'] ?? 0) === $facultyId)
+            ->sum(fn (array $row): float => $this->durationHours($row['starts_at'] ?? null, $row['ends_at'] ?? null));
+    }
+
+    private function activeOfficialFacultyHours(int $termId, int $facultyId): float
+    {
+        return (float) SectionMeeting::query()
+            ->activeOfficial()
+            ->where('term_id', $termId)
+            ->where('faculty_id', $facultyId)
+            ->get(['starts_at', 'ends_at'])
+            ->sum(fn (SectionMeeting $meeting): float => $this->durationHours($meeting->starts_at, $meeting->ends_at));
+    }
+
+    private function durationHours(mixed $startsAt, mixed $endsAt): float
+    {
+        $startsAt = $this->timeValue($startsAt);
+        $endsAt = $this->timeValue($endsAt);
+
+        if ($startsAt === null || $endsAt === null || $startsAt >= $endsAt) {
+            return 0.0;
+        }
+
+        [$startHour, $startMinute] = array_map('intval', explode(':', substr($startsAt, 0, 5)));
+        [$endHour, $endMinute] = array_map('intval', explode(':', substr($endsAt, 0, 5)));
+
+        return (($endHour * 60 + $endMinute) - ($startHour * 60 + $startMinute)) / 60;
     }
 
     private function requiresRoom(string $modality): bool

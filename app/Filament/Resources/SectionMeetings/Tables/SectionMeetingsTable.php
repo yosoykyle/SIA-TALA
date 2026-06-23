@@ -15,7 +15,8 @@ class SectionMeetingsTable
     {
         return $table
             ->modifyQueryUsing(function ($query) {
-                $query->with(['term', 'section', 'sectionDeliveryGroup', 'subject', 'faculty', 'committer']);
+                $query->activeOfficial()
+                    ->with(['term', 'section', 'sectionDeliveryGroup', 'subject', 'faculty', 'committer']);
 
                 $user = auth()->user();
 

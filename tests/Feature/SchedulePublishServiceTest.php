@@ -3,7 +3,12 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Models\FacultyAvailabilityPeriod;
+use App\Models\FacultyAvailabilitySubmission;
+use App\Models\FacultyAvailabilityWindow;
+use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
+use App\Models\ScheduleDraftRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -16,7 +21,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -24,83 +28,119 @@ class SchedulePublishServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_academic_head_can_publish_committed_run_with_official_meetings(): void
+    public function test_registrar_publish_creates_official_meetings_and_faculty_assignment(): void
     {
-        $academicHead = $this->staffUser(User::StaffRoleAcademicHead, ['authorize-overrides']);
-        $run = $this->committedRunWithMeeting();
+        $registrar = $this->registrar();
+        $faculty = User::factory()->create();
+        [$run, $section, $subject] = $this->scheduleRunWithDraftRow($registrar, $faculty);
 
         $publishedRun = app(SchedulePublishService::class)->publish(
             $run,
-            $academicHead,
-            '  Ready for UAT posting.  ',
+            $registrar,
+            '  Ready for posting.  ',
         );
 
+        $meeting = SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->first();
         $properties = $this->activityProperties($publishedRun);
 
+        $this->assertNotNull($meeting);
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $publishedRun->status);
-        $this->assertSame($academicHead->id, $publishedRun->published_by);
+        $this->assertSame($registrar->id, $publishedRun->committed_by);
+        $this->assertSame($registrar->id, $publishedRun->published_by);
+        $this->assertNotNull($publishedRun->committed_at);
         $this->assertNotNull($publishedRun->published_at);
-        $this->assertSame('Ready for UAT posting.', $publishedRun->publish_note);
+        $this->assertSame('Ready for posting.', $publishedRun->publish_note);
         $this->assertFalse((bool) $publishedRun->emergency_published);
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $properties['status_after']);
-        $this->assertFalse($properties['emergency_published']);
+        $this->assertSame(1, $properties['published_meetings']);
+        $this->assertDatabaseHas('section_teacher', [
+            'section_id' => $section->id,
+            'subject_id' => $subject->id,
+            'user_id' => $faculty->id,
+        ]);
     }
 
-    public function test_non_academic_head_cannot_publish_normal_run(): void
+    public function test_non_registrar_cannot_publish_reviewed_run(): void
     {
-        $registrar = $this->staffUser(User::StaffRoleRegistrar, ['manage-schedules', 'authorize-overrides']);
-        $run = $this->committedRunWithMeeting();
+        $actor = User::factory()->create();
+        [$run] = $this->scheduleRunWithDraftRow($this->registrar(), User::factory()->create());
 
         $this->expectException(AuthorizationException::class);
 
-        app(SchedulePublishService::class)->publish($run, $registrar);
+        app(SchedulePublishService::class)->publish($run, $actor);
     }
 
-    public function test_system_super_admin_emergency_publish_requires_reason(): void
+    public function test_emergency_publication_is_not_allowed(): void
     {
-        $systemSuperAdmin = $this->staffUser(User::StaffRoleSystemSuperAdmin);
-        $run = $this->committedRunWithMeeting();
+        $registrar = $this->registrar();
+        [$run] = $this->scheduleRunWithDraftRow($registrar, User::factory()->create());
 
-        try {
-            app(SchedulePublishService::class)->publish($run, $systemSuperAdmin, '  ', emergency: true);
-            $this->fail('Expected emergency publish without reason to be rejected.');
-        } catch (AuthorizationException) {
-            $this->assertSame(ScheduleGenerationRun::StatusCommitted, $run->refresh()->status);
-        }
+        $this->expectException(AuthorizationException::class);
 
-        $publishedRun = app(SchedulePublishService::class)->publish(
-            $run,
-            $systemSuperAdmin,
-            'Academic Head unavailable; client approved release.',
-            emergency: true,
-        );
-
-        $this->assertSame(ScheduleGenerationRun::StatusPublished, $publishedRun->status);
-        $this->assertTrue((bool) $publishedRun->emergency_published);
-        $this->assertSame('Academic Head unavailable; client approved release.', $publishedRun->publish_note);
+        app(SchedulePublishService::class)->publish($run, $registrar, 'Bypass', emergency: true);
     }
 
-    public function test_committed_run_without_official_meetings_cannot_be_published(): void
+    public function test_publish_rejects_conflicted_draft_rows(): void
     {
-        $academicHead = $this->staffUser(User::StaffRoleAcademicHead, ['authorize-overrides']);
-        $term = Term::factory()->create();
-        $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => ScheduleGenerationRun::StatusCommitted,
-            'requested_by' => User::factory()->create()->id,
-            'generated_at' => now(),
-            'committed_by' => User::factory()->create()->id,
-            'committed_at' => now(),
-            'constraint_summary' => [],
+        $registrar = $this->registrar();
+        [$run] = $this->scheduleRunWithDraftRow($registrar, User::factory()->create(), [
+            'status' => ScheduleDraftRow::StatusConflict,
         ]);
 
-        $this->expectException(ValidationException::class);
-
-        app(SchedulePublishService::class)->publish($run, $academicHead);
+        try {
+            app(SchedulePublishService::class)->publish($run, $registrar);
+            $this->fail('Expected conflicted draft rows to block schedule publication.');
+        } catch (ValidationException) {
+            $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->refresh()->status);
+            $this->assertSame(0, SectionMeeting::query()->where('schedule_generation_run_id', $run->id)->count());
+        }
     }
 
-    private function committedRunWithMeeting(): ScheduleGenerationRun
+    public function test_publish_supersedes_prior_published_run_for_same_term(): void
     {
+        $registrar = $this->registrar();
+        $faculty = User::factory()->create();
+        [$priorRun, $section, $subject, $deliveryGroup] = $this->scheduleRunWithDraftRow($registrar, $faculty);
+
+        app(SchedulePublishService::class)->publish($priorRun, $registrar);
+
+        $replacementRun = $this->runForExistingSection(
+            $registrar,
+            $faculty,
+            $section,
+            $subject,
+            $deliveryGroup,
+            startsAt: '10:00:00',
+            endsAt: '11:00:00',
+        );
+
+        app(SchedulePublishService::class)->publish($replacementRun, $registrar, 'Replacement version.');
+
+        $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $priorRun->refresh()->status);
+        $this->assertSame(ScheduleGenerationRun::StatusPublished, $replacementRun->refresh()->status);
+        $this->assertSame(1, SectionMeeting::query()->where('schedule_generation_run_id', $priorRun->id)->count());
+        $this->assertSame(1, SectionMeeting::query()->where('schedule_generation_run_id', $replacementRun->id)->count());
+    }
+
+    private function registrar(): User
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $registrar = User::factory()->create();
+        $registrar->givePermissionTo(Permission::findOrCreate('manage-schedules'));
+
+        return $registrar;
+    }
+
+    /**
+     * @param  array<string, mixed>  $draftRowAttributes
+     * @return array{0: ScheduleGenerationRun, 1: Section, 2: Subject, 3: SectionDeliveryGroup}
+     */
+    private function scheduleRunWithDraftRow(
+        User $registrar,
+        User $faculty,
+        array $draftRowAttributes = [],
+    ): array {
         $term = Term::factory()->create();
         $program = Program::factory()->create();
         $section = Section::factory()->for($term)->for($program)->create();
@@ -108,65 +148,94 @@ class SchedulePublishServiceTest extends TestCase
             'section_id' => $section->id,
             'modality' => 'on_site',
             'capacity' => 30,
-            'assigned_count' => 0,
+            'assigned_count' => 25,
             'room_required' => true,
             'room' => 'R-101',
             'status' => SectionDeliveryGroup::StatusActive,
         ]);
         $subject = Subject::factory()->create();
-        $faculty = User::factory()->create();
-        $registrar = User::factory()->create();
 
+        FacultySubjectEligibility::factory()->create([
+            'faculty_id' => $faculty->id,
+            'subject_id' => $subject->id,
+            'term_id' => null,
+        ]);
+        $this->createFacultyAvailability($term, $faculty);
+
+        $run = $this->runForExistingSection($registrar, $faculty, $section, $subject, $deliveryGroup, $draftRowAttributes);
+
+        return [$run, $section, $subject, $deliveryGroup];
+    }
+
+    /**
+     * @param  array<string, mixed>  $draftRowAttributes
+     */
+    private function runForExistingSection(
+        User $registrar,
+        User $faculty,
+        Section $section,
+        Subject $subject,
+        SectionDeliveryGroup $deliveryGroup,
+        array $draftRowAttributes = [],
+        string $startsAt = '08:00:00',
+        string $endsAt = '09:00:00',
+    ): ScheduleGenerationRun {
         $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => ScheduleGenerationRun::StatusCommitted,
+            'term_id' => $section->term_id,
+            'status' => ScheduleGenerationRun::StatusUnderReview,
             'requested_by' => $registrar->id,
             'generated_at' => now(),
-            'committed_by' => $registrar->id,
-            'committed_at' => now(),
             'constraint_summary' => [],
         ]);
 
-        SectionMeeting::query()->create([
-            'term_id' => $term->id,
+        DB::table('schedule_draft_rows')->insert([
+            'generation_run_id' => $run->id,
             'section_id' => $section->id,
             'section_delivery_group_id' => $deliveryGroup->id,
             'subject_id' => $subject->id,
             'faculty_id' => $faculty->id,
             'room' => 'R-101',
             'day_of_week' => 1,
-            'starts_at' => '08:00:00',
-            'ends_at' => '09:00:00',
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
             'modality' => 'on_site',
-            'schedule_generation_run_id' => $run->id,
-            'committed_by' => $registrar->id,
-            'committed_at' => now(),
+            'status' => ScheduleDraftRow::StatusOk,
+            'created_at' => now(),
+            'updated_at' => now(),
+            ...$draftRowAttributes,
         ]);
 
         return $run;
     }
 
-    /**
-     * @param  list<string>  $permissions
-     */
-    private function staffUser(string $roleName, array $permissions = []): User
+    private function createFacultyAvailability(Term $term, User $faculty): void
     {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $period = FacultyAvailabilityPeriod::query()->firstOrCreate(
+            ['term_id' => $term->id],
+            [
+                'opens_at' => now()->subDay(),
+                'closes_at' => now()->addDays(7),
+                'status' => 'open',
+                'created_by' => User::factory()->create()->id,
+                'locked_at' => null,
+            ],
+        );
 
-        $role = Role::findOrCreate($roleName);
+        $submission = FacultyAvailabilitySubmission::factory()->create([
+            'term_id' => $term->id,
+            'availability_period_id' => $period->id,
+            'faculty_id' => $faculty->id,
+            'status' => FacultyAvailabilitySubmission::StatusLocked,
+            'version' => 1,
+            'locked_at' => now(),
+        ]);
 
-        foreach ($permissions as $permission) {
-            Permission::findOrCreate($permission);
-        }
-
-        $user = User::factory()->create();
-        $user->assignRole($role);
-
-        if ($permissions !== []) {
-            $user->givePermissionTo($permissions);
-        }
-
-        return $user;
+        FacultyAvailabilityWindow::factory()->create([
+            'submission_id' => $submission->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '12:00:00',
+        ]);
     }
 
     /**
