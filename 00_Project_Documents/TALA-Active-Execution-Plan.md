@@ -4,7 +4,7 @@
 
 Active reset: `SDD-00F Feature Approval and Survival Rebaseline`.
 
-Feature classification is complete for all 8/8 approved batches. S1-S6 implementation and Cloud Run redeployment smoke evidence are complete. S7 Grades is in progress; S7A package lifecycle backend is implemented and the next S7 slice is the Registrar verification/return Filament queue unless the user redirects.
+Feature classification is complete for all 8/8 approved batches. S1-S7 implementation is complete at the approved backend/Admin baseline. Next implementation sprint is S8 Student Hub/PWA unless the user redirects.
 
 This file is the only local execution controller. Deleted SDD maps, local checklists, rescue plans, benchmark matrices, capability trackers, and migration-control logs are historical and must not be treated as active instructions. Linear and git history retain the previous execution record.
 
@@ -45,7 +45,7 @@ Completed:
 
 Current:
 
-1. Continue S7B: Registrar grade-submission package queue UI/actions for submitted, returned, and verified/finalized packages.
+1. Continue to `S8 Student Hub/PWA` after user acceptance of S7 evidence.
 
 ## Approved Feature Batch 1
 
@@ -217,7 +217,11 @@ S4 enrollment, COR, and capacity result:
 - Completed permission boundary: Registrar package verification uses the explicit `verify-grade-submissions` permission assigned to the seeded Registrar role.
 - Verified: focused grade package, grade encoding, grade correction, Faculty/Academic Head Filament contract, Student Dashboard grade visibility, and prerequisite/subject-suggestion tests passed after implementation.
 - Tracked in Linear as `TAL-40`.
-- Remaining S7B: build/test the Registrar Filament package queue for list/view, return, and verify/finalize actions; add package visibility filters/status columns; update any manual UAT cases after UI exists.
+- Completed S7B Registrar package queue: `GradeSubmissionPackageResource` is list/view only, uses policy-gated table visibility, exposes status/term filters and package status columns, and provides typed `Return` and `Verify & Finalize` actions backed by `GradeSubmissionPackageService`.
+- Completed S7B read-only package detail: the infolist shows package metadata, roster checksum, reviewer/return/finalization fields, and submitted grade-row snapshots.
+- Completed S7B CRUD guard: no create/edit/form routes, generic edit/delete actions, or bulk delete actions exist for grade-submission packages.
+- Verified: S7B Filament resource tests plus S7 grade package, grade encoding, grade correction, Faculty/Academic Head Filament contract, Student Dashboard grade visibility, and prerequisite/subject-suggestion tests passed after implementation.
+- S7 remaining review items not implemented: grade upload templates, INC auto-fail timing, student-initiated grade-correction request UI/SLA/escalation, early-advising views that consume unfinalized grades, and legacy grade import.
 
 ## Survival Micro-Sprint Backlog
 
