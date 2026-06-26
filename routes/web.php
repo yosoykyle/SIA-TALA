@@ -16,9 +16,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+Route::redirect('/', '/login')->name('home');
 
 Route::get('/cor/verify/{token}', CorVerificationController::class)->name('cor.verify');
 
@@ -28,5 +26,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/finance/payments/{payment}/acknowledgement', PaymentAcknowledgementController::class)
         ->name('finance.payments.acknowledgement');
 });
-
-Route::livewire('/faq', 'pages::faq')->name('faq');

@@ -416,8 +416,8 @@ class StudentDashboardService
     private function help(): array
     {
         return [
-            'help_path' => route('faq', [], false),
-            'public_faq_path' => route('faq', [], false),
+            'help_path' => null,
+            'public_faq_path' => null,
             'faq_entries' => FaqEntry::query()
                 ->where('is_published', true)
                 ->orderBy('sort_order')

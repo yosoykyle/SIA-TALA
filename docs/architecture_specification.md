@@ -4,7 +4,7 @@
 
 **TALA** (Total Academic Lifecycle Automation System) is the unified school information and administration system designed for Servitech Institute Asia (SIA). The title "TALA" (Filipino for _Star/Guide_) reflects the system's role as the central source of truth for academic management.
 
-TALA replaces fragmented legacy processes with a unified digital command center for staff (Registrar, Accounting, Faculty) and an offline-ready web and mobile portal for students (Student Hub), ensuring streamlined operations from student handover to final grade release.
+TALA replaces fragmented legacy processes with a unified digital command center for staff (Registrar, Accounting, Faculty) and role-scoped authenticated workspaces for applicants and students, ensuring streamlined operations from applicant intake to final grade release.
 
 ---
 
@@ -26,7 +26,7 @@ The diagram below illustrates the system structure, clearly separating the core 
 │   │                                                                                │   │
 │   │   ┌───────────────────────────┐                ┌───────────────────────────┐   │   │
 │   │   │     Student Hub UI        │                │      Admin Nexus UI       │   │   │
-│   │   │ (Livewire Flux + PWA PWA) │                │    (FilamentPHP Panels)   │   │   │
+│   │   │    FilamentPHP Panels     │                │    (FilamentPHP Panels)   │   │   │
 │   │   └─────────────┬─────────────┘                └─────────────┬─────────────┘   │   │
 │   │                 │                                            │                 │   │
 │   │                 └──────────────────────┬─────────────────────┘                 │   │
@@ -125,13 +125,13 @@ TALA implements a dual-stack UI approach tailored to administrative and student 
   * **Development Velocity:** Staff workspaces require dozens of tables, filters, multi-select forms, and audit trails. Building these manually in React/Vue requires writing separate frontend components, state management, API controllers, and validation rules. FilamentPHP handles this programmatically in PHP, reducing administrative UI development time by ~80%.
   * **Security and Session Consistency:** Because Filament is server-rendered, auth sessions are bound directly to secure HTTP-only cookies. SPA dashboards often rely on storing tokens (like JWTs) in local storage, which are vulnerable to Cross-Site Scripting (XSS) attacks.
 
-### 3.2 Student Hub (Student Portal): Livewire Flux + PWA vs. Single Page Application (SPA)
-* **Selected:** Laravel Livewire 4 + Livewire Flux + Tailwind CSS v4 + Progressive Web App (PWA).
+### 3.2 Student Hub and Applicant Workspace: Filament Panels vs. Separate SPA
+* **Selected:** FilamentPHP panels/pages backed by Laravel, Livewire, and Tailwind CSS v4.
 * **Counterpart:** Client-Side Single Page Application (e.g., React/Vite/Inertia).
 * **Comparative Justification:**
   * **No API Duplication:** With Livewire, database logic and template variables are bound directly in PHP. We do not have to write separate REST APIs or manage state synchronization between the browser and server.
-  * **Mobile Performance & Bundle Size:** SPA frameworks require the client to download large JavaScript bundles before the first page render, slowing down load times on cheap student mobile phones. Livewire Flux renders HTML server-side (Blade SSR), sending minimal payloads.
-  * **Offline Access:** By pairing Livewire with a Service Worker (PWA), TALA caches the rendered weekly schedules, grades, and CORs locally. Students can view their academic documents offline, which is critical in areas with spotty mobile data in the Philippines.
+  * **Mobile Performance & Bundle Size:** SPA frameworks require the client to download large JavaScript bundles before the first page render, slowing down load times on lower-end mobile phones. Filament and Livewire render server-driven interfaces with smaller client payloads.
+  * **Workflow Consistency:** Applicant, student, faculty, registrar, accounting, academic head, and system administration surfaces can share the same Laravel authorization, audit, and service-layer boundaries.
 
 ---
 
@@ -150,7 +150,6 @@ TALA’s architecture relies on the following verified dependencies already conf
 * `spatie/laravel-activitylog: ^4.8` & `pxlrbt/filament-activity-log: ^2.2` (Audit trail logs for overrides)
 * `laravel/horizon: ^5.46` (Horizon async queue management)
 * `chillerlan/php-qrcode: ^5.0` (Security-hashed QR codes for COR verification)
-* `erag/laravel-pwa: ^2.1` (PWA service worker registration)
 * `maatwebsite/excel: ^3.1` (Excel importing for curricula and exporting for grade reports)
 * `luigel/laravel-paymongo: ^2.6` & `spatie/laravel-webhook-client: ^3.5` (PayMongo gateway wrapper & webhook listeners)
 * `tallstackui/tallstackui: 3.0.0` (Premium UI layout components)
@@ -298,4 +297,3 @@ Traditional academic system deployments often cost schools ₱15,000 to ₱30,00
 4. **SaaS API & Domain Allowance Schedules:**
    * Brevo SMTP standard daily transactional email quotas
    * PHNET Registry official `.edu.ph` domain registration guidelines and fee schedules
-
