@@ -35,7 +35,6 @@ class DocumentUpload extends Model
     protected $fillable = [
         'student_profile_id',
         'applicant_intake_id',
-        'applicant_document_requirement_id',
         'user_id',
         'term_id',
         'document_type',
@@ -132,10 +131,7 @@ class DocumentUpload extends Model
         return $this->belongsTo(ApplicantIntake::class);
     }
 
-    public function applicantDocumentRequirement(): BelongsTo
-    {
-        return $this->belongsTo(ApplicantDocumentRequirement::class);
-    }
+
 
     public function user(): BelongsTo
     {

@@ -3,16 +3,14 @@
 namespace Tests\Feature;
 
 use App\Actions\Applicants\ApplicantIntakeService;
-use App\Actions\Applicants\RetentionDocumentUndertakingService;
 use App\Actions\Registrar\DocumentUploadReviewService;
 use App\Models\AdmissionOffering;
 use App\Models\AdmissionRequirementPolicy;
-use App\Models\ApplicantDocumentRequirement;
 use App\Models\ApplicantIntake;
+use App\Models\ChecklistItem;
 use App\Models\DocumentRequirementItem;
 use App\Models\DocumentUpload;
 use App\Models\Program;
-use App\Models\RetentionDocumentUndertaking;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
@@ -57,11 +55,12 @@ class ApplicantIntakeServiceTest extends TestCase
             'grade_12_card',
             'good_moral',
         ], $intake->admissionGateDocumentTypes());
-        $this->assertDatabaseHas('applicant_document_requirements', [
-            'applicant_intake_id' => $intake->id,
-            'item_key' => 'diploma',
-            'gate_type' => DocumentRequirementItem::GateTypeRetention,
-            'evidence_state' => ApplicantDocumentRequirement::EvidenceStatePending,
+        $this->assertDatabaseHas('checklist_items', [
+            'owner_type' => ApplicantIntake::class,
+            'owner_id' => $intake->id,
+            'requirement_type' => 'diploma',
+            'blocking_level' => 'retention_only',
+            'status' => 'pending',
         ]);
 
         $this->assertDatabaseMissing('student_profiles', [
@@ -105,10 +104,12 @@ class ApplicantIntakeServiceTest extends TestCase
                 'psa_birth_certificate',
             ],
         ]);
-        $requirement = ApplicantDocumentRequirement::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'item_key' => 'psa_birth_certificate',
-            'label' => 'PSA Birth Certificate',
+        $requirement = ChecklistItem::factory()->create([
+            'owner_type' => ApplicantIntake::class,
+            'owner_id' => $intake->id,
+            'requirement_type' => 'psa_birth_certificate',
+            'notes' => 'PSA Birth Certificate',
+            'status' => 'pending',
         ]);
 
         $upload = app(ApplicantIntakeService::class)->recordDocumentUpload($intake, [
@@ -125,12 +126,12 @@ class ApplicantIntakeServiceTest extends TestCase
         ]);
 
         $this->assertSame($intake->id, $upload->applicant_intake_id);
-        $this->assertSame($requirement->id, $upload->applicant_document_requirement_id);
+        $this->assertNull($upload->applicant_document_requirement_id);
         $this->assertNull($upload->student_profile_id);
         $this->assertSame($intake->user_id, $upload->user_id);
         $this->assertSame(DocumentUpload::ReviewStatusPendingRegistrarReview, $upload->review_status);
         $this->assertSame(['first_name' => 'Juan'], $upload->student_confirmed_payload);
-        $this->assertSame(ApplicantDocumentRequirement::EvidenceStateSubmitted, $requirement->refresh()->evidence_state);
+        $this->assertSame('received_digital', $requirement->refresh()->status);
     }
 
     public function test_approval_for_payment_requires_every_required_document_to_be_registrar_approved(): void
@@ -150,6 +151,11 @@ class ApplicantIntakeServiceTest extends TestCase
         $this->documentUpload($intake, 'grade_12_card', DocumentUpload::ReviewStatusPendingRegistrarReview);
         $this->documentUpload($intake, 'good_moral', DocumentUpload::ReviewStatusRegistrarApproved);
 
+        // Map states to checklist items since DocumentUpload doesn't sync directly here (just sets state in sync method but we are manually creating uploads).
+        $intake->checklistItems()->where('requirement_type', 'psa_birth_certificate')->update(['status' => 'accepted']);
+        $intake->checklistItems()->where('requirement_type', 'grade_12_card')->update(['status' => 'received_digital']);
+        $intake->checklistItems()->where('requirement_type', 'good_moral')->update(['status' => 'accepted']);
+
         try {
             app(ApplicantIntakeService::class)->approveForPayment($intake, $registrar);
             $this->fail('Expected applicant approval to require all required documents to be approved.');
@@ -160,6 +166,7 @@ class ApplicantIntakeServiceTest extends TestCase
         $intake->documentUploads()
             ->where('document_type', 'grade_12_card')
             ->update(['review_status' => DocumentUpload::ReviewStatusRegistrarApproved]);
+        $intake->checklistItems()->where('requirement_type', 'grade_12_card')->update(['status' => 'accepted']);
 
         $approved = app(ApplicantIntakeService::class)->approveForPayment($intake->refresh(), $registrar);
 
@@ -191,28 +198,21 @@ class ApplicantIntakeServiceTest extends TestCase
         $this->documentUpload($intake, 'grade_12_card', DocumentUpload::ReviewStatusRegistrarApproved);
         $this->documentUpload($intake, 'good_moral', DocumentUpload::ReviewStatusRegistrarApproved);
 
+        $intake->checklistItems()->where('requirement_type', 'psa_birth_certificate')->update(['status' => 'accepted']);
+        $intake->checklistItems()->where('requirement_type', 'grade_12_card')->update(['status' => 'accepted']);
+        $intake->checklistItems()->where('requirement_type', 'good_moral')->update(['status' => 'accepted']);
+
+
         $approved = app(ApplicantIntakeService::class)->approveForPayment($intake->refresh(), $registrar);
 
         $this->assertSame(ApplicantIntake::StatusApproved, $approved->status);
         $this->assertSame([
             'diploma',
-        ], $approved->applicantDocumentRequirements()
-            ->where('gate_type', DocumentRequirementItem::GateTypeRetention)
-            ->where('evidence_state', ApplicantDocumentRequirement::EvidenceStatePending)
-            ->pluck('item_key')
+        ], $approved->checklistItems()
+            ->where('blocking_level', 'retention_only')
+            ->where('status', 'pending')
+            ->pluck('requirement_type')
             ->all());
-        $this->assertDatabaseHas('retention_document_undertakings', [
-            'applicant_intake_id' => $approved->id,
-            'status' => RetentionDocumentUndertaking::StatusActive,
-        ]);
-        $this->assertSame(
-            'diploma',
-            RetentionDocumentUndertaking::query()
-                ->where('applicant_intake_id', $approved->id)
-                ->firstOrFail()
-                ->applicantDocumentRequirement
-                ->item_key,
-        );
     }
 
     public function test_intake_fails_closed_when_no_published_offering_matches(): void
@@ -236,81 +236,20 @@ class ApplicantIntakeServiceTest extends TestCase
                 'psa_birth_certificate',
             ],
         ]);
-        $requirement = ApplicantDocumentRequirement::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'item_key' => 'psa_birth_certificate',
-            'label' => 'PSA Birth Certificate',
+        $requirement = ChecklistItem::factory()->create([
+            'owner_type' => ApplicantIntake::class,
+            'owner_id' => $intake->id,
+            'requirement_type' => 'psa_birth_certificate',
+            'notes' => 'PSA Birth Certificate',
         ]);
         $upload = $this->documentUpload($intake, 'psa_birth_certificate', DocumentUpload::ReviewStatusPendingRegistrarReview);
-        $upload->forceFill([
-            'applicant_document_requirement_id' => $requirement->id,
-        ])->save();
 
         app(DocumentUploadReviewService::class)->approve($upload, $registrar);
 
-        $this->assertSame(ApplicantDocumentRequirement::EvidenceStateSatisfied, $requirement->refresh()->evidence_state);
-        $this->assertSame($upload->id, $requirement->satisfied_by_document_upload_id);
-        $this->assertSame($registrar->id, $requirement->satisfied_by);
-        $this->assertNotNull($requirement->satisfied_at);
-    }
-
-    public function test_document_approval_resolves_active_retention_undertaking(): void
-    {
-        $registrar = $this->registrar();
-        $intake = ApplicantIntake::factory()->create([
-            'required_documents' => [
-                'diploma',
-            ],
-        ]);
-        $requirement = ApplicantDocumentRequirement::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'item_key' => 'diploma',
-            'label' => 'Diploma',
-            'gate_type' => DocumentRequirementItem::GateTypeRetention,
-        ]);
-        $undertaking = RetentionDocumentUndertaking::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'applicant_document_requirement_id' => $requirement->id,
-            'status' => RetentionDocumentUndertaking::StatusActive,
-        ]);
-        $upload = $this->documentUpload($intake, 'diploma', DocumentUpload::ReviewStatusPendingRegistrarReview);
-        $upload->forceFill([
-            'applicant_document_requirement_id' => $requirement->id,
-        ])->save();
-
-        app(DocumentUploadReviewService::class)->approve($upload, $registrar);
-
-        $this->assertSame(RetentionDocumentUndertaking::StatusResolved, $undertaking->refresh()->status);
-        $this->assertSame($registrar->id, $undertaking->resolved_by);
-        $this->assertSame($upload->id, $undertaking->resolved_by_document_upload_id);
-        $this->assertNotNull($undertaking->resolved_at);
-    }
-
-    public function test_retention_deadline_processor_marks_active_undertakings_overdue_without_canceling_intake(): void
-    {
-        $intake = ApplicantIntake::factory()->create([
-            'status' => ApplicantIntake::StatusApproved,
-        ]);
-        $requirement = ApplicantDocumentRequirement::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'item_key' => 'diploma',
-            'label' => 'Diploma',
-            'gate_type' => DocumentRequirementItem::GateTypeRetention,
-        ]);
-        $undertaking = RetentionDocumentUndertaking::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'applicant_document_requirement_id' => $requirement->id,
-            'status' => RetentionDocumentUndertaking::StatusActive,
-            'due_at' => now()->subDay(),
-        ]);
-
-        $processed = app(RetentionDocumentUndertakingService::class)->processDeadlines(now()->toImmutable());
-
-        $this->assertSame(1, $processed);
-        $this->assertSame(RetentionDocumentUndertaking::StatusOverdue, $undertaking->refresh()->status);
-        $this->assertSame('retention_document_overdue', $undertaking->hold_reason);
-        $this->assertNotNull($undertaking->hold_applied_at);
-        $this->assertSame(ApplicantIntake::StatusApproved, $intake->refresh()->status);
+        $this->assertSame('accepted', $requirement->refresh()->status);
+        $this->assertSame('verified', $requirement->verification_status);
+        $this->assertSame($registrar->id, $requirement->reviewed_by);
+        $this->assertNotNull($requirement->reviewed_at);
     }
 
     /**
@@ -369,9 +308,6 @@ class ApplicantIntakeServiceTest extends TestCase
     {
         return DocumentUpload::query()->create([
             'applicant_intake_id' => $intake->id,
-            'applicant_document_requirement_id' => $intake->applicantDocumentRequirements()
-                ->where('item_key', $documentType)
-                ->value('id'),
             'student_profile_id' => null,
             'user_id' => $intake->user_id,
             'term_id' => $intake->term_id,

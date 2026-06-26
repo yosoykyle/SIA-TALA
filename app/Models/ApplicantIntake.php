@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class ApplicantIntake extends Model
 {
@@ -69,6 +70,7 @@ class ApplicantIntake extends Model
         'duplicate_check_status',
         'duplicate_check_payload',
         'required_documents',
+        'identity_document_url',
         'registrar_reviewed_by',
         'registrar_reviewed_at',
         'submitted_at',
@@ -129,14 +131,9 @@ class ApplicantIntake extends Model
         return $this->hasMany(DocumentUpload::class);
     }
 
-    public function applicantDocumentRequirements(): HasMany
+    public function checklistItems(): MorphMany
     {
-        return $this->hasMany(ApplicantDocumentRequirement::class);
-    }
-
-    public function retentionDocumentUndertakings(): HasMany
-    {
-        return $this->hasMany(RetentionDocumentUndertaking::class);
+        return $this->morphMany(ChecklistItem::class, 'owner');
     }
 
     /**
@@ -144,10 +141,10 @@ class ApplicantIntake extends Model
      */
     public function requiredDocumentTypes(): array
     {
-        if ($this->exists && $this->applicantDocumentRequirements()->exists()) {
-            return $this->applicantDocumentRequirements()
+        if ($this->exists && $this->checklistItems()->exists()) {
+            return $this->checklistItems()
                 ->orderBy('id')
-                ->pluck('item_key')
+                ->pluck('requirement_type')
                 ->all();
         }
 
@@ -161,11 +158,11 @@ class ApplicantIntake extends Model
      */
     public function admissionGateDocumentTypes(): array
     {
-        if ($this->exists && $this->applicantDocumentRequirements()->exists()) {
-            return $this->applicantDocumentRequirements()
-                ->where('gate_type', DocumentRequirementItem::GateTypeAdmission)
+        if ($this->exists && $this->checklistItems()->exists()) {
+            return $this->checklistItems()
+                ->where('blocking_level', 'blocks_handover') // Assuming blocks_handover corresponds to admission gate
                 ->orderBy('id')
-                ->pluck('item_key')
+                ->pluck('requirement_type')
                 ->all();
         }
 

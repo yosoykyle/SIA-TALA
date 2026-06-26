@@ -3,7 +3,7 @@
 namespace App\Actions\Applicants;
 
 use App\Actions\Fortify\PasswordValidationRules;
-use App\Models\ApplicantDocumentRequirement;
+use App\Models\ChecklistItem;
 use App\Models\ApplicantIntake;
 use App\Models\DocumentUpload;
 use App\Models\Program;
@@ -25,7 +25,6 @@ class ApplicantIntakeService
 
     public function __construct(
         private AdmissionRequirementResolver $requirementResolver,
-        private RetentionDocumentUndertakingService $retentionDocumentUndertakings,
     ) {}
 
     /**
@@ -107,7 +106,7 @@ class ApplicantIntakeService
                 'meta' => [],
             ]);
 
-            $this->materializeDocumentRequirements($intake, $requirementResolution);
+            $this->initializeChecklistItems($intake, $requirementResolution);
 
             $this->recordActivity(
                 subject: $intake,
@@ -159,13 +158,13 @@ class ApplicantIntakeService
             $locked = ApplicantIntake::query()
                 ->lockForUpdate()
                 ->findOrFail($intake->id);
-            $requirement = $locked->applicantDocumentRequirements()
-                ->where('item_key', $validated['document_type'])
+            $requirement = $locked->checklistItems()
+                ->where('requirement_type', $validated['document_type'])
                 ->first();
 
             $documentUpload = DocumentUpload::query()->create([
                 'applicant_intake_id' => $locked->id,
-                'applicant_document_requirement_id' => $requirement?->id,
+                'applicant_document_requirement_id' => null,
                 'student_profile_id' => null,
                 'user_id' => $locked->user_id,
                 'term_id' => $locked->term_id,
@@ -184,9 +183,16 @@ class ApplicantIntakeService
                     : null,
             ]);
 
-            if ($requirement instanceof ApplicantDocumentRequirement) {
+            if ($requirement instanceof ChecklistItem) {
                 $requirement->forceFill([
-                    'evidence_state' => ApplicantDocumentRequirement::EvidenceStateSubmitted,
+                    'status' => 'received_digital',
+                    'evidence_method' => 'digital_upload',
+                ])->save();
+            }
+
+            if ($validated['document_type'] === 'identity_document' || $validated['document_type'] === 'identity') {
+                $locked->forceFill([
+                    'identity_document_url' => $validated['file_path'],
                 ])->save();
             }
 
@@ -304,7 +310,7 @@ class ApplicantIntakeService
                 'status' => User::StatusApplicantApproved,
             ]);
 
-            $this->retentionDocumentUndertakings->openForApprovedIntake($locked, $registrar, $timestamp);
+            // Undertakings are no longer needed as checklist items persist.
 
             $this->recordActivity(
                 subject: $locked,
@@ -475,28 +481,22 @@ class ApplicantIntakeService
         return $matches;
     }
 
-    private function materializeDocumentRequirements(
+    private function initializeChecklistItems(
         ApplicantIntake $intake,
         AdmissionRequirementResolution $resolution,
     ): void {
         foreach ($resolution->items as $item) {
-            ApplicantDocumentRequirement::query()->create([
-                'applicant_intake_id' => $intake->id,
-                'admission_offering_id' => $resolution->offering->id,
-                'admission_requirement_policy_id' => $resolution->policy->id,
-                'document_requirement_item_id' => $item->id,
-                'item_key' => $item->key,
-                'label' => $item->label,
-                'gate_type' => $item->gate_type,
-                'permitted_evidence_methods' => $item->permitted_evidence_methods,
-                'storage_class' => $item->storage_class,
-                'sensitivity_class' => $item->sensitivity_class,
-                'deadline_strategy' => $item->deadline_strategy,
-                'evidence_state' => ApplicantDocumentRequirement::EvidenceStatePending,
-                'meta' => [
-                    'policy_version' => $resolution->policy->version,
-                    'source_item_key' => $item->key,
-                ],
+            $evidenceMethods = is_array($item->permitted_evidence_methods) ? $item->permitted_evidence_methods : [];
+            $evidenceMethod = count($evidenceMethods) > 0 ? $evidenceMethods[0] : 'physical_copy';
+
+            $intake->checklistItems()->create([
+                'requirement_type' => $item->key,
+                'status' => 'pending',
+                'blocking_level' => $item->gate_type === 'admission' ? 'blocks_handover' : 'retention_only',
+                'evidence_method' => $evidenceMethod,
+                'deadline' => null,
+                'source_policy' => 'Policy ID: ' . $resolution->policy->id . ', Version: ' . $resolution->policy->version,
+                'notes' => $item->label,
             ]);
         }
     }

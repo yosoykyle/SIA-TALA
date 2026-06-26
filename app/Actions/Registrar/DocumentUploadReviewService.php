@@ -2,8 +2,7 @@
 
 namespace App\Actions\Registrar;
 
-use App\Actions\Applicants\RetentionDocumentUndertakingService;
-use App\Models\ApplicantDocumentRequirement;
+use App\Models\ChecklistItem;
 use App\Models\DocumentUpload;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -13,9 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class DocumentUploadReviewService
 {
-    public function __construct(
-        private RetentionDocumentUndertakingService $retentionDocumentUndertakings,
-    ) {}
+    public function __construct() {}
 
     /**
      * @throws AuthorizationException
@@ -142,50 +139,33 @@ class DocumentUploadReviewService
         string $status,
         CarbonImmutable $timestamp,
     ): void {
-        $requirement = $documentUpload->applicantDocumentRequirement;
+        $requirement = null;
 
-        if (! $requirement instanceof ApplicantDocumentRequirement && $documentUpload->applicant_intake_id !== null) {
-            $requirement = ApplicantDocumentRequirement::query()
-                ->where('applicant_intake_id', $documentUpload->applicant_intake_id)
-                ->where('item_key', $documentUpload->document_type)
+        if ($documentUpload->applicant_intake_id !== null) {
+            $requirement = ChecklistItem::query()
+                ->where('owner_type', \App\Models\ApplicantIntake::class)
+                ->where('owner_id', $documentUpload->applicant_intake_id)
+                ->where('requirement_type', $documentUpload->document_type)
                 ->first();
         }
 
-        if (! $requirement instanceof ApplicantDocumentRequirement) {
+        if (! $requirement instanceof ChecklistItem) {
             return;
         }
 
         $state = match ($status) {
-            DocumentUpload::ReviewStatusRegistrarApproved => ApplicantDocumentRequirement::EvidenceStateSatisfied,
-            DocumentUpload::ReviewStatusNeedsCorrection => ApplicantDocumentRequirement::EvidenceStateNeedsCorrection,
-            DocumentUpload::ReviewStatusRejected => ApplicantDocumentRequirement::EvidenceStateRejected,
-            default => ApplicantDocumentRequirement::EvidenceStateSubmitted,
+            DocumentUpload::ReviewStatusRegistrarApproved => 'accepted',
+            DocumentUpload::ReviewStatusNeedsCorrection => 'rejected',
+            DocumentUpload::ReviewStatusRejected => 'rejected',
+            default => 'received_digital',
         };
 
         $requirement->forceFill([
-            'evidence_state' => $state,
-            'satisfied_by_document_upload_id' => $status === DocumentUpload::ReviewStatusRegistrarApproved
-                ? $documentUpload->id
-                : $requirement->satisfied_by_document_upload_id,
-            'satisfied_method' => $status === DocumentUpload::ReviewStatusRegistrarApproved
-                ? 'registrar_approved_upload'
-                : $requirement->satisfied_method,
-            'satisfied_by' => $status === DocumentUpload::ReviewStatusRegistrarApproved
-                ? $registrar->id
-                : $requirement->satisfied_by,
-            'satisfied_at' => $status === DocumentUpload::ReviewStatusRegistrarApproved
-                ? $timestamp
-                : $requirement->satisfied_at,
+            'status' => $state,
+            'verification_status' => $status === DocumentUpload::ReviewStatusRegistrarApproved ? 'verified' : ($status === DocumentUpload::ReviewStatusRejected ? 'rejected' : 'not_reviewed'),
+            'reviewed_by' => $status === DocumentUpload::ReviewStatusRegistrarApproved ? $registrar->id : $requirement->reviewed_by,
+            'reviewed_at' => $status === DocumentUpload::ReviewStatusRegistrarApproved ? $timestamp : $requirement->reviewed_at,
         ])->save();
-
-        if ($status === DocumentUpload::ReviewStatusRegistrarApproved) {
-            $this->retentionDocumentUndertakings->resolveForRequirement(
-                requirement: $requirement,
-                documentUpload: $documentUpload,
-                registrar: $registrar,
-                resolvedAt: $timestamp,
-            );
-        }
     }
 
     private function recordActivity(

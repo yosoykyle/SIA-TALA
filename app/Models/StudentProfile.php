@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class StudentProfile extends Model
 {
@@ -69,5 +70,10 @@ class StudentProfile extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function checklistItems(): MorphMany
+    {
+        return $this->morphMany(ChecklistItem::class, 'owner');
     }
 }

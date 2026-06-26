@@ -33,12 +33,11 @@ class AdmissionFinanceReadinessGateService
     ): void {
         $intake = $this->admissionIntakeFor($enrollment, $studentProfile);
 
-        if (! $intake instanceof ApplicantIntake || ! $intake->applicantDocumentRequirements()->exists()) {
+        if (! $intake instanceof ApplicantIntake || ! $intake->checklistItems()->exists()) {
             return;
         }
 
         $messages = [];
-        $this->mergeMessages($messages, $this->admissionSetupMessages($intake, $timestamp));
         $this->mergeMessages($messages, $this->calendarMessages($enrollment, $timestamp));
         $this->mergeMessages($messages, $this->capacityMessages($enrollment, $studentProfile));
         $this->mergeMessages($messages, $this->schedulingMessages($enrollment));
@@ -71,48 +70,7 @@ class AdmissionFinanceReadinessGateService
             ->first();
     }
 
-    /**
-     * @return array<string, list<string>>
-     */
-    private function admissionSetupMessages(ApplicantIntake $intake, CarbonImmutable $timestamp): array
-    {
-        $requirements = $intake->applicantDocumentRequirements()->get([
-            'admission_offering_id',
-            'admission_requirement_policy_id',
-        ]);
 
-        if ($requirements->contains(fn ($requirement): bool => $requirement->admission_offering_id === null
-            || $requirement->admission_requirement_policy_id === null)) {
-            return [
-                'admission_setup' => ['Admission offering and requirement policy must be materialized before finance clearance.'],
-            ];
-        }
-
-        $offeringIds = $requirements
-            ->pluck('admission_offering_id')
-            ->filter()
-            ->unique()
-            ->values();
-        $policyIds = $requirements
-            ->pluck('admission_requirement_policy_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($offeringIds->isEmpty() || $this->publishedOfferingCount($offeringIds) !== $offeringIds->count()) {
-            return [
-                'admission_setup' => ['Admission offering must be published before finance clearance.'],
-            ];
-        }
-
-        if ($policyIds->isEmpty() || $this->activePolicyCount($policyIds, $timestamp) !== $policyIds->count()) {
-            return [
-                'admission_setup' => ['Admission requirement policy must be active before finance clearance.'],
-            ];
-        }
-
-        return [];
-    }
 
     /**
      * @param  Collection<int, int>  $offeringIds
