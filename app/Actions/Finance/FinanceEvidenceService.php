@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 class FinanceEvidenceService
 {
-    public const EVIDENCE_DISCLAIMER = 'Internal student-account evidence only. This is not a BIR invoice or official receipt.';
+    public const EVIDENCE_DISCLAIMER = 'This document is for internal billing verification only and is not an official tax receipt.';
 
     public function __construct(private readonly DecimalMoney $money) {}
 

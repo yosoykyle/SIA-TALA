@@ -74,10 +74,11 @@ class InstallmentPolicyForm
                             ->label('Penalty frequency')
                             ->options([
                                 'per_missed_month' => 'Every Missed Month',
+                                'one_time' => 'One-Time',
                             ])
                             ->required()
                             ->selectablePlaceholder(false)
-                            ->default('per_missed_month'),
+                            ->default('one_time'),
                         Toggle::make('allow_partial_payments')
                             ->label('Allow partial payments')
                             ->default(false)

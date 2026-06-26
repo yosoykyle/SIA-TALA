@@ -40,6 +40,12 @@ class PaymentInfolist
                     ->placeholder('-'),
                 TextEntry::make('payment_reference')
                     ->placeholder('-'),
+                TextEntry::make('or_number')
+                    ->label('OR Number')
+                    ->placeholder('-'),
+                TextEntry::make('or_attachment_path')
+                    ->label('OR Attachment')
+                    ->placeholder('-'),
                 TextEntry::make('channel'),
                 TextEntry::make('amount')
                     ->numeric(),

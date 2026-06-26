@@ -6,6 +6,7 @@ use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Payment extends Model
 {
@@ -40,6 +41,8 @@ class Payment extends Model
         'confirmed_at',
         'confirmed_by',
         'meta',
+        'or_number',
+        'or_attachment_path',
     ];
 
     /**
@@ -77,6 +80,11 @@ class Payment extends Model
     public function ledgerEntry(): BelongsTo
     {
         return $this->belongsTo(LedgerEntry::class);
+    }
+
+    public function ledgerEntries(): HasMany
+    {
+        return $this->hasMany(LedgerEntry::class, 'reference_id')->where('reference_type', 'payment');
     }
 
     public function confirmer(): BelongsTo

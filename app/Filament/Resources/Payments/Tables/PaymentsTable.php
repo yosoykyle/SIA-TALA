@@ -5,6 +5,9 @@ namespace App\Filament\Resources\Payments\Tables;
 use App\Models\Payment;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -51,6 +54,15 @@ class PaymentsTable
                     ->label('Reference')
                     ->placeholder('-')
                     ->searchable(),
+                TextColumn::make('or_number')
+                    ->label('OR Number')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('or_attachment_path')
+                    ->label('OR Attachment')
+                    ->formatStateUsing(fn (?string $state): string => $state ? 'Available' : '-')
+                    ->placeholder('-'),
                 TextColumn::make('channel')
                     ->badge()
                     ->searchable(),
@@ -100,6 +112,42 @@ class PaymentsTable
                     ->url(fn (Payment $record): string => route('finance.payments.acknowledgement', $record))
                     ->openUrlInNewTab()
                     ->visible(fn (Payment $record): bool => auth()->user()?->can('viewAcknowledgement', $record) ?? false),
+                Action::make('mapOr')
+                    ->label('Map OR')
+                    ->icon(Heroicon::OutlinedClipboardDocument)
+                    ->color('primary')
+                    ->form([
+                        TextInput::make('or_number')
+                            ->label('OR Number')
+                            ->required()
+                            ->maxLength(255),
+                        FileUpload::make('or_attachment_path')
+                            ->label('OR Attachment')
+                            ->nullable()
+                            ->directory('or_attachments')
+                            ->visibility('public'),
+                    ])
+                    ->action(function (Payment $record, array $data): void {
+                        if (Payment::query()->where('or_number', $data['or_number'])->where('id', '!=', $record->id)->exists()) {
+                            Notification::make()
+                                ->title('OR Number already exists')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $record->update([
+                            'or_number' => $data['or_number'],
+                            'or_attachment_path' => $data['or_attachment_path'] ?? null,
+                        ]);
+
+                        Notification::make()
+                            ->title('Official Receipt mapped successfully')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (Payment $record): bool => (auth()->user()?->can('process-payments') ?? false) && $record->status === 'confirmed' && empty($record->or_number)),
             ])
             ->toolbarActions([]);
     }

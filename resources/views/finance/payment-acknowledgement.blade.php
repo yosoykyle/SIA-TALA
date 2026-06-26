@@ -22,6 +22,9 @@
         <dt>Student ID</dt><dd>{{ $payment->studentProfile->student_id }}</dd>
         <dt>Term</dt><dd>{{ $payment->term?->term_name ?? 'Not assigned' }}</dd>
         <dt>Reference</dt><dd>{{ $payment->payment_reference }}</dd>
+        @if ($payment->or_number)
+            <dt>Official Receipt (OR) #</dt><dd>{{ $payment->or_number }}</dd>
+        @endif
         <dt>Channel</dt><dd>{{ str($payment->channel)->headline() }}</dd>
         <dt>Status</dt><dd>{{ str($payment->status)->headline() }}</dd>
         <dt>Confirmed</dt><dd>{{ $payment->confirmed_at?->format('M d, Y h:i A') }}</dd>

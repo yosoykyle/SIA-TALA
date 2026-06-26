@@ -34,6 +34,9 @@ class PaymentConfirmationService
         ?string $paymentReference,
         User $actor,
         ?CarbonImmutable $confirmedAt = null,
+        ?array $allocations = null,
+        ?string $orNumber = null,
+        ?string $orAttachmentPath = null,
     ): array {
         if (! $actor->can('process-payments')) {
             throw new AuthorizationException('Only Accounting/Cashier can confirm payments.');
@@ -68,7 +71,24 @@ class PaymentConfirmationService
             throw new RuntimeException('Payment confirmation date cannot be in the future.');
         }
 
-        return DB::transaction(function () use ($enrollmentId, $normalizedAmount, $normalizedChannel, $normalizedReference, $actor, $timestamp): array {
+        if ($allocations !== null) {
+            $totalAllocationAmount = '0.00';
+            foreach ($allocations as $allocation) {
+                if (empty($allocation['description'])) {
+                    throw new RuntimeException('Allocation description is required.');
+                }
+                $allocAmount = $this->money->normalize($allocation['amount']);
+                if (! $this->money->greaterThanZero($allocAmount)) {
+                    throw new RuntimeException('Allocation amount must be greater than zero.');
+                }
+                $totalAllocationAmount = $this->money->add($totalAllocationAmount, $allocAmount);
+            }
+            if ($this->money->normalize($amount) !== $totalAllocationAmount) {
+                throw new RuntimeException('The sum of allocations must equal the total payment amount.');
+            }
+        }
+
+        return DB::transaction(function () use ($enrollmentId, $normalizedAmount, $normalizedChannel, $normalizedReference, $actor, $timestamp, $allocations, $orNumber, $orAttachmentPath): array {
             $enrollment = Enrollment::query()
                 ->with(['studentProfile.user'])
                 ->lockForUpdate()
@@ -80,6 +100,17 @@ class PaymentConfirmationService
 
             if (Payment::query()->where('payment_reference', $normalizedReference)->exists()) {
                 throw new RuntimeException('Payment reference already exists.');
+            }
+
+            if ($orNumber !== null) {
+                $trimmedOrNumber = trim($orNumber);
+                if ($trimmedOrNumber !== '') {
+                    if (Payment::query()->where('or_number', $trimmedOrNumber)->exists()) {
+                        throw new RuntimeException('Official Receipt number already exists.');
+                    }
+                } else {
+                    $orNumber = null;
+                }
             }
 
             if (! LedgerEntry::query()->where('enrollment_id', $enrollment->id)->where('entry_type', 'assessment')->exists()) {
@@ -96,31 +127,60 @@ class PaymentConfirmationService
                 'status' => 'confirmed',
                 'confirmed_at' => $timestamp,
                 'confirmed_by' => $actor->id,
+                'or_number' => $orNumber !== null ? trim($orNumber) : null,
+                'or_attachment_path' => $orAttachmentPath,
                 'meta' => [
                     'source' => 'filament_manual_confirmation',
                 ],
             ]);
 
             $currentBalance = $this->money->normalize((string) $studentProfile->current_balance);
-            $paymentLedgerAmount = $this->money->subtract('0.00', $normalizedAmount);
-            $newBalance = $this->money->add($currentBalance, $paymentLedgerAmount);
+            $newBalance = $currentBalance;
+            $ledgerEntries = [];
 
-            $ledgerEntry = LedgerEntry::query()->create([
-                'student_profile_id' => $studentProfile->id,
-                'term_id' => $enrollment->term_id,
-                'enrollment_id' => $enrollment->id,
-                'entry_type' => 'payment',
-                'reference_type' => 'payment',
-                'reference_id' => $payment->id,
-                'description' => 'Accounting-confirmed payment',
-                'amount' => $paymentLedgerAmount,
-                'running_balance' => $newBalance,
-                'posted_at' => $timestamp,
-                'posted_by' => $actor->id,
-            ]);
+            if ($allocations !== null && count($allocations) > 0) {
+                foreach ($allocations as $allocation) {
+                    $allocAmount = $this->money->normalize($allocation['amount']);
+                    $paymentLedgerAmount = $this->money->subtract('0.00', $allocAmount);
+                    $newBalance = $this->money->add($newBalance, $paymentLedgerAmount);
+
+                    $ledgerEntry = LedgerEntry::query()->create([
+                        'student_profile_id' => $studentProfile->id,
+                        'term_id' => $enrollment->term_id,
+                        'enrollment_id' => $enrollment->id,
+                        'entry_type' => 'payment',
+                        'reference_type' => 'payment',
+                        'reference_id' => $payment->id,
+                        'description' => $allocation['description'],
+                        'amount' => $paymentLedgerAmount,
+                        'running_balance' => $newBalance,
+                        'posted_at' => $timestamp,
+                        'posted_by' => $actor->id,
+                    ]);
+                    $ledgerEntries[] = $ledgerEntry;
+                }
+            } else {
+                $paymentLedgerAmount = $this->money->subtract('0.00', $normalizedAmount);
+                $newBalance = $this->money->add($newBalance, $paymentLedgerAmount);
+
+                $ledgerEntry = LedgerEntry::query()->create([
+                    'student_profile_id' => $studentProfile->id,
+                    'term_id' => $enrollment->term_id,
+                    'enrollment_id' => $enrollment->id,
+                    'entry_type' => 'payment',
+                    'reference_type' => 'payment',
+                    'reference_id' => $payment->id,
+                    'description' => 'Accounting-confirmed payment',
+                    'amount' => $paymentLedgerAmount,
+                    'running_balance' => $newBalance,
+                    'posted_at' => $timestamp,
+                    'posted_by' => $actor->id,
+                ]);
+                $ledgerEntries[] = $ledgerEntry;
+            }
 
             $payment->forceFill([
-                'ledger_entry_id' => $ledgerEntry->id,
+                'ledger_entry_id' => $ledgerEntries[0]->id,
             ])->save();
 
             $studentProfile->forceFill([
@@ -145,11 +205,11 @@ class PaymentConfirmationService
             $financeCleared = $clearance['finance_cleared'];
             $enrollment = $enrollment->fresh();
 
-            $this->recordPaymentAudit($enrollment, $payment, $ledgerEntry, $financeCleared, $actor, $timestamp);
+            $this->recordPaymentAudit($enrollment, $payment, $ledgerEntries[0], $financeCleared, $actor, $timestamp);
 
             return [
                 'payment_id' => $payment->id,
-                'ledger_entry_id' => $ledgerEntry->id,
+                'ledger_entry_id' => $ledgerEntries[0]->id,
                 'current_balance' => $newBalance,
                 'minimum_required_payment' => $minimumRequiredPayment,
                 'total_confirmed_payments' => $totalConfirmedPayments,

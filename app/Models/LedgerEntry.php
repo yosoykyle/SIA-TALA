@@ -6,11 +6,17 @@ use Database\Factories\LedgerEntryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class LedgerEntry extends Model
 {
     /** @use HasFactory<LedgerEntryFactory> */
     use HasFactory;
+
+    public function reference(): MorphTo
+    {
+        return $this->morphTo();
+    }
 
     /**
      * @var list<string>

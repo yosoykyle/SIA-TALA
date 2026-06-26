@@ -9,8 +9,8 @@ use App\Models\AdmissionCapacityPlan;
 use App\Models\AdmissionCapacityReservation;
 use App\Models\AdmissionOffering;
 use App\Models\AdmissionRequirementPolicy;
-use App\Models\ApplicantDocumentRequirement;
 use App\Models\ApplicantIntake;
+use App\Models\ChecklistItem;
 use App\Models\Curriculum;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
@@ -67,6 +67,72 @@ class PaymentConfirmationServiceTest extends TestCase
 
         $this->assertDatabaseCount(Payment::class, 0);
         $this->assertSame(1, LedgerEntry::query()->where('entry_type', 'assessment')->count());
+    }
+
+    public function test_manual_payment_supports_or_number_and_or_attachment(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->paymentContext();
+        $confirmedAt = CarbonImmutable::now(config('app.timezone'))->subDay()->startOfMinute();
+
+        $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $enrollment->id,
+            amount: '100.00',
+            channel: 'cash',
+            paymentReference: 'OR-WITH-OR',
+            actor: $accounting,
+            confirmedAt: $confirmedAt,
+            allocations: null,
+            orNumber: 'OR-999',
+            orAttachmentPath: 'attachments/or_999.png',
+        );
+
+        $payment = Payment::query()->findOrFail($summary['payment_id']);
+        $this->assertSame('OR-999', $payment->or_number);
+        $this->assertSame('attachments/or_999.png', $payment->or_attachment_path);
+
+        // Expect exception when creating another payment with duplicate OR number
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Official Receipt number already exists.');
+
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $enrollment->id,
+            amount: '100.00',
+            channel: 'cash',
+            paymentReference: 'OR-DUPLICATE-OR',
+            actor: $accounting,
+            confirmedAt: $confirmedAt,
+            allocations: null,
+            orNumber: 'OR-999',
+        );
+    }
+
+    public function test_manual_payment_supports_split_allocations(): void
+    {
+        [$enrollment, $studentProfile, $accounting] = $this->paymentContext();
+        $confirmedAt = CarbonImmutable::now(config('app.timezone'))->subDay()->startOfMinute();
+
+        $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $enrollment->id,
+            amount: '150.00',
+            channel: 'cash',
+            paymentReference: 'OR-SPLIT',
+            actor: $accounting,
+            confirmedAt: $confirmedAt,
+            allocations: [
+                ['description' => 'Payment for tuition', 'amount' => '100.00'],
+                ['description' => 'Payment for old balance', 'amount' => '50.00'],
+            ],
+        );
+
+        $payment = Payment::query()->findOrFail($summary['payment_id']);
+        $ledgerEntries = $payment->ledgerEntries()->get();
+
+        $this->assertCount(2, $ledgerEntries);
+        $this->assertSame('Payment for tuition', $ledgerEntries[0]->description);
+        $this->assertSame('-100.00', $ledgerEntries[0]->amount);
+        $this->assertSame('Payment for old balance', $ledgerEntries[1]->description);
+        $this->assertSame('-50.00', $ledgerEntries[1]->amount);
+        $this->assertSame('850.00', $summary['current_balance']);
     }
 
     public function test_manual_payment_posts_one_payment_one_negative_ledger_credit_and_audit_evidence(): void
@@ -603,15 +669,11 @@ class PaymentConfirmationServiceTest extends TestCase
             'admission_requirement_policy_id' => $policy->id,
         ]);
 
-        ApplicantDocumentRequirement::factory()->create([
-            'applicant_intake_id' => $intake->id,
-            'admission_offering_id' => $offering->id,
-            'admission_requirement_policy_id' => $policy->id,
-            'document_requirement_item_id' => $item->id,
-            'item_key' => $item->key,
-            'label' => $item->label,
-            'gate_type' => $item->gate_type,
-            'evidence_state' => ApplicantDocumentRequirement::EvidenceStateSatisfied,
+        ChecklistItem::factory()->create([
+            'owner_id' => $intake->id,
+            'owner_type' => ApplicantIntake::class,
+            'requirement_type' => 'document_requirement',
+            'status' => 'accepted',
         ]);
     }
 

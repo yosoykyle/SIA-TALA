@@ -27,7 +27,7 @@ class InstallmentPolicyServiceTest extends TestCase
         $this->assertStringContainsString('overdueCycleKeys', $source);
         $this->assertStringContainsString('penalty_frequency', $source);
         $this->assertStringContainsString('penalty_rate', $source);
-        $this->assertStringContainsString('Installment overdue penalty [cycle:%s] milestone #%d', $source);
+        $this->assertStringContainsString('Late Penalty - ', $source);
         $this->assertStringContainsString('penaltyAlreadyPosted', $source);
     }
 

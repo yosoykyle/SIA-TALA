@@ -12,6 +12,8 @@ use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -207,6 +209,28 @@ class EnrollmentsTable
                     ->default(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
                     ->maxDate(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
                     ->seconds(false),
+                TextInput::make('or_number')
+                    ->label('OR Number')
+                    ->nullable()
+                    ->maxLength(255),
+                FileUpload::make('or_attachment_path')
+                    ->label('OR Attachment')
+                    ->nullable()
+                    ->directory('or_attachments')
+                    ->visibility('public'),
+                Repeater::make('allocations')
+                    ->label('Payment Allocations (Optional Split)')
+                    ->schema([
+                        TextInput::make('description')
+                            ->required()
+                            ->maxLength(255),
+                        TextInput::make('amount')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0.01),
+                    ])
+                    ->helperText('Leave empty to allocate the entire amount to a single standard payment entry.')
+                    ->columns(2),
             ])
             ->modalSubmitActionLabel('Confirm Payment')
             ->visible(fn (Enrollment $record): bool => auth()->user()?->can('confirmPayment', $record) ?? false)
@@ -217,6 +241,24 @@ class EnrollmentsTable
                     return;
                 }
 
+                $allocations = ! empty($data['allocations']) ? $data['allocations'] : null;
+
+                if ($allocations !== null) {
+                    $sum = 0.0;
+                    foreach ($allocations as $alloc) {
+                        $sum += (float) $alloc['amount'];
+                    }
+                    if (abs($sum - (float) $data['amount']) > 0.001) {
+                        Notification::make()
+                            ->title('Payment confirmation failed')
+                            ->body('The sum of allocations must equal the total payment amount.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+                }
+
                 try {
                     $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
                         enrollmentId: $record->id,
@@ -225,6 +267,9 @@ class EnrollmentsTable
                         paymentReference: isset($data['payment_reference']) ? (string) $data['payment_reference'] : null,
                         actor: $actor,
                         confirmedAt: CarbonImmutable::parse((string) $data['confirmed_at'], config('app.timezone')),
+                        allocations: $allocations,
+                        orNumber: isset($data['or_number']) ? (string) $data['or_number'] : null,
+                        orAttachmentPath: isset($data['or_attachment_path']) ? (string) $data['or_attachment_path'] : null,
                     );
 
                     Notification::make()

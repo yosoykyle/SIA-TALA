@@ -166,11 +166,12 @@ class InstallmentPolicyService
                     $enrollment = $this->resolveEnrollment((int) $evaluation['enrollment_id']);
 
                     DB::transaction(function () use ($enrollment, $evaluation, $milestone, $cycleKey, $evaluatedAt): void {
-                        $description = sprintf(
-                            'Installment overdue penalty [cycle:%s] milestone #%d',
-                            $cycleKey,
-                            (int) $milestone['sequence'],
-                        );
+                        $milestoneNames = [
+                            1 => 'Midterm Installment',
+                            2 => 'Final Installment',
+                        ];
+                        $milestoneName = $milestoneNames[$milestone['sequence']] ?? "Milestone #{$milestone['sequence']}";
+                        $description = "Late Penalty - {$milestoneName}";
 
                         $this->postLedgerEntry(
                             $enrollment,
@@ -354,7 +355,6 @@ class InstallmentPolicyService
             ->where('entry_type', 'installment_penalty')
             ->where('reference_type', 'installment_policy_milestone')
             ->where('reference_id', $milestoneId)
-            ->where('description', 'like', "%[cycle:{$cycleKey}]%")
             ->exists();
     }
 
