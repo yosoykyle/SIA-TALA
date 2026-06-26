@@ -72,6 +72,11 @@ class StudentProfile extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function holds(): HasMany
+    {
+        return $this->hasMany(Hold::class);
+    }
+
     public function checklistItems(): MorphMany
     {
         return $this->morphMany(ChecklistItem::class, 'owner');

@@ -9,10 +9,10 @@ use App\Models\EnrollmentSubject;
 use App\Models\FaqEntry;
 use App\Models\Grade;
 use App\Models\GradeCorrection;
+use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\Program;
-use App\Models\PromissoryNote;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
@@ -140,16 +140,23 @@ class StudentDashboardServiceTest extends TestCase
             'amount' => '3500.00',
             'status' => 'confirmed',
         ]);
-        PromissoryNote::query()->create([
+        Hold::factory()->create([
             'student_profile_id' => $studentProfile->id,
             'term_id' => $term->id,
             'enrollment_id' => $enrollment->id,
-            'amount' => '3000.00',
-            'due_date' => now()->addMonth()->toDateString(),
-            'status' => 'approved',
-            'reason' => 'Payment arrangement',
-            'approved_by' => User::factory()->create()->id,
-            'approved_at' => now(),
+            'hold_type' => Hold::TypeFinancial,
+            'blocking_level' => Hold::BlockingEnrollment,
+            'reason' => 'Outstanding balance',
+            'student_message' => 'Your account has an outstanding balance.',
+        ]);
+        Hold::factory()->create([
+            'student_profile_id' => $studentProfile->id,
+            'term_id' => $term->id,
+            'enrollment_id' => $enrollment->id,
+            'hold_type' => Hold::TypeDocumentary,
+            'blocking_level' => Hold::BlockingAdvisoryOnly,
+            'reason' => 'Physical document copy pending',
+            'student_message' => 'Physical document submission is not yet marked received.',
         ]);
 
         GradeCorrection::factory()->create([
@@ -196,7 +203,8 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertSame('10000.00', $dashboard['financials']['term_summaries'][0]['total_assessment']);
         $this->assertSame('3500.00', $dashboard['financials']['term_summaries'][0]['total_paid']);
         $this->assertSame('6500.00', $dashboard['financials']['term_summaries'][0]['remaining_balance']);
-        $this->assertSame(['financial_balance', 'hard_copy_missing', 'active_promissory'], array_column($dashboard['holds'], 'code'));
+        $this->assertSame([Hold::TypeFinancial, Hold::TypeDocumentary], array_column($dashboard['holds'], 'code'));
+        $this->assertSame([Hold::BlockingEnrollment, Hold::BlockingAdvisoryOnly], array_column($dashboard['holds'], 'blocking_level'));
         $this->assertSame('IT101', $dashboard['grades']['terms'][0]['grades'][0]['subject_code']);
         $this->assertSame('1.75', $dashboard['grades']['terms'][0]['grades'][0]['grade']);
         $this->assertSame(GradeCorrectionStatus::Submitted->value, $dashboard['requests']['grade_corrections'][0]['status']);

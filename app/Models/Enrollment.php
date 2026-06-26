@@ -77,6 +77,11 @@ class Enrollment extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function holds(): HasMany
+    {
+        return $this->hasMany(Hold::class);
+    }
+
     public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);

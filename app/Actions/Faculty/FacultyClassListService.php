@@ -2,7 +2,11 @@
 
 namespace App\Actions\Faculty;
 
+use App\Actions\StudentLifecycle\HoldEvaluationService;
+use App\Models\Enrollment;
+use App\Models\Hold;
 use App\Models\ScheduleGenerationRun;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -11,7 +15,10 @@ use stdClass;
 
 class FacultyClassListService
 {
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly HoldEvaluationService $holds,
+    ) {}
 
     /**
      * @return list<FacultyClassListRow>
@@ -77,7 +84,12 @@ class FacultyClassListService
             return 'with_balance';
         }
 
-        if ($this->hasActiveFinancialHold($enrollmentId, $studentProfileId)) {
+        $studentProfile = StudentProfile::query()->find($studentProfileId);
+        $enrollment = Enrollment::query()->find($enrollmentId);
+
+        if ($studentProfile instanceof StudentProfile
+            && $this->holds->hasActiveBlockingHold($studentProfile, [Hold::BlockingEnrollment], $enrollment)
+        ) {
             return 'with_balance';
         }
 
@@ -128,42 +140,5 @@ class FacultyClassListService
         }
 
         throw new AuthorizationException('Faculty can view only assigned section and subject class lists.');
-    }
-
-    private function hasActiveFinancialHold(int $enrollmentId, int $studentProfileId): bool
-    {
-        return $this->hasPendingPaymentAttempt($enrollmentId, $studentProfileId)
-            || $this->hasPromissoryHold($enrollmentId, $studentProfileId)
-            || $this->hasPositiveRunningLedgerBalance($enrollmentId, $studentProfileId);
-    }
-
-    private function hasPendingPaymentAttempt(int $enrollmentId, int $studentProfileId): bool
-    {
-        return DB::table('payment_attempts')
-            ->where('student_profile_id', $studentProfileId)
-            ->where('enrollment_id', $enrollmentId)
-            ->where('status', 'pending')
-            ->exists();
-    }
-
-    private function hasPromissoryHold(int $enrollmentId, int $studentProfileId): bool
-    {
-        return DB::table('promissory_notes')
-            ->where('student_profile_id', $studentProfileId)
-            ->where('enrollment_id', $enrollmentId)
-            ->whereIn('status', ['approved', 'active', 'expired'])
-            ->exists();
-    }
-
-    private function hasPositiveRunningLedgerBalance(int $enrollmentId, int $studentProfileId): bool
-    {
-        $runningBalance = DB::table('ledger_entries')
-            ->where('student_profile_id', $studentProfileId)
-            ->where('enrollment_id', $enrollmentId)
-            ->whereNotNull('running_balance')
-            ->latest('created_at')
-            ->value('running_balance');
-
-        return $runningBalance !== null && $this->money->greaterThanZero((string) $runningBalance);
     }
 }

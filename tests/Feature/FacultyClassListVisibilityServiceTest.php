@@ -40,9 +40,10 @@ class FacultyClassListVisibilityServiceTest extends TestCase
 
         $this->assertStringContainsString("return 'with_balance';", $source);
         $this->assertStringContainsString("return 'paid';", $source);
-        $this->assertStringContainsString('hasPendingPaymentAttempt', $source);
-        $this->assertStringContainsString('hasPromissoryHold', $source);
-        $this->assertStringContainsString('hasDocumentShippingHold', $source);
+        $this->assertStringContainsString('HoldEvaluationService', $source);
+        $this->assertStringContainsString('hasActiveBlockingHold', $source);
+        $this->assertStringNotContainsString('hasPendingPaymentAttempt', $source);
+        $this->assertStringNotContainsString('hasPromissoryHold', $source);
     }
 
     private function source(string $class): string

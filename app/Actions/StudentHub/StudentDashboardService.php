@@ -2,13 +2,14 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
 use App\Models\Grade;
 use App\Models\GradeCorrection;
+use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PromissoryNote;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -19,7 +20,10 @@ use Illuminate\Support\Collection;
 
 class StudentDashboardService
 {
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly HoldEvaluationService $holds,
+    ) {}
 
     /**
      * @return array{
@@ -356,47 +360,28 @@ class StudentDashboardService
      */
     private function holds(StudentProfile $studentProfile, ?Enrollment $currentEnrollment): array
     {
-        $holds = [];
-
-        if ($this->money->greaterThanZero((string) $studentProfile->current_balance)) {
-            $holds[] = [
-                'code' => 'financial_balance',
-                'severity' => 'warning',
-                'message' => 'Your account has an outstanding balance.',
-                'amount' => $this->money->normalize((string) $studentProfile->current_balance),
-            ];
-        }
-
-        if (! (bool) $studentProfile->hard_copy_received) {
-            $holds[] = [
-                'code' => 'hard_copy_missing',
-                'severity' => 'info',
-                'message' => 'Physical document submission is not yet marked received.',
-            ];
-        }
-
-        $promissoryNote = PromissoryNote::query()
-            ->where('student_profile_id', $studentProfile->id)
-            ->when($currentEnrollment instanceof Enrollment, fn ($query) => $query->where(function ($query) use ($currentEnrollment): void {
-                $query->whereNull('enrollment_id')
-                    ->orWhere('enrollment_id', $currentEnrollment->id);
-            }))
-            ->whereIn('status', ['approved', 'active'])
-            ->whereNull('expired_at')
-            ->latest('id')
-            ->first();
-
-        if ($promissoryNote instanceof PromissoryNote) {
-            $holds[] = [
-                'code' => 'active_promissory',
-                'severity' => 'info',
-                'message' => 'A promissory note is recorded but does not clear finance status by itself.',
-                'amount' => $this->money->normalize((string) $promissoryNote->amount),
-                'due_date' => $promissoryNote->due_date?->toDateString(),
-            ];
-        }
-
-        return $holds;
+        return $this->holds
+            ->activeBlockingHolds($studentProfile, [
+                Hold::BlockingEnrollment,
+                Hold::BlockingCorPrint,
+                Hold::BlockingClearance,
+                Hold::BlockingRecordRelease,
+                Hold::BlockingGraduationEligibility,
+                Hold::BlockingReactivation,
+                Hold::BlockingAdvisoryOnly,
+            ], $currentEnrollment)
+            ->map(fn (Hold $hold): array => [
+                'hold_id' => (int) $hold->id,
+                'code' => $hold->hold_type,
+                'blocking_level' => $hold->blocking_level,
+                'status' => $hold->status,
+                'severity' => $hold->blocking_level === Hold::BlockingAdvisoryOnly ? 'info' : 'warning',
+                'message' => $hold->student_message ?? $hold->reason,
+                'expires_at' => $hold->expires_at?->toDateTimeString(),
+                'resolution_requirement' => $hold->resolution_requirement,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
