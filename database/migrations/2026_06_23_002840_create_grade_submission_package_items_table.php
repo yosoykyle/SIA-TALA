@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('grade_submission_package_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('grade_submission_package_id')->constrained('grade_submission_packages')->cascadeOnDelete();
+            $table->foreignId('grade_submission_package_id')->constrained('grade_submission_packages', 'id', 'gspi_package_fk')->cascadeOnDelete();
             $table->foreignId('enrollment_subject_id')->constrained('enrollment_subjects')->restrictOnDelete();
             $table->foreignId('grade_id')->constrained('grades')->restrictOnDelete();
             $table->foreignId('enrollment_id')->constrained()->restrictOnDelete();
@@ -26,7 +26,7 @@ return new class extends Migration
 
             $table->unique(['grade_submission_package_id', 'enrollment_subject_id'], 'grade_package_item_subject_unique');
             $table->index('grade_id');
-            $table->index(['student_profile_id', 'subject_id']);
+            $table->index(['student_profile_id', 'subject_id'], 'gspi_student_subject_index');
         });
     }
 

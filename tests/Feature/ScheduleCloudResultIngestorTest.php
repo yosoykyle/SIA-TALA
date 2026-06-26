@@ -9,7 +9,7 @@ use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -35,7 +35,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
             $this->solverRow($section, $subject, $faculty),
         ]));
 
-        $draftRow = ScheduleDraftRow::query()->first();
+        $draftRow = CandidateScheduleRow::query()->first();
         $deliveryGroup = $section->deliveryGroups()->firstOrFail();
 
         $this->assertSame(1, $summary['draft_row_count']);
@@ -43,7 +43,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
         $this->assertSame(0, $summary['conflict_count']);
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->refresh()->status);
         $this->assertNotNull($draftRow);
-        $this->assertSame(ScheduleDraftRow::StatusOk, $draftRow->status);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $draftRow->status);
         $this->assertSame($deliveryGroup->id, $draftRow->section_delivery_group_id);
         $this->assertSame($faculty->id, $draftRow->faculty_id);
         $this->assertSame(1, $run->constraint_summary['solver_ingestion']['ok_count']);
@@ -55,7 +55,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
 
         app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
             $this->solverRow($section, $subject, null, [
-                'status' => ScheduleDraftRow::StatusOk,
+                'status' => CandidateScheduleRow::StatusOk,
                 'modality' => 'modular',
                 'room' => null,
             ]),
@@ -65,11 +65,11 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ]));
 
-        $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
+        $draftRows = CandidateScheduleRow::query()->orderBy('id')->get();
 
         $this->assertCount(2, $draftRows);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[0]->status);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[1]->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRows[0]->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRows[1]->status);
         $this->assertSame('missing_faculty_id', $draftRows[0]->conflict_payload['items'][0]['type']);
         $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'missing_faculty_subject_eligibility'));
     }
@@ -80,14 +80,14 @@ class ScheduleCloudResultIngestorTest extends TestCase
 
         app(ScheduleCloudResultIngestor::class)->ingest($run, $this->solverResult([
             $this->solverRow($section, $subject, $faculty, [
-                'status' => ScheduleDraftRow::StatusWarning,
+                'status' => CandidateScheduleRow::StatusWarning,
                 'warning_payload' => [
                     ['type' => 'soft_preference_miss', 'message' => 'Faculty preferred a later slot.'],
                 ],
             ]),
         ]));
 
-        $this->assertSame(ScheduleDraftRow::StatusWarning, ScheduleDraftRow::query()->value('status'));
+        $this->assertSame(CandidateScheduleRow::StatusWarning, CandidateScheduleRow::query()->value('status'));
 
         app(SchedulePublishService::class)->publish($run->fresh(), $registrar);
 
@@ -148,11 +148,11 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ]));
 
-        $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
+        $draftRows = CandidateScheduleRow::query()->orderBy('id')->get();
 
-        $this->assertSame(ScheduleDraftRow::StatusOk, $draftRows[0]->status);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[1]->status);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[2]->status);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $draftRows[0]->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRows[1]->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRows[2]->status);
         $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'internal_delivery_group_overlap'));
         $this->assertTrue(collect($draftRows[2]->conflict_payload['items'])->contains('type', 'outside_faculty_availability'));
     }
@@ -212,7 +212,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ]));
 
-        $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
+        $draftRows = CandidateScheduleRow::query()->orderBy('id')->get();
 
         $this->assertTrue(collect($draftRows[0]->conflict_payload['items'])->contains('type', 'missing_required_room'));
         $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'invalid_time_range'));
@@ -230,10 +230,10 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ]));
 
-        $draftRow = ScheduleDraftRow::query()->first();
+        $draftRow = CandidateScheduleRow::query()->first();
 
         $this->assertNotNull($draftRow);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRow->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRow->status);
         $this->assertTrue(collect($draftRow->conflict_payload['items'])->contains('type', 'room_mismatch_fixed_delivery_group_room'));
     }
 
@@ -250,7 +250,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
         $this->assertSame('blocked', $summary['status']);
         $this->assertSame('non_feasible_solver_status', $summary['blocked_reason']);
         $this->assertSame(ScheduleGenerationRun::StatusBlocked, $run->refresh()->status);
-        $this->assertSame(0, ScheduleDraftRow::query()->count());
+        $this->assertSame(0, CandidateScheduleRow::query()->count());
     }
 
     public function test_configured_faculty_weekly_workload_limit_is_a_hard_conflict(): void
@@ -268,10 +268,10 @@ class ScheduleCloudResultIngestorTest extends TestCase
             ]),
         ]));
 
-        $draftRows = ScheduleDraftRow::query()->orderBy('id')->get();
+        $draftRows = CandidateScheduleRow::query()->orderBy('id')->get();
 
-        $this->assertSame(ScheduleDraftRow::StatusOk, $draftRows[0]->status);
-        $this->assertSame(ScheduleDraftRow::StatusConflict, $draftRows[1]->status);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $draftRows[0]->status);
+        $this->assertSame(CandidateScheduleRow::StatusConflict, $draftRows[1]->status);
         $this->assertTrue(collect($draftRows[1]->conflict_payload['items'])->contains('type', 'faculty_workload_exceeded'));
     }
 
@@ -465,7 +465,7 @@ class ScheduleCloudResultIngestorTest extends TestCase
             'starts_at' => '08:00:00',
             'ends_at' => '09:00:00',
             'modality' => $deliveryGroup->modality,
-            'status' => ScheduleDraftRow::StatusOk,
+            'status' => CandidateScheduleRow::StatusOk,
             ...$overrides,
         ];
     }

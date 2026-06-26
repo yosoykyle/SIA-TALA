@@ -175,6 +175,7 @@ class DatabaseSeeder extends Seeder
             ...User::staffNamePayload('System Super', null, 'Admin'),
             'username' => $systemSuperAdmin->username ?: 'superadmin',
             'status' => 'active',
+            'email_verified_at' => $systemSuperAdmin->email_verified_at ?? now(),
         ])->save();
 
         $systemSuperAdmin->syncRoles(['system-super-admin']);
@@ -232,6 +233,7 @@ class DatabaseSeeder extends Seeder
                 ...User::staffNamePayload($data['first_name'], null, $data['last_name']),
                 'username' => $user->username ?: $data['username'],
                 'status' => 'active',
+                'email_verified_at' => $user->email_verified_at ?? now(),
             ])->save();
 
             $user->syncRoles([$role]);

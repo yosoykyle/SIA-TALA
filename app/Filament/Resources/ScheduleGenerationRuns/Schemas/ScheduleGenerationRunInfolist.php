@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
@@ -44,12 +44,12 @@ class ScheduleGenerationRunInfolist
                     ->numeric(),
                 TextEntry::make('draft_row_conflicts')
                     ->label('Blocking Conflicts')
-                    ->state(fn (ScheduleGenerationRun $record): int => $record->draftRows()->where('status', ScheduleDraftRow::StatusConflict)->count())
+                    ->state(fn (ScheduleGenerationRun $record): int => $record->draftRows()->where('status', CandidateScheduleRow::StatusConflict)->count())
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
                 TextEntry::make('draft_row_warnings')
                     ->label('Warnings')
-                    ->state(fn (ScheduleGenerationRun $record): int => $record->draftRows()->where('status', ScheduleDraftRow::StatusWarning)->count())
+                    ->state(fn (ScheduleGenerationRun $record): int => $record->draftRows()->where('status', CandidateScheduleRow::StatusWarning)->count())
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
                 TextEntry::make('notes')

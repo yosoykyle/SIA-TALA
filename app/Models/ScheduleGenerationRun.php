@@ -141,6 +141,6 @@ class ScheduleGenerationRun extends Model
 
     public function draftRows(): HasMany
     {
-        return $this->hasMany(ScheduleDraftRow::class, 'generation_run_id');
+        return $this->hasMany(CandidateScheduleRow::class, 'generation_run_id');
     }
 }

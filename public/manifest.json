@@ -1,10 +1,10 @@
 {
-    "name": "T.A.L.A. School System",
-    "short_name": "T.A.L.A.",
-    "background_color": "#6777ef",
-    "display": "fullscreen",
-    "description": "A Progressive Web Application setup for Laravel projects.",
-    "theme_color": "#6777ef",
+    "name": "T.A.L.A. School Information System",
+    "short_name": "T.A.L.A. SIS",
+    "background_color": "#f4f4f5",
+    "display": "standalone",
+    "description": "College student portal for enrollment, schedule, COR, grades, financial standing, and help.",
+    "theme_color": "#0369a1",
     "start_url": "/",
     "icons": [
         {

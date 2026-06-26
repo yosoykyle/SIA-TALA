@@ -195,7 +195,7 @@ class TAL12ARegistrarFilamentResourceTest extends TestCase
         $this->assertStringNotContainsString('CreateAction::make()', $listPage);
         $this->assertStringNotContainsString('EditAction::make()', $viewPage);
         $this->assertStringNotContainsString('EditAction::make()', $table);
-        $this->assertStringContainsString('DraftRowsRelationManager::class', $resource);
+        $this->assertStringContainsString('CandidateRowsRelationManager::class', $resource);
         $this->assertStringContainsString('publishAction', $table);
         $this->assertStringContainsString('SchedulePublishService', $table);
         $this->assertStringContainsString('ScheduleGenerationRun::statusOptions()', $table);

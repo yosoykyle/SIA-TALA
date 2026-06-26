@@ -3,7 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\FacultySubjectEligibility;
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -45,7 +45,7 @@ class ScheduleCloudResultIngestor
                 ]);
             }
 
-            ScheduleDraftRow::query()
+            CandidateScheduleRow::query()
                 ->where('generation_run_id', $lockedRun->id)
                 ->delete();
 
@@ -99,7 +99,7 @@ class ScheduleCloudResultIngestor
                 $payload = $prepared['payload'];
                 $status = $this->statusFor($rawRow, $prepared['conflicts'], $prepared['warnings']);
 
-                ScheduleDraftRow::query()->create([
+                CandidateScheduleRow::query()->create([
                     ...$payload,
                     'generation_run_id' => $lockedRun->id,
                     'status' => $status,
@@ -118,7 +118,7 @@ class ScheduleCloudResultIngestor
                 $summary['draft_row_count']++;
                 $summary[$status.'_count']++;
 
-                if (in_array($status, ScheduleDraftRow::committableStatuses(), true)) {
+                if (in_array($status, CandidateScheduleRow::committableStatuses(), true)) {
                     $acceptedRows->push($payload);
                 }
             }
@@ -211,7 +211,7 @@ class ScheduleCloudResultIngestor
         $conflicts = [];
         $warnings = $this->warningsFrom($rawRow);
 
-        if (($rawRow['status'] ?? null) === ScheduleDraftRow::StatusConflict) {
+        if (($rawRow['status'] ?? null) === CandidateScheduleRow::StatusConflict) {
             $conflicts[] = $this->conflict('solver_reported_conflict', 'The solver reported this row as a conflict.', $rawRow['conflict_payload'] ?? null);
         }
 
@@ -457,14 +457,14 @@ class ScheduleCloudResultIngestor
     private function statusFor(array $rawRow, array $conflicts, array $warnings): string
     {
         if ($conflicts !== []) {
-            return ScheduleDraftRow::StatusConflict;
+            return CandidateScheduleRow::StatusConflict;
         }
 
-        if (($rawRow['status'] ?? null) === ScheduleDraftRow::StatusWarning || $warnings !== []) {
-            return ScheduleDraftRow::StatusWarning;
+        if (($rawRow['status'] ?? null) === CandidateScheduleRow::StatusWarning || $warnings !== []) {
+            return CandidateScheduleRow::StatusWarning;
         }
 
-        return ScheduleDraftRow::StatusOk;
+        return CandidateScheduleRow::StatusOk;
     }
 
     /**

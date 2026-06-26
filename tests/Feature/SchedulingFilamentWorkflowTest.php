@@ -11,7 +11,7 @@ use App\Filament\Resources\FacultyAvailabilitySubmissions\Pages\ListFacultyAvail
 use App\Filament\Resources\FacultySubjectEligibilities\Pages\CreateFacultySubjectEligibility;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
-use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\DraftRowsRelationManager;
+use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\Curriculum;
@@ -23,7 +23,7 @@ use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
 use App\Models\Room;
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -160,16 +160,16 @@ class SchedulingFilamentWorkflowTest extends TestCase
         );
 
         $run->refresh();
-        $draftRows = ScheduleDraftRow::query()
+        $draftRows = CandidateScheduleRow::query()
             ->where('generation_run_id', $run->id)
             ->orderBy('id')
             ->get();
 
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
         $this->assertSame(2, $draftRows->count());
-        $this->assertSame(2, $draftRows->where('status', ScheduleDraftRow::StatusOk)->count());
+        $this->assertSame(2, $draftRows->where('status', CandidateScheduleRow::StatusOk)->count());
 
-        Livewire::test(DraftRowsRelationManager::class, [
+        Livewire::test(CandidateRowsRelationManager::class, [
             'ownerRecord' => $run,
             'pageClass' => ViewScheduleGenerationRun::class,
         ])
@@ -344,7 +344,7 @@ final class FilamentWorkflowSchedulingSolverClient implements SchedulingSolverCl
                     'starts_at' => sprintf('%02d:00:00', $startHour),
                     'ends_at' => sprintf('%02d:00:00', $startHour + 1),
                     'modality' => $deliveryGroup['modality'] ?? $section['modality'] ?? 'on_site',
-                    'status' => ScheduleDraftRow::StatusOk,
+                    'status' => CandidateScheduleRow::StatusOk,
                 ];
             })
             ->all();

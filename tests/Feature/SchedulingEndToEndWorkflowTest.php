@@ -17,7 +17,7 @@ use App\Models\FacultyAvailabilityPeriod;
 use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -98,7 +98,7 @@ class SchedulingEndToEndWorkflowTest extends TestCase
         $this->assertSame('ingested', $run->constraint_summary['solver_ingestion']['status']);
         $this->assertSame(2, $run->constraint_summary['solver_ingestion']['ok_count']);
         $this->assertSame(0, $run->constraint_summary['solver_ingestion']['conflict_count']);
-        $this->assertSame(2, ScheduleDraftRow::query()->where('generation_run_id', $run->id)->where('status', ScheduleDraftRow::StatusOk)->count());
+        $this->assertSame(2, CandidateScheduleRow::query()->where('generation_run_id', $run->id)->where('status', CandidateScheduleRow::StatusOk)->count());
 
         $publishedRun = app(SchedulePublishService::class)->publish($run, $registrar, 'Registrar reviewed generated schedule.');
 

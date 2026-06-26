@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -52,7 +53,7 @@ class FortifyLoginViewTest extends TestCase
             ->assertSeeText('Verify your email');
     }
 
-    public function test_active_student_can_login_and_is_redirected_to_student_hub(): void
+    public function test_active_student_can_login_and_is_redirected_to_public_home_until_student_panel_is_promoted(): void
     {
         $student = $this->userWithRole('student', [
             'email' => 'student@example.test',
@@ -62,7 +63,7 @@ class FortifyLoginViewTest extends TestCase
             'email' => 'STUDENT@example.test',
             'password' => 'password',
         ])
-            ->assertRedirect(route('student.dashboard', absolute: false));
+            ->assertRedirect('/');
 
         $this->assertAuthenticatedAs($student);
     }
@@ -137,15 +138,16 @@ class FortifyLoginViewTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword123!', $user->refresh()->password));
     }
 
-    public function test_unverified_student_is_redirected_to_email_verification_notice(): void
+    public function test_unverified_student_can_open_email_verification_notice(): void
     {
         $student = $this->userWithRole('student', [
             'email_verified_at' => null,
         ]);
 
         $this->actingAs($student)
-            ->get(route('student.dashboard'))
-            ->assertRedirect(route('verification.notice', absolute: false));
+            ->get(route('verification.notice'))
+            ->assertOk()
+            ->assertSeeText('Verify your email');
     }
 
     public function test_verification_notification_can_be_resent(): void
@@ -173,9 +175,7 @@ class FortifyLoginViewTest extends TestCase
             ->get('/admin')
             ->assertForbidden();
 
-        $this->actingAs($registrar)
-            ->get(route('student.dashboard'))
-            ->assertForbidden();
+        $this->assertFalse(Route::has('student.dashboard'));
     }
 
     public function test_s1_auth_configuration_excludes_removed_scope_and_enforces_one_staff_role(): void

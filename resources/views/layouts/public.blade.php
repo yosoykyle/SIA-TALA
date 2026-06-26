@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'T.A.L.A. Help Center' }}</title>
+    @PwaHead
     @livewireStyles
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -11,5 +12,6 @@
     {{ $slot }}
 
     @livewireScripts
+    @RegisterServiceWorkerScript
 </body>
 </html>

@@ -107,9 +107,9 @@ class SectionDeliveryGroup extends Model
         return $this->hasMany(Enrollment::class);
     }
 
-    public function scheduleDraftRows(): HasMany
+    public function CandidateScheduleRows(): HasMany
     {
-        return $this->hasMany(ScheduleDraftRow::class);
+        return $this->hasMany(CandidateScheduleRow::class);
     }
 
     public function sectionMeetings(): HasMany

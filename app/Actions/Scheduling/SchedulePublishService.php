@@ -2,7 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\User;
@@ -40,17 +40,17 @@ class SchedulePublishService
 
             if ($lockedRun->draftRows->isEmpty()) {
                 throw ValidationException::withMessages([
-                    'schedule_draft_rows' => 'A schedule run must have reviewed draft rows before it can be published.',
+                    'candidate_schedule_rows' => 'A schedule run must have reviewed draft rows before it can be published.',
                 ]);
             }
 
             $blockingDraftRow = $lockedRun->draftRows->first(
-                fn (ScheduleDraftRow $row): bool => ! in_array($row->status, ScheduleDraftRow::committableStatuses(), true)
+                fn (CandidateScheduleRow $row): bool => ! in_array($row->status, CandidateScheduleRow::committableStatuses(), true)
             );
 
-            if ($blockingDraftRow instanceof ScheduleDraftRow) {
+            if ($blockingDraftRow instanceof CandidateScheduleRow) {
                 throw ValidationException::withMessages([
-                    'schedule_draft_rows' => 'Resolve all draft-row conflicts before publishing the schedule run.',
+                    'candidate_schedule_rows' => 'Resolve all draft-row conflicts before publishing the schedule run.',
                 ]);
             }
 
@@ -117,7 +117,7 @@ class SchedulePublishService
 
     private function createSectionMeeting(
         ScheduleGenerationRun $run,
-        ScheduleDraftRow $draftRow,
+        CandidateScheduleRow $draftRow,
         User $registrar,
         CarbonImmutable $timestamp,
     ): void {

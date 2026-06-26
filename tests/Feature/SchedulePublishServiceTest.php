@@ -8,7 +8,7 @@ use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultyAvailabilityWindow;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Program;
-use App\Models\ScheduleDraftRow;
+use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -84,7 +84,7 @@ class SchedulePublishServiceTest extends TestCase
     {
         $registrar = $this->registrar();
         [$run] = $this->scheduleRunWithDraftRow($registrar, User::factory()->create(), [
-            'status' => ScheduleDraftRow::StatusConflict,
+            'status' => CandidateScheduleRow::StatusConflict,
         ]);
 
         try {
@@ -188,7 +188,7 @@ class SchedulePublishServiceTest extends TestCase
             'constraint_summary' => [],
         ]);
 
-        DB::table('schedule_draft_rows')->insert([
+        DB::table('candidate_schedule_rows')->insert([
             'generation_run_id' => $run->id,
             'section_id' => $section->id,
             'section_delivery_group_id' => $deliveryGroup->id,
@@ -199,7 +199,7 @@ class SchedulePublishServiceTest extends TestCase
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
             'modality' => 'on_site',
-            'status' => ScheduleDraftRow::StatusOk,
+            'status' => CandidateScheduleRow::StatusOk,
             'created_at' => now(),
             'updated_at' => now(),
             ...$draftRowAttributes,

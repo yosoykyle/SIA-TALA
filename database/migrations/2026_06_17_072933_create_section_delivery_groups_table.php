@@ -42,14 +42,14 @@ return new class extends Migration
             $table->index(['section_delivery_group_id', 'status'], 'enrollments_delivery_group_status_index');
         });
 
-        Schema::table('schedule_draft_rows', function (Blueprint $table) {
+        Schema::table('candidate_schedule_rows', function (Blueprint $table) {
             $table->foreignId('section_delivery_group_id')
                 ->nullable()
                 ->after('section_id')
                 ->constrained('section_delivery_groups')
                 ->nullOnDelete();
 
-            $table->index('section_delivery_group_id', 'schedule_draft_rows_delivery_group_index');
+            $table->index('section_delivery_group_id', 'candidate_schedule_rows_delivery_group_index');
         });
 
         Schema::table('section_meetings', function (Blueprint $table) {
@@ -74,9 +74,9 @@ return new class extends Migration
             $table->dropColumn('section_delivery_group_id');
         });
 
-        Schema::table('schedule_draft_rows', function (Blueprint $table) {
+        Schema::table('candidate_schedule_rows', function (Blueprint $table) {
             $table->dropForeign(['section_delivery_group_id']);
-            $table->dropIndex('schedule_draft_rows_delivery_group_index');
+            $table->dropIndex('candidate_schedule_rows_delivery_group_index');
             $table->dropColumn('section_delivery_group_id');
         });
 

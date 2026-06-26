@@ -101,7 +101,7 @@ return new class extends Migration
             $table->index('committed_at');
         });
 
-        Schema::create('schedule_draft_rows', function (Blueprint $table) {
+        Schema::create('candidate_schedule_rows', function (Blueprint $table) {
             $table->id();
             $table->foreignId('generation_run_id')->constrained('schedule_generation_runs')->cascadeOnDelete();
             $table->foreignId('section_id')->constrained()->restrictOnDelete();
@@ -173,7 +173,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('schedule_changes');
         Schema::dropIfExists('section_meetings');
-        Schema::dropIfExists('schedule_draft_rows');
+        Schema::dropIfExists('candidate_schedule_rows');
         Schema::dropIfExists('schedule_generation_runs');
         Schema::dropIfExists('faculty_availability_change_requests');
         Schema::dropIfExists('faculty_availability_windows');
