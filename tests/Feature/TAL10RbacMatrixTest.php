@@ -7,23 +7,74 @@ use App\Models\User;
 use App\Policies\ActivityPolicy;
 use App\Policies\FaqEntryPolicy;
 use App\Policies\RolePolicy;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class TAL10RbacMatrixTest extends TestCase
 {
-    public function test_admin_panel_access_is_limited_to_staff_roles_only(): void
+    use RefreshDatabase;
+
+    protected function setUp(): void
     {
-        $source = $this->source(User::class);
+        parent::setUp();
 
-        foreach (['registrar', 'accounting', 'faculty', 'academic-head', 'system-super-admin'] as $role) {
-            $this->assertStringContainsString("'{$role}'", $source);
-        }
+        $this->withoutVite();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
 
-        $this->assertStringNotContainsString("'student'", $source);
-        $this->assertStringNotContainsString("'applicant'", $source);
+    public function test_student_can_access_student_panel_but_not_admin_or_applicant_panels(): void
+    {
+        $student = $this->userWithRole('student');
+
+        $this->actingAs($student)
+            ->get('/student')
+            ->assertOk();
+
+        $this->actingAs($student)
+            ->get('/admin')
+            ->assertForbidden();
+
+        $this->actingAs($student)
+            ->get('/applicant')
+            ->assertForbidden();
+    }
+
+    public function test_staff_can_access_admin_panel_but_not_student_or_applicant_panels(): void
+    {
+        $staff = $this->userWithRole(User::StaffRoleRegistrar);
+
+        $this->actingAs($staff)
+            ->get('/admin')
+            ->assertOk();
+
+        $this->actingAs($staff)
+            ->get('/student')
+            ->assertForbidden();
+
+        $this->actingAs($staff)
+            ->get('/applicant')
+            ->assertForbidden();
+    }
+
+    public function test_applicant_can_access_applicant_panel_but_not_staff_or_student_panels(): void
+    {
+        $applicant = $this->userWithRole('applicant');
+
+        $this->actingAs($applicant)
+            ->get('/applicant')
+            ->assertOk();
+
+        $this->actingAs($applicant)
+            ->get('/admin')
+            ->assertForbidden();
+
+        $this->actingAs($applicant)
+            ->get('/student')
+            ->assertForbidden();
     }
 
     public function test_core_role_permissions_are_guarded_by_policies(): void
@@ -97,19 +148,19 @@ class TAL10RbacMatrixTest extends TestCase
         $this->assertTrue($activityPolicy->viewAny($systemSuperAdmin));
     }
 
-    private function source(string $class): string
-    {
-        $reflection = new \ReflectionClass($class);
-        $source = file_get_contents((string) $reflection->getFileName());
-
-        $this->assertIsString($source);
-
-        return $source;
-    }
-
     private function resourceClass(string $resource): string
     {
         return str($resource)->singular()->toString().'Resource';
+    }
+
+    private function userWithRole(string $role): User
+    {
+        Role::findOrCreate($role);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        return $user;
     }
 }
 

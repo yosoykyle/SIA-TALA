@@ -6,7 +6,7 @@ TALA is the academic lifecycle and administration system for the institution. Th
 
 **Student Hub**:
 The authenticated student-facing area where a student views current academic status, finance status, holds, schedules, grades, and generated outputs.
-_Avoid_: Student portal, student Filament panel, generic dashboard
+_Avoid_: Student portal, generic dashboard
 
 **Hold**:
 An explicit student-affecting restriction record that states what workflow is blocked, why it is blocked, and what condition resolves or waives it.
