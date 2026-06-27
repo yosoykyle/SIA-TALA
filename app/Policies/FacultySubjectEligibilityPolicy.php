@@ -67,6 +67,9 @@ class FacultySubjectEligibilityPolicy
 
     private function canManage(User $user): bool
     {
-        return $user->can('manage-faculty-subject-eligibilities');
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+        ]) && $user->can('manage-faculty-subject-eligibilities');
     }
 }

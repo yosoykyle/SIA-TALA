@@ -18,7 +18,7 @@ The multi-stage grade review (Draft -> Head Review -> Return -> Post) is flatten
 2. Grades route directly to the Registrar queue.
 3. Registrar clicks "Post & Release" in a single action.
 
-*Note: The Academic Calendar strictly governs when the Faculty portal is open for encoding.*
+*Note: The Academic Calendar strictly governs when the Faculty Workspace is open for encoding.*
 
 ---
 

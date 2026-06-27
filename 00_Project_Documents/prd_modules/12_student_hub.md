@@ -4,7 +4,9 @@
 
 ### 12.1. Student Hub
 
-Student Hub v1 is a minimal authenticated student-facing Laravel / Livewire page set. It is separate from Filament, which remains the staff and administration workspace.
+Student Hub v1 is a minimal authenticated student-facing Filament workspace. Filament is the implementation shell for authenticated Applicant, Student, Faculty, Registrar, Accounting, Academic Head, and System Super Admin surfaces. The product term remains **Student Hub**; implementation notes must not rename it to a generic portal or expose staff workspace language to students.
+
+The only public non-authenticated surface is the public landing page. It is a Blade / Livewire / TallStackUI page that explains TALA, admission guidance, account access boundaries, notices, and FAQ links before users continue to Filament-handled sign-in or applicant application access. Public Blade/Fortify login, registration, forgot-password, reset-password, and verification pages are out of scope.
 
 Student Hub v1 includes:
 

@@ -26,8 +26,7 @@ class AdmissionReadinessDashboard extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->can('manage-admission-setup') === true
-            || auth()->user()?->can('view-global-records') === true;
+        return auth()->user()?->can('manage-admission-setup') === true;
     }
 
     public function mount(): void

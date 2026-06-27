@@ -37,9 +37,19 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        $permissions = [
+        $obsoletePermissions = [
+            'manage-lis',
             'start-enrollment',
             'upload-enrollment-documents',
+            'view-advising-status',
+        ];
+
+        Permission::query()
+            ->where('guard_name', 'web')
+            ->whereIn('name', $obsoletePermissions)
+            ->delete();
+
+        $permissions = [
             'view-grades',
             'view-schedule',
             'view-cor',
@@ -53,7 +63,6 @@ class DatabaseSeeder extends Seeder
             'manage-schedules',
             'manage-sections',
             'evaluate-transferees',
-            'manage-lis',
             'manage-cor-verifications',
             'review-lock-faculty-availability',
             'manage-faculty-subject-eligibilities',
@@ -68,7 +77,6 @@ class DatabaseSeeder extends Seeder
             'verify-grade-submissions',
             'view-class-list',
             'submit-faculty-availability',
-            'view-advising-status',
             'view-global-records',
             'authorize-overrides',
             'view-grade-submission-progress',
@@ -88,10 +96,7 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        Role::findByName('applicant')->syncPermissions([
-            'start-enrollment',
-            'upload-enrollment-documents',
-        ]);
+        Role::findByName('applicant')->syncPermissions([]);
 
         Role::findByName('student')->syncPermissions([
             'view-grades',
@@ -99,7 +104,6 @@ class DatabaseSeeder extends Seeder
             'view-cor',
             'upload-payment-proof',
             'request-grade-corrections',
-            'view-advising-status',
         ]);
 
         Role::findByName('registrar')->syncPermissions([
@@ -110,7 +114,6 @@ class DatabaseSeeder extends Seeder
             'manage-schedules',
             'manage-sections',
             'evaluate-transferees',
-            'manage-lis',
             'manage-cor-verifications',
             'manage-grade-corrections',
             'verify-grade-submissions',
@@ -121,7 +124,6 @@ class DatabaseSeeder extends Seeder
             'export-schedules',
             'view-cor',
             'view-grades',
-            'view-advising-status',
         ]);
 
         Role::findByName('accounting')->syncPermissions([
@@ -137,7 +139,6 @@ class DatabaseSeeder extends Seeder
             'view-class-list',
             'submit-faculty-availability',
             'view-schedule',
-            'view-advising-status',
         ]);
 
         Role::findByName('academic-head')->syncPermissions([
@@ -148,18 +149,14 @@ class DatabaseSeeder extends Seeder
             'manage-faculty-subject-eligibilities',
             'view-cor',
             'view-grades',
-            'view-advising-status',
         ]);
 
         Role::findByName('system-super-admin')->syncPermissions([
             'manage-users',
             'manage-faqs',
-            'manage-faculty-subject-eligibilities',
             'manage-settings',
             'view-audit-logs',
             'manage-system-health',
-            'manage-cor-templates',
-            'manage-cor-verifications',
         ]);
 
         $systemSuperAdmin = User::firstOrCreate(

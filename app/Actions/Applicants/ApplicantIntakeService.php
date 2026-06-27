@@ -2,10 +2,8 @@
 
 namespace App\Actions\Applicants;
 
-use App\Actions\Fortify\PasswordValidationRules;
-use App\Models\ChecklistItem;
 use App\Models\ApplicantIntake;
-use App\Models\DocumentUpload;
+use App\Models\DocumentRequirementItem;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -13,30 +11,80 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
 
 class ApplicantIntakeService
 {
-    use PasswordValidationRules;
-
     public function __construct(
         private AdmissionRequirementResolver $requirementResolver,
     ) {}
 
     /**
      * @param  array<string, mixed>  $data
-     *
-     * @throws ValidationException
      */
-    public function create(array $data): ApplicantIntake
+    public function saveDraft(User $applicant, array $data): ApplicantIntake
     {
-        $validated = $this->validateIntake($data);
-        $term = $this->resolveTerm($validated['term_id'] ?? null);
-        $duplicates = $this->duplicateMatches($validated);
+        if (! $applicant->hasRole('applicant')) {
+            throw ValidationException::withMessages([
+                'applicant' => 'Only applicant accounts can own an applicant intake.',
+            ]);
+        }
+
+        $validated = Validator::make($data, $this->draftRules())->validate();
+        $intake = $applicant->applicantIntake()->first();
+
+        if ($intake instanceof ApplicantIntake && $intake->status !== ApplicantIntake::StatusDraft) {
+            throw ValidationException::withMessages([
+                'status' => 'A submitted application can no longer be edited as a draft.',
+            ]);
+        }
+
+        $attributes = Arr::only($validated, $this->editableAttributes());
+
+        if (($validated['orientation_modality_acknowledged'] ?? false) === true) {
+            $attributes['orientation_modality_acknowledged_at'] = now();
+        }
+
+        if (($validated['orientation_policy_accepted'] ?? false) === true) {
+            $attributes['orientation_policy_accepted_at'] = now();
+        }
+
+        return DB::transaction(function () use ($applicant, $intake, $attributes): ApplicantIntake {
+            if (! $intake instanceof ApplicantIntake) {
+                $intake = new ApplicantIntake([
+                    'user_id' => $applicant->id,
+                    'status' => ApplicantIntake::StatusDraft,
+                    'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
+                    'duplicate_check_payload' => ['matches' => []],
+                    'meta' => [],
+                ]);
+            }
+
+            $intake->fill($attributes);
+            $intake->save();
+
+            return $intake->refresh();
+        }, attempts: 3);
+    }
+
+    public function submit(ApplicantIntake $intake): ApplicantIntake
+    {
+        if ($intake->status !== ApplicantIntake::StatusDraft) {
+            throw ValidationException::withMessages([
+                'status' => 'Only draft applications can be submitted.',
+            ]);
+        }
+
+        $data = [
+            ...$intake->only($this->editableAttributes()),
+            'orientation_modality_acknowledged' => $intake->orientation_modality_acknowledged_at !== null,
+            'orientation_policy_accepted' => $intake->orientation_policy_accepted_at !== null,
+        ];
+        $validated = Validator::make($data, $this->submissionRules($data))->validate();
+        $term = $this->resolveTerm($validated['term_id']);
+        $duplicates = $this->duplicateMatches($intake, $validated);
 
         if ($duplicates !== []) {
             throw ValidationException::withMessages([
@@ -44,393 +92,168 @@ class ApplicantIntakeService
             ]);
         }
 
-        $timestamp = CarbonImmutable::now(config('app.timezone'));
-        $requirementResolution = $this->requirementResolver->resolve($validated, $term);
-        $requiredDocuments = $requirementResolution->documentKeys();
-
-        return DB::transaction(function () use ($validated, $term, $timestamp, $requiredDocuments, $requirementResolution): ApplicantIntake {
-            $user = User::query()->create([
-                ...User::staffNamePayload(
-                    (string) $validated['first_name'],
-                    $validated['middle_name'] ?? null,
-                    (string) $validated['last_name'],
-                    $validated['suffix'] ?? null,
-                ),
-                'username' => $validated['email'],
-                'email' => $validated['email'],
-                'password' => Hash::make((string) $validated['password']),
-                'status' => User::StatusApplicantPending,
-            ]);
-
-            Role::findOrCreate('applicant', 'web');
-            $user->assignRole('applicant');
-
-            $intake = ApplicantIntake::query()->create([
-                ...Arr::only($validated, [
-                    'program_id',
-                    'lrn',
-                    'birthdate',
-                    'place_of_birth',
-                    'gender',
-                    'civil_status',
-                    'mothers_maiden_name',
-                    'contact_number',
-                    'street',
-                    'barangay',
-                    'city',
-                    'province',
-                    'region',
-                    'zip_code',
-                    'father_name',
-                    'father_occupation',
-                    'mother_occupation',
-                    'guardian_name',
-                    'guardian_contact_number',
-                    'guardian_address',
-                    'year_level',
-                    'applicant_type',
-                    'preferred_modality',
-                    'last_school_name',
-                    'last_school_address',
-                    'last_school_year',
-                ]),
-                'user_id' => $user->id,
-                'term_id' => $term->id,
-                'orientation_modality_acknowledged_at' => $timestamp,
-                'orientation_policy_accepted_at' => $timestamp,
-                'status' => ApplicantIntake::StatusPending,
-                'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
-                'duplicate_check_payload' => ['matches' => []],
-                'required_documents' => $requiredDocuments,
-                'submitted_at' => $timestamp,
-                'meta' => [],
-            ]);
-
-            $this->initializeChecklistItems($intake, $requirementResolution);
-
-            $this->recordActivity(
-                subject: $intake,
-                event: 'applicant_intake_created',
-                causer: $user,
-                properties: [
-                    'status_after' => ApplicantIntake::StatusPending,
-                    'term_id' => $term->id,
-                    'required_documents' => $requiredDocuments,
-                ],
-                timestamp: $timestamp,
-            );
-
-            return $intake->refresh()->load(['user', 'term', 'program']);
-        }, attempts: 3);
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     *
-     * @throws ValidationException
-     */
-    public function recordDocumentUpload(ApplicantIntake $intake, array $data): DocumentUpload
-    {
-        if (! in_array($intake->status, [
-            ApplicantIntake::StatusPending,
-            ApplicantIntake::StatusActionRequired,
-            ApplicantIntake::StatusForEvaluation,
-        ], true)) {
-            throw ValidationException::withMessages([
-                'status' => 'Only active applicant intakes can receive document uploads.',
-            ]);
-        }
-
-        $validated = Validator::make($data, [
-            'document_type' => ['required', 'string', Rule::in($intake->requiredDocumentTypes())],
-            'file_disk' => ['nullable', 'string', 'max:255'],
-            'file_path' => ['required', 'string', 'max:500'],
-            'file_name' => ['required', 'string', 'max:255'],
-            'mime_type' => ['nullable', 'string', 'max:100'],
-            'file_size' => ['nullable', 'integer', 'min:1'],
-            'checksum' => ['nullable', 'string', 'max:128'],
-            'student_confirmed_payload' => ['nullable', 'array'],
-        ])->validate();
-
+        $requirements = $this->requirementResolver->resolve($validated, $term);
         $timestamp = CarbonImmutable::now(config('app.timezone'));
 
-        $upload = DB::transaction(function () use ($intake, $validated, $timestamp): DocumentUpload {
-            $locked = ApplicantIntake::query()
-                ->lockForUpdate()
-                ->findOrFail($intake->id);
-            $requirement = $locked->checklistItems()
-                ->where('requirement_type', $validated['document_type'])
-                ->first();
+        return DB::transaction(function () use ($intake, $term, $requirements, $timestamp): ApplicantIntake {
+            $locked = ApplicantIntake::query()->lockForUpdate()->findOrFail($intake->id);
 
-            $documentUpload = DocumentUpload::query()->create([
-                'applicant_intake_id' => $locked->id,
-                'applicant_document_requirement_id' => null,
-                'student_profile_id' => null,
-                'user_id' => $locked->user_id,
-                'term_id' => $locked->term_id,
-                'document_type' => $validated['document_type'],
-                'file_disk' => $validated['file_disk'] ?? 'local',
-                'file_path' => $validated['file_path'],
-                'file_name' => $validated['file_name'],
-                'mime_type' => $validated['mime_type'] ?? null,
-                'file_size' => $validated['file_size'] ?? null,
-                'checksum' => $validated['checksum'] ?? null,
-                'upload_status' => 'uploaded',
-                'review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
-                'student_confirmed_payload' => $validated['student_confirmed_payload'] ?? [],
-                'student_confirmed_at' => array_key_exists('student_confirmed_payload', $validated)
-                    ? $timestamp
-                    : null,
-            ]);
-
-            if ($requirement instanceof ChecklistItem) {
-                $requirement->forceFill([
-                    'status' => 'received_digital',
-                    'evidence_method' => 'digital_upload',
-                ])->save();
-            }
-
-            if ($validated['document_type'] === 'identity_document' || $validated['document_type'] === 'identity') {
-                $locked->forceFill([
-                    'identity_document_url' => $validated['file_path'],
-                ])->save();
-            }
-
-            if ($locked->status === ApplicantIntake::StatusActionRequired) {
-                $locked->forceFill([
-                    'status' => ApplicantIntake::StatusPending,
-                    'action_required_at' => null,
-                ])->save();
-
-                $locked->user()->update([
-                    'status' => User::StatusApplicantPending,
+            if ($locked->status !== ApplicantIntake::StatusDraft) {
+                throw ValidationException::withMessages([
+                    'status' => 'This application was already submitted.',
                 ]);
             }
 
-            $this->recordActivity(
-                subject: $locked,
-                event: 'applicant_document_uploaded',
-                causer: $locked->user,
-                properties: [
-                    'document_upload_id' => $documentUpload->id,
-                    'document_type' => $documentUpload->document_type,
-                    'review_status' => $documentUpload->review_status,
-                ],
-                timestamp: $timestamp,
-            );
-
-            return $documentUpload;
-        }, attempts: 3);
-
-        return $upload->refresh()->load(['applicantIntake', 'user', 'term']);
-    }
-
-    /**
-     * @throws ValidationException
-     */
-    public function submitForRegistrarEvaluation(ApplicantIntake $intake): ApplicantIntake
-    {
-        $missingDocuments = $intake->missingSubmittedAdmissionGateDocumentTypes();
-
-        if ($missingDocuments !== []) {
-            throw ValidationException::withMessages([
-                'required_documents' => 'All admission-gate document types must be uploaded before Registrar evaluation.',
-            ]);
-        }
-
-        $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-        return DB::transaction(function () use ($intake, $timestamp): ApplicantIntake {
-            $locked = ApplicantIntake::query()
-                ->lockForUpdate()
-                ->findOrFail($intake->id);
-
             $locked->forceFill([
-                'status' => ApplicantIntake::StatusForEvaluation,
+                'term_id' => $term->id,
+                'status' => ApplicantIntake::StatusPending,
+                'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
+                'duplicate_check_payload' => ['matches' => []],
+                'submitted_at' => $timestamp,
             ])->save();
 
-            $locked->user()->update([
-                'status' => User::StatusApplicantForEvaluation,
-            ]);
-
+            $locked->checklistItems()->delete();
+            $this->initializeChecklistItems($locked, $requirements);
             $this->recordActivity(
                 subject: $locked,
-                event: 'applicant_intake_submitted_for_evaluation',
-                causer: $locked->user,
+                event: 'applicant_intake_submitted',
+                causer: User::query()->findOrFail($locked->user_id),
                 properties: [
-                    'status_after' => ApplicantIntake::StatusForEvaluation,
+                    'status_before' => ApplicantIntake::StatusDraft,
+                    'status_after' => ApplicantIntake::StatusPending,
+                    'term_id' => $term->id,
+                    'requirement_policy_id' => $requirements->policy->id,
                 ],
                 timestamp: $timestamp,
             );
 
-            return $locked->refresh();
+            return $locked->refresh()->load(['checklistItems', 'program', 'term']);
         }, attempts: 3);
     }
 
     /**
-     * @throws ValidationException
-     */
-    public function approveForPayment(ApplicantIntake $intake, User $registrar): ApplicantIntake
-    {
-        if (! $registrar->can('approve-documents') && ! $registrar->can('evaluate-transferees')) {
-            throw ValidationException::withMessages([
-                'registrar' => 'Only authorized Registrar staff can approve applicant intake for payment.',
-            ]);
-        }
-
-        $missingDocuments = $intake->missingApprovedAdmissionGateDocumentTypes();
-
-        if ($missingDocuments !== []) {
-            throw ValidationException::withMessages([
-                'required_documents' => 'Every admission-gate applicant document must be Registrar-approved before payment unlock.',
-            ]);
-        }
-
-        if ($intake->duplicate_check_status !== ApplicantIntake::DuplicateStatusClear) {
-            throw ValidationException::withMessages([
-                'duplicate_check_status' => 'Duplicate-check blockers must be cleared before payment unlock.',
-            ]);
-        }
-
-        $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-        return DB::transaction(function () use ($intake, $registrar, $timestamp): ApplicantIntake {
-            $locked = ApplicantIntake::query()
-                ->lockForUpdate()
-                ->findOrFail($intake->id);
-
-            $locked->forceFill([
-                'status' => ApplicantIntake::StatusApproved,
-                'registrar_reviewed_by' => $registrar->id,
-                'registrar_reviewed_at' => $timestamp,
-                'approved_at' => $timestamp,
-            ])->save();
-
-            $locked->user()->update([
-                'status' => User::StatusApplicantApproved,
-            ]);
-
-            // Undertakings are no longer needed as checklist items persist.
-
-            $this->recordActivity(
-                subject: $locked,
-                event: 'applicant_intake_approved_for_payment',
-                causer: $registrar,
-                properties: [
-                    'status_after' => ApplicantIntake::StatusApproved,
-                ],
-                timestamp: $timestamp,
-            );
-
-            return $locked->refresh()->load(['user', 'registrarReviewer']);
-        }, attempts: 3);
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
-     *
-     * @throws ValidationException
      */
-    private function validateIntake(array $data): array
+    private function draftRules(): array
     {
-        $validator = Validator::make($data, [
-            'first_name' => ['required', 'string', 'max:100'],
-            'middle_name' => ['nullable', 'string', 'max:100'],
-            'last_name' => ['required', 'string', 'max:100'],
-            'suffix' => ['nullable', 'string', 'max:40'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
-            'password' => $this->passwordRules(),
-            'term_id' => ['nullable', 'integer', Rule::exists((new Term)->getTable(), 'id')],
+        return [
+            'term_id' => ['sometimes', 'nullable', 'integer', Rule::exists((new Term)->getTable(), 'id')],
+            'program_id' => ['sometimes', 'nullable', 'integer', Rule::exists((new Program)->getTable(), 'id')],
+            'lrn' => ['sometimes', 'nullable', 'digits:12'],
+            'birthdate' => ['sometimes', 'nullable', 'date', 'before:today'],
+            'place_of_birth' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'gender' => ['sometimes', 'nullable', Rule::in(['male', 'female'])],
+            'civil_status' => ['sometimes', 'nullable', Rule::in(['single', 'married', 'widowed', 'separated', 'annulled'])],
+            'mothers_maiden_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'contact_number' => ['sometimes', 'nullable', 'regex:/^09\d{9}$/'],
+            'street' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'barangay' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'city' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'province' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'region' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'zip_code' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'father_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'father_occupation' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'mother_occupation' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'guardian_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'guardian_contact_number' => ['sometimes', 'nullable', 'regex:/^09\d{9}$/'],
+            'guardian_address' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'year_level' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'applicant_type' => ['sometimes', 'nullable', Rule::in([
+                ApplicantIntake::ApplicantTypeNew,
+                ApplicantIntake::ApplicantTypeTransferee,
+                ApplicantIntake::ApplicantTypeReturnee,
+            ])],
+            'preferred_modality' => ['sometimes', 'nullable', Rule::in(['on_site', 'blended', 'online'])],
+            'last_school_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'last_school_address' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'last_school_year' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'identity_document_url' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'orientation_modality_acknowledged' => ['sometimes', 'boolean'],
+            'orientation_policy_accepted' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function submissionRules(array $data): array
+    {
+        return [
+            ...$this->draftRules(),
+            'term_id' => ['required', 'integer', Rule::exists((new Term)->getTable(), 'id')],
             'program_id' => ['required', 'integer', Rule::exists((new Program)->getTable(), 'id')],
             'lrn' => ['required', 'digits:12'],
             'birthdate' => ['required', 'date', 'before:today'],
-            'place_of_birth' => ['nullable', 'string', 'max:255'],
-            'gender' => ['required', 'string', Rule::in(['male', 'female'])],
-            'civil_status' => ['required', 'string', Rule::in(['single', 'married', 'widowed', 'separated', 'annulled'])],
-            'mothers_maiden_name' => ['nullable', 'string', 'max:255'],
+            'gender' => ['required', Rule::in(['male', 'female'])],
+            'civil_status' => ['required', Rule::in(['single', 'married', 'widowed', 'separated', 'annulled'])],
             'contact_number' => ['required', 'regex:/^09\d{9}$/'],
-            'street' => ['nullable', 'string', 'max:255'],
-            'barangay' => ['nullable', 'string', 'max:255'],
             'city' => ['required', 'string', 'max:255'],
             'province' => ['required', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'max:255'],
-            'zip_code' => ['nullable', 'string', 'max:20'],
-            'father_name' => ['nullable', 'string', 'max:255'],
-            'father_occupation' => ['nullable', 'string', 'max:255'],
-            'mother_occupation' => ['nullable', 'string', 'max:255'],
-            'guardian_name' => ['nullable', 'string', 'max:255'],
-            'guardian_contact_number' => ['nullable', 'regex:/^09\d{9}$/'],
-            'guardian_address' => ['nullable', 'string', 'max:255'],
             'year_level' => ['required', 'string', 'max:80'],
             'applicant_type' => ['required', Rule::in([
                 ApplicantIntake::ApplicantTypeNew,
                 ApplicantIntake::ApplicantTypeTransferee,
                 ApplicantIntake::ApplicantTypeReturnee,
             ])],
-            'preferred_modality' => ['required', 'string'],
+            'preferred_modality' => ['required', Rule::in(['on_site', 'blended', 'online'])],
             'last_school_name' => [
                 Rule::requiredIf(($data['applicant_type'] ?? null) === ApplicantIntake::ApplicantTypeTransferee),
                 'nullable',
                 'string',
                 'max:255',
             ],
-            'last_school_address' => [
-                Rule::requiredIf(($data['applicant_type'] ?? null) === ApplicantIntake::ApplicantTypeTransferee),
-                'nullable',
-                'string',
-                'max:255',
-            ],
-            'last_school_year' => ['nullable', 'string', 'max:80'],
+            'last_school_address' => ['nullable', 'string', 'max:255'],
+            'identity_document_url' => ['required', 'string', 'max:500'],
             'orientation_modality_acknowledged' => ['accepted'],
             'orientation_policy_accepted' => ['accepted'],
-        ]);
-
-        $validator->after(function ($validator) use ($data): void {
-            try {
-                $birthdate = CarbonImmutable::parse((string) ($data['birthdate'] ?? 'today'));
-            } catch (\Throwable) {
-                return;
-            }
-
-            $age = $birthdate->age;
-
-            if ($age < 18 && blank($data['guardian_name'] ?? null)) {
-                $validator->errors()->add('guardian_name', 'Guardian name is required for minor applicants.');
-            }
-
-            if ($age < 18 && blank($data['guardian_contact_number'] ?? null)) {
-                $validator->errors()->add('guardian_contact_number', 'Guardian contact number is required for minor applicants.');
-            }
-
-            $modality = $data['preferred_modality'] ?? null;
-            $allowedModalities = ['on_site', 'blended', 'online'];
-
-            if (! in_array($modality, $allowedModalities, true)) {
-                $validator->errors()->add('preferred_modality', 'Preferred modality is not valid for the College deployment.');
-            }
-        });
-
-        return $validator->validate();
+        ];
     }
 
     /**
-     * @throws ValidationException
+     * @return list<string>
      */
+    private function editableAttributes(): array
+    {
+        return [
+            'term_id',
+            'program_id',
+            'lrn',
+            'birthdate',
+            'place_of_birth',
+            'gender',
+            'civil_status',
+            'mothers_maiden_name',
+            'contact_number',
+            'street',
+            'barangay',
+            'city',
+            'province',
+            'region',
+            'zip_code',
+            'father_name',
+            'father_occupation',
+            'mother_occupation',
+            'guardian_name',
+            'guardian_contact_number',
+            'guardian_address',
+            'year_level',
+            'applicant_type',
+            'preferred_modality',
+            'last_school_name',
+            'last_school_address',
+            'last_school_year',
+            'identity_document_url',
+        ];
+    }
+
     private function resolveTerm(mixed $termId): Term
     {
-        if ($termId !== null) {
-            return Term::query()->findOrFail((int) $termId);
-        }
-
-        $term = Term::query()
-            ->where('is_active', true)
-            ->latest('id')
-            ->first();
+        $term = Term::query()->whereKey($termId)->where('is_active', true)->first();
 
         if (! $term instanceof Term) {
             throw ValidationException::withMessages([
-                'term_id' => 'An active term is required before applicant intake can start.',
+                'term_id' => 'An active term is required before applicant intake can be submitted.',
             ]);
         }
 
@@ -441,40 +264,29 @@ class ApplicantIntakeService
      * @param  array<string, mixed>  $data
      * @return list<array<string, mixed>>
      */
-    private function duplicateMatches(array $data): array
+    private function duplicateMatches(ApplicantIntake $intake, array $data): array
     {
         $matches = [];
+        $lrn = (string) $data['lrn'];
 
-        $studentProfile = StudentProfile::query()
-            ->with('user:id,name,email')
-            ->where('lrn', $data['lrn'])
-            ->first();
+        $studentProfile = StudentProfile::query()->where('lrn', $lrn)->first();
 
         if ($studentProfile instanceof StudentProfile) {
             $matches[] = [
                 'type' => 'student_profile_lrn',
                 'student_profile_id' => $studentProfile->id,
-                'user_id' => $studentProfile->user_id,
             ];
         }
 
-        $applicant = ApplicantIntake::query()
-            ->where('lrn', $data['lrn'])
-            ->orWhere(function ($query) use ($data): void {
-                $query->whereDate('birthdate', $data['birthdate'])
-                    ->whereHas('user', function ($userQuery) use ($data): void {
-                        $userQuery
-                            ->where('first_name', $data['first_name'])
-                            ->where('last_name', $data['last_name']);
-                    });
-            })
+        $otherApplicant = ApplicantIntake::query()
+            ->whereKeyNot($intake->id)
+            ->where('lrn', $lrn)
             ->first();
 
-        if ($applicant instanceof ApplicantIntake) {
+        if ($otherApplicant instanceof ApplicantIntake) {
             $matches[] = [
-                'type' => 'applicant_intake_identity',
-                'applicant_intake_id' => $applicant->id,
-                'user_id' => $applicant->user_id,
+                'type' => 'applicant_intake_lrn',
+                'applicant_intake_id' => $otherApplicant->id,
             ];
         }
 
@@ -486,19 +298,48 @@ class ApplicantIntakeService
         AdmissionRequirementResolution $resolution,
     ): void {
         foreach ($resolution->items as $item) {
-            $evidenceMethods = is_array($item->permitted_evidence_methods) ? $item->permitted_evidence_methods : [];
-            $evidenceMethod = count($evidenceMethods) > 0 ? $evidenceMethods[0] : 'physical_copy';
-
             $intake->checklistItems()->create([
                 'requirement_type' => $item->key,
                 'status' => 'pending',
-                'blocking_level' => $item->gate_type === 'admission' ? 'blocks_handover' : 'retention_only',
-                'evidence_method' => $evidenceMethod,
+                'blocking_level' => $item->gate_type === DocumentRequirementItem::GateTypeAdmission
+                    ? 'blocks_handover'
+                    : 'retention_only',
+                'evidence_method' => $this->evidenceMethod($item),
                 'deadline' => null,
-                'source_policy' => 'Policy ID: ' . $resolution->policy->id . ', Version: ' . $resolution->policy->version,
+                'source_policy' => "Policy ID: {$resolution->policy->id}, Version: {$resolution->policy->version}",
                 'notes' => $item->label,
             ]);
         }
+    }
+
+    private function evidenceMethod(DocumentRequirementItem $item): string
+    {
+        $methods = [];
+
+        foreach (Arr::wrap($item->getAttribute('permitted_evidence_methods')) as $method) {
+            if (is_string($method)) {
+                $methods[] = $method;
+            }
+        }
+
+        if (array_intersect([
+            DocumentRequirementItem::EvidenceMethodPhysicalOriginal,
+            DocumentRequirementItem::EvidenceMethodCertifiedCopy,
+            DocumentRequirementItem::EvidenceMethodSchoolTransmission,
+            'physical_copy',
+        ], $methods) !== []) {
+            return 'physical_copy';
+        }
+
+        if (array_intersect([
+            DocumentRequirementItem::EvidenceMethodApplicantUpload,
+            DocumentRequirementItem::EvidenceMethodRegistrarAssistedUpload,
+            'digital_upload',
+        ], $methods) !== []) {
+            return 'digital_upload';
+        }
+
+        return 'metadata_only';
     }
 
     /**

@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\ApplicantIntakes;
 
-use App\Filament\Resources\ApplicantIntakes\Pages\CreateApplicantIntake;
-use App\Filament\Resources\ApplicantIntakes\Pages\EditApplicantIntake;
 use App\Filament\Resources\ApplicantIntakes\Pages\ListApplicantIntakes;
 use App\Filament\Resources\ApplicantIntakes\Pages\ViewApplicantIntake;
-use App\Filament\Resources\ApplicantIntakes\Schemas\ApplicantIntakeForm;
 use App\Filament\Resources\ApplicantIntakes\Schemas\ApplicantIntakeInfolist;
 use App\Filament\Resources\ApplicantIntakes\Tables\ApplicantIntakesTable;
 use App\Models\ApplicantIntake;
@@ -15,6 +12,8 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class ApplicantIntakeResource extends Resource
 {
@@ -22,10 +21,11 @@ class ApplicantIntakeResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    public static function form(Schema $schema): Schema
-    {
-        return ApplicantIntakeForm::configure($schema);
-    }
+    protected static string|UnitEnum|null $navigationGroup = 'Registrar';
+
+    protected static ?string $navigationLabel = 'Applicant Review';
+
+    protected static ?int $navigationSort = 20;
 
     public static function infolist(Schema $schema): Schema
     {
@@ -48,9 +48,18 @@ class ApplicantIntakeResource extends Resource
     {
         return [
             'index' => ListApplicantIntakes::route('/'),
-            'create' => CreateApplicantIntake::route('/create'),
             'view' => ViewApplicantIntake::route('/{record}'),
-            'edit' => EditApplicantIntake::route('/{record}/edit'),
         ];
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('status', '!=', ApplicantIntake::StatusDraft);
     }
 }

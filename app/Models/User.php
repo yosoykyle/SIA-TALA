@@ -46,16 +46,25 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 
     public function canAccessPanel(Panel $panel): bool
     {
-        if ($this->status !== self::StatusActive || ! $this->hasVerifiedEmail()) {
+        return match ($panel->getId()) {
+            'admin' => $this->hasAnyRole(self::staffRoleNames()) && $this->canAuthenticate(),
+            'student' => $this->hasRole('student') && $this->canAuthenticate(),
+            'applicant' => $this->hasRole('applicant') && $this->canAuthenticate(),
+            default => false,
+        };
+    }
+
+    public function canAuthenticate(): bool
+    {
+        if (! $this->hasAnyRole(['applicant', 'student', ...self::staffRoleNames()])) {
             return false;
         }
 
-        return match ($panel->getId()) {
-            'admin' => $this->hasAnyRole(self::staffRoleNames()),
-            'student' => $this->hasRole('student'),
-            'applicant' => $this->hasRole('applicant'),
-            default => false,
-        };
+        if ($this->hasRole('applicant')) {
+            return in_array($this->status, self::applicantWorkspaceStatusValues(), true);
+        }
+
+        return $this->status === self::StatusActive;
     }
 
     public function facultySubjectEligibilities(): HasMany
@@ -76,6 +85,11 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function applicantIntake(): HasOne
     {
         return $this->hasOne(ApplicantIntake::class);
+    }
+
+    public function studentProfile(): HasOne
+    {
+        return $this->hasOne(StudentProfile::class);
     }
 
     /**
@@ -185,6 +199,28 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public static function staffEditableStatusValues(): array
     {
         return array_keys(self::staffEditableStatusOptions());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function applicantWorkspaceStatusOptions(): array
+    {
+        return [
+            self::StatusActive => 'Active',
+            self::StatusApplicantPending => 'Pending',
+            self::StatusApplicantActionRequired => 'Action Required',
+            self::StatusApplicantForEvaluation => 'For Evaluation',
+            self::StatusApplicantApproved => 'Approved',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function applicantWorkspaceStatusValues(): array
+    {
+        return array_keys(self::applicantWorkspaceStatusOptions());
     }
 
     /**

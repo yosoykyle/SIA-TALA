@@ -2,11 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
+use App\Filament\Applicant\Pages\Dashboard;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -26,8 +27,15 @@ class ApplicantPanelProvider extends PanelProvider
         return $panel
             ->id('applicant')
             ->path('applicant')
+            ->login()
+            ->registration(RegisterApplicant::class)
+            ->passwordReset()
+            ->emailVerification()
+            ->profile()
+            ->brandName('TALA Applicant Workspace')
+            ->brandLogo(asset('talalogo.jpg'))
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Blue,
             ])
             ->discoverResources(in: app_path('Filament/Applicant/Resources'), for: 'App\Filament\Applicant\Resources')
             ->discoverPages(in: app_path('Filament/Applicant/Pages'), for: 'App\Filament\Applicant\Pages')

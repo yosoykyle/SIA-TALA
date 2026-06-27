@@ -33,17 +33,11 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
-        Fortify::loginView(fn () => view('auth.login'));
-        Fortify::registerView(fn () => view('auth.register'));
-        Fortify::requestPasswordResetLinkView(fn () => view('auth.forgot-password'));
-        Fortify::resetPasswordView(fn (Request $request) => view('auth.reset-password', ['request' => $request]));
-        Fortify::verifyEmailView(fn () => view('auth.verify-email'));
-
         Fortify::authenticateUsing(function (Request $request): ?User {
             $email = strtolower((string) $request->input('email'));
             $user = User::query()->where('email', $email)->first();
 
-            if (! $user instanceof User || $user->status !== User::StatusActive) {
+            if (! $user instanceof User || ! $user->canAuthenticate()) {
                 return null;
             }
 

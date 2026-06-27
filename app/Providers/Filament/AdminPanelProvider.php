@@ -28,6 +28,9 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->passwordReset()
+            ->emailVerification()
+            ->profile()
             ->brandName('T.A.L.A. System')
             ->brandLogo(asset('talalogo.jpg'))
             ->colors([

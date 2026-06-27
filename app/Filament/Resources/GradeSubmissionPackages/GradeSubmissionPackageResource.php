@@ -28,6 +28,15 @@ class GradeSubmissionPackageResource extends Resource
 
     protected static ?int $navigationSort = 42;
 
+    public static function getNavigationGroup(): string|UnitEnum|null
+    {
+        if (auth()->user()?->hasRole('academic-head')) {
+            return 'Academic Head';
+        }
+
+        return 'Registrar';
+    }
+
     public static function infolist(Schema $schema): Schema
     {
         return GradeSubmissionPackageInfolist::configure($schema);

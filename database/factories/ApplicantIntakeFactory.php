@@ -36,7 +36,7 @@ class ApplicantIntakeFactory extends Factory
             'street' => fake()->streetAddress(),
             'barangay' => fake()->word(),
             'city' => fake()->city(),
-            'province' => fake()->state(),
+            'province' => fake()->city(),
             'region' => 'Region IV-A',
             'zip_code' => fake()->postcode(),
             'father_name' => fake()->name('male'),
@@ -50,14 +50,14 @@ class ApplicantIntakeFactory extends Factory
             'status' => ApplicantIntake::StatusPending,
             'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
             'duplicate_check_payload' => ['matches' => []],
-            'required_documents' => [
-                'psa_birth_certificate',
-                'grade_11_card',
-                'grade_12_card',
-                'form_137',
-                'good_moral',
-                'diploma',
-            ],
         ];
+    }
+
+    public function draft(): static
+    {
+        return $this->state(fn (): array => [
+            'status' => ApplicantIntake::StatusDraft,
+            'submitted_at' => null,
+        ]);
     }
 }

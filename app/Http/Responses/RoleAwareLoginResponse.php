@@ -22,7 +22,7 @@ class RoleAwareLoginResponse implements LoginResponseContract
         }
 
         if (! $user->hasVerifiedEmail()) {
-            return redirect()->route('verification.notice');
+            return redirect()->route($this->verificationPromptRoute($user));
         }
 
         $workspacePath = match (true) {
@@ -33,5 +33,15 @@ class RoleAwareLoginResponse implements LoginResponseContract
         };
 
         return redirect()->to($workspacePath);
+    }
+
+    private function verificationPromptRoute(User $user): string
+    {
+        return match (true) {
+            $user->hasAnyRole(User::staffRoleNames()) => 'filament.admin.auth.email-verification.prompt',
+            $user->hasRole('student') => 'filament.student.auth.email-verification.prompt',
+            $user->hasRole('applicant') => 'filament.applicant.auth.email-verification.prompt',
+            default => 'filament.applicant.auth.email-verification.prompt',
+        };
     }
 }

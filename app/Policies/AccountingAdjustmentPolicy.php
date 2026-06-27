@@ -13,7 +13,6 @@ class AccountingAdjustmentPolicy
             'post-accounting-adjustments',
             'process-payments',
             'create-assessments',
-            'view-global-records',
         ]);
     }
 

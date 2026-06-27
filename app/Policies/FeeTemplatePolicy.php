@@ -9,7 +9,7 @@ class FeeTemplatePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canManageAccounting($user) || $user->can('view-global-records');
+        return $this->canManageAccounting($user);
     }
 
     public function view(User $user, FeeTemplate $feeTemplate): bool

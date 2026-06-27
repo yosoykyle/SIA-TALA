@@ -14,6 +14,8 @@ class ApplicantIntake extends Model
     /** @use HasFactory<ApplicantIntakeFactory> */
     use HasFactory;
 
+    public const StatusDraft = 'draft';
+
     public const StatusPending = 'pending';
 
     public const StatusActionRequired = 'action_required';
@@ -69,7 +71,6 @@ class ApplicantIntake extends Model
         'status',
         'duplicate_check_status',
         'duplicate_check_payload',
-        'required_documents',
         'identity_document_url',
         'registrar_reviewed_by',
         'registrar_reviewed_at',
@@ -83,7 +84,7 @@ class ApplicantIntake extends Model
      * @var array<string, string>
      */
     protected $attributes = [
-        'status' => self::StatusPending,
+        'status' => self::StatusDraft,
         'duplicate_check_status' => self::DuplicateStatusClear,
     ];
 
@@ -97,7 +98,6 @@ class ApplicantIntake extends Model
             'orientation_modality_acknowledged_at' => 'datetime',
             'orientation_policy_accepted_at' => 'datetime',
             'duplicate_check_payload' => 'array',
-            'required_documents' => 'array',
             'registrar_reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
@@ -134,83 +134,5 @@ class ApplicantIntake extends Model
     public function checklistItems(): MorphMany
     {
         return $this->morphMany(ChecklistItem::class, 'owner');
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function requiredDocumentTypes(): array
-    {
-        if ($this->exists && $this->checklistItems()->exists()) {
-            return $this->checklistItems()
-                ->orderBy('id')
-                ->pluck('requirement_type')
-                ->all();
-        }
-
-        $documents = $this->required_documents ?? [];
-
-        return array_values(array_filter($documents, 'is_string'));
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function admissionGateDocumentTypes(): array
-    {
-        if ($this->exists && $this->checklistItems()->exists()) {
-            return $this->checklistItems()
-                ->where('blocking_level', 'blocks_handover') // Assuming blocks_handover corresponds to admission gate
-                ->orderBy('id')
-                ->pluck('requirement_type')
-                ->all();
-        }
-
-        return $this->requiredDocumentTypes();
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function missingApprovedDocumentTypes(): array
-    {
-        $approvedDocuments = $this->documentUploads()
-            ->where('review_status', DocumentUpload::ReviewStatusRegistrarApproved)
-            ->pluck('document_type')
-            ->all();
-
-        return array_values(array_diff($this->requiredDocumentTypes(), $approvedDocuments));
-    }
-
-    public function hasAllApprovedRequiredDocuments(): bool
-    {
-        return $this->missingApprovedDocumentTypes() === [];
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function missingSubmittedAdmissionGateDocumentTypes(): array
-    {
-        $submittedDocuments = $this->documentUploads()
-            ->select('document_type')
-            ->distinct()
-            ->pluck('document_type')
-            ->all();
-
-        return array_values(array_diff($this->admissionGateDocumentTypes(), $submittedDocuments));
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function missingApprovedAdmissionGateDocumentTypes(): array
-    {
-        $approvedDocuments = $this->documentUploads()
-            ->where('review_status', DocumentUpload::ReviewStatusRegistrarApproved)
-            ->pluck('document_type')
-            ->all();
-
-        return array_values(array_diff($this->admissionGateDocumentTypes(), $approvedDocuments));
     }
 }

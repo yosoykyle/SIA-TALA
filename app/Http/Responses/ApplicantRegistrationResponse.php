@@ -12,6 +12,6 @@ class ApplicantRegistrationResponse implements RegisterResponse
     {
         return $request->wantsJson()
             ? new JsonResponse('', 201)
-            : redirect()->route('verification.notice');
+            : redirect()->route('filament.applicant.auth.email-verification.prompt');
     }
 }

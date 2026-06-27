@@ -154,6 +154,7 @@ TALA's architecture relies on the following verified dependencies declared in th
 * `chillerlan/php-qrcode: ^5.0` (Security-hashed QR codes for COR verification)
 * `maatwebsite/excel: ^3.1` (Excel importing for curricula and exporting for grade reports)
 * `luigel/laravel-paymongo: ^2.6` & `spatie/laravel-webhook-client: ^3.5` (PayMongo and webhook support packages)
+* `google/auth: ~1.52` (Google service-account authentication for invoking the private Cloud Run CP-SAT solver)
 * `tallstackui/tallstackui: 3.0.0` (Premium UI layout components)
 * `laravel/tinker: ^2.10` (Local application-context inspection)
 
@@ -179,6 +180,7 @@ Not currently installed: `laravel/horizon`. Redis support is available through L
 ### 5.2 CP-SAT Timetabling Solver (Google Cloud Run Container)
 * **Technical Flow:** When the scheduling run is initiated, TALA aggregates `Scheduling Demand` records, rooms, and faculty schedules into an immutable JSON payload.
 * **Execution:** TALA dispatches the request to the dedicated `tala-scheduler-solver` container deployed on Google Cloud Run. The connection is authenticated securely using Google service account IAM private keys (`scheduler-invoker.json`). The solver executes the integer-optimization model and returns candidate section-meeting patterns as a JSON payload back to TALA for review.
+* **Laravel Authentication Dependency:** The Laravel monolith uses the official `google/auth` Composer package to mint Google identity tokens from the configured service-account credential file before calling the private Cloud Run solver. This package authenticates the HTTP request only; Google OR-Tools remains packaged inside the isolated Python Cloud Run solver container and is not installed into the Laravel application.
 
 #### Comparative Justification: Why CP-SAT over Machine Learning or Genetic Algorithms?
 * **Selected Solver:** Google OR-Tools CP-SAT (Constraint Programming - Satisfiability).

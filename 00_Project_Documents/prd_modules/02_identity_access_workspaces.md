@@ -38,9 +38,18 @@ Manages users, roles, permissions, configuration, integration settings, security
 
 TALA must separate Applicant, Student, Faculty, Registrar, Accounting, Academic Head, and System Super Admin access.
 
+Application surfaces:
+
+1. The public landing page is the only public, non-authenticated surface. It provides institutional information, admission guidance, Filament sign-in/apply entry points, account-boundary explanations, notices, and FAQ content.
+2. Applicant Workspace is an authenticated Filament workspace for applicants before handover, including Filament-handled applicant registration/auth UI.
+3. Student Hub is an authenticated Filament workspace for students after handover.
+4. Faculty Workspace is an authenticated Filament workspace for faculty academic work.
+5. Registrar, Accounting, Academic Head, and System Super Admin workspaces are authenticated Filament staff workspaces.
+6. Filament is an implementation shell. Product language must continue to use Applicant Workspace, Student Hub, Faculty Workspace, and Staff Workspace instead of generic portal or panel labels.
+
 #### 2.2.1 Canonical Roles and Laravel Authentication
 
-1. **Authentication Flows:** Login, session management, email verification, and password resets are handled by **Laravel Fortify**. Custom authentication UIs may exist but rely on Fortify's backend headless contracts.
+1. **Authentication Flows:** Login, session management, email verification, password resets, and applicant registration UI are handled through **Filament panel authentication surfaces**. Laravel Fortify may remain as a backend authentication contract where already integrated, but custom public Blade/Fortify auth pages are out of scope.
 2. **Roles:** Roles are canonical and assigned via **Spatie Laravel Permission** using the database.
 3. **Canonical Permission Model:** The 7 canonical roles use predefined permissions and authorization guards throughout the application. Super Admin manages users and configured role records within that fixed model.
 
@@ -219,13 +228,13 @@ Rules:
 
 ---
 
-### 2.4. Faculty Portal
+### 2.4. Faculty Workspace
 
-Faculty Portal provides faculty-facing academic work functions.
+Faculty Workspace provides faculty-facing academic work functions.
 
-#### 2.4.1 Faculty Portal Functions
+#### 2.4.1 Faculty Workspace Functions
 
-Faculty Portal must include:
+Faculty Workspace must include:
 
 1. Faculty dashboard.
 2. Assigned classes.
@@ -238,7 +247,7 @@ Faculty Portal must include:
 9. Faculty notifications.
 10. Grade submission history.
 
-#### 2.4.2 Faculty Portal Rules
+#### 2.4.2 Faculty Workspace Rules
 
 1. Faculty sees assigned classes and assigned rosters.
 2. Student finance records and admission evidence remain staff-workspace records for authorized offices.

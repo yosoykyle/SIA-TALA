@@ -9,7 +9,7 @@ class DocumentRequirementItemPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canManage($user) || $user->can('view-global-records');
+        return $this->canManage($user);
     }
 
     public function view(User $user, DocumentRequirementItem $documentRequirementItem): bool

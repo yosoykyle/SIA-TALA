@@ -66,7 +66,7 @@ TALA owns and implements the following product areas:
 26. SOA generation.
 27. Payment acknowledgement generation.
 28. Promissory note and payment plan.
-29. Faculty Portal.
+29. Faculty Workspace.
 30. Faculty class lists and rosters.
 31. Grade encoding, submission, review, posting, release, and correction.
 32. Student status, holds, LOA, drop, withdrawal, readmission, reactivation, section transfer, program shift, transfer-out, and graduation eligibility evaluation.

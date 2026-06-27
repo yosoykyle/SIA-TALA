@@ -12,11 +12,8 @@ class CorVerificationPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
-            'view-cor',
-            'manage-cor-verifications',
-            'view-global-records',
-        ]);
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $user->can('manage-cor-verifications');
     }
 
     /**

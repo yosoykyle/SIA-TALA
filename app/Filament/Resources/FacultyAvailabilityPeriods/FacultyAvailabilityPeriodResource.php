@@ -33,6 +33,15 @@ class FacultyAvailabilityPeriodResource extends Resource
 
     protected static ?int $navigationSort = 56;
 
+    public static function getNavigationGroup(): string|UnitEnum|null
+    {
+        if (auth()->user()?->hasRole('academic-head')) {
+            return 'Academic Head';
+        }
+
+        return 'Registrar';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return FacultyAvailabilityPeriodForm::configure($schema);

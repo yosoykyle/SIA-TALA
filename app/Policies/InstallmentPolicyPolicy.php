@@ -9,7 +9,7 @@ class InstallmentPolicyPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canManageInstallments($user) || $user->can('view-global-records');
+        return $this->canManageInstallments($user);
     }
 
     public function view(User $user, InstallmentPolicy $installmentPolicy): bool

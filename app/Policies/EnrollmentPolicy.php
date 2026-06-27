@@ -14,7 +14,6 @@ class EnrollmentPolicy
             'evaluate-transferees',
             'create-assessments',
             'process-payments',
-            'view-global-records',
         ]);
     }
 
