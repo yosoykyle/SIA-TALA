@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Jobs\ProcessPayMongoWebhookCall;
-use App\Jobs\ProcessRetentionDocumentUndertakingsJob;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -49,11 +48,6 @@ class TAL12MonitoringCoverageTest extends TestCase
     public function test_required_scheduled_jobs_are_registered_with_overlap_mutexes(): void
     {
         $events = collect(Schedule::events());
-        $retentionTask = $events->firstWhere('description', 'retention-documents.process-undertakings');
-
-        $this->assertIsObject($retentionTask);
-        $this->assertSame('0 1 * * *', $retentionTask->expression);
-        $this->assertTrue($retentionTask->withoutOverlapping);
 
         $this->assertNull($events->firstWhere('description', 'installments.process-overdues'));
         $this->assertNull($events->firstWhere('description', 'promissory-notes.process-deadlines'));
@@ -62,13 +56,9 @@ class TAL12MonitoringCoverageTest extends TestCase
     public function test_queue_jobs_have_explicit_retry_backoff_metadata(): void
     {
         $payMongoJob = new ProcessPayMongoWebhookCall(1);
-        $retentionJob = new ProcessRetentionDocumentUndertakingsJob;
 
         $this->assertSame(3, $payMongoJob->tries);
         $this->assertSame([60, 300, 900], $payMongoJob->backoff());
-
-        $this->assertSame(3, $retentionJob->tries);
-        $this->assertSame([60, 300, 900], $retentionJob->backoff());
     }
 
     public function test_paymongo_webhook_processing_failures_are_visible_on_webhook_call(): void

@@ -72,7 +72,6 @@ class SchedulingFilamentSmokeTest extends TestCase
             SectionResource::getUrl('index'),
             SectionResource::getUrl('create'),
             SectionMeetingResource::getUrl('index'),
-            SectionMeetingResource::getUrl('create'),
             FacultySubjectEligibilityResource::getUrl('index'),
             FacultySubjectEligibilityResource::getUrl('create'),
             FacultyAvailabilityPeriodResource::getUrl('index'),

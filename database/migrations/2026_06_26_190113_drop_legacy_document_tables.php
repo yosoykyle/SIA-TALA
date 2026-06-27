@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::table('document_uploads', function (Blueprint $table) {
+            $table->dropForeign(['applicant_document_requirement_id']);
+        });
         Schema::dropIfExists('retention_document_undertakings');
         Schema::dropIfExists('applicant_document_requirements');
     }

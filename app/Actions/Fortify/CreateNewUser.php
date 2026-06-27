@@ -3,11 +3,13 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
+use Spatie\Permission\Models\Role;
 
 class CreateNewUser implements CreatesNewUsers
 {
@@ -47,10 +49,17 @@ class CreateNewUser implements CreatesNewUsers
             )
             : ['name' => $input['name']];
 
-        return User::create([
-            ...$namePayload,
-            'email' => $input['email'],
-            'password' => Hash::make($input['password']),
-        ]);
+        return DB::transaction(function () use ($input, $namePayload): User {
+            $user = User::create([
+                ...$namePayload,
+                'email' => $input['email'],
+                'password' => Hash::make($input['password']),
+            ]);
+
+            Role::findOrCreate('applicant', 'web');
+            $user->assignRole('applicant');
+
+            return $user;
+        });
     }
 }

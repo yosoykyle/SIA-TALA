@@ -54,6 +54,7 @@ class CandidateScheduleRowReviewService
                 ->get();
 
             $solverResult = [
+                'solver_status' => 'optimal',
                 'draft_rows' => $draftRows
                     ->map(fn (CandidateScheduleRow $row): array => $row->id === $lockedRow->id
                         ? $this->reviewedRowPayload($row, $prepared)

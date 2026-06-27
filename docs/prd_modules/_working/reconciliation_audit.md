@@ -1,4 +1,4 @@
-# Finalized Codebase Reconciliation Plan: Current Backend vs. Simplified PRD
+<!-- # Finalized Codebase Reconciliation Plan: Current Backend vs. Simplified PRD
 
 This document records the finalized design decisions and architectural strategies agreed upon during the `/grill-with-docs` reconciliation session. It serves as the definitive reference for refactoring the TALA codebase to align with the simplified `prd_modules` specifications.
 
@@ -84,4 +84,4 @@ To ensure the backend is not "dirty" with orphaned or duplicate logic, the follo
 
 ### 8.4. Legacy Data Migration (The Clean Slate)
 *   **Decision:** The system will adopt a **Clean Slate** approach for legacy data related to deprecated tables (e.g., `RetentionDocumentUndertaking`, old financial holds). 
-*   **Rationale:** Because this is an unfinished system being rescued and rewritten for a new version, there is no value in writing complex mathematical data migration scripts to preserve old state. The system will start fresh for the upcoming term. Staff will handle any carry-over delinquency manually using the new PRD features.
+*   **Rationale:** Because this is an unfinished system being rescued and rewritten for a new version, there is no value in writing complex mathematical data migration scripts to preserve old state. The system will start fresh for the upcoming term. Staff will handle any carry-over delinquency manually using the new PRD features. -->

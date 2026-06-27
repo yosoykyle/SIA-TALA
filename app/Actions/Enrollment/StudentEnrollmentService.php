@@ -2,7 +2,6 @@
 
 namespace App\Actions\Enrollment;
 
-use App\Actions\Applicants\RetentionDocumentUndertakingService;
 use App\Models\ApplicantIntake;
 use App\Models\DocumentUpload;
 use App\Models\Enrollment;
@@ -25,7 +24,6 @@ class StudentEnrollmentService
     public function __construct(
         private readonly EnrollmentSectioningService $sectioningService,
         private readonly DecimalMoney $money,
-        private readonly RetentionDocumentUndertakingService $retentionDocumentUndertakings,
     ) {}
 
     /**
@@ -86,8 +84,6 @@ class StudentEnrollmentService
                     timestamp: $timestamp,
                 );
             }
-
-            $this->retentionDocumentUndertakings->attachEnrollmentContext($lockedIntake, $studentProfile, $enrollment);
 
             return $this->assignIfRequested($enrollment, $validated, $actor)
                 ->refresh()

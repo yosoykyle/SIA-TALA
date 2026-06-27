@@ -53,7 +53,7 @@ class FortifyLoginViewTest extends TestCase
             ->assertSeeText('Verify your email');
     }
 
-    public function test_active_student_can_login_and_is_redirected_to_public_home_until_student_panel_is_promoted(): void
+    public function test_active_student_can_login_and_is_redirected_to_student_hub(): void
     {
         $student = $this->userWithRole('student', [
             'email' => 'student@example.test',
@@ -63,9 +63,57 @@ class FortifyLoginViewTest extends TestCase
             'email' => 'STUDENT@example.test',
             'password' => 'password',
         ])
-            ->assertRedirect('/');
+            ->assertRedirect('/student');
 
         $this->assertAuthenticatedAs($student);
+    }
+
+    public function test_active_applicant_can_login_and_is_redirected_to_applicant_workspace(): void
+    {
+        $applicant = $this->userWithRole('applicant', [
+            'email' => 'applicant@example.test',
+        ]);
+
+        $this->post(route('login.store'), [
+            'email' => 'applicant@example.test',
+            'password' => 'password',
+        ])
+            ->assertRedirect('/applicant');
+
+        $this->assertAuthenticatedAs($applicant);
+    }
+
+    public function test_public_registration_creates_an_unverified_applicant_with_canonical_name_parts(): void
+    {
+        Notification::fake();
+
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSeeText('Create your applicant account')
+            ->assertSee('name="first_name"', false)
+            ->assertSee('name="last_name"', false);
+
+        $this->post(route('register.store'), [
+            'first_name' => '  Juan  ',
+            'middle_name' => '  Reyes ',
+            'last_name' => ' Santos  ',
+            'suffix' => ' III ',
+            'email' => 'juan.santos@example.test',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('verification.notice', absolute: false));
+
+        $applicant = User::query()->where('email', 'juan.santos@example.test')->firstOrFail();
+
+        $this->assertAuthenticatedAs($applicant);
+        $this->assertSame('Juan Reyes Santos III', $applicant->name);
+        $this->assertSame('Juan', $applicant->first_name);
+        $this->assertSame('Santos', $applicant->last_name);
+        $this->assertFalse($applicant->hasVerifiedEmail());
+        $this->assertTrue($applicant->hasRole('applicant'));
+        Notification::assertSentTo($applicant, VerifyEmail::class);
     }
 
     public function test_active_staff_can_login_and_is_redirected_to_admin_panel(): void
@@ -189,7 +237,7 @@ class FortifyLoginViewTest extends TestCase
         $this->assertIsString($roleResource);
         $this->assertSame('login', config('fortify.limiters.login'));
         $this->assertTrue(RateLimiter::limiter('login') !== null);
-        $this->assertStringNotContainsString('Features::registration()', $fortifyConfig);
+        $this->assertStringContainsString('Features::registration()', $fortifyConfig);
         $this->assertStringNotContainsString('Features::passkeys', $fortifyConfig);
         $this->assertStringNotContainsString('Features::twoFactorAuthentication', $fortifyConfig);
         $this->assertStringContainsString('->maxItems(1)', $userForm);

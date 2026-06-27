@@ -1,6 +1,17 @@
-# TALA Academic Lifecycle System — Modules Table of Contents
+# TALA Product Requirements — Modules Table of Contents
 
-This directory contains the split module-by-module functional requirements for the TALA system, extracted from the main [TALA_PRD.md](../TALA_PRD.md).
+This directory is the shared product requirements baseline for TALA. It describes the expected capabilities, business rules, actors, records, outputs, integrations, and product boundaries by module.
+
+The modules provide context for client stakeholders, product owners, developers, and coding agents. They define **what the product must do**, but they are not an implementation sequence, sprint plan, issue breakdown, or definition of done. Technical references that clarify a product constraint do not by themselves prescribe the final implementation.
+
+For multi-session development, use the relevant modules as context for Matt's `/grill-with-docs` -> `/to-prd` -> `/to-issues` flow. The resulting feature PRD and approved vertical-slice issues control implementation. Architecture choices are documented separately in the [System Architecture Specification](../architecture_specification.md).
+
+## Audience and Authority
+
+- **Client and product review:** scope, workflows, roles, business rules, outputs, integrations, and product boundaries.
+- **Agent and development context:** domain intent, cross-module dependencies, constraints, and terminology needed to prepare feature PRDs and implementation issues.
+- **Implementation authority:** the approved feature PRD and its tracer-bullet issues, interpreted consistently with these product modules.
+- **Change rule:** a development decision must not silently alter a client-facing requirement. Product changes must first be reflected in the relevant module.
 
 Working audits, clarification trackers, and reconciliation notes are kept in [`_working/`](./_working/) so the module list stays focused on the PRD surface.
 

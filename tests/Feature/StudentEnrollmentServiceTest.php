@@ -191,7 +191,7 @@ class StudentEnrollmentServiceTest extends TestCase
 
         $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
             enrollmentId: $enrollment->id,
-            amount: '100.00',
+            amount: '200.00',
             channel: 'cash',
             paymentReference: 'OR-1001',
             actor: $accounting,

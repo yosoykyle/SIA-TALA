@@ -144,7 +144,7 @@ return [
     */
 
     'features' => [
-        // Registration is disabled; accounts are created by controlled workflows.
+        Features::registration(),
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::updatePasswords(),
