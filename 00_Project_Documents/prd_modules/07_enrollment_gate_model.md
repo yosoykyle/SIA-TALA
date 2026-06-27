@@ -159,7 +159,7 @@ Rules:
 7. Summer load cap defaults to 6–9 units unless configured differently.
 8. Irregular students select from approved CP-SAT sections; staff record overload or bridging approvals that were approved outside TALA.
 9. Irregular students must select sections from a flat list of CP-SAT sections, and the backend strictly validates prerequisites, time overlaps, and unit limits.
-10. If an overload or bridging exception is needed, the Registrar manually toggles an `Overload_Approved` flag to bypass the system unit limits based on offline approval.
+10. If an overload or bridging exception is needed, the Registrar manually toggles an `Overload_Approved` flag to bypass the system unit limits based on documented academic override approval.
 
 ---
 

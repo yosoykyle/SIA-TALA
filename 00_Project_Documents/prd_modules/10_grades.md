@@ -22,7 +22,7 @@ The multi-stage grade review (Draft -> Head Review -> Return -> Post) is flatten
 
 ---
 
-### 10.3. Grade Correction (Offline Policy)
+### 10.3. Grade Correction (Official Appeal & Manual Entry Policy)
 
 Grade correction follows the physical school policy after posting. V1 does not include student or faculty grade-correction request screens.
 

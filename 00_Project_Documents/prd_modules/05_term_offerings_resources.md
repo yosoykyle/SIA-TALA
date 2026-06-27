@@ -71,18 +71,18 @@ Stored as flat subject mappings. If a faculty member has an active mapping to a 
 - **Fields:** Faculty ID, Subject ID, Active Status, Recorded By, Recorded At, Notes (optional).
 - **Rules:**
   1.  Faculty may only be scheduled for subjects with active qualification mappings.
-  2.  Qualification approval happens offline; TALA records the result, not the workflow.
+  2.  Qualification verification is conducted via external HR/dean processes; TALA records only the final approved qualification mapping, not the approval workflow.
   3.  Qualification evidence and approvals are handled outside TALA; TALA records the active subject-qualification result.
   4.  Solver readiness must fail/warn if no qualified faculty exists for a required subject.
 
 **Faculty Load Management:**
 Controlled by term configuration and term-specific override records.
 
-- **Fields:** Faculty ID, Academic Year, Term, Standard Max Units Snapshot, Approved Overload Units, Reason, Offline Approved By (optional), Recorded By, Recorded At, Active Status.
+- **Fields:** Faculty ID, Academic Year, Term, Standard Max Units Snapshot, Approved Overload Units, Reason, Override_Approved_By (optional), Recorded By, Recorded At, Active Status.
 - **Rules:**
   1.  Default teaching load is configured per term (`term_settings.default_faculty_max_units`).
   2.  Allowed load = Default Max Units + Approved Overload Units (for that specific term).
-  3.  Overload approval happens offline; TALA records only the final approved value.
+  3.  Overload approval is processed via physical registrar/academic channels; TALA records only the final approved overload unit value.
   4.  Overload must **not** be stored as a permanent global faculty profile field.
   5.  The system rejects/warns against assignments exceeding the computed allowed load.
   6.  The CP-SAT solver receives only the derived `max_allowed_units`.
