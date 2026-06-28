@@ -13,68 +13,22 @@ class Section extends Model
     /** @use HasFactory<SectionFactory> */
     use HasFactory;
 
-    public const MaxRescueSeats = 30;
+    public const StatePlanned = 'PLANNED';
 
-    /**
-     * @return array<string, string>
-     */
-    public static function modalityOptions(): array
-    {
-        return SectionMeeting::modalityOptions();
-    }
+    public const StateOpen = 'OPEN';
 
-    /**
-     * @return list<string>
-     */
-    public static function modalityValues(): array
-    {
-        return array_keys(self::modalityOptions());
-    }
+    public const StateClosed = 'CLOSED';
 
-    /**
-     * @return array<string, string>
-     */
-    public static function yearLevelOptions(): array
-    {
-        return [
-            '1st Year' => '1st Year',
-            '2nd Year' => '2nd Year',
-            '3rd Year' => '3rd Year',
-            '4th Year' => '4th Year',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public static function curriculumPeriodOptions(): array
-    {
-        return [
-            '1st Semester' => '1st Semester',
-            '2nd Semester' => '2nd Semester',
-            'Summer' => 'Summer',
-        ];
-    }
-
-    public static function modalityRequiresRoom(?string $modality): bool
-    {
-        return in_array($modality, ['on_site', 'blended'], true);
-    }
+    public const StateCancelled = 'CANCELLED';
 
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'term_id',
-        'program_id',
-        'curriculum_id',
-        'year_level',
-        'curriculum_period',
-        'name',
-        'room',
-        'max_seats',
-        'enrolled_count',
-        'modality',
+        'term_offering_id',
+        'code',
+        'capacity',
+        'state',
     ];
 
     /**
@@ -83,33 +37,22 @@ class Section extends Model
     protected function casts(): array
     {
         return [
-            'max_seats' => 'integer',
-            'enrolled_count' => 'integer',
+            'capacity' => 'integer',
         ];
     }
 
-    public function term(): BelongsTo
+    public function termOffering(): BelongsTo
     {
-        return $this->belongsTo(Term::class);
-    }
-
-    public function program(): BelongsTo
-    {
-        return $this->belongsTo(Program::class);
-    }
-
-    public function curriculum(): BelongsTo
-    {
-        return $this->belongsTo(Curriculum::class);
-    }
-
-    public function enrollments(): HasMany
-    {
-        return $this->hasMany(Enrollment::class);
+        return $this->belongsTo(TermOffering::class);
     }
 
     public function deliveryGroups(): HasMany
     {
         return $this->hasMany(SectionDeliveryGroup::class);
+    }
+
+    public function hasCapacityFor(int $expectedCount): bool
+    {
+        return $expectedCount >= 0 && $expectedCount <= $this->capacity;
     }
 }

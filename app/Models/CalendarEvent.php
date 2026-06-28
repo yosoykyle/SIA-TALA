@@ -75,4 +75,9 @@ class CalendarEvent extends Model
     {
         return $this->belongsTo(User::class, 'faculty_user_id');
     }
+
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(Room::class);
+    }
 }

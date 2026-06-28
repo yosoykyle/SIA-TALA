@@ -19,10 +19,12 @@ class RoomFactory extends Factory
     {
         return [
             'code' => strtoupper(fake()->unique()->bothify('R-###')),
-            'name' => fake()->optional()->words(2, true),
+            'name' => fake()->words(2, true),
             'building' => fake()->optional()->randomElement(['Main', 'Annex', 'Laboratory']),
+            'room_type' => Room::TypeLectureRoom,
             'capacity' => fake()->numberBetween(20, 40),
             'is_active' => true,
+            'notes' => null,
         ];
     }
 }

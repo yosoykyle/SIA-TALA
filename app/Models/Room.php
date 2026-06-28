@@ -5,11 +5,22 @@ namespace App\Models;
 use Database\Factories\RoomFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Room extends Model
 {
     /** @use HasFactory<RoomFactory> */
     use HasFactory;
+
+    public const TypeLectureRoom = 'LECTURE_ROOM';
+
+    public const TypeLaboratory = 'LABORATORY';
+
+    public const TypeComputerLaboratory = 'COMPUTER_LABORATORY';
+
+    public const TypeSpecialRoom = 'SPECIAL_ROOM';
+
+    public const TypeOnlineNoPhysicalRoom = 'ONLINE_NO_PHYSICAL_ROOM';
 
     /**
      * @var list<string>
@@ -18,8 +29,10 @@ class Room extends Model
         'code',
         'name',
         'building',
+        'room_type',
         'capacity',
         'is_active',
+        'notes',
     ];
 
     /**
@@ -59,8 +72,19 @@ class Room extends Model
         return collect([
             $this->code,
             $this->name,
+            $this->room_type,
             $this->building,
-            $this->capacity === null ? null : "{$this->capacity} seats",
+            "{$this->capacity} seats",
         ])->filter()->implode(' | ');
+    }
+
+    public function features(): HasMany
+    {
+        return $this->hasMany(RoomFeature::class);
+    }
+
+    public function calendarEvents(): HasMany
+    {
+        return $this->hasMany(CalendarEvent::class);
     }
 }

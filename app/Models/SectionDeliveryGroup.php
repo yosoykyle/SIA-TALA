@@ -6,35 +6,30 @@ use Database\Factories\SectionDeliveryGroupFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SectionDeliveryGroup extends Model
 {
     /** @use HasFactory<SectionDeliveryGroupFactory> */
     use HasFactory;
 
-    public const StatusPlanned = 'planned';
+    public const StatePlanned = 'PLANNED';
 
-    public const StatusActive = 'active';
+    public const StateReady = 'READY';
 
-    public const StatusClosed = 'closed';
+    public const StateClosed = 'CLOSED';
+
+    public const StateCancelled = 'CANCELLED';
 
     /**
      * @var list<string>
      */
     protected $fillable = [
         'section_id',
-        'delivery_pattern_id',
         'name',
+        'expected_count',
         'modality',
-        'capacity',
-        'assigned_count',
-        'room_required',
-        'room',
-        'status',
-        'created_by',
-        'updated_by',
-        'closed_at',
+        'delivery_override',
+        'state',
     ];
 
     /**
@@ -43,22 +38,21 @@ class SectionDeliveryGroup extends Model
     protected function casts(): array
     {
         return [
-            'capacity' => 'integer',
-            'assigned_count' => 'integer',
-            'room_required' => 'boolean',
-            'closed_at' => 'datetime',
+            'expected_count' => 'integer',
+            'delivery_override' => 'array',
         ];
     }
 
     /**
      * @return array<string, string>
      */
-    public static function statusOptions(): array
+    public static function stateOptions(): array
     {
         return [
-            self::StatusPlanned => 'Planned',
-            self::StatusActive => 'Active',
-            self::StatusClosed => 'Closed',
+            self::StatePlanned => 'Planned',
+            self::StateReady => 'Ready',
+            self::StateClosed => 'Closed',
+            self::StateCancelled => 'Cancelled',
         ];
     }
 
@@ -67,63 +61,31 @@ class SectionDeliveryGroup extends Model
      */
     public static function modalityOptions(): array
     {
-        return SectionMeeting::modalityOptions();
-    }
-
-    public static function modalityRequiresRoom(?string $modality): bool
-    {
-        return Section::modalityRequiresRoom($modality);
-    }
-
-    public function availableSeats(): int
-    {
-        return max(0, (int) $this->capacity - (int) $this->assigned_count);
-    }
-
-    public function isAssignable(): bool
-    {
-        return $this->status === self::StatusActive && $this->availableSeats() > 0;
+        return TermOffering::modalityOptions();
     }
 
     public function displayLabel(): string
     {
         $modality = self::modalityOptions()[$this->modality] ?? str((string) $this->modality)->replace('_', ' ')->headline()->toString();
+        $section = $this->section;
+        $sectionCode = $section instanceof Section ? $section->code : 'Unassigned section';
 
-        return "{$this->section?->name} / {$this->name} ({$modality})";
+        return "{$sectionCode} / {$this->name} ({$modality})";
+    }
+
+    public function exceedsSectionCapacity(): bool
+    {
+        $section = $this->section;
+
+        if (! $section instanceof Section) {
+            return true;
+        }
+
+        return ! $section->hasCapacityFor((int) $this->expected_count);
     }
 
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
-    }
-
-    public function deliveryPattern(): BelongsTo
-    {
-        return $this->belongsTo(DeliveryPattern::class);
-    }
-
-    public function enrollments(): HasMany
-    {
-        return $this->hasMany(Enrollment::class);
-    }
-
-    public function CandidateScheduleRows(): HasMany
-    {
-        return $this->hasMany(CandidateScheduleRow::class);
-    }
-
-    public function sectionMeetings(): HasMany
-    {
-        return $this->hasMany(SectionMeeting::class);
-    }
-
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function updater(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'updated_by');
     }
 }

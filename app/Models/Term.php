@@ -65,4 +65,14 @@ class Term extends Model
     {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function termOfferings(): HasMany
+    {
+        return $this->hasMany(TermOffering::class);
+    }
+
+    public function facultyTermLoadOverrides(): HasMany
+    {
+        return $this->hasMany(FacultyTermLoadOverride::class);
+    }
 }

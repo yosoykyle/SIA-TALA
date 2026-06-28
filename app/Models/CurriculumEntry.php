@@ -6,6 +6,7 @@ use Database\Factories\CurriculumEntryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CurriculumEntry extends Model
 {
@@ -47,5 +48,10 @@ class CurriculumEntry extends Model
     public function courseSpecification(): BelongsTo
     {
         return $this->belongsTo(CourseSpecification::class);
+    }
+
+    public function termOfferings(): HasMany
+    {
+        return $this->hasMany(TermOffering::class);
     }
 }

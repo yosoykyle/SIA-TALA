@@ -73,4 +73,9 @@ class CourseSpecification extends Model
     {
         return $this->hasMany(CurriculumEntry::class);
     }
+
+    public function totalWeeklyContactHours(): float
+    {
+        return (float) $this->components()->sum('weekly_contact_hours');
+    }
 }

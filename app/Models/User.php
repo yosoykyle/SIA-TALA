@@ -81,6 +81,16 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasMany(FacultyAvailabilityChangeRequest::class, 'faculty_id');
     }
 
+    public function facultyQualifications(): HasMany
+    {
+        return $this->hasMany(FacultyQualification::class, 'faculty_user_id');
+    }
+
+    public function facultyTermLoadOverrides(): HasMany
+    {
+        return $this->hasMany(FacultyTermLoadOverride::class, 'faculty_user_id');
+    }
+
     /** @return HasOne<ApplicantIntake, $this> */
     public function applicantIntake(): HasOne
     {

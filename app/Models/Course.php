@@ -33,4 +33,9 @@ class Course extends Model
     {
         return $this->hasMany(CourseRequirement::class, 'related_course_id');
     }
+
+    public function facultyQualifications(): HasMany
+    {
+        return $this->hasMany(FacultyQualification::class);
+    }
 }
