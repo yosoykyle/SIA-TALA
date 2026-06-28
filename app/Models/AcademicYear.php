@@ -13,15 +13,22 @@ class AcademicYear extends Model
     /** @use HasFactory<AcademicYearFactory> */
     use HasFactory;
 
+    public const StateDraft = 'DRAFT';
+
+    public const StateActive = 'ACTIVE';
+
+    public const StateClosed = 'CLOSED';
+
+    public const StateArchived = 'ARCHIVED';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'academic_year',
-        'school_year_start_date',
-        'school_year_end_date',
-        'status',
-        'reference_note',
+        'label',
+        'starts_on',
+        'ends_on',
+        'state',
     ];
 
     /**
@@ -30,8 +37,8 @@ class AcademicYear extends Model
     protected function casts(): array
     {
         return [
-            'school_year_start_date' => 'date',
-            'school_year_end_date' => 'date',
+            'starts_on' => 'date',
+            'ends_on' => 'date',
         ];
     }
 
@@ -43,27 +50,40 @@ class AcademicYear extends Model
     /**
      * @return array<string, string>
      */
-    public static function statusOptions(): array
+    public static function stateOptions(): array
     {
         return [
-            'draft' => 'Draft',
-            'active' => 'Active',
-            'closed' => 'Closed',
-            'archived' => 'Archived',
+            self::StateDraft => 'Draft',
+            self::StateActive => 'Active',
+            self::StateClosed => 'Closed',
+            self::StateArchived => 'Archived',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return self::stateOptions();
     }
 
     public function displayLabel(): string
     {
         return collect([
-            $this->academic_year,
-            $this->statusLabel(),
+            $this->label,
+            $this->stateLabel(),
         ])->filter()->implode(' | ');
+    }
+
+    public function stateLabel(): string
+    {
+        return self::stateOptions()[$this->state]
+            ?? Str::of((string) $this->state)->headline()->toString();
     }
 
     public function statusLabel(): string
     {
-        return self::statusOptions()[$this->status]
-            ?? Str::of((string) $this->status)->headline()->toString();
+        return $this->stateLabel();
     }
 }

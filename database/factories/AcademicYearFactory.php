@@ -20,11 +20,10 @@ class AcademicYearFactory extends Factory
         $startYear = fake()->unique()->numberBetween(2026, 2099);
 
         return [
-            'academic_year' => "{$startYear}-".($startYear + 1),
-            'school_year_start_date' => "{$startYear}-08-01",
-            'school_year_end_date' => ($startYear + 1).'-05-31',
-            'status' => 'draft',
-            'reference_note' => fake()->optional()->sentence(),
+            'label' => "{$startYear}-".($startYear + 1),
+            'starts_on' => "{$startYear}-08-01",
+            'ends_on' => ($startYear + 1).'-05-31',
+            'state' => AcademicYear::StateDraft,
         ];
     }
 }

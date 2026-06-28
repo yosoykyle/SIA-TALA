@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use LogicException;
 
 class ApplicantIntake extends Model
 {
@@ -28,11 +29,17 @@ class ApplicantIntake extends Model
 
     public const DuplicateStatusBlocked = 'blocked';
 
-    public const ApplicantTypeNew = 'new';
+    public const AdmissionCategoryFirstTimeCollege = 'FIRST_TIME_COLLEGE';
 
-    public const ApplicantTypeTransferee = 'transferee';
+    public const AdmissionCategoryTransfer = 'TRANSFER';
 
-    public const ApplicantTypeReturnee = 'returnee';
+    public const AdmissionCategoryReturning = 'RETURNING';
+
+    public const CredentialBasisSeniorHighSchool = 'SENIOR_HIGH_SCHOOL';
+
+    public const CredentialBasisTransferCredentials = 'TRANSFER_CREDENTIALS';
+
+    public const CredentialBasisPriorStudentRecord = 'PRIOR_STUDENT_RECORD';
 
     /**
      * @var list<string>
@@ -41,43 +48,25 @@ class ApplicantIntake extends Model
         'user_id',
         'term_id',
         'program_id',
-        'lrn',
-        'birthdate',
-        'place_of_birth',
-        'gender',
-        'civil_status',
-        'mothers_maiden_name',
-        'contact_number',
-        'street',
-        'barangay',
-        'city',
-        'province',
-        'region',
-        'zip_code',
-        'father_name',
-        'father_occupation',
-        'mother_occupation',
-        'guardian_name',
-        'guardian_contact_number',
-        'guardian_address',
-        'year_level',
-        'applicant_type',
-        'preferred_modality',
-        'last_school_name',
-        'last_school_address',
-        'last_school_year',
-        'orientation_modality_acknowledged_at',
-        'orientation_policy_accepted_at',
+        'admission_category',
+        'credential_basis',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'birth_date',
+        'email',
+        'phone',
+        'prior_school',
+        'identity_evidence_reference',
         'status',
-        'duplicate_check_status',
-        'duplicate_check_payload',
-        'identity_document_url',
-        'registrar_reviewed_by',
-        'registrar_reviewed_at',
         'submitted_at',
+        'reviewed_at',
+        'reviewed_by',
         'approved_at',
-        'action_required_at',
-        'meta',
+        'approved_by',
+        'handed_over_at',
+        'handed_over_by',
+        'archived_at',
     ];
 
     /**
@@ -85,7 +74,6 @@ class ApplicantIntake extends Model
      */
     protected $attributes = [
         'status' => self::StatusDraft,
-        'duplicate_check_status' => self::DuplicateStatusClear,
     ];
 
     /**
@@ -94,15 +82,12 @@ class ApplicantIntake extends Model
     protected function casts(): array
     {
         return [
-            'birthdate' => 'date',
-            'orientation_modality_acknowledged_at' => 'datetime',
-            'orientation_policy_accepted_at' => 'datetime',
-            'duplicate_check_payload' => 'array',
-            'registrar_reviewed_at' => 'datetime',
+            'birth_date' => 'date',
             'submitted_at' => 'datetime',
+            'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
-            'action_required_at' => 'datetime',
-            'meta' => 'array',
+            'handed_over_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
@@ -121,18 +106,39 @@ class ApplicantIntake extends Model
         return $this->belongsTo(Program::class);
     }
 
-    public function registrarReviewer(): BelongsTo
+    public function reviewer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'registrar_reviewed_by');
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 
-    public function documentUploads(): HasMany
+    public function approver(): BelongsTo
     {
-        return $this->hasMany(DocumentUpload::class);
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
-    public function checklistItems(): MorphMany
+    public function handoverActor(): BelongsTo
     {
-        return $this->morphMany(ChecklistItem::class, 'owner');
+        return $this->belongsTo(User::class, 'handed_over_by');
+    }
+
+    /** @return HasMany<ChecklistItem, $this> */
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(ChecklistItem::class);
+    }
+
+    /** @return HasOne<StudentProfile, $this> */
+    public function studentProfile(): HasOne
+    {
+        return $this->hasOne(StudentProfile::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (ApplicantIntake $intake): void {
+            if ($intake->getOriginal('handed_over_at') !== null) {
+                throw new LogicException('A handed-over applicant intake is immutable.');
+            }
+        });
     }
 }

@@ -8,11 +8,12 @@ The admission model uses a simplified flat checklist approach to track document 
 
 1. **Flat Checklist Items:** The system tracks individual document requirements (e.g., Birth Certificate, Form 137, Transcript of Records) mapped directly to the Applicant or Student record.
 2. **Checklist Item States:** Each required document has a status of `Pending`, `Received Physical`, `Received Digital`, `Accepted`, `Rejected`, `Waived`, or `Undertaking Approved`.
-3. **Upfront Digital Upload:** The online portal captures basic profile data and exactly one required digital upload: `identity_document_url` (verified by the Registrar).
+3. **Upfront Digital Upload:** Applicant Workspace captures basic profile data and exactly one required digital upload: `identity_document_url` (verified by the Registrar).
 4. **Physical Tracking & Verification:** The Registrar updates individual checklist item states as physical documents are received. Handover is blocked if any requirement marked as "Blocks Handover" remains unresolved.
 
 Document compliance is represented as direct checklist items on the applicant or student record. 
-**Hybrid Dictionary Approach:** The system retains administrative dictionary tables (`DocumentRequirementItem`, `AdmissionRequirementPolicy`) to allow staff to configure global requirements, but deletes legacy tracking models (`RetentionDocumentUndertaking`, `ApplicantDocumentRequirement`). These are strictly replaced by the polymorphic `checklist_items` table for actual student/applicant tracking. Staff configure which items block handover or enrollment and record the accepted evidence method for each item.
+
+Configured admission policies define which checklist items apply by admission category and credential basis. Applicant or student checklist items track the actual requirement status, accepted evidence method, blocking effect, review result, and resolution.
 
 Checklist item fields:
 
@@ -120,56 +121,57 @@ The official student profile is the canonical source for:
 Rules:
 
 1. Student profile changes require authorized workflow.
-2. Sensitive identity corrections require evidence and Registrar verification.
-3. Status changes must be typed, reasoned, effective-dated, permission-controlled, and auditable.
+2. Sensitive identity updates (e.g., name, birthdate) require Registrar verification in person.
+3. Status changes must come from an authorized recorded result, including a Student Lifecycle Change where applicable, and remain typed, reasoned, effective-dated, permission-controlled, and auditable.
 4. Student records must remain confidential and scoped to authorized users.
 
 ---
 
-### 3.5. Personal Data Correction Workflow
+### 3.5. Profile Updates (MVP Workflow)
 
-Students may submit personal data correction requests for approved categories.
+For the MVP, student profile updates are divided into Editable (Self-Service) and Locked (Admin-Only) fields to reduce administrative burden while maintaining data integrity.
 
-#### 3.5.1 Correction Request Fields
+#### 3.5.1 Locked Fields (Admin-Only)
 
-Required fields:
+These fields represent the student's legal identity or official school-record identity and are staff-controlled.
 
-1. Request ID
-2. Student ID
-3. Correction Category
-4. Current Value
-5. Requested Value
-6. Reason
-7. Supporting Evidence
-8. Submitted At
-9. Review Status
-10. Reviewed By
-11. Review Decision
-12. Applied By
-13. Audit Metadata
+1. First Name, Middle Name, Last Name
+2. Date of Birth
+3. Prior-education identifiers (e.g., Learner Reference Number)
 
-#### 3.5.2 Correction Categories
+*Update Process:* The student physically presents legal evidence to the Registrar's office. The Registrar updates the record through an authorized staff Record Form.
 
-Supported categories:
+#### 3.5.2 Editable Fields (Self-Service)
+These fields are operational and can be directly updated by the student via the Student Hub without staff review.
+1. Contact Information (Phone Number, Personal Email)
+2. Current Home Address
+3. Guardian or Emergency Contact Details
 
-1. Name correction
-2. Birthdate correction
-3. Contact information correction
-4. Address correction
-5. Guardian or emergency contact correction
-6. Prior-education identifier correction
-7. Other Registrar-approved correction
-
-#### 3.5.3 Flow
-
-Student submits request → evidence uploaded → Registrar reviews → request approved or rejected → approved correction updates official profile → affected source-derived outputs are checked for display/update impact → student is notified.
+*Update Process:* Student logs into Student Hub → Navigates to Profile → Edits allowed fields → System instantly saves the new values.
 
 Rules:
 
-1. Sensitive corrections require evidence.
-2. Rejected requests remain auditable.
-3. Approved corrections must not erase previous values.
-4. Staff-only notes must not appear in Student Hub.
-5. Changes affecting source-derived outputs must trigger output impact review.
+1. Locked field updates require an authorized Registrar role.
+2. The system must log the date, time, and user (student or staff) who modified any profile fields for basic auditability.
+3. Staff-only notes remain in Staff Workspace records.
+4. Changes affecting source-derived outputs must still trigger output impact review if applicable.
+
+---
+
+### 3.6. Admission and Student-Record Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| Applicant personal, contact, prior-school, and program-choice information | Multi-section Record Form saved as a draft before final submission |
+| Admission requirements | Checklist of configured Admission Checklist Items; each item exposes only its allowed evidence method |
+| Digital evidence | File Upload with file-type/size validation, preview, and replace/resubmit action |
+| Physical-copy or metadata-only evidence | Staff Record Form capturing received/verified status, date, recorder, and reference; no artificial upload requirement |
+| Applicant review | Operational Queue / Review Table with filters and a focused decision form |
+| Handover | Read-only comparison/preview of applicant and proposed student records, followed by an explicit confirmation action |
+| Possible duplicate student | Review Table comparing candidate official profiles; staff select reuse, merge according to policy, or stop handover |
+| Student master profile | Record Form for authorized staff; program, curriculum, status, and identity references use Selection Lists |
+| Student self-service profile changes | Record Form containing only the editable contact, address, guardian, and emergency-contact fields |
+
+Handover carries forward accepted applicant data for staff review and confirmation.
 
 ---

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -10,21 +11,22 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TermFactory extends Factory
 {
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
     public function definition(): array
     {
         return [
-            'term_name' => 'Term '.fake()->unique()->numberBetween(1000, 9999),
-            'term_type' => 'semester',
-            'is_active' => true,
-            'term_start_date' => now()->startOfMonth()->toDateString(),
-            'term_end_date' => now()->addMonths(4)->endOfMonth()->toDateString(),
-            'class_start_date' => now()->addWeek()->toDateString(),
-            'class_end_date' => now()->addMonths(4)->toDateString(),
-            'scheduling_starts_at' => now()->subWeek(),
-            'enrollment_starts_at' => now()->subDays(3),
-            'enrollment_ends_at' => now()->addDays(14),
-            'payment_deadline' => now()->addDays(21),
-            'adjustment_ends_at' => now()->addDays(14),
+            'academic_year_id' => AcademicYear::factory(),
+            'type' => Term::TypeFirstSemester,
+            'label' => 'First Semester',
+            'starts_on' => now()->startOfMonth()->toDateString(),
+            'ends_on' => now()->addMonths(4)->endOfMonth()->toDateString(),
+            'state' => Term::StateDraft,
+            'scheduling_slot_minutes' => 30,
+            'default_max_units' => 21.00,
         ];
     }
 }

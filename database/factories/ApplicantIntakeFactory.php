@@ -26,30 +26,18 @@ class ApplicantIntakeFactory extends Factory
             ]),
             'term_id' => Term::factory(),
             'program_id' => Program::factory(),
-            'lrn' => fake()->numerify('############'),
-            'birthdate' => fake()->dateTimeBetween('-25 years', '-12 years')->format('Y-m-d'),
-            'place_of_birth' => fake()->city(),
-            'gender' => 'female',
-            'civil_status' => 'single',
-            'mothers_maiden_name' => fake()->name(),
-            'contact_number' => '09'.fake()->numerify('#########'),
-            'street' => fake()->streetAddress(),
-            'barangay' => fake()->word(),
-            'city' => fake()->city(),
-            'province' => fake()->city(),
-            'region' => 'Region IV-A',
-            'zip_code' => fake()->postcode(),
-            'father_name' => fake()->name('male'),
-            'father_occupation' => fake()->jobTitle(),
-            'mother_occupation' => fake()->jobTitle(),
-            'year_level' => '1st Year',
-            'applicant_type' => ApplicantIntake::ApplicantTypeNew,
-            'preferred_modality' => 'online',
-            'orientation_modality_acknowledged_at' => now(),
-            'orientation_policy_accepted_at' => now(),
+            'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
+            'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
+            'first_name' => fake()->firstName(),
+            'middle_name' => fake()->optional()->firstName(),
+            'last_name' => fake()->lastName(),
+            'birth_date' => fake()->dateTimeBetween('-25 years', '-12 years')->format('Y-m-d'),
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '09'.fake()->numerify('#########'),
+            'prior_school' => fake()->company(),
+            'identity_evidence_reference' => 'applicant-identity-documents/'.fake()->uuid().'.pdf',
             'status' => ApplicantIntake::StatusPending,
-            'duplicate_check_status' => ApplicantIntake::DuplicateStatusClear,
-            'duplicate_check_payload' => ['matches' => []],
+            'submitted_at' => now(),
         ];
     }
 
@@ -58,6 +46,17 @@ class ApplicantIntakeFactory extends Factory
         return $this->state(fn (): array => [
             'status' => ApplicantIntake::StatusDraft,
             'submitted_at' => null,
+        ]);
+    }
+
+    public function approved(?User $actor = null): static
+    {
+        return $this->state(fn (): array => [
+            'status' => ApplicantIntake::StatusApproved,
+            'reviewed_at' => now(),
+            'reviewed_by' => $actor?->id,
+            'approved_at' => now(),
+            'approved_by' => $actor?->id,
         ]);
     }
 }

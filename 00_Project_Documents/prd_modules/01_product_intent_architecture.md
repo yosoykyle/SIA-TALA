@@ -12,7 +12,7 @@ Full capstone title:
 
 TALA is a College-focused academic lifecycle administration system for managing the official academic flow of Servitech Institute Asia. Its central technical feature is timetable-integrated, constraint-based academic scheduling connected to curriculum, term offerings, faculty availability, room assignment, enrollment, COR generation, and Student Hub visibility.
 
-TALA must operate as a mature School Information System. It must support complete institutional workflows from applicant intake to official enrollment, finance evidence, scheduling, grades, student status, reports, source-derived outputs, and audit.
+TALA must support institutional workflows from applicant intake to official enrollment, finance evidence, scheduling, grades, student status, reports, source-derived outputs, and audit.
 
 ### 1.2. Product Intent
 
@@ -47,9 +47,9 @@ TALA owns and implements the following product areas:
 7. Student number generation.
 8. Program and curriculum assignment.
 9. Academic calendar and term setup.
-10. Course catalog.
+10. Course Catalog identities and effective Course Specification revisions.
 11. Course equivalency.
-12. Curriculum upload, validation, approval, locking, amendment, and supersession.
+12. Versioned curriculum and Course Specification CSV template download, upload, validation, recorded approval, locking, amendment, and supersession.
 13. Term offering builder.
 14. Faculty profile, qualification mappings, availability, and term load overrides.
 15. Rooms and facilities.
@@ -57,7 +57,7 @@ TALA owns and implements the following product areas:
 17. Enrollment gates.
 18. New applicant enrollment.
 19. Continuing and irregular enrollment.
-20. Capacity reservation and waitlist handling.
+20. Registrar-controlled section capacity and enrollment seat reservation.
 21. COR / Registration Form dynamic print view, access control, lightweight print logging, and download/print handling.
 22. Assessment and fee rules.
 23. Manual payment evidence.
@@ -65,11 +65,11 @@ TALA owns and implements the following product areas:
 25. Ledger, balance, adjustment, reversal, and reconciliation.
 26. SOA generation.
 27. Payment acknowledgement generation.
-28. Promissory note and payment plan.
+28. Financial Accommodation recording, including a promissory-note reference when required by institutional policy.
 29. Faculty Workspace.
 30. Faculty class lists and rosters.
 31. Grade encoding, submission, review, posting, release, and correction.
-32. Student status, holds, LOA, drop, withdrawal, readmission, reactivation, section transfer, program shift, transfer-out, and graduation eligibility evaluation.
+32. Student status, holds, recorded Student Lifecycle Changes, readmission, reactivation, section transfer, transfer-out, and graduation eligibility evaluation.
 33. Student Hub.
 34. Source-derived academic and finance outputs, access logs, and print/download tracking.
 35. Role dashboards, operational review screens, and exception lists.
@@ -96,7 +96,7 @@ The following workflows are handled by the relevant office outside TALA. TALA su
 4. Courier, LBC, pickup, and claiming activities are handled by office procedures.
 5. Official tax receipts are issued through the institution's cashier/accounting process.
 6. Government portal reporting is prepared outside TALA unless a future integration is approved.
-7. Overflow section decisions are resolved by Registrar capacity action or a new scheduling run.
+7. Full-section and excess-demand decisions are resolved by Registrar reassignment, a capacity adjustment that remains within physical-room limits, or a new scheduling run.
 8. LMS instruction, modular packet distribution, and learning-material tracking remain classroom or LMS processes.
 9. Public artifact verification and QR scanning are handled only if a future approved policy adds them.
 
@@ -117,7 +117,36 @@ Examples:
 3. Cashier OR issuance outside TALA -> OR number is mapped to existing payment evidence or ledger entry.
 4. Faculty qualification approval outside TALA -> active faculty-subject qualification record is created.
 5. Overload approval outside TALA -> term-specific load override record is created.
-6. Student clearance outside TALA -> lifecycle request final action updates student status, enrollment status, and related holds.
+6. Student lifecycle approval outside TALA -> Registrar records the approved Student Lifecycle Change -> TALA updates student status, enrollment, capacity, COR, finance effects, and audit without automatically rerunning CP-SAT.
 7. Credential or document request outside TALA -> TALA exposes holds, status, or source records only when they affect enrollment, clearance, or record release.
+
+---
+
+### 1.4. User Input and Interaction Contract
+
+The PRD identifies the interaction form needed to enter or review information without prescribing page layout, visual styling, or a specific frontend component library.
+
+Canonical interaction forms:
+
+1. **Record Form:** creates or edits one record using typed fields, selectors, dates, amounts, and validation.
+2. **Focused Record Form:** records one authorized decision, correction, override, posting, release, or lifecycle result with reason, authority, evidence reference, and impact preview when required.
+3. **Restricted Record Form:** captures sensitive configuration or credentials using permission checks and write-only or secure references where applicable.
+4. **Editable Table:** captures repeated comparable rows, with row-level validation and controlled add/remove actions.
+5. **Selection List:** chooses existing authoritative records; it must not accept free text when a referenced record is required.
+6. **Checklist:** records multiple independent yes/no or status decisions.
+7. **Calendar / Date-Range Input:** captures dates, windows, recurrence, or availability where chronological context matters.
+8. **File Upload with Preview:** accepts a defined file type, validates it, and requires review before posting official records.
+9. **Operational Queue / Review Table:** lists records requiring staff action and opens the selected record or a focused action form.
+10. **Filter Form:** narrows generated tables and exports using controlled date, term, program, status, role, or ownership filters.
+11. **Generated Read-Only View:** derives information from authoritative records and permits only allowed view, print, download, or export actions.
+
+Rules:
+
+1. Free text is limited to names, addresses, references, reasons, and notes; codes, statuses, terms, courses, sections, people, fees, and authorities use controlled values or authoritative-record selection.
+2. Bulk upload supplements normal forms and tables only where a module explicitly permits import.
+3. A supported user-facing import uses the current TALA CSV Import Template for that record type.
+4. A destructive, posting, release, activation, override, or status-changing action requires a preview or confirmation showing its effect.
+5. Computed totals, eligibility, conflicts, balances, schedules, and official outputs are read-only results; users change the relevant source records in the owning workspace.
+6. Each module's interaction table is a functional contract for implementation, not a visual design specification.
 
 ---

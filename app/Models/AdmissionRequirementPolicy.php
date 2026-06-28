@@ -5,7 +5,6 @@ namespace App\Models;
 use Database\Factories\AdmissionRequirementPolicyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AdmissionRequirementPolicy extends Model
@@ -13,11 +12,11 @@ class AdmissionRequirementPolicy extends Model
     /** @use HasFactory<AdmissionRequirementPolicyFactory> */
     use HasFactory;
 
-    public const StatusDraft = 'draft';
+    public const StateDraft = 'DRAFT';
 
-    public const StatusActive = 'active';
+    public const StateActive = 'ACTIVE';
 
-    public const StatusRetired = 'retired';
+    public const StateSuperseded = 'SUPERSEDED';
 
     /**
      * @return array<string, string>
@@ -25,9 +24,9 @@ class AdmissionRequirementPolicy extends Model
     public static function statusOptions(): array
     {
         return [
-            self::StatusDraft => 'Draft',
-            self::StatusActive => 'Active',
-            self::StatusRetired => 'Retired',
+            self::StateDraft => 'Draft',
+            self::StateActive => 'Active',
+            self::StateSuperseded => 'Superseded',
         ];
     }
 
@@ -35,23 +34,22 @@ class AdmissionRequirementPolicy extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'admission_offering_id',
-        'version',
-        'status',
+        'admission_category',
+        'credential_basis',
+        'requirement_type',
+        'evidence_method',
+        'blocking_level',
         'effective_from',
         'effective_until',
-        'approved_by',
-        'approved_at',
-        'source_label',
-        'meta',
+        'state',
+        'authority',
     ];
 
     /**
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'version' => 1,
-        'status' => self::StatusDraft,
+        'state' => self::StateDraft,
     ];
 
     /**
@@ -60,37 +58,22 @@ class AdmissionRequirementPolicy extends Model
     protected function casts(): array
     {
         return [
-            'version' => 'integer',
-            'effective_from' => 'datetime',
-            'effective_until' => 'datetime',
-            'approved_at' => 'datetime',
-            'meta' => 'array',
+            'effective_from' => 'date',
+            'effective_until' => 'date',
         ];
     }
 
-    public function admissionOffering(): BelongsTo
+    public function checklistItems(): HasMany
     {
-        return $this->belongsTo(AdmissionOffering::class);
-    }
-
-    public function approver(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'approved_by');
-    }
-
-    public function documentRequirementItems(): HasMany
-    {
-        return $this->hasMany(DocumentRequirementItem::class);
+        return $this->hasMany(ChecklistItem::class, 'source_policy_id');
     }
 
     public function displayLabel(): string
     {
-        $this->loadMissing('admissionOffering');
-
         return collect([
-            $this->admissionOffering?->displayLabel(),
-            "v{$this->version}",
-            $this->source_label,
+            $this->admission_category,
+            $this->credential_basis,
+            $this->requirement_type,
         ])
             ->filter(fn (?string $part): bool => filled($part))
             ->implode(' - ');

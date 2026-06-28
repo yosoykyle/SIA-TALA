@@ -16,9 +16,9 @@ class Program extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'name',
         'code',
-        'department',
+        'name',
+        'duration_years',
         'is_active',
     ];
 
@@ -28,8 +28,14 @@ class Program extends Model
     protected function casts(): array
     {
         return [
+            'duration_years' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function curriculumVersions(): HasMany
+    {
+        return $this->hasMany(CurriculumVersion::class);
     }
 
     public function studentProfiles(): HasMany
@@ -39,7 +45,7 @@ class Program extends Model
 
     public function curriculums(): HasMany
     {
-        return $this->hasMany(Curriculum::class);
+        return $this->curriculumVersions();
     }
 
     public function sections(): HasMany

@@ -3,6 +3,7 @@
 namespace App\Actions\Enrollment;
 
 use App\Models\ApplicantIntake;
+use App\Models\ChecklistItem;
 use App\Models\DocumentUpload;
 use App\Models\Enrollment;
 use App\Models\Section;
@@ -51,8 +52,24 @@ class StudentEnrollmentService
 
             $this->assertApprovedForEnrollment($lockedIntake);
 
+            $unresolved = $lockedIntake->checklistItems()
+                ->where('blocking_level', 'blocks_handover')
+                ->get()
+                ->filter(fn (ChecklistItem $item) => ! $item->isResolved());
+
+            if ($unresolved->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'checklist' => 'Handover is blocked by unresolved checklist items.',
+                ]);
+            }
+
             $studentProfile = $this->profileForApprovedApplicant($lockedIntake, $timestamp);
             $this->linkApplicantDocuments($lockedIntake, $studentProfile);
+
+            $lockedIntake->checklistItems()->update([
+                'owner_type' => StudentProfile::class,
+                'owner_id' => $studentProfile->id,
+            ]);
 
             $enrollment = Enrollment::query()
                 ->where('student_profile_id', $studentProfile->id)
@@ -200,6 +217,29 @@ class StudentEnrollmentService
             $user = User::query()
                 ->lockForUpdate()
                 ->findOrFail($studentProfile->user_id);
+
+            $intake = ApplicantIntake::query()
+                ->where('user_id', $studentProfile->user_id)
+                ->first();
+
+            $unresolvedProfileItems = $studentProfile->checklistItems()
+                ->where('blocking_level', 'blocks_handover')
+                ->get()
+                ->filter(fn (ChecklistItem $item) => ! $item->isResolved());
+
+            $unresolvedIntakeItems = collect();
+            if ($intake) {
+                $unresolvedIntakeItems = $intake->checklistItems()
+                    ->where('blocking_level', 'blocks_handover')
+                    ->get()
+                    ->filter(fn (ChecklistItem $item) => ! $item->isResolved());
+            }
+
+            if ($unresolvedProfileItems->isNotEmpty() || $unresolvedIntakeItems->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'checklist' => 'Handover is blocked by unresolved checklist items.',
+                ]);
+            }
 
             $alreadyHandedOver = $user->status === User::StatusActive
                 && $user->username === $studentProfile->student_id
@@ -375,11 +415,23 @@ class StudentEnrollmentService
     private function profileForApprovedApplicant(ApplicantIntake $intake, CarbonImmutable $timestamp): StudentProfile
     {
         $existing = StudentProfile::query()
-            ->where('user_id', $intake->user_id)
+            ->where('lrn', $intake->lrn)
+            ->whereHas('user', function ($query) use ($intake) {
+                $query->whereRaw('LOWER(first_name) = ?', [strtolower($intake->user->first_name ?? '')])
+                    ->whereRaw('LOWER(last_name) = ?', [strtolower($intake->user->last_name ?? '')])
+                    ->whereHas('applicantIntake', function ($subQuery) use ($intake) {
+                        $subQuery->whereDate('birthdate', $intake->birthdate);
+                    });
+            })
             ->lockForUpdate()
             ->first();
 
         if ($existing instanceof StudentProfile) {
+            if ($existing->user_id !== $intake->user_id) {
+                $existing->user_id = $intake->user_id;
+                $existing->save();
+            }
+
             return $existing;
         }
 
@@ -401,23 +453,27 @@ class StudentEnrollmentService
     {
         $year = $intake->term?->term_start_date?->format('Y')
             ?? CarbonImmutable::now(config('app.timezone'))->format('Y');
-        $base = sprintf('TALA-%s-%06d', $year, $intake->user_id);
 
-        if (! StudentProfile::query()->where('student_id', $base)->exists()) {
-            return $base;
-        }
+        $prefix = "SIA-{$year}-";
 
-        for ($counter = 2; $counter <= 99; $counter++) {
-            $candidate = sprintf('%s-%02d', $base, $counter);
+        $existingIds = StudentProfile::query()
+            ->where('student_id', 'like', "{$prefix}%")
+            ->pluck('student_id');
 
-            if (! StudentProfile::query()->where('student_id', $candidate)->exists()) {
-                return $candidate;
+        $maxSequence = 0;
+        foreach ($existingIds as $id) {
+            $parts = explode('-', $id);
+            if (count($parts) === 3 && $parts[0] === 'SIA' && $parts[1] === $year) {
+                $seq = (int) $parts[2];
+                if ($seq > $maxSequence) {
+                    $maxSequence = $seq;
+                }
             }
         }
 
-        throw ValidationException::withMessages([
-            'student_id' => 'A unique student ID could not be generated for this applicant.',
-        ]);
+        $nextSequence = $maxSequence + 1;
+
+        return sprintf('SIA-%s-%04d', $year, $nextSequence);
     }
 
     private function linkApplicantDocuments(ApplicantIntake $intake, StudentProfile $studentProfile): void

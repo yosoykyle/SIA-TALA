@@ -31,30 +31,36 @@ Gate results:
 Enrollment statuses:
 
 1. Not Started
-2. Pending Gates
-3. Payment Pending
-4. Capacity Pending
-5. For Registrar Review
-6. For Accounting Review
-7. For Academic Review
-8. For Irregular Scheduling
-9. Ready for Official Enrollment
-10. Officially Enrolled
-11. Cancelled
-12. Dropped
-13. Withdrawn
-14. Superseded
+2. Pending Review
+3. Capacity Pending
+4. Payment Pending
+5. Ready for Official Enrollment
+6. Officially Enrolled
+7. Cancelled
+8. Dropped
+9. Withdrawn
+
+Status rules:
+
+1. Enrollment Status describes overall progress.
+2. `Pending Review` is used while one or more Registrar, Accounting, Academic, document, progression, conflict, or irregular-placement gates require review.
+3. The responsible office and blocking reason come from the pending Enrollment Gate result.
+4. `Capacity Pending` is used only while compatible section placement or capacity confirmation remains unresolved.
+5. `Payment Pending` is used only after placement and assessment are ready and the Finance Gate has not passed.
+6. `Ready for Official Enrollment` means every required gate has passed, been waived, or been validly overridden.
+7. `Cancelled`, `Dropped`, and `Withdrawn` remain distinct final statuses with separate academic, capacity, COR, and ledger effects.
+8. Record replacement or correction history is auditable metadata attached to the enrollment record.
 
 Document Gate rules:
 
 1. Document Gate must evaluate checklist requirements by blocking level.
-2. Document Gate must not fail because a non-blocking retention requirement remains open.
+2. Document Gate must ignore open non-blocking retention requirements.
 3. Document Gate passes when all enrollment-blocking checklist items are accepted, verified, waived, overridden, or covered by approved undertaking.
 4. Physical-copy requirements may satisfy Document Gate when staff marks the physical copy received and verified.
 5. Metadata-only requirements may satisfy Document Gate when authorized staff records the required verification.
 6. Staff-requested digital evidence must be submitted and reviewed only if it is configured as enrollment-blocking.
 7. Active document holds with Blocks Enrollment must fail the Document Gate.
-8. Active document holds with Blocks COR Download must not block official enrollment unless configured to do so.
+8. Active document holds with Blocks COR Download affect COR access according to their configured blocking level.
 
 ---
 
@@ -90,12 +96,18 @@ Scope values:
 
 Rules:
 
-1. Overrides cannot be indefinite by default.
+1. Overrides have a defined scope or expiration.
 2. Override reason is mandatory.
 3. Override approver must have permission for that gate type.
 4. Expired overrides no longer satisfy gates.
-5. Override does not delete the original failed gate result.
+5. Override preserves the original failed gate result.
 6. Override must appear in audit and exception reports.
+
+Gate Override and Academic Exception are distinct:
+
+1. Gate Override changes the treatment of one Enrollment Gate result within its approved scope.
+2. Academic Exception changes the treatment of one academic rule for one student and target Term Offering, such as prerequisite, corequisite, unit-limit, or approved bridging treatment.
+3. Both records preserve the original failed validation and their approved scope.
 
 ---
 
@@ -109,20 +121,23 @@ Flow:
 4. Official student profile is created or reused.
 5. Student number is assigned.
 6. Program and curriculum are assigned.
-7. Assessment is generated.
-8. Enrollment-blocking document requirements are checked.
-9. Required payment or downpayment evidence is verified.
-10. Capacity slot is secured.
-11. Registrar confirms section or irregular placement.
-12. Schedule conflict check runs.
-13. Enrollment becomes official. (TALA automatically transitions the student status to "Officially Enrolled" once the required downpayment or full payment is posted to the ledger, either via PayMongo webhook or manual Cashier encoding. No manual Registrar final approval is required.)
+7. Enrollment-blocking document requirements are checked.
+8. Registrar confirms the regular or irregular section placement after capacity and schedule-conflict validation.
+9. TALA creates an Enrollment Seat Reservation.
+10. Assessment is generated from the reserved subjects and sections.
+11. Required payment or downpayment is posted to the ledger, or an active Financial Accommodation explicitly allows enrollment for the covered term.
+12. TALA rechecks the remaining enrollment gates.
+13. Enrollment becomes official. TALA automatically transitions the student status to "Officially Enrolled" once every required gate passes, including the Finance Gate.
 14. Student Hub enrollment visibility is enabled.
 15. COR becomes available for viewing and printing if no blocking hold exists.
 
 Slot rule:
 
-1. **Regular Cohort Students:** Their slots are pre-allocated in their progressing cohort blocks (e.g., BSIT-2A). These seats are guaranteed and locked to their block, eliminating the risk of losing slots to other enrollees.
-2. **Irregular Students:** Their slots are secured by a 15-minute soft lock when initiating PayMongo checkout. If the payment finishes after the 15-minute expiration and the section has reached capacity, they are placed in a Capacity Pending status for Registrar manual override/reassignment.
+1. **Regular Cohort Students:** TALA proposes the progressing cohort block and validates it against the published schedule and remaining capacity. Registrar confirmation creates the Enrollment Seat Reservation.
+2. **Irregular Students:** The student submits subject or section choices from published offerings. TALA validates prerequisites, unit limits, conflicts, and capacity; the Registrar confirms the final placement and creates the Enrollment Seat Reservation.
+3. **Capacity Pending:** This means the Registrar has not yet confirmed a compatible available section.
+4. **Payment Independence:** PayMongo or cashier payment begins only after placement, reservation, and assessment. Section capacity remains controlled by the Registrar-confirmed Enrollment Seat Reservation.
+5. **Release:** A pending reservation is released when enrollment is cancelled, rejected, or reaches the institution-configured deadline.
 
 Document rule:
 
@@ -140,26 +155,55 @@ Continuing students must clear five gates:
 4. Disciplinary Gate
 5. Academic Progression Gate
 
+Default student unit-load policy:
+
+1. Normal maximum load defaults to the total units in the student's assigned Curriculum Version for the target term.
+2. If the Curriculum Version term load is not available, the normal maximum load defaults to the institution-configured term maximum.
+3. Student overload requires a recorded Student Unit Load Exception.
+4. Student overload cap defaults to 6 excess units for a regular semester unless configured differently.
+5. Summer or Special Term uses its own configured cap.
+6. Academic Head is the default approving authority for Student Unit Load Exceptions.
+7. Registrar is the default recording office after the approved result exists.
+8. System Super Admin configures the normal-load rules, excess-unit caps, and required authority. Individual student overload decisions use the configured academic authority.
+
 Default continuing finance rule:
 
-Previous balance must be ₱0.00 unless an approved promissory note or payment plan exists.
+The Finance Gate passes when the required enrollment payment or downpayment has been posted to the ledger, or when an active Financial Accommodation explicitly allows enrollment for the covered term.
+
+Finance Gate rules:
+
+1. Finance Gate passes only when the required enrollment payment or downpayment has been posted to the ledger, or when an active Financial Accommodation explicitly allows enrollment for the covered term.
+2. PayMongo checkout success, pending webhook processing, pending payment evidence review, and pending OR mapping remain payment-processing or reconciliation states until ledger posting occurs.
+3. Pending OR mapping is an Accounting reconciliation state after ledger posting. It affects official enrollment only when the institution configures a separate enrollment-blocking hold for it.
+4. Pending payment evidence review fails the Finance Gate until Accounting or policy-approved auto-confirmation posts the ledger entry.
+5. Old or previous balances block continuing enrollment only when configured as enrollment-blocking and not covered by an enrollment-effective Financial Accommodation.
+6. Finance Gate failure reason must identify the exact blocker: Missing Required Payment, Payment Evidence Pending Review, Required Balance Unpaid, or No Enrollment-Effective Financial Accommodation.
 
 Irregular flow:
 
-Academic history review → failed or missing subject detection → prerequisite check → eligible subject list → offering match → conflict check → staff approval → enrollment binding.
+Academic history review → failed or missing Curriculum Entry detection → effective Prerequisite Rule Set evaluation → corequisite evaluation → approved equivalency and credit evaluation → eligible subject list → offering match → unit-limit and conflict checks → scoped Academic Exception check when needed → Registrar placement confirmation → Enrollment Seat Reservation and enrollment binding.
 
 Rules:
 
-1. Failed prerequisites block downstream subjects.
-2. Failed subjects should be retaken when hosted in the master schedule.
+1. Unsatisfied prerequisite groups block downstream subjects unless a valid scoped Academic Exception exists.
+2. Failed subjects should be retaken when hosted in the Master Schedule.
 3. If a subject is not offered, student waits for next regular or approved special offering.
-4. Irregular schedules must not overlap unless controlled override exists.
+4. Irregular schedules require conflict-free section selections or a controlled override.
 5. Approved irregular schedule is auditable.
-6. Summer recoup is offered only by school discretion.
+6. Summer completion/catch-up Special Offerings are available only when approved by the institution.
 7. Summer load cap defaults to 6–9 units unless configured differently.
-8. Irregular students select from approved CP-SAT sections; staff record overload or bridging approvals that were approved outside TALA.
+8. Irregular students select from approved CP-SAT sections; staff record overload, prerequisite, corequisite, or bridging exceptions that were approved outside TALA.
 9. Irregular students must select sections from a flat list of CP-SAT sections, and the backend strictly validates prerequisites, time overlaps, and unit limits.
-10. If an overload or bridging exception is needed, the Registrar manually toggles an `Overload_Approved` flag to bypass the system unit limits based on documented academic override approval.
+10. An approved exception is recorded as an Academic Exception scoped to the student, academic year and term, target Term Offering, failed rule and exception type, authority, reason, evidence reference, effective period, recorder, and audit metadata.
+11. An Academic Exception applies only to the named failed rule.
+12. Failed, incomplete, pending-grade, withdrawn, dropped, blank, and currently enrolled courses do not satisfy prerequisites. Concurrent enrollment may satisfy only a defined corequisite.
+13. Enrollment selection is at the Term Offering / section level. Linked lecture and laboratory components for one course stay under one enrollment line unless the institution defines separate subject codes or separate released grades.
+14. A `P` / Pending Grade blocks automatic prerequisite satisfaction. If the student must enroll while the prerequisite grade is pending, staff must record a scoped Academic Exception tied to the affected target Term Offering.
+15. If a pending prerequisite grade is later replaced by a failing outcome, TALA flags the affected enrollment for Registrar or Academic Head review.
+16. Unit overload uses a recorded Academic Exception or Student Unit Load Exception approved outside TALA.
+17. Unit overload approval affects only the unit-load rule. Prerequisites, schedule conflicts, capacity, finance, document gates, and Graduation Eligibility Snapshot blockers continue to use their own validations.
+18. TALA may show that a selected irregular schedule exceeds the configured unit limit for staff review.
+19. A Student Unit Load Exception affects only the term and student named in the record.
 
 ---
 
@@ -177,7 +221,7 @@ Rules:
 1. The acknowledgment text may appear on printed Registration Form / COR / Assessment document.
 2. Student may sign the printed copy manually.
 3. TALA may record the output as viewed, printed, or downloaded through access and print logs.
-4. Student prerequisite acknowledgment does not replace system prerequisite validation.
+4. Student prerequisite acknowledgment is recorded separately from system prerequisite validation.
 
 ---
 
@@ -236,6 +280,25 @@ Late enrollment fee defaults to ₱500 and posts to ledger.
 
 #### 7.6.9 Delayed Payment Penalty
 
-Delayed payment of monthly dues may incur a configurable 5% penalty. It must post to ledger and must not create default exam blocks.
+Delayed payment of monthly dues may incur a configurable 5% Accounting-posted penalty. The charge appears in the ledger and SOA while exam access follows institutional law and policy.
+
+---
+
+### 7.7. Enrollment Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| Enrollment record | Generated gate summary and status view; users do not type the overall status directly |
+| Gate review | Operational Queue / Review Table with one row per student enrollment and expandable gate results |
+| Gate Override | Focused Record Form selecting the failed gate, scope, expiration, authority, reason, and evidence reference |
+| Regular cohort placement | Read-only proposed block with compatible-section Selection List and Registrar confirmation |
+| Irregular subject/section choice | Flat selectable table of published sections showing course, units, linked lecture/laboratory schedule rows when applicable, capacity, prerequisite/corequisite result, and conflict result |
+| Academic Exception | Focused Record Form tied to the student and target Term Offering; staff select the failed rule and exception type and record authority, reason, evidence, and effective scope |
+| Student Unit Load Exception | Focused Record Form tied to the student and term; staff record normal max units, requested total units, approved excess units, authority, reason, scope, and affected subjects |
+| Enrollment Seat Reservation | Generated result of Registrar placement confirmation; not a student-entered field or payment action |
+| Assessment and payment readiness | Generated Read-Only View linked to Module 8 source records |
+| Final official-enrollment transition | System action after all gates pass; the resulting status and triggering evidence are read-only and auditable |
+
+The selectable section table marks ineligible rows and exposes the exact failed rule. Exceptions are scoped to the approved failed rule and are displayed as named exception records.
 
 ---

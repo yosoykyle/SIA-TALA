@@ -2,27 +2,32 @@
 
 namespace App\Models;
 
+use Database\Factories\ImportBatchFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class ImportBatch extends Model
 {
-    public const TypeStudentData = 'student_data';
+    /** @use HasFactory<ImportBatchFactory> */
+    use HasFactory;
 
-    public const TypeLegacyGrades = 'legacy_grades';
+    public const TypeCourseSpecification = 'COURSE_SPECIFICATION';
 
-    public const TypeLegacyFinancial = 'legacy_financial';
+    public const TypeCurriculum = 'CURRICULUM';
 
-    public const TypeEnrollmentRecords = 'enrollment_records';
+    public const StatePendingReview = 'PENDING_REVIEW';
 
-    public const TypeCurriculum = 'curriculum';
+    public const StatePosted = 'POSTED';
 
-    public const StatusPendingReview = 'pending_review';
+    public const StateCancelled = 'CANCELLED';
 
-    public const StatusCommitted = 'committed';
+    public const StatusPendingReview = self::StatePendingReview;
 
-    public const StatusCancelled = 'cancelled';
+    public const StatusCommitted = self::StatePosted;
+
+    public const StatusCancelled = self::StateCancelled;
 
     public $incrementing = false;
 
@@ -33,18 +38,19 @@ class ImportBatch extends Model
      */
     protected $fillable = [
         'id',
-        'import_type',
-        'file_name',
-        'file_path',
-        'total_rows',
-        'valid_rows',
-        'error_rows',
-        'skipped_rows',
-        'status',
-        'imported_by',
-        'committed_by',
-        'committed_at',
-        'error_log',
+        'type',
+        'template_version',
+        'source_disk',
+        'source_path',
+        'source_checksum',
+        'uploaded_by',
+        'row_count',
+        'error_count',
+        'warning_count',
+        'state',
+        'validation_details',
+        'acknowledged_at',
+        'posted_at',
     ];
 
     /**
@@ -53,8 +59,9 @@ class ImportBatch extends Model
     protected function casts(): array
     {
         return [
-            'committed_at' => 'datetime',
-            'error_log' => 'array',
+            'validation_details' => 'array',
+            'acknowledged_at' => 'datetime',
+            'posted_at' => 'datetime',
         ];
     }
 
@@ -64,10 +71,7 @@ class ImportBatch extends Model
     public static function importTypeOptions(): array
     {
         return [
-            self::TypeStudentData => 'Student Data',
-            self::TypeLegacyGrades => 'Legacy Grades',
-            self::TypeLegacyFinancial => 'Legacy Financial',
-            self::TypeEnrollmentRecords => 'Enrollment Records',
+            self::TypeCourseSpecification => 'Course Specification',
             self::TypeCurriculum => 'Curriculum',
         ];
     }
@@ -78,9 +82,9 @@ class ImportBatch extends Model
     public static function statusOptions(): array
     {
         return [
-            self::StatusPendingReview => 'Pending Review',
-            self::StatusCommitted => 'Committed',
-            self::StatusCancelled => 'Cancelled',
+            self::StatePendingReview => 'Pending Review',
+            self::StatePosted => 'Posted',
+            self::StateCancelled => 'Cancelled',
         ];
     }
 
@@ -90,25 +94,25 @@ class ImportBatch extends Model
     public static function statusColors(): array
     {
         return [
-            'warning' => self::StatusPendingReview,
-            'success' => self::StatusCommitted,
-            'gray' => self::StatusCancelled,
+            'warning' => self::StatePendingReview,
+            'success' => self::StatePosted,
+            'gray' => self::StateCancelled,
         ];
     }
 
     public function isPendingReview(): bool
     {
-        return $this->status === self::StatusPendingReview;
+        return $this->state === self::StatePendingReview;
+    }
+
+    public function uploader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 
     public function importer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'imported_by');
-    }
-
-    public function committer(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'committed_by');
+        return $this->uploader();
     }
 
     protected static function booted(): void

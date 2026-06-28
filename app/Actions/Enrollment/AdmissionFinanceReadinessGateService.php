@@ -33,7 +33,7 @@ class AdmissionFinanceReadinessGateService
     ): void {
         $intake = $this->admissionIntakeFor($enrollment, $studentProfile);
 
-        if (! $intake instanceof ApplicantIntake || ! $intake->checklistItems()->exists()) {
+        if (! $intake instanceof ApplicantIntake) {
             return;
         }
 
@@ -69,8 +69,6 @@ class AdmissionFinanceReadinessGateService
             ->latest('id')
             ->first();
     }
-
-
 
     /**
      * @param  Collection<int, int>  $offeringIds

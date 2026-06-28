@@ -13,25 +13,30 @@ class Term extends Model
     /** @use HasFactory<TermFactory> */
     use HasFactory;
 
+    public const TypeFirstSemester = 'FIRST_SEMESTER';
+
+    public const TypeSecondSemester = 'SECOND_SEMESTER';
+
+    public const TypeSummer = 'SUMMER';
+
+    public const StateDraft = 'DRAFT';
+
+    public const StateActive = 'ACTIVE';
+
+    public const StateClosed = 'CLOSED';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
         'academic_year_id',
-        'term_name',
-        'term_type',
-        'is_active',
-        'term_start_date',
-        'term_end_date',
-        'class_start_date',
-        'class_end_date',
-        'scheduling_starts_at',
-        'enrollment_starts_at',
-        'enrollment_ends_at',
-        'late_enrollment_ends_at',
-        'payment_deadline',
-        'adjustment_ends_at',
-        'locked_at',
+        'type',
+        'label',
+        'starts_on',
+        'ends_on',
+        'state',
+        'scheduling_slot_minutes',
+        'default_max_units',
     ];
 
     /**
@@ -40,24 +45,20 @@ class Term extends Model
     protected function casts(): array
     {
         return [
-            'is_active' => 'boolean',
-            'term_start_date' => 'date',
-            'term_end_date' => 'date',
-            'class_start_date' => 'date',
-            'class_end_date' => 'date',
-            'scheduling_starts_at' => 'datetime',
-            'enrollment_starts_at' => 'datetime',
-            'enrollment_ends_at' => 'datetime',
-            'late_enrollment_ends_at' => 'datetime',
-            'payment_deadline' => 'datetime',
-            'adjustment_ends_at' => 'datetime',
-            'locked_at' => 'datetime',
+            'starts_on' => 'date',
+            'ends_on' => 'date',
+            'default_max_units' => 'decimal:2',
         ];
     }
 
     public function academicYear(): BelongsTo
     {
         return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function calendarEvents(): HasMany
+    {
+        return $this->hasMany(CalendarEvent::class);
     }
 
     public function enrollments(): HasMany

@@ -22,7 +22,7 @@ class Dashboard extends BaseDashboard
         }
 
         return ApplicantIntake::query()
-            ->with(['checklistItems.reviewer', 'documentUploads.registrarReviewer', 'program', 'term'])
+            ->with(['checklistItems.reviewer', 'checklistItems.documentEvidence.reviewer', 'program', 'term'])
             ->where('user_id', $user->id)
             ->first();
     }

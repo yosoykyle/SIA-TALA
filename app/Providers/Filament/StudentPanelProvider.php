@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Student\Pages\Dashboard;
+use App\Filament\Student\Pages\Profile;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -29,7 +30,7 @@ class StudentPanelProvider extends PanelProvider
             ->login()
             ->passwordReset()
             ->emailVerification()
-            ->profile()
+            ->profile(Profile::class)
             ->brandName('TALA Student Hub')
             ->brandLogo(asset('talalogo.jpg'))
             ->colors([

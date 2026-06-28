@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -82,11 +81,13 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasMany(FacultyAvailabilityChangeRequest::class, 'faculty_id');
     }
 
+    /** @return HasOne<ApplicantIntake, $this> */
     public function applicantIntake(): HasOne
     {
         return $this->hasOne(ApplicantIntake::class);
     }
 
+    /** @return HasOne<StudentProfile, $this> */
     public function studentProfile(): HasOne
     {
         return $this->hasOne(StudentProfile::class);
@@ -102,7 +103,6 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'first_name',
         'middle_name',
         'last_name',
-        'suffix',
         'username',
         'email',
         'password',
@@ -153,7 +153,6 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             $this->first_name,
             $this->middle_name,
             $this->last_name,
-            $this->suffix,
         ];
 
         return collect($parts)
@@ -163,7 +162,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     }
 
     /**
-     * @return array{first_name: string, middle_name: ?string, last_name: string, suffix: ?string, name: string}
+     * @return array{first_name: string, middle_name: ?string, last_name: string, name: string}
      */
     public static function staffNamePayload(string $firstName, ?string $middleName, string $lastName, ?string $suffix = null): array
     {
@@ -171,13 +170,13 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             'first_name' => Str::squish($firstName),
             'middle_name' => filled($middleName) ? Str::squish((string) $middleName) : null,
             'last_name' => Str::squish($lastName),
-            'suffix' => filled($suffix) ? Str::squish((string) $suffix) : null,
         ];
 
         return [
             ...$nameParts,
-            'name' => collect(Arr::only($nameParts, ['first_name', 'middle_name', 'last_name', 'suffix']))
+            'name' => collect([...array_values($nameParts), $suffix])
                 ->filter(fn (?string $part): bool => filled($part))
+                ->map(fn (string $part): string => Str::squish($part))
                 ->implode(' '),
         ];
     }

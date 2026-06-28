@@ -72,7 +72,7 @@
                         <div>
                             <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Academic Term</span>
                             <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
-                                {{ $intake->term?->term_name ?? 'Not Assigned' }}
+                                {{ $intake->term?->label ?? 'Not Assigned' }}
                             </p>
                         </div>
                         <div>
@@ -82,9 +82,9 @@
                             </p>
                         </div>
                         <div>
-                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Applicant Type</span>
+                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Admission Category</span>
                             <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
-                                {{ ucfirst($intake->applicant_type) }}
+                                {{ str_replace('_', ' ', ucfirst(strtolower($intake->admission_category))) }}
                             </p>
                         </div>
                         <div>
@@ -166,14 +166,14 @@
                                 <td class="py-3 px-4 text-zinc-500">
                                     @php
                                         $blockColor = match ($item->blocking_level) {
-                                            'blocks_handover' => 'danger',
-                                            'blocks_enrollment' => 'warning',
+                                            \App\Models\ChecklistItem::BlockingHandover => 'danger',
+                                            \App\Models\ChecklistItem::BlockingEnrollment => 'warning',
                                             default => 'gray',
                                         };
                                         $blockLabel = match ($item->blocking_level) {
-                                            'blocks_handover' => 'Blocks Handover',
-                                            'blocks_enrollment' => 'Blocks Enrollment',
-                                            default => ucfirst($item->blocking_level),
+                                            \App\Models\ChecklistItem::BlockingHandover => 'Blocks Handover',
+                                            \App\Models\ChecklistItem::BlockingEnrollment => 'Blocks Enrollment',
+                                            default => str_replace('_', ' ', ucfirst(strtolower($item->blocking_level))),
                                         };
                                     @endphp
                                     <x-filament::badge :color="$blockColor" size="sm">
@@ -181,24 +181,24 @@
                                     </x-filament::badge>
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500">
-                                    {{ str_replace('_', ' ', ucfirst($item->evidence_method)) }}
+                                    {{ str_replace('_', ' ', ucfirst(strtolower($item->evidence_method))) }}
                                 </td>
                                 <td class="py-3 px-4">
                                     @php
                                         $itemColor = match ($item->status) {
-                                            'accepted', 'verified' => 'success',
-                                            'pending' => 'warning',
-                                            'rejected' => 'danger',
-                                            'received_digital', 'received_physical' => 'info',
+                                            \App\Models\ChecklistItem::StatusAccepted, \App\Models\ChecklistItem::StatusWaived, \App\Models\ChecklistItem::StatusUndertakingApproved => 'success',
+                                            \App\Models\ChecklistItem::StatusPending => 'warning',
+                                            \App\Models\ChecklistItem::StatusRejected => 'danger',
+                                            \App\Models\ChecklistItem::StatusReceivedDigital, \App\Models\ChecklistItem::StatusReceivedPhysical => 'info',
                                             default => 'gray',
                                         };
                                     @endphp
                                     <x-filament::badge :color="$itemColor" size="sm">
-                                        {{ str_replace('_', ' ', ucfirst($item->status)) }}
+                                        {{ str_replace('_', ' ', ucfirst(strtolower($item->status))) }}
                                     </x-filament::badge>
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500 max-w-xs truncate">
-                                    {{ $item->notes ?? 'No feedback provided.' }}
+                                    {{ $item->waiver_reason ?? $item->undertaking_terms ?? 'No feedback provided.' }}
                                 </td>
                             </tr>
                         @empty
@@ -231,28 +231,28 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-                        @forelse ($intake->documentUploads as $upload)
+                        @forelse ($intake->checklistItems->flatMap->documentEvidence as $upload)
                             <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                                 <td class="py-3 px-4 font-medium text-zinc-900 dark:text-white">
-                                    {{ str_replace('_', ' ', ucfirst($upload->document_type)) }}
+                                    {{ str_replace('_', ' ', ucfirst(strtolower($upload->checklistItem->requirement_type))) }}
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500 truncate max-w-xs">
-                                    {{ $upload->file_name }}
+                                    {{ basename($upload->path) }}
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500">
-                                    {{ $upload->created_at?->format('M d, Y, h:i A') ?? 'N/A' }}
+                                    {{ $upload->uploaded_at?->format('M d, Y, h:i A') ?? 'N/A' }}
                                 </td>
                                 <td class="py-3 px-4">
                                     @php
-                                        $reviewColor = \App\Models\DocumentUpload::reviewStatusColor($upload->review_status);
-                                        $reviewLabel = \App\Models\DocumentUpload::reviewStatusOptions()[$upload->review_status] ?? ucfirst($upload->review_status);
+                                        $reviewColor = $upload->status === 'ACCEPTED' ? 'success' : 'warning';
+                                        $reviewLabel = str_replace('_', ' ', ucfirst(strtolower($upload->status)));
                                     @endphp
                                     <x-filament::badge :color="$reviewColor" size="sm">
                                         {{ $reviewLabel }}
                                     </x-filament::badge>
                                 </td>
                                 <td class="py-3 px-4 text-zinc-500">
-                                    {{ $upload->registrarReviewer?->name ?? 'Awaiting Review' }}
+                                    {{ $upload->reviewer?->name ?? 'Awaiting Review' }}
                                 </td>
                             </tr>
                         @empty

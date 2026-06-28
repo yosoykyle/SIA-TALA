@@ -6,6 +6,7 @@ use App\Filament\Resources\ApplicantIntakes\Pages\ListApplicantIntakes;
 use App\Filament\Resources\ApplicantIntakes\Pages\ViewApplicantIntake;
 use App\Filament\Resources\ApplicantIntakes\Schemas\ApplicantIntakeInfolist;
 use App\Filament\Resources\ApplicantIntakes\Tables\ApplicantIntakesTable;
+use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Models\ApplicantIntake;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -40,7 +41,7 @@ class ApplicantIntakeResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            ChecklistItemsRelationManager::class,
         ];
     }
 

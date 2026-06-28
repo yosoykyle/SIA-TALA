@@ -42,7 +42,6 @@ Payment status values:
 5. Payment Pending
 6. Payment Under Review
 7. Payment Rejected
-8. Cleared by Payment Plan
 
 Delivery modality values:
 
@@ -65,15 +64,17 @@ Required columns:
 7. Day
 8. Time
 9. Room
-10. Instructor
+10. Instructor / Teacher / Trainor
 
 Rules:
 
 1. COR schedule rows must come from official enrollment and published schedule version.
-2. Candidate schedules must not appear on COR.
+2. COR displays published schedule records.
 3. Irregular student schedules must appear only after Registrar-approved irregular schedule binding.
-4. Total units must be computed from enrolled subjects.
+4. Total units must be computed from the authoritative credit units of the enrolled Course Specification revisions.
 5. COR must show the current official enrolled subject list.
+6. A course with linked Lecture and Laboratory components remains one subject line for units and enrollment, but may display separate schedule meeting rows for each component.
+7. The printed instructor label may be configured as Instructor, Teacher, Trainer, or Teacher/Trainor, but the source value must come from the published faculty assignment.
 
 #### 9.1.4 Computation of Fees
 
@@ -93,9 +94,9 @@ Rules:
 
 1. Fee values must come from assessment and ledger-derived balance.
 2. Discount must reduce the assessed amount.
-3. Down Payment and posted payments must reflect only officially posted ledger entries. Pending OR mappings or unverified payment evidence are not displayed on the COR.
+3. Down Payment and posted payments reflect officially posted ledger entries.
 4. Balance must be reproducible from ledger entries.
-5. Manual editing of printed fee values is not allowed.
+5. Printed fee values are generated from finance source records.
 
 #### 9.1.5 Installment Schedule
 
@@ -112,7 +113,7 @@ Required columns:
 
 Rules:
 
-1. Installment rows must come from approved payment plan or assessment schedule.
+1. Installment rows must come from the assessment schedule or an active Financial Accommodation payment schedule.
 2. Receipt No. may store manual OR reference if SIA approves.
 3. Official tax receipts are issued through the institution's cashier/accounting process.
 4. PayMongo references and manual payment references must remain traceable to payment evidence.
@@ -132,6 +133,42 @@ Rules:
 2. Exact printed names are configurable.
 3. The system must record the actual workflow actor where the action is performed digitally.
 4. Printed signature areas are part of the printable artifact.
+
+#### 9.1.7 Legacy COR Field Source Map
+
+The legacy COR headers are supported as generated fields. Staff must correct the source record instead of editing the printed COR value directly.
+
+| Legacy COR field | Source record |
+| --- | --- |
+| Subject Code | Course Catalog identity referenced by the enrolled Course Specification Revision |
+| Subject Description | Course Specification Revision title / description |
+| LAB HR. | Laboratory Course Component contact hours from the Course Specification Revision |
+| Section | Registrar-confirmed Enrollment Seat Reservation / Student Schedule Binding |
+| Day | Published schedule meeting row |
+| Time | Published schedule meeting row |
+| Room | Published schedule meeting row and room assignment |
+| Teacher / Trainor | Published faculty assignment |
+| Student No. | Student master record |
+| Program | Student program assignment |
+| Full Name | Student master record |
+| Yr/Gr Level | Student academic profile / assigned Curriculum Version placement label |
+| LRN | Prior-education identifier, when available in the student profile |
+| Registration Date | Official enrollment timestamp or Registrar-confirmed registration date |
+| Tuition Fee | Active assessment charge line |
+| Laboratory Fee | Active assessment charge line |
+| Misc. Fee | Active assessment charge line |
+| Other Fee | Active assessment charge line |
+| Total Fees | Computed assessment total |
+| Down Payment | Required downpayment and posted payment ledger state |
+| Balance | Ledger-derived current balance |
+
+Rules:
+
+1. The COR may be printed as a combined registration and assessment form when configured.
+2. COR values come from source records.
+3. If a legacy header has no source value, the field is blank or hidden according to the configured template rule.
+4. LRN remains optional for college records when not available.
+5. Fee labels may match the legacy wording, but amounts must derive from assessment and ledger records.
 
 ---
 
@@ -156,7 +193,23 @@ TALA renders the COR from the student's current official enrollment, active publ
    - `copy_type` (Enum: `STUDENT_COPY`, `REGISTRAR_COPY`, `ACCOUNTING_COPY`)
    - `action` (Enum: `VIEW`, `PRINT`)
    - `created_at`
-5. **Holds Blocking:** The Student Hub blocks COR viewing/printing if the student has an active `COR Download Hold` (which remains separate from enrollment-blocking holds). Once resolved or wavered, access is restored.
-6. **Public Verification Boundary:** Public COR verification, unauthenticated QR scanning, and public artifact lookup are out of v1 scope. They may be added only if a future approved institutional policy requires them.
+5. **Holds Blocking:** Student Hub shows the COR after active `COR Download Hold` records are resolved or waived. COR Download Hold remains separate from enrollment-blocking holds.
+6. **Public Verification Boundary:** Public COR verification, unauthenticated QR scanning, and public artifact lookup require a future approved institutional policy.
+7. **Lifecycle Refresh:** Subject Drop updates the dynamically rendered subject list. Withdrawal or current-term Leave of Absence removes the COR from current-active availability while preserving source records and audit history. These changes do not regenerate the Master Schedule.
+
+---
+
+### 9.4. COR Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| COR content | Generated Read-Only View derived from official enrollment, published schedule, Course Specification revisions, assessment, and ledger |
+| Subject and schedule rows | Read-only table; one enrolled course may expand into linked Lecture and Laboratory meeting rows; staff correct enrollment or schedule source records |
+| Units and fee totals | Read-only computed values |
+| Authorization names or signatory labels | Controlled configuration or source-record values; not editable during student viewing |
+| View, print, or download | Explicit output action with access and print logging |
+| Blocked access | Read-only hold explanation showing the permitted next step without exposing staff-only notes |
+
+V1 COR generation uses source records and controlled configuration. Corrections occur through the owning enrollment, schedule, assessment, ledger, or configuration record.
 
 ---

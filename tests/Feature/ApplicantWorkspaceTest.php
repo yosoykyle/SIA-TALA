@@ -2,25 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
-use App\Models\DocumentUpload;
+use App\Models\DocumentEvidence;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ApplicantWorkspaceTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Ensure canonical roles exist
+        $this->assertSame('test_tala_db', config('database.connections.mysql.database'));
         Role::findOrCreate('applicant', 'web');
         Role::findOrCreate('student', 'web');
     }
@@ -67,49 +68,49 @@ class ApplicantWorkspaceTest extends TestCase
         ]);
         $user->assignRole('applicant');
 
-        // Create mock term and program for relationship
         $term = Term::factory()->create([
-            'term_name' => 'First Semester 2026-2027',
-            'is_active' => true,
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
         ]);
         $program = Program::factory()->create([
             'name' => 'Bachelor of Science in Information Technology',
         ]);
 
-        // Create applicant intake
         $intake = ApplicantIntake::factory()->create([
             'user_id' => $user->id,
             'term_id' => $term->id,
             'program_id' => $program->id,
             'status' => ApplicantIntake::StatusPending,
-            'applicant_type' => ApplicantIntake::ApplicantTypeNew,
+            'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'submitted_at' => now(),
         ]);
 
-        // Create checklist items
+        $policy = AdmissionRequirementPolicy::factory()->create([
+            'requirement_type' => 'BIRTH_CERTIFICATE',
+            'evidence_method' => 'DIGITAL_UPLOAD',
+            'blocking_level' => ChecklistItem::BlockingHandover,
+        ]);
         $checklist = ChecklistItem::create([
-            'owner_type' => ApplicantIntake::class,
-            'owner_id' => $intake->id,
-            'requirement_type' => 'birth_certificate',
-            'status' => 'pending',
-            'blocking_level' => 'blocks_handover',
-            'evidence_method' => 'physical_copy',
-            'notes' => 'Submit original copy',
+            'owner_type' => ChecklistItem::OwnerApplicant,
+            'applicant_intake_id' => $intake->id,
+            'student_profile_id' => null,
+            'source_policy_id' => $policy->id,
+            'requirement_type' => 'BIRTH_CERTIFICATE',
+            'status' => ChecklistItem::StatusPending,
+            'blocking_level' => ChecklistItem::BlockingHandover,
+            'evidence_method' => 'DIGITAL_UPLOAD',
+            'verification_status' => ChecklistItem::VerificationNotReviewed,
+            'undertaking_terms' => 'Submit original copy',
         ]);
 
-        // Create document upload
-        $upload = DocumentUpload::forceCreate([
-            'applicant_intake_id' => $intake->id,
-            'user_id' => $user->id,
-            'term_id' => $term->id,
-            'document_type' => 'identity_document',
-            'file_disk' => 'local',
-            'file_path' => 'uploads/id.pdf',
-            'file_name' => 'id.pdf',
+        DocumentEvidence::factory()->create([
+            'checklist_item_id' => $checklist->id,
+            'disk' => 'local',
+            'path' => 'uploads/id.pdf',
             'mime_type' => 'application/pdf',
-            'file_size' => 1024,
-            'upload_status' => 'uploaded',
-            'review_status' => DocumentUpload::ReviewStatusPendingRegistrarReview,
+            'size_bytes' => 1024,
+            'status' => 'SUBMITTED',
+            'uploaded_by' => $user->id,
         ]);
 
         $this->actingAs($user)
@@ -123,9 +124,9 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertSee('Birth certificate')
             ->assertSee('Blocks Handover')
             ->assertSee('Submit original copy')
-            ->assertSee('Identity document')
+            ->assertSee('Birth certificate')
             ->assertSee('id.pdf')
-            ->assertSee('Pending Registrar Review')
+            ->assertSee('Submitted')
             ->assertDontSee('Start Your Application');
     }
 }

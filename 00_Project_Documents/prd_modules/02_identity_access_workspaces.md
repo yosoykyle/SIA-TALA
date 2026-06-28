@@ -14,11 +14,11 @@ Views approved student-facing records after official handover. Downloads own cur
 
 #### 2.1.3 Registrar
 
-Owns admissions, student master records, handover, enrollment gates, section placement, scheduling review, COR, student status, academic records, grade review, and graduation eligibility evaluation.
+Owns admissions, student master records, handover, enrollment gates, section placement, scheduling review, COR, student status, academic records, grade review, Graduation Review Batches, Graduation Eligibility Snapshots, and Registrar-recorded unit-load exceptions.
 
 #### 2.1.4 Accounting
 
-Owns fee setup, assessment, payment evidence, ledger posting, balance, SOA, payment acknowledgement, finance clearance, reconciliation, finance holds, and payment plans.
+Owns fee setup, assessment, payment evidence, ledger posting, balance, SOA, payment acknowledgement, finance clearance, reconciliation, finance holds, and Financial Accommodation records.
 
 #### 2.1.5 Faculty
 
@@ -26,11 +26,11 @@ Submits availability, views assigned classes, views rosters, encodes grades, sub
 
 #### 2.1.6 Academic Head
 
-Approves curriculum versions, academic exceptions, progression exceptions, program shift credit evaluations, graduation eligibility exceptions, and finalized grade corrections where required. Reviews faculty term load overrides and scheduling exceptions when institutional policy requires Academic Head visibility.
+Approves curriculum versions, academic exceptions, and Student Unit Load Exceptions where institutional policy requires it. Program-shift credit approval and other office-handled lifecycle decisions occur through institutional procedure; TALA exposes their recorded results when Academic Head visibility is required.
 
 #### 2.1.7 System Super Admin
 
-Manages users, roles, permissions, configuration, integration settings, security policy, access policy, and audit visibility.
+Manages users, roles, permissions, configuration, integration settings, security policy, access policy, and audit visibility. System Super Admin configures policy values but does not decide individual student academic eligibility.
 
 ---
 
@@ -45,11 +45,11 @@ Application surfaces:
 3. Student Hub is an authenticated Filament workspace for students after handover.
 4. Faculty Workspace is an authenticated Filament workspace for faculty academic work.
 5. Registrar, Accounting, Academic Head, and System Super Admin workspaces are authenticated Filament staff workspaces.
-6. Filament is an implementation shell. Product language must continue to use Applicant Workspace, Student Hub, Faculty Workspace, and Staff Workspace instead of generic portal or panel labels.
+6. Product language uses Applicant Workspace, Student Hub, Faculty Workspace, and Staff Workspace.
 
 #### 2.2.1 Canonical Roles and Laravel Authentication
 
-1. **Authentication Flows:** Login, session management, email verification, password resets, and applicant registration UI are handled through **Filament panel authentication surfaces**. Laravel Fortify may remain as a backend authentication contract where already integrated, but custom public Blade/Fortify auth pages are out of scope.
+1. **Authentication Flows:** Login, session management, email verification, password resets, and applicant registration UI are handled through Filament panel authentication surfaces. Laravel Fortify may remain as a backend authentication contract where already integrated.
 2. **Roles:** Roles are canonical and assigned via **Spatie Laravel Permission** using the database.
 3. **Canonical Permission Model:** The 7 canonical roles use predefined permissions and authorization guards throughout the application. Super Admin manages users and configured role records within that fixed model.
 
@@ -107,8 +107,8 @@ Allowed:
 2. Download own current active COR when allowed.
 3. View or download own current SOA when allowed.
 4. View or download own payment acknowledgement when allowed.
-5. Submit personal data correction request.
-6. View own holds and notifications.
+5. Directly edit allowed profile information (contact info, address, emergency contact).
+6. View own holds and current status notices.
 7. View released grades.
 8. View published class schedule.
 
@@ -153,7 +153,9 @@ Allowed:
 10. Release grades to Student Hub.
 11. Manage student status and holds.
 12. Run graduation eligibility evaluation.
-13. Export Registrar-scoped reports.
+13. Create Graduation Review Batches and refresh Graduation Eligibility Snapshots.
+14. Record approved Student Unit Load Exceptions when Registrar is the configured recording office.
+15. Export Registrar-scoped reports.
 
 Controlled actions requiring reason, permission, and audit:
 
@@ -163,6 +165,8 @@ Controlled actions requiring reason, permission, and audit:
 4. Registrar-recorded posted-grade correction.
 5. Duplicate profile archive/link resolution.
 6. Sensitive export.
+7. Student Unit Load Exception recording.
+8. Graduation Eligibility Snapshot visibility change.
 
 #### 2.3.5 Accounting Permissions
 
@@ -177,7 +181,7 @@ Allowed:
 7. Generate payment acknowledgement.
 8. Manage finance clearance.
 9. Manage finance holds.
-10. Review payment plans.
+10. Record and manage Financial Accommodations approved under institutional policy.
 11. Run reconciliation.
 12. Export Accounting-scoped reports.
 
@@ -192,14 +196,15 @@ Boundaries:
 
 Allowed:
 
-1. Approve curriculum versions.
-2. Approve curriculum amendments.
-3. Approve academic exceptions.
+1. View curriculum versions whose institutional approval result was recorded in TALA.
+2. Review recorded curriculum amendment results and activation impact when authorized.
+3. Approve scoped academic exceptions where institutional policy requires Academic Head authority.
 4. Review faculty term load overrides.
 5. Review scheduling exceptions.
 6. Approve academic progression exceptions.
-7. Approve program shift credit evaluation.
+7. View recorded approved program-shift credit evaluation results when authorized.
 8. Review graduation eligibility exceptions.
+9. Approve Student Unit Load Exceptions where configured.
 
 Boundaries:
 
@@ -234,9 +239,9 @@ Faculty Workspace provides faculty-facing academic work functions.
 
 #### 2.4.1 Faculty Workspace Functions
 
-Faculty Workspace must include:
+Faculty Workspace includes:
 
-1. Faculty dashboard.
+1. Faculty overview.
 2. Assigned classes.
 3. Class rosters.
 4. Faculty availability submission.
@@ -244,8 +249,7 @@ Faculty Workspace must include:
 6. Draft grade saving.
 7. Grade roster submission.
 8. Returned-for-correction roster handling.
-9. Faculty notifications.
-10. Grade submission history.
+9. Grade submission history.
 
 #### 2.4.2 Faculty Workspace Rules
 
@@ -263,20 +267,22 @@ Registrar Workspace provides operational queues for Registrar-owned workflows.
 Registrar queues:
 
 1. Applicant evidence review.
-2. Correction request review.
+2. Manual applicant profile updates (Admin Override).
 3. Duplicate applicant or student profile review.
 4. Applicant-to-student handover.
-5. Student profile correction review.
+5. Manual student profile updates (Admin Override).
 6. Enrollment gate review.
-7. Irregular schedule review.
+7. Regular and irregular section placement, capacity review, and Enrollment Seat Reservation.
 8. Schedule publication review.
 9. Published schedule revision review.
 10. COR access and print-log review.
 11. Grade roster review.
 12. Grade release.
-13. Student status transition review.
+13. Approved Student Lifecycle Change recording and student status transition review.
 14. Graduation eligibility review.
-15. Registrar reports and exports.
+15. Graduation Review Batch and Graduation Eligibility Snapshot review.
+16. Student Unit Load Exception recording.
+17. Registrar reports and exports.
 
 Rules:
 
@@ -301,7 +307,7 @@ Accounting queues:
 6. Adjustment request review.
 7. Reversal request review.
 8. Finance hold review.
-9. Payment plan review.
+9. Financial Accommodation recording and status review.
 10. SOA generation.
 11. Payment acknowledgement generation.
 12. Reconciliation.
@@ -313,30 +319,49 @@ Rules:
 2. Registrar workflow marks enrollment official after finance clearance is available.
 3. Grade changes remain in Registrar and academic workflows.
 4. Finance-sensitive actions require audit.
+5. Accounting actions and PayMongo events do not assign, reserve, or release section capacity.
 
 ---
 
 ### 2.7. Academic Head Workspace
 
-Academic Head Workspace provides governance review screens for academic exceptions that require institutional oversight.
+Academic Head Workspace provides governance review queues for academic exceptions that require institutional oversight.
 
 Academic Head queues:
 
-1. Curriculum approval.
-2. Curriculum amendment approval.
-3. Academic exception approval.
+1. Recorded curriculum approval result review.
+2. Recorded curriculum amendment result and activation-impact review.
+3. Scoped academic exception review and recorded approval.
 4. Scheduling exception review.
 5. Faculty term load override review, if institution requires Academic Head visibility.
 6. Academic progression exception approval.
-7. Program shift credit evaluation approval.
+7. Recorded program-shift credit evaluation review, when institutional visibility requires it.
 8. Graduation eligibility exception review.
+9. Student Unit Load Exception approval, when configured.
 
 Rules:
 
-1. Approval or rejection requires recorded decision.
+1. In-system approval or rejection actions, where a module explicitly retains them, require a recorded decision.
 2. Rejection requires reason.
 3. Academic Head approvals are audited.
 4. Ledger entries remain in Accounting workflow.
 5. Grade posting remains in Registrar workflow.
+
+---
+
+### 2.8. Workspace Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| Sign in, register, recover password, verify identity | Record Form with validated identity fields and explicit submission |
+| View assigned work | Role-filtered Operational Queue / Review Table |
+| Create or update one applicant, student, faculty, or staff profile | Record Form; referenced roles, programs, and statuses use Selection Lists |
+| Review admission, enrollment, grade, finance, or academic records | Review Table opening a read-only record summary plus only the authorized action form |
+| Approve, reject, post, release, override, or activate | Focused Record Form or confirmation requiring reason/evidence and a labeled action |
+| Faculty availability | Calendar / Date-Range Input with repeated unavailable or preferred blocks |
+| Faculty grade entry | Class-roster Editable Table defined in Module 10 |
+| View COR, SOA, schedules, grades, and reports | Generated Read-Only View with authorized print, download, or export actions |
+
+Workspace dashboards may summarize counts and alerts, but official entry and decisions occur through the interaction form owned by the corresponding module.
 
 ---

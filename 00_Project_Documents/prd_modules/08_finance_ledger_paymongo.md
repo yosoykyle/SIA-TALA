@@ -7,12 +7,13 @@
 Rules:
 
 1. Assessment, payment evidence, ledger, balance, SOA, and payment acknowledgement are separate records.
-2. Ledger entries cannot be silently edited.
-3. Corrections must use adjustment or reversal entries.
+2. Ledger corrections use adjustment or reversal entries.
+3. Posted ledger entries preserve the original source reference.
 4. Balance must be reproducible from posted ledger entries.
 5. SOA must derive from assessment and ledger.
 6. Payment acknowledgement must derive from verified payment evidence and ledger posting.
 7. Official tax receipt issuance happens through the institution's cashier/accounting process.
+8. Enrollment Finance Gate readiness derives from posted ledger payment for the required enrollment amount, or from an active Financial Accommodation with an explicit enrollment effect.
 
 ---
 
@@ -43,8 +44,8 @@ Every ledger entry must link to one source record:
 
 Rules:
 
-1. Posted ledger entries cannot be edited directly.
-2. Correction requires adjustment or reversal.
+1. Posted ledger corrections use adjustment or reversal.
+2. Each correction records actor, reason, authority, and source reference.
 3. Balance must be reproducible from posted ledger entries.
 4. Voided or reversed entries must remain visible to authorized Accounting users.
 5. Ledger exports must include entry direction and source reference.
@@ -72,13 +73,13 @@ Trigger events:
 2. Section transfer with fee impact.
 3. Program shift.
 4. Subject add or drop.
-5. Full drop or withdrawal.
+5. Withdrawal or institution-directed term drop.
 6. Delivery modality change with fee impact.
 7. Laboratory subject added or removed.
 8. Scholarship applied or removed.
 9. Discount applied or removed.
-10. Payment plan approved or defaulted.
-11. Summer recoup enrollment.
+10. Financial Accommodation activated, fulfilled, defaulted, expired, or cancelled.
+11. Summer or other Special Offering enrollment.
 12. Correction of fee rule.
 
 Rules:
@@ -91,7 +92,18 @@ Rules:
 
 ---
 
-### 8.4. Business Fee Defaults
+### 8.4. MVP Fee Configuration and Defaults
+
+Fee setup uses simple Accounting-owned records:
+
+1. Fee Item.
+2. Program and term scope.
+3. Calculation type: fixed amount, per-unit amount, or manual charge.
+4. Amount.
+5. Effective dates and active status.
+6. Ledger category and SOA/COR display category.
+
+TALA generates assessments from the active fee setup and records corrections through ledger adjustment or reversal.
 
 #### 8.4.1 Downpayment
 
@@ -110,22 +122,22 @@ Rules:
 #### 8.4.3 Delayed Payment Penalty
 
 1. **One-Time Late Payment Surcharge:** A delayed payment of a scheduled installment (e.g., Midterm or Final installment) incurs a one-time late payment penalty of 5% calculated on the specific unpaid installment amount. The surcharge is not compounded daily.
-2. **Automated Surcharge Calculation:** A background system job runs daily to identify overdue installments. For any newly overdue installment, the system automatically posts a single ledger charge of 5% of that specific installment's value and flags the installment to prevent duplicate penalty applications.
-3. **Audit Labeling:** The automated charge must be distinctly labeled in the ledger (e.g., "Late Penalty - Midterm Installment") to support Accounting and the Verifier during daily turnover audits.
-4. **Configuration:** The penalty percentage rate must be configurable by Accounting.
-5. **RA 11984 Compliance:** Late payment penalties must never create default exam blocks or block exam permit downloads. They appear strictly as ledger charges in the student's Statement of Account (SOA).
+2. **Accounting Posting:** Accounting records the approved surcharge through the manual charge form after confirming the affected installment, amount, reason, and authority.
+3. **Audit Labeling:** The ledger charge is labeled by installment or due schedule reference (e.g., "Late Penalty - Midterm Installment") to support Accounting and daily turnover review.
+4. **Configuration:** The penalty percentage rate is configurable by Accounting.
+5. **RA 11984 Compliance:** Late payment penalties appear as ledger charges in the student's SOA while exam access remains governed by institutional law and policy.
 
 #### 8.4.4 Shift / Schedule / Program Change Fee
 
 1. Default fee is ₱100 for student-requested shifting of schedule, program, section, or replacement / loss of card.
 2. This applies only if the change is student-requested or student-caused.
-3. Institution-caused changes are recorded without charging the student.
+3. Institution-caused changes are recorded with a zero-charge finance effect.
 4. Fee posts as a ledger charge.
 
 #### 8.4.5 Dropout Fee
 
-1. Approved full drop or withdrawal appends a flat ₱3,500.00 dropout fee to the ledger.
-2. Dropout fee does not erase previous balance.
+1. An approved Withdrawal or institution-directed term drop appends a flat ₱3,500.00 dropout fee to the ledger when institutional policy applies it.
+2. Dropout fee is added to the existing ledger balance.
 3. Dropped students with unpaid balance remain under finance or record-release hold.
 4. Dropout fee must appear in SOA.
 
@@ -135,27 +147,27 @@ Rules:
 2. Tuition fee is non-refundable once the student is marked Officially Enrolled.
 3. Refund processing remains Accounting-controlled.
 4. Refund must use ledger reversal or adjustment.
-5. Refund must not silently delete payment evidence.
+5. Refund records preserve the original payment evidence and show the reversal or adjustment trail.
 
 ---
 
 ### 8.5. PayMongo Payment Evidence
 
-PayMongo is a payment gateway, not the ledger.
+PayMongo creates verified payment evidence. TALA ledger posting updates the student's balance.
 
 PayMongo flow:
 
-Assessment created → student starts payment → TALA creates PayMongo checkout or payment intent with TALA reference → PayMongo sends webhook → TALA verifies event → payment evidence is recorded → Accounting confirms or auto-confirms based on policy → ledger entry posts → balance and clearance update.
+Registrar confirms section placement and Enrollment Seat Reservation → assessment is created → student starts payment → TALA creates PayMongo checkout or payment intent with TALA reference → PayMongo sends webhook → TALA verifies event → payment evidence is recorded → Accounting confirms or auto-confirms based on policy → ledger entry posts → balance and clearance update.
 
-Auto-confirm PayMongo only when:
+Auto-confirm PayMongo when all validation checks pass:
 
 1. Webhook is verified.
 2. Status is paid.
 3. Amount matches.
 4. Currency is PHP.
 5. TALA reference matches.
-6. Payment has not been posted before.
-7. No risk or mismatch exists.
+6. The TALA payment reference has no posted ledger entry yet.
+7. Risk and mismatch checks are clear.
 
 Accounting review is required for:
 
@@ -170,11 +182,15 @@ Accounting review is required for:
 
 Rules:
 
-1. Success page alone must not post ledger entries.
-2. Webhook processing must be idempotent.
-3. Duplicate events cannot double-post.
-4. Raw webhook payloads are retained only as operational or audit records according to retention policy.
-5. **Paper OR Mapping (Three-Way Parity Audit):** Because the institution mandates a physical paper Official Receipt (OR) for all transactions (including online payments) to support the daily reconciliation audit (Ledger = Receipts = Cash), TALA must support receipt mapping. When PayMongo webhooks verify an online payment, TALA posts the ledger entry to update the student's balance. This entry is queued as "Pending OR Mapping" in the Accounting Workspace. The Accounting Recorder writes the physical paper OR, photographs it for the student, and encodes the OR Number directly onto the existing TALA payment record. This links the paper receipt to the digital payment without double-crediting the student.
+1. Verified webhook evidence or Accounting manual entry is the source for ledger posting.
+2. Webhook processing is idempotent.
+3. Duplicate events link to the existing payment evidence and posted ledger entry.
+4. Raw webhook payloads are retained as operational or audit records according to retention policy.
+5. **Paper OR Mapping:** TALA supports receipt mapping for physical paper Official Receipts (OR) across cash and online payments. When PayMongo webhooks verify an online payment, TALA posts the ledger entry to update the student's balance. This entry appears as "Pending OR Mapping" in the Accounting Workspace. The Accounting Recorder writes the physical paper OR, photographs it for the student, and encodes the OR Number directly onto the existing TALA payment record.
+6. Section capacity remains controlled by the Registrar-confirmed Enrollment Seat Reservation.
+7. Finance Gate readiness updates after the required ledger posting or active Financial Accommodation effect.
+8. Pending payment evidence review stays in Accounting review until verified.
+9. Pending OR mapping stays in Accounting reconciliation after required ledger posting unless the institution configures a separate enrollment-blocking hold for that condition.
 
 ---
 
@@ -190,11 +206,10 @@ V1 finance flow must follow this sequence:
 
 Rules:
 
-1. OR mapping must not post a second payment.
-2. OR mapping links the physical receipt reference to an existing payment or ledger entry for reconciliation.
-3. Payment acknowledgement must not claim to be an official tax receipt.
-4. PayMongo success page alone must not create payment evidence or ledger posting.
-5. Manual payment entry must create payment evidence before ledger posting.
+1. OR mapping links the physical receipt reference to an existing payment or ledger entry for reconciliation.
+2. Payment acknowledgement is labeled as an internal payment acknowledgement.
+3. Verified webhook evidence or Accounting manual payment entry creates payment evidence before ledger posting.
+4. Finance Gate readiness may update after ledger posting. OR mapping remains Accounting reconciliation unless configured as a separate hold.
 
 ---
 
@@ -220,18 +235,53 @@ Payment acknowledgements and billing slips must clearly state:
 
 ---
 
-### 8.7. Refined Promissory Note (Deferred Installment Plans)
+### 8.7. Financial Accommodation and Promissory-Note Record
 
-Deferred payment plans use a rigid, low-complexity workflow:
+Financial Accommodation uses a recorded-result workflow. The institution reviews and approves the accommodation through its authorized office procedure; Accounting records the approved result in TALA through the Accounting Workspace.
 
-1. **Request Submission:** In the Student Hub, a student applies for a Promissory Note by providing a mandatory reason (text) and uploading a single combined document (PDF or image) containing both their Parent ID and Proof of Income to the `evidence_url` field.
-2. **Dual-Boolean Approval:** The request requires two independent reviews:
-   - The Registrar reviews the academic standing and supporting documents, setting `registrar_approved` to `true`.
-   - The Accounting Head reviews financial status, setting `accounting_head_approved` to `true`.
-   - When both approvals are `true`, the system sets the status to `ACTIVE`.
-3. **Strict Limit Guard:** A student is strictly capped at at most **one (1) active promissory note per academic year**. The database enforces this via a partial unique index, blocking duplicate requests in the same year.
-4. **Dynamic Holds Bypass (RA 11984 Compliance):** In strict compliance with RA 11984, exam permit downloads and class access are never blocked by financial status. Instead, an `ACTIVE` promissory note automatically bypasses finance-related enrollment and finance-related document request holds. It does not bypass academic, registrar document, or disciplinary holds. The student settles their deferred balance via over-the-counter Cashier payment when funds are available.
-5. **Holds-Based Reactivation:** If a student leaves a term with an outstanding balance, the system automatically posts a `Financial Hold` (blocking enrollment) on their profile. To reactivate their account and enroll in a future term, they must either pay the debt in full at the Cashier (lifting the hold) or establish an approved Promissory Note / payment plan for the debt.
+Flow:
+
+Student reports inability to follow the normal payment schedule → authorized office determines the accommodation basis → Accounting verifies the approved basis and current ledger balance → a promissory note is signed outside TALA when institutional policy requires it → Accounting records the Financial Accommodation and its exact effects → payments continue through cashier or PayMongo → TALA marks the accommodation fulfilled, defaulted, expired, or cancelled as applicable.
+
+Required Financial Accommodation fields:
+
+1. Student ID.
+2. Academic Year and Term.
+3. Outstanding Balance Snapshot.
+4. Covered Amount.
+5. Basis: `DSWD_LGU_CERTIFICATION` or `INSTITUTIONAL_ACCOMMODATION`.
+6. Certification Issuer, Reference Number, Issue Date, and Validity Period, when applicable.
+7. Promissory Note Required.
+8. Responsible Payer or Maker, when a note is required.
+9. Payment Amount and Due Date or Installment Schedule.
+10. Signed Note Private-File Reference or Physical-Document Reference, when applicable.
+11. Decision Authority.
+12. Recorded By and Recorded At.
+13. Explicit Effects, including whether the arrangement allows current-term enrollment, next-term enrollment, or credential release.
+14. Status.
+15. Reason and Audit Metadata.
+
+Statuses:
+
+1. Pending.
+2. Active.
+3. Fulfilled.
+4. Defaulted.
+5. Expired.
+6. Cancelled.
+
+Rules:
+
+1. Examination, exam-permit, and regular class access follow TALA's v1 institutional policy and applicable law.
+2. An active accommodation affects next-term enrollment, credential release, or another finance restriction when that effect is explicitly approved and recorded.
+3. Financial Holds resolve through payment, adjustment, reversal, waiver, or an active Financial Accommodation effect that covers the blocked workflow.
+4. Academic, documentary, disciplinary, and other non-finance holds continue under their own source records.
+5. TALA stores certification metadata and a private document reference when institutional policy requires a copy.
+6. The signed note must identify the maker, payee, covered amount, execution date, payment due date or schedule, and signature when a formal promissory note is required.
+7. Payments are recorded as verified payment evidence and ledger entries linked to the accommodation.
+8. Default or expiry applies the institution's recorded policy prospectively.
+9. If official RA 11984 implementing rules add certificate requirements, authorized staff update the configurable policy without rewriting historical accommodations.
+10. Financial Accommodation passes the Finance Gate only when its explicit effects allow enrollment for the covered term.
 
 ---
 
@@ -239,7 +289,7 @@ Deferred payment plans use a rigid, low-complexity workflow:
 
 SOA is a source-derived finance output generated from assessment and ledger records.
 
-Payment acknowledgement is a source-derived finance output confirming verified payment evidence and ledger posting. It is not an official tax receipt.
+Payment acknowledgement is a source-derived finance output confirming verified payment evidence and ledger posting. The acknowledgement is labeled as internal billing verification.
 
 SOA must show:
 
@@ -268,7 +318,7 @@ Payment acknowledgement must show:
 
 Rules:
 
-1. SOA cannot be manually invented outside ledger evidence.
+1. SOA is generated from assessment and ledger evidence.
 2. Payment acknowledgement requires verified payment evidence and posted ledger entry.
 3. New ledger activity refreshes, regenerates, or marks the current SOA output as non-current depending on institutional configuration.
 4. Reversed or refunded payments must supersede or mark acknowledgements accordingly.
@@ -334,12 +384,11 @@ Status values:
 5. Payment Pending
 6. Payment Under Review
 7. Payment Rejected
-8. Cleared by Payment Plan
 
 Rules:
 
 1. SOA must derive from assessment and ledger.
-2. SOA must not be manually invented.
+2. SOA is generated from recorded finance source records.
 3. New ledger activity refreshes, regenerates, or marks the current SOA output as non-current depending on institutional configuration.
 4. Student may view or download current SOA.
 5. Accounting may view current and historical SOA.
@@ -363,8 +412,29 @@ Rules:
 
 1. Webhooks must be verified.
 2. Webhooks must be idempotent.
-3. Duplicate events must not double-post ledger entries.
+3. Duplicate events resolve to the existing payment evidence and posted ledger entry.
 4. Failed webhook processing must be logged.
 5. Payment evidence must remain separate from ledger posting.
+
+---
+
+### 8.11. Finance Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| Fee definitions and term fee matrix | Editable Table using controlled fee type, program/term scope, calculation type, amount, effective dates, and active status |
+| Student assessment | Generated Read-Only View of charge lines, discounts/adjustments, totals, required downpayment, and due schedule |
+| Manual charge, penalty, adjustment, reversal, or refund | Focused Record Form selecting the affected source entry and requiring amount, direction, reason, authority, and reference |
+| Manual cashier payment | Record Form for student/account, OR reference, payment date, method, total received, and evidence reference |
+| Lump-sum OR allocation | Editable allocation table of unpaid lines; allocation total must equal the payment total before posting |
+| PayMongo payment | Student-facing checkout action followed by a read-only pending/success/failure state; only verified webhook evidence may update TALA |
+| Pending OR Mapping | Accounting Review Table with a focused form to enter the physical OR number/date against existing payment evidence |
+| Finance Gate readiness | Generated Read-Only View derived from ledger posting and active Financial Accommodation effects; no manual paid toggle |
+| Financial Accommodation | Record Form capturing the approved result, basis, covered amount, due schedule rows, explicit effects, authority, private reference, and state |
+| Promissory-note evidence | Optional restricted File Upload or evidence-reference field according to institutional retention policy; it is not the approval control |
+| Student ledger and SOA | Generated Read-Only View with authorized print/download; corrections occur through adjustment or reversal forms |
+| Reconciliation | Review Table comparing payment evidence, ledger posting, and OR mapping, with exception filters |
+
+Amounts, balances, allocation differences, penalties, and installment totals are computed read-only values. Corrections use adjustment or reversal forms linked to the original source entry.
 
 ---

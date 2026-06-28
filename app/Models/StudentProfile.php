@@ -3,53 +3,63 @@
 namespace App\Models;
 
 use Database\Factories\StudentProfileFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class StudentProfile extends Model
 {
     /** @use HasFactory<StudentProfileFactory> */
     use HasFactory;
 
-    /**
-     * @var list<string>
-     */
+    public const LifecycleActive = 'ACTIVE';
+
+    public const LifecycleArchived = 'ARCHIVED';
+
+    public const StandingGood = 'GOOD_STANDING';
+
+    /** @var list<string> */
     protected $fillable = [
         'user_id',
-        'student_id',
-        'lrn',
+        'applicant_intake_id',
+        'student_number',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'birth_date',
+        'prior_identifier',
         'program_id',
-        'year_level',
-        'operational_status',
-        'status_reason',
-        'modality',
-        'current_balance',
-        'hard_copy_received',
-        'last_status_changed_at',
-        'graduated_at',
+        'curriculum_version_id',
+        'lifecycle_status',
+        'academic_standing',
+        'email',
+        'phone',
+        'address',
+        'emergency_contact_name',
+        'emergency_contact_phone',
         'archived_at',
+        'merged_into_id',
     ];
 
-    /**
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
-            'current_balance' => 'decimal:2',
-            'hard_copy_received' => 'boolean',
-            'last_status_changed_at' => 'datetime',
-            'graduated_at' => 'datetime',
+            'birth_date' => 'date',
             'archived_at' => 'datetime',
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function applicantIntake(): BelongsTo
+    {
+        return $this->belongsTo(ApplicantIntake::class);
     }
 
     public function program(): BelongsTo
@@ -57,28 +67,39 @@ class StudentProfile extends Model
         return $this->belongsTo(Program::class);
     }
 
-    public function enrollments(): HasMany
+    public function curriculumVersion(): BelongsTo
     {
-        return $this->hasMany(Enrollment::class);
+        return $this->belongsTo(CurriculumVersion::class);
     }
 
-    public function ledgerEntries(): HasMany
+    /** @return HasMany<ChecklistItem, $this> */
+    public function checklistItems(): HasMany
     {
-        return $this->hasMany(LedgerEntry::class);
+        return $this->hasMany(ChecklistItem::class);
     }
 
-    public function payments(): HasMany
+    public function mergedInto(): BelongsTo
     {
-        return $this->hasMany(Payment::class);
+        return $this->belongsTo(StudentProfile::class, 'merged_into_id');
     }
 
-    public function holds(): HasMany
+    public function mergedDuplicates(): HasMany
     {
-        return $this->hasMany(Hold::class);
+        return $this->hasMany(StudentProfile::class, 'merged_into_id');
     }
 
-    public function checklistItems(): MorphMany
+    public function duplicateResolutionsAsDuplicate(): HasMany
     {
-        return $this->morphMany(ChecklistItem::class, 'owner');
+        return $this->hasMany(DuplicateProfileResolution::class, 'duplicate_student_profile_id');
+    }
+
+    public function duplicateResolutionsAsPrimary(): HasMany
+    {
+        return $this->hasMany(DuplicateProfileResolution::class, 'primary_student_profile_id');
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at')->whereNull('merged_into_id');
     }
 }
