@@ -5,6 +5,9 @@ namespace App\Providers\Filament;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Users\UserResource;
+use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
+use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
+use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -39,6 +42,18 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
+            ->plugin(
+                AuthDesignerPlugin::make()
+                    ->defaults(fn (AuthPageConfig $config) => $config
+                        ->media(asset('storage/images/admin-bg.png'))
+                        ->mediaPosition(MediaPosition::Left)
+                        ->mediaSize('50%')
+                    )
+                    ->login()
+                    ->passwordReset()
+                    ->emailVerification()
+                    ->themeToggle()
+            )
             ->resources([
                 UserResource::class,
                 RoleResource::class,

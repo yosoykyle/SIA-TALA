@@ -3,8 +3,8 @@
 namespace App\Filament\Applicant\Pages\Auth;
 
 use App\Models\User;
+use Caresome\FilamentAuthDesigner\Pages\Auth\Register;
 use Filament\Actions\Action;
-use Filament\Auth\Pages\Register;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use SensitiveParameter;

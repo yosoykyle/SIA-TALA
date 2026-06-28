@@ -4,6 +4,9 @@ namespace App\Providers\Filament;
 
 use App\Filament\Student\Pages\Dashboard;
 use App\Filament\Student\Pages\Profile;
+use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
+use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
+use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -36,6 +39,18 @@ class StudentPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
+            ->plugin(
+                AuthDesignerPlugin::make()
+                    ->defaults(fn (AuthPageConfig $config) => $config
+                        ->media(asset('storage/images/student-bg.png'))
+                        ->mediaPosition(MediaPosition::Cover)
+                        ->blur(6)
+                    )
+                    ->login()
+                    ->passwordReset()
+                    ->emailVerification()
+                    ->themeToggle()
+            )
             ->discoverResources(in: app_path('Filament/Student/Resources'), for: 'App\Filament\Student\Resources')
             ->discoverPages(in: app_path('Filament/Student/Pages'), for: 'App\Filament\Student\Pages')
             ->pages([
