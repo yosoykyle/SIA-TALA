@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Roles\RoleResource;
+use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Users\UserResource;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -58,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
                 UserResource::class,
                 RoleResource::class,
                 ActivityResource::class,
+                TermOfferingResource::class,
             ])
             ->pages([
                 Dashboard::class,
