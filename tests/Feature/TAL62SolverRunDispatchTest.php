@@ -217,6 +217,66 @@ final class TAL62SolverRunDispatchTest extends TestCase
         );
     }
 
+    public function test_tal63_assignment_response_shape_persists_candidate_rows_without_missing_identifier_rejection(): void
+    {
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+
+        $run = $this->runService->generate($source['term'], $registrar);
+        $snapshot = $run->getAttribute('input_snapshot');
+        $demand = $snapshot['scheduling_demands'][0];
+        $room = Room::query()->firstOrFail();
+
+        app(ScheduleCloudResultIngestor::class)->ingest($run, [
+            'solver_run_id' => $run->id,
+            'solver_status' => 'optimal',
+            'candidate_schedule_id' => 'tal63-cloud-run-smoke',
+            'assignments' => [[
+                'scheduling_demand_id' => $demand['scheduling_demand_id'],
+                'term_offering_id' => $demand['term_offering_id'],
+                'section_id' => $demand['section_id'],
+                'section_delivery_group_id' => $demand['section_delivery_group_id'],
+                'subject_id' => $demand['course_id'],
+                'course_component_id' => $demand['course_component_id'],
+                'faculty_id' => $demand['eligible_faculty_user_ids'][0],
+                'room_id' => $room->id,
+                'day' => 1,
+                'start_time' => '07:00:00',
+                'end_time' => '10:00:00',
+                'time_slot_id' => 1,
+                'time_block_reference' => 'D1-0700',
+                'meeting_pattern' => 'single_block',
+                'assignment_status' => 'ok',
+            ]],
+            'hard_constraint_violations' => [],
+            'soft_constraint_scores' => [
+                'objective' => 1,
+            ],
+            'infeasible_reasons' => [],
+            'warnings' => [],
+            'runtime_seconds' => 0.21,
+            'objective_score' => 1,
+            'solver_version' => 'cloud-run-tal63',
+            'model_version' => 'tal61-demand-v1',
+            'generated_at' => now()->toIso8601String(),
+        ]);
+
+        $run->refresh();
+        $diagnostics = $run->getAttribute('diagnostics');
+        $candidate = CandidateScheduleRow::query()
+            ->where('schedule_run_id', $run->id)
+            ->firstOrFail();
+
+        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
+        $this->assertSame('cloud-run-tal63', $run->solver_version);
+        $this->assertSame((int) $demand['scheduling_demand_id'], $candidate->scheduling_demand_id);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $candidate->status);
+        $this->assertSame(0, $diagnostics['solver_result']['summary']['rejected_count']);
+        $this->assertSame([], $diagnostics['solver_result']['summary']['rejected_rows']);
+    }
+
     public function test_authorization_boundaries_and_admin_panel_registration_are_enforced(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);

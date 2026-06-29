@@ -33,6 +33,6 @@ Apply this order to every planned worker slice:
 
 ## Planned Issues
 
-### TAL-65 — Laravel Cloud Run Solver Integration Verification
+### TAL-66 — Candidate Schedule Approval and Publication
 
-**Boundary:** Verify the Laravel-to-Cloud Run solver integration path after the TAL-63/TAL-64 solver cleanup is committed. Do not start publication, enrollment, finance, COR, grades, Student Hub, lifecycle, or graduation work in this boundary.
+**Boundary:** Approve a reviewed candidate schedule and publish its rows into the official section-meeting schedule with an auditable published version. Keep the slice limited to publication; exclude enrollment, seat reservation, finance, payment gateway, COR/SOA, grades, Student Hub, lifecycle, and graduation work.
