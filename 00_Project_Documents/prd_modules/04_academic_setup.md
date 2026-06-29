@@ -203,9 +203,9 @@ Rules:
 
 ---
 
-### 4.4. Course Equivalency & Batch Credit UI
+### 4.4. Course Equivalency & Batch Credit Interaction
 
-Transfer and program-shift crediting use a low-friction **"Batch Credit UI"**. The Registrar opens the student's target curriculum and rapidly checks off credited subjects in one pass based on the approved paper evaluation. Approved credited subjects satisfy prerequisite checks without requiring a global external-course mapping engine.
+Transfer and program-shift crediting use a low-friction **Batch Credit interaction**. The Registrar opens the student's target curriculum and rapidly checks off credited subjects in one pass based on the approved paper evaluation. Approved credited subjects satisfy prerequisite checks without requiring a global external-course mapping engine.
 
 **Differentiated Credit Model:**
 Credited subjects are stored under two distinct rules in the student's academic history:
@@ -213,7 +213,7 @@ Credited subjects are stored under two distinct rules in the student's academic 
 1. **External Transfer Credits (Transferees):** Mapped with a grade of `TC` (Transfer Credit). These satisfy prerequisites and degree checklist requirements, but **are strictly excluded** from the student's cumulative General Weighted Average (GWA) calculations.
 2. **Internal Program Shift Credits (Internal Shifters):** Mapped with their original numeric grades (1.00 to 5.00 scale) earned at the institution. These satisfy degree requirements and **are included** in the GWA calculations.
 
-The Batch Credit UI must provide a toggle for the Registrar to designate each credited subject as either External (TC) or Internal (Numeric Grade), preventing GWA inflation during graduation clearance and honors audits.
+The Batch Credit interaction must provide a controlled selection for the Registrar to designate each credited subject as either External (TC) or Internal (Numeric Grade), preventing GWA inflation during graduation clearance and honors audits.
 
 ---
 

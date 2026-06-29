@@ -226,7 +226,7 @@ Rules:
 
 #### 13.4.1 Supported Imports and Template Flow
 
-TALA supports these user-facing CSV imports via the TALA UI:
+TALA supports these user-facing CSV imports through the authorized TALA workspaces:
 1. Course Specification import.
 2. Curriculum version upload.
 
@@ -310,7 +310,7 @@ Rules:
 
 The system relies on the application framework (Laravel) for security and auditing.
 
-1. **Authentication:** Handled entirely via Laravel Fortify.
+1. **Authentication:** Handled through Filament panel authentication surfaces backed by Laravel Fortify where the backend authentication contract is integrated.
 2. **Audit Logging:** The system leverages the **Spatie Activitylog** package. High-risk inserts, updates, deletes, and official-output access events are tracked at the application level.
 3. **Audit Visibility:** The System Super Admin views audit logs inside the Filament-powered Audit Log UI (e.g., using `ActivityResource`).
 

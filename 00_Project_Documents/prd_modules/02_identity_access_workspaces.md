@@ -43,7 +43,7 @@ Application surfaces:
 1. The public landing page is the only public, non-authenticated surface. It provides institutional information, admission guidance, Filament sign-in/apply entry points, account-boundary explanations, notices, and FAQ content.
 2. Applicant Workspace is an authenticated Filament workspace for applicants before handover, including Filament-handled applicant registration/auth UI.
 3. Student Hub is an authenticated Filament workspace for students after handover.
-4. Faculty Workspace is an authenticated Filament workspace for faculty academic work.
+4. Faculty Workspace means authenticated Filament surfaces for faculty academic work; MVP may implement these as role-scoped faculty pages inside the shared Staff Workspace rather than as a separate panel.
 5. Registrar, Accounting, Academic Head, and System Super Admin workspaces are authenticated Filament staff workspaces.
 6. Product language uses Applicant Workspace, Student Hub, Faculty Workspace, and Staff Workspace.
 
