@@ -153,7 +153,7 @@ TALA's architecture relies on the following verified dependencies declared in th
 * `spatie/laravel-permission: ^6.24` (Role-based access control [RBAC])
 * `spatie/laravel-model-states: ^2.8` (Available state-machine support)
 * `spatie/laravel-activitylog: ^4.8` & `pxlrbt/filament-activity-log: ^2.2` (Audit trail logs for overrides)
-* `chillerlan/php-qrcode: ^5.0` (Security-hashed QR codes for COR verification)
+* `chillerlan/php-qrcode: ^5.0` (Installed QR capability; public COR verification and QR artifact lookup are not part of the MVP output path unless a later approved policy activates them)
 * `maatwebsite/excel: ^3.1` (Excel importing for curricula and exporting for grade reports)
 * `luigel/laravel-paymongo: ^2.6` & `spatie/laravel-webhook-client: ^3.5` (PayMongo and webhook support packages)
 * `google/auth: ~1.52` (Google service-account authentication for invoking the private Cloud Run CP-SAT solver)

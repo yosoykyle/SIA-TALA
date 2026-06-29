@@ -108,13 +108,14 @@ Generated outputs may include:
 
 Rules:
 
-1. COR uses dynamic rendering and `cor_print_logs`; source records and print logs provide traceability for v1.
+1. COR uses dynamic HTML/CSS rendering and `output_access_logs`; source records and output logs provide traceability for v1.
 2. SOA and payment acknowledgement derive from assessment, payment evidence, and ledger records.
 3. Student schedules and rosters derive from active published schedule and official enrollment records.
 4. Access requires authentication.
 5. View, print, download, or export actions must be logged when the output is official or sensitive.
 6. Official output access uses controlled view, print, download, or export actions.
-7. Stored snapshots are used only when a specific output explicitly requires snapshot preservation.
+7. Browser print/save-as-PDF is the MVP download path for COR-like printable outputs.
+8. Stored snapshots or server-generated files are used only when a specific output explicitly requires snapshot preservation.
 
 ---
 

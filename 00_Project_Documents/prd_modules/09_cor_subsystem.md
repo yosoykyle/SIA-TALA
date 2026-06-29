@@ -176,6 +176,8 @@ Rules:
 
 The COR is the official source-derived registration output. It is rendered as a clean HTML/CSS view with `@media print` stylesheets. Users click "Print" in the Student Hub or Registrar Workspace to save as PDF or route to a physical printer via the browser.
 
+For MVP, COR download uses the browser's print or save-as-PDF flow from the authenticated printable view. TALA does not generate or store a server-side PDF unless a later approved policy requires retained generated files.
+
 ---
 
 ### 9.3. COR Visibility and Lightweight Print Log
@@ -187,12 +189,12 @@ TALA renders the COR from the student's current official enrollment, active publ
 1. **Access Scope:** The COR view is accessible only to the Registrar, Accounting, and the authenticated Student who owns that specific COR record.
 2. **Current Active View:** Students may view and print only their current active COR.
 3. **Historical Traceability:** Registrar and Accounting review historical schedule changes or enrollment updates using the enrollment logs, published schedule versions, schedule revision events, and ledger logs.
-4. **Lightweight Print Logging:** Every time a user views or prints a COR, TALA creates a `cor_print_logs` record containing:
-   - `id`, `student_id`, `enrollment_id`, `term_id`, `schedule_version_id`
-   - `actor_id`, `actor_role`
-   - `copy_type` (Enum: `STUDENT_COPY`, `REGISTRAR_COPY`, `ACCOUNTING_COPY`)
+4. **Lightweight Output Logging:** Every time a user views or prints a COR, TALA creates an `output_access_logs` record containing:
+   - `id`, `output_type`, `source_record_type`, `source_record_id`
+   - `student_profile_id`, `actor_user_id`, `actor_role`
    - `action` (Enum: `VIEW`, `PRINT`)
-   - `created_at`
+   - `copy_context` (Enum: `STUDENT_COPY`, `REGISTRAR_COPY`, `ACCOUNTING_COPY`)
+   - `schedule_version`, `request_context`, `status`, `occurred_at`
 5. **Holds Blocking:** Student Hub shows the COR after active `COR Download Hold` records are resolved or waived. COR Download Hold remains separate from enrollment-blocking holds.
 6. **Public Verification Boundary:** Public COR verification, unauthenticated QR scanning, and public artifact lookup require a future approved institutional policy.
 7. **Lifecycle Refresh:** Subject Drop updates the dynamically rendered subject list. Withdrawal or current-term Leave of Absence removes the COR from current-active availability while preserving source records and audit history. These changes do not regenerate the Master Schedule.
@@ -207,7 +209,7 @@ TALA renders the COR from the student's current official enrollment, active publ
 | Subject and schedule rows | Read-only table; one enrolled course may expand into linked Lecture and Laboratory meeting rows; staff correct enrollment or schedule source records |
 | Units and fee totals | Read-only computed values |
 | Authorization names or signatory labels | Controlled configuration or source-record values; not editable during student viewing |
-| View, print, or download | Explicit output action with access and print logging |
+| View, print, or download | Explicit output action with access and print logging; MVP download means browser save-as-PDF from the printable view |
 | Blocked access | Read-only hold explanation showing the permitted next step without exposing staff-only notes |
 
 V1 COR generation uses source records and controlled configuration. Corrections occur through the owning enrollment, schedule, assessment, ledger, or configuration record.

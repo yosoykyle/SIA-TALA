@@ -33,4 +33,21 @@ Apply this order to every planned worker slice:
 
 ## Planned Issues
 
-No active planned batch is currently selected.
+### TAL-70 — COR / Official Generated Output Foundation
+
+Plan and implement the MVP COR foundation as a native Laravel and Filament output flow.
+
+Scope:
+
+1. Replace the Student Hub COR shell with a current active COR generated read-only page that resolves the authenticated student's official enrollment, published schedule rows, active assessment, posted ledger balance, and blocking COR holds.
+2. Add an authenticated Laravel printable Blade route for COR output with `@media print` CSS and a Filament `Action` that opens it in a new tab for browser print/save-as-PDF.
+3. Record COR view and print/save actions in `output_access_logs` using the clean migration contract.
+4. Add a focused staff-accessible read-only path or action from the enrollment/source record for Registrar and Accounting review without reviving public verification.
+5. Cover allowed student access, blocked student access, staff access, and output logging with focused PHPUnit feature tests.
+
+Exclusions:
+
+1. No server-generated PDF package.
+2. No stored generated COR file.
+3. No public QR, token, or unauthenticated COR verification.
+4. No TAL-71 or downstream SOA/payment acknowledgement implementation beyond preserving their shared output-log contract.

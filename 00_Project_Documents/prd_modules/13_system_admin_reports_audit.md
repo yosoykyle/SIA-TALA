@@ -105,7 +105,7 @@ Report boundaries:
 
 1. Reports are basic filtered tables with CSV export.
 2. V1 reports use filtered operational tables and CSV export.
-3. PDF generation is limited to source-derived outputs such as COR, SOA, and payment acknowledgement when configured.
+3. Printable official outputs such as COR, SOA, and payment acknowledgement use authenticated HTML/CSS print views for MVP; server-side PDF generation is used only when a later approved configuration requires retained generated files.
 4. Report analysis beyond filtering and CSV export happens outside TALA.
 
 Faculty sees only reports for assigned classes.
@@ -218,7 +218,7 @@ Rules:
 3. Faculty exports are scoped to assigned classes only.
 4. Exports use data-grid CSV output.
 5. CSV report exports stream the file to the requester and store only the export log by default.
-6. V1 stores generated files only for official source-derived outputs when required by policy.
+6. V1 stores generated files only for official source-derived outputs when required by policy; otherwise the output is streamed or printed and only the log is stored.
 
 ---
 
