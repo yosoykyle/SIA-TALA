@@ -29,7 +29,7 @@ TALA must support configuration for:
 7. Credential bases.
 8. Document types (e.g. Birth Certificate, Form 137).
 9. Hold types and blocking levels.
-10. Fee items, fee matrix, downpayment rules, discount/scholarship rules, and Accounting-posted penalty rules.
+10. Fee rules in one Accounting-owned matrix with Program and Term scope, fixed amounts, per-unit PHP rates, exact Program-and-Term downpayment rules, discount/scholarship rules, and Accounting-posted penalty rules.
 11. Financial Accommodation basis, allowed effects, evidence-reference requirements, and status rules.
 12. Delivery modality rules.
 13. Room types and room features.
@@ -76,7 +76,7 @@ Rules:
 
 Example:
 
-Assessment becomes active after Accounting configures the required downpayment rule for the student's program and term.
+Assessment becomes active after Accounting configures an active exact Program-and-Term downpayment rule for the enrollment.
 
 ---
 

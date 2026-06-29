@@ -7,6 +7,7 @@ use App\Filament\Resources\LedgerEntries\Pages\ViewLedgerEntry;
 use App\Filament\Resources\LedgerEntries\Schemas\LedgerEntryInfolist;
 use App\Filament\Resources\LedgerEntries\Tables\LedgerEntriesTable;
 use App\Models\LedgerEntry;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -28,8 +29,10 @@ class LedgerEntryResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        if (auth()->user()?->hasRole('academic-head')) {
-            return 'Academic Head';
+        $user = auth()->user();
+
+        if ($user instanceof User && $user->hasRole(User::StaffRoleRegistrar)) {
+            return 'Registrar';
         }
 
         return 'Accounting';

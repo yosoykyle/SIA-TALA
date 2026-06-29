@@ -159,7 +159,7 @@ The legacy COR headers are supported as generated fields. Staff must correct the
 | Misc. Fee | Active assessment charge line |
 | Other Fee | Active assessment charge line |
 | Total Fees | Computed assessment total |
-| Down Payment | Required downpayment and posted payment ledger state |
+| Down Payment | Required downpayment from the active exact Program-and-Term fee rule and posted payment ledger state |
 | Balance | Ledger-derived current balance |
 
 Rules:

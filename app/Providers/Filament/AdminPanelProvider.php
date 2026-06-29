@@ -3,7 +3,10 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\Activities\ActivityResource;
+use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\FeeRules\FeeRuleResource;
+use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
@@ -64,6 +67,9 @@ class AdminPanelProvider extends PanelProvider
                 RoleResource::class,
                 ActivityResource::class,
                 EnrollmentResource::class,
+                FeeRuleResource::class,
+                AssessmentResource::class,
+                LedgerEntryResource::class,
                 TermOfferingResource::class,
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,

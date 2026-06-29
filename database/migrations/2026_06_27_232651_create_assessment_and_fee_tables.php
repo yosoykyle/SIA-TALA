@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('term_id')->nullable()->constrained()->restrictOnDelete();
             $table->string('calculation_type');
             $table->decimal('amount', 12, 2)->nullable();
-            $table->decimal('rate', 7, 4)->nullable();
+            $table->decimal('rate', 12, 2)->nullable();
             $table->date('effective_from');
             $table->date('effective_until')->nullable();
             $table->boolean('is_active')->default(true);

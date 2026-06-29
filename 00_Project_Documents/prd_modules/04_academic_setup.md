@@ -62,7 +62,7 @@ Calendar effects:
 
 1. Scheduling uses the Academic Calendar to generate valid time blocks and exclude holidays, no-class dates, and examination periods when institutional policy suspends regular classes.
 2. Enrollment uses the term calendar to determine enrollment windows, late-enrollment handling, capacity deadlines, payment due dates, and official enrollment cutoffs.
-3. Assessment uses the active term and enrollment timing to apply downpayment rules, late enrollment fees, installment schedules, and term-specific fee configuration.
+3. Assessment uses the active term and enrollment timing to apply the exact Program-and-Term downpayment rule, late enrollment fees, installment schedules, and term-specific fee configuration.
 4. Grade encoding uses the academic calendar to open and close faculty grade-entry windows.
 5. Student Hub visibility uses the active term to decide current schedule, current COR, current SOA, released grades, and active holds.
 6. Reports and exports use academic year and term as primary filters for operational records.

@@ -79,6 +79,7 @@ The diagram below illustrates the system structure, clearly separating the core 
 1. **Part of the System as a Whole (Laravel Application Stack):**
    * **Public Landing Page and Authenticated Workspaces:** The public route is a Blade/Vite surface. Authenticated staff, applicant, and student workspaces are Filament panel shells backed by Laravel authorization.
    * **Laravel 12 Business Core:** The PHP codebase containing models, policies, service classes, queued jobs, imports, outputs, and integration clients.
+   * **Finance Rule Evaluation:** One fee-rule model supplies Accounting's editable configuration surface. The service ranks exact Program-and-Term scope before broader ordinary-charge scopes, then effective date and record ID. Assessment activation separately requires an active exact Program-and-Term downpayment rule.
    * **Local Database, Queue, and Cache Stores:** The relational storage is MySQL in the current environment. The current Laravel queue and cache defaults are database-backed. Redis and Laravel Horizon are not installed in the current dependency set and must be treated as future deployment decisions, not active baseline dependencies.
 2. **Dedicated Isolated Infrastructure:**
    * **CP-SAT Scheduler Engine (Google Cloud Run):** The deterministic Google OR-Tools CP-SAT scheduling solver, packaged as a lightweight Python Docker container. To prevent server resources from starving, it is hosted externally on Google Cloud Run and invoked securely via authenticated HTTPS requests.
@@ -103,6 +104,7 @@ To establish a solid theoretical and practical foundation for TALA, each core ar
 * **Comparative Justification:**
   * **Strict Data Integrity:** School registration, course prereqs, and student ledgers are deeply relational. MySQL enforces strict foreign key constraints and schema rules (e.g., preventing a student from enrolling in a subject without the required curriculum binding).
   * **ACID Transactions:** Financial ledger postings (debits/credits) require strict atomicity. MongoDB's document model lacks native relational integrity constraints and can suffer from data anomalies (e.g., orphan records, inconsistent accounting balances) if schema validations are bypassed at the application level.
+  * **Exact Monetary Storage:** Fee-rule fixed amounts and per-unit PHP rates use `DECIMAL(12,2)`, matching assessment lines and ledger monetary values. Units and percentage rates retain their separate non-monetary precision.
 
 #### 3. Queue & Cache Store: Database-Backed Baseline vs. Redis / Horizon
 * **Selected rescue baseline:** Laravel database queue and database cache, matching the current application configuration.

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LedgerEntries\Tables;
 
+use App\Models\LedgerEntry;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -14,43 +15,39 @@ class LedgerEntriesTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'enrollment', 'poster']))
             ->columns([
-                TextColumn::make('studentProfile.student_id')
+                TextColumn::make('studentProfile.student_number')
                     ->label('Student ID')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('studentProfile.user.name')
+                TextColumn::make('studentProfile.last_name')
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('term.term_name')
+                TextColumn::make('term.label')
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('enrollment.id')
                     ->label('Enrollment')
                     ->placeholder('-'),
-                TextColumn::make('entry_type')
-                    ->label('Type')
+                TextColumn::make('direction')
                     ->badge()
                     ->searchable(),
-                TextColumn::make('reference_type')
-                    ->label('Reference')
-                    ->placeholder('-')
+                TextColumn::make('category')
+                    ->badge()
                     ->searchable(),
-                TextColumn::make('reference_id')
-                    ->label('Ref ID')
-                    ->numeric()
-                    ->sortable(),
+                TextColumn::make('source_type')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('source_id')
+                    ->numeric(),
                 TextColumn::make('description')
                     ->limit(40)
                     ->searchable(),
                 TextColumn::make('amount')
                     ->money('PHP')
                     ->sortable(),
-                TextColumn::make('running_balance')
-                    ->label('Balance')
-                    ->money('PHP')
-                    ->sortable(),
+                TextColumn::make('state')
+                    ->badge(),
                 TextColumn::make('posted_at')
                     ->label('Posted')
                     ->dateTime()
@@ -69,21 +66,14 @@ class LedgerEntriesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('entry_type')
-                    ->label('Type')
+                SelectFilter::make('direction')
                     ->options([
-                        'assessment' => 'Assessment',
-                        'discount' => 'Discount',
-                        'payment' => 'Payment',
-                        'penalty' => 'Penalty',
-                        'accounting_adjustment' => 'Accounting Adjustment',
-                    ]),
-                SelectFilter::make('reference_type')
-                    ->label('Reference')
-                    ->options([
-                        'fee_template' => 'Fee Template',
-                        'payment' => 'Payment',
-                        'accounting_adjustment' => 'Accounting Adjustment',
+                        LedgerEntry::DirectionCharge => 'Charge',
+                        LedgerEntry::DirectionPenalty => 'Penalty',
+                        LedgerEntry::DirectionPayment => 'Payment',
+                        LedgerEntry::DirectionDiscount => 'Discount',
+                        LedgerEntry::DirectionAdjustment => 'Adjustment',
+                        LedgerEntry::DirectionReversal => 'Reversal',
                     ]),
             ])
             ->recordActions([

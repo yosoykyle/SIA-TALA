@@ -106,6 +106,7 @@ final class SchemaConformanceTest extends TestCase
         $this->assertUniqueIndex('payments', ['provider_reference']);
 
         foreach ([
+            ['fee_rules', 'rate', 12, 2],
             ['assessments', 'total', 12, 2],
             ['assessment_lines', 'amount', 12, 2],
             ['payment_attempts', 'amount', 12, 2],

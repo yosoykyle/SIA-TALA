@@ -54,7 +54,7 @@ class EnrollmentPolicy
 
     public function assess(User $user, Enrollment $enrollment): bool
     {
-        return $user->can('create-assessments');
+        return $user->hasRole(User::StaffRoleAccounting);
     }
 
     public function confirmPayment(User $user, Enrollment $enrollment): bool

@@ -2,10 +2,10 @@
 
 namespace App\Policies;
 
-use App\Models\LedgerEntry;
+use App\Models\PaymentScheduleRow;
 use App\Models\User;
 
-class LedgerEntryPolicy
+class PaymentScheduleRowPolicy
 {
     public function viewAny(User $user): bool
     {
@@ -15,7 +15,7 @@ class LedgerEntryPolicy
         ]);
     }
 
-    public function view(User $user, LedgerEntry $ledgerEntry): bool
+    public function view(User $user, PaymentScheduleRow $paymentScheduleRow): bool
     {
         return $this->viewAny($user);
     }
@@ -25,22 +25,22 @@ class LedgerEntryPolicy
         return false;
     }
 
-    public function update(User $user, LedgerEntry $ledgerEntry): bool
+    public function update(User $user, PaymentScheduleRow $paymentScheduleRow): bool
     {
         return false;
     }
 
-    public function delete(User $user, LedgerEntry $ledgerEntry): bool
+    public function delete(User $user, PaymentScheduleRow $paymentScheduleRow): bool
     {
         return false;
     }
 
-    public function restore(User $user, LedgerEntry $ledgerEntry): bool
+    public function restore(User $user, PaymentScheduleRow $paymentScheduleRow): bool
     {
         return false;
     }
 
-    public function forceDelete(User $user, LedgerEntry $ledgerEntry): bool
+    public function forceDelete(User $user, PaymentScheduleRow $paymentScheduleRow): bool
     {
         return false;
     }

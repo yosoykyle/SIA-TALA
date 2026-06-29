@@ -124,7 +124,7 @@ Flow:
 7. Enrollment-blocking document requirements are checked.
 8. Registrar confirms the regular or irregular section placement after capacity and schedule-conflict validation.
 9. TALA creates an Enrollment Seat Reservation.
-10. Assessment is generated from the reserved subjects and sections.
+10. A draft assessment is generated from the reserved subjects and sections; activation requires the active exact Program-and-Term downpayment rule.
 11. Required payment or downpayment is posted to the ledger, or an active Financial Accommodation explicitly allows enrollment for the covered term.
 12. TALA rechecks the remaining enrollment gates.
 13. Enrollment becomes official. TALA automatically transitions the student status to "Officially Enrolled" once every required gate passes, including the Finance Gate.
@@ -260,7 +260,7 @@ Institution-caused changes are recorded without charging the student.
 
 #### 7.6.4 Down Payment
 
-Downpayment is configurable per program, with default range ₱1,000–₱2,000.
+Downpayment is configured as an active exact Program-and-Term fee rule, with default range ₱1,000–₱2,000. Broader fee-rule scopes remain available for ordinary charges and do not satisfy assessment activation.
 
 #### 7.6.5 Dropping
 

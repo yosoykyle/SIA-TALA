@@ -19,19 +19,21 @@ class LedgerEntryInfolist
                 TextEntry::make('enrollment.id')
                     ->label('Enrollment')
                     ->placeholder('-'),
-                TextEntry::make('entry_type'),
-                TextEntry::make('reference_type')
+                TextEntry::make('direction')
+                    ->badge(),
+                TextEntry::make('category')
+                    ->badge(),
+                TextEntry::make('source_type')
                     ->placeholder('-'),
-                TextEntry::make('reference_id')
+                TextEntry::make('source_id')
                     ->numeric()
                     ->placeholder('-'),
                 TextEntry::make('description')
                     ->placeholder('-'),
                 TextEntry::make('amount')
                     ->numeric(),
-                TextEntry::make('running_balance')
-                    ->numeric()
-                    ->placeholder('-'),
+                TextEntry::make('state')
+                    ->badge(),
                 TextEntry::make('posted_at')
                     ->dateTime()
                     ->placeholder('-'),

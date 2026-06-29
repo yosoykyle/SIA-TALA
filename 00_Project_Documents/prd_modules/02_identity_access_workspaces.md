@@ -315,11 +315,13 @@ Accounting queues:
 
 Rules:
 
-1. Accounting controls finance evidence and ledger posting.
-2. Registrar workflow marks enrollment official after finance clearance is available.
-3. Grade changes remain in Registrar and academic workflows.
-4. Finance-sensitive actions require audit.
-5. Accounting actions and PayMongo events do not assign, reserve, or release section capacity.
+1. Accounting maintains fee definitions in one Fee Rules Editable Table and Record Form with Program and Term scope, fixed amounts, and per-unit PHP rates.
+2. Assessment activation requires an active exact Program-and-Term downpayment rule.
+3. Accounting controls finance evidence and ledger posting.
+4. Registrar workflow marks enrollment official after finance clearance is available.
+5. Grade changes remain in Registrar and academic workflows.
+6. Finance-sensitive actions require audit.
+7. Accounting actions and PayMongo events do not assign, reserve, or release section capacity.
 
 ---
 

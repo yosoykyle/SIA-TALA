@@ -94,23 +94,34 @@ Rules:
 
 ### 8.4. MVP Fee Configuration and Defaults
 
-Fee setup uses simple Accounting-owned records:
+Accounting maintains fee setup through one Fee Rules Editable Table and its Record Form. Each fee rule contains:
 
-1. Fee Item.
-2. Program and term scope.
-3. Calculation type: fixed amount, per-unit amount, or manual charge.
-4. Amount.
+1. Fee code and name.
+2. Program and Term scope, where either scope may be left global for ordinary charge rules.
+3. Calculation type: fixed amount, per-unit peso amount, or manual charge.
+4. Fixed amount or per-unit rate in PHP, recorded to two decimal places.
 5. Effective dates and active status.
 6. Ledger category and SOA/COR display category.
+7. Authority.
+
+When more than one active rule has the same fee code, TALA selects one rule in this order:
+
+1. Exact Program and exact Term.
+2. Global Program and exact Term.
+3. Exact Program and global Term.
+4. Global Program and global Term.
+
+Within the selected scope, the newest effective date applies. The newest record ID resolves an otherwise equal priority.
 
 TALA generates assessments from the active fee setup and records corrections through ledger adjustment or reversal.
 
 #### 8.4.1 Downpayment
 
 1. Downpayment defaults to ₱1,000–₱2,000 depending on program.
-2. Exact downpayment amount must be configurable per program and term.
-3. If no program-specific downpayment is configured, staff must configure it before enrollment payment assessment becomes active.
-4. Downpayment is non-refundable by default once paid, subject to institutional policy.
+2. Accounting configures the downpayment as an active exact Program-and-Term fee rule.
+3. Draft assessment generation remains available while configuration is incomplete, with no required downpayment derived from broader scopes.
+4. Assessment activation requires the active exact Program-and-Term downpayment rule.
+5. Downpayment is non-refundable by default once paid, subject to institutional policy.
 
 #### 8.4.2 Late Enrollment Fee
 
@@ -422,7 +433,7 @@ Rules:
 
 | Information or action | Required interaction form |
 | --- | --- |
-| Fee definitions and term fee matrix | Editable Table using controlled fee type, program/term scope, calculation type, amount, effective dates, and active status |
+| Fee definitions and term fee matrix | One Accounting-owned Fee Rules Editable Table and Record Form using controlled fee type, Program and Term scope, calculation type, fixed amount or per-unit PHP rate, effective dates, active status, and authority; Downpayment requires exact Program and Term scope |
 | Student assessment | Generated Read-Only View of charge lines, discounts/adjustments, totals, required downpayment, and due schedule |
 | Manual charge, penalty, adjustment, reversal, or refund | Focused Record Form selecting the affected source entry and requiring amount, direction, reason, authority, and reference |
 | Manual cashier payment | Record Form for student/account, OR reference, payment date, method, total received, and evidence reference |

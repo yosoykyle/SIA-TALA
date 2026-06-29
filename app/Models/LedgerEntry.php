@@ -13,9 +13,27 @@ class LedgerEntry extends Model
     /** @use HasFactory<LedgerEntryFactory> */
     use HasFactory;
 
+    public const DirectionCharge = 'charge';
+
+    public const DirectionPenalty = 'penalty';
+
+    public const DirectionPayment = 'payment';
+
+    public const DirectionDiscount = 'discount';
+
+    public const DirectionScholarship = 'scholarship';
+
+    public const DirectionWaiver = 'waiver';
+
+    public const DirectionRefund = 'refund';
+
+    public const DirectionAdjustment = 'adjustment';
+
+    public const DirectionReversal = 'reversal';
+
     public function reference(): MorphTo
     {
-        return $this->morphTo();
+        return $this->morphTo(__FUNCTION__, 'source_type', 'source_id');
     }
 
     /**
@@ -25,14 +43,19 @@ class LedgerEntry extends Model
         'student_profile_id',
         'term_id',
         'enrollment_id',
-        'entry_type',
-        'reference_type',
-        'reference_id',
-        'description',
+        'direction',
+        'category',
         'amount',
-        'running_balance',
-        'posted_at',
+        'source_type',
+        'source_id',
+        'payment_id',
+        'payment_allocation_id',
+        'reverses_entry_id',
+        'adjusts_entry_id',
+        'description',
         'posted_by',
+        'posted_at',
+        'state',
     ];
 
     /**
@@ -42,7 +65,6 @@ class LedgerEntry extends Model
     {
         return [
             'amount' => 'decimal:2',
-            'running_balance' => 'decimal:2',
             'posted_at' => 'datetime',
         ];
     }
@@ -67,14 +89,19 @@ class LedgerEntry extends Model
         return $this->belongsTo(User::class, 'posted_by');
     }
 
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class);
+    }
+
     public function displayLabel(): string
     {
         return collect([
             "#{$this->id}",
-            $this->entry_type,
+            $this->direction,
+            $this->category,
             $this->description,
             'Amount: '.number_format((float) $this->amount, 2),
-            'Balance: '.number_format((float) $this->running_balance, 2),
         ])
             ->filter(fn (?string $part): bool => filled($part))
             ->implode(' - ');

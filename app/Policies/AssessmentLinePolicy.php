@@ -2,10 +2,10 @@
 
 namespace App\Policies;
 
-use App\Models\LedgerEntry;
+use App\Models\AssessmentLine;
 use App\Models\User;
 
-class LedgerEntryPolicy
+class AssessmentLinePolicy
 {
     public function viewAny(User $user): bool
     {
@@ -15,7 +15,7 @@ class LedgerEntryPolicy
         ]);
     }
 
-    public function view(User $user, LedgerEntry $ledgerEntry): bool
+    public function view(User $user, AssessmentLine $assessmentLine): bool
     {
         return $this->viewAny($user);
     }
@@ -25,22 +25,22 @@ class LedgerEntryPolicy
         return false;
     }
 
-    public function update(User $user, LedgerEntry $ledgerEntry): bool
+    public function update(User $user, AssessmentLine $assessmentLine): bool
     {
         return false;
     }
 
-    public function delete(User $user, LedgerEntry $ledgerEntry): bool
+    public function delete(User $user, AssessmentLine $assessmentLine): bool
     {
         return false;
     }
 
-    public function restore(User $user, LedgerEntry $ledgerEntry): bool
+    public function restore(User $user, AssessmentLine $assessmentLine): bool
     {
         return false;
     }
 
-    public function forceDelete(User $user, LedgerEntry $ledgerEntry): bool
+    public function forceDelete(User $user, AssessmentLine $assessmentLine): bool
     {
         return false;
     }

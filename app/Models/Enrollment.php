@@ -43,11 +43,13 @@ class Enrollment extends Model
         ];
     }
 
+    /** @return BelongsTo<StudentProfile, $this> */
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
@@ -104,9 +106,8 @@ class Enrollment extends Model
 
         return collect([
             "#{$this->id}",
-            $this->term?->term_name ?? 'No term',
+            $this->term->label ?? 'No term',
             $this->status,
-            $this->year_level,
         ])
             ->filter(fn (?string $part): bool => filled($part))
             ->implode(' - ');

@@ -31,6 +31,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-65 | Done locally; pending Linear sync | Laravel Cloud Run Solver Integration Verification |
 | TAL-66 | Done locally; pending Linear sync | Candidate Schedule Approval and Publication |
 | TAL-67 | Done locally; pending Linear sync | Enrollment Gate and Seat Reservation |
+| TAL-68 | Done locally; pending Linear sync | Finance Assessment and Ledger Foundation — `DECIMAL(12,2)` rates, deterministic scope precedence, and exact Program-and-Term downpayment activation gate |
 
 ## Compact Synced History
 
