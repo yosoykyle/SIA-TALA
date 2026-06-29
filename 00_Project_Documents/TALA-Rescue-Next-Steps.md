@@ -33,6 +33,6 @@ Apply this order to every planned worker slice:
 
 ## Planned Issues
 
-### TAL-66 — Candidate Schedule Approval and Publication
+### TAL-67 — Enrollment Gate and Seat Reservation
 
-**Boundary:** Approve a reviewed candidate schedule and publish its rows into the official section-meeting schedule with an auditable published version. Keep the slice limited to publication; exclude enrollment, seat reservation, finance, payment gateway, COR/SOA, grades, Student Hub, lifecycle, and graduation work.
+**Boundary:** Create the MVP enrollment gate that validates a student placement against published schedule availability, remaining capacity, prerequisite/unit/conflict gates where already modeled, and records a Registrar-confirmed seat reservation. Keep the slice limited to enrollment placement and reservation; exclude finance assessment, payment gateway, COR/SOA, grades, Student Hub expansion, lifecycle/graduation, and schedule revision work.

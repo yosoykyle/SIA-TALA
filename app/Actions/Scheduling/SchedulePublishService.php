@@ -5,90 +5,128 @@ namespace App\Actions\Scheduling;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
+use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SchedulePublishService
 {
-    public function __construct(
-        private readonly SectionMeetingAssignmentService $assignmentService,
-    ) {}
-
     public function publish(
         ScheduleGenerationRun $run,
-        User $registrar,
+        User $publisher,
         ?string $note = null,
-        bool $emergency = false,
     ): ScheduleGenerationRun {
+        Gate::forUser($publisher)->authorize('publish', $run);
         $note = $this->normalizedNote($note);
-        $this->authorizePublisher($registrar, $emergency);
 
-        return DB::transaction(function () use ($run, $registrar, $note): ScheduleGenerationRun {
-            $lockedRun = ScheduleGenerationRun::query()
-                ->with('draftRows')
+        return DB::transaction(function () use ($run, $publisher, $note): ScheduleGenerationRun {
+            Term::query()
+                ->whereKey($run->term_id)
                 ->lockForUpdate()
-                ->findOrFail($run->getKey());
+                ->firstOrFail();
 
-            if (! $lockedRun->canBePublished()) {
-                throw ValidationException::withMessages([
-                    'status' => 'Only generated or reviewed schedule runs can be published.',
-                ]);
+            $termRuns = ScheduleGenerationRun::query()
+                ->where('term_id', $run->term_id)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $lockedRun = $termRuns->firstWhere('id', $run->getKey());
+
+            if (! $lockedRun instanceof ScheduleGenerationRun) {
+                abort(404);
             }
 
-            if ($lockedRun->draftRows->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'candidate_schedule_rows' => 'A schedule run must have reviewed draft rows before it can be published.',
-                ]);
-            }
+            Gate::forUser($publisher)->authorize('publish', $lockedRun);
 
-            $blockingDraftRow = $lockedRun->draftRows->first(
-                fn (CandidateScheduleRow $row): bool => ! in_array($row->status, CandidateScheduleRow::committableStatuses(), true)
-            );
+            $candidateRows = CandidateScheduleRow::query()
+                ->where('schedule_run_id', $lockedRun->id)
+                ->with('schedulingDemand.termOffering')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
-            if ($blockingDraftRow instanceof CandidateScheduleRow) {
-                throw ValidationException::withMessages([
-                    'candidate_schedule_rows' => 'Resolve all draft-row conflicts before publishing the schedule run.',
-                ]);
-            }
+            $this->assertPublishable($lockedRun, $candidateRows);
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $publicationVersion = ((int) ($termRuns->max('publication_version') ?? 0)) + 1;
 
-            $this->supersedePriorPublishedRuns($lockedRun, $timestamp);
+            ScheduleGenerationRun::query()
+                ->where('term_id', $lockedRun->term_id)
+                ->where('status', ScheduleGenerationRun::StatusPublished)
+                ->whereKeyNot($lockedRun->getKey())
+                ->update([
+                    'status' => ScheduleGenerationRun::StatusSuperseded,
+                    'updated_at' => $timestamp,
+                ]);
 
-            foreach ($lockedRun->draftRows as $draftRow) {
-                $this->createSectionMeeting($lockedRun, $draftRow, $registrar, $timestamp);
+            foreach ($candidateRows as $candidateRow) {
+                SectionMeeting::query()->create([
+                    'schedule_run_id' => $lockedRun->id,
+                    'scheduling_demand_id' => $candidateRow->scheduling_demand_id,
+                    'meeting_sequence' => $candidateRow->meeting_sequence,
+                    'faculty_user_id' => $candidateRow->faculty_user_id,
+                    'room_id' => $candidateRow->room_id,
+                    'day_of_week' => $candidateRow->day_of_week,
+                    'starts_at' => $candidateRow->starts_at,
+                    'ends_at' => $candidateRow->ends_at,
+                    'modality' => $candidateRow->publicationModality(),
+                    'state' => SectionMeeting::StateActive,
+                    'published_at' => $timestamp,
+                ]);
             }
 
             $lockedRun->forceFill([
                 'status' => ScheduleGenerationRun::StatusPublished,
-                'committed_by' => $registrar->id,
-                'committed_at' => $timestamp,
-                'published_by' => $registrar->id,
+                'published_by' => $publisher->id,
                 'published_at' => $timestamp,
-                'publish_note' => $note,
-                'emergency_published' => false,
+                'publication_version' => $publicationVersion,
+                'publication_note' => $note,
             ])->save();
 
-            $this->recordActivity($lockedRun, $registrar, $timestamp, $lockedRun->draftRows->count());
+            $this->recordActivity(
+                $lockedRun,
+                $publisher,
+                $timestamp,
+                $publicationVersion,
+                $candidateRows->count(),
+            );
 
-            return $lockedRun->fresh();
-        });
+            return $lockedRun->fresh(['candidateRows', 'sectionMeetings']);
+        }, attempts: 5);
     }
 
-    private function authorizePublisher(User $registrar, bool $emergency): void
+    /**
+     * @param  Collection<int, CandidateScheduleRow>  $candidateRows
+     */
+    private function assertPublishable(ScheduleGenerationRun $run, Collection $candidateRows): void
     {
-        if ($emergency) {
-            throw new AuthorizationException('Emergency schedule publication is outside the active scheduling workflow.');
+        if (! in_array($run->status, ScheduleGenerationRun::publishableStatuses(), true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Only an under-review schedule run can be published.',
+            ]);
         }
 
-        if ($registrar->can('manage-schedules')) {
-            return;
+        if ($candidateRows->isEmpty()) {
+            throw ValidationException::withMessages([
+                'candidate_schedule_rows' => 'A schedule run must contain reviewed candidate rows before publication.',
+            ]);
         }
 
-        throw new AuthorizationException('Only authorized Registrar staff can publish reviewed schedule runs.');
+        $blockingCandidate = $candidateRows->first(
+            fn (CandidateScheduleRow $candidateRow): bool => ! $candidateRow->isPublishableFor($run),
+        );
+
+        if ($blockingCandidate instanceof CandidateScheduleRow) {
+            throw ValidationException::withMessages([
+                'candidate_schedule_rows' => 'Resolve all candidate conflicts, blocking violations, and invalid assignment fields before publication.',
+            ]);
+        }
     }
 
     private function normalizedNote(?string $note): ?string
@@ -97,66 +135,22 @@ class SchedulePublishService
             return null;
         }
 
-        $note = trim($note);
+        $note = Str::of($note)->trim()->toString();
+
+        if (Str::length($note) > 2000) {
+            throw ValidationException::withMessages([
+                'publication_note' => 'The publication note may not be greater than 2,000 characters.',
+            ]);
+        }
 
         return $note === '' ? null : $note;
     }
 
-    private function supersedePriorPublishedRuns(ScheduleGenerationRun $run, CarbonImmutable $timestamp): void
-    {
-        ScheduleGenerationRun::query()
-            ->where('term_id', $run->term_id)
-            ->where('status', ScheduleGenerationRun::StatusPublished)
-            ->whereKeyNot($run->getKey())
-            ->lockForUpdate()
-            ->update([
-                'status' => ScheduleGenerationRun::StatusSuperseded,
-                'updated_at' => $timestamp,
-            ]);
-    }
-
-    private function createSectionMeeting(
-        ScheduleGenerationRun $run,
-        CandidateScheduleRow $draftRow,
-        User $registrar,
-        CarbonImmutable $timestamp,
-    ): void {
-        $payload = $this->assignmentService->prepareForCreate([
-            'term_id' => $run->term_id,
-            'section_id' => $draftRow->section_id,
-            'section_delivery_group_id' => $draftRow->section_delivery_group_id,
-            'subject_id' => $draftRow->subject_id,
-            'faculty_id' => $draftRow->faculty_id,
-            'room' => $draftRow->room,
-            'day_of_week' => $draftRow->day_of_week,
-            'starts_at' => $draftRow->starts_at,
-            'ends_at' => $draftRow->ends_at,
-            'modality' => $draftRow->modality,
-        ], $registrar, $timestamp);
-
-        $sectionMeeting = SectionMeeting::query()->create([
-            ...$payload,
-            'schedule_generation_run_id' => $run->id,
-        ]);
-
-        DB::table('section_teacher')
-            ->where('section_id', $sectionMeeting->section_id)
-            ->where('subject_id', $sectionMeeting->subject_id)
-            ->delete();
-
-        DB::table('section_teacher')->insert([
-            'section_id' => $sectionMeeting->section_id,
-            'user_id' => $sectionMeeting->faculty_id,
-            'subject_id' => $sectionMeeting->subject_id,
-            'created_at' => $timestamp->toDateTimeString(),
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
-    }
-
     private function recordActivity(
         ScheduleGenerationRun $run,
-        User $registrar,
+        User $publisher,
         CarbonImmutable $timestamp,
+        int $publicationVersion,
         int $publishedMeetings,
     ): void {
         DB::table('activity_log')->insert([
@@ -166,13 +160,13 @@ class SchedulePublishService
             'subject_id' => $run->id,
             'event' => 'schedule_generation_run_published',
             'causer_type' => User::class,
-            'causer_id' => $registrar->id,
+            'causer_id' => $publisher->id,
             'properties' => json_encode([
                 'term_id' => $run->term_id,
                 'status_after' => ScheduleGenerationRun::StatusPublished,
-                'emergency_published' => false,
+                'publication_version' => $publicationVersion,
                 'published_meetings' => $publishedMeetings,
-            ], JSON_UNESCAPED_SLASHES),
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'created_at' => $timestamp->toDateTimeString(),
             'updated_at' => $timestamp->toDateTimeString(),
         ]);

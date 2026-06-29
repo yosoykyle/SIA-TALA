@@ -4,6 +4,7 @@ namespace App\Filament\Resources\SectionMeetings\Schemas;
 
 use App\Models\SectionMeeting;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class SectionMeetingInfolist
@@ -12,63 +13,57 @@ class SectionMeetingInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('term.term_name')
-                    ->label('Term'),
-                TextEntry::make('section.name')
-                    ->label('Section'),
-                TextEntry::make('sectionDeliveryGroup.name')
-                    ->label('Delivery Group')
-                    ->placeholder('-'),
-                TextEntry::make('subject.code')
-                    ->label('Subject'),
-                TextEntry::make('subject.description')
-                    ->label('Subject Description')
-                    ->placeholder('-'),
-                TextEntry::make('faculty.name')
-                    ->label('Faculty')
-                    ->placeholder('-'),
-                TextEntry::make('room')
-                    ->placeholder('-'),
-                TextEntry::make('day_of_week')
-                    ->label('Day')
-                    ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-'))
-                    ->placeholder('-'),
-                TextEntry::make('starts_at')
-                    ->label('Start')
-                    ->time()
-                    ->placeholder('-'),
-                TextEntry::make('ends_at')
-                    ->label('End')
-                    ->time()
-                    ->placeholder('-'),
-                TextEntry::make('modality')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionMeeting::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextEntry::make('scheduleGenerationRun.id')
-                    ->label('Draft Run')
-                    ->placeholder('Manual assignment'),
-                TextEntry::make('committer.name')
-                    ->label('Committed By'),
-                TextEntry::make('committed_at')
-                    ->label('Committed At')
-                    ->dateTime(),
-                TextEntry::make('availability_override_reason')
-                    ->label('Availability Override Reason')
-                    ->placeholder('-')
-                    ->columnSpanFull(),
-                TextEntry::make('availabilityOverrideAuthor.name')
-                    ->label('Availability Override By')
-                    ->placeholder('-'),
-                TextEntry::make('availability_override_at')
-                    ->label('Availability Override At')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
+                Section::make('Published Assignment')
+                    ->schema([
+                        TextEntry::make('scheduleRun.term.label')
+                            ->label('Term'),
+                        TextEntry::make('scheduleRun.publication_version')
+                            ->label('Publication Version')
+                            ->numeric(),
+                        TextEntry::make('schedulingDemand.demand_key')
+                            ->label('Scheduling Demand'),
+                        TextEntry::make('schedulingDemand.sectionDeliveryGroup.section.code')
+                            ->label('Section')
+                            ->placeholder('-'),
+                        TextEntry::make('schedulingDemand.courseComponent.component_type')
+                            ->label('Component')
+                            ->badge()
+                            ->placeholder('-'),
+                        TextEntry::make('meeting_sequence')
+                            ->label('Meeting Sequence')
+                            ->numeric(),
+                        TextEntry::make('faculty.name')
+                            ->label('Faculty'),
+                        TextEntry::make('room.code')
+                            ->label('Room')
+                            ->placeholder('-'),
+                        TextEntry::make('day_of_week')
+                            ->label('Day')
+                            ->formatStateUsing(fn (int $state): string => SectionMeeting::dayOptions()[$state] ?? '-'),
+                        TextEntry::make('starts_at')
+                            ->label('Start')
+                            ->time(),
+                        TextEntry::make('ends_at')
+                            ->label('End')
+                            ->time(),
+                        TextEntry::make('modality')
+                            ->badge()
+                            ->formatStateUsing(fn (string $state): string => SectionMeeting::modalityOptions()[$state] ?? str($state)->headline()->toString()),
+                        TextEntry::make('state')
+                            ->badge()
+                            ->color('success'),
+                        TextEntry::make('published_at')
+                            ->label('Published At')
+                            ->dateTime(),
+                        TextEntry::make('scheduleRun.publisher.name')
+                            ->label('Published By')
+                            ->placeholder('-'),
+                        TextEntry::make('scheduleRun.publication_note')
+                            ->label('Publication Note')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ]);
     }
 }

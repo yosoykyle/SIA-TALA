@@ -38,6 +38,14 @@ class ScheduleGenerationRunPolicy
         ]);
     }
 
+    public function publish(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ]);
+    }
+
     /**
      * Determine whether the user can update the model.
      */

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use LogicException;
 
 class CandidateScheduleRow extends Model
 {
@@ -59,6 +60,68 @@ class CandidateScheduleRow extends Model
         ];
     }
 
+    public function isCommittable(): bool
+    {
+        return in_array($this->status, self::committableStatuses(), true)
+            && ! $this->hasBlockingViolations();
+    }
+
+    public function isPublishableFor(ScheduleGenerationRun $run): bool
+    {
+        if (! $this->isCommittable()) {
+            return false;
+        }
+
+        $demand = $this->publicationDemand();
+        $termOffering = $demand->getRelation('termOffering');
+
+        if (! $termOffering instanceof TermOffering
+            || (int) $termOffering->term_id !== (int) $run->term_id) {
+            return false;
+        }
+
+        return $demand->modality !== TermOffering::ModalityFaceToFace
+            || $this->room_id !== null;
+    }
+
+    public function publicationModality(): string
+    {
+        return (string) $this->publicationDemand()->modality;
+    }
+
+    private function publicationDemand(): SchedulingDemand
+    {
+        $this->loadMissing('schedulingDemand.termOffering');
+        $demand = $this->getRelation('schedulingDemand');
+
+        if (! $demand instanceof SchedulingDemand) {
+            throw new LogicException('A candidate schedule row must reference a scheduling demand.');
+        }
+
+        return $demand;
+    }
+
+    public function hasWarnings(): bool
+    {
+        return $this->status === self::StatusWarning || $this->payloadIsNotEmpty($this->warnings);
+    }
+
+    public function hasBlockingViolations(): bool
+    {
+        return $this->payloadIsNotEmpty($this->violations);
+    }
+
+    private function payloadIsNotEmpty(mixed $payload): bool
+    {
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $items = $payload['items'] ?? $payload;
+
+        return is_array($items) && $items !== [];
+    }
+
     public function scheduleRun(): BelongsTo
     {
         return $this->belongsTo(ScheduleGenerationRun::class, 'schedule_run_id');
@@ -69,6 +132,7 @@ class CandidateScheduleRow extends Model
         return $this->scheduleRun();
     }
 
+    /** @return BelongsTo<SchedulingDemand, $this> */
     public function schedulingDemand(): BelongsTo
     {
         return $this->belongsTo(SchedulingDemand::class);

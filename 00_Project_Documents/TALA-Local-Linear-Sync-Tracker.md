@@ -29,6 +29,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-63 | Done locally; pending Linear sync | Cloud Run Solver Demand Contract Alignment |
 | TAL-64 | Done locally; pending Linear sync | Cloud Run Solver Deployment Path Review |
 | TAL-65 | Done locally; pending Linear sync | Laravel Cloud Run Solver Integration Verification |
+| TAL-66 | Done locally; pending Linear sync | Candidate Schedule Approval and Publication |
 
 ## Compact Synced History
 

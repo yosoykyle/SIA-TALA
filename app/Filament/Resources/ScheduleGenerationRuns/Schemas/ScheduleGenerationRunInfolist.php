@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
-use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -47,14 +46,33 @@ class ScheduleGenerationRunInfolist
                             ->numeric(),
                         TextEntry::make('candidate_row_conflicts')
                             ->label('Conflicts')
-                            ->state(fn (ScheduleGenerationRun $record): int => $record->candidateRows()->where('status', CandidateScheduleRow::StatusConflict)->count())
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['conflicts'])
                             ->badge()
                             ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
                         TextEntry::make('candidate_row_warnings')
                             ->label('Warnings')
-                            ->state(fn (ScheduleGenerationRun $record): int => $record->candidateRows()->where('status', CandidateScheduleRow::StatusWarning)->count())
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->publicationSummary()['warnings'])
                             ->badge()
                             ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                    ])
+                    ->columns(3),
+                Section::make('Publication')
+                    ->schema([
+                        TextEntry::make('publication_version')
+                            ->label('Version')
+                            ->numeric()
+                            ->placeholder('-'),
+                        TextEntry::make('publisher.name')
+                            ->label('Published By')
+                            ->placeholder('-'),
+                        TextEntry::make('published_at')
+                            ->label('Published At')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('publication_note')
+                            ->label('Publication Note')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
                     ])
                     ->columns(3),
                 Section::make('Diagnostics')

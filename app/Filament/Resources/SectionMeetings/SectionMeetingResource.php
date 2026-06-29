@@ -4,15 +4,16 @@ namespace App\Filament\Resources\SectionMeetings;
 
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\SectionMeetings\Pages\ViewSectionMeeting;
-use App\Filament\Resources\SectionMeetings\Schemas\SectionMeetingForm;
 use App\Filament\Resources\SectionMeetings\Schemas\SectionMeetingInfolist;
 use App\Filament\Resources\SectionMeetings\Tables\SectionMeetingsTable;
 use App\Models\SectionMeeting;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class SectionMeetingResource extends Resource
@@ -29,22 +30,25 @@ class SectionMeetingResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        $user = auth()->user();
-
-        if ($user?->hasRole('faculty')) {
-            return 'Faculty';
-        }
-
-        if ($user?->hasRole('academic-head')) {
+        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
             return 'Academic Head';
         }
 
         return 'Registrar';
     }
 
-    public static function form(Schema $schema): Schema
+    public static function shouldRegisterNavigation(): bool
     {
-        return SectionMeetingForm::configure($schema);
+        return auth()->user()?->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleSystemSuperAdmin,
+        ]) ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
     }
 
     public static function infolist(Schema $schema): Schema
@@ -57,11 +61,12 @@ class SectionMeetingResource extends Resource
         return SectionMeetingsTable::configure($table);
     }
 
-    public static function getRelations(): array
+    /**
+     * @return Builder<SectionMeeting>
+     */
+    public static function getEloquentQuery(): Builder
     {
-        return [
-            //
-        ];
+        return SectionMeeting::query()->activeOfficial();
     }
 
     public static function getPages(): array

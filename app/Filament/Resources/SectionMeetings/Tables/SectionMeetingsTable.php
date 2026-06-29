@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\SectionMeetings\Tables;
 
 use App\Models\SectionMeeting;
-use App\Models\User;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -14,73 +13,60 @@ class SectionMeetingsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(function ($query) {
-                $query->activeOfficial()
-                    ->with(['term', 'section', 'sectionDeliveryGroup', 'subject', 'faculty', 'committer']);
-
-                $user = auth()->user();
-
-                if ($user instanceof User
-                    && $user->hasRole('faculty')
-                    && ! $user->can('manage-schedules')
-                    && ! $user->can('view-global-records')) {
-                    $query->where(function ($facultyQuery) use ($user): void {
-                        $facultyQuery
-                            ->where('faculty_id', $user->id)
-                            ->orWhereExists(function ($sectionTeacherQuery) use ($user): void {
-                                $sectionTeacherQuery
-                                    ->selectRaw('1')
-                                    ->from('section_teacher')
-                                    ->whereColumn('section_teacher.section_id', 'section_meetings.section_id')
-                                    ->whereColumn('section_teacher.subject_id', 'section_meetings.subject_id')
-                                    ->where('section_teacher.user_id', $user->id);
-                            });
-                    });
-                }
-
-                return $query;
-            })
+            ->modifyQueryUsing(fn ($query) => $query->with([
+                'scheduleRun.term',
+                'schedulingDemand.courseComponent',
+                'schedulingDemand.sectionDeliveryGroup.section',
+                'faculty',
+                'room',
+            ]))
             ->columns([
-                TextColumn::make('term.term_name')
+                TextColumn::make('scheduleRun.term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('section.name')
+                TextColumn::make('scheduleRun.publication_version')
+                    ->label('Version')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('schedulingDemand.demand_key')
+                    ->label('Demand')
+                    ->searchable()
+                    ->wrap(),
+                TextColumn::make('schedulingDemand.sectionDeliveryGroup.section.code')
                     ->label('Section')
-                    ->searchable(),
-                TextColumn::make('sectionDeliveryGroup.name')
-                    ->label('Delivery Group')
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('subject.code')
-                    ->label('Subject')
-                    ->searchable(),
+                    ->searchable()
+                    ->placeholder('-'),
+                TextColumn::make('schedulingDemand.courseComponent.component_type')
+                    ->label('Component')
+                    ->badge()
+                    ->placeholder('-'),
+                TextColumn::make('meeting_sequence')
+                    ->label('Meeting')
+                    ->numeric(),
                 TextColumn::make('faculty.name')
                     ->label('Faculty')
-                    ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('room')
-                    ->placeholder('-')
-                    ->searchable(),
+                TextColumn::make('room.code')
+                    ->label('Room')
+                    ->searchable()
+                    ->placeholder('-'),
                 TextColumn::make('day_of_week')
                     ->label('Day')
-                    ->formatStateUsing(fn (?int $state): string => $state === null ? '-' : (SectionMeeting::dayOptions()[$state] ?? '-')),
+                    ->formatStateUsing(fn (int $state): string => SectionMeeting::dayOptions()[$state] ?? '-'),
                 TextColumn::make('starts_at')
                     ->label('Start'),
                 TextColumn::make('ends_at')
                     ->label('End'),
                 TextColumn::make('modality')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionMeeting::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextColumn::make('committer.name')
-                    ->label('Committed By')
-                    ->placeholder('-')
-                    ->toggleable(),
-                TextColumn::make('committed_at')
+                    ->formatStateUsing(fn (string $state): string => SectionMeeting::modalityOptions()[$state] ?? str($state)->headline()->toString()),
+                TextColumn::make('published_at')
+                    ->label('Published At')
                     ->dateTime()
-                    ->sortable()
-                    ->toggleable(),
+                    ->sortable(),
             ])
+            ->defaultSort('published_at', 'desc')
             ->filters([
                 SelectFilter::make('modality')
                     ->options(SectionMeeting::modalityOptions()),

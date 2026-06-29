@@ -104,18 +104,44 @@ class ScheduleGenerationRun extends Model
     }
 
     /**
-     * Publication remains out of the TAL-62 surface.
-     *
      * @return list<string>
      */
     public static function publishableStatuses(): array
     {
-        return [];
+        return [self::StatusUnderReview];
     }
 
     public function canBePublished(): bool
     {
-        return false;
+        if (! in_array($this->status, self::publishableStatuses(), true)) {
+            return false;
+        }
+
+        $summary = $this->publicationSummary();
+
+        return $summary['assignments'] > 0 && $summary['conflicts'] === 0;
+    }
+
+    /**
+     * @return array{assignments:int,warnings:int,conflicts:int}
+     */
+    public function publicationSummary(): array
+    {
+        $candidateRows = $this->relationLoaded('candidateRows')
+            ? $this->candidateRows
+            : $this->candidateRows()->with('schedulingDemand.termOffering')->get();
+
+        $candidateRows->loadMissing('schedulingDemand.termOffering');
+
+        return [
+            'assignments' => $candidateRows->count(),
+            'warnings' => $candidateRows->filter(
+                fn (CandidateScheduleRow $candidateRow): bool => $candidateRow->hasWarnings(),
+            )->count(),
+            'conflicts' => $candidateRows->reject(
+                fn (CandidateScheduleRow $candidateRow): bool => $candidateRow->isPublishableFor($this),
+            )->count(),
+        ];
     }
 
     public function isPublished(): bool
@@ -138,16 +164,19 @@ class ScheduleGenerationRun extends Model
         return $this->belongsTo(User::class, 'published_by');
     }
 
+    /** @return HasMany<CandidateScheduleRow, $this> */
     public function candidateRows(): HasMany
     {
         return $this->hasMany(CandidateScheduleRow::class, 'schedule_run_id');
     }
 
+    /** @return HasMany<CandidateScheduleRow, $this> */
     public function draftRows(): HasMany
     {
         return $this->candidateRows();
     }
 
+    /** @return HasMany<SectionMeeting, $this> */
     public function sectionMeetings(): HasMany
     {
         return $this->hasMany(SectionMeeting::class, 'schedule_run_id');

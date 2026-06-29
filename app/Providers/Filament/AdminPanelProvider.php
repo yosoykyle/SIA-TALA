@@ -6,6 +6,7 @@ use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
+use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Users\UserResource;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
@@ -64,6 +65,7 @@ class AdminPanelProvider extends PanelProvider
                 TermOfferingResource::class,
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,
+                SectionMeetingResource::class,
             ])
             ->pages([
                 Dashboard::class,
