@@ -1,132 +1,234 @@
 {
-  "schema_version": 3,
+  "contract_version": "tal61-demand-v1",
+  "captured_at": "2026-06-29T08:00:00+08:00",
   "run_metadata": {
-    "run_id": 1,
+    "solver_run_id": 1,
     "term_id": 1,
+    "requested_by": 10,
     "timezone": "Asia/Manila"
   },
+  "term": {
+    "term_id": 1,
+    "academic_year_id": 1,
+    "type": "FIRST_SEMESTER",
+    "label": "First Semester 2026-2027",
+    "starts_on": "2026-08-03",
+    "ends_on": "2026-12-18",
+    "scheduling_slot_minutes": 30,
+    "default_max_units": "21.00"
+  },
+  "time_slots": [
+    {
+      "time_slot_id": 1,
+      "time_block_key": "D1-0800",
+      "day_of_week": 1,
+      "starts_at": "08:00:00",
+      "ends_at": "08:30:00",
+      "duration_minutes": 30
+    },
+    {
+      "time_slot_id": 2,
+      "time_block_key": "D1-0830",
+      "day_of_week": 1,
+      "starts_at": "08:30:00",
+      "ends_at": "09:00:00",
+      "duration_minutes": 30
+    },
+    {
+      "time_slot_id": 3,
+      "time_block_key": "D1-0900",
+      "day_of_week": 1,
+      "starts_at": "09:00:00",
+      "ends_at": "09:30:00",
+      "duration_minutes": 30
+    },
+    {
+      "time_slot_id": 4,
+      "time_block_key": "D1-0930",
+      "day_of_week": 1,
+      "starts_at": "09:30:00",
+      "ends_at": "10:00:00",
+      "duration_minutes": 30
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": 100,
+      "course_id": 100,
+      "course_code": "IT101"
+    },
+    {
+      "subject_id": 101,
+      "course_id": 101,
+      "course_code": "IT102"
+    }
+  ],
+  "scheduling_demands": [
+    {
+      "scheduling_demand_id": 5001,
+      "demand_key": "term-offering:300:delivery-group:110:component:7001",
+      "term_offering_id": 300,
+      "section_id": 10,
+      "section_delivery_group_id": 110,
+      "course_id": 100,
+      "course_code": "IT101",
+      "course_component_id": 7001,
+      "component_type": "LECTURE",
+      "required_duration_minutes": 60,
+      "meeting_count": 1,
+      "modality": "FACE_TO_FACE",
+      "expected_count": 30,
+      "section_capacity": 30,
+      "room_type_requirement": "LECTURE_ROOM",
+      "room_required": true,
+      "same_faculty_required": false,
+      "requires_consecutive_block": true,
+      "eligible_faculty_user_ids": [200],
+      "faculty_load_options": [
+        {
+          "faculty_user_id": 200,
+          "qualification_id": 9001,
+          "term_load_override_id": null,
+          "max_allowed_units": "24.00"
+        }
+      ],
+      "fixed_faculty_user_id": null,
+      "fixed_room_id": null,
+      "fixed_day_of_week": null,
+      "fixed_start_time": null,
+      "source_snapshot": {
+        "weekly_contact_hours": "1.00",
+        "active_scheduling_window_count": 1
+      }
+    },
+    {
+      "scheduling_demand_id": 5002,
+      "demand_key": "term-offering:301:delivery-group:110:component:7002",
+      "term_offering_id": 301,
+      "section_id": 10,
+      "section_delivery_group_id": 110,
+      "course_id": 101,
+      "course_code": "IT102",
+      "course_component_id": 7002,
+      "component_type": "LECTURE",
+      "required_duration_minutes": 60,
+      "meeting_count": 1,
+      "modality": "FACE_TO_FACE",
+      "expected_count": 30,
+      "section_capacity": 30,
+      "room_type_requirement": "LECTURE_ROOM",
+      "room_required": true,
+      "same_faculty_required": false,
+      "requires_consecutive_block": true,
+      "eligible_faculty_user_ids": [201],
+      "faculty_load_options": [
+        {
+          "faculty_user_id": 201,
+          "qualification_id": 9002,
+          "term_load_override_id": null,
+          "max_allowed_units": "24.00"
+        }
+      ],
+      "fixed_faculty_user_id": null,
+      "fixed_room_id": null,
+      "fixed_day_of_week": null,
+      "fixed_start_time": null,
+      "source_snapshot": {
+        "weekly_contact_hours": "1.00",
+        "active_scheduling_window_count": 1
+      }
+    }
+  ],
   "sections": [
     {
       "section_id": 10,
-      "section_name": "BSIT 1A",
-      "program_id": 1,
-      "program_code": "BSIT",
-      "curriculum_id": 1,
-      "year_level": "1st Year",
-      "curriculum_period": "1st Semester",
-      "modality": "on_site",
-      "max_seats": 30,
-      "enrolled_count": 25,
-      "available_seats": 5,
-      "fixed_room": "R-101",
-      "delivery_group_ids": [110]
+      "section_capacity": 30
     }
   ],
   "section_delivery_groups": [
     {
       "section_delivery_group_id": 110,
       "section_id": 10,
-      "delivery_group_name": "Primary Face-to-Face",
-      "modality": "on_site",
-      "capacity": 30,
-      "assigned_count": 25,
-      "available_seats": 5,
-      "room_required": true,
-      "fixed_room": "R-101",
-      "delivery_pattern_id": 1,
-      "delivery_pattern_code": "F2F",
-      "delivery_pattern_version": 1,
-      "delivery_pattern_allowed_days": [1, 2, 3, 4, 5, 6],
-      "delivery_pattern_subject_routing": "same_subject_set",
-      "delivery_pattern_enforcement_level": "strict"
+      "expected_count": 30,
+      "modality": "FACE_TO_FACE"
     }
   ],
-  "curriculum_subject_demand": [
+  "rooms": [
     {
-      "demand_key": "10:110:100",
-      "section_id": 10,
-      "section_delivery_group_id": 110,
-      "subject_id": 100,
-      "subject_code": "IT101",
-      "units": "3.00",
-      "weekly_contact_hours": "1.00",
-      "lec_hours": "1.00",
-      "modality": "on_site",
-      "room_required": true,
-      "fixed_room": "R-101"
-    },
-    {
-      "demand_key": "10:110:101",
-      "section_id": 10,
-      "section_delivery_group_id": 110,
-      "subject_id": 101,
-      "subject_code": "IT102",
-      "units": "3.00",
-      "weekly_contact_hours": "1.00",
-      "lec_hours": "1.00",
-      "modality": "on_site",
-      "room_required": true,
-      "fixed_room": "R-101"
+      "room_id": 301,
+      "code": "R-101",
+      "name": "Room 101",
+      "room_type": "LECTURE_ROOM",
+      "capacity": 40
     }
   ],
-  "faculty_eligibility": [
+  "faculty": [
     {
       "faculty_id": 200,
-      "subject_id": 100,
-      "scope": "default",
-      "priority": 1
+      "max_allowed_units": "24.00"
     },
     {
       "faculty_id": 201,
-      "subject_id": 101,
-      "scope": "default",
-      "priority": 1
+      "max_allowed_units": "24.00"
     }
   ],
-  "faculty_availability": [
+  "faculty_qualifications": [
     {
-      "faculty_id": 200,
-      "status": "locked",
-      "version": 1,
-      "windows": [
-        {
-          "day_of_week": 1,
-          "starts_at": "08:00:00",
-          "ends_at": "12:00:00"
-        }
-      ]
+      "scheduling_demand_id": 5001,
+      "course_id": 100,
+      "faculty_user_id": 200,
+      "qualification_id": 9001,
+      "term_load_override_id": null,
+      "max_allowed_units": "24.00"
     },
     {
-      "faculty_id": 201,
-      "status": "locked",
-      "version": 1,
-      "windows": [
-        {
-          "day_of_week": 1,
-          "starts_at": "08:00:00",
-          "ends_at": "12:00:00"
-        }
-      ]
+      "scheduling_demand_id": 5002,
+      "course_id": 101,
+      "faculty_user_id": 201,
+      "qualification_id": 9002,
+      "term_load_override_id": null,
+      "max_allowed_units": "24.00"
     }
   ],
-  "rooms_catalog": [
+  "faculty_availability": [],
+  "term_offerings": [
     {
-      "room_code": "R-101",
-      "source": "section_delivery_groups.room",
-      "section_ids": [10],
-      "section_delivery_group_ids": [110],
-      "max_group_capacity": 30,
-      "modalities": ["on_site"]
+      "term_offering_id": 300,
+      "modality": "FACE_TO_FACE"
+    },
+    {
+      "term_offering_id": 301,
+      "modality": "FACE_TO_FACE"
     }
   ],
-  "existing_commitments": [],
-  "policy_constraints": {
-    "timezone": "Asia/Manila",
+  "student_cohort_groups": [
+    {
+      "cohort_or_student_group_id": 110,
+      "section_delivery_group_id": 110,
+      "expected_count": 30
+    }
+  ],
+  "calendar_blocks": [],
+  "hard_constraints": [
+    "assign_every_ready_scheduling_demand_once",
+    "faculty_no_overlap",
+    "room_no_overlap",
+    "section_delivery_group_no_overlap",
+    "respect_fixed_assignments",
+    "respect_calendar_blocks",
+    "respect_room_capacity_and_type",
+    "respect_faculty_qualification_and_load"
+  ],
+  "soft_constraints": [
+    "prefer_earlier_time_blocks",
+    "reduce_faculty_idle_gaps",
+    "balance_faculty_load",
+    "use_rooms_efficiently"
+  ],
+  "fixed_assignments": [],
+  "optimization_settings": {
     "slot_granularity_minutes": 30,
-    "mandatory_faculty_assignment": true,
-    "max_section_seats": 30,
-    "section_capacity_mode": "editable_bounded_max_30_not_below_enrolled_count",
-    "room_catalog_mode": "section_delivery_groups.room fixed-room catalog",
-    "delivery_group_required": true
+    "candidate_schedule_mode": "provisional_only",
+    "publish_after_solver": false
   }
 }

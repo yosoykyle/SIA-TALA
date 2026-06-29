@@ -7,7 +7,9 @@ It is a deterministic Google OR-Tools CP-SAT service. It is not ML and does not 
 ## Runtime Contract
 
 - `GET /health`: health probe.
-- `POST /solve`: accepts the Laravel solver snapshot JSON and returns solver result JSON.
+- `POST /solve`: accepts the Laravel `tal61-demand-v1` solver snapshot JSON and returns solver result JSON.
+- Solver input uses `scheduling_demands` as the schedulable unit.
+- Solver output uses `assignments` keyed by `scheduling_demand_id` for TAL-62 candidate ingestion.
 - The container listens on the `PORT` environment variable, as required by Cloud Run.
 - Default local port is `8080`.
 - Default solver timeout is controlled by `SOLVER_TIMEOUT_SECONDS`, capped in code at 300 seconds.
@@ -68,9 +70,11 @@ Expected sample result:
 - `solver_status`: `optimal`
 - `assigned_count`: `2`
 - `unassigned_count`: `0`
-- `draft_rows`: 2 rows with `status = ok`
+- `assignments`: 2 rows with `assignment_status = ok` and `scheduling_demand_id`
 
 ## Google Cloud Deploy Path
+
+Deployment is a manual operator action. Do not run these commands from an automated agent session without the user present.
 
 Current project values from the rescue setup:
 
@@ -126,11 +130,13 @@ gcloud artifacts repositories describe tala-containers \
 
 ```bash
 gcloud config set project tala-dev-ocr-3s
-IMAGE="asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:rescued-poc"
+IMAGE="asia-southeast1-docker.pkg.dev/tala-dev-ocr-3s/tala-containers/tala-scheduler-solver:tal-63-$(date +%Y%m%d-%H%M)"
 
 gcloud builds submit \
-  --tag "$IMAGE" \
-  --project=tala-dev-ocr-3s
+  --config cloudbuild.yaml \
+  --substitutions _IMAGE="$IMAGE" \
+  --project=tala-dev-ocr-3s \
+  .
 
 gcloud run deploy tala-scheduler-solver \
   --image "$IMAGE" \
@@ -140,13 +146,17 @@ gcloud run deploy tala-scheduler-solver \
   --no-allow-unauthenticated \
   --timeout 300 \
   --memory 1Gi \
-  --cpu 1
+  --cpu 1 \
+  --set-env-vars SOLVER_TIMEOUT_SECONDS=300
 ```
 
 Test from Cloud Shell with an identity token:
 
 ```bash
-SERVICE_URL="https://tala-scheduler-solver-783866300038.asia-southeast1.run.app"
+SERVICE_URL="$(gcloud run services describe tala-scheduler-solver \
+  --region asia-southeast1 \
+  --project tala-dev-ocr-3s \
+  --format='value(status.url)')"
 
 curl -s -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences=$SERVICE_URL)" \
   "$SERVICE_URL/health"
@@ -154,7 +164,8 @@ curl -s -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences
 curl -s -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences=$SERVICE_URL)" \
   -H "Content-Type: application/json" \
   --data-binary @samples/minimal_snapshot.json \
-  "$SERVICE_URL/solve"
+  "$SERVICE_URL/solve" \
+  | python3 -m json.tool
 ```
 
 ### Deploy with local Docker + gcloud
@@ -208,8 +219,8 @@ Do not switch Laravel from `local_stub` to `cloud_run` until the local Docker te
 
 ## Current Rescue Limitations
 
-- This POC schedules each section-delivery-group subject demand as one contiguous block using `weekly_contact_hours`, with legacy `lec_hours` or `units` only as fallback duration inputs.
+- This POC schedules each `Scheduling Demand` as one contiguous block using `required_duration_minutes`, with `source_snapshot.weekly_contact_hours` only as a fallback.
 - It does not yet split lectures or laboratories across multiple weekly meetings.
-- It uses `section_delivery_groups.fixed_room` / `room` as the rescue fixed-room catalog for room-required delivery groups.
-- It emits unassigned curriculum demand as `conflict` draft rows so Laravel can store/review them safely.
+- It uses the TAL-61 `rooms` payload with `room_type_requirement`, expected count, and fixed room IDs for room-required demands.
+- It emits unassigned Scheduling Demand rows as `conflict` assignments so Laravel can store/review them safely.
 - Laravel remains the final validator, review surface, commit authority, and publish authority.
