@@ -18,6 +18,7 @@ class CreatePayMongoSandboxCheckout extends Command
     protected $signature = 'integrations:paymongo-sandbox-checkout
         {--amount=2000.00 : Test checkout amount in PHP}
         {--student-profile-id= : Existing student_profiles.id to attach the payment attempt to}
+        {--assessment-id= : Existing active assessments.id to attach the payment attempt to}
         {--success-url= : PayMongo success redirect URL}
         {--cancel-url= : PayMongo cancel redirect URL}
         {--description=TALA sandbox checkout : Checkout description shown to PayMongo}';
@@ -40,6 +41,9 @@ class CreatePayMongoSandboxCheckout extends Command
             studentProfileId: $studentProfileId,
             amount: $amount,
             description: (string) $this->option('description'),
+            assessmentId: $this->option('assessment-id') !== null && trim((string) $this->option('assessment-id')) !== ''
+                ? (int) $this->option('assessment-id')
+                : null,
             channel: 'paymongo',
             successUrl: $this->redirectUrl('success-url', '/payments/success'),
             cancelUrl: $this->redirectUrl('cancel-url', '/payments/cancel'),

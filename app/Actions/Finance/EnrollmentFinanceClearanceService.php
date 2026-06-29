@@ -5,8 +5,8 @@ namespace App\Actions\Finance;
 use App\Actions\Enrollment\AdmissionCapacityReservationService;
 use App\Actions\Enrollment\AdmissionFinanceReadinessGateService;
 use App\Actions\Enrollment\StudentEnrollmentService;
+use App\Models\Assessment;
 use App\Models\Enrollment;
-use App\Models\FeeTemplate;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\StudentProfile;
@@ -42,14 +42,15 @@ class EnrollmentFinanceClearanceService
             $this->admissionReadinessGate->assertReadyForFinanceClearance($enrollment, $studentProfile, $timestamp);
 
             $payment = Payment::query()
-                ->where('enrollment_id', $enrollment->id)
-                ->where('status', 'confirmed')
-                ->latest('confirmed_at')
+                ->whereHas('ledgerEntries', fn ($query) => $query
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('direction', LedgerEntry::DirectionPayment)
+                    ->where('state', 'posted'))
+                ->where('evidence_status', 'verified')
+                ->latest('verified_at')
                 ->latest('id')
                 ->first();
-            $ledgerEntry = $payment instanceof Payment && $payment->ledger_entry_id !== null
-                ? LedgerEntry::query()->find((int) $payment->ledger_entry_id)
-                : null;
+            $ledgerEntry = $payment instanceof Payment ? $payment->ledgerEntry : null;
 
             $this->capacityReservations->secureForFinanceClearedEnrollment(
                 enrollment: $enrollment,
@@ -79,30 +80,55 @@ class EnrollmentFinanceClearanceService
 
     private function minimumRequiredPayment(Enrollment $enrollment, StudentProfile $studentProfile, string $netAssessment): string
     {
-        $feeTemplate = $this->feeTemplateFromAssessment($enrollment)
-            ?? $this->resolveFeeTemplate($enrollment, $studentProfile);
-        $percentage = $feeTemplate instanceof FeeTemplate
-            ? (string) $feeTemplate->minimum_downpayment_percentage
-            : '20.00';
+        $requiredDownpayment = Assessment::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('state', Assessment::StateActive)
+            ->latest('version')
+            ->latest('id')
+            ->value('required_downpayment');
 
-        return $this->money->multiplyPercent($netAssessment, $percentage);
+        if ($requiredDownpayment !== null && $this->money->greaterThanZero((string) $requiredDownpayment)) {
+            return $this->money->normalize((string) $requiredDownpayment);
+        }
+
+        return $this->money->multiplyPercent($netAssessment, '20.00');
     }
 
     private function netAssessment(Enrollment $enrollment): string
     {
-        $sum = LedgerEntry::query()
+        $entries = LedgerEntry::query()
             ->where('enrollment_id', $enrollment->id)
-            ->whereIn('entry_type', ['assessment', 'discount'])
-            ->sum('amount');
+            ->where('state', 'posted')
+            ->whereIn('direction', [
+                LedgerEntry::DirectionCharge,
+                LedgerEntry::DirectionPenalty,
+                LedgerEntry::DirectionDiscount,
+                LedgerEntry::DirectionScholarship,
+                LedgerEntry::DirectionWaiver,
+            ])
+            ->get(['direction', 'amount']);
 
-        return $this->money->normalize((string) $sum);
+        $balance = '0.00';
+
+        foreach ($entries as $entry) {
+            $amount = (string) $entry->amount;
+            $balance = match ($entry->direction) {
+                LedgerEntry::DirectionDiscount,
+                LedgerEntry::DirectionScholarship,
+                LedgerEntry::DirectionWaiver => $this->money->subtract($balance, $amount),
+                default => $this->money->add($balance, $amount),
+            };
+        }
+
+        return $balance;
     }
 
     private function totalConfirmedPayments(Enrollment $enrollment): string
     {
-        $sum = Payment::query()
+        $sum = LedgerEntry::query()
             ->where('enrollment_id', $enrollment->id)
-            ->where('status', 'confirmed')
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->where('state', 'posted')
             ->sum('amount');
 
         return $this->money->normalize((string) $sum);
@@ -120,39 +146,5 @@ class EnrollmentFinanceClearanceService
 
         return $this->money->toCents($totalConfirmedPayments) >= $this->money->toCents($minimumRequiredPayment)
             && $this->money->greaterThanZero($minimumRequiredPayment);
-    }
-
-    private function feeTemplateFromAssessment(Enrollment $enrollment): ?FeeTemplate
-    {
-        $feeTemplateId = LedgerEntry::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('reference_type', 'fee_template')
-            ->value('reference_id');
-
-        return $feeTemplateId !== null ? FeeTemplate::query()->find((int) $feeTemplateId) : null;
-    }
-
-    private function resolveFeeTemplate(Enrollment $enrollment, StudentProfile $studentProfile): ?FeeTemplate
-    {
-        return FeeTemplate::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($studentProfile): void {
-                $query->whereNull('program_id');
-
-                if ($studentProfile->program_id !== null) {
-                    $query->orWhere('program_id', $studentProfile->program_id);
-                }
-            })
-            ->where(function ($query) use ($enrollment): void {
-                $query->whereNull('year_level');
-
-                if ($enrollment->year_level !== null) {
-                    $query->orWhere('year_level', $enrollment->year_level);
-                }
-            })
-            ->orderByRaw('CASE WHEN program_id IS NULL THEN 0 ELSE 1 END DESC')
-            ->orderByRaw('CASE WHEN year_level IS NULL THEN 0 ELSE 1 END DESC')
-            ->orderByDesc('id')
-            ->first();
     }
 }

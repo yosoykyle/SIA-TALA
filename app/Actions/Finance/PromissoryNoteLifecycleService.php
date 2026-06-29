@@ -3,6 +3,7 @@
 namespace App\Actions\Finance;
 
 use App\Models\Enrollment;
+use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PromissoryNote;
 use App\Models\StudentProfile;
@@ -202,13 +203,16 @@ class PromissoryNoteLifecycleService
 
             foreach ($notes as $note) {
                 $confirmedAfterApproval = Payment::query()
-                    ->where('enrollment_id', $enrollment->id)
-                    ->where('status', 'confirmed')
-                    ->when($note->approved_at !== null, fn ($query) => $query->where('confirmed_at', '>=', $note->approved_at))
-                    ->where('confirmed_at', '<=', $timestamp)
+                    ->where('evidence_status', 'verified')
+                    ->whereHas('ledgerEntries', fn ($query) => $query
+                        ->where('enrollment_id', $enrollment->id)
+                        ->where('direction', LedgerEntry::DirectionPayment)
+                        ->where('state', 'posted'))
+                    ->when($note->approved_at !== null, fn ($query) => $query->where('verified_at', '>=', $note->approved_at))
+                    ->where('verified_at', '<=', $timestamp)
                     ->sum('amount');
                 $promiseFulfilled = $this->money->toCents((string) $confirmedAfterApproval) >= $this->money->toCents((string) $note->amount);
-                $balanceCleared = $this->money->isZeroOrNegative((string) $studentProfile->current_balance);
+                $balanceCleared = $this->money->isZeroOrNegative($this->ledgerBalanceFor($studentProfile));
 
                 if (! $promiseFulfilled && ! $balanceCleared) {
                     continue;
@@ -330,7 +334,7 @@ class PromissoryNoteLifecycleService
             $errors['enrollment_id'] = 'An enrollment is required for a promissory request.';
         }
 
-        if (! $this->money->greaterThanZero($amount) || $this->money->toCents($amount) > $this->money->toCents((string) $studentProfile->current_balance)) {
+        if (! $this->money->greaterThanZero($amount) || $this->money->toCents($amount) > $this->money->toCents($this->ledgerBalanceFor($studentProfile))) {
             $errors['amount'] = 'The promised amount must be positive and cannot exceed the outstanding balance.';
         }
 
@@ -396,6 +400,30 @@ class PromissoryNoteLifecycleService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function ledgerBalanceFor(StudentProfile $studentProfile): string
+    {
+        $entries = LedgerEntry::query()
+            ->where('student_profile_id', $studentProfile->id)
+            ->where('state', 'posted')
+            ->get(['direction', 'amount']);
+
+        $balance = '0.00';
+
+        foreach ($entries as $entry) {
+            $amount = (string) $entry->amount;
+            $balance = match ($entry->direction) {
+                LedgerEntry::DirectionPayment,
+                LedgerEntry::DirectionDiscount,
+                LedgerEntry::DirectionScholarship,
+                LedgerEntry::DirectionWaiver,
+                LedgerEntry::DirectionReversal => $this->money->subtract($balance, $amount),
+                default => $this->money->add($balance, $amount),
+            };
+        }
+
+        return $balance;
     }
 
     private function requiredReason(string $reason, string $message): string

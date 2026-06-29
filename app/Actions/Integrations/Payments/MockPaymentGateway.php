@@ -23,6 +23,8 @@ class MockPaymentGateway implements PaymentGateway
                 'driver' => 'mock',
                 'student_profile_id' => $request->studentProfileId,
                 'enrollment_id' => $request->enrollmentId,
+                'assessment_id' => $request->assessmentId,
+                'tala_reference' => $request->metadata['tala_reference'] ?? null,
                 'amount' => $request->amount,
                 'description' => $request->description,
             ],

@@ -20,11 +20,11 @@ class PaymentInfolist
                 TextEntry::make('term.term_name')
                     ->label('Term')
                     ->placeholder('-'),
-                TextEntry::make('enrollment.id')
+                TextEntry::make('ledgerEntry.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->enrollment === null
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry?->enrollment === null
                         ? '-'
-                        : $record->enrollment->displayLabel())
+                        : $record->ledgerEntry->enrollment->displayLabel())
                     ->placeholder('-'),
                 TextEntry::make('paymentAttempt.id')
                     ->label('Payment Attempt')
@@ -38,23 +38,20 @@ class PaymentInfolist
                         ? '-'
                         : $record->ledgerEntry->displayLabel())
                     ->placeholder('-'),
-                TextEntry::make('payment_reference')
+                TextEntry::make('provider_reference')
                     ->placeholder('-'),
                 TextEntry::make('or_number')
                     ->label('OR Number')
                     ->placeholder('-'),
-                TextEntry::make('or_attachment_path')
-                    ->label('OR Attachment')
-                    ->placeholder('-'),
                 TextEntry::make('channel'),
                 TextEntry::make('amount')
                     ->numeric(),
-                TextEntry::make('status'),
-                TextEntry::make('confirmed_at')
+                TextEntry::make('evidence_status'),
+                TextEntry::make('verified_at')
                     ->dateTime()
                     ->placeholder('-'),
-                TextEntry::make('confirmer.name')
-                    ->label('Confirmed By')
+                TextEntry::make('verifier.name')
+                    ->label('Verified By')
                     ->placeholder('-'),
                 TextEntry::make('created_at')
                     ->dateTime()

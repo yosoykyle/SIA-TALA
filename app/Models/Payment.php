@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Payment extends Model
 {
@@ -29,20 +30,21 @@ class Payment extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'payment_attempt_id',
         'student_profile_id',
         'term_id',
-        'enrollment_id',
-        'payment_attempt_id',
-        'ledger_entry_id',
-        'payment_reference',
+        'method',
         'channel',
         'amount',
-        'status',
-        'confirmed_at',
-        'confirmed_by',
-        'meta',
+        'currency',
+        'evidence_status',
+        'paid_at',
+        'verified_at',
+        'verified_by',
         'or_number',
-        'or_attachment_path',
+        'or_mapped_by',
+        'or_mapped_at',
+        'provider_reference',
     ];
 
     /**
@@ -52,19 +54,15 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
-            'confirmed_at' => 'datetime',
-            'meta' => 'array',
+            'paid_at' => 'datetime',
+            'verified_at' => 'datetime',
+            'or_mapped_at' => 'datetime',
         ];
     }
 
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
-    }
-
-    public function enrollment(): BelongsTo
-    {
-        return $this->belongsTo(Enrollment::class);
     }
 
     public function term(): BelongsTo
@@ -77,18 +75,25 @@ class Payment extends Model
         return $this->belongsTo(PaymentAttempt::class);
     }
 
-    public function ledgerEntry(): BelongsTo
+    public function ledgerEntry(): HasOne
     {
-        return $this->belongsTo(LedgerEntry::class);
+        return $this->hasOne(LedgerEntry::class)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->oldestOfMany();
     }
 
     public function ledgerEntries(): HasMany
     {
-        return $this->hasMany(LedgerEntry::class, 'reference_id')->where('reference_type', 'payment');
+        return $this->hasMany(LedgerEntry::class);
     }
 
-    public function confirmer(): BelongsTo
+    public function verifier(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'confirmed_by');
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function orMapper(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'or_mapped_by');
     }
 }

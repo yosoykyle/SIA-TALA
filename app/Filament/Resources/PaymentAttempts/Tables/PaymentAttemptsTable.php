@@ -13,7 +13,7 @@ class PaymentAttemptsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'enrollment', 'ledgerEntry']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'assessment.enrollment.term']))
             ->columns([
                 TextColumn::make('studentProfile.student_id')
                     ->label('Student ID')
@@ -23,21 +23,15 @@ class PaymentAttemptsTable
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('term.term_name')
+                TextColumn::make('assessment.enrollment.term.term_name')
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('enrollment.id')
+                TextColumn::make('assessment.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->enrollment === null
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->assessment?->enrollment === null
                         ? '-'
-                        : $record->enrollment->displayLabel())
-                    ->placeholder('-'),
-                TextColumn::make('ledgerEntry.id')
-                    ->label('Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->ledgerEntry === null
-                        ? '-'
-                        : $record->ledgerEntry->displayLabel())
+                        : $record->assessment->enrollment->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('channel')
                     ->badge()
@@ -48,20 +42,13 @@ class PaymentAttemptsTable
                 TextColumn::make('provider')
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('provider_event_id')
+                TextColumn::make('internal_reference')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('provider_checkout_session_id')
+                TextColumn::make('provider_checkout_id')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('provider_payment_id')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('provider_payment_intent_id')
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('webhook_idempotency_key')
-                    ->label('Webhook Key')
+                TextColumn::make('provider_intent_id')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('amount')

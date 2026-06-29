@@ -11,6 +11,7 @@ final readonly class PaymentCheckoutRequest
         public int $studentProfileId,
         public string $amount,
         public string $description,
+        public ?int $assessmentId = null,
         public string $channel = 'paymongo',
         public ?int $termId = null,
         public ?int $enrollmentId = null,

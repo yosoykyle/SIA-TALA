@@ -32,6 +32,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-66 | Done locally; pending Linear sync | Candidate Schedule Approval and Publication |
 | TAL-67 | Done locally; pending Linear sync | Enrollment Gate and Seat Reservation |
 | TAL-68 | Done locally; pending Linear sync | Finance Assessment and Ledger Foundation — `DECIMAL(12,2)` rates, deterministic scope precedence, and exact Program-and-Term downpayment activation gate |
+| TAL-69 | Done locally; pending Linear sync | PayMongo verified payment evidence, idempotent webhook ledger posting, mismatch review path, Finance Gate from posted ledger/accommodation, and OR mapping as Accounting reconciliation |
 
 ## Compact Synced History
 

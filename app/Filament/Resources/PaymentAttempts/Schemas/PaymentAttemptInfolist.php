@@ -17,32 +17,23 @@ class PaymentAttemptInfolist
                 TextEntry::make('studentProfile.user.name')
                     ->label('Student')
                     ->placeholder('-'),
-                TextEntry::make('term.term_name')
+                TextEntry::make('assessment.enrollment.term.term_name')
                     ->label('Term')
                     ->placeholder('-'),
-                TextEntry::make('enrollment.id')
+                TextEntry::make('assessment.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->enrollment === null
+                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->assessment?->enrollment === null
                         ? '-'
-                        : $record->enrollment->displayLabel()),
-                TextEntry::make('ledgerEntry.id')
-                    ->label('Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->ledgerEntry === null
-                        ? '-'
-                        : $record->ledgerEntry->displayLabel()),
+                        : $record->assessment->enrollment->displayLabel()),
                 TextEntry::make('channel'),
                 TextEntry::make('status'),
                 TextEntry::make('provider')
                     ->placeholder('-'),
-                TextEntry::make('provider_event_id')
+                TextEntry::make('internal_reference')
                     ->placeholder('-'),
-                TextEntry::make('provider_checkout_session_id')
+                TextEntry::make('provider_checkout_id')
                     ->placeholder('-'),
-                TextEntry::make('provider_payment_id')
-                    ->placeholder('-'),
-                TextEntry::make('provider_payment_intent_id')
-                    ->placeholder('-'),
-                TextEntry::make('webhook_idempotency_key')
+                TextEntry::make('provider_intent_id')
                     ->placeholder('-'),
                 TextEntry::make('amount')
                     ->numeric(),

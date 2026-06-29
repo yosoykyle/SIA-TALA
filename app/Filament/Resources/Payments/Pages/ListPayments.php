@@ -13,12 +13,12 @@ class ListPayments extends ListRecords
     public function getTabs(): array
     {
         return [
-            'confirmed' => Tab::make('Confirmed Payments')
-                ->modifyQueryUsing(fn ($query) => $query->where('status', 'confirmed')),
+            'verified' => Tab::make('Verified Payments')
+                ->modifyQueryUsing(fn ($query) => $query->where('evidence_status', 'verified')),
             'pending_or_mapping' => Tab::make('Pending OR Mapping')
-                ->modifyQueryUsing(fn ($query) => $query->where('status', 'confirmed')->whereNull('or_number')),
-            'voided' => Tab::make('Voided')
-                ->modifyQueryUsing(fn ($query) => $query->where('status', 'voided')),
+                ->modifyQueryUsing(fn ($query) => $query->where('evidence_status', 'verified')->whereNull('or_number')),
+            'under_review' => Tab::make('Under Review')
+                ->modifyQueryUsing(fn ($query) => $query->where('evidence_status', 'under_review')),
         ];
     }
 }

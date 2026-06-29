@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Payments\Tables;
 use App\Models\Payment;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -18,7 +17,7 @@ class PaymentsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'enrollment', 'paymentAttempt', 'ledgerEntry', 'confirmer']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'paymentAttempt', 'ledgerEntry.enrollment', 'verifier']))
             ->columns([
                 TextColumn::make('studentProfile.student_id')
                     ->label('Student ID')
@@ -32,11 +31,11 @@ class PaymentsTable
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('enrollment.id')
+                TextColumn::make('ledgerEntry.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->enrollment === null
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry?->enrollment === null
                         ? '-'
-                        : $record->enrollment->displayLabel())
+                        : $record->ledgerEntry->enrollment->displayLabel())
                     ->placeholder('-'),
                 TextColumn::make('paymentAttempt.id')
                     ->label('Payment Attempt')
@@ -50,7 +49,7 @@ class PaymentsTable
                         ? '-'
                         : $record->ledgerEntry->displayLabel())
                     ->placeholder('-'),
-                TextColumn::make('payment_reference')
+                TextColumn::make('provider_reference')
                     ->label('Reference')
                     ->placeholder('-')
                     ->searchable(),
@@ -59,25 +58,21 @@ class PaymentsTable
                     ->placeholder('-')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('or_attachment_path')
-                    ->label('OR Attachment')
-                    ->formatStateUsing(fn (?string $state): string => $state ? 'Available' : '-')
-                    ->placeholder('-'),
                 TextColumn::make('channel')
                     ->badge()
                     ->searchable(),
                 TextColumn::make('amount')
                     ->money('PHP')
                     ->sortable(),
-                TextColumn::make('status')
+                TextColumn::make('evidence_status')
                     ->badge()
                     ->searchable(),
-                TextColumn::make('confirmed_at')
-                    ->label('Confirmed')
+                TextColumn::make('verified_at')
+                    ->label('Verified')
                     ->dateTime()
                     ->sortable(),
-                TextColumn::make('confirmer.name')
-                    ->label('Confirmed By')
+                TextColumn::make('verifier.name')
+                    ->label('Verified By')
                     ->placeholder('System')
                     ->searchable(),
                 TextColumn::make('created_at')
@@ -90,10 +85,11 @@ class PaymentsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('status')
+                SelectFilter::make('evidence_status')
                     ->options([
-                        'confirmed' => 'Confirmed',
-                        'voided' => 'Voided',
+                        'verified' => 'Verified',
+                        'under_review' => 'Under Review',
+                        'rejected' => 'Rejected',
                     ]),
                 SelectFilter::make('channel')
                     ->options([
@@ -121,11 +117,6 @@ class PaymentsTable
                             ->label('OR Number')
                             ->required()
                             ->maxLength(255),
-                        FileUpload::make('or_attachment_path')
-                            ->label('OR Attachment')
-                            ->nullable()
-                            ->directory('or_attachments')
-                            ->visibility('public'),
                     ])
                     ->action(function (Payment $record, array $data): void {
                         if (Payment::query()->where('or_number', $data['or_number'])->where('id', '!=', $record->id)->exists()) {
@@ -139,7 +130,8 @@ class PaymentsTable
 
                         $record->update([
                             'or_number' => $data['or_number'],
-                            'or_attachment_path' => $data['or_attachment_path'] ?? null,
+                            'or_mapped_by' => auth()->id(),
+                            'or_mapped_at' => now(),
                         ]);
 
                         Notification::make()
@@ -147,7 +139,10 @@ class PaymentsTable
                             ->success()
                             ->send();
                     })
-                    ->visible(fn (Payment $record): bool => (auth()->user()?->can('process-payments') ?? false) && $record->status === 'confirmed' && empty($record->or_number)),
+                    ->visible(fn (Payment $record): bool => (auth()->user()?->can('process-payments') ?? false)
+                        && $record->evidence_status === 'verified'
+                        && $record->ledgerEntry !== null
+                        && empty($record->or_number)),
             ])
             ->toolbarActions([]);
     }

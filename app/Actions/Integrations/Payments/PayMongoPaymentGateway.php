@@ -81,6 +81,11 @@ class PayMongoPaymentGateway implements PaymentGateway
                 ],
             ],
             'payment_method_types' => $this->configuredPaymentMethods(),
+            'metadata' => array_filter([
+                'tala_reference' => $request->metadata['tala_reference'] ?? null,
+                'assessment_id' => $request->metadata['assessment_id'] ?? null,
+                'enrollment_id' => $request->metadata['enrollment_id'] ?? null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== ''),
         ];
 
         if ($request->successUrl !== null && trim($request->successUrl) !== '') {

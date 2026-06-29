@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentAttempt extends Model
 {
@@ -11,20 +12,19 @@ class PaymentAttempt extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'assessment_id',
         'student_profile_id',
-        'term_id',
-        'enrollment_id',
-        'ledger_entry_id',
         'channel',
-        'status',
         'provider',
-        'provider_event_id',
-        'provider_checkout_session_id',
-        'provider_payment_id',
-        'provider_payment_intent_id',
+        'internal_reference',
+        'provider_checkout_id',
+        'provider_intent_id',
         'amount',
-        'meta',
+        'currency',
+        'status',
+        'expires_at',
         'paid_at',
+        'metadata',
     ];
 
     /**
@@ -34,9 +34,15 @@ class PaymentAttempt extends Model
     {
         return [
             'amount' => 'decimal:2',
-            'meta' => 'array',
+            'metadata' => 'array',
+            'expires_at' => 'datetime',
             'paid_at' => 'datetime',
         ];
+    }
+
+    public function assessment(): BelongsTo
+    {
+        return $this->belongsTo(Assessment::class);
     }
 
     public function studentProfile(): BelongsTo
@@ -44,19 +50,9 @@ class PaymentAttempt extends Model
         return $this->belongsTo(StudentProfile::class);
     }
 
-    public function term(): BelongsTo
+    public function payments(): HasMany
     {
-        return $this->belongsTo(Term::class);
-    }
-
-    public function enrollment(): BelongsTo
-    {
-        return $this->belongsTo(Enrollment::class);
-    }
-
-    public function ledgerEntry(): BelongsTo
-    {
-        return $this->belongsTo(LedgerEntry::class);
+        return $this->hasMany(Payment::class);
     }
 
     public function displayLabel(): string

@@ -4,13 +4,16 @@ namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
 use App\Actions\Finance\PromissoryNoteLifecycleService;
+use App\Models\Assessment;
 use App\Models\Enrollment;
+use App\Models\LedgerEntry;
+use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use stdClass;
 
@@ -49,18 +52,18 @@ class PayMongoWebhookProcessor
         }
 
         if ($context['event_id'] === null || $context['provider_reference'] === null) {
-            $this->markProcessed($webhookCallId);
+            $this->markReviewRequired($webhookCallId, 'missing_provider_reference');
 
-            return ['status' => 'ignored', 'reason' => 'missing_provider_reference'];
+            return ['status' => 'review_required', 'reason' => 'missing_provider_reference'];
         }
 
         return DB::transaction(function () use ($webhookCallId, $context): array {
             $attempt = $this->findPaymentAttempt($context);
 
-            if (! $attempt instanceof stdClass) {
-                $this->markProcessed($webhookCallId);
+            if (! $attempt instanceof PaymentAttempt) {
+                $this->markReviewRequired($webhookCallId, 'unknown_reference');
 
-                return ['status' => 'ignored', 'reason' => 'unmatched_payment_attempt'];
+                return ['status' => 'review_required', 'reason' => 'unknown_reference'];
             }
 
             if ($context['event_type'] === self::PAYMENT_FAILED) {
@@ -91,7 +94,7 @@ class PayMongoWebhookProcessor
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{event_id:?string,event_type:?string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,raw:array<string,mixed>}
+     * @return array{event_id:?string,event_type:?string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,raw:array<string,mixed>}
      */
     private function contextFromPayload(array $payload): array
     {
@@ -121,6 +124,7 @@ class PayMongoWebhookProcessor
 
         $paymentIntentId = $this->firstString([
             Arr::get($resourceAttributes, 'payment_intent_id'),
+            Arr::get($resourceAttributes, 'payment_intent.id'),
             Arr::get($payload, 'data.attributes.payment_intent_id'),
         ]);
 
@@ -130,6 +134,14 @@ class PayMongoWebhookProcessor
                 ?? Arr::get($resourceAttributes, 'total_amount')
                 ?? Arr::get($payload, 'data.attributes.amount')
         );
+
+        $talaReference = $this->firstString([
+            Arr::get($resourceAttributes, 'metadata.tala_reference'),
+            Arr::get($resourceAttributes, 'metadata.internal_reference'),
+            Arr::get($resourceAttributes, 'metadata.reference'),
+            Arr::get($payload, 'data.attributes.metadata.tala_reference'),
+            Arr::get($payload, 'data.attributes.metadata.internal_reference'),
+        ]);
 
         return [
             'event_id' => $this->firstString([
@@ -143,176 +155,271 @@ class PayMongoWebhookProcessor
             'checkout_session_id' => $checkoutSessionId,
             'payment_id' => $paymentId,
             'payment_intent_id' => $paymentIntentId,
-            'provider_reference' => $checkoutSessionId ?? $paymentId,
+            'provider_reference' => $checkoutSessionId ?? $paymentId ?? $paymentIntentId ?? $talaReference,
             'amount_centavos' => $amountCentavos,
+            'currency' => strtoupper((string) ($this->firstString([
+                Arr::get($resourceAttributes, 'currency'),
+                Arr::get($resourceAttributes, 'payments.0.attributes.currency'),
+                Arr::get($payload, 'data.attributes.currency'),
+            ]) ?? 'PHP')),
+            'tala_reference' => $talaReference,
             'raw' => $payload,
         ];
     }
 
     /**
-     * @param  array{checkout_session_id:?string,payment_id:?string,payment_intent_id:?string}  $context
+     * @param  array{checkout_session_id:?string,payment_intent_id:?string,tala_reference:?string}  $context
      */
-    private function findPaymentAttempt(array $context): ?stdClass
+    private function findPaymentAttempt(array $context): ?PaymentAttempt
     {
-        $query = DB::table('payment_attempts')->lockForUpdate();
+        if ($context['checkout_session_id'] === null
+            && $context['payment_intent_id'] === null
+            && $context['tala_reference'] === null) {
+            return null;
+        }
 
-        $query->where(function ($query) use ($context): void {
-            if ($context['checkout_session_id'] !== null) {
-                $query->orWhere('provider_checkout_session_id', $context['checkout_session_id']);
-            }
+        return PaymentAttempt::query()
+            ->lockForUpdate()
+            ->where(function ($query) use ($context): void {
+                if ($context['checkout_session_id'] !== null) {
+                    $query->orWhere('provider_checkout_id', $context['checkout_session_id']);
+                }
 
-            if ($context['payment_id'] !== null) {
-                $query->orWhere('provider_payment_id', $context['payment_id']);
-            }
+                if ($context['payment_intent_id'] !== null) {
+                    $query->orWhere('provider_intent_id', $context['payment_intent_id']);
+                }
 
-            if ($context['payment_intent_id'] !== null) {
-                $query->orWhere('provider_payment_intent_id', $context['payment_intent_id']);
-            }
-        });
-
-        return $query->first();
+                if ($context['tala_reference'] !== null) {
+                    $query->orWhere('internal_reference', $context['tala_reference']);
+                }
+            })
+            ->first();
     }
 
     /**
-     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,amount_centavos:?int,raw:array<string,mixed>}  $context
+     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,amount_centavos:?int,currency:string,tala_reference:?string,raw:array<string,mixed>}  $context
      * @return array{status:string, reason?:string, payment_id?:int, ledger_entry_id?:int, finance_cleared?:bool}
      */
-    private function postSuccessfulPayment(stdClass $attempt, array $context, int $webhookCallId): array
+    private function postSuccessfulPayment(PaymentAttempt $attempt, array $context, int $webhookCallId): array
     {
-        $idempotencyKey = $context['event_id'].':'.$context['provider_reference'];
-        $paymentReference = 'paymongo:'.$idempotencyKey;
         $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-        if ($attempt->status === 'paid' || DB::table('payments')->where('payment_reference', $paymentReference)->exists()) {
-            $this->markProcessed($webhookCallId);
-
-            return ['status' => 'ignored', 'reason' => 'duplicate_webhook'];
-        }
-
-        $attemptAmount = $this->money->normalize((string) $attempt->amount);
-        $webhookAmount = $context['amount_centavos'] !== null
-            ? $this->money->fromCents($context['amount_centavos'])
-            : $attemptAmount;
-
-        if ($this->money->toCents($webhookAmount) !== $this->money->toCents($attemptAmount)) {
-            throw new RuntimeException('PayMongo webhook amount does not match the payment attempt amount.');
-        }
-
-        $studentProfile = DB::table('student_profiles')
-            ->where('id', $attempt->student_profile_id)
-            ->lockForUpdate()
+        $existingPayment = Payment::query()
+            ->with('ledgerEntry')
+            ->where('payment_attempt_id', $attempt->id)
+            ->where('evidence_status', 'verified')
             ->first();
 
-        if (! $studentProfile instanceof stdClass) {
-            throw new RuntimeException('Student profile for payment attempt was not found.');
+        if ($existingPayment instanceof Payment && $existingPayment->ledgerEntry instanceof LedgerEntry) {
+            $this->markAttemptPaid($attempt, $context, $webhookCallId, $timestamp);
+            $this->markProcessed($webhookCallId);
+
+            return [
+                'status' => 'duplicate',
+                'payment_id' => $existingPayment->id,
+                'ledger_entry_id' => $existingPayment->ledgerEntry->id,
+                'finance_cleared' => false,
+            ];
         }
 
-        $currentBalance = $this->money->normalize((string) $studentProfile->current_balance);
-        $ledgerAmount = $this->money->subtract('0.00', $attemptAmount);
-        $newBalance = $this->money->add($currentBalance, $ledgerAmount);
+        $reviewReason = $this->reviewReason($attempt, $context);
 
-        DB::table('payment_attempts')->where('id', $attempt->id)->update([
-            'status' => 'paid',
-            'provider_event_id' => $context['event_id'],
-            'provider_checkout_session_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_session_id,
-            'provider_payment_id' => $context['payment_id'] ?? $attempt->provider_payment_id,
-            'provider_payment_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_payment_intent_id,
-            'paid_at' => $timestamp->toDateTimeString(),
-            'meta' => json_encode($this->mergeAttemptMeta($attempt, $context, $webhookCallId, $idempotencyKey), JSON_UNESCAPED_SLASHES),
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+        if ($reviewReason !== null) {
+            $payment = $this->recordReviewPaymentEvidence($attempt, $context, $webhookCallId, $timestamp, $reviewReason);
+            $this->markProcessed($webhookCallId);
 
-        $paymentId = (int) DB::table('payments')->insertGetId([
-            'student_profile_id' => $attempt->student_profile_id,
-            'term_id' => $attempt->term_id,
-            'enrollment_id' => $attempt->enrollment_id,
-            'payment_attempt_id' => $attempt->id,
-            'payment_reference' => $paymentReference,
-            'channel' => 'paymongo',
-            'amount' => $attemptAmount,
-            'status' => 'confirmed',
-            'confirmed_at' => $timestamp->toDateTimeString(),
-            'confirmed_by' => null,
-            'meta' => json_encode([
-                'source' => 'paymongo_webhook',
-                'webhook_call_id' => $webhookCallId,
-                'event_id' => $context['event_id'],
-                'event_type' => $context['event_type'],
-                'idempotency_key' => $idempotencyKey,
-            ], JSON_UNESCAPED_SLASHES),
-            'created_at' => $timestamp->toDateTimeString(),
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+            return [
+                'status' => 'review_required',
+                'reason' => $reviewReason,
+                'payment_id' => $payment->id,
+            ];
+        }
 
-        $ledgerEntryId = (int) DB::table('ledger_entries')->insertGetId([
-            'student_profile_id' => $attempt->student_profile_id,
-            'term_id' => $attempt->term_id,
-            'enrollment_id' => $attempt->enrollment_id,
-            'entry_type' => 'payment',
-            'reference_type' => 'payment',
-            'reference_id' => $paymentId,
-            'description' => 'PayMongo webhook-confirmed payment',
-            'amount' => $ledgerAmount,
-            'running_balance' => $newBalance,
-            'posted_at' => $timestamp->toDateTimeString(),
-            'posted_by' => null,
-            'created_at' => $timestamp->toDateTimeString(),
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+        $assessment = $this->assessmentFor($attempt);
+        $enrollment = $assessment->enrollment;
+        $studentProfile = $assessment->enrollment?->studentProfile;
 
-        DB::table('payments')->where('id', $paymentId)->update([
-            'ledger_entry_id' => $ledgerEntryId,
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+        if (! $enrollment instanceof Enrollment || ! $studentProfile instanceof StudentProfile) {
+            $payment = $this->recordReviewPaymentEvidence($attempt, $context, $webhookCallId, $timestamp, 'missing_enrollment_source');
+            $this->markProcessed($webhookCallId);
 
-        DB::table('payment_attempts')->where('id', $attempt->id)->update([
-            'ledger_entry_id' => $ledgerEntryId,
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+            return [
+                'status' => 'review_required',
+                'reason' => 'missing_enrollment_source',
+                'payment_id' => $payment->id,
+            ];
+        }
 
-        DB::table('student_profiles')->where('id', $attempt->student_profile_id)->update([
-            'current_balance' => $newBalance,
-            'updated_at' => $timestamp->toDateTimeString(),
-        ]);
+        $payment = Payment::query()->updateOrCreate(
+            ['payment_attempt_id' => $attempt->id],
+            [
+                'student_profile_id' => $attempt->student_profile_id,
+                'term_id' => $enrollment->term_id,
+                'method' => 'paymongo',
+                'channel' => $attempt->channel,
+                'amount' => $this->money->normalize((string) $attempt->amount),
+                'currency' => 'PHP',
+                'evidence_status' => 'verified',
+                'paid_at' => $timestamp,
+                'verified_at' => $timestamp,
+                'verified_by' => null,
+                'provider_reference' => $this->providerReferenceFor($context),
+            ],
+        );
 
-        $clearance = $this->clearEnrollmentIfEligible($attempt, $newBalance, $timestamp);
+        $ledgerEntry = LedgerEntry::query()->firstOrCreate(
+            [
+                'source_type' => Payment::class,
+                'source_id' => $payment->id,
+                'direction' => LedgerEntry::DirectionPayment,
+            ],
+            [
+                'student_profile_id' => $attempt->student_profile_id,
+                'term_id' => $enrollment->term_id,
+                'enrollment_id' => $enrollment->id,
+                'category' => 'payment',
+                'amount' => $payment->amount,
+                'payment_id' => $payment->id,
+                'payment_allocation_id' => null,
+                'reverses_entry_id' => null,
+                'adjusts_entry_id' => null,
+                'description' => 'PayMongo webhook-confirmed payment',
+                'posted_by' => null,
+                'posted_at' => $timestamp,
+                'state' => 'posted',
+            ],
+        );
 
+        $this->markAttemptPaid($attempt, $context, $webhookCallId, $timestamp);
+
+        $newBalance = $this->ledgerBalanceFor($studentProfile);
+        $clearance = $this->clearEnrollmentIfEligible($enrollment, $studentProfile, $newBalance, $timestamp);
         $this->markProcessed($webhookCallId);
 
         return [
             'status' => 'posted',
-            'payment_id' => $paymentId,
-            'ledger_entry_id' => $ledgerEntryId,
+            'payment_id' => $payment->id,
+            'ledger_entry_id' => $ledgerEntry->id,
             'finance_cleared' => $clearance['finance_cleared'],
         ];
     }
 
     /**
+     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,currency:string,tala_reference:?string,raw:array<string,mixed>}  $context
+     * @return array{status:string}
+     */
+    private function markAttemptFailed(PaymentAttempt $attempt, array $context, int $webhookCallId): array
+    {
+        if ($attempt->status !== 'paid') {
+            $attempt->forceFill([
+                'status' => 'failed',
+                'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
+                'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
+                'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'failed'),
+            ])->save();
+        }
+
+        $this->markProcessed($webhookCallId);
+
+        return ['status' => 'failed'];
+    }
+
+    /**
+     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,amount_centavos:?int,currency:string,tala_reference:?string,raw:array<string,mixed>}  $context
+     */
+    private function recordReviewPaymentEvidence(
+        PaymentAttempt $attempt,
+        array $context,
+        int $webhookCallId,
+        CarbonImmutable $timestamp,
+        string $reason,
+    ): Payment {
+        $assessment = $this->assessmentFor($attempt);
+        $enrollment = $assessment->enrollment;
+        $reviewAmount = $context['amount_centavos'] !== null
+            ? $this->money->fromCents($context['amount_centavos'])
+            : $this->money->normalize((string) $attempt->amount);
+
+        $attempt->forceFill([
+            'status' => $attempt->status === 'paid' ? 'paid' : 'under_review',
+            'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
+            'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
+            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, $reason),
+        ])->save();
+
+        return Payment::query()->updateOrCreate(
+            ['payment_attempt_id' => $attempt->id],
+            [
+                'student_profile_id' => $attempt->student_profile_id,
+                'term_id' => $enrollment?->term_id ?? $assessment->enrollment?->term_id,
+                'method' => 'paymongo',
+                'channel' => $attempt->channel,
+                'amount' => $reviewAmount,
+                'currency' => $context['currency'] ?: 'PHP',
+                'evidence_status' => 'under_review',
+                'paid_at' => $timestamp,
+                'verified_at' => null,
+                'verified_by' => null,
+                'provider_reference' => $this->providerReferenceFor($context),
+            ],
+        );
+    }
+
+    /**
+     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,currency:string,tala_reference:?string,raw:array<string,mixed>}  $context
+     */
+    private function markAttemptPaid(PaymentAttempt $attempt, array $context, int $webhookCallId, CarbonImmutable $timestamp): void
+    {
+        $attempt->forceFill([
+            'status' => 'paid',
+            'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
+            'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
+            'paid_at' => $timestamp,
+            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'posted'),
+        ])->save();
+    }
+
+    private function assessmentFor(PaymentAttempt $attempt): Assessment
+    {
+        return Assessment::query()
+            ->with(['enrollment.studentProfile'])
+            ->lockForUpdate()
+            ->findOrFail($attempt->assessment_id);
+    }
+
+    /**
+     * @param  array{amount_centavos:?int,currency:string,tala_reference:?string}  $context
+     */
+    private function reviewReason(PaymentAttempt $attempt, array $context): ?string
+    {
+        $attemptAmount = $this->money->normalize((string) $attempt->amount);
+        $webhookAmount = $context['amount_centavos'] !== null
+            ? $this->money->fromCents($context['amount_centavos'])
+            : $attemptAmount;
+
+        if ($context['currency'] !== 'PHP') {
+            return 'currency_mismatch';
+        }
+
+        if ($this->money->toCents($webhookAmount) !== $this->money->toCents($attemptAmount)) {
+            return 'amount_mismatch';
+        }
+
+        if ($context['tala_reference'] !== null && $context['tala_reference'] !== $attempt->internal_reference) {
+            return 'reference_mismatch';
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{finance_cleared:bool}
      */
-    private function clearEnrollmentIfEligible(stdClass $attempt, string $newBalance, CarbonImmutable $timestamp): array
-    {
-        if ($attempt->enrollment_id === null || ! Schema::hasTable((new Enrollment)->getTable())) {
-            return ['finance_cleared' => false];
-        }
-
-        $enrollment = Enrollment::query()
-            ->with(['studentProfile.user'])
-            ->lockForUpdate()
-            ->find((int) $attempt->enrollment_id);
-
-        if (! $enrollment instanceof Enrollment) {
-            return ['finance_cleared' => false];
-        }
-
-        $studentProfile = StudentProfile::query()
-            ->lockForUpdate()
-            ->find((int) $attempt->student_profile_id);
-
-        if (! $studentProfile instanceof StudentProfile) {
-            throw new RuntimeException('Student profile for payment clearance was not found.');
-        }
-
+    private function clearEnrollmentIfEligible(
+        Enrollment $enrollment,
+        StudentProfile $studentProfile,
+        string $newBalance,
+        CarbonImmutable $timestamp,
+    ): array {
         $this->promissoryNoteLifecycleService->settleEligibleForEnrollment(
             enrollment: $enrollment,
             actor: null,
@@ -330,53 +437,76 @@ class PayMongoWebhookProcessor
         return ['finance_cleared' => $clearance['finance_cleared']];
     }
 
-    /**
-     * @param  array{event_id:string,event_type:string,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:string,raw:array<string,mixed>}  $context
-     * @return array{status:string}
-     */
-    private function markAttemptFailed(stdClass $attempt, array $context, int $webhookCallId): array
+    private function ledgerBalanceFor(StudentProfile $studentProfile): string
     {
-        $timestamp = CarbonImmutable::now(config('app.timezone'))->toDateTimeString();
+        $entries = LedgerEntry::query()
+            ->where('student_profile_id', $studentProfile->id)
+            ->where('state', 'posted')
+            ->get(['direction', 'amount']);
 
-        if ($attempt->status !== 'paid') {
-            DB::table('payment_attempts')->where('id', $attempt->id)->update([
-                'status' => 'failed',
-                'provider_event_id' => $context['event_id'],
-                'provider_checkout_session_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_session_id,
-                'provider_payment_id' => $context['payment_id'] ?? $attempt->provider_payment_id,
-                'provider_payment_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_payment_intent_id,
-                'meta' => json_encode($this->mergeAttemptMeta($attempt, $context, $webhookCallId, $context['event_id'].':'.$context['provider_reference']), JSON_UNESCAPED_SLASHES),
-                'updated_at' => $timestamp,
-            ]);
+        $balance = '0.00';
+
+        foreach ($entries as $entry) {
+            $amount = (string) $entry->amount;
+            $balance = match ($entry->direction) {
+                LedgerEntry::DirectionPayment,
+                LedgerEntry::DirectionDiscount,
+                LedgerEntry::DirectionScholarship,
+                LedgerEntry::DirectionWaiver,
+                LedgerEntry::DirectionReversal => $this->money->subtract($balance, $amount),
+                default => $this->money->add($balance, $amount),
+            };
         }
 
-        $this->markProcessed($webhookCallId);
-
-        return ['status' => 'failed'];
+        return $balance;
     }
 
     /**
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
      */
-    private function mergeAttemptMeta(stdClass $attempt, array $context, int $webhookCallId, string $idempotencyKey): array
+    private function mergeAttemptMetadata(PaymentAttempt $attempt, array $context, int $webhookCallId, string $status): array
     {
-        $meta = $this->decodePayload($attempt->meta ?? null);
-        $meta['last_webhook'] = [
+        $metadata = $attempt->metadata ?? [];
+        $metadata = is_array($metadata) ? $metadata : [];
+        $metadata['last_webhook'] = [
             'webhook_call_id' => $webhookCallId,
             'event_id' => $context['event_id'],
             'event_type' => $context['event_type'],
-            'idempotency_key' => $idempotencyKey,
+            'provider_reference' => $context['provider_reference'],
+            'payment_id' => $context['payment_id'] ?? null,
+            'status' => $status,
         ];
 
-        return $meta;
+        return $metadata;
+    }
+
+    /**
+     * @param  array{provider_reference:string}  $context
+     */
+    private function providerReferenceFor(array $context): string
+    {
+        return 'paymongo:'.$context['provider_reference'];
     }
 
     private function markProcessed(int $webhookCallId): void
     {
+        $now = CarbonImmutable::now(config('app.timezone'))->toDateTimeString();
+
         DB::table('webhook_calls')->where('id', $webhookCallId)->update([
-            'processed_at' => CarbonImmutable::now(config('app.timezone'))->toDateTimeString(),
-            'updated_at' => CarbonImmutable::now(config('app.timezone'))->toDateTimeString(),
+            'processed_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function markReviewRequired(int $webhookCallId, string $reason): void
+    {
+        $now = CarbonImmutable::now(config('app.timezone'))->toDateTimeString();
+
+        DB::table('webhook_calls')->where('id', $webhookCallId)->update([
+            'exception' => 'PayMongo webhook requires Accounting review: '.$reason,
+            'processed_at' => $now,
+            'updated_at' => $now,
         ]);
     }
 

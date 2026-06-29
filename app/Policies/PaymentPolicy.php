@@ -46,7 +46,7 @@ class PaymentPolicy
 
     public function viewAcknowledgement(User $user, Payment $payment): bool
     {
-        if ($payment->status !== 'confirmed') {
+        if ($payment->evidence_status !== 'verified' || $payment->ledgerEntry === null) {
             return false;
         }
 

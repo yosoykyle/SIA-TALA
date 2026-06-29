@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,13 +16,15 @@ class PaymentFactory extends Factory
     {
         return [
             'student_profile_id' => StudentProfile::factory(),
-            'enrollment_id' => Enrollment::factory(),
-            'term_id' => null,
-            'payment_reference' => 'PAY-'.fake()->unique()->numerify('######'),
+            'term_id' => Term::factory(),
+            'method' => 'cash',
             'channel' => 'cash',
             'amount' => '1000.00',
-            'status' => 'confirmed',
-            'confirmed_at' => now(),
+            'currency' => 'PHP',
+            'evidence_status' => 'verified',
+            'paid_at' => now(),
+            'verified_at' => now(),
+            'provider_reference' => 'PAY-'.fake()->unique()->numerify('######'),
         ];
     }
 }

@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\StudentProfile;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -16,13 +15,16 @@ class LedgerEntryFactory extends Factory
     {
         return [
             'student_profile_id' => StudentProfile::factory(),
-            'enrollment_id' => Enrollment::factory(),
             'term_id' => null,
-            'entry_type' => 'assessment',
-            'description' => 'Assessment principal',
+            'enrollment_id' => null,
+            'direction' => LedgerEntry::DirectionCharge,
+            'category' => 'tuition',
             'amount' => '1000.00',
-            'running_balance' => '1000.00',
+            'source_type' => StudentProfile::class,
+            'source_id' => fake()->unique()->numberBetween(1, 1_000_000),
+            'description' => 'Assessment principal',
             'posted_at' => now(),
+            'state' => 'posted',
         ];
     }
 }
