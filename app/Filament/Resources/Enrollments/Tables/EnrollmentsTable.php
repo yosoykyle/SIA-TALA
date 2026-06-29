@@ -2,23 +2,14 @@
 
 namespace App\Filament\Resources\Enrollments\Tables;
 
-use App\Actions\Enrollment\EnrollmentAssessmentService;
-use App\Actions\Enrollment\EnrollmentHardCopyReceiptService;
-use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Models\Enrollment;
-use App\Models\Payment;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -29,14 +20,18 @@ class EnrollmentsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'studentProfile.program', 'term', 'section']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.program', 'term']))
             ->columns([
-                TextColumn::make('studentProfile.student_id')
-                    ->label('Student ID')
+                TextColumn::make('studentProfile.student_number')
+                    ->label('Student No.')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('studentProfile.user.name')
+                TextColumn::make('studentProfile.last_name')
                     ->label('Student')
+                    ->state(fn (Enrollment $record): string => collect([
+                        $record->studentProfile?->last_name,
+                        $record->studentProfile?->first_name,
+                    ])->filter()->implode(', '))
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('studentProfile.program.code')
@@ -47,17 +42,15 @@ class EnrollmentsTable
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('section.name')
-                    ->label('Section')
-                    ->placeholder('-'),
                 TextColumn::make('status')
                     ->badge()
                     ->colors([
-                        'warning' => 'pending_payment',
-                        'success' => 'pre_enrolled',
-                        'info' => 'officially_enrolled',
-                        'danger' => 'ineligible',
-                        'gray' => 'completed',
+                        'gray' => 'not_started',
+                        'warning' => ['pending_review', 'pending_payment'],
+                        'info' => 'capacity_pending',
+                        'success' => 'ready_for_official_enrollment',
+                        'primary' => 'officially_enrolled',
+                        'danger' => ['cancelled', 'dropped', 'withdrawn'],
                     ])
                     ->searchable(),
                 TextColumn::make('student_type')
@@ -65,21 +58,10 @@ class EnrollmentsTable
                     ->badge()
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('year_level')
-                    ->label('Year Level')
+                TextColumn::make('registered_at')
+                    ->dateTime()
                     ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('studentProfile.current_balance')
-                    ->label('Balance')
-                    ->money('PHP')
                     ->sortable(),
-                IconColumn::make('studentProfile.hard_copy_received')
-                    ->label('Hard Copy')
-                    ->boolean(),
-                TextColumn::make('lis_status')
-                    ->label('LIS')
-                    ->badge()
-                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -88,11 +70,15 @@ class EnrollmentsTable
             ->filters([
                 SelectFilter::make('status')
                     ->options([
-                        'pending_payment' => 'Pending Payment',
-                        'pre_enrolled' => 'Pre-Enrolled',
+                        'not_started' => 'Not Started',
+                        'pending_review' => 'Pending Review',
+                        'capacity_pending' => 'Capacity Pending',
+                        'pending_payment' => 'Payment Pending',
+                        'ready_for_official_enrollment' => 'Ready for Official Enrollment',
                         'officially_enrolled' => 'Officially Enrolled',
-                        'ineligible' => 'Ineligible',
-                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                        'dropped' => 'Dropped',
+                        'withdrawn' => 'Withdrawn',
                     ]),
                 SelectFilter::make('student_type')
                     ->options([
@@ -105,135 +91,31 @@ class EnrollmentsTable
             ])
             ->recordActions([
                 ViewAction::make(),
-                Action::make('statement')
-                    ->label('SOA')
-                    ->icon(Heroicon::OutlinedDocumentText)
-                    ->url(fn (Enrollment $record): string => route('finance.statements.show', $record))
-                    ->openUrlInNewTab()
-                    ->visible(fn (Enrollment $record): bool => auth()->user()?->can('viewStatement', $record) ?? false),
-                self::markHardCopyReceivedAction(),
-                self::assessAction(),
-                self::confirmPaymentAction(),
+                self::confirmPlacementAction(),
             ])
             ->toolbarActions([]);
     }
 
-    private static function markHardCopyReceivedAction(): Action
+    public static function confirmPlacementAction(): Action
     {
-        return Action::make('markHardCopyReceived')
-            ->label('Mark Hard Copy')
-            ->icon(Heroicon::OutlinedClipboardDocumentCheck)
-            ->color('info')
-            ->requiresConfirmation()
-            ->visible(fn (Enrollment $record): bool => auth()->user()?->can('markHardCopyReceived', $record) ?? false)
-            ->action(function (Enrollment $record): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    return;
-                }
-
-                try {
-                    app(EnrollmentHardCopyReceiptService::class)->markReceived($record, $actor);
-
-                    Notification::make()
-                        ->title('Hard-copy submission marked as received')
-                        ->success()
-                        ->send();
-                } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Hard-copy confirmation failed')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
-    }
-
-    private static function assessAction(): Action
-    {
-        return Action::make('assess')
-            ->label('Run Assessment')
-            ->icon(Heroicon::OutlinedCalculator)
-            ->color('warning')
-            ->requiresConfirmation()
-            ->visible(fn (Enrollment $record): bool => auth()->user()?->can('assess', $record) ?? false)
-            ->action(function (Enrollment $record): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    return;
-                }
-
-                try {
-                    $summary = app(EnrollmentAssessmentService::class)->assess($record->id, $actor);
-
-                    Notification::make()
-                        ->title($summary['already_assessed'] ? 'Assessment already exists' : 'Assessment posted')
-                        ->body('Net assessment: PHP '.$summary['net_assessment'].'; discount: PHP '.$summary['discount_amount'])
-                        ->success()
-                        ->send();
-                } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Assessment failed')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
-    }
-
-    private static function confirmPaymentAction(): Action
-    {
-        return Action::make('confirmPayment')
-            ->label('Confirm Payment')
-            ->icon(Heroicon::OutlinedBanknotes)
+        return Action::make('confirmPlacement')
+            ->label('Confirm Placement')
+            ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->schema([
-                TextInput::make('amount')
-                    ->label('Amount Paid')
+                Select::make('section_id')
+                    ->label('Published section placement')
+                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
+                        ? app(EnrollmentPlacementService::class)->placementOptions($record)
+                        : [])
                     ->required()
-                    ->numeric()
-                    ->minValue(0.01),
-                Select::make('channel')
-                    ->required()
-                    ->options(Payment::manualConfirmationChannelOptions())
-                    ->default('cash'),
-                TextInput::make('payment_reference')
-                    ->label('Reference Number')
-                    ->required()
-                    ->maxLength(255),
-                DateTimePicker::make('confirmed_at')
-                    ->label('Payment Date')
-                    ->required()
-                    ->default(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
-                    ->maxDate(fn (): CarbonImmutable => CarbonImmutable::now(config('app.timezone')))
-                    ->seconds(false),
-                TextInput::make('or_number')
-                    ->label('OR Number')
-                    ->nullable()
-                    ->maxLength(255),
-                FileUpload::make('or_attachment_path')
-                    ->label('OR Attachment')
-                    ->nullable()
-                    ->directory('or_attachments')
-                    ->visibility('public'),
-                Repeater::make('allocations')
-                    ->label('Payment Allocations (Optional Split)')
-                    ->schema([
-                        TextInput::make('description')
-                            ->required()
-                            ->maxLength(255),
-                        TextInput::make('amount')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0.01),
-                    ])
-                    ->helperText('Leave empty to allocate the entire amount to a single standard payment entry.')
-                    ->columns(2),
+                    ->searchable()
+                    ->native(false)
+                    ->helperText('Options come from active published section meetings only.'),
             ])
-            ->modalSubmitActionLabel('Confirm Payment')
-            ->visible(fn (Enrollment $record): bool => auth()->user()?->can('confirmPayment', $record) ?? false)
+            ->modalHeading('Confirm enrollment placement')
+            ->modalSubmitActionLabel('Confirm Placement')
+            ->visible(fn (Enrollment $record): bool => auth()->user()?->can('confirmPlacement', $record) ?? false)
             ->action(function (Enrollment $record, array $data): void {
                 $actor = auth()->user();
 
@@ -241,45 +123,21 @@ class EnrollmentsTable
                     return;
                 }
 
-                $allocations = ! empty($data['allocations']) ? $data['allocations'] : null;
-
-                if ($allocations !== null) {
-                    $sum = 0.0;
-                    foreach ($allocations as $alloc) {
-                        $sum += (float) $alloc['amount'];
-                    }
-                    if (abs($sum - (float) $data['amount']) > 0.001) {
-                        Notification::make()
-                            ->title('Payment confirmation failed')
-                            ->body('The sum of allocations must equal the total payment amount.')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-                }
-
                 try {
-                    $summary = app(PaymentConfirmationService::class)->confirmManualPayment(
-                        enrollmentId: $record->id,
-                        amount: (string) $data['amount'],
-                        channel: (string) $data['channel'],
-                        paymentReference: isset($data['payment_reference']) ? (string) $data['payment_reference'] : null,
+                    $summary = app(EnrollmentPlacementService::class)->confirm(
+                        enrollment: $record,
+                        sectionId: (int) $data['section_id'],
                         actor: $actor,
-                        confirmedAt: CarbonImmutable::parse((string) $data['confirmed_at'], config('app.timezone')),
-                        allocations: $allocations,
-                        orNumber: isset($data['or_number']) ? (string) $data['or_number'] : null,
-                        orAttachmentPath: isset($data['or_attachment_path']) ? (string) $data['or_attachment_path'] : null,
                     );
 
                     Notification::make()
-                        ->title($summary['finance_cleared'] ? 'Payment confirmed and finance cleared' : 'Payment confirmed')
-                        ->body('Current balance: PHP '.$summary['current_balance'])
+                        ->title($summary['already_confirmed'] ? 'Placement already confirmed' : 'Placement confirmed')
+                        ->body('Seat reservation and published schedule bindings are recorded.')
                         ->success()
                         ->send();
                 } catch (Throwable $exception) {
                     Notification::make()
-                        ->title('Payment confirmation failed')
+                        ->title('Placement confirmation failed')
                         ->body($exception->getMessage())
                         ->danger()
                         ->send();

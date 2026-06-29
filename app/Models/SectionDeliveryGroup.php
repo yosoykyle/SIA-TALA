@@ -6,6 +6,7 @@ use Database\Factories\SectionDeliveryGroupFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SectionDeliveryGroup extends Model
 {
@@ -84,8 +85,15 @@ class SectionDeliveryGroup extends Model
         return ! $section->hasCapacityFor((int) $this->expected_count);
     }
 
+    /** @return BelongsTo<Section, $this> */
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    /** @return HasMany<SchedulingDemand, $this> */
+    public function schedulingDemands(): HasMany
+    {
+        return $this->hasMany(SchedulingDemand::class);
     }
 }

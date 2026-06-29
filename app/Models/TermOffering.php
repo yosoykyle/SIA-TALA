@@ -97,16 +97,19 @@ class TermOffering extends Model
         return $course instanceof Course ? $course : null;
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
     }
 
+    /** @return BelongsTo<CurriculumEntry, $this> */
     public function curriculumEntry(): BelongsTo
     {
         return $this->belongsTo(CurriculumEntry::class);
     }
 
+    /** @return HasMany<Section, $this> */
     public function sections(): HasMany
     {
         return $this->hasMany(Section::class);

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SectionMeeting extends Model
 {
@@ -76,23 +77,33 @@ class SectionMeeting extends Model
         return TermOffering::modalityOptions();
     }
 
+    /** @return BelongsTo<ScheduleGenerationRun, $this> */
     public function scheduleRun(): BelongsTo
     {
         return $this->belongsTo(ScheduleGenerationRun::class, 'schedule_run_id');
     }
 
+    /** @return BelongsTo<SchedulingDemand, $this> */
     public function schedulingDemand(): BelongsTo
     {
         return $this->belongsTo(SchedulingDemand::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function faculty(): BelongsTo
     {
         return $this->belongsTo(User::class, 'faculty_user_id');
     }
 
+    /** @return BelongsTo<Room, $this> */
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    /** @return HasMany<StudentScheduleBinding, $this> */
+    public function scheduleBindings(): HasMany
+    {
+        return $this->hasMany(StudentScheduleBinding::class);
     }
 }

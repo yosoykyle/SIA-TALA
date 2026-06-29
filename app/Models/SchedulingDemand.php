@@ -6,6 +6,7 @@ use Database\Factories\SchedulingDemandFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SchedulingDemand extends Model
 {
@@ -103,33 +104,45 @@ class SchedulingDemand extends Model
             ->all();
     }
 
+    /** @return BelongsTo<TermOffering, $this> */
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);
     }
 
+    /** @return BelongsTo<CourseComponent, $this> */
     public function courseComponent(): BelongsTo
     {
         return $this->belongsTo(CourseComponent::class);
     }
 
+    /** @return BelongsTo<SectionDeliveryGroup, $this> */
     public function sectionDeliveryGroup(): BelongsTo
     {
         return $this->belongsTo(SectionDeliveryGroup::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function fixedFaculty(): BelongsTo
     {
         return $this->belongsTo(User::class, 'fixed_faculty_user_id');
     }
 
+    /** @return BelongsTo<Room, $this> */
     public function fixedRoom(): BelongsTo
     {
         return $this->belongsTo(Room::class, 'fixed_room_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function generator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
+    }
+
+    /** @return HasMany<SectionMeeting, $this> */
+    public function sectionMeetings(): HasMany
+    {
+        return $this->hasMany(SectionMeeting::class);
     }
 }

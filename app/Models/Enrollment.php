@@ -19,18 +19,14 @@ class Enrollment extends Model
     protected $fillable = [
         'student_profile_id',
         'term_id',
-        'section_id',
-        'section_delivery_group_id',
         'status',
         'student_type',
-        'year_level',
-        'modality',
-        'lis_status',
-        'is_late_enrollment',
-        'enrolled_at',
-        'pre_enrolled_at',
+        'registered_at',
         'officially_enrolled_at',
-        'completed_at',
+        'cancelled_at',
+        'dropped_at',
+        'withdrawn_at',
+        'status_reason',
     ];
 
     /**
@@ -39,11 +35,11 @@ class Enrollment extends Model
     protected function casts(): array
     {
         return [
-            'is_late_enrollment' => 'boolean',
-            'enrolled_at' => 'datetime',
-            'pre_enrolled_at' => 'datetime',
+            'registered_at' => 'datetime',
             'officially_enrolled_at' => 'datetime',
-            'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'dropped_at' => 'datetime',
+            'withdrawn_at' => 'datetime',
         ];
     }
 
@@ -85,6 +81,21 @@ class Enrollment extends Model
     public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);
+    }
+
+    public function courseEnrollments(): HasMany
+    {
+        return $this->hasMany(CourseEnrollment::class);
+    }
+
+    public function seatReservations(): HasMany
+    {
+        return $this->hasMany(EnrollmentSeatReservation::class);
+    }
+
+    public function gateResults(): HasMany
+    {
+        return $this->hasMany(EnrollmentGateResult::class);
     }
 
     public function displayLabel(): string

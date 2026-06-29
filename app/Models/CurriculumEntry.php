@@ -40,16 +40,19 @@ class CurriculumEntry extends Model
         ];
     }
 
+    /** @return BelongsTo<CurriculumVersion, $this> */
     public function curriculumVersion(): BelongsTo
     {
         return $this->belongsTo(CurriculumVersion::class);
     }
 
+    /** @return BelongsTo<CourseSpecification, $this> */
     public function courseSpecification(): BelongsTo
     {
         return $this->belongsTo(CourseSpecification::class);
     }
 
+    /** @return HasMany<TermOffering, $this> */
     public function termOfferings(): HasMany
     {
         return $this->hasMany(TermOffering::class);

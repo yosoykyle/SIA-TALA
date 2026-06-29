@@ -9,7 +9,12 @@ class EnrollmentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAccounting,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleSystemSuperAdmin,
+        ]) || $this->canAny($user, [
             'approve-documents',
             'evaluate-transferees',
             'create-assessments',
@@ -68,6 +73,14 @@ class EnrollmentPolicy
         return $this->canAny($user, [
             'approve-documents',
             'evaluate-transferees',
+        ]);
+    }
+
+    public function confirmPlacement(User $user, Enrollment $enrollment): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
         ]);
     }
 

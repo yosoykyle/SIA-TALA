@@ -41,11 +41,13 @@ class Section extends Model
         ];
     }
 
+    /** @return BelongsTo<TermOffering, $this> */
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);
     }
 
+    /** @return HasMany<SectionDeliveryGroup, $this> */
     public function deliveryGroups(): HasMany
     {
         return $this->hasMany(SectionDeliveryGroup::class);

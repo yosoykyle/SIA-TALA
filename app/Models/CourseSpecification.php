@@ -49,26 +49,31 @@ class CourseSpecification extends Model
         ];
     }
 
+    /** @return BelongsTo<Course, $this> */
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function effectiveTerm(): BelongsTo
     {
         return $this->belongsTo(Term::class, 'effective_term_id');
     }
 
+    /** @return HasMany<CourseComponent, $this> */
     public function components(): HasMany
     {
         return $this->hasMany(CourseComponent::class);
     }
 
+    /** @return HasMany<CourseRequirement, $this> */
     public function requirements(): HasMany
     {
         return $this->hasMany(CourseRequirement::class);
     }
 
+    /** @return HasMany<CurriculumEntry, $this> */
     public function curriculumEntries(): HasMany
     {
         return $this->hasMany(CurriculumEntry::class);

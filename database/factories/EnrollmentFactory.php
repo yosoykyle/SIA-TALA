@@ -19,10 +19,12 @@ class EnrollmentFactory extends Factory
             'term_id' => Term::factory(),
             'status' => 'pending_payment',
             'student_type' => 'new',
-            'year_level' => '1st Year',
-            'modality' => 'on_site',
-            'lis_status' => 'not_encoded',
-            'is_late_enrollment' => false,
+            'registered_at' => null,
+            'officially_enrolled_at' => null,
+            'cancelled_at' => null,
+            'dropped_at' => null,
+            'withdrawn_at' => null,
+            'status_reason' => null,
         ];
     }
 }

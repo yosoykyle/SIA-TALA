@@ -33,6 +33,4 @@ Apply this order to every planned worker slice:
 
 ## Planned Issues
 
-### TAL-67 — Enrollment Gate and Seat Reservation
-
-**Boundary:** Create the MVP enrollment gate that validates a student placement against published schedule availability, remaining capacity, prerequisite/unit/conflict gates where already modeled, and records a Registrar-confirmed seat reservation. Keep the slice limited to enrollment placement and reservation; exclude finance assessment, payment gateway, COR/SOA, grades, Student Hub expansion, lifecycle/graduation, and schedule revision work.
+No active planned batch is currently selected.
