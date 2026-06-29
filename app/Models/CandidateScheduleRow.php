@@ -17,22 +17,21 @@ class CandidateScheduleRow extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'generation_run_id',
-        'section_id',
-        'section_delivery_group_id',
-        'subject_id',
-        'faculty_id',
-        'room',
+        'schedule_run_id',
+        'scheduling_demand_id',
+        'meeting_sequence',
+        'faculty_user_id',
+        'room_id',
         'day_of_week',
         'starts_at',
         'ends_at',
-        'modality',
+        'time_block_key',
         'status',
-        'conflict_payload',
-        'warning_payload',
+        'scores',
+        'warnings',
+        'violations',
+        'override_authority',
         'override_reason',
-        'edited_by',
-        'edited_at',
     ];
 
     /**
@@ -41,9 +40,11 @@ class CandidateScheduleRow extends Model
     protected function casts(): array
     {
         return [
-            'conflict_payload' => 'array',
-            'warning_payload' => 'array',
-            'edited_at' => 'datetime',
+            'meeting_sequence' => 'integer',
+            'day_of_week' => 'integer',
+            'scores' => 'array',
+            'warnings' => 'array',
+            'violations' => 'array',
         ];
     }
 
@@ -58,33 +59,28 @@ class CandidateScheduleRow extends Model
         ];
     }
 
+    public function scheduleRun(): BelongsTo
+    {
+        return $this->belongsTo(ScheduleGenerationRun::class, 'schedule_run_id');
+    }
+
     public function generationRun(): BelongsTo
     {
-        return $this->belongsTo(ScheduleGenerationRun::class, 'generation_run_id');
+        return $this->scheduleRun();
     }
 
-    public function section(): BelongsTo
+    public function schedulingDemand(): BelongsTo
     {
-        return $this->belongsTo(Section::class);
-    }
-
-    public function sectionDeliveryGroup(): BelongsTo
-    {
-        return $this->belongsTo(SectionDeliveryGroup::class);
-    }
-
-    public function subject(): BelongsTo
-    {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(SchedulingDemand::class);
     }
 
     public function faculty(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'faculty_id');
+        return $this->belongsTo(User::class, 'faculty_user_id');
     }
 
-    public function editor(): BelongsTo
+    public function room(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'edited_by');
+        return $this->belongsTo(Room::class);
     }
 }

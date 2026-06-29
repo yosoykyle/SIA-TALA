@@ -12,10 +12,10 @@ class ScheduleGenerationRunPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
-            'manage-schedules',
-            'view-faculty-availability',
-            'view-global-records',
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleSystemSuperAdmin,
         ]);
     }
 
@@ -32,7 +32,10 @@ class ScheduleGenerationRunPolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ]);
     }
 
     /**
@@ -64,20 +67,6 @@ class ScheduleGenerationRunPolicy
      */
     public function forceDelete(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
     {
-        return false;
-    }
-
-    /**
-     * @param  list<string>  $permissions
-     */
-    private function canAny(User $user, array $permissions): bool
-    {
-        foreach ($permissions as $permission) {
-            if ($user->can($permission)) {
-                return true;
-            }
-        }
-
         return false;
     }
 }

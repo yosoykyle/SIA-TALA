@@ -8,21 +8,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScheduleGenerationRun extends Model
 {
-    public const StatusGenerated = 'generated';
+    protected $table = 'schedule_runs';
 
-    public const StatusDraft = 'draft';
+    public const StatusQueued = 'queued';
+
+    public const StatusDispatching = 'dispatching';
 
     public const StatusUnderReview = 'under_review';
 
     public const StatusBlocked = 'blocked';
 
-    public const StatusCommitted = 'committed';
+    public const StatusFailed = 'failed';
 
     public const StatusPublished = 'published';
 
-    public const StatusAbandoned = 'abandoned';
-
     public const StatusSuperseded = 'superseded';
+
+    /**
+     * Legacy aliases retained for older references while the scheduling surface is rebaselined.
+     */
+    public const StatusGenerated = self::StatusQueued;
+
+    public const StatusDraft = self::StatusQueued;
+
+    public const StatusCommitted = self::StatusUnderReview;
+
+    public const StatusAbandoned = self::StatusFailed;
 
     /**
      * @var list<string>
@@ -31,18 +42,18 @@ class ScheduleGenerationRun extends Model
         'term_id',
         'status',
         'requested_by',
-        'generated_at',
-        'committed_by',
-        'committed_at',
+        'input_snapshot',
+        'input_hash',
+        'solver_version',
+        'model_version',
+        'runtime_ms',
+        'objective_value',
+        'diagnostics',
+        'candidate_key',
         'published_by',
         'published_at',
-        'publish_note',
-        'emergency_published',
-        'constraint_summary',
-        'solver_input_snapshot',
-        'solver_input_hash',
-        'solver_snapshot_captured_at',
-        'notes',
+        'publication_version',
+        'publication_note',
     ];
 
     /**
@@ -51,13 +62,12 @@ class ScheduleGenerationRun extends Model
     protected function casts(): array
     {
         return [
-            'generated_at' => 'datetime',
-            'committed_at' => 'datetime',
+            'input_snapshot' => 'array',
+            'runtime_ms' => 'integer',
+            'objective_value' => 'decimal:2',
+            'diagnostics' => 'array',
             'published_at' => 'datetime',
-            'emergency_published' => 'boolean',
-            'constraint_summary' => 'array',
-            'solver_input_snapshot' => 'array',
-            'solver_snapshot_captured_at' => 'datetime',
+            'publication_version' => 'integer',
         ];
     }
 
@@ -67,13 +77,12 @@ class ScheduleGenerationRun extends Model
     public static function statusOptions(): array
     {
         return [
-            self::StatusGenerated => 'Generated',
-            self::StatusDraft => 'Draft',
+            self::StatusQueued => 'Queued',
+            self::StatusDispatching => 'Dispatching',
             self::StatusUnderReview => 'Under Review',
             self::StatusBlocked => 'Blocked',
-            self::StatusCommitted => 'Committed',
+            self::StatusFailed => 'Failed',
             self::StatusPublished => 'Published',
-            self::StatusAbandoned => 'Abandoned',
             self::StatusSuperseded => 'Superseded',
         ];
     }
@@ -84,29 +93,29 @@ class ScheduleGenerationRun extends Model
     public static function statusColors(): array
     {
         return [
-            'info' => self::StatusGenerated,
-            'warning' => self::StatusDraft,
-            'gray' => self::StatusUnderReview,
-            'danger' => self::StatusBlocked,
-            'success' => self::StatusCommitted,
-            'primary' => self::StatusPublished,
+            self::StatusQueued => 'warning',
+            self::StatusDispatching => 'info',
+            self::StatusUnderReview => 'success',
+            self::StatusBlocked => 'danger',
+            self::StatusFailed => 'danger',
+            self::StatusPublished => 'primary',
+            self::StatusSuperseded => 'gray',
         ];
     }
 
     /**
+     * Publication remains out of the TAL-62 surface.
+     *
      * @return list<string>
      */
     public static function publishableStatuses(): array
     {
-        return [
-            self::StatusGenerated,
-            self::StatusUnderReview,
-        ];
+        return [];
     }
 
     public function canBePublished(): bool
     {
-        return in_array($this->status, self::publishableStatuses(), true);
+        return false;
     }
 
     public function isPublished(): bool
@@ -124,23 +133,23 @@ class ScheduleGenerationRun extends Model
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    public function committer(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'committed_by');
-    }
-
     public function publisher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'published_by');
     }
 
-    public function sectionMeetings(): HasMany
+    public function candidateRows(): HasMany
     {
-        return $this->hasMany(SectionMeeting::class, 'schedule_generation_run_id');
+        return $this->hasMany(CandidateScheduleRow::class, 'schedule_run_id');
     }
 
     public function draftRows(): HasMany
     {
-        return $this->hasMany(CandidateScheduleRow::class, 'generation_run_id');
+        return $this->candidateRows();
+    }
+
+    public function sectionMeetings(): HasMany
+    {
+        return $this->hasMany(SectionMeeting::class, 'schedule_run_id');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Roles\RoleResource;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Users\UserResource;
@@ -62,6 +63,7 @@ class AdminPanelProvider extends PanelProvider
                 ActivityResource::class,
                 TermOfferingResource::class,
                 SchedulingDemandResource::class,
+                ScheduleGenerationRunResource::class,
             ])
             ->pages([
                 Dashboard::class,

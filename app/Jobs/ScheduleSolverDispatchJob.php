@@ -46,6 +46,10 @@ class ScheduleSolverDispatchJob implements ShouldQueue
         $run = ScheduleGenerationRun::query()->findOrFail($this->scheduleGenerationRunId);
         $snapshot = $snapshotService->captureForRun($run);
 
+        $run->forceFill([
+            'status' => ScheduleGenerationRun::StatusDispatching,
+        ])->save();
+
         try {
             $solverResult = $solverClient->solve($snapshot);
         } catch (Throwable $exception) {
@@ -56,6 +60,10 @@ class ScheduleSolverDispatchJob implements ShouldQueue
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
+
+            $run->forceFill([
+                'status' => ScheduleGenerationRun::StatusFailed,
+            ])->save();
 
             throw $exception;
         }
@@ -69,7 +77,7 @@ class ScheduleSolverDispatchJob implements ShouldQueue
             'result_summary' => $this->resultSummary($solverResult),
             'ingestion_summary' => [
                 'status' => $ingestionSummary['status'],
-                'draft_row_count' => $ingestionSummary['draft_row_count'],
+                'candidate_row_count' => $ingestionSummary['candidate_row_count'],
                 'ok_count' => $ingestionSummary['ok_count'],
                 'warning_count' => $ingestionSummary['warning_count'],
                 'conflict_count' => $ingestionSummary['conflict_count'],
@@ -84,14 +92,14 @@ class ScheduleSolverDispatchJob implements ShouldQueue
     private function recordDispatchSummary(ScheduleGenerationRun $run, array $summary): void
     {
         $run->refresh();
-        $constraintSummary = $run->constraint_summary ?? [];
-        $constraintSummary['solver_dispatch'] = [
-            ...($constraintSummary['solver_dispatch'] ?? []),
+        $diagnostics = $this->arrayValue($run->getAttribute('diagnostics'));
+        $diagnostics['solver_dispatch'] = [
+            ...($diagnostics['solver_dispatch'] ?? []),
             ...$summary,
         ];
 
         $run->forceFill([
-            'constraint_summary' => $constraintSummary,
+            'diagnostics' => $diagnostics,
         ])->save();
     }
 
@@ -103,15 +111,16 @@ class ScheduleSolverDispatchJob implements ShouldQueue
     {
         return [
             'solver_status' => $solverResult['solver_status'] ?? null,
+            'candidate_schedule_id' => $solverResult['candidate_schedule_id'] ?? null,
             'assigned_count' => $this->integerResult($solverResult, 'assigned_count'),
             'unassigned_count' => $this->integerResult($solverResult, 'unassigned_count'),
             'hard_violation_count' => $this->integerResult($solverResult, 'hard_violation_count'),
             'warning_count' => $this->integerResult($solverResult, 'warning_count'),
             'timeout' => (bool) ($solverResult['timeout'] ?? false),
             'objective_score' => $solverResult['objective_score'] ?? null,
-            'solve_time_ms' => $this->integerResult($solverResult, 'solve_time_ms'),
-            'draft_row_count' => is_countable($solverResult['draft_rows'] ?? null)
-                ? count($solverResult['draft_rows'])
+            'runtime_seconds' => $solverResult['runtime_seconds'] ?? null,
+            'assignment_count' => is_countable($solverResult['assignments'] ?? null)
+                ? count($solverResult['assignments'])
                 : null,
         ];
     }
@@ -124,5 +133,13 @@ class ScheduleSolverDispatchJob implements ShouldQueue
         return array_key_exists($key, $solverResult) && $solverResult[$key] !== null
             ? (int) $solverResult[$key]
             : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function arrayValue(mixed $value): array
+    {
+        return is_array($value) ? $value : [];
     }
 }

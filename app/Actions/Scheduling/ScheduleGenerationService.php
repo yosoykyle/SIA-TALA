@@ -7,8 +7,9 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class ScheduleGenerationService
 {
@@ -16,17 +17,24 @@ class ScheduleGenerationService
 
     public function generate(Term $term, User $registrar): ScheduleGenerationRun
     {
-        $this->authorizeRegistrar($registrar);
+        Gate::forUser($registrar)->authorize('create', ScheduleGenerationRun::class);
 
         return DB::transaction(function () use ($term, $registrar): ScheduleGenerationRun {
             $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $placeholder = [
+                'contract_version' => 'pending-capture',
+                'nonce' => (string) Str::uuid(),
+                'created_at' => $timestamp->toIso8601String(),
+            ];
 
             $run = ScheduleGenerationRun::query()->create([
                 'term_id' => $term->id,
-                'status' => ScheduleGenerationRun::StatusDraft,
+                'status' => ScheduleGenerationRun::StatusQueued,
                 'requested_by' => $registrar->id,
-                'generated_at' => $timestamp,
-                'constraint_summary' => [
+                'input_snapshot' => $placeholder,
+                'input_hash' => hash('sha256', json_encode($placeholder, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+                'solver_version' => 'pending-dispatch',
+                'diagnostics' => [
                     'solver_dispatch' => [
                         'status' => 'queued',
                         'queued_at' => $timestamp->toIso8601String(),
@@ -40,15 +48,6 @@ class ScheduleGenerationService
             ScheduleSolverDispatchJob::dispatch((int) $run->id)->afterCommit();
 
             return $run->fresh();
-        });
-    }
-
-    private function authorizeRegistrar(User $registrar): void
-    {
-        if ($registrar->can('manage-schedules')) {
-            return;
-        }
-
-        throw new AuthorizationException('Only authorized Registrar staff can generate schedule runs.');
+        }, 3);
     }
 }

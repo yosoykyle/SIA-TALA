@@ -8,6 +8,7 @@ use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRows
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
 use App\Filament\Resources\ScheduleGenerationRuns\Tables\ScheduleGenerationRunsTable;
 use App\Models\ScheduleGenerationRun;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,21 +20,30 @@ class ScheduleGenerationRunResource extends Resource
 {
     protected static ?string $model = ScheduleGenerationRun::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCpuChip;
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Schedule Drafts';
+    protected static ?string $navigationLabel = 'Solver Runs';
 
     protected static ?int $navigationSort = 30;
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        if (auth()->user()?->hasRole('academic-head')) {
+        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
             return 'Academic Head';
         }
 
         return 'Registrar';
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleSystemSuperAdmin,
+        ]) ?? false;
     }
 
     public static function infolist(Schema $schema): Schema
