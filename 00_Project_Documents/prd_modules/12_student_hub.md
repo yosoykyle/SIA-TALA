@@ -14,15 +14,17 @@ Student Hub v1 includes:
 2. COR view / print when allowed.
 3. SOA view / print when allowed.
 4. Payment acknowledgement view / print when allowed.
-5. Published class schedule.
-6. Enrolled subject list.
-7. Grades after posting and release, including student-facing labels for `INC`, `P`, withdrawn lifecycle outcomes, and `TC` when applicable.
-8. Holds and missing requirements.
-9. Academic deficiency or irregular status summary if approved.
-10. Delivery modality.
-11. Account and workflow notices.
-12. Student-facing Financial Accommodation status and next due date when an active arrangement exists; certification details, evidence, internal reasons, and staff notes remain hidden.
-13. Student-facing graduation or completion review summary when Registrar makes it visible.
+5. Billing slip view / print for a positive currently due amount from an active assessment.
+6. PayMongo checkout action and read-only payment-processing status.
+7. Published class schedule.
+8. Enrolled subject list.
+9. Grades after posting and release, including student-facing labels for `INC`, `P`, withdrawn lifecycle outcomes, and `TC` when applicable.
+10. Holds and missing requirements.
+11. Academic deficiency or irregular status summary if approved.
+12. Delivery modality.
+13. Account and workflow notices.
+14. Student-facing Financial Accommodation status and next due date when an active arrangement exists; certification details, evidence, internal reasons, and staff notes remain hidden.
+15. Student-facing graduation or completion review summary when Registrar makes it visible.
 
 Student Hub focuses on current student academic and finance visibility. Registrar document requests, credential requests, courier tracking, Diploma / TOR / Form 137 release, official receipt issuance, and generic service requests are handled through office procedures. Staff-only COR history remains in staff workspaces.
 
@@ -43,8 +45,7 @@ Page map:
 | --- | --- |
 | Dashboard | Shows current enrollment status, active holds, schedule summary, balance summary, and available outputs. |
 | COR view | Shows the current printable COR when allowed. |
-| SOA view | Shows current student account assessment and balance. |
-| Payment acknowledgement view | Shows student-facing payment status and acknowledgement output; it is not an official receipt. |
+| Finance | Shows the active assessment and charge lines, required downpayment, posted ledger entries and payments, current balance, payment schedule, pending or review state, OR mapping state, Financial Accommodation summary when applicable, and authorized SOA, billing-slip, acknowledgement, and PayMongo actions. |
 | Schedule view | Shows the published student class schedule and enrolled subject list. |
 | Grades view | Shows released numeric grades and controlled Grade Outcome labels such as Incomplete, Pending Grade, Withdrawn, and Transfer Credit. |
 | Holds view | Shows active student-facing holds, blocking effect, required action, and office to contact. |
@@ -83,6 +84,9 @@ Rules:
 11. Pending Grade is shown as an unresolved grade state.
 12. INC must show only the student-facing completion/removal status or deadline when configured; staff notes and private evidence references remain hidden.
 13. Graduation or completion review shows blockers and next office to contact.
+14. Payment acknowledgement becomes available only when payment evidence is verified and its payment Ledger Entry is posted.
+15. PayMongo checkout availability requires the student's active assessment, a positive system-derived amount currently due, and no reusable pending attempt for the same assessment and amount.
+16. Checkout return status remains informational until verified webhook evidence produces the authoritative payment and posted ledger entry.
 
 Example:
 
@@ -109,13 +113,15 @@ Generated outputs may include:
 Rules:
 
 1. COR uses dynamic HTML/CSS rendering and `output_access_logs`; source records and output logs provide traceability for v1.
-2. SOA and payment acknowledgement derive from assessment, payment evidence, and ledger records.
+2. SOA, billing slip, and payment acknowledgement derive from assessment, payment schedule, payment evidence, and ledger records.
 3. Student schedules and rosters derive from active published schedule and official enrollment records.
 4. Access requires authentication.
 5. View, print, download, or export actions must be logged when the output is official or sensitive.
 6. Official output access uses controlled view, print, download, or export actions.
 7. Browser print/save-as-PDF is the MVP download path for COR-like printable outputs.
 8. Stored snapshots or server-generated files are used only when a specific output explicitly requires snapshot preservation.
+9. Finance printable outputs use authenticated HTML/CSS views and browser print/save-as-PDF, following the COR output pattern.
+10. SOA, billing slip, and payment acknowledgement log `VIEW` and `PRINT` with the output types, source records, and copy contexts defined in Module 8.
 
 ---
 
@@ -127,9 +133,9 @@ Rules:
 | Update allowed profile information | Limited Record Form owned by Module 3 |
 | Submit or replace requested admission/checklist evidence | Checklist plus File Upload only when the configured item permits digital evidence |
 | Choose irregular sections during an open enrollment window | Flat selectable section table owned by Module 7 |
-| Pay online | PayMongo checkout action owned by Module 8; return pages show read-only processing status |
+| Pay online | PayMongo checkout action for the positive system-derived amount currently due on the active assessment; return pages show read-only processing status |
 | View finance gate status | Generated Read-Only summary showing required payment posted, payment under review, active Financial Accommodation effect, or office to contact |
-| View schedule, COR, SOA, payment acknowledgement, or released grades | Generated Read-Only View with only the authorized view/print/download action |
+| View schedule, COR, SOA, billing slip, payment acknowledgement, or released grades | Generated Read-Only View with only the authorized view/print/download action |
 | View pending or incomplete grade status | Generated Read-Only View showing student-facing label, affected course, responsible office, and configured deadline when safe |
 | View graduation or completion review status | Generated Read-Only View from the latest visible Graduation Eligibility Snapshot |
 | Resolve a hold or lifecycle issue | Read-only instruction identifying the responsible office or permitted evidence action |

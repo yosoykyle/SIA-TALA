@@ -209,7 +209,7 @@ Rules:
 
 V1 finance flow must follow this sequence:
 
-1. **Billing Slip:** Student generates an internal billing slip from an active assessment.
+1. **Billing Slip:** Student generates an internal billing slip from an active assessment for the currently due assessment amount or a due Payment Schedule Row.
 2. **Payment Evidence:** PayMongo webhook or Accounting manual entry creates verified payment evidence.
 3. **Ledger Posting:** Accounting or policy-approved auto-confirm posts a ledger entry from verified payment evidence.
 4. **OR Mapping:** Accounting later maps the physical paper OR number to the existing payment evidence record (not the ledger entries).
@@ -221,6 +221,10 @@ Rules:
 2. Payment acknowledgement is labeled as an internal payment acknowledgement.
 3. Verified webhook evidence or Accounting manual payment entry creates payment evidence before ledger posting.
 4. Finance Gate readiness may update after ledger posting. OR mapping remains Accounting reconciliation unless configured as a separate hold.
+5. A billing slip does not create payment evidence, post a ledger entry, reserve capacity, or prove payment.
+6. Student Hub offers PayMongo checkout only for the authenticated student's active assessment and a positive amount currently due. The checkout action uses the system-derived amount and does not accept an arbitrary student-entered amount in v1.
+7. Checkout creation records a pending Payment Attempt and redirects to the configured gateway. Return-page or browser status never confirms payment; verified webhook evidence and the resulting posted ledger entry remain authoritative.
+8. Student Hub prevents a second active checkout attempt for the same assessment and amount while the prior attempt remains pending and usable.
 
 ---
 
@@ -243,6 +247,14 @@ Receipt boundaries:
 
 Payment acknowledgements and billing slips must clearly state:
 “This document is for internal billing verification only and is not an official tax receipt.”
+
+Billing slip availability rules:
+
+1. The student must own the active assessment.
+2. The assessment must have a positive amount currently due from its required downpayment, current ledger-derived balance, or a due Payment Schedule Row.
+3. The slip identifies the Student Number, Student Name, Term, due category, exact amount due, and internal TALA reference.
+4. A superseded, cancelled, locked-with-no-amount-due, fully paid, or non-owned assessment cannot produce a billing slip.
+5. Accounting may view the same source-derived slip from the owning assessment context.
 
 ---
 
@@ -334,6 +346,13 @@ Rules:
 3. New ledger activity refreshes, regenerates, or marks the current SOA output as non-current depending on institutional configuration.
 4. Reversed or refunded payments must supersede or mark acknowledgements accordingly.
 5. Student can view only their own SOA and payment acknowledgement.
+6. SOA, billing slip, and payment acknowledgement use authenticated HTML/CSS print views with browser print/save-as-PDF for v1.
+7. Finance output access uses `output_access_logs` with these contracts:
+   - `SOA`: source record is the active Assessment; actions are `VIEW` and `PRINT`.
+   - `BILLING_SLIP`: source record is the due Payment Schedule Row, or the active Assessment when no schedule row applies; actions are `VIEW` and `PRINT`.
+   - `PAYMENT_ACKNOWLEDGEMENT`: source record is the verified Payment with a posted payment Ledger Entry; actions are `VIEW` and `PRINT`.
+8. Browser save-as-PDF is recorded as `PRINT`; v1 does not add a separate stored-file or public-download action.
+9. Student Hub uses `STUDENT_COPY`; authorized Accounting access uses `ACCOUNTING_COPY`.
 
 ---
 
@@ -443,7 +462,9 @@ Rules:
 | Finance Gate readiness | Generated Read-Only View derived from ledger posting and active Financial Accommodation effects; no manual paid toggle |
 | Financial Accommodation | Record Form capturing the approved result, basis, covered amount, due schedule rows, explicit effects, authority, private reference, and state |
 | Promissory-note evidence | Optional restricted File Upload or evidence-reference field according to institutional retention policy; it is not the approval control |
-| Student ledger and SOA | Generated Read-Only View with authorized print/download; corrections occur through adjustment or reversal forms |
+| Student finance visibility | One Student Hub Generated Read-Only View showing active assessment and charge lines, required downpayment, posted ledger entries and payments, current balance, Payment Schedule Rows, pending/review payment state, OR mapping state, Financial Accommodation summary when applicable, and available acknowledgement links |
+| Billing slip | Generated Read-Only View for a positive currently due amount from the active assessment or a due Payment Schedule Row, with authenticated browser print/save-as-PDF and internal-billing disclaimer |
+| Student ledger and SOA | Generated Read-Only View with authenticated browser print/save-as-PDF; corrections occur through adjustment or reversal forms |
 | Reconciliation | Review Table comparing payment evidence, ledger posting, and OR mapping, with exception filters |
 
 Amounts, balances, allocation differences, penalties, and installment totals are computed read-only values. Corrections use adjustment or reversal forms linked to the original source entry.

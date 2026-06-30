@@ -178,6 +178,8 @@ Not currently installed: `laravel/horizon`. Redis support is available through L
 ### 5.1 PayMongo Payment Gateway
 * **Technical Flow:** The code supports a configurable payment gateway. The current live configuration uses the `mock` driver, while the PayMongo driver is available through `config/tala_integrations.php` and `PayMongoPaymentGateway`.
 * **Callback:** The active webhook route is `POST /api/webhooks/paymongo`. `PayMongoWebhookController` verifies the PayMongo signature, stores the raw webhook payload in `webhook_calls`, and dispatches `ProcessPayMongoWebhookCall` for asynchronous processing.
+* **Student Hub Checkout:** A focused Filament Action calls the existing checkout-session service only for the authenticated student's active assessment and positive system-derived amount currently due. The action records or reuses a pending Payment Attempt and redirects to the configured gateway. Checkout return state is informational; signed webhook evidence, verified Payment creation, and idempotent Ledger Entry posting remain authoritative.
+* **Finance Outputs:** SOA, billing slip, and payment acknowledgement follow the accepted COR pattern: a native Filament read-only surface, authenticated Laravel Blade print routes, browser print/save-as-PDF, and `output_access_logs`. The system does not store generated finance files or expose public verification in v1.
 
 ### 5.2 CP-SAT Timetabling Solver (Google Cloud Run Container)
 * **Technical Flow:** When the scheduling run is initiated, TALA aggregates `Scheduling Demand` records, rooms, and faculty schedules into an immutable JSON payload.

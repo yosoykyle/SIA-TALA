@@ -105,7 +105,7 @@ Report boundaries:
 
 1. Reports are basic filtered tables with CSV export.
 2. V1 reports use filtered operational tables and CSV export.
-3. Printable official outputs such as COR, SOA, and payment acknowledgement use authenticated HTML/CSS print views for MVP; server-side PDF generation is used only when a later approved configuration requires retained generated files.
+3. Printable official outputs such as COR, SOA, billing slip, and payment acknowledgement use authenticated HTML/CSS print views for MVP; server-side PDF generation is used only when a later approved configuration requires retained generated files.
 4. Report analysis beyond filtering and CSV export happens outside TALA.
 
 Faculty sees only reports for assigned classes.
@@ -320,11 +320,12 @@ MVP audit scope:
 2. Enrollment status, gate results, and gate overrides.
 3. Assessment, payment evidence, ledger posting, reversals, adjustments, and OR mapping.
 4. COR, SOA, payment acknowledgement, and sensitive generated-output access.
-5. Grade posting, release, pending-grade replacement, INC completion/removal, late encoding authorization, and correction.
-6. Graduation Review Batch creation, membership changes, snapshot refreshes, and visibility changes.
-7. Schedule publication, live schedule revision, Manual Schedule Override, and solver run records.
-8. Holds and Student Lifecycle Change records.
-9. Sensitive report exports.
+5. Billing-slip access and PayMongo checkout-attempt creation.
+6. Grade posting, release, pending-grade replacement, INC completion/removal, late encoding authorization, and correction.
+7. Graduation Review Batch creation, membership changes, snapshot refreshes, and visibility changes.
+8. Schedule publication, live schedule revision, Manual Schedule Override, and solver run records.
+9. Holds and Student Lifecycle Change records.
+10. Sensitive report exports.
 
 V1 audit focuses on official-record changes, sensitive output access, and high-risk exports.
 

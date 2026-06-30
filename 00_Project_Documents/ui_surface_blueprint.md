@@ -123,7 +123,7 @@ Student Hub is a read-mostly workspace. Use focused custom Filament Pages rather
 | Enrollment | Gate result, selected sections, and enrollment status | Read-only Table; selectable section table only during an authorized irregular-enrollment window |
 | Schedule | Published class schedule | Read-only Table grouped by day; optional printable view |
 | COR | Current official COR | Generated read-only page with an authenticated print/save-as-PDF action |
-| Finance | Assessment, ledger, SOA, payment acknowledgement, and PayMongo action | Infolist and read-only Tables |
+| Finance | Active assessment and charge lines, required downpayment, posted payments, ledger-derived balance, payment schedule, pending/review and OR-mapping states, SOA, billing slip, payment acknowledgement, and PayMongo action | Focused custom Page using an infolist, read-only Tables, and authorized Actions |
 | Grades | Released grade history and student-facing marks | Read-only Table |
 | Completion | Latest visible graduation eligibility snapshot | Read-only checklist Table |
 
@@ -158,6 +158,18 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | Activity Log plugin | Use existing plugin | The existing Activity Resource gives System Super Admin audit visibility aligned with Module 13. | Low if activity tables remain migrated and authorization is retained. | Official-record slices should write audit events and expose them through the accepted audit surface. |
 | Additional UI/plugins | Defer plugin/package | No current PRD requirement proves a need for saved-filter, import, calendar, dashboard, permissions, or custom UI plugins before native Filament is tried. | Low; deferral preserves dependency discipline. | Future plugin proposals require a capability gap, compatibility check, maintenance cost, and focused tests. |
 
+## TAL-71 Finance Output and Student Hub Decisions
+
+| Area | Decision | MVP implementation |
+| --- | --- | --- |
+| Student finance surface | Use one read-mostly Student Hub Finance page | Replace the placeholder SOA and payment-acknowledgement pages with one focused page showing the active assessment, charge lines, required downpayment, posted payments, ledger-derived balance, payment schedule, pending/review status, OR mapping state, Financial Accommodation summary, and available outputs. The existing Dashboard balance stat uses the same ledger-derived balance. |
+| Finance printable outputs | Reuse the TAL-70 output pattern | SOA, billing slip, and payment acknowledgement use authenticated Laravel Blade print routes, browser print/save-as-PDF, ownership/role authorization, and `output_access_logs`. |
+| Billing slip | Generate from an active assessment with a positive currently due amount | The slip is an internal request for payment, identifies the due category and exact amount, and never creates payment evidence or ledger activity. |
+| Payment acknowledgement | Show only after verified evidence and posted ledger payment | OR mapping is displayed when present and remains Accounting reconciliation when absent. |
+| PayMongo checkout | Use a focused Filament Action backed by the existing checkout service | The action uses the authenticated student's active assessment and a positive system-derived amount, records a pending Payment Attempt, reuses an active matching pending attempt, and redirects to the configured gateway. Webhook verification and ledger posting remain authoritative. |
+| Accounting access | Reuse existing finance Resources | Retain Assessment and Ledger Entry Resources; adapt and register Payment and Payment Attempt Resources for evidence, exception, acknowledgement, and OR-mapping work. Do not add a custom Accounting dashboard. |
+| Output logging | Use the existing `output_access_logs` schema | Log `SOA`, `BILLING_SLIP`, and `PAYMENT_ACKNOWLEDGEMENT` with `VIEW` and `PRINT`; browser save-as-PDF is `PRINT`. |
+
 ## Module-to-UI Implementation Map
 
 | Module | MVP surface | Native Filament implementation | Existing-code disposition |
@@ -169,7 +181,7 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | 05 Term Offerings & Resources | Generated offerings, special offerings, sections, faculty, rooms, capacity | Resources and relation managers; filtered selection Tables; date/time availability forms | Audit existing offerings/resource Resources before reuse |
 | 06 CP-SAT Scheduling | Demand readiness, solver run, candidate review, publication, revision | Schedule run Resource, candidate relation manager, validation infolist, focused publish/revision Actions | Reuse existing run/candidate inventory after contract audit; table view is canonical |
 | 07 Enrollment Gate | Gate queue, placement, reservations, exceptions, official enrollment result | Enrollment Resource, gate infolist, selectable sections Table, focused override/exception Actions | Audit current enrollment Resources and service behavior |
-| 08 Finance, Ledger & PayMongo | Fee matrix, assessment, payment evidence, OR mapping, ledger, reconciliation, student finance view | One Accounting Fee Rules Resource with editable table/form, focused assessment Actions, allocation Table, Student Hub read-only Pages | Audit existing finance Resources; preserve ledger as source of truth and require exact Program-and-Term downpayment configuration for activation |
+| 08 Finance, Ledger & PayMongo | Fee matrix, assessment, payment evidence, OR mapping, ledger, reconciliation, student finance view | One Accounting Fee Rules Resource with editable table/form, focused assessment Actions, existing Assessment/Payment/Payment Attempt/Ledger Resources, and one Student Hub Finance Page with authenticated print routes | Preserve ledger as source of truth, require exact Program-and-Term downpayment configuration for activation, and keep checkout status subordinate to verified evidence and ledger posting |
 | 09 COR | Current generated COR | Student Hub custom Page, staff-accessible read-only source summary, authenticated printable Blade route, and output log action | Exclude public verification/QR/token inventory for MVP; generate content from owning enrollment, schedule, assessment, and ledger records |
 | 10 Grades | Faculty roster entry, Registrar review/release, late authorization, INC completion, correction, student history | Custom roster Page with editable Table; staff review Resource; focused Actions; Student Hub read-only Table | Existing grade Resources are inventory; do not use generic Grade CRUD for faculty encoding |
 | 11 Student Lifecycle | Holds, approved lifecycle changes, program-shift credit evaluation, graduation review | Staff Resources and focused Actions; impact infolists; review-batch and checklist Tables | Audit existing holds/profile data; add lifecycle workflows vertically |
