@@ -8,6 +8,7 @@ use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
+use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
@@ -80,6 +81,7 @@ class AdminPanelProvider extends PanelProvider
                 PaymentResource::class,
                 TermOfferingResource::class,
                 GradeRosterResource::class,
+                GraduationReviewBatchResource::class,
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,
                 SectionMeetingResource::class,

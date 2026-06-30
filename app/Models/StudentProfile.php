@@ -94,6 +94,7 @@ class StudentProfile extends Model
         return $this->belongsTo(Program::class);
     }
 
+    /** @return BelongsTo<CurriculumVersion, $this> */
     public function curriculumVersion(): BelongsTo
     {
         return $this->belongsTo(CurriculumVersion::class);

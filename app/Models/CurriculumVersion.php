@@ -47,21 +47,25 @@ class CurriculumVersion extends Model
         ];
     }
 
+    /** @return BelongsTo<Program, $this> */
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function effectiveEntryTerm(): BelongsTo
     {
         return $this->belongsTo(Term::class, 'effective_entry_term_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    /** @return HasMany<CurriculumEntry, $this> */
     public function entries(): HasMany
     {
         return $this->hasMany(CurriculumEntry::class);

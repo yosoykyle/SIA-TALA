@@ -40,3 +40,7 @@ TAL-71 Finance Outputs and Student Hub Finance is completed locally and recorded
 TAL-72 Grades MVP is completed locally and recorded in the local sync tracker.
 
 TAL-73 Progression and Student Lifecycle MVP is completed locally and recorded in the local sync tracker.
+
+TAL-74 Graduation and Completion Review MVP is completed locally and recorded in the local sync tracker.
+
+No active planned batch is currently selected.
