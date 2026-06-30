@@ -25,6 +25,10 @@ class GradeRosterRow extends Model
 
     public const CategoryPending = 'Pending Grade';
 
+    public const CategoryWithdrawn = 'Withdrawn';
+
+    public const CategoryTransferCredit = 'Transfer Credit';
+
     /**
      * @var list<string>
      */

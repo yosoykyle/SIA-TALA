@@ -101,7 +101,6 @@ class StudentHandoverChecklistHoldTest extends TestCase
 
         $studentProfile = app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
 
-        $this->assertNotNull($studentProfile->id);
         $this->assertDatabaseHas('checklist_items', [
             'student_profile_id' => $studentProfile->id,
             'blocking_level' => ChecklistItem::BlockingEnrollment,

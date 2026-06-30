@@ -34,9 +34,9 @@ class ChecklistItemsRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        ChecklistItem::STATUS_ACCEPTED => 'success',
-                        ChecklistItem::STATUS_REJECTED => 'danger',
-                        ChecklistItem::STATUS_PENDING => 'warning',
+                        ChecklistItem::StatusAccepted => 'success',
+                        ChecklistItem::StatusRejected => 'danger',
+                        ChecklistItem::StatusPending => 'warning',
                         default => 'gray',
                     })
                     ->searchable()
@@ -53,9 +53,9 @@ class ChecklistItemsRelationManager extends RelationManager
                 TextColumn::make('verification_status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        ChecklistItem::VERIFICATION_STATUS_VERIFIED => 'success',
-                        ChecklistItem::VERIFICATION_STATUS_REJECTED => 'danger',
-                        ChecklistItem::VERIFICATION_STATUS_NOT_REVIEWED => 'warning',
+                        ChecklistItem::VerificationVerified => 'success',
+                        ChecklistItem::VerificationRejected => 'danger',
+                        ChecklistItem::VerificationNotReviewed => 'warning',
                         default => 'gray',
                     })
                     ->searchable()
@@ -89,8 +89,8 @@ class ChecklistItemsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->action(function (ChecklistItem $record): void {
                         $record->update([
-                            'status' => ChecklistItem::STATUS_ACCEPTED,
-                            'verification_status' => ChecklistItem::VERIFICATION_STATUS_VERIFIED,
+                            'status' => ChecklistItem::StatusAccepted,
+                            'verification_status' => ChecklistItem::VerificationVerified,
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => Carbon::now(),
                         ]);
@@ -112,8 +112,8 @@ class ChecklistItemsRelationManager extends RelationManager
                     ])
                     ->action(function (ChecklistItem $record, array $data): void {
                         $record->update([
-                            'status' => ChecklistItem::STATUS_REJECTED,
-                            'verification_status' => ChecklistItem::VERIFICATION_STATUS_REJECTED,
+                            'status' => ChecklistItem::StatusRejected,
+                            'verification_status' => ChecklistItem::VerificationRejected,
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => Carbon::now(),
                             'notes' => $data['notes'],

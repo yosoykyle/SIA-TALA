@@ -3,8 +3,8 @@
 namespace App\Actions\StudentLifecycle;
 
 use App\Models\Enrollment;
+use App\Models\FinancialAccommodation;
 use App\Models\Hold;
-use App\Models\PromissoryNote;
 use App\Models\StudentProfile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -43,20 +43,17 @@ class HoldEvaluationService
             });
         }
 
-        if ($this->hasActivePromissoryNote($studentProfile, $enrollment)) {
-            $query->where(function (Builder $query): void {
-                $query->where('hold_type', '!=', Hold::TypeFinancial)
-                    ->orWhereNotIn('blocking_level', [
-                        Hold::BlockingEnrollment,
-                        Hold::BlockingRecordRelease,
-                    ]);
-            });
-        }
-
-        return $query
+        $holds = $query
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
+
+        $accommodation = $this->activeAccommodation($studentProfile, $enrollment);
+
+        return $holds
+            ->reject(fn (Hold $hold): bool => $hold->hold_type === Hold::TypeFinancial
+                && $this->accommodationAllows($accommodation, $hold->blocking_level, $enrollment))
+            ->values();
     }
 
     /**
@@ -70,21 +67,50 @@ class HoldEvaluationService
         return $this->activeBlockingHolds($studentProfile, $blockingLevels, $enrollment)->isNotEmpty();
     }
 
-    private function hasActivePromissoryNote(StudentProfile $studentProfile, ?Enrollment $enrollment): bool
+    public function mostRestrictiveActiveHold(StudentProfile $studentProfile, array $blockingLevels, ?Enrollment $enrollment = null): ?Hold
     {
-        return PromissoryNote::query()
+        $priority = array_flip([
+            Hold::BlockingReactivation,
+            Hold::BlockingRecordRelease,
+            Hold::BlockingEnrollment,
+            Hold::BlockingCorPrint,
+            Hold::BlockingClearance,
+            Hold::BlockingGraduationEligibility,
+            Hold::BlockingAdvisoryOnly,
+        ]);
+
+        return $this->activeBlockingHolds($studentProfile, $blockingLevels, $enrollment)
+            ->sortBy(fn (Hold $hold): int => $priority[$hold->blocking_level] ?? PHP_INT_MAX)
+            ->first();
+    }
+
+    private function activeAccommodation(StudentProfile $studentProfile, ?Enrollment $enrollment): ?FinancialAccommodation
+    {
+        return FinancialAccommodation::query()
             ->where('student_profile_id', $studentProfile->id)
-            ->when($enrollment instanceof Enrollment, fn (Builder $query) => $query
-                ->where(function (Builder $query) use ($enrollment): void {
-                    $query->whereNull('term_id')
-                        ->orWhere('term_id', $enrollment->term_id);
-                })
-                ->where(function (Builder $query) use ($enrollment): void {
-                    $query->whereNull('enrollment_id')
-                        ->orWhere('enrollment_id', $enrollment->id);
-                }))
-            ->whereIn('status', [PromissoryNote::StatusApproved, 'active'])
-            ->whereNull('expired_at')
-            ->exists();
+            ->whereIn('status', [FinancialAccommodation::StatusActive, 'active'])
+            ->where('effective_from', '<=', today())
+            ->where(fn (Builder $query) => $query->whereNull('expires_on')->orWhere('expires_on', '>=', today()))
+            ->when($enrollment, fn (Builder $query) => $query->where(fn (Builder $query) => $query
+                ->where('term_id', $enrollment->term_id)
+                ->orWhere('allows_next_term_enrollment', true)))
+            ->latest('id')
+            ->first();
+    }
+
+    private function accommodationAllows(?FinancialAccommodation $accommodation, string $blockingLevel, ?Enrollment $enrollment): bool
+    {
+        if (! $accommodation instanceof FinancialAccommodation) {
+            return false;
+        }
+
+        return match ($blockingLevel) {
+            Hold::BlockingEnrollment => (int) $accommodation->term_id === (int) $enrollment?->term_id
+                ? $accommodation->allows_finance_gate
+                : $accommodation->allows_next_term_enrollment,
+            Hold::BlockingReactivation => $accommodation->allows_reactivation,
+            Hold::BlockingRecordRelease => $accommodation->allows_record_release,
+            default => false,
+        };
     }
 }

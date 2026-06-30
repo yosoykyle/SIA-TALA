@@ -22,6 +22,8 @@ class GradeOutcomeEvent extends Model
 
     public const TypePostedCorrection = 'POSTED_CORRECTION';
 
+    public const TypeLifecycleOutcome = 'LIFECYCLE_OUTCOME';
+
     /**
      * @var list<string>
      */

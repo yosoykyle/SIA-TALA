@@ -20,6 +20,32 @@ class StudentProfile extends Model
 
     public const StandingGood = 'GOOD_STANDING';
 
+    public const StandingRegular = 'Regular';
+
+    public const StandingIrregular = 'Irregular';
+
+    public const StandingProbationary = 'Probationary';
+
+    public const StandingDeficient = 'Deficient';
+
+    public const StandingBlockedByPrerequisite = 'Blocked by Prerequisite';
+
+    public const StandingMustRepeatYear = 'Must Repeat Year Level';
+
+    public const StandingCompletionCandidate = 'Completion Candidate';
+
+    public const StandingGraduationCandidate = 'Graduation Candidate';
+
+    public const StandingNotYetEvaluated = 'Not Yet Evaluated';
+
+    public const LifecycleLeaveOfAbsence = 'LEAVE_OF_ABSENCE';
+
+    public const LifecycleWithdrawn = 'WITHDRAWN';
+
+    public const LifecycleTransferredOut = 'TRANSFERRED_OUT';
+
+    public const LifecycleInactive = 'INACTIVE';
+
     /** @var list<string> */
     protected $fillable = [
         'user_id',
@@ -102,5 +128,25 @@ class StudentProfile extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereNull('archived_at')->whereNull('merged_into_id');
+    }
+
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function holds(): HasMany
+    {
+        return $this->hasMany(Hold::class);
+    }
+
+    public function enrollmentExceptions(): HasMany
+    {
+        return $this->hasMany(EnrollmentException::class);
+    }
+
+    public function lifecycleChanges(): HasMany
+    {
+        return $this->hasMany(StudentLifecycleChange::class);
     }
 }

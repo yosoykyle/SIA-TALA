@@ -110,6 +110,16 @@ class Enrollment extends Model
         return $this->hasMany(EnrollmentGateResult::class);
     }
 
+    public function exceptions(): HasMany
+    {
+        return $this->hasMany(EnrollmentException::class);
+    }
+
+    public function lifecycleChanges(): HasMany
+    {
+        return $this->hasMany(StudentLifecycleChange::class);
+    }
+
     public function displayLabel(): string
     {
         $this->loadMissing('term');

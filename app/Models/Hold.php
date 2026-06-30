@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $effective_at
+ * @property Carbon|null $expires_at
+ */
 class Hold extends Model
 {
     /** @use HasFactory<HoldFactory> */

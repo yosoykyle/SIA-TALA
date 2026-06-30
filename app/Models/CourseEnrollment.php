@@ -11,6 +11,10 @@ class CourseEnrollment extends Model
 {
     public const StatusActive = 'active';
 
+    public const StatusDropped = 'dropped';
+
+    public const StatusWithdrawn = 'withdrawn';
+
     /**
      * @var list<string>
      */

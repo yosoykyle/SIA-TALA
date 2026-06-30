@@ -2,12 +2,14 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ScheduleView extends Page implements HasTable
 {
@@ -25,14 +27,22 @@ class ScheduleView extends Page implements HasTable
     {
         return $table
             ->query(
-                // Empty query for the shell
-                User::query()->where('id', 0)
+                StudentScheduleBinding::query()
+                    ->where('is_active', true)
+                    ->whereHas('courseEnrollment.enrollment.studentProfile', function (Builder $query): void {
+                        /** @var User $user */
+                        $user = auth()->user();
+                        $query->where('user_id', $user->id);
+                    })
             )
             ->columns([
-                TextColumn::make('subject_code')->label('Course Code'),
-                TextColumn::make('description')->label('Description'),
-                TextColumn::make('units')->label('Units'),
-                TextColumn::make('schedule')->label('Schedule Details'),
+                TextColumn::make('courseEnrollment.termOffering.curriculumEntry.courseSpecification.course.code')->label('Course Code'),
+                TextColumn::make('courseEnrollment.termOffering.curriculumEntry.courseSpecification.title')->label('Description'),
+                TextColumn::make('courseEnrollment.units_snapshot')->label('Units'),
+                TextColumn::make('sectionMeeting.day_of_week')->label('Day'),
+                TextColumn::make('sectionMeeting.starts_at')->label('Starts'),
+                TextColumn::make('sectionMeeting.ends_at')->label('Ends'),
+                TextColumn::make('sectionMeeting.room.name')->label('Room'),
             ])
             ->emptyStateHeading('No schedule available')
             ->emptyStateDescription('Your class schedule is not available yet.')

@@ -15,6 +15,8 @@ use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
+use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Users\UserResource;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
@@ -81,6 +83,8 @@ class AdminPanelProvider extends PanelProvider
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,
                 SectionMeetingResource::class,
+                StudentProfileResource::class,
+                StudentLifecycleChangeResource::class,
             ])
             ->pages([
                 Dashboard::class,

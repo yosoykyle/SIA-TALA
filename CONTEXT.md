@@ -97,7 +97,7 @@ The association between one student's official enrollment and sections already a
 _Avoid_: Master Schedule, candidate schedule
 
 **Student Lifecycle Change**:
-The Registrar-recorded result of an institution-approved Subject Drop, Withdrawal, Leave of Absence, or Program Shift. TALA applies the approved academic, capacity, COR, and finance effects but does not reproduce the institution's approval routing.
+The Registrar-recorded result of an institution-approved Subject Drop, Withdrawal, Leave of Absence, Program Shift, Transfer Out, or Reactivation. TALA applies the approved academic, capacity, COR, finance, status, and curriculum effects but does not reproduce the institution's approval routing.
 _Avoid_: Student self-service request, approval engine, automatic schedule regeneration
 
 **Handover**:

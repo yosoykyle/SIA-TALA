@@ -147,7 +147,7 @@ Rules:
 
 ### 11.3. Recorded Student Lifecycle Changes
 
-Subject Drop, Withdrawal, Leave of Absence, and Program Shift use a recorded-result model. The institution receives, reviews, and approves the student's request through its published office procedure. TALA records only the approved result and applies it consistently to official SIS records.
+Subject Drop, Withdrawal, Leave of Absence, Program Shift, Transfer Out, and Reactivation use a recorded-result model. The institution receives, reviews, and approves the student's request through its published office procedure. TALA records only the approved result and applies it consistently to official SIS records.
 
 Common Student Lifecycle Change fields:
 
@@ -172,6 +172,8 @@ Allowed change types and rules:
 2. **Withdrawal:** Applies to all current-term subject enrollments. Record the effective date, affected subjects, administrative class standings or lifecycle-derived withdrawn Grade Outcome labels when required, remaining-balance or refund effect, and capacity release.
 3. **Leave of Absence:** Record the approved start term, expected return term, duration, return conditions, and any current-term withdrawal effect. The duration must remain within the institution-configured limit unless an authorized exception is recorded.
 4. **Program Shift:** Requires target-program acceptance, approved credit evaluation, and a future effective term. Record old and new program/curriculum assignments, accepted and deficient subjects, and fee impact.
+5. **Transfer Out:** Record the approved effective date, affected current enrollment when applicable, decision authority, transfer reference, remaining finance or record-release restrictions, and the resulting `Transferred Out` primary lifecycle status. A current-term transfer releases affected Student Schedule Bindings and seats without changing the Master Schedule.
+6. **Reactivation:** Record the approved effective date and authority after the applicable reactivation, finance, document, and enrollment blockers are clear or explicitly covered by an approved Financial Accommodation effect. Reactivation returns the primary lifecycle status to `Active`; it does not create an enrollment, reserve a seat, or assign a schedule.
 
 Application flow:
 
@@ -188,8 +190,9 @@ Schedule rules:
 2. Subject Drop releases only the affected section seat.
 3. Withdrawal or current-term Leave of Absence releases all affected current-term section seats.
 4. Program Shift becomes effective in a future term and does not rewrite the current schedule or historical curriculum assignment.
-5. Student Lifecycle Changes update Student Schedule Bindings; Master Schedule changes use the scheduling revision or solver-run workflow.
-6. Aggregate demand changes that require opening or cancelling a section, or changing room, time, or faculty, use a separate Master Schedule revision or solver run.
+5. Current-term Transfer Out releases all affected current-term section seats. Reactivation creates no Student Schedule Binding or seat reservation.
+6. Student Lifecycle Changes update Student Schedule Bindings; Master Schedule changes use the scheduling revision or solver-run workflow.
+7. Aggregate demand changes that require opening or cancelling a section, or changing room, time, or faculty, use a separate Master Schedule revision or solver run.
 
 #### 11.3.1 Graduation Eligibility
 
@@ -299,7 +302,7 @@ Rules:
 | --- | --- |
 | Student lifecycle and academic standing | Generated Read-Only View derived from official records; authorized transitions use focused actions |
 | Holds | Operational table with one hold per row and a Record Form for type, blocking effects, reason, source, dates, owner, and resolution condition |
-| Record Subject Drop, Withdrawal, Leave of Absence, or Program Shift | Record Form selecting the approved change type, student, affected enrollment/subjects, effective date/term, authority, reason, and private reference |
+| Record Subject Drop, Withdrawal, Leave of Absence, Program Shift, or Transfer Out | Record Form selecting the approved change type, student, affected enrollment/subjects, effective date/term, authority, reason, and private reference |
 | Lifecycle effect review | Read-only impact preview covering Student Schedule Bindings, capacity, COR, assessment/ledger, holds, status, and curriculum before application |
 | Program Shift Credit Evaluation | Target-curriculum checklist table showing completed, accepted, deficient, and equivalent subjects, with source grade/credit treatment |
 | Graduation Review Batch | Operational Review Table where Registrar adds students manually or through simple filters, then refreshes generated snapshots |

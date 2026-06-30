@@ -162,6 +162,14 @@ class TAL72GradesMvpTest extends TestCase
         $this->prerequisite($needsTemporaryPrerequisites, $inc, sequence: 1);
         $this->prerequisite($needsTemporaryPrerequisites, $pending, sequence: 2);
 
+        foreach ([$passed, $failed, $inc, $pending, $unreleased, $needsTemporaryPrerequisites] as $entry) {
+            TermOffering::factory()->create([
+                'term_id' => $fixture['enrollment']->term_id,
+                'curriculum_entry_id' => $entry->id,
+                'state' => TermOffering::StateScheduled,
+            ]);
+        }
+
         $passedRow = $this->releasedGradeRow($fixture['profile'], $passed->courseSpecification->course, '3.00', GradeRosterRow::CategoryPassing);
         $this->releasedGradeRow($fixture['profile'], $failed->courseSpecification->course, '5.00', GradeRosterRow::CategoryFailed);
         $this->releasedGradeRow($fixture['profile'], $inc->courseSpecification->course, 'INC', GradeRosterRow::CategoryIncomplete);

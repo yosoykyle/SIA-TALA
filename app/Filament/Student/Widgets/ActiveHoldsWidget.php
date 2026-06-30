@@ -24,6 +24,8 @@ class ActiveHoldsWidget extends BaseWidget
                         $query->where('user_id', $user->id);
                     })
                     ->where('status', Hold::StatusActive)
+                    ->where(fn (Builder $query) => $query->whereNull('effective_at')->orWhere('effective_at', '<=', now()))
+                    ->where(fn (Builder $query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             )
             ->columns([
                 TextColumn::make('hold_type')
