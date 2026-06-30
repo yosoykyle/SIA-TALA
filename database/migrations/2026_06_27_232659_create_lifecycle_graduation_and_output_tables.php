@@ -16,15 +16,17 @@ return new class extends Migration
             $table->foreignId('student_profile_id')->constrained()->restrictOnDelete();
             $table->foreignId('term_id')->nullable()->constrained()->restrictOnDelete();
             $table->foreignId('enrollment_id')->nullable()->constrained()->restrictOnDelete();
-            $table->string('type');
-            $table->string('blocking_level');
-            $table->string('status');
-            $table->string('source_type');
-            $table->unsignedBigInteger('source_id')->nullable();
-            $table->text('staff_reason');
-            $table->text('student_reason')->nullable();
-            $table->timestamp('effective_at');
+            $table->string('hold_type')->index();
+            $table->string('blocking_level')->index();
+            $table->string('status')->default('active')->index();
+            $table->text('reason');
+            $table->text('staff_only_reason')->nullable();
+            $table->text('student_message')->nullable();
+            $table->nullableMorphs('source');
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('effective_at')->nullable();
             $table->timestamp('expires_at')->nullable();
+            $table->text('resolution_requirement')->nullable();
             $table->foreignId('resolved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('resolved_at')->nullable();
             $table->foreignId('waived_by')->nullable()->constrained('users')->nullOnDelete();
@@ -32,7 +34,7 @@ return new class extends Migration
             $table->timestamps();
             $table->index(['student_profile_id', 'status', 'blocking_level'], 'holds_student_status_index');
             $table->index(['term_id', 'status']);
-            $table->index(['source_type', 'source_id']);
+            $table->index(['student_profile_id', 'enrollment_id', 'status'], 'holds_student_enrollment_status_index');
         });
 
         Schema::create('student_lifecycle_changes', function (Blueprint $table) {

@@ -62,6 +62,7 @@ class StudentProfile extends Model
         return $this->belongsTo(ApplicantIntake::class);
     }
 
+    /** @return BelongsTo<Program, $this> */
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);

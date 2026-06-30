@@ -7,7 +7,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $registered_at
+ * @property Carbon|null $officially_enrolled_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon|null $dropped_at
+ * @property Carbon|null $withdrawn_at
+ */
 class Enrollment extends Model
 {
     /** @use HasFactory<EnrollmentFactory> */
@@ -75,6 +83,7 @@ class Enrollment extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /** @return HasMany<Hold, $this> */
     public function holds(): HasMany
     {
         return $this->hasMany(Hold::class);
@@ -85,6 +94,7 @@ class Enrollment extends Model
         return $this->hasMany(Grade::class);
     }
 
+    /** @return HasMany<CourseEnrollment, $this> */
     public function courseEnrollments(): HasMany
     {
         return $this->hasMany(CourseEnrollment::class);

@@ -99,16 +99,19 @@ class Hold extends Model
         ];
     }
 
+    /** @return BelongsTo<StudentProfile, $this> */
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
     }
 
+    /** @return BelongsTo<Enrollment, $this> */
     public function enrollment(): BelongsTo
     {
         return $this->belongsTo(Enrollment::class);
@@ -117,5 +120,18 @@ class Hold extends Model
     public function source(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function studentFacingMessage(): ?string
+    {
+        foreach (['student_message', 'resolution_requirement', 'reason'] as $attribute) {
+            $message = $this->getAttribute($attribute);
+
+            if (is_string($message) && filled($message)) {
+                return $message;
+            }
+        }
+
+        return null;
     }
 }

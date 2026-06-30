@@ -69,12 +69,16 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('payment_allocations', ['payment_id', 'assessment_line_id', 'payment_schedule_row_id', 'prior_balance_ledger_entry_id']);
         $this->assertColumns('ledger_entries', ['source_type', 'source_id', 'reverses_entry_id', 'adjusts_entry_id']);
         $this->assertColumns('grade_outcome_events', ['grade_roster_row_id', 'previous_value', 'new_value', 'previous_category', 'new_category']);
+        $this->assertColumns('holds', ['hold_type', 'reason', 'staff_only_reason', 'student_message', 'resolution_requirement']);
 
         $this->assertFalse(Schema::hasColumn('student_profiles', 'current_balance'));
         $this->assertFalse(Schema::hasColumn('ledger_entries', 'running_balance'));
         $this->assertFalse(Schema::hasColumn('sections', 'enrolled_count'));
         $this->assertFalse(Schema::hasColumn('enrollment_seat_reservations', 'payment_id'));
         $this->assertFalse(Schema::hasColumn('payments', 'section_id'));
+        $this->assertFalse(Schema::hasColumn('holds', 'type'));
+        $this->assertFalse(Schema::hasColumn('holds', 'staff_reason'));
+        $this->assertFalse(Schema::hasColumn('holds', 'student_reason'));
     }
 
     public function test_critical_foreign_keys_and_history_preserving_delete_rules_exist(): void
