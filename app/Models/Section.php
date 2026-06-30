@@ -41,6 +41,17 @@ class Section extends Model
         ];
     }
 
+    /** @return array<string, string> */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StatePlanned => 'Planned',
+            self::StateOpen => 'Open',
+            self::StateClosed => 'Closed',
+            self::StateCancelled => 'Cancelled',
+        ];
+    }
+
     /** @return BelongsTo<TermOffering, $this> */
     public function termOffering(): BelongsTo
     {
@@ -57,6 +68,12 @@ class Section extends Model
     public function gradeRosters(): HasMany
     {
         return $this->hasMany(GradeRoster::class);
+    }
+
+    /** @return HasMany<EnrollmentSeatReservation, $this> */
+    public function seatReservations(): HasMany
+    {
+        return $this->hasMany(EnrollmentSeatReservation::class);
     }
 
     public function hasCapacityFor(int $expectedCount): bool

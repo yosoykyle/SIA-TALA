@@ -38,6 +38,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-72 | Done locally; pending Linear sync | Grades MVP clean roster, release, outcome history, and Student Hub/subject-suggestion alignment |
 | TAL-73 | Done locally; pending Linear sync | Progression and Student Lifecycle MVP with Registrar-recorded lifecycle changes, central holds, unit-load exceptions, and Student Hub lifecycle projections |
 | TAL-74 | Done locally; pending Linear sync | Graduation and Completion Review MVP |
+| TAL-75 | Done locally; pending Linear sync | Reports, Audit, and Export MVP |
 
 ## Compact Synced History
 

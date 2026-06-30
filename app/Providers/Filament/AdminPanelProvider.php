@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -91,6 +92,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 FacultyGradeRoster::class,
+                ReportsAudit::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
