@@ -18,7 +18,7 @@
     <x-layout.header without-mobile-button class="sticky top-0 z-50 !bg-white/70 backdrop-blur-lg !border-b !border-zinc-200/40 !h-auto !py-3 shadow-sm">
         <x-slot:left>
             <a href="{{ url('/') }}" class="flex items-center gap-3 group transition-transform duration-200 active:scale-95">
-                <img src="{{ asset('talalogo.jpg') }}" alt="TALA" class="size-11 rounded-xl border border-zinc-200/60 object-cover shadow-sm transition-transform group-hover:scale-105">
+                <img src="{{ asset('talalogo.png') }}" alt="TALA" class="size-11 rounded-xl border border-zinc-200/60 object-cover shadow-sm transition-transform group-hover:scale-105">
                 <span class="flex flex-col">
                     <span class="text-lg font-bold tracking-tight text-zinc-950">TALA</span>
                     <span class="text-xs font-medium text-zinc-500">Admissions & Records Portal</span>
