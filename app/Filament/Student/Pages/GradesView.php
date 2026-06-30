@@ -2,15 +2,13 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Models\Grade;
-use App\Models\User;
+use App\Models\GradeRosterRow;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Schema;
 
 class GradesView extends Page implements HasTable
 {
@@ -27,27 +25,35 @@ class GradesView extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query($this->emptyGradesScaffoldQuery())
+            ->query($this->releasedGradesQuery())
             ->columns([
-                TextColumn::make('subject_code')->label('Course Code'),
-                TextColumn::make('description')->label('Description'),
-                TextColumn::make('units')->label('Units'),
-                TextColumn::make('midterm_grade')->label('Midterm'),
-                TextColumn::make('final_grade')->label('Final'),
-                TextColumn::make('remarks')->label('Remarks')
+                TextColumn::make('roster.termOffering.term.label')->label('Term'),
+                TextColumn::make('roster.termOffering.curriculumEntry.courseSpecification.course.code')->label('Course Code'),
+                TextColumn::make('roster.termOffering.curriculumEntry.courseSpecification.title')->label('Description')->wrap(),
+                TextColumn::make('roster.termOffering.curriculumEntry.courseSpecification.credit_units')->label('Units'),
+                TextColumn::make('current_outcome_code')->label('Released Grade')
                     ->badge(),
+                TextColumn::make('current_outcome_category')->label('Status')->badge(),
+                TextColumn::make('released_at')->label('Released')->dateTime(),
             ])
             ->emptyStateHeading('No grades available')
             ->emptyStateDescription('Grades will appear here after posting and release.')
             ->emptyStateIcon('heroicon-o-clipboard-document-list');
     }
 
-    public function emptyGradesScaffoldQuery(): Builder
+    public function releasedGradesQuery(): Builder
     {
-        if (Schema::hasTable((new Grade)->getTable())) {
-            return Grade::query()->whereRaw('1 = 0');
-        }
+        $studentProfileId = auth()->user()?->studentProfile?->id;
 
-        return User::query()->whereRaw('1 = 0');
+        return GradeRosterRow::query()
+            ->with([
+                'roster.termOffering.term',
+                'roster.termOffering.curriculumEntry.courseSpecification.course',
+                'courseEnrollment.enrollment.studentProfile',
+            ])
+            ->whereNotNull('released_at')
+            ->whereHas('courseEnrollment.enrollment', fn (Builder $query) => $query->where('student_profile_id', $studentProfileId ?? 0))
+            ->orderByDesc('released_at')
+            ->orderByDesc('id');
     }
 }

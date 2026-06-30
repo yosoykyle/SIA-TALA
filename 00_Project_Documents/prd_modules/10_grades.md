@@ -4,9 +4,26 @@
 
 ### 10.1. Grades (Period Equivalents Only)
 
-The SIS captures only the **Period Equivalents** (Prelim Equiv, Midterm Equiv, Final Equiv) and auto-computes the General Average using the institutional formula (e.g., 30/30/40).
+The SIS captures only the **Period Equivalents** (Prelim Equiv, Midterm Equiv, Final Equiv) and auto-computes the General Average using the Servitech v1 institutional formula: **30% Preliminary + 30% Midterm + 40% Final**.
 
-Faculty use school-approved Excel templates to compute raw quiz/exam scores. TALA captures only the final Period Equivalents entered into the SIS.
+Faculty use school-approved Excel templates to compute raw quiz, exam, class-standing, lecture, or laboratory source scores. For Servitech v1, school templates may compute lecture subjects from 60% class standing + 40% term exam, and lecture-laboratory hybrids from 60% lecture class standing/exam + 40% laboratory activities. TALA captures only the final Period Equivalents entered into the SIS; raw template calculations remain outside TALA.
+
+TALA converts the computed General Average to the released numeric grade using the active Servitech v1 scale:
+
+| Released grade | General Average range |
+| --- | --- |
+| `1.00` | 98-100 |
+| `1.25` | 95-97 |
+| `1.50` | 92-94 |
+| `1.75` | 89-91 |
+| `2.00` | 86-88 |
+| `2.25` | 83-85 |
+| `2.50` | 80-82 |
+| `2.75` | 77-79 |
+| `3.00` | 75-76 |
+| `5.00` | Below 75 |
+
+The passing threshold is `3.00`, corresponding to 75%. `INC`, `P`, and `DRP` are controlled non-numeric outcomes and are not produced by the numeric conversion scale.
 
 Grade rosters are generated from official enrolled class rosters. One official course enrollment creates one grade row for the student.
 
@@ -33,8 +50,10 @@ Rules:
 4. Enrollment that depends on a pending prerequisite grade requires a scoped Academic Exception.
 5. `P`, `INC`, lifecycle-derived withdrawn outcomes, and `TC` are excluded from GWA unless institutional policy explicitly defines otherwise.
 6. Blank grade cells remain internal incomplete roster state. They are not released to the student as official grade marks.
-7. `W` is not a faculty-entered grade mark by default. If Servitech formally uses `W` as a printed grade mark, System Super Admin enables it as a controlled Grade Outcome label mapped to the lifecycle-derived withdrawn category.
-8. School-specific unresolved marks such as `Not S` require formal adoption as controlled Grade Outcomes before use.
+7. Faculty may submit `INC` as a controlled roster outcome according to institutional rules. Registrar still controls Post & Release and records approved corrections after posting.
+8. `DRP` is a controlled non-numeric dropped outcome used when the official lifecycle record produces a dropped result; it is not a faculty-entered numeric grade.
+9. `W` is not a faculty-entered grade mark by default. If Servitech formally uses `W` as a printed grade mark, System Super Admin enables it as a controlled Grade Outcome label mapped to the lifecycle-derived withdrawn category.
+10. School-specific unresolved marks such as `Not S` require formal adoption as controlled Grade Outcomes before use.
 
 ---
 
@@ -87,6 +106,7 @@ Rules:
 2. INC does not satisfy prerequisites until replaced by a released passing outcome or covered by a scoped Academic Exception.
 3. Student Hub shows `INC` as Incomplete and shows the student-facing deadline when configured.
 4. Lapsed or unresolved INC outcomes follow the configured institutional result, such as conversion to failed.
+5. The INC completion/removal deadline and lapsed-INC result are configured institutional policy values for implementation; TALA does not invent a hard default when Servitech has not supplied one.
 
 ---
 

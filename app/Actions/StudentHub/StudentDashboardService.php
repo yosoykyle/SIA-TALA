@@ -5,8 +5,7 @@ namespace App\Actions\StudentHub;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
-use App\Models\Grade;
-use App\Models\GradeCorrection;
+use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
@@ -271,39 +270,36 @@ class StudentDashboardService
      */
     private function gradesByTerm(StudentProfile $studentProfile): array
     {
-        $enrollmentIds = $studentProfile->enrollments()->pluck('id');
-
-        if ($enrollmentIds->isEmpty()) {
-            return [];
-        }
-
-        $grades = Grade::query()
-            ->with(['subject', 'term'])
-            ->whereIn('enrollment_id', $enrollmentIds)
-            ->where('is_finalized', true)
-            ->orderByDesc('term_id')
+        $grades = GradeRosterRow::query()
+            ->with([
+                'roster.termOffering.term',
+                'roster.termOffering.curriculumEntry.courseSpecification.course',
+            ])
+            ->whereNotNull('released_at')
+            ->whereHas('courseEnrollment.enrollment', fn ($query) => $query->where('student_profile_id', $studentProfile->id))
+            ->orderByDesc('released_at')
             ->orderBy('id')
             ->get();
 
         return $grades
-            ->groupBy('term_id')
+            ->groupBy(fn (GradeRosterRow $row): int => (int) $row->roster->termOffering->term_id)
             ->map(function (Collection $termGrades, int|string $termId): array {
-                $term = $termGrades->first()?->term;
+                $term = $termGrades->first()?->roster?->termOffering?->term;
 
                 return [
                     'term_id' => (int) $termId,
-                    'term_name' => $term?->term_name,
+                    'term_name' => $term?->label,
                     'grades' => $termGrades
-                        ->map(fn (Grade $grade): array => [
-                            'grade_id' => (int) $grade->id,
-                            'subject_id' => (int) $grade->subject_id,
-                            'subject_code' => $grade->subject?->code,
-                            'subject_description' => $grade->subject?->description,
-                            'grade' => $grade->grade !== null ? (string) $grade->grade : null,
-                            'remarks' => $grade->remarks,
-                            'is_inc' => (bool) $grade->is_inc,
-                            'is_finalized' => (bool) $grade->is_finalized,
-                            'finalized_at' => $grade->finalized_at?->toDateTimeString(),
+                        ->map(fn (GradeRosterRow $grade): array => [
+                            'grade_roster_row_id' => (int) $grade->id,
+                            'course_enrollment_id' => (int) $grade->course_enrollment_id,
+                            'subject_code' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->course?->code,
+                            'subject_description' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->title,
+                            'grade' => $grade->current_outcome_code,
+                            'remarks' => $grade->current_outcome_category,
+                            'is_inc' => $grade->current_outcome_code === 'INC',
+                            'is_finalized' => true,
+                            'finalized_at' => $grade->released_at?->toDateTimeString(),
                         ])
                         ->values()
                         ->all(),
@@ -328,31 +324,7 @@ class StudentDashboardService
      */
     private function gradeCorrections(StudentProfile $studentProfile): array
     {
-        if ($studentProfile->user_id === null) {
-            return [];
-        }
-
-        return GradeCorrection::query()
-            ->with(['subject', 'term'])
-            ->where('user_id', $studentProfile->user_id)
-            ->latest('id')
-            ->limit(5)
-            ->get()
-            ->map(fn (GradeCorrection $correction): array => [
-                'grade_correction_id' => (int) $correction->id,
-                'grade_id' => $correction->grade_id !== null ? (int) $correction->grade_id : null,
-                'term_id' => $correction->term_id !== null ? (int) $correction->term_id : null,
-                'term_name' => $correction->term?->term_name,
-                'subject_id' => $correction->subject_id !== null ? (int) $correction->subject_id : null,
-                'subject_code' => $correction->subject?->code,
-                'assessment_component' => $correction->assessment_component,
-                'status' => $correction->status instanceof \BackedEnum ? $correction->status->value : (string) $correction->status,
-                'requested_action' => $correction->requested_action,
-                'resolved_at' => $correction->resolved_at?->toDateTimeString(),
-                'created_at' => $correction->created_at?->toDateTimeString(),
-            ])
-            ->values()
-            ->all();
+        return [];
     }
 
     /**

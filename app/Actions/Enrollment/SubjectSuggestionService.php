@@ -2,14 +2,16 @@
 
 namespace App\Actions\Enrollment;
 
-use App\Models\Curriculum;
-use App\Models\CurriculumSubject;
+use App\Actions\Grades\GradePolicyService;
+use App\Models\Course;
+use App\Models\CourseEnrollment;
+use App\Models\CourseRequirement;
+use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
-use App\Models\Grade;
+use App\Models\GradeRosterRow;
 use App\Models\StudentProfile;
-use App\Models\Subject;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 class SubjectSuggestionService
 {
@@ -27,9 +29,13 @@ class SubjectSuggestionService
 
     public const BlockerActiveInc = 'active_inc';
 
+    public const BlockerPendingGrade = 'pending_grade';
+
     public const GradeStatusPassed = 'passed';
 
     public const GradeStatusFailed = 'failed';
+
+    public function __construct(private readonly GradePolicyService $gradePolicy) {}
 
     /**
      * @return array{
@@ -49,34 +55,40 @@ class SubjectSuggestionService
      */
     public function suggestForEnrollment(Enrollment $enrollment): array
     {
-        $enrollment->loadMissing(['studentProfile.program', 'section.curriculum', 'term']);
+        $enrollment->loadMissing(['studentProfile.program', 'term']);
 
         $studentProfile = $enrollment->studentProfile;
-        $curriculum = $this->resolveCurriculum($enrollment, $studentProfile);
-        $yearLevel = $this->filledString($enrollment->year_level ?? $studentProfile?->year_level);
-        $curriculumPeriod = $this->filledString($enrollment->section?->curriculum_period);
-        $setupBlockers = $this->setupBlockers($studentProfile, $curriculum, $yearLevel, $curriculumPeriod);
+        $curriculumVersionId = $studentProfile?->curriculum_version_id;
+        $section = $enrollment->section;
+        $sectionPeriod = $section instanceof Model ? $section->getAttribute('curriculum_period') : null;
+        $yearLevel = $this->filledString($enrollment->getAttribute('year_level'));
+        $curriculumPeriod = $this->filledString($sectionPeriod ?? $enrollment->term?->label);
+        $setupBlockers = $this->setupBlockers($studentProfile, $curriculumVersionId, $yearLevel, $curriculumPeriod);
 
-        if ($setupBlockers !== [] || ! $studentProfile instanceof StudentProfile || ! $curriculum instanceof Curriculum) {
-            return $this->emptyResult($enrollment, $studentProfile, $curriculum, $yearLevel, $curriculumPeriod, $setupBlockers);
+        if ($setupBlockers !== [] || ! $studentProfile instanceof StudentProfile || $curriculumVersionId === null) {
+            return $this->emptyResult($enrollment, $studentProfile, $curriculumVersionId, $yearLevel, $curriculumPeriod, $setupBlockers);
         }
 
         $latestGrades = $this->latestRelevantGradesBySubject($studentProfile);
-        $allCurriculumSubjects = CurriculumSubject::query()
-            ->with(['subject.prerequisites'])
-            ->where('curriculum_id', $curriculum->id)
+        $allCurriculumEntries = CurriculumEntry::query()
+            ->with([
+                'courseSpecification.course',
+                'courseSpecification.requirements.relatedCourse',
+            ])
+            ->where('curriculum_version_id', $curriculumVersionId)
             ->orderBy('year_level')
-            ->orderBy('semester')
-            ->orderBy('sort_order')
+            ->orderBy('term_label')
+            ->orderBy('sequence')
             ->orderBy('id')
             ->get();
-        $currentCurriculumSubjects = $allCurriculumSubjects
+        $currentCurriculumEntries = $allCurriculumEntries
             ->where('year_level', $yearLevel)
-            ->where('semester', $curriculumPeriod)
+            ->where('term_label', $curriculumPeriod)
             ->values();
-        $currentSubjectIds = $currentCurriculumSubjects
-            ->pluck('subject_id')
-            ->map(fn (int|string $subjectId): int => (int) $subjectId)
+        $currentCourseIds = $currentCurriculumEntries
+            ->map(fn (CurriculumEntry $curriculumEntry): ?int => $curriculumEntry->courseSpecification?->course_id)
+            ->filter()
+            ->map(fn (int|string $courseId): int => (int) $courseId)
             ->all();
 
         $suggested = [];
@@ -84,42 +96,44 @@ class SubjectSuggestionService
         $blocked = [];
         $alreadyPassed = [];
 
-        foreach ($currentCurriculumSubjects as $curriculumSubject) {
-            if (! $curriculumSubject->subject instanceof Subject) {
+        foreach ($currentCurriculumEntries as $curriculumEntry) {
+            $course = $curriculumEntry->courseSpecification?->course;
+
+            if (! $course instanceof Course) {
                 continue;
             }
 
-            $latestGrade = $latestGrades->get($curriculumSubject->subject_id);
+            $latestGrade = $latestGrades->get($course->id);
             $subjectGradeStatus = $this->gradeStatus($latestGrade);
 
             if ($subjectGradeStatus === self::GradeStatusPassed) {
-                $alreadyPassed[] = $this->subjectItem($curriculumSubject, self::StatusAlreadyPassed, $latestGrade);
+                $alreadyPassed[] = $this->subjectItem($curriculumEntry, self::StatusAlreadyPassed, $latestGrade);
 
                 continue;
             }
 
             if ($subjectGradeStatus === self::GradeStatusFailed) {
-                $backSubjects[] = $this->subjectItem($curriculumSubject, self::StatusBackSubject, $latestGrade);
+                $backSubjects[] = $this->subjectItem($curriculumEntry, self::StatusBackSubject, $latestGrade);
 
                 continue;
             }
 
-            if ($subjectGradeStatus === self::BlockerActiveInc) {
+            if (in_array($subjectGradeStatus, [self::BlockerActiveInc, self::BlockerPendingGrade], true)) {
                 $blocked[] = $this->subjectItem(
-                    curriculumSubject: $curriculumSubject,
+                    curriculumEntry: $curriculumEntry,
                     status: self::StatusBlocked,
                     latestGrade: $latestGrade,
-                    blockers: [$this->blockerFor($curriculumSubject->subject, self::BlockerActiveInc, $latestGrade)],
+                    blockers: [$this->blockerFor($course, $subjectGradeStatus, $latestGrade)],
                 );
 
                 continue;
             }
 
-            $prerequisiteEvaluation = $this->evaluatePrerequisites($curriculumSubject->subject, $latestGrades);
+            $prerequisiteEvaluation = $this->evaluatePrerequisites($curriculumEntry, $latestGrades);
 
             if ($prerequisiteEvaluation['blockers'] !== []) {
                 $blocked[] = $this->subjectItem(
-                    curriculumSubject: $curriculumSubject,
+                    curriculumEntry: $curriculumEntry,
                     status: self::StatusBlocked,
                     latestGrade: $latestGrade,
                     prerequisites: $prerequisiteEvaluation['prerequisites'],
@@ -130,29 +144,31 @@ class SubjectSuggestionService
             }
 
             $suggested[] = $this->subjectItem(
-                curriculumSubject: $curriculumSubject,
+                curriculumEntry: $curriculumEntry,
                 status: self::StatusSuggested,
                 latestGrade: $latestGrade,
                 prerequisites: $prerequisiteEvaluation['prerequisites'],
             );
         }
 
-        foreach ($allCurriculumSubjects->unique('subject_id')->values() as $curriculumSubject) {
-            if (in_array((int) $curriculumSubject->subject_id, $currentSubjectIds, true)) {
+        foreach ($allCurriculumEntries->unique('course_specification_id')->values() as $curriculumEntry) {
+            $course = $curriculumEntry->courseSpecification?->course;
+
+            if (! $course instanceof Course || in_array((int) $course->id, $currentCourseIds, true)) {
                 continue;
             }
 
-            $latestGrade = $latestGrades->get($curriculumSubject->subject_id);
+            $latestGrade = $latestGrades->get($course->id);
 
             if ($this->gradeStatus($latestGrade) === self::GradeStatusFailed) {
-                $backSubjects[] = $this->subjectItem($curriculumSubject, self::StatusBackSubject, $latestGrade);
+                $backSubjects[] = $this->subjectItem($curriculumEntry, self::StatusBackSubject, $latestGrade);
             }
         }
 
         return $this->result(
             enrollment: $enrollment,
             studentProfile: $studentProfile,
-            curriculum: $curriculum,
+            curriculumVersionId: $curriculumVersionId,
             yearLevel: $yearLevel,
             curriculumPeriod: $curriculumPeriod,
             suggested: $suggested,
@@ -163,28 +179,10 @@ class SubjectSuggestionService
         );
     }
 
-    private function resolveCurriculum(Enrollment $enrollment, ?StudentProfile $studentProfile): ?Curriculum
-    {
-        if ($enrollment->section?->curriculum instanceof Curriculum) {
-            return $enrollment->section->curriculum;
-        }
-
-        if (! $studentProfile instanceof StudentProfile || $studentProfile->program_id === null) {
-            return null;
-        }
-
-        return Curriculum::query()
-            ->where('program_id', $studentProfile->program_id)
-            ->where('is_active', true)
-            ->orderByDesc('activated_at')
-            ->orderByDesc('id')
-            ->first();
-    }
-
     /**
      * @return list<string>
      */
-    private function setupBlockers(?StudentProfile $studentProfile, ?Curriculum $curriculum, ?string $yearLevel, ?string $curriculumPeriod): array
+    private function setupBlockers(?StudentProfile $studentProfile, ?int $curriculumVersionId, ?string $yearLevel, ?string $curriculumPeriod): array
     {
         $blockers = [];
 
@@ -192,7 +190,7 @@ class SubjectSuggestionService
             $blockers[] = 'missing_student_profile';
         }
 
-        if (! $curriculum instanceof Curriculum) {
+        if ($curriculumVersionId === null) {
             $blockers[] = 'missing_curriculum';
         }
 
@@ -208,40 +206,71 @@ class SubjectSuggestionService
     }
 
     /**
-     * @return Collection<int, Grade>
+     * @return Collection<int, GradeRosterRow>
      */
     private function latestRelevantGradesBySubject(StudentProfile $studentProfile): Collection
     {
-        $enrollmentIds = $studentProfile->enrollments()
-            ->pluck('id');
+        $releasedRows = GradeRosterRow::query()
+            ->with([
+                'courseEnrollment.enrollment',
+                'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
+            ])
+            ->whereNotNull('released_at')
+            ->whereNotNull('current_outcome_code')
+            ->whereHas('roster', function ($query): void {
+                $query->whereNotNull('released_at');
+            })
+            ->whereHas('courseEnrollment', function ($query) use ($studentProfile): void {
+                $query->where('status', CourseEnrollment::StatusActive)
+                    ->whereHas('enrollment', function ($query) use ($studentProfile): void {
+                        $query->where('student_profile_id', $studentProfile->id);
+                    });
+            })
+            ->orderByDesc('released_at')
+            ->orderByDesc('id')
+            ->get();
 
-        if ($enrollmentIds->isEmpty()) {
+        if ($releasedRows->isEmpty()) {
             return collect();
         }
 
-        return Grade::query()
-            ->whereIn('enrollment_id', $enrollmentIds)
-            ->where(function ($query): void {
-                $query->where('is_finalized', true)
-                    ->orWhere('is_inc', true);
-            })
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->get()
-            ->unique('subject_id')
-            ->keyBy('subject_id');
+        $latestReleasedRows = $releasedRows
+            ->unique(fn (GradeRosterRow $row): ?int => $this->courseFor($row)?->id)
+            ->values();
+
+        return $latestReleasedRows
+            ->mapWithKeys(function (GradeRosterRow $row): array {
+                $course = $this->courseFor($row);
+
+                if (! $course instanceof Course) {
+                    return [];
+                }
+
+                return [(int) $course->id => $row];
+            });
     }
 
     /**
-     * @param  Collection<int, Grade>  $latestGrades
+     * @param  Collection<int, GradeRosterRow>  $latestGrades
      * @return array{prerequisites:list<array<string,mixed>>,blockers:list<array<string,mixed>>}
      */
-    private function evaluatePrerequisites(Subject $subject, Collection $latestGrades): array
+    private function evaluatePrerequisites(CurriculumEntry $curriculumEntry, Collection $latestGrades): array
     {
         $prerequisites = [];
         $blockers = [];
+        $requirements = $curriculumEntry->courseSpecification->requirements;
 
-        foreach ($subject->prerequisites as $prerequisite) {
+        foreach ($requirements as $requirement) {
+            if ($requirement->rule_type !== CourseRequirement::TypePrerequisite || $requirement->state !== CourseRequirement::StateActive) {
+                continue;
+            }
+
+            $prerequisite = $requirement->relatedCourse;
+
+            if (! $prerequisite instanceof Course) {
+                continue;
+            }
+
             $latestGrade = $latestGrades->get($prerequisite->id);
             $status = $this->gradeStatus($latestGrade);
             $prerequisiteItem = $this->blockerFor($prerequisite, $status, $latestGrade);
@@ -259,17 +288,23 @@ class SubjectSuggestionService
         ];
     }
 
-    private function gradeStatus(?Grade $grade): string
+    private function gradeStatus(?GradeRosterRow $grade): string
     {
-        if (! $grade instanceof Grade) {
+        if (! $grade instanceof GradeRosterRow) {
             return self::BlockerMissingHistory;
         }
 
-        if ($grade->is_inc) {
+        $outcomeCode = strtoupper((string) $grade->current_outcome_code);
+
+        if ($outcomeCode === 'INC') {
             return self::BlockerActiveInc;
         }
 
-        if (! $grade->is_finalized) {
+        if ($outcomeCode === 'P') {
+            return self::BlockerPendingGrade;
+        }
+
+        if ($grade->released_at === null) {
             return self::BlockerMissingHistory;
         }
 
@@ -278,25 +313,22 @@ class SubjectSuggestionService
             : self::GradeStatusFailed;
     }
 
-    private function isPassingGrade(Grade $grade): bool
+    private function isPassingGrade(GradeRosterRow $grade): bool
     {
-        $remarks = Str::of((string) $grade->remarks)->lower()->squish()->toString();
-
-        if ($remarks === self::GradeStatusPassed) {
-            return true;
-        }
-
-        if ($remarks === self::GradeStatusFailed || $remarks === 'inc') {
+        if (! is_numeric($grade->current_outcome_code)) {
             return false;
         }
 
-        if ($grade->grade === null) {
-            return false;
+        foreach ($this->gradePolicy->snapshot()['scale'] as $band) {
+            if ((string) $band['code'] !== (string) $grade->current_outcome_code) {
+                continue;
+            }
+
+            return $band['category'] === GradeRosterRow::CategoryPassing
+                && $grade->current_outcome_category === GradeRosterRow::CategoryPassing;
         }
 
-        $gradeValue = (float) $grade->grade;
-
-        return $gradeValue <= 3.0;
+        return false;
     }
 
     /**
@@ -305,25 +337,28 @@ class SubjectSuggestionService
      * @return array<string,mixed>
      */
     private function subjectItem(
-        CurriculumSubject $curriculumSubject,
+        CurriculumEntry $curriculumEntry,
         string $status,
-        ?Grade $latestGrade = null,
+        ?GradeRosterRow $latestGrade = null,
         array $prerequisites = [],
         array $blockers = [],
     ): array {
-        $subject = $curriculumSubject->subject;
+        $courseSpecification = $curriculumEntry->courseSpecification;
+        $course = $courseSpecification?->course;
 
         return [
-            'subject_id' => (int) $curriculumSubject->subject_id,
-            'code' => (string) $subject?->code,
-            'description' => (string) $subject?->description,
-            'units' => $subject?->units !== null ? (string) $subject->units : '0.00',
-            'curriculum_subject_id' => (int) $curriculumSubject->id,
-            'year_level' => (string) $curriculumSubject->year_level,
-            'curriculum_period' => (string) $curriculumSubject->semester,
-            'sort_order' => (int) $curriculumSubject->sort_order,
-            'academic_subject_type' => $curriculumSubject->academic_subject_type,
-            'scheduling_group' => $curriculumSubject->scheduling_group,
+            'subject_id' => (int) $course?->id,
+            'course_id' => (int) $course?->id,
+            'code' => (string) $course?->code,
+            'description' => (string) $courseSpecification?->title,
+            'units' => $courseSpecification?->credit_units !== null ? (string) $courseSpecification->credit_units : '0.00',
+            'curriculum_subject_id' => (int) $curriculumEntry->id,
+            'curriculum_entry_id' => (int) $curriculumEntry->id,
+            'year_level' => (string) $curriculumEntry->year_level,
+            'curriculum_period' => (string) $curriculumEntry->term_label,
+            'sort_order' => (int) $curriculumEntry->sequence,
+            'academic_subject_type' => null,
+            'scheduling_group' => null,
             'status' => $status,
             'latest_grade' => $this->gradeSnapshot($latestGrade),
             'prerequisites' => $prerequisites,
@@ -334,12 +369,12 @@ class SubjectSuggestionService
     /**
      * @return array<string,mixed>
      */
-    private function blockerFor(Subject $subject, string $reason, ?Grade $latestGrade): array
+    private function blockerFor(Course $subject, string $reason, ?GradeRosterRow $latestGrade): array
     {
         return [
             'subject_id' => (int) $subject->id,
             'code' => (string) $subject->code,
-            'description' => (string) $subject->description,
+            'description' => (string) $subject->code,
             'reason' => $reason,
             'latest_grade' => $this->gradeSnapshot($latestGrade),
         ];
@@ -348,22 +383,31 @@ class SubjectSuggestionService
     /**
      * @return array<string,mixed>|null
      */
-    private function gradeSnapshot(?Grade $grade): ?array
+    private function gradeSnapshot(?GradeRosterRow $grade): ?array
     {
-        if (! $grade instanceof Grade) {
+        if (! $grade instanceof GradeRosterRow) {
             return null;
         }
 
         return [
             'grade_id' => (int) $grade->id,
-            'enrollment_id' => (int) $grade->enrollment_id,
-            'term_id' => (int) $grade->term_id,
-            'grade' => $grade->grade !== null ? (string) $grade->grade : null,
-            'remarks' => $grade->remarks,
-            'is_inc' => (bool) $grade->is_inc,
-            'is_finalized' => (bool) $grade->is_finalized,
-            'finalized_at' => $grade->finalized_at?->toDateTimeString(),
+            'grade_roster_row_id' => (int) $grade->id,
+            'grade_roster_id' => (int) $grade->grade_roster_id,
+            'course_enrollment_id' => (int) $grade->course_enrollment_id,
+            'enrollment_id' => $grade->courseEnrollment?->enrollment_id,
+            'term_id' => $grade->courseEnrollment?->enrollment?->term_id,
+            'grade' => is_numeric($grade->current_outcome_code) ? (string) $grade->current_outcome_code : null,
+            'outcome_code' => $grade->current_outcome_code,
+            'remarks' => $grade->current_outcome_category,
+            'is_inc' => $grade->current_outcome_code === 'INC',
+            'is_finalized' => $grade->released_at !== null,
+            'finalized_at' => $grade->released_at?->toDateTimeString(),
         ];
+    }
+
+    private function courseFor(GradeRosterRow $row): ?Course
+    {
+        return $row->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification?->course;
     }
 
     /**
@@ -377,7 +421,7 @@ class SubjectSuggestionService
     private function result(
         Enrollment $enrollment,
         ?StudentProfile $studentProfile,
-        ?Curriculum $curriculum,
+        ?int $curriculumVersionId,
         ?string $yearLevel,
         ?string $curriculumPeriod,
         array $suggested,
@@ -390,7 +434,7 @@ class SubjectSuggestionService
             'enrollment_id' => (int) $enrollment->id,
             'student_profile_id' => $studentProfile?->id,
             'term_id' => $enrollment->term_id,
-            'curriculum_id' => $curriculum?->id,
+            'curriculum_id' => $curriculumVersionId,
             'year_level' => $yearLevel,
             'curriculum_period' => $curriculumPeriod,
             'suggested' => $suggested,
@@ -415,7 +459,7 @@ class SubjectSuggestionService
     private function emptyResult(
         Enrollment $enrollment,
         ?StudentProfile $studentProfile,
-        ?Curriculum $curriculum,
+        ?int $curriculumVersionId,
         ?string $yearLevel,
         ?string $curriculumPeriod,
         array $setupBlockers,
@@ -423,7 +467,7 @@ class SubjectSuggestionService
         return $this->result(
             enrollment: $enrollment,
             studentProfile: $studentProfile,
-            curriculum: $curriculum,
+            curriculumVersionId: $curriculumVersionId,
             yearLevel: $yearLevel,
             curriculumPeriod: $curriculumPeriod,
             suggested: [],

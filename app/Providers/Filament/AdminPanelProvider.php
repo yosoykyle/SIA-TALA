@@ -2,10 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
+use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
@@ -48,7 +50,7 @@ class AdminPanelProvider extends PanelProvider
             ->emailVerification()
             ->profile()
             ->brandName('T.A.L.A. System')
-            ->brandLogo(asset('talalogo.jpg'))
+            ->brandLogo(asset('talalogo.png'))
             ->colors([
                 'primary' => Color::Blue,
             ])
@@ -75,12 +77,14 @@ class AdminPanelProvider extends PanelProvider
                 PaymentAttemptResource::class,
                 PaymentResource::class,
                 TermOfferingResource::class,
+                GradeRosterResource::class,
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,
                 SectionMeetingResource::class,
             ])
             ->pages([
                 Dashboard::class,
+                FacultyGradeRoster::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

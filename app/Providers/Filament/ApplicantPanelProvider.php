@@ -36,7 +36,7 @@ class ApplicantPanelProvider extends PanelProvider
             ->emailVerification()
             ->profile()
             ->brandName('TALA Applicant Workspace')
-            ->brandLogo(asset('talalogo.jpg'))
+            ->brandLogo(asset('talalogo.png'))
             ->colors([
                 'primary' => Color::Blue,
             ])

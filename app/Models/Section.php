@@ -53,6 +53,12 @@ class Section extends Model
         return $this->hasMany(SectionDeliveryGroup::class);
     }
 
+    /** @return HasMany<GradeRoster, $this> */
+    public function gradeRosters(): HasMany
+    {
+        return $this->hasMany(GradeRoster::class);
+    }
+
     public function hasCapacityFor(int $expectedCount): bool
     {
         return $expectedCount >= 0 && $expectedCount <= $this->capacity;

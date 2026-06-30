@@ -41,7 +41,7 @@ TALA must support configuration for:
 19. Integration credentials and webhook settings.
 20. Student Lifecycle Change windows, decision authorities, late-exception rules, class-standing requirements, and fee/refund policies.
 21. Academic Calendar windows, optional window scopes, scheduling-grid defaults, institutional break blocks, Special Offering reasons, tutorial thresholds, and offering approval authorities.
-22. Grade Outcome categories, allowed marks, prerequisite effects, GWA effects, INC completion/removal rules, and late grade authorization authorities.
+22. Grade Outcome categories, allowed marks, Servitech v1 final formula, conversion scale, passing threshold, prerequisite effects, GWA effects, `P` and `INC` authority rules, INC completion/removal deadline, lapsed-INC result, and late grade authorization authorities.
 23. Prerequisite completion results, optional minimum-grade policy, accepted credit sources, corequisite treatment, and Academic Exception authorities.
 24. Course Component types, limited to Lecture and Laboratory in v1.
 25. Same-faculty requirement defaults and authorized override rules for linked course components.
@@ -61,7 +61,7 @@ Rules:
 8. Each configured document requirement must designate whether it blocks Handover (blocks Applicant -> Student transition) or blocks official Enrollment.
 9. The system protects fixed hard scheduling constraints through validation. Physical capacity, double-booking, required contact hours, missing qualification, and blocked-calendar or break-block violations are corrected through authoritative source records.
 10. Finance-related holds state the exact blocking effect. Pending OR mapping is treated as reconciliation status unless authorized administration configures a separate enrollment-blocking hold.
-11. Faculty grade-entry marks use the active Grade Outcome policy. If the institution prints `W`, it is configured as a controlled display label mapped to a lifecycle-derived withdrawn outcome.
+11. Faculty grade-entry marks use the active Grade Outcome policy. The Servitech v1 policy uses 30% Preliminary + 30% Midterm + 40% Final, the approved numeric conversion scale, `3.00` / 75% as the passing threshold, and controlled non-numeric outcomes including `P`, `INC`, and lifecycle-derived dropped or withdrawn labels. If the institution prints `W`, it is configured as a controlled display label mapped to a lifecycle-derived withdrawn outcome.
 12. Graduation Eligibility Snapshot visibility defaults to staff-only. Student-facing visibility requires an explicit Registrar action.
 13. Student Unit Load Exception policy defaults to Academic Head approval and Registrar recording unless the institution configures a different authorized workflow.
 
@@ -394,7 +394,7 @@ TALA must support retention categories and disposal controls.
 | Repeated configuration such as fees, holds, requirements, policies, or authorities | Editable Table opening a Record Form per row; active historical values are preserved |
 | Date-based policy windows | Calendar / Date-Range Input linked to the relevant Term or policy scope |
 | Scheduling policy and Institutional Break Blocks | Editable Table for constraint profile values plus Calendar / Date-Range Input for break blocks and blocked periods |
-| Grade Outcome policy | Editable Table defining allowed mark, category, finality, prerequisite effect, GWA effect, student-facing label, and active status |
+| Grade Outcome policy | Editable Table defining allowed mark, category, finality, prerequisite effect, GWA effect, student-facing label, active status, formula/version reference, numeric conversion range, passing threshold, submission authority, INC deadline rule, and lapsed-INC behavior |
 | Late grade authorization authority | Editable Table or Record Form defining authorized approvers, scope, deadline rule, and audit requirement |
 | Student Unit Load Exception policy | Editable Table defining normal max units, excess-unit cap, allowed standing/scope, authority, and active status |
 | Graduation Review Batch | Operational Review Table where Registrar selects academic year, term, optional filters, and included students; snapshot results are generated read-only |

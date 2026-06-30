@@ -21,6 +21,11 @@ class StaffNavigationVisibilityTest extends TestCase
         parent::setUp();
 
         $this->seed(DatabaseSeeder::class);
+
+        foreach (User::staffRoleNames() as $role) {
+            $user = User::factory()->create(['status' => User::StatusActive]);
+            $user->assignRole($role);
+        }
     }
 
     /**

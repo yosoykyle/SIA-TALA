@@ -37,4 +37,6 @@ TAL-71 Finance Outputs and Student Hub Finance is completed locally and recorded
 
 ### Next Unopened Boundary
 
-TAL-72 is the next unopened rescue boundary. Its scope has not been planned or implemented here.
+TAL-72 Grades MVP is completed locally and recorded in the local sync tracker.
+
+TAL-73 progression/lifecycle contract is the next rescue boundary.

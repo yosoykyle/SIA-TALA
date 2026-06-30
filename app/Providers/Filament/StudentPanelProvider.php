@@ -35,7 +35,7 @@ class StudentPanelProvider extends PanelProvider
             ->emailVerification()
             ->profile(Profile::class)
             ->brandName('TALA Student Hub')
-            ->brandLogo(asset('talalogo.jpg'))
+            ->brandLogo(asset('talalogo.png'))
             ->colors([
                 'primary' => Color::Blue,
             ])

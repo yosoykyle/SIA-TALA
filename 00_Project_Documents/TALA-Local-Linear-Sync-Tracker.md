@@ -35,6 +35,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-69 | Done locally; pending Linear sync | PayMongo verified payment evidence, idempotent webhook ledger posting, mismatch review path, Finance Gate from posted ledger/accommodation, and OR mapping as Accounting reconciliation |
 | TAL-70 | Done locally; pending Linear sync | Native authenticated COR output, browser print/save-as-PDF, output access logging, and clean holds-schema alignment |
 | TAL-71 | Done locally; pending Linear sync | Finance outputs, Student Hub Finance, authenticated print views, output access logging, and duplicate-safe pending checkout reuse |
+| TAL-72 | Done locally; pending Linear sync | Grades MVP clean roster, release, outcome history, and Student Hub/subject-suggestion alignment |
 
 ## Compact Synced History
 

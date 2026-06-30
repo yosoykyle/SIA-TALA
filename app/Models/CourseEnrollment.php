@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CourseEnrollment extends Model
 {
@@ -53,6 +54,12 @@ class CourseEnrollment extends Model
     public function seatReservations(): HasMany
     {
         return $this->hasMany(EnrollmentSeatReservation::class);
+    }
+
+    /** @return HasOne<GradeRosterRow, $this> */
+    public function gradeRosterRow(): HasOne
+    {
+        return $this->hasOne(GradeRosterRow::class);
     }
 
     /** @return HasMany<StudentScheduleBinding, $this> */

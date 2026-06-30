@@ -43,7 +43,6 @@ class SchedulingDemandResource extends Resource
         return auth()->user()?->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ]) ?? false;
     }
 

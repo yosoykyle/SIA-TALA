@@ -7,6 +7,7 @@ use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\Enrollments\Schemas\EnrollmentInfolist;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\Enrollment;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -54,6 +55,15 @@ class EnrollmentResource extends Resource
     public static function getRelations(): array
     {
         return [];
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleAccounting,
+        ]) ?? false;
     }
 
     public static function getPages(): array

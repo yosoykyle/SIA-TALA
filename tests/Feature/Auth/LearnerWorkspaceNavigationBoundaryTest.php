@@ -40,11 +40,10 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $this->assertSame([
             'COR',
             'Dashboard',
+            'Finance',
             'Grades',
             'Holds & Blockers',
-            'Payment Acknowledgements',
             'Class Schedule',
-            'Statement of Account',
         ], $labels);
         $this->assertSame($labels, array_values(array_unique($labels)));
         $this->assertNoStaffOnlyNavigationLabels($labels);
