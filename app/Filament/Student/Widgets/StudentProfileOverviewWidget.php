@@ -2,6 +2,8 @@
 
 namespace App\Filament\Student\Widgets;
 
+use App\Actions\Finance\FinanceEvidenceService;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -27,21 +29,24 @@ class StudentProfileOverviewWidget extends BaseWidget
             ];
         }
 
+        $finance = app(FinanceEvidenceService::class)->studentFinance($user);
+        $balance = $finance['state']['ledger_balance'] ?? 'PHP 0.00';
+        $hasBalance = ($finance['summary']['balance'] ?? '0.00') !== '0.00';
+
         return [
-            Stat::make('Official Status', str((string) $profile->operational_status)->title()->toString())
-                ->description('Current Academic Status')
-                ->color(match ($profile->operational_status) {
-                    'enrolled' => 'success',
-                    'probationary', 'irregular' => 'warning',
-                    'dropped', 'LOA', 'AWOL' => 'danger',
+            Stat::make('Lifecycle Status', str((string) $profile->lifecycle_status)->headline()->toString())
+                ->description('Current student profile status')
+                ->color(match ($profile->lifecycle_status) {
+                    StudentProfile::LifecycleActive => 'success',
+                    StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
-            Stat::make('Modality', str((string) $profile->modality)->title()->toString())
-                ->description('Enrolled Modality')
+            Stat::make('Academic Standing', str((string) $profile->academic_standing)->headline()->toString())
+                ->description('Current academic standing')
                 ->color('info'),
-            Stat::make('Balance', 'PHP '.number_format((float) $profile->current_balance, 2))
-                ->description('Outstanding Balance')
-                ->color($profile->current_balance > 0 ? 'warning' : 'success'),
+            Stat::make('Balance', $balance)
+                ->description('Ledger-derived outstanding balance')
+                ->color($hasBalance ? 'warning' : 'success'),
         ];
     }
 }

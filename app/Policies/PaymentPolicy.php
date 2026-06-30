@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\User;
 
@@ -46,7 +47,11 @@ class PaymentPolicy
 
     public function viewAcknowledgement(User $user, Payment $payment): bool
     {
-        if ($payment->evidence_status !== 'verified' || $payment->ledgerEntry === null) {
+        $ledgerEntry = $payment->ledgerEntry;
+
+        if ($payment->evidence_status !== 'verified'
+            || ! $ledgerEntry instanceof LedgerEntry
+            || $ledgerEntry->state !== 'posted') {
             return false;
         }
 

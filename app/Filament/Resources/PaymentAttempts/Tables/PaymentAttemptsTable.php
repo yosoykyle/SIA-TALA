@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\PaymentAttempts\Tables;
 
+use App\Models\Assessment;
+use App\Models\Enrollment;
 use App\Models\PaymentAttempt;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -15,7 +17,7 @@ class PaymentAttemptsTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'assessment.enrollment.term']))
             ->columns([
-                TextColumn::make('studentProfile.student_id')
+                TextColumn::make('studentProfile.student_number')
                     ->label('Student ID')
                     ->searchable()
                     ->sortable(),
@@ -23,15 +25,18 @@ class PaymentAttemptsTable
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('assessment.enrollment.term.term_name')
+                TextColumn::make('assessment.enrollment.term.label')
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('assessment.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, PaymentAttempt $record): string => $record->assessment?->enrollment === null
-                        ? '-'
-                        : $record->assessment->enrollment->displayLabel())
+                    ->formatStateUsing(function (?int $state, PaymentAttempt $record): string {
+                        $assessment = $record->assessment;
+                        $enrollment = $assessment instanceof Assessment ? $assessment->enrollment : null;
+
+                        return $enrollment instanceof Enrollment ? $enrollment->displayLabel() : '-';
+                    })
                     ->placeholder('-'),
                 TextColumn::make('channel')
                     ->badge()

@@ -3,11 +3,14 @@
 namespace App\Filament\Student\Pages;
 
 use App\Models\Grade;
+use App\Models\User;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 class GradesView extends Page implements HasTable
 {
@@ -24,10 +27,7 @@ class GradesView extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(
-                // Empty query for the shell
-                Grade::query()->where('id', 0)
-            )
+            ->query($this->emptyGradesScaffoldQuery())
             ->columns([
                 TextColumn::make('subject_code')->label('Course Code'),
                 TextColumn::make('description')->label('Description'),
@@ -38,7 +38,16 @@ class GradesView extends Page implements HasTable
                     ->badge(),
             ])
             ->emptyStateHeading('No grades available')
-            ->emptyStateDescription('Grades for the current term have not been released yet.')
+            ->emptyStateDescription('Grades will appear here after posting and release.')
             ->emptyStateIcon('heroicon-o-clipboard-document-list');
+    }
+
+    public function emptyGradesScaffoldQuery(): Builder
+    {
+        if (Schema::hasTable((new Grade)->getTable())) {
+            return Grade::query()->whereRaw('1 = 0');
+        }
+
+        return User::query()->whereRaw('1 = 0');
     }
 }

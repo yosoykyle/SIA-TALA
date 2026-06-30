@@ -52,7 +52,6 @@ class StudentHubTest extends TestCase
 
         StudentProfile::factory()->create([
             'user_id' => $student->id,
-            'operational_status' => 'enrolled',
         ]);
 
         $response = $this->actingAs($student)->get('/student');
@@ -70,8 +69,6 @@ class StudentHubTest extends TestCase
 
         $profile = StudentProfile::factory()->create([
             'user_id' => $student->id,
-            'operational_status' => 'enrolled',
-            'current_balance' => 5000.00,
         ]);
 
         Hold::factory()->create([
@@ -108,8 +105,7 @@ class StudentHubTest extends TestCase
         // All student hub shell pages
         $pages = [
             '/student/cor-view',
-            '/student/soa-view',
-            '/student/payment-acknowledgement-view',
+            '/student/finance',
             '/student/schedule-view',
             '/student/grades-view',
             '/student/holds-view',
@@ -119,5 +115,9 @@ class StudentHubTest extends TestCase
             $response = $this->get($url);
             $response->assertOk();
         }
+
+        $this->get('/student/grades-view')
+            ->assertOk()
+            ->assertSee('Grades will appear here after posting and release.');
     }
 }

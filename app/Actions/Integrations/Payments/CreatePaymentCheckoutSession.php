@@ -27,6 +27,22 @@ class CreatePaymentCheckoutSession
         }
 
         $assessment = $this->assessmentFor($request);
+        $reusableAttempt = $this->reusablePendingAttempt((int) $assessment->id, $request->studentProfileId, $amount);
+
+        if (is_object($reusableAttempt)) {
+            $metadata = json_decode((string) ($reusableAttempt->metadata ?? '{}'), true, 512, JSON_THROW_ON_ERROR);
+
+            return [
+                'payment_attempt_id' => (int) $reusableAttempt->id,
+                'provider' => (string) $reusableAttempt->provider,
+                'provider_checkout_session_id' => (string) $reusableAttempt->provider_checkout_id,
+                'internal_reference' => (string) $reusableAttempt->internal_reference,
+                'checkout_url' => (string) ($metadata['checkout_url'] ?? ''),
+                'status' => (string) $reusableAttempt->status,
+                'amount' => $this->money->normalize((string) $reusableAttempt->amount),
+            ];
+        }
+
         $internalReference = 'TALA-PAY-'.Str::upper((string) Str::uuid());
         $metadata = [
             ...$request->metadata,
@@ -63,6 +79,7 @@ class CreatePaymentCheckoutSession
             'amount' => $amount,
             'currency' => 'PHP',
             'status' => $session->status,
+            'expires_at' => $createdAt->addMinutes(30)->toDateTimeString(),
             'metadata' => json_encode([
                 'checkout_url' => $session->checkoutUrl,
                 'success_url' => $normalizedRequest->successUrl,
@@ -92,7 +109,7 @@ class CreatePaymentCheckoutSession
         } elseif ($request->enrollmentId !== null) {
             $assessment = DB::table('assessments')
                 ->where('enrollment_id', $request->enrollmentId)
-                ->where('state', 'active')
+                ->where('state', 'ACTIVE')
                 ->latest('version')
                 ->latest('id')
                 ->first();
@@ -104,7 +121,7 @@ class CreatePaymentCheckoutSession
             throw new RuntimeException('An active assessment is required before creating a payment checkout attempt.');
         }
 
-        if (($assessment->state ?? null) !== 'active') {
+        if (($assessment->state ?? null) !== 'ACTIVE') {
             throw new RuntimeException('Payment checkout requires an active assessment.');
         }
 
@@ -117,5 +134,20 @@ class CreatePaymentCheckoutSession
         }
 
         return $assessment;
+    }
+
+    private function reusablePendingAttempt(int $assessmentId, int $studentProfileId, string $amount): ?object
+    {
+        return DB::table('payment_attempts')
+            ->where('assessment_id', $assessmentId)
+            ->where('student_profile_id', $studentProfileId)
+            ->where('amount', $amount)
+            ->where('status', 'pending')
+            ->where(function ($query): void {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', CarbonImmutable::now(config('app.timezone'))->toDateTimeString());
+            })
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
     }
 }

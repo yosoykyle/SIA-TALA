@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
+use App\Models\Enrollment;
+use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\TextInput;
@@ -19,7 +22,7 @@ class PaymentsTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'paymentAttempt', 'ledgerEntry.enrollment', 'verifier']))
             ->columns([
-                TextColumn::make('studentProfile.student_id')
+                TextColumn::make('studentProfile.student_number')
                     ->label('Student ID')
                     ->searchable()
                     ->sortable(),
@@ -27,27 +30,32 @@ class PaymentsTable
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('term.term_name')
+                TextColumn::make('term.label')
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('ledgerEntry.enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry?->enrollment === null
-                        ? '-'
-                        : $record->ledgerEntry->enrollment->displayLabel())
+                    ->formatStateUsing(function (?int $state, Payment $record): string {
+                        $ledgerEntry = $record->ledgerEntry;
+                        $enrollment = $ledgerEntry instanceof LedgerEntry ? $ledgerEntry->enrollment : null;
+
+                        return $enrollment instanceof Enrollment ? $enrollment->displayLabel() : '-';
+                    })
                     ->placeholder('-'),
                 TextColumn::make('paymentAttempt.id')
                     ->label('Payment Attempt')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->paymentAttempt === null
-                        ? '-'
-                        : $record->paymentAttempt->displayLabel())
+                    ->formatStateUsing(function (?int $state, Payment $record): string {
+                        $attempt = $record->paymentAttempt;
+
+                        return $attempt instanceof PaymentAttempt ? $attempt->displayLabel() : '-';
+                    })
                     ->placeholder('-'),
                 TextColumn::make('ledgerEntry.id')
                     ->label('Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry === null
-                        ? '-'
-                        : $record->ledgerEntry->displayLabel())
+                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry instanceof LedgerEntry
+                        ? $record->ledgerEntry->displayLabel()
+                        : '-')
                     ->placeholder('-'),
                 TextColumn::make('provider_reference')
                     ->label('Reference')
@@ -139,10 +147,15 @@ class PaymentsTable
                             ->success()
                             ->send();
                     })
-                    ->visible(fn (Payment $record): bool => (auth()->user()?->can('process-payments') ?? false)
-                        && $record->evidence_status === 'verified'
-                        && $record->ledgerEntry !== null
-                        && empty($record->or_number)),
+                    ->visible(function (Payment $record): bool {
+                        $ledgerEntry = $record->ledgerEntry;
+
+                        return (auth()->user()?->can('process-payments') ?? false)
+                            && $record->evidence_status === 'verified'
+                            && $ledgerEntry instanceof LedgerEntry
+                            && $ledgerEntry->state === 'posted'
+                            && empty($record->or_number);
+                    }),
             ])
             ->toolbarActions([]);
     }
