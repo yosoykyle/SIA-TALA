@@ -105,7 +105,7 @@ Hard constraint source map:
 | Section/cohort no-overlap | Section, cohort group, term offering, meeting pattern |
 | Student no-overlap | Checked by TALA during enrollment for irregular students (solver only enforces cohort/section non-overlap) |
 | Contact-hour completion | Course Specification Revision, Course Components, Scheduling Demand, term calendar time blocks |
-| Calendar validity | Academic Calendar windows, holidays, no-class dates, break blocks, configured examination-period policy |
+| Calendar validity | Recurring operating grid and recurring break/no-class blocks constrain the Master Schedule; absolute holidays, no-class dates, and examination suspensions govern dated occurrences and operational handling |
 | Resource availability | Room availability, faculty availability, resource-specific blocked times |
 | Room suitability | Room type, features, capacity, delivery modality |
 | Faculty eligibility | Faculty-subject qualification mappings |
@@ -118,14 +118,15 @@ Hard constraint source map:
 
 Soft constraints:
 
-1. Prefer faculty requested times.
-2. Prefer compact student and section schedules.
-3. Reduce faculty idle gaps.
-4. Balance faculty load.
-5. Use rooms efficiently.
-6. Reduce late and weekend schedules.
-7. Minimize changes from previous published version.
-8. Prefer earlier institutional time blocks when multiple valid assignments exist.
+1. Prefer compact student and section schedules.
+2. Reduce faculty idle gaps.
+3. Balance faculty load.
+4. Use rooms efficiently.
+5. Reduce late and weekend schedules.
+6. Minimize changes from previous published version.
+7. Prefer earlier institutional time blocks when multiple valid assignments exist.
+
+Faculty requested-time preference is deferred until a later approved solver contract implements and verifies `PREFERRED` calendar-event scoring.
 
 Soft constraint rules:
 
@@ -181,13 +182,26 @@ Required input groups:
 8. Rooms
 9. Faculty
 10. Faculty Qualifications
-11. Faculty Availability
+11. Faculty Availability and scoped scheduling blocks from `calendar_events`
 12. Term Offerings
 13. Student / Cohort Groups
 14. Hard Constraints
 15. Soft Constraints
 16. Fixed Assignments
 17. Optimization Settings
+
+Availability and calendar-block payload rules:
+
+1. TALA sends active recurring term-scoped `calendar_events` blocks used by the run. It does not read legacy faculty-availability period, submission, window, or change-request records.
+2. Recurring `UNAVAILABLE` faculty rows and applicable recurring room, institution, break, and no-class rows with `blocks_scheduling=true` are hard inputs for the weekly Master Schedule.
+3. Every enforced block includes `day_of_week`, `starts_at`, and `ends_at` with its source event ID, scope, and target.
+4. Absolute `start_at` / `end_at` holidays, no-class dates, and dated exceptions are not sent to the date-blind weekly solver. They remain Academic Calendar occurrence records and use make-up, revision, or operational handling when applicable.
+5. When an absolute event represents a whole-term restriction, staff records an equivalent recurring block for Master Schedule enforcement.
+6. No faculty-scoped availability row means no additional restriction inside the generated term time grid.
+7. Solver readiness does not require a synthetic availability row. It validates the term grid, active recurring blocks, qualified faculty, rooms, and demand sources that exist.
+8. Recurring manual assignment uses the same active recurring calendar-block overlap rules as the solver and cannot bypass an unavailable block through a note-only override.
+9. Preferred-time capture and optimization are deferred from MVP and are not included in solver claims.
+10. The immutable run snapshot retains the deterministic recurring source rows actually enforced. Later calendar changes affect a new run or explicit revalidation and never rewrite a captured run or published schedule.
 
 #### 6.2.2 Required Input IDs
 
@@ -356,7 +370,7 @@ This map identifies how scheduling is surfaced for v1. It is not a visual design
 | --- | --- | --- | --- |
 | Academic Calendar scheduling grid | Registrar or authorized staff | Calendar / Date-Range Input | Define operating days, hours, no-class dates, examination blocking behavior, and Institutional Break Blocks. |
 | Room and facility setup | Registrar or authorized staff | Record Form and Editable Table | Maintain room capacity, room type, flat features, active status, and room-scoped unavailability. |
-| Faculty qualification and availability | Registrar, Academic Head, or authorized staff | Editable Table and Calendar / Date-Range Input | Record approved subject qualification, unavailable blocks, preferred blocks, and term load inputs. |
+| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Preferred-time optimization is deferred. |
 | Term Offering builder | Registrar | Generated Editable Table | Create Regular offerings from Curriculum Entries and add approved offering-owned values. |
 | Section delivery groups | Registrar | Editable Table | Define schedulable cohort or section groups and expected counts. |
 | Scheduling Demand review | Registrar | Generated Review Table | Show the demand rows that CP-SAT will schedule, with source links and validation status. |

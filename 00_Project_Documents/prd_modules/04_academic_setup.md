@@ -22,7 +22,7 @@ Default scheduling grid:
 2. 7:00 AM to 8:00 PM.
 3. 30-minute base blocks.
 4. Sunday blocked by default.
-5. Holidays and no-class days block scheduling.
+5. Holidays and no-class dates suspend or exclude their affected dated class occurrences; they do not change the recurring Master Schedule pattern.
 6. Authorized staff may configure operating days, hours, institutional break blocks, and time-block granularity before scheduling.
 
 Curriculum and Course Catalog preparation may occur independently of a Term. Term setup must exist before Term Offerings, scheduling, enrollment, assessment due dates, or grade windows are activated.
@@ -60,7 +60,7 @@ Daily scheduling blocks:
 
 Calendar effects:
 
-1. Scheduling uses the Academic Calendar to generate valid time blocks and exclude holidays, no-class dates, and examination periods when institutional policy suspends regular classes.
+1. Master Schedule generation uses the recurring operating grid and recurring blocks. Holidays, no-class dates, and dated examination suspensions exclude their affected class occurrences and use make-up, revision, or operational handling without becoming weekly solver constraints.
 2. Enrollment uses the term calendar to determine enrollment windows, late-enrollment handling, capacity deadlines, payment due dates, and official enrollment cutoffs.
 3. Assessment uses the active term and enrollment timing to apply the exact Program-and-Term downpayment rule, late enrollment fees, installment schedules, and term-specific fee configuration.
 4. Grade encoding uses the academic calendar to open and close faculty grade-entry windows.
@@ -84,6 +84,17 @@ Scheduling Availability records:
 2. Faculty unavailable period.
 3. Resource-specific blocked time.
 4. Daily or term-specific break block.
+
+Scheduling Availability source rules:
+
+1. `calendar_events` is the single MVP source for room availability, faculty availability, and institutional or scoped scheduling blocks.
+2. Faculty and room unavailability use `event_type=UNAVAILABLE`, the applicable `FACULTY` or `ROOM` scope, `blocks_scheduling=true`, and an `ACTIVE` state.
+3. Recurring `day_of_week` / `starts_at` / `ends_at` blocks are the hard inputs used by the weekly Master Schedule solver and recurring manual-assignment validation.
+4. Absolute `start_at` / `end_at` holidays, no-class dates, and dated exceptions remain Academic Calendar occurrence and lifecycle records. They do not repeat weekly or alter the recurring published Master Schedule automatically.
+5. Dated exceptions use the applicable make-up, published-schedule revision, or operational handling workflow. When an absolute event represents a whole-term restriction, staff also records its equivalent recurring block for Master Schedule enforcement.
+6. Zero faculty availability events means the faculty member has no additional restriction inside the configured term operating grid.
+7. Preferred-time capture and optimization are deferred from MVP. The system does not present or claim `PREFERRED` scheduling behavior until the solver implements and verifies it.
+8. Availability changes apply to future solver snapshots and explicit revalidation. They do not regenerate a schedule or rewrite published meetings automatically.
 
 Institutional class suspensions or temporary closures are decided outside TALA. Authorized staff record the resulting no-class or make-up date only when it changes the official Academic Calendar.
 
@@ -317,6 +328,7 @@ The system enforces these curriculum rules during enrollment and scheduling. TAL
 | Academic year and Term identity | Record Form with controlled term type, status, and absolute start/end dates |
 | Academic Calendar windows | Calendar / Date-Range Input plus an Editable Table for named windows, optional scope, and exact open/close dates |
 | Holidays, no-class dates, make-up dates, and Institutional Break Blocks | Calendar / Date-Range Input; room and faculty unavailability remain separate source records |
+| Room and faculty scheduling unavailability | Term-scoped Calendar / Date-Range Input backed by `calendar_events`; recurring day/time fields constrain the weekly Master Schedule, while absolute date/time fields record dated operational exceptions |
 | Course identity | Record Form for Subject Code and active status |
 | Course Specification Revision | Record Form for one revision, with numeric fields and Selection Lists for grading profile and modalities |
 | Course Components | Inline Editable Table inside the Course Specification Revision form; one row per Lecture or Laboratory component with contact hours, room defaults, modality allowance, consecutive-block rule, and optional same-faculty requirement |

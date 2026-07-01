@@ -403,9 +403,11 @@ class ScheduleSolverSnapshotService
     {
         return CalendarEvent::query()
             ->whereBelongsTo($term)
-            ->where('blocks_scheduling', true)
+            ->recurringSchedulingBlocks()
             ->where('state', CalendarEvent::StateActive)
-            ->orderBy('start_at')
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('scope_type')
             ->orderBy('id')
             ->get()
             ->map(fn ($event): array => [
@@ -414,8 +416,10 @@ class ScheduleSolverSnapshotService
                 'scope_type' => $event->scope_type,
                 'room_id' => $event->room_id !== null ? (int) $event->room_id : null,
                 'faculty_user_id' => $event->faculty_user_id !== null ? (int) $event->faculty_user_id : null,
-                'start_at' => $this->dateTimeString($event->getAttribute('start_at')),
-                'end_at' => $this->dateTimeString($event->getAttribute('end_at')),
+                'authority' => $event->authority,
+                'day_of_week' => (int) $event->day_of_week,
+                'starts_at' => $this->timeString($event->starts_at),
+                'ends_at' => $this->timeString($event->ends_at),
             ])
             ->values()
             ->all();
@@ -495,15 +499,6 @@ class ScheduleSolverSnapshotService
         return $value === null || $value === '' ? null : (string) $value;
     }
 
-    private function dateTimeString(mixed $value): ?string
-    {
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format(\DateTimeInterface::ATOM);
-        }
-
-        return $value === null || $value === '' ? null : (string) $value;
-    }
-
     private function minutes(string $time): int
     {
         [$hour, $minute] = array_map('intval', explode(':', substr($time, 0, 5)));
@@ -531,6 +526,10 @@ class ScheduleSolverSnapshotService
     {
         if ($value === null || $value === '') {
             return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('H:i:s');
         }
 
         $time = (string) $value;

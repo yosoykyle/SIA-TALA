@@ -326,6 +326,7 @@ MVP audit scope:
 8. Schedule publication, live schedule revision, Manual Schedule Override, and solver run records.
 9. Holds and Student Lifecycle Change records.
 10. Sensitive report exports.
+11. Room or faculty scheduling-block creation, update, activation, and retirement.
 
 V1 audit focuses on official-record changes, sensitive output access, and high-risk exports.
 

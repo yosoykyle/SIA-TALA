@@ -13,11 +13,9 @@ use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\CalendarEvent;
 use App\Models\CurriculumSubject;
 use App\Models\DeliveryPattern;
-use App\Models\FacultyAvailabilityChangeRequest;
-use App\Models\FacultyAvailabilityPeriod;
-use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
@@ -33,10 +31,8 @@ use App\Policies\AccountingAdjustmentPolicy;
 use App\Policies\ActivityPolicy;
 use App\Policies\AssessmentLinePolicy;
 use App\Policies\AssessmentPolicy;
+use App\Policies\CalendarEventPolicy;
 use App\Policies\DeliveryPatternPolicy;
-use App\Policies\FacultyAvailabilityChangeRequestPolicy;
-use App\Policies\FacultyAvailabilityPeriodPolicy;
-use App\Policies\FacultyAvailabilitySubmissionPolicy;
 use App\Policies\FeeRulePolicy;
 use App\Policies\LedgerEntryPolicy;
 use App\Policies\PaymentAttemptPolicy;
@@ -137,9 +133,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(DeliveryPattern::class, DeliveryPatternPolicy::class);
         Gate::policy(SectionDeliveryGroup::class, SectionDeliveryGroupPolicy::class);
         Gate::policy(SectionMeeting::class, SectionMeetingPolicy::class);
-        Gate::policy(FacultyAvailabilityPeriod::class, FacultyAvailabilityPeriodPolicy::class);
-        Gate::policy(FacultyAvailabilityChangeRequest::class, FacultyAvailabilityChangeRequestPolicy::class);
-        Gate::policy(FacultyAvailabilitySubmission::class, FacultyAvailabilitySubmissionPolicy::class);
+        Gate::policy(CalendarEvent::class, CalendarEventPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
 

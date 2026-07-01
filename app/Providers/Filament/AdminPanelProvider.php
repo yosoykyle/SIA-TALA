@@ -6,6 +6,7 @@ use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
+use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -80,6 +81,7 @@ class AdminPanelProvider extends PanelProvider
                 LedgerEntryResource::class,
                 PaymentAttemptResource::class,
                 PaymentResource::class,
+                CalendarEventResource::class,
                 TermOfferingResource::class,
                 GradeRosterResource::class,
                 GraduationReviewBatchResource::class,

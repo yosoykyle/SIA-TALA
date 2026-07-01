@@ -5,7 +5,6 @@ namespace App\Actions\Scheduling;
 use App\Actions\AcademicFoundation\CurriculumScopeReadinessService;
 use App\Models\CurriculumReadinessScope;
 use App\Models\CurriculumSubject;
-use App\Models\FacultyAvailabilitySubmission;
 use App\Models\FacultySubjectEligibility;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -311,34 +310,14 @@ class TermSchedulingReadinessService
                 ->unique()
                 ->values());
 
-        $availableFacultyIds = FacultyAvailabilitySubmission::query()
-            ->where('term_id', $term->id)
-            ->whereIn('status', [
-                FacultyAvailabilitySubmission::StatusSubmitted,
-                FacultyAvailabilitySubmission::StatusLocked,
-            ])
-            ->whereHas('windows')
-            ->pluck('faculty_id')
-            ->unique()
-            ->values();
-
         return $demands
-            ->map(function (array $demand) use ($eligibleFacultyBySubject, $availableFacultyIds): ?array {
+            ->map(function (array $demand) use ($eligibleFacultyBySubject): ?array {
                 /** @var Collection<int, int> $eligibleFacultyIds */
                 $eligibleFacultyIds = $eligibleFacultyBySubject->get($demand['subject_id'], collect());
-                $schedulableFacultyIds = $eligibleFacultyIds->intersect($availableFacultyIds)->values();
 
-                if ($schedulableFacultyIds->isNotEmpty()) {
+                if ($eligibleFacultyIds->isNotEmpty()) {
                     return null;
                 }
-
-                $missingInputs = [];
-
-                if ($eligibleFacultyIds->isEmpty()) {
-                    $missingInputs[] = 'active_faculty_subject_eligibility';
-                }
-
-                $missingInputs[] = 'submitted_or_locked_faculty_availability';
 
                 return [
                     'section_id' => (int) $demand['section_id'],
@@ -347,7 +326,7 @@ class TermSchedulingReadinessService
                     'delivery_group_name' => (string) $demand['delivery_group_name'],
                     'subject_id' => (int) $demand['subject_id'],
                     'subject_code' => $demand['subject_code'],
-                    'missing_inputs' => array_values(array_unique($missingInputs)),
+                    'missing_inputs' => ['active_faculty_subject_eligibility'],
                     'eligible_faculty_count' => $eligibleFacultyIds->count(),
                     'schedulable_faculty_count' => 0,
                 ];

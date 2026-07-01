@@ -84,6 +84,21 @@ Term offering states:
 
 Faculty availability is an input to scheduling. TALA uses a simplified qualification and load model to reduce administrative overhead while preserving solver correctness.
 
+**Faculty Availability:**
+Stored as term-scoped `calendar_events` rows rather than a submission, locking, version, or change-request workflow.
+
+- **Fields:** Term, Event Type (`UNAVAILABLE`), Scope (`FACULTY`), Faculty ID, absolute Start/End or recurring Day/Start/End, Blocks Scheduling, State, and Authority.
+- **Rules:**
+  1. Faculty may create and maintain their own unavailable blocks before the applicable solver run or revalidation.
+  2. Authorized Registrar or Academic Head staff may review and manage faculty blocks for the term.
+  3. An active recurring `UNAVAILABLE` faculty event with `blocks_scheduling=true` is a hard block for weekly solver assignment and recurring manual assignment.
+  4. No faculty event means no additional restriction inside the term operating grid; readiness does not require a synthetic availability row.
+  5. Solver snapshots preserve the deterministic recurring source blocks actually enforced by the weekly Master Schedule model.
+  6. Absolute dated events remain calendar occurrence records and use make-up, revision, or operational handling when applicable. A whole-term restriction requires an equivalent recurring block for solver enforcement.
+  7. Editing availability affects future runs or explicit revalidation only. Published meetings change through the controlled schedule-revision flow.
+  8. Preferred-time input and optimization are deferred from MVP. V1 records and enforces recurring unavailable blocks only.
+  9. Availability edits are auditable through the application activity log; solver snapshots preserve the exact recurring rows used for each run.
+
 **Faculty Qualifications:**
 Stored as flat subject mappings. If a faculty member has an active mapping to a subject, they are qualified to teach it.
 
@@ -169,7 +184,7 @@ Capacity management is controlled through Registrar-confirmed academic placement
 | Add a Special Offering | Record Form selecting course revision, reason, target population, estimated demand, modality, same-faculty override when needed, and approval reference |
 | Section delivery groups and expected counts | Editable Table with program/cohort Selection Lists and validated non-negative counts |
 | Faculty profile and qualification | Record Form plus Editable Table of approved course or discipline qualifications |
-| Faculty availability | Calendar / Date-Range Input for unavailable and preferred time blocks |
+| Faculty availability | Term-scoped Calendar / Date-Range Input for the faculty member's own unavailable blocks, with authorized Registrar or Academic Head review on the same source rows |
 | Faculty term load or approved override | Record Form showing computed load and capturing the authorized limit/exception, reason, authority, and evidence reference |
 | Room and facility inventory | Record Form per room plus checklist/Selection List for room type and flat features |
 | Room closure, temporary unavailability, or room-scoped break block | Calendar / Date-Range Input tied to an existing room |

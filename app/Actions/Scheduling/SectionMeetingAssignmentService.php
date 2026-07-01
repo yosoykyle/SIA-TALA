@@ -2,9 +2,9 @@
 
 namespace App\Actions\Scheduling;
 
-use App\Models\FacultyAvailabilitySubmission;
-use App\Models\FacultyAvailabilityWindow;
+use App\Models\CalendarEvent;
 use App\Models\FacultySubjectEligibility;
+use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
@@ -26,19 +26,13 @@ class SectionMeetingAssignmentService
 
         $this->assertTermIsNotPublished($payload['term_id']);
         $this->assertNoConflicts($payload);
+        $this->assertRecurringBlocksAllow($payload);
 
         $timestamp = $committedAt ?? CarbonImmutable::now(config('app.timezone'));
-        $overrideAttributes = $this->availabilityOverrideAttributes(
-            payload: $payload,
-            registrar: $registrar,
-            timestamp: $timestamp,
-            includeNulls: false,
-        );
         unset($payload['availability_override_reason']);
 
         return [
             ...$payload,
-            ...$overrideAttributes,
             'schedule_generation_run_id' => null,
             'committed_by' => $registrar->id,
             'committed_at' => $timestamp,
@@ -233,103 +227,72 @@ class SectionMeetingAssignmentService
     }
 
     /**
-     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
-     * @param  array<string, mixed>  $context
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $assignment
      *
      * @throws ValidationException
      */
-    private function availabilityOverrideAttributes(
-        array $payload,
-        ?User $registrar,
-        CarbonImmutable $timestamp,
-        bool $includeNulls,
-        array $context = [],
-    ): array {
-        $issue = $this->facultyAvailabilityIssue($payload);
+    public function assertRecurringBlocksAllow(array $assignment): void
+    {
+        $termId = $this->integerValue($assignment['term_id'] ?? null);
+        $facultyId = $this->integerValue($assignment['faculty_user_id'] ?? $assignment['faculty_id'] ?? null);
+        $roomId = $this->integerValue($assignment['room_id'] ?? null);
+        $dayOfWeek = $this->integerValue($assignment['day_of_week'] ?? null);
+        $startsAt = $this->timeValue($assignment['starts_at'] ?? null);
+        $endsAt = $this->timeValue($assignment['ends_at'] ?? null);
 
-        if ($issue === null) {
-            return $includeNulls
-                ? [
-                    'availability_override_reason' => null,
-                    'availability_override_by' => null,
-                    'availability_override_at' => null,
-                    'availability_override_payload' => null,
-                ]
-                : [];
+        if ($roomId === null && filled($assignment['room'] ?? null)) {
+            $roomId = Room::query()
+                ->where('code', (string) $assignment['room'])
+                ->value('id');
         }
 
-        $reason = $payload['availability_override_reason'] ?? null;
+        if ($termId === null || $dayOfWeek === null || $startsAt === null || $endsAt === null) {
+            throw ValidationException::withMessages([
+                'calendar_blocks' => 'Term, day, start time, and end time are required for recurring scheduling-block validation.',
+            ]);
+        }
 
-        throw ValidationException::withMessages([
-            'faculty_id' => $this->availabilityHardBlockMessage($issue['type'], $reason),
-        ]);
-    }
+        $block = CalendarEvent::query()
+            ->recurringSchedulingBlocks()
+            ->where('term_id', $termId)
+            ->where('state', CalendarEvent::StateActive)
+            ->where('day_of_week', $dayOfWeek)
+            ->where('starts_at', '<', $endsAt)
+            ->where('ends_at', '>', $startsAt)
+            ->where(function ($query) use ($facultyId, $roomId): void {
+                $query->where('scope_type', CalendarEvent::ScopeInstitution);
 
-    /**
-     * @param  array{term_id:int, section_id:int, section_delivery_group_id:int, subject_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, availability_override_reason?:?string}  $payload
-     * @return array<string, mixed>|null
-     */
-    private function facultyAvailabilityIssue(array $payload): ?array
-    {
-        $submission = FacultyAvailabilitySubmission::query()
-            ->with('windows')
-            ->where('term_id', $payload['term_id'])
-            ->where('faculty_id', $payload['faculty_id'])
-            ->whereIn('status', [
-                FacultyAvailabilitySubmission::StatusSubmitted,
-                FacultyAvailabilitySubmission::StatusLocked,
-            ])
-            ->orderByDesc('version')
+                if ($facultyId !== null) {
+                    $query->orWhere(function ($query) use ($facultyId): void {
+                        $query->where('scope_type', CalendarEvent::ScopeFaculty)
+                            ->where('faculty_user_id', $facultyId);
+                    });
+                }
+
+                if ($roomId !== null) {
+                    $query->orWhere(function ($query) use ($roomId): void {
+                        $query->where('scope_type', CalendarEvent::ScopeRoom)
+                            ->where('room_id', $roomId);
+                    });
+                }
+            })
+            ->orderBy('scope_type')
+            ->orderBy('id')
             ->first();
 
-        if (! $submission instanceof FacultyAvailabilitySubmission || $submission->windows->isEmpty()) {
-            return [
-                'type' => 'missing_submitted_or_locked_availability',
-                'message' => 'The selected faculty has no submitted or locked availability window for this term.',
-                'submission_id' => $submission?->id,
-                'submission_status' => $submission?->status,
-                'submission_version' => $submission?->version,
-                'available_windows' => [],
-            ];
+        if (! $block instanceof CalendarEvent) {
+            return;
         }
 
-        $windows = $submission->windows
-            ->map(fn (FacultyAvailabilityWindow $window): array => [
-                'day_of_week' => (int) $window->day_of_week,
-                'starts_at' => $this->timeValue($window->starts_at),
-                'ends_at' => $this->timeValue($window->ends_at),
-                'notes' => $window->notes,
-            ])
-            ->values()
-            ->all();
-
-        $insideWindow = collect($windows)->contains(fn (array $window): bool => $window['day_of_week'] === $payload['day_of_week']
-            && $window['starts_at'] <= $payload['starts_at']
-            && $window['ends_at'] >= $payload['ends_at']);
-
-        if ($insideWindow) {
-            return null;
-        }
-
-        return [
-            'type' => 'outside_availability_window',
-            'message' => 'The proposed meeting is outside the selected faculty submitted or locked availability windows.',
-            'submission_id' => (int) $submission->id,
-            'submission_status' => $submission->status,
-            'submission_version' => (int) $submission->version,
-            'available_windows' => $windows,
-        ];
-    }
-
-    private function availabilityHardBlockMessage(string $issueType, ?string $reason): string
-    {
-        $suffix = $reason !== null ? ' Review notes do not override this hard scheduling constraint.' : '';
-
-        return match ($issueType) {
-            'missing_submitted_or_locked_availability' => 'The selected faculty has no submitted or locked availability for this term.'.$suffix,
-            default => 'The proposed meeting is outside the selected faculty availability.'.$suffix,
+        $field = match ($block->scope_type) {
+            CalendarEvent::ScopeFaculty => 'faculty_user_id',
+            CalendarEvent::ScopeRoom => 'room_id',
+            default => 'day_of_week',
         };
+
+        throw ValidationException::withMessages([
+            $field => 'The proposed meeting overlaps an active recurring scheduling block. Review notes do not override this hard constraint.',
+        ]);
     }
 
     /**

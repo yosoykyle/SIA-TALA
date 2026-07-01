@@ -108,6 +108,44 @@ class SolveSnapshotTest(unittest.TestCase):
         )
         self.assertEqual([], self.hard_constraint_violations(rows))
 
+    def test_recurring_calendar_block_excludes_overlapping_fixed_assignment(self) -> None:
+        snapshot = self.snapshot()
+        demand = snapshot["scheduling_demands"][0]
+        demand["fixed_faculty_user_id"] = 200
+        demand["fixed_room_id"] = 301
+        demand["fixed_day_of_week"] = 1
+        demand["fixed_start_time"] = "08:00:00"
+
+        baseline = solve_snapshot(snapshot, timeout_seconds=10)
+        baseline_assignment = next(
+            row for row in baseline["assignments"]
+            if row["scheduling_demand_id"] == demand["scheduling_demand_id"]
+        )
+        self.assertEqual("ok", baseline_assignment["assignment_status"])
+
+        snapshot["calendar_blocks"] = [
+            {
+                "calendar_event_id": 9001,
+                "event_type": "UNAVAILABLE",
+                "scope_type": "FACULTY",
+                "faculty_user_id": 200,
+                "room_id": None,
+                "authority": "Faculty",
+                "day_of_week": 1,
+                "starts_at": "08:00:00",
+                "ends_at": "09:00:00",
+            }
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+        assignment = next(
+            row for row in result["assignments"]
+            if row["scheduling_demand_id"] == demand["scheduling_demand_id"]
+        )
+
+        self.assertEqual("conflict", assignment["assignment_status"])
+        self.assertEqual("solver_unassigned", assignment["violations"][0]["type"])
+
     def snapshot(self) -> dict[str, Any]:
         path = Path(__file__).resolve().parents[1] / "samples" / "minimal_snapshot.json"
 

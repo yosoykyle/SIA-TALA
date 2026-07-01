@@ -22,7 +22,7 @@ Owns fee setup, assessment, payment evidence, ledger posting, balance, SOA, paym
 
 #### 2.1.5 Faculty
 
-Submits availability, views assigned classes, views rosters, encodes grades, submits grade rosters, and responds to returned rosters before posting.
+Records their own term-scoped unavailable scheduling blocks, views assigned classes, views rosters, encodes grades, submits grade rosters, and responds to returned rosters before posting.
 
 #### 2.1.6 Academic Head
 
@@ -125,7 +125,7 @@ Allowed:
 
 1. View assigned classes.
 2. View assigned class rosters.
-3. Submit availability.
+3. Create and maintain their own term-scoped unavailable scheduling blocks before the applicable solver run or revalidation.
 4. Encode grade drafts for assigned classes.
 5. Submit grade rosters.
 6. Respond to returned-for-correction grade rosters.
@@ -156,6 +156,7 @@ Allowed:
 13. Create Graduation Review Batches and refresh Graduation Eligibility Snapshots.
 14. Record approved Student Unit Load Exceptions when Registrar is the configured recording office.
 15. Export Registrar-scoped reports.
+16. Review and manage term-scoped room and faculty scheduling blocks when authorized.
 
 Controlled actions requiring reason, permission, and audit:
 
@@ -205,6 +206,7 @@ Allowed:
 7. View recorded approved program-shift credit evaluation results when authorized.
 8. Review graduation eligibility exceptions.
 9. Approve Student Unit Load Exceptions where configured.
+10. Review and manage faculty scheduling blocks when authorized.
 
 Boundaries:
 
@@ -244,7 +246,7 @@ Faculty Workspace includes:
 1. Faculty overview.
 2. Assigned classes.
 3. Class rosters.
-4. Faculty availability submission.
+4. Faculty unavailable-block calendar.
 5. Grade encoding workspace.
 6. Draft grade saving.
 7. Grade roster submission.
@@ -360,7 +362,7 @@ Rules:
 | Create or update one applicant, student, faculty, or staff profile | Record Form; referenced roles, programs, and statuses use Selection Lists |
 | Review admission, enrollment, grade, finance, or academic records | Review Table opening a read-only record summary plus only the authorized action form |
 | Approve, reject, post, release, override, or activate | Focused Record Form or confirmation requiring reason/evidence and a labeled action |
-| Faculty availability | Calendar / Date-Range Input with repeated unavailable or preferred blocks |
+| Faculty availability | Term-scoped Calendar / Date-Range Input for the faculty member's own unavailable blocks; authorized Registrar or Academic Head staff use the same source-record surface for review and management |
 | Faculty grade entry | Class-roster Editable Table defined in Module 10 |
 | View COR, SOA, schedules, grades, and reports | Generated Read-Only View with authorized print, download, or export actions |
 

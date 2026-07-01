@@ -33,7 +33,7 @@ Apply this order to every planned worker slice:
 
 ## Planned Issues
 
-No active implementation plan is open in this document.
+No active MVP implementation issue is open in this planning document.
 
 Completed locally and recorded in the local sync tracker:
 
@@ -43,7 +43,8 @@ Completed locally and recorded in the local sync tracker:
 - TAL-74 Graduation and Completion Review MVP.
 - TAL-75 Reports, Audit, and Export MVP.
 - TAL-76 Bootstrap Public Landing Page Adaptation.
+- TAL-77 Calendar-Event Availability Alignment and Solver Mapping.
 
-### Next Unopened Boundary
+### Next Boundary
 
-Plan TAL-77 only after the primary thread confirms the next MVP priority. Keep the next slice bounded, source-of-truth-led, and aligned with the research/coding rules above.
+Proceed to the demo preparation side-track: implement the guarded `demo_tala_db` seeding path from `00_Project_Documents/demo/TALA_Demo_Database_Runbook.md`, then rehearse Cloud Run scheduling and the required mock/sandbox payment flow before writing the final word-for-word presentation script.

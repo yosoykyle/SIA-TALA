@@ -24,9 +24,6 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'document requirement items' => ['route' => 'filament.admin.resources.document-requirement-items.index'],
             'document uploads' => ['route' => 'filament.admin.resources.document-uploads.index'],
             'enrollment subjects' => ['route' => 'filament.admin.resources.enrollment-subjects.index'],
-            'faculty availability change requests' => ['route' => 'filament.admin.resources.faculty-availability-change-requests.index'],
-            'faculty availability periods' => ['route' => 'filament.admin.resources.faculty-availability-periods.index'],
-            'faculty availability submissions' => ['route' => 'filament.admin.resources.faculty-availability-submissions.index'],
             'faculty subject eligibilities' => ['route' => 'filament.admin.resources.faculty-subject-eligibilities.index'],
             'faq entries' => ['route' => 'filament.admin.resources.faq-entries.index'],
             'fee templates' => ['route' => 'filament.admin.resources.fee-templates.index'],
@@ -36,7 +33,6 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'installment policies' => ['route' => 'filament.admin.resources.installment-policies.index'],
             'installment policy milestones' => ['route' => 'filament.admin.resources.installment-policy-milestones.index'],
             'promissory notes' => ['route' => 'filament.admin.resources.promissory-notes.index'],
-            'schedule generation runs' => ['route' => 'filament.admin.resources.schedule-generation-runs.index'],
             'subjects' => ['route' => 'filament.admin.resources.subjects.index'],
         ];
     }
@@ -63,6 +59,8 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'admin users' => ['route' => 'filament.admin.resources.users.index'],
             'admin roles' => ['route' => 'filament.admin.resources.roles.index'],
             'admin activities' => ['route' => 'filament.admin.resources.activities.index'],
+            'scheduling blocks' => ['route' => 'filament.admin.resources.calendar-events.index'],
+            'schedule generation runs' => ['route' => 'filament.admin.resources.schedule-generation-runs.index'],
         ];
     }
 

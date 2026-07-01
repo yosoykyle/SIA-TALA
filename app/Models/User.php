@@ -71,16 +71,6 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasMany(FacultySubjectEligibility::class, 'faculty_id');
     }
 
-    public function facultyAvailabilitySubmissions(): HasMany
-    {
-        return $this->hasMany(FacultyAvailabilitySubmission::class, 'faculty_id');
-    }
-
-    public function facultyAvailabilityChangeRequests(): HasMany
-    {
-        return $this->hasMany(FacultyAvailabilityChangeRequest::class, 'faculty_id');
-    }
-
     public function facultyQualifications(): HasMany
     {
         return $this->hasMany(FacultyQualification::class, 'faculty_user_id');

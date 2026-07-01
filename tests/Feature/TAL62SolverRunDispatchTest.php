@@ -29,6 +29,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -148,6 +149,105 @@ final class TAL62SolverRunDispatchTest extends TestCase
             $this->assertSame(0, ScheduleGenerationRun::query()->count());
             $this->assertSame([SchedulingDemand::ValidationActionRequired], SchedulingDemand::query()->pluck('validation_state')->unique()->values()->all());
         }
+    }
+
+    public function test_snapshot_emits_only_deterministic_recurring_calendar_blocks(): void
+    {
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+
+        $demand = SchedulingDemand::query()->sole();
+        $sourceSnapshot = $this->arrayAttribute($demand, 'source_snapshot');
+
+        $facultyLoadOptions = $sourceSnapshot['faculty_load_options'] ?? null;
+        $this->assertIsArray($facultyLoadOptions);
+        $this->assertIsArray($facultyLoadOptions[0] ?? null);
+
+        $facultyId = (int) $facultyLoadOptions[0]['faculty_user_id'];
+        $room = Room::query()->firstOrFail();
+
+        CalendarEvent::factory()->for($source['term'])->create([
+            'event_type' => CalendarEvent::TypeHoliday,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessMasterSchedule,
+            'start_at' => now()->addMonth()->setTime(8, 0),
+            'end_at' => now()->addMonth()->setTime(17, 0),
+            'day_of_week' => null,
+            'starts_at' => null,
+            'ends_at' => null,
+            'blocks_scheduling' => true,
+            'state' => CalendarEvent::StateActive,
+        ]);
+
+        $facultyBlock = CalendarEvent::factory()->for($source['term'])->create([
+            'event_type' => CalendarEvent::TypeUnavailable,
+            'scope_type' => CalendarEvent::ScopeFaculty,
+            'faculty_user_id' => $facultyId,
+            'process_key' => CalendarEvent::ProcessMasterSchedule,
+            'start_at' => null,
+            'end_at' => null,
+            'day_of_week' => 2,
+            'starts_at' => '10:00:00',
+            'ends_at' => '12:00:00',
+            'blocks_scheduling' => true,
+            'state' => CalendarEvent::StateActive,
+            'authority' => 'Faculty',
+        ]);
+        $institutionBlock = CalendarEvent::factory()->for($source['term'])->create([
+            'event_type' => CalendarEvent::TypeBreak,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessMasterSchedule,
+            'start_at' => null,
+            'end_at' => null,
+            'day_of_week' => 1,
+            'starts_at' => '12:00:00',
+            'ends_at' => '13:00:00',
+            'blocks_scheduling' => true,
+            'state' => CalendarEvent::StateActive,
+            'authority' => 'Academic Head',
+        ]);
+        $roomBlock = CalendarEvent::factory()->for($source['term'])->create([
+            'event_type' => CalendarEvent::TypeUnavailable,
+            'scope_type' => CalendarEvent::ScopeRoom,
+            'room_id' => $room->id,
+            'process_key' => CalendarEvent::ProcessMasterSchedule,
+            'start_at' => null,
+            'end_at' => null,
+            'day_of_week' => 2,
+            'starts_at' => '10:00:00',
+            'ends_at' => '12:00:00',
+            'blocks_scheduling' => true,
+            'state' => CalendarEvent::StateActive,
+            'authority' => 'Registrar',
+        ]);
+
+        $run = $this->runService->generate($source['term'], $registrar);
+        $snapshot = $this->arrayAttribute($run, 'input_snapshot');
+
+        $calendarBlocks = $snapshot['calendar_blocks'] ?? null;
+        $this->assertIsArray($calendarBlocks);
+
+        $this->assertSame([], $snapshot['faculty_availability']);
+        $this->assertSame(
+            [$institutionBlock->id, $facultyBlock->id, $roomBlock->id],
+            collect($calendarBlocks)->pluck('calendar_event_id')->all(),
+        );
+        $this->assertEquals([
+            'calendar_event_id' => $facultyBlock->id,
+            'event_type' => CalendarEvent::TypeUnavailable,
+            'scope_type' => CalendarEvent::ScopeFaculty,
+            'room_id' => null,
+            'faculty_user_id' => $facultyId,
+            'authority' => 'Faculty',
+            'day_of_week' => 2,
+            'starts_at' => '10:00:00',
+            'ends_at' => '12:00:00',
+        ], $calendarBlocks[1]);
+        $this->assertFalse(collect($calendarBlocks)->contains(
+            fn (array $block): bool => $block['event_type'] === CalendarEvent::TypeHoliday,
+        ));
     }
 
     public function test_old_solver_rows_without_scheduling_demand_ids_are_rejected_and_block_the_run(): void
@@ -430,5 +530,17 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function arrayAttribute(Model $model, string $key): array
+    {
+        $value = $model->getAttribute($key);
+
+        $this->assertIsArray($value);
+
+        return $value;
     }
 }
