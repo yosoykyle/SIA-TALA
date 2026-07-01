@@ -24,14 +24,22 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             ->assertOk()
             ->assertSee('TALA')
             ->assertSee('Apply Online')
-            ->assertSee('Sign In')
+            ->assertSee('Applicant Sign In')
+            ->assertSee('Student Sign In')
+            ->assertSee('Staff Sign In')
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertSee(route('filament.student.auth.login'), false)
             ->assertSee(route('filament.admin.auth.login'), false)
-            ->assertSee('Senior High School')
-            ->assertSee('College Programs')
-            ->assertDontSee('Student Registration');
+            ->assertSee(asset('landing/vendor/bootstrap/css/bootstrap.min.css'), false)
+            ->assertSee(asset('landing/css/styles.css'), false)
+            ->assertSee('Applicant Workspace')
+            ->assertSee('Student Hub')
+            ->assertDontSee('Student Registration')
+            ->assertDontSee('applicant.login')
+            ->assertDontSee('student.login')
+            ->assertDontSee('applicant.register')
+            ->assertDontSee('href="#"', false);
     }
 
     public function test_public_fortify_auth_view_routes_are_not_exposed(): void

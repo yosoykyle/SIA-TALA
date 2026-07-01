@@ -26,7 +26,7 @@ The diagram below illustrates the system structure, clearly separating the core 
 │   │                                                                                │   │
 │   │   ┌───────────────────────────┐                ┌───────────────────────────┐   │   │
 │   │   │   Public Landing Page     │                │ Authenticated Workspaces  │   │   │
-│   │   │ Blade / Livewire / Vite   │                │   FilamentPHP Panels      │   │   │
+│   │   │ Blade + isolated Bootstrap│                │   FilamentPHP Panels      │   │   │
 │   │   └─────────────┬─────────────┘                └─────────────┬─────────────┘   │   │
 │   │                 │                                            │                 │   │
 │   │                 └──────────────────────┬─────────────────────┘                 │   │
@@ -77,7 +77,7 @@ The diagram below illustrates the system structure, clearly separating the core 
 
 ### Architectural Component Divisions
 1. **Part of the System as a Whole (Laravel Application Stack):**
-   * **Public Landing Page and Authenticated Workspaces:** The public route is a Blade/Vite surface. Authenticated staff, applicant, and student workspaces are Filament panel shells backed by Laravel authorization.
+   * **Public Landing Page and Authenticated Workspaces:** The public route is a Blade surface using isolated Bootstrap v5.3.3 assets served from `public/landing`. Authenticated staff, applicant, and student workspaces are Filament panel shells backed by Laravel authorization and do not load Bootstrap globally.
    * **Laravel 12 Business Core:** The PHP codebase containing models, policies, service classes, queued jobs, imports, outputs, and integration clients.
    * **Finance Rule Evaluation:** One fee-rule model supplies Accounting's editable configuration surface. The service ranks exact Program-and-Term scope before broader ordinary-charge scopes, then effective date and record ID. Assessment activation separately requires an active exact Program-and-Term downpayment rule.
    * **Local Database, Queue, and Cache Stores:** The relational storage is MySQL in the current environment. The current Laravel queue and cache defaults are database-backed. Redis and Laravel Horizon are not installed in the current dependency set and must be treated as future deployment decisions, not active baseline dependencies.
@@ -119,7 +119,7 @@ To establish a solid theoretical and practical foundation for TALA, each core ar
 
 ## 3. UI Framework Selections & Justifications
 
-TALA implements a public Blade/Livewire surface plus authenticated Filament workspaces. The current code has a public `/` route, a staff-facing `admin` Filament panel with many resources, and `applicant` and `student` Filament panel shells that currently expose dashboard and logout routes only.
+TALA implements a public Blade landing page plus authenticated Filament workspaces. The current public `/` route uses an isolated Bootstrap v5.3.3 layout and landing-only assets under `public/landing`; the authenticated `admin`, `applicant`, and `student` Filament panels remain Laravel/Livewire/Tailwind surfaces.
 
 ### 3.1 Staff Workspace: FilamentPHP v5 vs. Custom React/Vue Admin Templates
 * **Selected:** FilamentPHP v5 (Tailwind, Alpine, Livewire, Laravel - TALL Stack).
@@ -159,6 +159,8 @@ TALA's architecture relies on the following verified dependencies declared in th
 * `google/auth: ~1.52` (Google service-account authentication for invoking the private Cloud Run CP-SAT solver)
 * `tallstackui/tallstackui: 3.0.0` (Premium UI layout components)
 * `laravel/tinker: ^2.10` (Local application-context inspection)
+
+The public landing page also serves local Bootstrap v5.3.3 and Bootstrap Icons assets from `public/landing/vendor/`. They are not npm or Composer dependencies and are intentionally scoped to the public landing Blade layout only.
 
 Not currently installed: `laravel/horizon`. Redis support is available through Laravel's standard configuration if the runtime provides the Redis PHP extension or a compatible client, but Redis/Horizon are not the active queue baseline.
 

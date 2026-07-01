@@ -1,0 +1,1055 @@
+/* ============================================================
+   TALALANDIT — Landing Page Custom Styles
+   Built on top of Bootstrap 5.3.3 (served locally from public/landing)
+   Docs: https://getbootstrap.com/docs/5.3/
+   ============================================================ */
+
+/* ========================
+   General Styles
+   ======================== */
+body {
+  background-color: #ffffff;
+  color: #000000;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.landing-brand-logo {
+  height: 40px;
+  margin-right: 10px;
+  border-radius: 16px;
+}
+
+.hero-lead {
+  max-width: 760px;
+}
+
+.hero-mockup-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+}
+
+.landing-section-lead {
+  max-width: 680px;
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
+.map-frame {
+  border: 0;
+}
+
+.footer-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  object-fit: cover;
+  margin-right: 10px;
+}
+
+.footer-divider {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Global Transition for Headings, paragraphs, and links */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+a,
+span,
+button,
+.navbar,
+.card-blur::after {
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Theme fade for layout sections */
+.hero-section,
+.features-section,
+.info-map-section,
+.about-section,
+.footer-section {
+  transition:
+    background-color 0.3s ease,
+    background 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+/* ========================
+   Navbar — Layered Backdrop Blur
+   ======================== */
+.backdrop-blur {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: grid;
+  pointer-events: none;
+}
+
+.backdrop-blur > span {
+  grid-area: 1/1;
+  transition: opacity 0.2s linear;
+}
+
+.backdrop-blur > :first-child {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask: linear-gradient(0deg, transparent, #000 0.5rem);
+  mask: linear-gradient(0deg, transparent, #000 0.5rem);
+}
+
+.backdrop-blur > :nth-child(2) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask: linear-gradient(0deg, transparent 0.5rem, #000 1rem);
+  mask: linear-gradient(0deg, transparent 0.5rem, #000 1rem);
+}
+
+.backdrop-blur > :nth-child(3) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(0deg, transparent 1rem, #000 1.5rem);
+  mask: linear-gradient(0deg, transparent 1rem, #000 1.5rem);
+}
+
+.backdrop-blur > :nth-child(4) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask: linear-gradient(0deg, transparent 1.5rem, #000 2rem);
+  mask: linear-gradient(0deg, transparent 1.5rem, #000 2rem);
+}
+
+.backdrop-blur > :nth-child(5) {
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  -webkit-mask: linear-gradient(0deg, transparent 2rem, #000 2.5rem);
+  mask: linear-gradient(0deg, transparent 2rem, #000 2.5rem);
+}
+
+.backdrop-blur > :nth-child(6) {
+  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(32px);
+  -webkit-mask: linear-gradient(0deg, transparent 2.5rem, #000 3rem);
+  mask: linear-gradient(0deg, transparent 2.5rem, #000 3rem);
+}
+
+/* Stable navbar padding + smooth theme transition */
+.navbar {
+  padding-top: 1.5rem !important;
+  padding-bottom: 1.5rem !important;
+  transition: background-color 0.4s ease;
+}
+
+.navbar-brand,
+.navbar-nav .nav-link,
+.navbar-toggler-icon {
+  transition:
+    color 0.4s ease,
+    filter 0.4s ease;
+}
+
+/* ---- Dark theme (default — over dark backgrounds) ---- */
+.navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+.navbar-nav .nav-link:hover {
+  color: #ffffff !important;
+}
+
+.navbar-brand {
+  color: #ffffff !important;
+}
+
+/* ---- Light theme (over light backgrounds) ---- */
+.navbar.navbar-light-theme .navbar-brand {
+  color: #000000 !important;
+}
+
+.navbar.navbar-light-theme .navbar-nav .nav-link {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.navbar.navbar-light-theme .navbar-nav .nav-link:hover {
+  color: #000000 !important;
+}
+
+/* Invert the hamburger icon for light theme */
+.navbar.navbar-light-theme .navbar-toggler-icon {
+  filter: invert(1);
+}
+
+.btn-black-action {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.6rem 1.5rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Fix Webkit/Blink rounded border bleeding bug */
+  transform: translateZ(0);
+  isolation: isolate;
+  transition:
+    transform 0.2s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.btn-black-action:hover {
+  transform: translateY(-2px);
+  background-color: rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* ========================
+   Hero Section Styles
+   ======================== */
+.hero-section {
+  background: linear-gradient(180deg, #15429a 0%, #8ca4bf 60%, #e6efe9 100%);
+  min-height: 100vh;
+  padding-top: 10rem; /* push text below the fixed navbar */
+  margin-top: -5rem; /* pull hero up behind the navbar */
+  position: relative;
+  z-index: 1;
+  overflow: visible; /* allows child container to slide up from below without clipping */
+}
+
+.display-headline {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin-bottom: 2rem;
+}
+
+.btn-primary-custom {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0.6rem 1.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  /* Fix Webkit/Blink rounded border bleeding bug */
+  transform: translateZ(0);
+  isolation: isolate;
+  transition:
+    transform 0.2s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.btn-primary-custom:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.btn-secondary-custom {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 500;
+  padding: 0.6rem 1.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  /* Fix Webkit/Blink rounded border bleeding bug */
+  transform: translateZ(0);
+  isolation: isolate;
+  transition:
+    transform 0.2s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.btn-secondary-custom:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.wireframe-container {
+  background-color: #ffffff;
+  border-radius: 2rem 2rem 0 0;
+  margin-top: 3rem;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.05);
+  padding: 0.75rem;
+
+  /* Reveal Entrance Animation (Pure Slide-up, No Fade) */
+  transform: translateY(650px);
+  animation: revealFromBottom 1.2s cubic-bezier(0.78, 0.36, 0.2, 0.63) forwards;
+  animation-delay: 0.3s;
+}
+
+@keyframes revealFromBottom {
+  to {
+    transform: translateY(0);
+  }
+}
+
+.image-placeholder-placeholder {
+  background-color: #f1f3f5;
+  border-radius: 1.25rem 1.25rem 0 0;
+  width: 100%;
+}
+
+/* ========================
+   Features Section Styles
+   ======================== */
+.features-section,
+.info-map-section,
+.about-section,
+.faq-section {
+  position: relative;
+  z-index: 5; /* Stacked above the hero section to hide the rising wireframe container */
+}
+
+.features-section {
+  background-color: #fafafa;
+  padding: 3rem 0;
+}
+
+.feature-card {
+  position: relative;
+  width: 100%;
+  min-height: 220px; /* Reduced from 380px to be compact */
+  border-radius: 1.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0; /* Remove padding to let blur strip bleed edges */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.feature-card-content {
+  position: relative;
+  z-index: 2; /* Sits above the backdrop blur layer */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 1.25rem; /* Reduced padding to fit compact card height */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Make sure text within cards uses readable colors */
+.feature-card-content .card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.feature-card-content .feature-card-text {
+  color: #eeeeee;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+/* Background Patterns applied directly to the card container */
+.img-applicant {
+  background-color: #8ebda9;
+  background-image:
+    radial-gradient(#d3e1dc 15%, transparent 16%),
+    radial-gradient(#d3e1dc 15%, transparent 16%);
+  background-size: 12px 12px;
+  background-position:
+    0 0,
+    6px 6px;
+}
+
+.img-student {
+  background-color: #ffdae2;
+  background-image: radial-gradient(circle, #fe2c19 22%, transparent 24%);
+  background-size: 100px 100px;
+  background-position: 10px 10px;
+}
+
+.img-staff {
+  background-color: #f86217;
+  background-image:
+    radial-gradient(#dcdcdc 20%, transparent 22%),
+    radial-gradient(#dcdcdc 20%, transparent 22%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    10px 10px;
+}
+
+/* ========================
+   Map & Info Section Styles
+   ======================== */
+.info-map-section {
+  padding: 3rem 0;
+  border-color: #f5f5f5;
+  border-size: 1px;
+  background-color: #ffffff;
+}
+
+/* compelling headline styling deleted */
+
+/* info-text styling deleted */
+
+.map-box {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  min-height: 380px;
+  width: 100%;
+}
+
+/* ========================
+   Typewriter Animation Styles
+   ======================== */
+.typewriter {
+  --caret: currentcolor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Custom alignment for left-aligned Location header */
+.text-start.typewriter {
+  justify-content: flex-start;
+}
+
+/* JS writes characters here via data-typed attribute */
+.typewriter::before {
+  content: attr(data-typed);
+}
+
+/* Caret — hidden until active */
+.typewriter::after {
+  content: "";
+  border-right: 3px solid var(--caret);
+  margin-left: 5px;
+  height: 0.85em;
+  display: inline-block;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Show and blink caret only when typing is active */
+.typewriter.active::after {
+  opacity: 1;
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion) {
+  .typewriter::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.map-box iframe {
+  display: block;
+  width: 100%;
+  height: 380px;
+}
+
+/* ========================
+   About & FAQ Section Styles
+   ======================== */
+.about-section,
+.faq-section {
+  padding: 3rem 0;
+  background-color: #ffffff;
+}
+
+.section-title {
+  font-weight: 800;
+  font-size: 3.5rem;
+  letter-spacing: -1.5px;
+}
+
+/* Background Images for Accordion Items */
+.img-mission {
+  background-image: linear-gradient(135deg, #143f6b 0%, #2d7d79 52%, #7fb77e 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.img-vision {
+  background-image: linear-gradient(135deg, #1b2f64 0%, #6750a4 50%, #d0a2f7 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.img-history {
+  background-image: linear-gradient(135deg, #243b53 0%, #627d98 50%, #bcccdc 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.img-faq-1 {
+  background-image: linear-gradient(135deg, #0f766e 0%, #22c55e 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.img-faq-2 {
+  background-image: linear-gradient(135deg, #1d4ed8 0%, #38bdf8 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.img-faq-3 {
+  background-image: linear-gradient(135deg, #4c1d95 0%, #f97316 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+/* Accordion Glassmorphism styling */
+.accordion-custom .accordion-item {
+  position: relative;
+  z-index: 1;
+  border: none !important; /* Outlines completely removed */
+  margin-bottom: 1rem;
+  border-radius: 1rem !important; /* Separated rounded cards */
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.3s ease;
+}
+
+.accordion-custom .accordion-button {
+  position: relative;
+  z-index: 2;
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+  padding: 1.25rem 1.5rem;
+  border: none;
+  box-shadow: none;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.accordion-custom .accordion-button::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+  filter: none !important;
+}
+
+/* Active Toggle: Same as collapsed styling (white text, white arrow) but with a subtle glass hint */
+.accordion-custom .accordion-button:not(.collapsed) {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-bottom: none !important; /* Removed border line between header and body */
+}
+
+.accordion-custom .accordion-button:not(.collapsed)::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+  filter: none !important;
+}
+
+.accordion-custom .accordion-body {
+  position: relative;
+  z-index: 2;
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: #eeeeee;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  padding: 1.5rem;
+}
+
+/* Image overrides removed to favor global system themes on top of refined glass overlays */
+
+/* ========================
+   Footer Styles
+   ======================== */
+.footer-section {
+  padding: 5rem 0;
+  background-color: #ffffff;
+}
+
+.footer-brand {
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.5px;
+}
+
+.footer-desc {
+  color: #888;
+  font-size: 1rem;
+  max-width: 80%;
+}
+
+.social-link {
+  color: #888;
+  transition: color 0.2s ease;
+}
+
+.social-link:hover {
+  color: #000;
+}
+
+.footer-heading {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.footer-link {
+  color: #888;
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: #000;
+}
+
+/* ========================
+   Bottom Blur Strip
+   ======================== */
+.bottom-blur-strip {
+  position: fixed;
+  bottom: -5px; /* Pull slightly below screen edge to prevent subpixel gaps */
+  left: 0;
+  right: 0;
+  height: calc(3rem + 5px); /* Add padding to prevent gap */
+  z-index: 1040;
+  display: grid;
+  pointer-events: none;
+}
+
+.bottom-blur-strip > span {
+  grid-area: 1/1;
+}
+
+.bottom-blur-strip > :first-child {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask: linear-gradient(180deg, transparent, #000 0.5rem);
+  mask: linear-gradient(180deg, transparent, #000 0.5rem);
+}
+
+.bottom-blur-strip > :nth-child(2) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask: linear-gradient(180deg, transparent 0.5rem, #000 1rem);
+  mask: linear-gradient(180deg, transparent 0.5rem, #000 1rem);
+}
+
+.bottom-blur-strip > :nth-child(3) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(180deg, transparent 1rem, #000 1.5rem);
+  mask: linear-gradient(180deg, transparent 1rem, #000 1.5rem);
+}
+
+.bottom-blur-strip > :nth-child(4) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask: linear-gradient(180deg, transparent 1.5rem, #000 2rem);
+  mask: linear-gradient(180deg, transparent 1.5rem, #000 2rem);
+}
+
+.bottom-blur-strip > :nth-child(5) {
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  -webkit-mask: linear-gradient(180deg, transparent 2rem, #000 2.5rem);
+  mask: linear-gradient(180deg, transparent 2rem, #000 2.5rem);
+}
+
+.bottom-blur-strip > :nth-child(6) {
+  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(32px);
+  -webkit-mask: linear-gradient(180deg, transparent 2.5rem, #000 3rem);
+  mask: linear-gradient(180deg, transparent 2.5rem, #000 3rem);
+}
+
+/* ========================
+   Card Blur
+   ======================== */
+.card-blur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%; /* Cover the entire card since it is now half height */
+  z-index: 1;
+  display: grid;
+  pointer-events: none;
+}
+.card-blur::after {
+  content: "";
+  grid-area: 1/1;
+  z-index: 2;
+  /* Permanent light black frosted glass gradient (toned down by half) */
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.1) 30%,
+    rgba(0, 0, 0, 0.32) 100%
+  );
+}
+
+.card-blur > span {
+  grid-area: 1/1;
+}
+
+.card-blur > :first-child {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask: linear-gradient(180deg, transparent, #000 16.6%);
+  mask: linear-gradient(180deg, transparent, #000 16.6%);
+}
+
+.card-blur > :nth-child(2) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask: linear-gradient(180deg, transparent 16.6%, #000 33.3%);
+  mask: linear-gradient(180deg, transparent 16.6%, #000 33.3%);
+}
+
+.card-blur > :nth-child(3) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(180deg, transparent 33.3%, #000 50%);
+  mask: linear-gradient(180deg, transparent 33.3%, #000 50%);
+}
+
+.card-blur > :nth-child(4) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask: linear-gradient(180deg, transparent 50%, #000 66.6%);
+  mask: linear-gradient(180deg, transparent 50%, #000 66.6%);
+}
+
+.card-blur > :nth-child(5) {
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  -webkit-mask: linear-gradient(180deg, transparent 66.6%, #000 83.3%);
+  mask: linear-gradient(180deg, transparent 66.6%, #000 83.3%);
+}
+
+.card-blur > :nth-child(6) {
+  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(32px);
+  -webkit-mask: linear-gradient(180deg, transparent 83.3%, #000 100%);
+  mask: linear-gradient(180deg, transparent 83.3%, #000 100%);
+}
+
+/* ========================
+   Scroll To Top Button
+   ======================== */
+
+/* Smooth scrolling (respects reduced motion) */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.btn-scroll-top {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 52px;
+  height: 52px;
+  background-color: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  overflow: hidden; /* clip the inner blur container */
+  /* Hidden by default */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.3s ease,
+    background-color 0.3s ease,
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+}
+
+/* Visible state — toggled via JS */
+.btn-scroll-top.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.btn-scroll-top:hover {
+  transform: scale(1.1);
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Progressive Linear Blur layers scaled to button height using percentages */
+.btn-blur {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: grid;
+  pointer-events: none;
+  border-radius: inherit; /* Dynamically inherits parent button shape */
+  overflow: hidden;
+}
+
+.btn-blur > span {
+  grid-area: 1/1;
+}
+
+.btn-blur > :first-child {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask: linear-gradient(180deg, transparent, #000 16.6%);
+  mask: linear-gradient(180deg, transparent, #000 16.6%);
+}
+
+.btn-blur > :nth-child(2) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask: linear-gradient(180deg, transparent 16.6%, #000 33.3%);
+  mask: linear-gradient(180deg, transparent 16.6%, #000 33.3%);
+}
+
+.btn-blur > :nth-child(3) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(180deg, transparent 33.3%, #000 50%);
+  mask: linear-gradient(180deg, transparent 33.3%, #000 50%);
+}
+
+.btn-blur > :nth-child(4) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask: linear-gradient(180deg, transparent 50%, #000 66.6%);
+  mask: linear-gradient(180deg, transparent 50%, #000 66.6%);
+}
+
+.btn-blur > :nth-child(5) {
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  -webkit-mask: linear-gradient(180deg, transparent 66.6%, #000 83.3%);
+  mask: linear-gradient(180deg, transparent 66.6%, #000 83.3%);
+}
+
+.btn-blur > :nth-child(6) {
+  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(32px);
+  -webkit-mask: linear-gradient(180deg, transparent 83.3%, #000 100%);
+  mask: linear-gradient(180deg, transparent 83.3%, #000 100%);
+}
+
+/* ============================================================
+   DARK MODE — System Theme Overrides
+   Triggered automatically via data-bs-theme="dark" on <html>.
+   Bootstrap handles its own components; below are custom overrides.
+   ============================================================ */
+
+[data-bs-theme="dark"] body {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+/* ---- Hero ---- */
+[data-bs-theme="dark"] .hero-section {
+  background: linear-gradient(180deg, #0a1f4a 0%, #1a3a5c 60%, #1e2d3d 100%);
+}
+
+[data-bs-theme="dark"] .wireframe-container {
+  background-color: #1e1e1e;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+}
+
+[data-bs-theme="dark"] .image-placeholder-placeholder {
+  background-color: #2a2a2a;
+}
+
+/* ---- Buttons ---- */
+[data-bs-theme="dark"] .btn-primary-custom {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .btn-primary-custom:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+[data-bs-theme="dark"] .btn-secondary-custom {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .btn-secondary-custom:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+[data-bs-theme="dark"] .btn-black-action {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .btn-black-action:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+/* ---- Features Section ---- */
+[data-bs-theme="dark"] .features-section {
+  background-color: #1a1a1a;
+}
+
+/* ---- Map & Info Section ---- */
+[data-bs-theme="dark"] .info-map-section {
+  background-color: #121212;
+}
+
+/* compelling-headline dark override deleted */
+
+/* info-text dark override deleted */
+
+[data-bs-theme="dark"] .map-box {
+  background-color: #1e1e1e;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+[data-bs-theme="dark"] .map-box iframe {
+  filter: invert(90%) hue-rotate(180deg);
+}
+
+/* ---- About & FAQ Sections ---- */
+[data-bs-theme="dark"] .about-section,
+[data-bs-theme="dark"] .faq-section {
+  background-color: #121212;
+}
+
+[data-bs-theme="dark"] .section-title {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .accordion-custom .accordion-item {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ---- Footer ---- */
+[data-bs-theme="dark"] .footer-section {
+  background-color: #121212;
+}
+
+[data-bs-theme="dark"] .footer-brand {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .footer-desc {
+  color: #9e9e9e;
+}
+
+[data-bs-theme="dark"] .footer-heading {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .footer-link {
+  color: #9e9e9e;
+}
+
+[data-bs-theme="dark"] .footer-link:hover {
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .social-link {
+  color: #9e9e9e;
+}
+
+[data-bs-theme="dark"] .social-link:hover {
+  color: #ffffff;
+}
+
+/* ---- Scroll-to-top button ---- */
+[data-bs-theme="dark"] .btn-scroll-top {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .btn-scroll-top:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ---- Navbar scroll theme: light sections in dark mode ---- */
+[data-bs-theme="dark"] .navbar.navbar-light-theme .navbar-brand {
+  color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .navbar.navbar-light-theme .navbar-nav .nav-link {
+  color: rgba(224, 224, 224, 0.8) !important;
+}
+
+[data-bs-theme="dark"] .navbar.navbar-light-theme .navbar-nav .nav-link:hover {
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .navbar.navbar-light-theme .navbar-toggler-icon {
+  filter: none;
+}
+
+/* ---- Horizontal rules ---- */
+[data-bs-theme="dark"] hr {
+  border-color: rgba(255, 255, 255, 0.1);
+}

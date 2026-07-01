@@ -31,7 +31,7 @@ MVP decisions:
 2. Registrar, Accounting, Academic Head, and System Super Admin share `/admin`. Navigation visibility improves usability; policies and action authorization enforce access.
 3. Applicant and Student surfaces remain separate because handover changes both the account lifecycle and the authorized records.
 4. Authentication UI stays in the Filament panels. Laravel Fortify remains the backend authentication contract for login, registration, verification, password reset, and custom response handling where already integrated.
-5. The public landing page uses the existing Blade, Livewire, Tailwind, and TallStackUI stack.
+5. The public landing page uses an isolated Bootstrap v5.3.3 Blade layout with landing-only public assets. Authenticated work remains Filament-first and does not load Bootstrap globally.
 6. Filament resources, pages, tables, forms, infolists, actions, filters, widgets, and notifications are the default authenticated UI toolkit.
 7. Core Filament components are used before custom Blade or a new plugin. A plugin is introduced only when a required PRD behavior cannot be delivered cleanly with installed components.
 8. Auth Designer is retained for Filament authentication screens. Applicant registration must keep the custom `RegisterApplicant` page through the package-supported page hook, not a generic replacement page.
@@ -154,7 +154,7 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | Staff operational workflows | Use native Filament | Resources, tables, forms, actions, infolists, relation managers, filters, and widgets cover the MVP staff workflows without custom JavaScript. | Medium only when old inventory resources point at stale schema. | Each domain slice must explicitly register only accepted resources and leave stale families deferred. |
 | Student Hub and Applicant Workspace pages | Use native Filament pages | Student and applicant surfaces are task-focused panels, not generic CRUD portals. Filament pages composed from forms, tables, infolists, and actions keep authorization server-side. | Low to medium, depending on source-record readiness. | Future learner-facing slices should build read-mostly pages after the owning staff source records exist. |
 | Calendar-like scheduling views | Defer plugin/package | MVP scheduling review is table-first; date/time inputs and validation tables are sufficient. A timetable/calendar view may supplement after the canonical table path is stable. | Low for MVP; adding a plugin early would create maintenance and test cost. | TAL-61 and scheduling slices must not start with drag-and-drop calendar UI. |
-| TallStackUI | Keep current setup | TallStackUI is useful for the public Blade/Livewire surface already in use. Authenticated work remains Filament-first. | Low if it stays out of Filament panel implementation decisions. | Use TallStackUI only for non-Filament Blade/Livewire surfaces with a documented need. |
+| TallStackUI | Keep available outside the public landing replacement | TallStackUI remains installed for non-Filament Blade/Livewire surfaces that prove a need. The current public landing page is implemented with isolated Bootstrap assets instead. | Low if it stays out of Filament panel implementation decisions and Bootstrap remains landing-only. | Use TallStackUI only for non-Filament Blade/Livewire surfaces with a documented need. |
 | Activity Log plugin | Use existing plugin | The existing Activity Resource gives System Super Admin audit visibility aligned with Module 13. | Low if activity tables remain migrated and authorization is retained. | Official-record slices should write audit events and expose them through the accepted audit surface. |
 | Additional UI/plugins | Defer plugin/package | No current PRD requirement proves a need for saved-filter, import, calendar, dashboard, permissions, or custom UI plugins before native Filament is tried. | Low; deferral preserves dependency discipline. | Future plugin proposals require a capability gap, compatibility check, maintenance cost, and focused tests. |
 
@@ -229,7 +229,7 @@ Approved baseline:
 
 1. Core Filament v5 for authenticated UI.
 2. Existing Auth Designer integration for Filament panel authentication screens, preserving the custom Applicant registration page.
-3. Existing TallStackUI components for the public Blade/Livewire surface.
+3. Isolated Bootstrap v5.3.3 public assets for the public landing page; existing TallStackUI components remain available for other non-Filament Blade/Livewire surfaces with a documented need.
 4. Existing `pxlrbt/filament-activity-log` integration for authorized audit visibility when it satisfies Module 13.
 5. Existing Laravel Excel package for fixed-template import parsing and CSV/Excel support where already compatible.
 

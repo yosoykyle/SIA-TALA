@@ -1,178 +1,413 @@
-@extends('layouts.public', ['title' => 'TALA'])
+@extends('layouts.landing-bootstrap', ['title' => 'TALA'])
 
 @section('content')
-    <main class="min-h-screen">
-        <!-- Hero / Welcome Section -->
-        <section class="relative bg-stone-50 overflow-hidden border-b border-zinc-200/40">
-            <div class="relative z-10 mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-24">
-                <div class="flex flex-col justify-center gap-6">
-                    <div class="text-left">
-                        <x-badge text="Public entry point" color="emerald" light round class="font-bold px-3 py-1 text-xs" />
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-transparent">
+        <div class="backdrop-blur" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+
+        <div class="container">
+            <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
+                <img src="{{ asset('landing/images/talalogo.png') }}" alt="TALA" class="landing-brand-logo">
+                <span>TALA</span>
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav gap-3 pt-3 pt-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="{{ url('/#login') }}">LOGIN</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('filament.applicant.auth.register') }}">APPLY</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url('/#about-us') }}">ABOUT US</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url('/#faq') }}">FAQ</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero-section d-flex flex-column justify-content-between" id="top" data-navbar-theme="dark">
+            <div class="container text-center flex-grow-1 d-flex flex-column justify-content-center">
+                <h1 class="display-headline mt-5">
+                    Timetable-Integrated Academic Lifecycle Administration
+                </h1>
+                <p class="mx-auto text-white-50 fs-5 hero-lead">
+                    Apply online, sign in to your assigned workspace, and follow school guidance for admissions, enrollment, finance evidence, records, and academic access.
+                </p>
+                <div class="d-flex flex-column flex-sm-row justify-content-center gap-3 mt-3">
+                    <a class="btn btn-primary-custom" href="{{ route('filament.applicant.auth.register') }}">
+                        <div class="btn-blur" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        Apply Online
+                    </a>
+                    <a class="btn btn-secondary-custom" href="{{ url('/#login') }}">
+                        <div class="btn-blur" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        Sign In
+                    </a>
+                </div>
+            </div>
+
+            <div class="container col-lg-8 wireframe-container">
+                <div class="ratio ratio-16x9">
+                    <div class="image-placeholder-placeholder d-flex align-items-center justify-content-center">
+                        <div class="text-center p-4">
+                            <img src="{{ asset('landing/images/talalogo.png') }}" alt="TALA application mark" class="mb-3 rounded-4 hero-mockup-logo">
+                            <p class="mb-0 fw-semibold text-muted">Public entry point for the Applicant Workspace, Student Hub, and Staff Workspace.</p>
+                        </div>
                     </div>
-                    <div class="space-y-4">
-                        <h1 class="max-w-3xl text-5xl font-extrabold tracking-tight text-zinc-950 sm:text-6xl text-left">
-                            Welcome to <span class="text-emerald-700">TALA</span>
-                        </h1>
-                        <p class="max-w-2xl text-lg leading-relaxed text-zinc-700 font-medium text-left">
-                            Apply online, sign in to your assigned workspace, and follow school guidance for admissions, enrollment, finance evidence, records, and academic access.
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section" id="login" data-navbar-theme="light">
+            <div class="container text-center">
+                <h2 class="section-title mb-3 typewriter typewriter-login"><span class="visually-hidden">LOGIN</span></h2>
+                <p class="text-center text-muted mb-5 mx-auto landing-section-lead">
+                    Use the workspace assigned to your role. Applicants may create an account; students and staff sign in after official account activation.
+                </p>
+                <div class="row g-4">
+                    <div class="col-lg-4 col-md-6">
+                        <div class="feature-card img-applicant">
+                            <div class="card-blur" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <div class="feature-card-content">
+                                <h3 class="fw-bold card-title m-0">APPLICANT</h3>
+                                <p class="feature-card-text my-2">Create an application account, continue your draft, upload allowed evidence, and track admission status.</p>
+                                <a class="btn btn-black-action mt-auto w-100" href="{{ route('filament.applicant.auth.register') }}">
+                                    <div class="btn-blur" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    Apply Online
+                                </a>
+                                <a class="btn btn-black-action mt-2 w-100" href="{{ route('filament.applicant.auth.login') }}">
+                                    <div class="btn-blur" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    Applicant Sign In
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4 col-md-6">
+                        <div class="feature-card img-student">
+                            <div class="card-blur" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <div class="feature-card-content">
+                                <h3 class="fw-bold card-title m-0">STUDENT</h3>
+                                <p class="feature-card-text my-2">Access current records after handover, including enrollment, schedule, outputs, finance status, holds, and grades.</p>
+                                <a class="btn btn-black-action mt-auto w-100" href="{{ route('filament.student.auth.login') }}">
+                                    <div class="btn-blur" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    Student Sign In
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4 col-md-12">
+                        <div class="feature-card img-staff">
+                            <div class="card-blur" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <div class="feature-card-content">
+                                <h3 class="fw-bold card-title m-0">STAFF</h3>
+                                <p class="feature-card-text my-2">Registrar, Accounting, Faculty, Academic Head, and System Super Admin users work in the staff panel.</p>
+                                <a class="btn btn-black-action mt-auto w-100" href="{{ route('filament.admin.auth.login') }}">
+                                    <div class="btn-blur" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    Staff Sign In
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="info-map-section" data-navbar-theme="light">
+            <div class="container">
+                <div class="row align-items-center justify-content-between">
+                    <div class="col-lg-5 mb-5 mb-lg-0">
+                        <h2 class="section-title mb-3 text-start typewriter typewriter-location"><span class="visually-hidden">LOCATION</span></h2>
+                        <p class="text-muted mb-4 landing-section-lead">
+                            Servitech Institute Asia is the institutional context for this TALA portal. Use the map link for location guidance.
                         </p>
+                        <a href="https://www.google.com/maps?cid=781880921815418296&g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAMYASAF&hl=en&gl=PH&source=embed" target="_blank" rel="noopener noreferrer" class="btn btn-black-action py-2 px-4">
+                            <div class="btn-blur" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            Open in Google Maps
+                        </a>
                     </div>
-                    <div class="flex flex-col gap-4 sm:flex-row pt-2 justify-start items-stretch sm:items-center">
-                        <x-button href="{{ route('filament.applicant.auth.register') }}" text="Apply Online" color="emerald" round lg class="font-extrabold px-6 py-3.5 shadow-md shadow-emerald-700/10 transition-transform duration-200 active:scale-95" />
-                        <x-button href="{{ route('filament.applicant.auth.login') }}" text="Sign In" outline color="zinc" round lg class="font-extrabold px-6 py-3.5 bg-white hover:bg-zinc-50 transition-transform duration-200 active:scale-95" />
-                    </div>
-                </div>
-
-                <div>
-                    <x-card class="bg-white/60 border border-zinc-200/50 shadow-xl backdrop-blur-md" round="xl">
-                        <x-slot:header>
-                            <div class="flex items-center gap-4 py-1">
-                                <div class="relative">
-                                    <div class="absolute -inset-1 rounded-2xl bg-emerald-500/10 blur-sm"></div>
-                                    <img src="{{ asset('logo.png') }}" alt="TALA application mark" class="relative size-14 rounded-2xl border border-zinc-200/60 object-cover shadow-sm">
-                                </div>
-                                <div>
-                                    <h3 class="text-base font-bold text-zinc-950">Account boundaries</h3>
-                                    <p class="text-xs font-semibold text-zinc-500">Official Role & Workspace Guidance</p>
-                                </div>
-                            </div>
-                        </x-slot:header>
-                        
-                        <div class="space-y-4 py-2">
-                            <p class="text-sm leading-relaxed text-zinc-600">
-                                Applicants apply. Students and staff sign in after official account activation.
-                            </p>
-                            
-                            <div class="grid gap-3">
-                                <div class="group rounded-xl border border-zinc-200/50 bg-white/70 p-3.5 shadow-sm transition-all duration-200 hover:bg-white/95">
-                                    <h4 class="text-sm font-bold text-zinc-950">Applicant Workspace</h4>
-                                    <p class="mt-1 text-xs leading-relaxed text-zinc-500">For application draft, checklist, document upload guidance, and status updates.</p>
-                                </div>
-                                
-                                <div class="group rounded-xl border border-zinc-200/50 bg-white/70 p-3.5 shadow-sm transition-all duration-200 hover:bg-white/95">
-                                    <h4 class="text-sm font-bold text-zinc-950">Student Hub</h4>
-                                    <p class="mt-1 text-xs leading-relaxed text-zinc-500">For current student records after handover, including enrollment, schedule, outputs, and holds.</p>
-                                </div>
-                                
-                                <div class="group rounded-xl border border-zinc-200/50 bg-white/70 p-3.5 shadow-sm transition-all duration-200 hover:bg-white/95">
-                                    <h4 class="text-sm font-bold text-zinc-950">Staff Workspace</h4>
-                                    <p class="mt-1 text-xs leading-relaxed text-zinc-500">For authorized registrar, accounting, faculty, academic head, and system administration work.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </x-card>
-                </div>
-            </div>
-        </section>
-
-        <!-- Admissions Guidance Section -->
-        <section id="admissions" class="relative border-y border-zinc-200/60 bg-stone-50/50 py-16">
-            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="max-w-3xl">
-                    <h2 class="text-3xl font-bold tracking-tight text-zinc-950">Admissions Guidance</h2>
-                    <p class="mt-3 text-base leading-relaxed text-zinc-600 font-medium">Use Apply Online to create an applicant account. Program and strand choices are shown as guidance until an official offering is opened by staff.</p>
-                </div>
-                
-                <div class="mt-10 grid gap-6 md:grid-cols-3">
-                    <x-card class="bg-white/75 border border-zinc-200/50 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 backdrop-blur-md" round="xl">
-                        <h3 class="text-lg font-bold text-zinc-950">Senior High School</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-zinc-500">Applicant guidance for strand selection, document preparation, and evaluation follow-up.</p>
-                    </x-card>
-                    
-                    <x-card class="bg-white/75 border border-zinc-200/50 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 backdrop-blur-md" round="xl">
-                        <h3 class="text-lg font-bold text-zinc-950">College Programs</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-zinc-500">Applicant guidance for program selection, submitted requirements, and admission readiness.</p>
-                    </x-card>
-                    
-                    <x-card class="bg-white/75 border border-zinc-200/50 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 backdrop-blur-md" round="xl">
-                        <h3 class="text-lg font-bold text-zinc-950">Transferee and Returning</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-zinc-500">Applicant guidance for additional review, records checking, and school-office instructions.</p>
-                    </x-card>
-                </div>
-            </div>
-        </section>
-
-        <!-- Access Rules Section -->
-        <section id="access" class="bg-white py-16">
-            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-                    <div class="flex flex-col justify-center">
-                        <h2 class="text-3xl font-bold tracking-tight text-zinc-950">Access Rules</h2>
-                        <p class="mt-3 text-base leading-relaxed text-zinc-600 font-medium">The public site has no student or staff signup. Account access is assigned by role and official school process.</p>
-                    </div>
-                    
-                    <div class="grid gap-6 sm:grid-cols-3">
-                        <div class="rounded-2xl border border-amber-200 bg-amber-50/30 p-6 shadow-sm backdrop-blur-md flex flex-col justify-between h-full group hover:shadow-md transition-all duration-200">
-                            <div>
-                                <h3 class="font-bold text-amber-950 text-base">Applicant registration only</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-amber-900/80">Apply Online opens the Applicant Workspace registration surface. Student access begins after official handover.</p>
-                            </div>
-                            <x-button href="{{ route('filament.applicant.auth.register') }}" text="Apply Online" color="amber" class="mt-4 font-bold shadow-sm self-start transition-transform group-hover:translate-x-0.5" />
-                        </div>
-                        
-                        <div class="rounded-2xl border border-sky-200 bg-sky-50/30 p-6 shadow-sm backdrop-blur-md flex flex-col justify-between h-full group hover:shadow-md transition-all duration-200">
-                            <div>
-                                <h3 class="font-bold text-sky-950 text-base">Student Hub sign in</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-sky-900/80">Students use Student Hub after their account has been activated by the proper office.</p>
-                            </div>
-                            <x-button href="{{ route('filament.student.auth.login') }}" text="Student Sign In" color="sky" class="mt-4 font-bold shadow-sm self-start transition-transform group-hover:translate-x-0.5" />
-                        </div>
-                        
-                        <div class="rounded-2xl border border-zinc-200 bg-zinc-50/40 p-6 shadow-sm backdrop-blur-md flex flex-col justify-between h-full group hover:shadow-md transition-all duration-200">
-                            <div>
-                                <h3 class="font-bold text-zinc-950 text-base">Staff Workspace sign in</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-zinc-700">Registrar, accounting, faculty, academic head, and system admin users sign in through the staff workspace.</p>
-                            </div>
-                            <x-button href="{{ route('filament.admin.auth.login') }}" text="Staff Sign In" color="zinc" class="mt-4 font-bold shadow-sm self-start transition-transform group-hover:translate-x-0.5" />
+                    <div class="col-lg-6">
+                        <div class="map-box">
+                            <iframe title="Servitech Institute Asia map" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3865.5801177213743!2d121.02881261016364!3d14.335805183447881!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3397d7a36f29214b%3A0xad9cc8e497685b8!2sServitech%20Institute%20Asia%2C%20Inc.!5e0!3m2!1sen!2sph!4v1782779440549!5m2!1sen!2sph" width="100%" height="380" class="map-frame" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- FAQ Section -->
-        <section id="faq" class="border-t border-zinc-200/60 bg-stone-50/50 py-16">
-            <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-                <h2 class="text-3xl font-bold tracking-tight text-zinc-950 text-center">FAQ</h2>
-                
-                <div class="mt-8 divide-y divide-zinc-200/50 rounded-2xl border border-zinc-200/50 bg-white/60 backdrop-blur-md shadow-md overflow-hidden">
-                    <details class="group p-5" open>
-                        <summary class="cursor-pointer font-bold text-zinc-950 flex items-center justify-between list-none">
-                            <span>Who can create an account?</span>
-                            <span class="transition-transform duration-200 group-open:rotate-180">
-                                <svg class="size-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </span>
-                        </summary>
-                        <p class="mt-3 text-sm leading-relaxed text-zinc-600 font-medium">Only applicants create accounts through Apply Online. Student and staff accounts are activated through official school processes.</p>
-                    </details>
-                    
-                    <details class="group p-5">
-                        <summary class="cursor-pointer font-bold text-zinc-950 flex items-center justify-between list-none">
-                            <span>Where do students go?</span>
-                            <span class="transition-transform duration-200 group-open:rotate-180">
-                                <svg class="size-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </span>
-                        </summary>
-                        <p class="mt-3 text-sm leading-relaxed text-zinc-600 font-medium">Students sign in after handover and use Student Hub for current records, schedule, outputs, grades, holds, and notices.</p>
-                    </details>
-                    
-                    <details class="group p-5">
-                        <summary class="cursor-pointer font-bold text-zinc-950 flex items-center justify-between list-none">
-                            <span>Can staff register from this page?</span>
-                            <span class="transition-transform duration-200 group-open:rotate-180">
-                                <svg class="size-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </span>
-                        </summary>
-                        <p class="mt-3 text-sm leading-relaxed text-zinc-600 font-medium">No. Staff accounts are created and managed by authorized System Super Admin users.</p>
-                    </details>
+        <section class="about-section" id="about-us" data-navbar-theme="light">
+            <div class="container text-center">
+                <h2 class="section-title mb-5 typewriter typewriter-about"><span class="visually-hidden">ABOUT US</span></h2>
+
+                <div class="row">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="accordion accordion-custom" id="aboutAccordion">
+                            <div class="accordion-item img-mission">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingMission">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMission" aria-expanded="true" aria-controls="collapseMission">
+                                        OUR MISSION
+                                    </button>
+                                </h3>
+                                <div id="collapseMission" class="accordion-collapse collapse show" aria-labelledby="headingMission" data-bs-parent="#aboutAccordion">
+                                    <div class="accordion-body">
+                                        Servitech Institute Asia (SIA) aims to equip each individual with a specialized set of conceptual and practical skills that can support competitive, professional, innovative, and applicable work.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item img-vision">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingVision">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVision" aria-expanded="false" aria-controls="collapseVision">
+                                        OUR VISION
+                                    </button>
+                                </h3>
+                                <div id="collapseVision" class="accordion-collapse collapse" aria-labelledby="headingVision" data-bs-parent="#aboutAccordion">
+                                    <div class="accordion-body">
+                                        SIA serves students through a balanced curriculum that develops ethical, innovative thinkers prepared for positive societal and professional contribution.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item img-history">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingHistory">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHistory" aria-expanded="false" aria-controls="collapseHistory">
+                                        OUR HISTORY
+                                    </button>
+                                </h3>
+                                <div id="collapseHistory" class="accordion-collapse collapse" aria-labelledby="headingHistory" data-bs-parent="#aboutAccordion">
+                                    <div class="accordion-body">
+                                        TALA supports the school's move from fragmented academic and administrative processes toward one role-scoped source of truth for admissions, records, finance, scheduling, grades, and audit.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="faq-section" id="faq" data-navbar-theme="light">
+            <div class="container text-center">
+                <h2 class="section-title mb-5 typewriter typewriter-faq"><span class="visually-hidden">FAQ</span></h2>
+                <div class="row">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="accordion accordion-custom" id="faqAccordion">
+                            <div class="accordion-item img-faq-1">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingFaqOne">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqOne" aria-expanded="false" aria-controls="collapseFaqOne">
+                                        HOW DO I APPLY FOR ADMISSION?
+                                    </button>
+                                </h3>
+                                <div id="collapseFaqOne" class="accordion-collapse collapse" aria-labelledby="headingFaqOne" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        Use <a class="link-light fw-bold" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a> to create an applicant account. The Applicant Workspace guides draft application, checklist, and allowed evidence steps.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item img-faq-2">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingFaqTwo">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqTwo" aria-expanded="false" aria-controls="collapseFaqTwo">
+                                        WHAT WORKSPACES CAN I ACCESS?
+                                    </button>
+                                </h3>
+                                <div id="collapseFaqTwo" class="accordion-collapse collapse" aria-labelledby="headingFaqTwo" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        Applicants use the Applicant Workspace before handover. Students use Student Hub after official activation. Staff users use the Staff Workspace according to assigned role and authorization.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item img-faq-3">
+                                <div class="card-blur" aria-hidden="true">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <h3 class="accordion-header" id="headingFaqThree">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqThree" aria-expanded="false" aria-controls="collapseFaqThree">
+                                        CAN STUDENTS OR STAFF REGISTER HERE?
+                                    </button>
+                                </h3>
+                                <div id="collapseFaqThree" class="accordion-collapse collapse" aria-labelledby="headingFaqThree" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        No. Public self-registration is only for applicants. Student and staff accounts are activated through official school processes.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
+
+    <footer class="footer-section">
+        <div class="container">
+            <div class="row pt-4">
+                <div class="col-lg-7 mb-4 mb-lg-0">
+                    <a class="footer-brand mb-3 d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}">
+                        <img src="{{ asset('landing/images/talalogo.png') }}" alt="TALA" class="footer-logo">
+                        <span>TALA</span>
+                    </a>
+                    <p class="footer-desc mb-4">Timetable-Integrated Academic Lifecycle Administration for Servitech Institute Asia.</p>
+                </div>
+                <div class="col-lg-5">
+                    <div class="d-flex flex-wrap justify-content-lg-end gap-3">
+                        <a class="footer-link" href="{{ url('/#login') }}">Login</a>
+                        <a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a>
+                        <a class="footer-link" href="{{ url('/#about-us') }}">About Us</a>
+                        <a class="footer-link" href="{{ url('/#faq') }}">FAQ</a>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-5 pt-4 footer-divider">
+                <div class="col-12 text-center text-muted">
+                    <p class="mb-0">&copy; {{ date('Y') }} Servitech Institute Asia (SIA)</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div class="bottom-blur-strip" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <button class="btn-scroll-top" aria-label="Scroll to top">
+        <div class="btn-blur" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <i class="bi bi-arrow-up"></i>
+    </button>
 @endsection
