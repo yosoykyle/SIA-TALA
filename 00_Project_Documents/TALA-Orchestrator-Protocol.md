@@ -17,7 +17,6 @@ Use these files for their intended purpose:
 5. `00_Project_Documents/prd_modules/` — product requirements, MVP boundaries, records, flows, outputs, and role behavior.
 6. `00_Project_Documents/ui_surface_blueprint.md` — UI surfaces, roles, and workspace expectations.
 7. `00_Project_Documents/architecture_specification.md` — system architecture and integration boundaries.
-8. `CONTEXT.md` — shared domain language when relevant.
 
 Do not use obsolete working notes or missing `docs/agents/*` links as authority.
 
@@ -29,7 +28,7 @@ Do not use obsolete working notes or missing `docs/agents/*` links as authority.
 2. Read this protocol for the detailed orchestration process.
 3. Read `TALA-Rescue-Next-Steps.md` to identify the authorized issue and next boundary.
 4. Read `TALA-Local-Linear-Sync-Tracker.md` only for issue numbering and synchronization state.
-5. Read the relevant PRD modules, UI blueprint, architecture specification, and domain context.
+5. Read the relevant PRD modules, UI blueprint, and architecture specification.
 6. Inspect migrations, models, services, policies, routes, Filament surfaces, and tests as implementation evidence.
 7. Define the slice contract and decide research, delegation, implementation, verification, and handoff only after completing this intake.
 
@@ -79,8 +78,7 @@ Before planning or implementing a slice, read:
 2. Relevant PRD module files
 3. `00_Project_Documents/ui_surface_blueprint.md`
 4. `00_Project_Documents/architecture_specification.md`
-5. `CONTEXT.md` when domain language matters
-6. Current migrations, models, policies, routes, Filament resources, and tests
+5. Current migrations, models, policies, routes, Filament resources, and tests
 
 Existing code is salvage inventory. It is useful evidence, but it does not override the approved PRD or architecture.
 
@@ -209,3 +207,5 @@ The primary must independently inspect and proportionately verify worker output 
 Product behavior and MVP boundaries belong in the PRD modules, UI blueprint, and architecture specification. This protocol must not duplicate scheduling, payment, enrollment, grading, role-surface, or demo rules that can drift from those authorities.
 
 Each task contract must reference the relevant authority files and sections. When product behavior changes, update the owning documents and affected dependent modules before finalizing implementation.
+
+Canonical domain terms live in their owning PRD module. Do not recreate a standalone glossary that can drift from the product flow.

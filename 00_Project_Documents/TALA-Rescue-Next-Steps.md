@@ -53,7 +53,7 @@ For each slice:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-80 | Planned | Foundation Acceptance Map and Slice Sequencing: perform a bounded inventory of dependencies and stale authority statements, then lock the order and exact boundaries of the module acceptance slices. This is not a whole-system rewrite. |
+| TAL-80 | In progress | Foundation Acceptance Map and Slice Sequencing: the standalone glossary authority audit is accepted; complete the bounded dependency inventory, correct the provisional task order, and lock the exact boundaries of the module acceptance slices. This is not a whole-system rewrite. |
 | TAL-81 | Planned | Identity, Access, and Workspace Acceptance: validate accounts, roles, panel access, handover gates, authorization, and role-facing navigation. |
 | TAL-82 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, and official student creation. |
 | TAL-83 | Planned | Academic Setup Acceptance: validate programs, curricula, course specifications, grade policy inputs, academic years, and term configuration. |
@@ -83,4 +83,4 @@ Completed locally and recorded in the local sync tracker:
 
 ### Next Boundary
 
-Proceed to TAL-80 Foundation Acceptance Map and Slice Sequencing. TAL-80 is a bounded dependency and authority inventory that must correct the provisional task order and lock the exact boundaries of later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
+Continue TAL-80 Foundation Acceptance Map and Slice Sequencing. The TAL-80A glossary authority audit is accepted: canonical terms remain in their owning PRD modules and the redundant standalone glossary is removed. The remaining TAL-80 work must correct the provisional dependency order and lock the exact boundaries of later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
