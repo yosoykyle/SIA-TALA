@@ -13,7 +13,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 
 | Issue | Local Status | Title / Domain |
 | --- | --- | --- |
-| None | No active local-to-Linear sync pending | Local tracker is reconciled through TAL-78 |
+| TAL-79 | Done locally; pending Linear sync | Orchestrator Protocol and Vertical Slice Workflow Codification |
 
 ## Compact Synced History
 
