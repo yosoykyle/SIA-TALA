@@ -96,10 +96,10 @@ Each slice must:
 6. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
 7. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
 8. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-9. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, then create the bounded local Git commit.
+9. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
 10. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
 11. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
-12. After explicit Linear synchronization, move the tracker row to compact synced history and remove the completed issue from active planning.
+12. After explicit Linear synchronization, move the tracker row to compact synced history.
 13. Patch user-reported defects inside the current slice before starting the next slice.
 
 If a slice is too large to verify properly, split it before implementation.

@@ -9,9 +9,9 @@ This document is the active planning surface for upcoming work. It is reached af
   2. Complete its research, accepted contract, implementation, worker verification, and independent primary verification.
   3. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as `Done locally; pending explicit Linear sync`.
   4. Create the bounded local Git commit. This standing permission does not authorize a push or Linear mutation.
-  5. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
-  6. Keep the issue pending locally until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
-  7. After the explicit Linear sync, move the tracker row to compact synced history and remove the completed issue from this planning document.
+  5. Remove the completed issue from this planning document immediately after it is recorded in the local tracker.
+  6. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
+  7. Keep external Linear synchronization pending until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
 
 ## Source-of-Truth Order
 
@@ -49,7 +49,7 @@ For each slice:
 7. Require worker self-verification and independent primary verification.
 8. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
 
-## Planned Issues
+## Active and Upcoming Issues
 
 Dependency lock:
 
@@ -63,7 +63,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-80 | Done locally; pending explicit Linear sync | Foundation Acceptance Map and Slice Sequencing: standalone glossary removed, dependency order locked, and later module-slice boundaries corrected. |
 | TAL-81 | Planned | Identity, Access, Workspace, and Admin Baseline Acceptance: validate accounts, roles, panel access, authorization, base settings, audit visibility, and role-facing navigation. |
 | TAL-82 | Planned | Academic Setup and Calendar Acceptance: validate programs, curricula, course specifications, components, grade-outcome policy inputs, academic years, terms, calendar windows, import templates, and setup records used by later modules. |
 | TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
@@ -80,18 +79,6 @@ Dependency lock:
 | TAL-94 | Planned | Payment Gateway End-to-End Hardening: prove payment attempt, gateway evidence, webhook verification, idempotent ledger posting, Finance Gate, and Accounting/Student visibility. |
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
-
-Completed locally and recorded in the local sync tracker:
-
-- TAL-71 Finance Outputs and Student Hub Finance.
-- TAL-72 Grades MVP.
-- TAL-73 Progression and Student Lifecycle MVP.
-- TAL-74 Graduation and Completion Review MVP.
-- TAL-75 Reports, Audit, and Export MVP.
-- TAL-76 Bootstrap Public Landing Page Adaptation.
-- TAL-77 Calendar-Event Availability Alignment and Solver Mapping.
-- TAL-78 Current dirty-work cleanup and scheduling/access verification.
-- TAL-80 Foundation Acceptance Map and Slice Sequencing.
 
 ### Next Boundary
 

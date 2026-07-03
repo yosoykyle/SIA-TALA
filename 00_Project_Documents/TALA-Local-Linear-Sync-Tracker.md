@@ -7,7 +7,7 @@ This document is the local staging area for completed issues awaiting explicit u
 - This file never triggers Linear automatically. Do not create, update, comment on, or otherwise synchronize a Linear issue until the user explicitly says `Sync TAL-XX to Linear` or gives an equally explicit issue-specific Linear instruction.
 - `Finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the task pending locally.
 - Once explicitly synced, move the row to Compact Synced History and keep only the ID, Linear status, and title.
-- Planning remains in `TALA-Rescue-Next-Steps.md`; remove a completed issue from active planning only after its explicit Linear sync is reconciled.
+- Planning remains in `TALA-Rescue-Next-Steps.md`; completed local work belongs here, not in the planning table.
 
 ## Current Linear Snapshot
 
