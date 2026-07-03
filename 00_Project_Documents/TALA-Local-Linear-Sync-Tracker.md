@@ -11,9 +11,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 
 ## Active Syncs
 
-| Issue | Local Status | Title / Domain |
-| --- | --- | --- |
-| TAL-79 | Done locally; pending Linear sync | Orchestrator Protocol and Vertical Slice Workflow Codification |
+No active syncs.
 
 ## Compact Synced History
 
@@ -58,3 +56,4 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-76 | Done | Bootstrap Public Landing Page Adaptation |
 | TAL-77 | Done | Calendar-Event Availability Alignment and Solver Mapping |
 | TAL-78 | Done | Current dirty-work cleanup and scheduling/access verification |
+| TAL-79 | Done | Orchestrator Protocol and Vertical Slice Workflow Codification |

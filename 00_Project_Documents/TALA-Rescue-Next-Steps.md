@@ -79,8 +79,7 @@ Completed locally and recorded in the local sync tracker:
 - TAL-76 Bootstrap Public Landing Page Adaptation.
 - TAL-77 Calendar-Event Availability Alignment and Solver Mapping.
 - TAL-78 Current dirty-work cleanup and scheduling/access verification.
-- TAL-79 Orchestrator Protocol and Vertical Slice Workflow Codification.
 
 ### Next Boundary
 
-Finish the TAL-79 protocol refinement and sync it before TAL-80. TAL-80 is a bounded dependency and authority inventory that sequences later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
+Proceed to TAL-80 Foundation Acceptance Map and Slice Sequencing. TAL-80 is a bounded dependency and authority inventory that must correct the provisional task order and lock the exact boundaries of later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
