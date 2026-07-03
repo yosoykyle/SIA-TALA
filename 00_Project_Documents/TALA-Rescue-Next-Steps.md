@@ -7,10 +7,11 @@ This document is the active planning surface for upcoming work. It is reached af
 - **The Cycle:**
   1. Plan one small issue, or a tightly related contract/implementation/cleanup batch, here.
   2. Complete its research, accepted contract, implementation, worker verification, and independent primary verification.
-  3. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as done locally and pending sync.
-  4. Create the bounded commit, then use that commit as evidence when synchronizing Linear.
+  3. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as `Done locally; pending explicit Linear sync`.
+  4. Create the bounded local Git commit. This standing permission does not authorize a push or Linear mutation.
   5. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
-  6. Remove the completed issue from this planning document after its tracker state is reconciled.
+  6. Keep the issue pending locally until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
+  7. After the explicit Linear sync, move the tracker row to compact synced history and remove the completed issue from this planning document.
 
 ## Source-of-Truth Order
 
@@ -46,7 +47,7 @@ For each slice:
 5. Record accepted document changes and review dependent modules before finalizing implementation.
 6. Implement only the accepted slice.
 7. Require worker self-verification and independent primary verification.
-8. Follow the tracker, commit, external-sync, and user-acceptance sequence above.
+8. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
 
 ## Planned Issues
 

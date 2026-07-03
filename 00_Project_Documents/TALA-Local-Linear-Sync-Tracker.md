@@ -2,16 +2,20 @@
 
 ## Purpose
 
-This document serves exclusively as the staging area for issues moving to the Linear website, and as a compact reference for issues already synced.
-- **Only put issues here when they are actively being updated or synced to Linear.**
-- Once synced, keep the record extremely compact (just the ID, status, and title) so it can be searched on Linear.
-- This file works in cycle with `TALA-Rescue-Next-Steps.md`: Planning happens there, and when action is taken, the issue is moved here for syncing, then removed from the Next Steps file.
+This document is the local staging area for completed issues awaiting explicit user-authorized Linear synchronization, and a compact reference for issues already synced.
+- After primary verification, record completed work under Active Syncs as `Done locally; pending explicit Linear sync` and create its bounded local Git commit.
+- This file never triggers Linear automatically. Do not create, update, comment on, or otherwise synchronize a Linear issue until the user explicitly says `Sync TAL-XX to Linear` or gives an equally explicit issue-specific Linear instruction.
+- `Finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the task pending locally.
+- Once explicitly synced, move the row to Compact Synced History and keep only the ID, Linear status, and title.
+- Planning remains in `TALA-Rescue-Next-Steps.md`; remove a completed issue from active planning only after its explicit Linear sync is reconciled.
 
 ## Current Linear Snapshot
 
 ## Active Syncs
 
-No active syncs.
+| Issue | Local Status | Title / Domain |
+| --- | --- | --- |
+| TAL-79 | Protocol amendment pending explicit Linear sync | Explicit local-commit and Linear-authorization boundary |
 
 ## Compact Synced History
 

@@ -64,7 +64,10 @@ Within the activated session:
 - `Plan TAL-XX` prepares its slice contract and research/worker boundary.
 - `Orchestrate TAL-XX` explicitly authorizes one task-specific worker thread.
 - `Verify TAL-XX` triggers independent inspection of the worker result and live repository.
-- `Cleanup TAL-XX` is limited to its accepted tracker and commit boundary.
+- `Cleanup TAL-XX` is limited to its accepted local-tracker update and bounded local Git commit.
+- `Sync TAL-XX to Linear` is the only command that authorizes the primary to create or update the corresponding Linear issue and reconcile its sync state.
+
+`Finish`, `close`, `cleanup`, `commit`, or `proceed` without the explicit Linear-sync instruction does not authorize a Linear mutation.
 
 Worker status is never inferred. A worker must receive an explicit handoff containing the issue, scope, authorities, exclusions, verification, and handshake requirements.
 
@@ -95,9 +98,11 @@ Each slice must:
 6. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
 7. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
 8. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-9. Record accepted local work in the sync tracker as pending sync, create the bounded commit, and use that commit as evidence when synchronizing Linear.
+9. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, then create the bounded local Git commit.
 10. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
-11. Patch user-reported defects inside the current slice before starting the next slice.
+11. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
+12. After explicit Linear synchronization, move the tracker row to compact synced history and remove the completed issue from active planning.
+13. Patch user-reported defects inside the current slice before starting the next slice.
 
 If a slice is too large to verify properly, split it before implementation.
 
@@ -187,14 +192,17 @@ The primary must independently inspect and proportionately verify worker output 
 ## Git, Database, and Verification Rules
 
 1. Preserve user-owned and unrelated changes.
-2. Commit only after the intended scope is verified and the dirty set is understood.
-3. Do not push unless explicitly requested.
-4. Before DB-backed tests, prove `APP_ENV=testing`, `DB_CONNECTION=mysql`, and `DB_DATABASE=test_tala_db`.
-5. Do not run DB-backed verification against `tala_db` or `tala_test_codex`.
-6. Run focused PHPUnit tests for changed behavior.
-7. Run `vendor/bin/pint --dirty --format agent` after PHP changes.
-8. Run focused PHPStan/Larastan when a slice changes typed PHP paths or tests.
-9. Run `git diff --check` before handoff or commit.
+2. After primary acceptance, create the bounded local Git commit without requiring a separate per-commit prompt; this standing permission does not authorize a push.
+3. Record the completed task in the local tracker as pending explicit Linear sync.
+4. Do not create, update, comment on, or otherwise synchronize a Linear issue until the user explicitly says `Sync TAL-XX to Linear` or gives an equally explicit issue-specific Linear instruction.
+5. Do not treat `finish`, `close`, `cleanup`, `commit`, or `proceed` as Linear authorization.
+6. Do not push unless explicitly requested.
+7. Before DB-backed tests, prove `APP_ENV=testing`, `DB_CONNECTION=mysql`, and `DB_DATABASE=test_tala_db`.
+8. Do not run DB-backed verification against `tala_db` or `tala_test_codex`.
+9. Run focused PHPUnit tests for changed behavior.
+10. Run `vendor/bin/pint --dirty --format agent` after PHP changes.
+11. Run focused PHPStan/Larastan when a slice changes typed PHP paths or tests.
+12. Run `git diff --check` before handoff or commit.
 
 ## Product-Rule Ownership
 
