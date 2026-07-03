@@ -13,35 +13,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 
 | Issue | Local Status | Title / Domain |
 | --- | --- | --- |
-| TAL-50 | Done locally; pending Linear sync | Current Worktree Intake and Backend Salvage Ledger |
-| TAL-51 | Done locally; pending Linear sync | Clean MVP ERD and Schema Contract |
-| TAL-52 | Done locally; pending Linear sync | Clean MVP Migration Baseline |
-| TAL-53 | Done locally; pending Linear sync | Backend Schema Reconciliation Inventory |
-| TAL-54 | Done locally; pending Linear sync | Backend Boot and Filament Registration Stabilization |
-| TAL-55 | Done locally; pending Linear sync | Academic, Course, and Curriculum Foundation Adaptation |
-| TAL-56 | Done locally; pending Linear sync | Admissions-to-Student Master Backend Adaptation |
-| TAL-57 | Done locally; pending Linear sync | Student Panel Filament v5 Profile Boot Stabilization |
-| TAL-58 | Done locally; pending Linear sync | Term Offerings and Resource Foundation Backend Adaptation |
-| TAL-59 | Done locally; pending Linear sync | Registrar Term Offering Builder |
-| TAL-60 | Done locally; pending Linear sync | Scheduling UI Baseline Realignment |
-| TAL-61 | Done locally; pending Linear sync | Scheduling Demand Source Contract and Filament Readiness Surface |
-| TAL-62 | Done locally; pending Linear sync | Solver Run Dispatch and Candidate Schedule Review |
-| TAL-63 | Done locally; pending Linear sync | Cloud Run Solver Demand Contract Alignment |
-| TAL-64 | Done locally; pending Linear sync | Cloud Run Solver Deployment Path Review |
-| TAL-65 | Done locally; pending Linear sync | Laravel Cloud Run Solver Integration Verification |
-| TAL-66 | Done locally; pending Linear sync | Candidate Schedule Approval and Publication |
-| TAL-67 | Done locally; pending Linear sync | Enrollment Gate and Seat Reservation |
-| TAL-68 | Done locally; pending Linear sync | Finance Assessment and Ledger Foundation — `DECIMAL(12,2)` rates, deterministic scope precedence, and exact Program-and-Term downpayment activation gate |
-| TAL-69 | Done locally; pending Linear sync | PayMongo verified payment evidence, idempotent webhook ledger posting, mismatch review path, Finance Gate from posted ledger/accommodation, and OR mapping as Accounting reconciliation |
-| TAL-70 | Done locally; pending Linear sync | Native authenticated COR output, browser print/save-as-PDF, output access logging, and clean holds-schema alignment |
-| TAL-71 | Done locally; pending Linear sync | Finance outputs, Student Hub Finance, authenticated print views, output access logging, and duplicate-safe pending checkout reuse |
-| TAL-72 | Done locally; pending Linear sync | Grades MVP clean roster, release, outcome history, and Student Hub/subject-suggestion alignment |
-| TAL-73 | Done locally; pending Linear sync | Progression and Student Lifecycle MVP with Registrar-recorded lifecycle changes, central holds, unit-load exceptions, and Student Hub lifecycle projections |
-| TAL-74 | Done locally; pending Linear sync | Graduation and Completion Review MVP |
-| TAL-75 | Done locally; pending Linear sync | Reports, Audit, and Export MVP |
-| TAL-76 | Done locally; pending Linear sync | Bootstrap Public Landing Page Adaptation with isolated landing assets |
-| TAL-77 | Done locally; pending Linear sync | Calendar-Event Availability Alignment and Solver Mapping |
-| TAL-78 | Done locally; pending Linear sync | Current dirty-work cleanup, official system-name alignment, CP-SAT scope documentation, and scheduling/access verification |
+| None | No active local-to-Linear sync pending | Local tracker is reconciled through TAL-78 |
 
 ## Compact Synced History
 
@@ -49,6 +21,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 
 | Issue | Status (Linear) | Title / Domain |
 | --- | --- | --- |
+| TAL-42 | Done | R0 PRD rebaseline rescue controller |
 | TAL-43 | Done | Public landing page and Filament auth routing baseline |
 | TAL-44 | Done | Applicant Workspace shell and navigation |
 | TAL-45 | Done | Student Hub shell |
@@ -56,3 +29,32 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-47 | Canceled | Frontend smoke tests |
 | TAL-48 | Done | Applicant intake draft and submission |
 | TAL-49 | Done | Foundation/Auth Workspace Rebaseline |
+| TAL-50 | Done | Current Worktree Intake and Backend Salvage Ledger |
+| TAL-51 | Done | Clean MVP ERD and Schema Contract |
+| TAL-52 | Done | Clean MVP Migration Baseline |
+| TAL-53 | Done | Backend Schema Reconciliation Inventory |
+| TAL-54 | Done | Backend Boot and Filament Registration Stabilization |
+| TAL-55 | Done | Academic, Course, and Curriculum Foundation Adaptation |
+| TAL-56 | Done | Admissions-to-Student Master Backend Adaptation |
+| TAL-57 | Done | Student Panel Filament v5 Profile Boot Stabilization |
+| TAL-58 | Done | Term Offerings and Resource Foundation Backend Adaptation |
+| TAL-59 | Done | Registrar Term Offering Builder |
+| TAL-60 | Done | Scheduling UI Baseline Realignment |
+| TAL-61 | Done | Scheduling Demand Source Contract and Filament Readiness Surface |
+| TAL-62 | Done | Solver Run Dispatch and Candidate Schedule Review |
+| TAL-63 | Done | Cloud Run Solver Demand Contract Alignment |
+| TAL-64 | Done | Cloud Run Solver Deployment Path Review |
+| TAL-65 | Done | Laravel Cloud Run Solver Integration Verification |
+| TAL-66 | Done | Candidate Schedule Approval and Publication |
+| TAL-67 | Done | Enrollment Gate and Seat Reservation |
+| TAL-68 | Done | Finance Assessment and Ledger Foundation |
+| TAL-69 | Done | PayMongo Payment Evidence and Ledger Posting |
+| TAL-70 | Done | Authenticated COR Output and Holds Alignment |
+| TAL-71 | Done | Finance Outputs and Student Hub Finance |
+| TAL-72 | Done | Grades MVP |
+| TAL-73 | Done | Progression and Student Lifecycle MVP |
+| TAL-74 | Done | Graduation and Completion Review MVP |
+| TAL-75 | Done | Reports, Audit, and Export MVP |
+| TAL-76 | Done | Bootstrap Public Landing Page Adaptation |
+| TAL-77 | Done | Calendar-Event Availability Alignment and Solver Mapping |
+| TAL-78 | Done | Current dirty-work cleanup and scheduling/access verification |
