@@ -16,6 +16,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | Issue | Local Status | Title / Domain |
 | --- | --- | --- |
 | TAL-79 | Protocol amendment pending explicit Linear sync | Explicit local-commit and Linear-authorization boundary |
+| TAL-80 | Done locally; pending explicit Linear sync | Foundation Acceptance Map and Slice Sequencing |
 
 ## Compact Synced History
 

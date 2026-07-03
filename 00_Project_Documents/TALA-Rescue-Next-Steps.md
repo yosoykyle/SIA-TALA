@@ -51,24 +51,35 @@ For each slice:
 
 ## Planned Issues
 
+Dependency lock:
+
+1. Identity, roles, panels, and base administration come first.
+2. Academic setup and calendar come before admissions handover because handover assigns Program and Curriculum.
+3. Holds and lifecycle foundation come before enrollment because gates and COR visibility depend on student state.
+4. Term offerings, resources, and a published Master Schedule come before enrollment binding.
+5. Finance core comes before official enrollment because assessment, ledger, downpayment, accommodation, and Finance Gate affect enrollment.
+6. Student Hub comes after source records exist; it is a projection, not a source module.
+7. CP-SAT and PayMongo end-to-end hardening start only after their SIS source records are accepted.
+
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-80 | In progress | Foundation Acceptance Map and Slice Sequencing: the standalone glossary authority audit is accepted; complete the bounded dependency inventory, correct the provisional task order, and lock the exact boundaries of the module acceptance slices. This is not a whole-system rewrite. |
-| TAL-81 | Planned | Identity, Access, and Workspace Acceptance: validate accounts, roles, panel access, handover gates, authorization, and role-facing navigation. |
-| TAL-82 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, and official student creation. |
-| TAL-83 | Planned | Academic Setup Acceptance: validate programs, curricula, course specifications, grade policy inputs, academic years, and term configuration. |
-| TAL-84 | Planned | Term Offerings, Resources, and Calendar Acceptance: validate sections, offerings, delivery groups, faculty/room eligibility, capacities, and scheduling blocks. |
-| TAL-85 | Planned | Enrollment Gate Acceptance: validate eligibility, reservations, placement, holds, exceptions, and official enrollment outcomes. |
-| TAL-86 | Planned | Finance and Ledger Core Acceptance: validate fee rules, assessments, downpayments, ledger ownership, reconciliation inputs, and Finance Gate behavior without expanding the gateway. |
-| TAL-87 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, and hold behavior. |
-| TAL-88 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting, completion, correction, and student visibility. |
-| TAL-89 | Planned | Progression, Lifecycle, and Graduation Acceptance: validate holds, irregular progression, lifecycle changes, completion work, and eligibility snapshots. |
-| TAL-90 | Planned | Student Hub Acceptance: validate the student-safe projection of enrollment, schedule, finance, outputs, grades, holds, lifecycle, and completion. |
-| TAL-91 | Planned | System Administration, Reports, Audit, and Import Acceptance: validate staff controls, fixed reports/exports, audit evidence, settings, retention responsibilities, and guarded imports. |
-| TAL-92 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, and schedule visibility, including safe failure and infeasibility handling. |
-| TAL-93 | Planned | Payment Gateway End-to-End Hardening: prove payment attempt, gateway evidence, webhook verification, idempotent ledger posting, Finance Gate, and Accounting/Student visibility. |
-| TAL-94 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
-| TAL-95 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
+| TAL-80 | Done locally; pending explicit Linear sync | Foundation Acceptance Map and Slice Sequencing: standalone glossary removed, dependency order locked, and later module-slice boundaries corrected. |
+| TAL-81 | Planned | Identity, Access, Workspace, and Admin Baseline Acceptance: validate accounts, roles, panel access, authorization, base settings, audit visibility, and role-facing navigation. |
+| TAL-82 | Planned | Academic Setup and Calendar Acceptance: validate programs, curricula, course specifications, components, grade-outcome policy inputs, academic years, terms, calendar windows, import templates, and setup records used by later modules. |
+| TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
+| TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
+| TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
+| TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
+| TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
+| TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
+| TAL-89 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. |
+| TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
+| TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
+| TAL-92 | Planned | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, and operational monitoring. |
+| TAL-93 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, schedule visibility, and safe failure/infeasibility handling. |
+| TAL-94 | Planned | Payment Gateway End-to-End Hardening: prove payment attempt, gateway evidence, webhook verification, idempotent ledger posting, Finance Gate, and Accounting/Student visibility. |
+| TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
+| TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
 Completed locally and recorded in the local sync tracker:
 
@@ -80,7 +91,8 @@ Completed locally and recorded in the local sync tracker:
 - TAL-76 Bootstrap Public Landing Page Adaptation.
 - TAL-77 Calendar-Event Availability Alignment and Solver Mapping.
 - TAL-78 Current dirty-work cleanup and scheduling/access verification.
+- TAL-80 Foundation Acceptance Map and Slice Sequencing.
 
 ### Next Boundary
 
-Continue TAL-80 Foundation Acceptance Map and Slice Sequencing. The TAL-80A glossary authority audit is accepted: canonical terms remain in their owning PRD modules and the redundant standalone glossary is removed. The remaining TAL-80 work must correct the provisional dependency order and lock the exact boundaries of later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
+Next implementation slice is TAL-81 Identity, Access, Workspace, and Admin Baseline Acceptance. TAL-81 must start with a slice contract against PRD Module 2, the UI blueprint, architecture specification, current auth/role implementation, and admin/audit surfaces. Do not begin CP-SAT or PayMongo hardening until their prerequisite foundation slices are accepted.
