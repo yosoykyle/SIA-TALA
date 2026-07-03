@@ -65,7 +65,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-81 | Planned | Identity, Access, Workspace, and Admin Baseline Acceptance: validate accounts, roles, panel access, authorization, base settings, audit visibility, and role-facing navigation. |
 | TAL-82 | Planned | Academic Setup and Calendar Acceptance: validate programs, curricula, course specifications, components, grade-outcome policy inputs, academic years, terms, calendar windows, import templates, and setup records used by later modules. |
 | TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
@@ -84,4 +83,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next implementation slice is TAL-81 Identity, Access, Workspace, and Admin Baseline Acceptance. TAL-81 must start with a slice contract against PRD Module 2, the UI blueprint, architecture specification, current auth/role implementation, and admin/audit surfaces. Do not begin CP-SAT or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next implementation slice is TAL-82 Academic Setup and Calendar Acceptance. TAL-82 must start with an evidence-backed primary slice plan against the relevant PRD modules, the UI blueprint, architecture specification, current academic/calendar schema, existing resources, imports, routes, policies, and tests. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.

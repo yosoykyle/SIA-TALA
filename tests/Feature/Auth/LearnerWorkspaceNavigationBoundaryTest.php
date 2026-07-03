@@ -38,11 +38,13 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $labels = $this->navigationLabelsForPanel($student, 'student');
 
         $this->assertSame([
+            'Completion',
             'COR',
             'Dashboard',
             'Finance',
             'Grades',
             'Holds & Blockers',
+            'Academic Status',
             'Class Schedule',
         ], $labels);
         $this->assertSame($labels, array_values(array_unique($labels)));

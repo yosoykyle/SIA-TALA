@@ -9,12 +9,12 @@ class SystemSettingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return false;
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function view(User $user, SystemSetting $model): bool
     {
-        return false;
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function create(User $user): bool

@@ -64,6 +64,49 @@ class StaffNavigationVisibilityTest extends TestCase
         $this->assertFalse(FacultySubjectEligibilityResource::canAccess());
     }
 
+    public function test_system_administration_baseline_is_system_super_admin_only(): void
+    {
+        $systemSuperAdmin = User::role(User::StaffRoleSystemSuperAdmin)->firstOrFail();
+
+        $systemSuperAdminEntries = $this->navigationEntriesForRole(User::StaffRoleSystemSuperAdmin);
+
+        $this->assertContains('Users', array_column($systemSuperAdminEntries, 'label'));
+        $this->assertContains('Roles & Permissions', array_column($systemSuperAdminEntries, 'label'));
+        $this->assertContains('Audit Logs', array_column($systemSuperAdminEntries, 'label'));
+        $this->assertContains('System Settings', array_column($systemSuperAdminEntries, 'label'));
+
+        foreach ([
+            '/admin/users',
+            '/admin/roles',
+            '/admin/activities',
+            '/admin/system-settings',
+        ] as $path) {
+            $this->actingAs($systemSuperAdmin)
+                ->get($path)
+                ->assertOk();
+        }
+
+        foreach ([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAccounting,
+            User::StaffRoleFaculty,
+            User::StaffRoleAcademicHead,
+        ] as $role) {
+            $user = User::role($role)->firstOrFail();
+
+            foreach ([
+                '/admin/users',
+                '/admin/roles',
+                '/admin/activities',
+                '/admin/system-settings',
+            ] as $path) {
+                $this->actingAs($user)
+                    ->get($path)
+                    ->assertForbidden();
+            }
+        }
+    }
+
     public function test_seeded_permissions_do_not_include_legacy_navigation_permissions(): void
     {
         $this->assertDatabaseMissing('permissions', ['name' => 'manage-lis']);

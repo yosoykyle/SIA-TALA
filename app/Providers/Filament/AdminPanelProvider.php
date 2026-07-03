@@ -20,6 +20,7 @@ use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
+use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Users\UserResource;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
@@ -75,6 +76,7 @@ class AdminPanelProvider extends PanelProvider
                 UserResource::class,
                 RoleResource::class,
                 ActivityResource::class,
+                SystemSettingResource::class,
                 EnrollmentResource::class,
                 FeeRuleResource::class,
                 AssessmentResource::class,

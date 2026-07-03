@@ -26,6 +26,7 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
+use App\Models\SystemSetting;
 use App\Observers\CurriculumSubjectObserver;
 use App\Policies\AccountingAdjustmentPolicy;
 use App\Policies\ActivityPolicy;
@@ -44,6 +45,7 @@ use App\Policies\SchedulingDemandPolicy;
 use App\Policies\SectionDeliveryGroupPolicy;
 use App\Policies\SectionMeetingPolicy;
 use App\Policies\SectionPolicy;
+use App\Policies\SystemSettingPolicy;
 use App\Support\DecimalMoney;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
@@ -134,6 +136,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SectionDeliveryGroup::class, SectionDeliveryGroupPolicy::class);
         Gate::policy(SectionMeeting::class, SectionMeetingPolicy::class);
         Gate::policy(CalendarEvent::class, CalendarEventPolicy::class);
+        Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
 
