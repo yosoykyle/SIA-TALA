@@ -54,14 +54,14 @@ After activation, complete the intake chain before implementation and report:
 1. Current Git and dirty-worktree state.
 2. Current issue and next boundary from Next Steps and the local sync tracker.
 3. Relevant authority documents and any detected conflict or stale statement.
-4. Whether work should stay in the primary thread or use one explicitly authorized task-specific worker.
+4. Whether work should stay in the primary thread or use one explicitly authorized accountable task worker.
 5. The proposed next action and explicit exclusions.
 
 Within the activated session:
 
 - `Primary proceed` continues the accepted current issue without widening scope.
 - `Plan TAL-XX` prepares its slice contract and research/worker boundary.
-- `Orchestrate TAL-XX` explicitly authorizes one task-specific worker thread.
+- `Orchestrate TAL-XX` explicitly authorizes one accountable task-specific worker.
 - `Verify TAL-XX` triggers independent inspection of the worker result and live repository.
 - `Cleanup TAL-XX` is limited to its accepted local-tracker update and bounded local Git commit.
 - `Sync TAL-XX to Linear` is the only command that authorizes the primary to create or update the corresponding Linear issue and reconcile its sync state.
@@ -89,7 +89,7 @@ Work should continue as vertical slices, not broad horizontal rewrites.
 Each slice must:
 
 1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
-2. Decide whether research and planning stay in the primary thread or move to one task-specific worker thread.
+2. Decide whether research and planning stay in the primary thread or move to one accountable task worker.
 3. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests.
 4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
@@ -162,12 +162,14 @@ For ordinary work, the primary thread may proceed directly.
 
 For delegated work:
 
-1. Keep each task contained to the primary thread plus one dedicated worker thread unless the primary explicitly approves more.
+1. Keep each task owned by the primary plus one accountable task worker unless the primary explicitly approves more accountable workers.
 2. The primary defines scope, source documents, exclusions, verification, and next boundary.
 3. Workers must read `AGENTS.md` and relevant source docs before editing.
 4. Workers must preserve unrelated worktree changes.
 5. Workers must not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped.
 6. Workers must stop and give user instructions when external dashboards, credentials, approvals, or environment-specific setup are required.
+
+The accountable task worker may use helper sub-agents when useful. It still owns coordination, verification, and one final handshake to the primary. The primary accepts the accountable worker's combined result, not scattered helper outputs.
 
 When user action is required, the handoff must state what the user must do, why human action is required, current step-by-step instructions, the expected result or evidence, and how that evidence unlocks the next step.
 
