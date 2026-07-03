@@ -21,6 +21,53 @@ Use these files for their intended purpose:
 
 Do not use obsolete working notes or missing `docs/agents/*` links as authority.
 
+## Agent Intake and Routing Chain
+
+`AGENTS.md` is the entry point for every primary or worker agent in this workspace.
+
+1. Read the complete `AGENTS.md` without modifying the generated Laravel Boost block.
+2. Read this protocol for the detailed orchestration process.
+3. Read `TALA-Rescue-Next-Steps.md` to identify the authorized issue and next boundary.
+4. Read `TALA-Local-Linear-Sync-Tracker.md` only for issue numbering and synchronization state.
+5. Read the relevant PRD modules, UI blueprint, architecture specification, and domain context.
+6. Inspect migrations, models, services, policies, routes, Filament surfaces, and tests as implementation evidence.
+7. Define the slice contract and decide research, delegation, implementation, verification, and handoff only after completing this intake.
+
+Use ownership to resolve apparent conflicts:
+
+1. Runtime instructions, Laravel Boost, and official version-specific documentation control framework and tool usage.
+2. PRD modules control product behavior and MVP boundaries.
+3. The UI blueprint controls role and surface mapping while remaining subordinate to product behavior.
+4. The architecture specification controls system and integration boundaries.
+5. This protocol controls orchestration and verification.
+6. Next Steps controls task order.
+7. The local tracker records synchronization state only.
+8. Existing code and tests are salvage evidence, not higher authority.
+
+If applicable authorities still conflict, stop and reconcile the conflict in the primary thread before implementation.
+
+## Primary Orchestrator Activation
+
+Repository instruction discovery loads the rules, but the user's prompt activates the orchestration role. A new session becomes the TALA primary orchestrator when the user explicitly says `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or otherwise clearly requests orchestration.
+
+After activation, complete the intake chain before implementation and report:
+
+1. Current Git and dirty-worktree state.
+2. Current issue and next boundary from Next Steps and the local sync tracker.
+3. Relevant authority documents and any detected conflict or stale statement.
+4. Whether work should stay in the primary thread or use one explicitly authorized task-specific worker.
+5. The proposed next action and explicit exclusions.
+
+Within the activated session:
+
+- `Primary proceed` continues the accepted current issue without widening scope.
+- `Plan TAL-XX` prepares its slice contract and research/worker boundary.
+- `Orchestrate TAL-XX` explicitly authorizes one task-specific worker thread.
+- `Verify TAL-XX` triggers independent inspection of the worker result and live repository.
+- `Cleanup TAL-XX` is limited to its accepted tracker and commit boundary.
+
+Worker status is never inferred. A worker must receive an explicit handoff containing the issue, scope, authorities, exclusions, verification, and handshake requirements.
+
 ## Source-of-Truth Order
 
 Before planning or implementing a slice, read:
@@ -40,16 +87,31 @@ Work should continue as vertical slices, not broad horizontal rewrites.
 
 Each slice must:
 
-1. Define the module, role surface, data flow, and integration boundary.
-2. Review the PRD, UI blueprint, architecture, schema, existing code, and tests.
-3. Research unclear framework, plugin, UI, policy, or external-integration behavior before implementation.
-4. Decide whether the PRD remains valid, needs clarification, or conflicts with the current implementation.
-5. Implement only the accepted scope.
-6. Verify the worker output with focused tests and static checks.
-7. Provide a manual user checklist when external setup, credentials, dashboards, or human judgment are required.
-8. Move completed local work to the sync tracker only after the slice or planned batch is fully complete.
+1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
+2. Decide whether research and planning stay in the primary thread or move to one task-specific worker thread.
+3. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests.
+4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
+5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
+6. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
+7. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
+8. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
+9. Record accepted local work in the sync tracker as pending sync, create the bounded commit, and use that commit as evidence when synchronizing Linear.
+10. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
+11. Patch user-reported defects inside the current slice before starting the next slice.
 
 If a slice is too large to verify properly, split it before implementation.
+
+## Foundation Acceptance Rule
+
+TALA does not restart from zero. The existing schema, services, policies, Filament resources, pages, and tests are salvage inventory that must be accepted, corrected, or replaced one vertical slice at a time.
+
+Before additional CP-SAT or PayMongo expansion:
+
+1. Revalidate the school-information-system foundation in dependency order.
+2. Confirm each slice's records, lifecycle behavior, authorization, UI presentation, and downstream consumers.
+3. Retain working implementation when it satisfies the accepted contract.
+4. Patch only proven gaps; do not rewrite a module solely to make it look newer or more customized.
+5. Treat a broad inventory as a sequencing aid, not as authorization for a whole-system rewrite.
 
 ## Research Rules
 
@@ -63,6 +125,31 @@ Use:
 4. Official or primary sources whenever possible.
 
 Research may recommend a PRD clarification, but it must not expand MVP without a primary-thread decision.
+
+## Filament and Plugin Decision Gate
+
+The objective is the leanest maintainable implementation, not the largest plugin count and not custom code by default.
+
+Use this order for each UI or behavior requirement:
+
+1. Reuse a compatible package or component already installed in TALA when it satisfies the accepted behavior.
+2. Use native Filament v5 Resources, Pages, Tables, Forms, Infolists, Actions, Filters, Widgets, notifications, and panel features when they provide the behavior cleanly.
+3. Evaluate a third-party plugin when it closes a real capability gap or materially reduces custom implementation and maintenance.
+4. Build a focused custom component only when native Filament and qualified plugins do not fit the requirement.
+
+Use the [official Filament plugin directory](https://filamentphp.com/plugins) as the primary live catalog and [Awesome Filament](https://github.com/spekulatius/awesome-filament) as an additional discovery catalog. These are external sources, not repository files and not approval lists.
+
+During a relevant slice, open the live catalogs, search for the specific capability gap, then verify candidate repositories, package metadata, release history, and documentation. Record the selected or rejected candidates and supporting links in the slice report. Do not maintain a copied global plugin inventory because it will become stale. If external research is unavailable, use compatible installed or native Filament capabilities and report the unresolved plugin question.
+
+Before adding a plugin, record:
+
+1. Filament 5, Livewire 4, Laravel 12, and PHP 8.2 compatibility.
+2. Maintainer activity, release recency, issue health, license, and security posture.
+3. Required migrations, services, JavaScript, queues, permissions, or public routes.
+4. Whether it keeps authorization and domain rules inside TALA.
+5. Test strategy, upgrade risk, and a practical removal or replacement path.
+
+Do not add or replace a dependency without explicit primary-thread approval.
 
 ## Orchestration Rules
 
@@ -79,6 +166,8 @@ For delegated work:
 5. Workers must not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped.
 6. Workers must stop and give user instructions when external dashboards, credentials, approvals, or environment-specific setup are required.
 
+When user action is required, the handoff must state what the user must do, why human action is required, current step-by-step instructions, the expected result or evidence, and how that evidence unlocks the next step.
+
 ## Worker Handshake
 
 Every worker must end with:
@@ -91,6 +180,7 @@ Every worker must end with:
 6. Untouched exclusions
 7. Caveats or blockers
 8. Next boundary
+9. Research and plugin decision, including supporting links when applicable
 
 The primary must independently inspect and proportionately verify worker output before accepting it.
 
@@ -106,11 +196,8 @@ The primary must independently inspect and proportionately verify worker output 
 8. Run focused PHPStan/Larastan when a slice changes typed PHP paths or tests.
 9. Run `git diff --check` before handoff or commit.
 
-## MVP Product Guardrails
+## Product-Rule Ownership
 
-1. Keep the school information system foundation stable before expanding integrations.
-2. Keep CP-SAT scheduling as constraint optimization over validated TALA records.
-3. Treat solver output as candidate-only until staff publish accepted rows into `section_meetings`.
-4. Keep payment gateway work tied to verified evidence, ledger posting, Finance Gate behavior, and Accounting reconciliation.
-5. Keep role surfaces and navigation aligned with the PRD and UI blueprint.
-6. Keep demo/rehearsal support separate from production MVP implementation unless explicitly promoted into the main chain.
+Product behavior and MVP boundaries belong in the PRD modules, UI blueprint, and architecture specification. This protocol must not duplicate scheduling, payment, enrollment, grading, role-surface, or demo rules that can drift from those authorities.
+
+Each task contract must reference the relevant authority files and sections. When product behavior changes, update the owning documents and affected dependent modules before finalizing implementation.

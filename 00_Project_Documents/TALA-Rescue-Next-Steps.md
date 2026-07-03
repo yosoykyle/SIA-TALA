@@ -2,13 +2,15 @@
 
 ## Purpose
 
-This document is the active planning surface for upcoming work.
+This document is the active planning surface for upcoming work. It is reached after `AGENTS.md` and `TALA-Orchestrator-Protocol.md` in the agent intake chain, and it controls issue sequencing rather than product behavior.
 - **Issue Numbering:** Always look at the last Issue ID in the `TALA-Local-Linear-Sync-Tracker.md` or on the Linear website. The next issue planned here will start from the subsequent number.
 - **The Cycle:**
-  1. We plan the next batch of issues and their descriptions here.
-  2. We take action and implement the issues.
-  3. **Important:** Issues are only moved to `TALA-Local-Linear-Sync-Tracker.md` for syncing after **all** the planned issues/steps in the current batch are fully completed. It will not be moved if just one issue is done.
-  4. The completed batch of issues is then removed from this planning document.
+  1. Plan one small issue, or a tightly related contract/implementation/cleanup batch, here.
+  2. Complete its research, accepted contract, implementation, worker verification, and independent primary verification.
+  3. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as done locally and pending sync.
+  4. Create the bounded commit, then use that commit as evidence when synchronizing Linear.
+  5. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
+  6. Remove the completed issue from this planning document after its tracker state is reconciled.
 
 ## Source-of-Truth Order
 
@@ -37,25 +39,35 @@ Use the stable protocol in `AGENTS.md` and `00_Project_Documents/TALA-Orchestrat
 
 For each slice:
 
-1. Define the exact module, role surface, data flow, and integration boundary.
-2. Review the PRD modules, UI blueprint, architecture specification, schema/migrations, existing code, and tests.
+1. Define the role, trigger, inputs, changed records, outputs, UI surface, related modules, integration boundary, and exclusions.
+2. Review the PRD modules, UI blueprint, architecture specification, schema/migrations, existing code, routes, policies, and tests.
 3. Research unclear framework, UI, plugin, integration, policy, or mature-system questions before implementation.
-4. Decide whether the PRD remains valid, needs a small clarification, or conflicts with the current implementation.
-5. Implement only the accepted slice.
-6. Verify the worker output and provide a manual user checklist when external setup or human review is required.
-7. Move completed local work to the sync tracker only after the slice or planned batch is fully done.
+4. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current implementation.
+5. Record accepted document changes and review dependent modules before finalizing implementation.
+6. Implement only the accepted slice.
+7. Require worker self-verification and independent primary verification.
+8. Follow the tracker, commit, external-sync, and user-acceptance sequence above.
 
 ## Planned Issues
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-80 | Planned | MVP Vertical Slice Readiness Audit: review PRD, UI blueprint, architecture, schema, routes/resources, policies, and tests by module before continuing integration-heavy work. |
-| TAL-81 | Planned | CP-SAT End-to-End Scheduling Hardening: prove demand -> solver dispatch -> Cloud Run result -> candidate rows -> staff review -> `section_meetings` publication -> Student Hub/COR schedule visibility. |
-| TAL-82 | Planned | CP-SAT Failure and Infeasibility Handling: surface blocked, failed, infeasible, invalid, and unknown solver states safely and prevent invalid publication. |
-| TAL-83 | Planned | Payment Gateway End-to-End Verification: verify payment attempt, gateway/mock evidence, ledger posting, Finance Gate, and Accounting/Student visibility. |
-| TAL-84 | Planned | Role Surface and Access Regression Pass: verify Applicant, Student, Faculty, Registrar, Accounting, Academic Head, and System Admin workspaces against PRD and UI blueprint. |
-| TAL-85 | Planned | Final MVP Stabilization Pass: run focused schema, route, policy, feature, PHPStan, Pint, and documentation alignment checks. |
-| TAL-86 | Planned | Demo/Rehearsal Support from Verified MVP: rebuild only the demo support needed for verified MVP flows. |
+| TAL-80 | Planned | Foundation Acceptance Map and Slice Sequencing: perform a bounded inventory of dependencies and stale authority statements, then lock the order and exact boundaries of the module acceptance slices. This is not a whole-system rewrite. |
+| TAL-81 | Planned | Identity, Access, and Workspace Acceptance: validate accounts, roles, panel access, handover gates, authorization, and role-facing navigation. |
+| TAL-82 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, and official student creation. |
+| TAL-83 | Planned | Academic Setup Acceptance: validate programs, curricula, course specifications, grade policy inputs, academic years, and term configuration. |
+| TAL-84 | Planned | Term Offerings, Resources, and Calendar Acceptance: validate sections, offerings, delivery groups, faculty/room eligibility, capacities, and scheduling blocks. |
+| TAL-85 | Planned | Enrollment Gate Acceptance: validate eligibility, reservations, placement, holds, exceptions, and official enrollment outcomes. |
+| TAL-86 | Planned | Finance and Ledger Core Acceptance: validate fee rules, assessments, downpayments, ledger ownership, reconciliation inputs, and Finance Gate behavior without expanding the gateway. |
+| TAL-87 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, and hold behavior. |
+| TAL-88 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting, completion, correction, and student visibility. |
+| TAL-89 | Planned | Progression, Lifecycle, and Graduation Acceptance: validate holds, irregular progression, lifecycle changes, completion work, and eligibility snapshots. |
+| TAL-90 | Planned | Student Hub Acceptance: validate the student-safe projection of enrollment, schedule, finance, outputs, grades, holds, lifecycle, and completion. |
+| TAL-91 | Planned | System Administration, Reports, Audit, and Import Acceptance: validate staff controls, fixed reports/exports, audit evidence, settings, retention responsibilities, and guarded imports. |
+| TAL-92 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, and schedule visibility, including safe failure and infeasibility handling. |
+| TAL-93 | Planned | Payment Gateway End-to-End Hardening: prove payment attempt, gateway evidence, webhook verification, idempotent ledger posting, Finance Gate, and Accounting/Student visibility. |
+| TAL-94 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
+| TAL-95 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
 Completed locally and recorded in the local sync tracker:
 
@@ -71,4 +83,4 @@ Completed locally and recorded in the local sync tracker:
 
 ### Next Boundary
 
-Proceed to TAL-80 before additional CP-SAT or payment implementation. The next slice should audit the implemented MVP vertically against the PRD, UI blueprint, architecture, schema, role surfaces, and tests, then produce the exact patch list needed before TAL-81 scheduling hardening.
+Finish the TAL-79 protocol refinement and sync it before TAL-80. TAL-80 is a bounded dependency and authority inventory that sequences later module slices; it does not authorize a broad rewrite. Each later foundation issue may be split into contract, implementation, and cleanup subtasks when its scope is too large. CP-SAT and PayMongo hardening begin only after their prerequisite foundation slices are accepted.
