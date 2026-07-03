@@ -8,35 +8,35 @@ class UserPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('manage-users');
+        return $this->canManageUsers($user);
     }
 
     public function view(User $user, User $model): bool
     {
-        return $user->can('manage-users');
+        return $this->canManageUsers($user);
     }
 
     public function create(User $user): bool
     {
-        return $user->can('manage-users');
+        return $this->canManageUsers($user);
     }
 
     public function update(User $user, User $model): bool
     {
-        return $user->can('manage-users')
+        return $this->canManageUsers($user)
             && $user->getKey() !== $model->getKey()
             && $model->status !== User::StatusArchived;
     }
 
     public function archiveStaffAccount(User $user, User $model): bool
     {
-        return $user->can('manage-users')
+        return $this->canManageUsers($user)
             && $user->getKey() !== $model->getKey();
     }
 
     public function restoreStaffAccount(User $user, User $model): bool
     {
-        return $user->can('manage-users')
+        return $this->canManageUsers($user)
             && $user->getKey() !== $model->getKey();
     }
 
@@ -53,5 +53,10 @@ class UserPolicy
     public function forceDelete(User $user, User $model): bool
     {
         return false;
+    }
+
+    private function canManageUsers(User $user): bool
+    {
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 }

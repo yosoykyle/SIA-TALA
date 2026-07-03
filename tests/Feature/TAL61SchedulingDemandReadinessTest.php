@@ -22,6 +22,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -84,11 +85,47 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
         $this->assertSame(SchedulingDemand::ValidationReadyForReview, $lectureDemand->validation_state);
         $this->assertFalse($lectureDemand->hasReadinessFindings());
         $this->assertSame('term-offering:'.$source['offering']->id.':delivery-group:'.$source['group']->id.':component:'.$source['lecture']->id, $lectureDemand->demand_key);
-        $this->assertSame($source['term']->id, $lectureDemand->source_snapshot['term_id']);
-        $this->assertSame($source['course']->id, $lectureDemand->source_snapshot['course_id']);
-        $this->assertSame(1, $lectureDemand->source_snapshot['eligible_faculty_count']);
-        $this->assertSame('24.00', $lectureDemand->source_snapshot['faculty_load_options'][0]['max_allowed_units']);
-        $this->assertSame(1, $lectureDemand->source_snapshot['active_scheduling_window_count']);
+
+        $sourceSnapshot = $this->arrayAttribute($lectureDemand, 'source_snapshot');
+        $facultyLoadOptions = $sourceSnapshot['faculty_load_options'] ?? null;
+        $this->assertIsArray($facultyLoadOptions);
+        $this->assertIsArray($facultyLoadOptions[0] ?? null);
+
+        $this->assertSame($source['term']->id, $sourceSnapshot['term_id']);
+        $this->assertSame($source['course']->id, $sourceSnapshot['course_id']);
+        $this->assertSame(1, $sourceSnapshot['eligible_faculty_count']);
+        $this->assertSame('24.00', $facultyLoadOptions[0]['max_allowed_units']);
+        $this->assertSame(1, $sourceSnapshot['active_scheduling_window_count']);
+    }
+
+    public function test_generation_updates_existing_identity_even_when_key_was_seeded_differently(): void
+    {
+        $source = $this->schedulingSource();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        SchedulingDemand::factory()->create([
+            'term_offering_id' => $source['offering']->id,
+            'course_component_id' => $source['lecture']->id,
+            'section_delivery_group_id' => $source['group']->id,
+            'demand_key' => 'legacy-seeded-key',
+            'validation_state' => SchedulingDemand::ValidationActionRequired,
+        ]);
+
+        $summary = $this->generator->forTerm($registrar, $source['term']);
+
+        $this->assertSame(1, $summary['created']);
+        $this->assertSame(1, $summary['updated']);
+        $this->assertSame(2, SchedulingDemand::query()->count());
+
+        $lectureDemand = SchedulingDemand::query()
+            ->where('course_component_id', $source['lecture']->id)
+            ->sole();
+
+        $this->assertSame(
+            'term-offering:'.$source['offering']->id.':delivery-group:'.$source['group']->id.':component:'.$source['lecture']->id,
+            $lectureDemand->demand_key,
+        );
+        $this->assertSame(SchedulingDemand::ValidationReadyForReview, $lectureDemand->validation_state);
     }
 
     public function test_readiness_findings_surface_missing_or_invalid_source_records(): void
@@ -296,5 +333,17 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function arrayAttribute(Model $model, string $key): array
+    {
+        $value = $model->getAttribute($key);
+
+        $this->assertIsArray($value);
+
+        return $value;
     }
 }

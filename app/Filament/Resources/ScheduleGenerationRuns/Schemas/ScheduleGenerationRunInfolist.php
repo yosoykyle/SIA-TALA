@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
 use App\Models\ScheduleGenerationRun;
-use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -77,10 +76,21 @@ class ScheduleGenerationRunInfolist
                     ->columns(3),
                 Section::make('Diagnostics')
                     ->schema([
-                        KeyValueEntry::make('diagnostics')
+                        TextEntry::make('diagnostics')
                             ->label('Diagnostics')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::jsonText($record->getAttribute('diagnostics')))
+                            ->fontFamily('mono')
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    private static function jsonText(mixed $value): string
+    {
+        if (! is_array($value) || $value === []) {
+            return '-';
+        }
+
+        return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '-';
     }
 }

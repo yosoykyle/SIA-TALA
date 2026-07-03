@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary & System Title
 
-**T.A.L.A.** (Timetable-Integrated Academic Lifecycle Administration) is the College-focused school information system designed for Servitech Institute Asia (SIA). The title "TALA" (Filipino for _Star/Guide_) reflects the system's role as the central source of truth for academic lifecycle records.
+**T.A.L.A.** (Technology for Administrative Ledger and Academic Management) is the College-focused school information system designed for Servitech Institute Asia (SIA). The title "TALA" (Filipino for _Star/Guide_) reflects the system's role as the central source of truth for academic lifecycle records.
 
 TALA replaces fragmented legacy processes with a unified digital command center for staff (Registrar, Accounting, Faculty, Academic Head, and System Super Admin) and role-scoped authenticated workspaces for applicants and students. It supports operations from applicant intake through student handover, curriculum assignment, scheduling, enrollment, finance evidence, COR/SOA output, grade release, Student Hub visibility, reports, and audit.
 

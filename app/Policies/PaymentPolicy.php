@@ -10,9 +10,7 @@ class PaymentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
-            'process-payments',
-        ]);
+        return $user->hasRole(User::StaffRoleAccounting);
     }
 
     public function view(User $user, Payment $payment): bool
@@ -55,21 +53,7 @@ class PaymentPolicy
             return false;
         }
 
-        return $user->can('process-payments')
+        return $user->hasRole(User::StaffRoleAccounting)
             || $payment->studentProfile()->where('user_id', $user->id)->exists();
-    }
-
-    /**
-     * @param  list<string>  $permissions
-     */
-    private function canAny(User $user, array $permissions): bool
-    {
-        foreach ($permissions as $permission) {
-            if ($user->can($permission)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

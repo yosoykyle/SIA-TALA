@@ -9,12 +9,12 @@ class RolePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('manage-users');
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function view(User $user, Role $model): bool
     {
-        return $user->can('manage-users');
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function create(User $user): bool

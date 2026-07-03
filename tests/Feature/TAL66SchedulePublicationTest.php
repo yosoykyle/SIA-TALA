@@ -19,6 +19,7 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -82,7 +83,7 @@ final class TAL66SchedulePublicationTest extends TestCase
 
             $this->assertSame(ScheduleGenerationRun::StatusPublished, $published->status);
             $this->assertSame($registrar->id, $published->published_by);
-            $this->assertTrue($published->published_at->equalTo($publishedAt));
+            $this->assertTrue($this->carbonAttribute($published, 'published_at')->equalTo($publishedAt));
             $this->assertSame(1, $published->publication_version);
             $this->assertSame('Reviewed for publication.', $published->publication_note);
             $this->assertSame($run->id, $meeting->schedule_run_id);
@@ -95,7 +96,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             $this->assertSame($candidate->ends_at, $meeting->ends_at);
             $this->assertSame(TermOffering::ModalityOnline, $meeting->modality);
             $this->assertSame(SectionMeeting::StateActive, $meeting->state);
-            $this->assertTrue($meeting->published_at->equalTo($publishedAt));
+            $this->assertTrue($this->carbonAttribute($meeting, 'published_at')->equalTo($publishedAt));
             $this->assertSame(1, $run->candidateRows()->count());
 
             $activity = DB::table('activity_log')
@@ -211,7 +212,10 @@ final class TAL66SchedulePublicationTest extends TestCase
             ->assertActionVisible('publishSchedule')
             ->assertActionHasLabel('publishSchedule', 'Publish Schedule');
 
-        $action = $component->instance()->getAction('publishSchedule');
+        $page = $component->instance();
+        $this->assertInstanceOf(ViewScheduleGenerationRun::class, $page);
+
+        $action = $page->getAction('publishSchedule');
 
         $this->assertInstanceOf(Action::class, $action);
         $this->assertTrue($action->isConfirmationRequired());
@@ -230,6 +234,28 @@ final class TAL66SchedulePublicationTest extends TestCase
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $run->status);
         $this->assertSame('Accepted advisory scheduling warning.', $run->publication_note);
         $this->assertSame(1, SectionMeeting::query()->count());
+    }
+
+    public function test_schedule_run_view_renders_nested_diagnostics_without_crashing(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create();
+        $run = $this->scheduleRun($term, overrides: [
+            'diagnostics' => [
+                'solver_result' => [
+                    'summary' => [
+                        'rejected_rows' => [
+                            ['reason' => 'demo nested diagnostic'],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
+            ->assertOk()
+            ->assertSee('demo nested diagnostic');
     }
 
     public function test_prior_published_run_is_superseded_while_history_remains_and_active_scope_resolves_current_version(): void
@@ -455,5 +481,14 @@ final class TAL66SchedulePublicationTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    private function carbonAttribute(Model $model, string $key): Carbon
+    {
+        $value = $model->getAttribute($key);
+
+        $this->assertInstanceOf(Carbon::class, $value);
+
+        return $value;
     }
 }

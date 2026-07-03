@@ -9,12 +9,12 @@ class ActivityPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('view-audit-logs');
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function view(User $user, Activity $model): bool
     {
-        return $user->can('view-audit-logs');
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
     }
 
     public function create(User $user): bool

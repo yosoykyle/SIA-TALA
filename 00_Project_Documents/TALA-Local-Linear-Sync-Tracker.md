@@ -41,6 +41,7 @@ This document serves exclusively as the staging area for issues moving to the Li
 | TAL-75 | Done locally; pending Linear sync | Reports, Audit, and Export MVP |
 | TAL-76 | Done locally; pending Linear sync | Bootstrap Public Landing Page Adaptation with isolated landing assets |
 | TAL-77 | Done locally; pending Linear sync | Calendar-Event Availability Alignment and Solver Mapping |
+| TAL-78 | Done locally; pending Linear sync | Current dirty-work cleanup, official system-name alignment, CP-SAT scope documentation, and scheduling/access verification |
 
 ## Compact Synced History
 

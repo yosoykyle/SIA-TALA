@@ -4,11 +4,11 @@
 
 ### 1.1. Product Name
 
-**T.A.L.A. — Timetable-Integrated Academic Lifecycle Administration**
+**T.A.L.A. — Technology for Administrative Ledger and Academic Management**
 
 Full capstone title:
 
-**T.A.L.A.: A Timetable-Integrated Academic Lifecycle Administration System with Constraint-Based Academic Scheduling Using Google OR-Tools**
+**T.A.L.A.: A Technology for Administrative Ledger and Academic Management System with Constraint-Based Academic Scheduling Using Google OR-Tools**
 
 TALA is a College-focused academic lifecycle administration system for managing the official academic flow of Servitech Institute Asia. Its central technical feature is timetable-integrated, constraint-based academic scheduling connected to curriculum, term offerings, faculty availability, room assignment, enrollment, COR generation, and Student Hub visibility.
 

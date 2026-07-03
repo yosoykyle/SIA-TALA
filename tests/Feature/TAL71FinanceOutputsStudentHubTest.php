@@ -23,7 +23,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -45,8 +44,6 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
-        Permission::query()->firstOrCreate(['name' => 'process-payments', 'guard_name' => 'web']);
-        Role::query()->where('name', User::StaffRoleAccounting)->firstOrFail()->givePermissionTo('process-payments');
     }
 
     public function test_student_finance_page_shows_ledger_derived_finance_and_available_outputs(): void

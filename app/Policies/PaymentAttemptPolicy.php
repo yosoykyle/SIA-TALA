@@ -9,9 +9,7 @@ class PaymentAttemptPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
-            'process-payments',
-        ]);
+        return $user->hasRole(User::StaffRoleAccounting);
     }
 
     public function view(User $user, PaymentAttempt $paymentAttempt): bool
@@ -41,20 +39,6 @@ class PaymentAttemptPolicy
 
     public function forceDelete(User $user, PaymentAttempt $paymentAttempt): bool
     {
-        return false;
-    }
-
-    /**
-     * @param  list<string>  $permissions
-     */
-    private function canAny(User $user, array $permissions): bool
-    {
-        foreach ($permissions as $permission) {
-            if ($user->can($permission)) {
-                return true;
-            }
-        }
-
         return false;
     }
 }

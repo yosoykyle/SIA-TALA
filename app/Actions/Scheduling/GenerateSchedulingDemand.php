@@ -58,7 +58,9 @@ class GenerateSchedulingDemand
                         foreach ($components as $component) {
                             $attributes = $this->attributesForDemand($actor, $term, $offering, $section, $group, $component);
                             $demand = SchedulingDemand::query()->firstOrNew([
-                                'demand_key' => $attributes['demand_key'],
+                                'term_offering_id' => $attributes['term_offering_id'],
+                                'course_component_id' => $attributes['course_component_id'],
+                                'section_delivery_group_id' => $attributes['section_delivery_group_id'],
                             ]);
                             $wasNew = ! $demand->exists;
                             $demand->fill($attributes);
