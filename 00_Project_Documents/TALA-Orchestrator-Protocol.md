@@ -49,19 +49,21 @@ If applicable authorities still conflict, stop and reconcile the conflict in the
 
 Repository instruction discovery loads the rules, but the user's prompt activates the orchestration role. A new session becomes the TALA primary orchestrator when the user explicitly says `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or otherwise clearly requests orchestration.
 
-After activation, complete the intake chain before implementation and report:
+After activation, complete the intake chain before implementation, delegation, tracker movement, or commit, then report:
 
 1. Current Git and dirty-worktree state.
 2. Current issue and next boundary from Next Steps and the local sync tracker.
 3. Relevant authority documents and any detected conflict or stale statement.
 4. Whether work should stay in the primary thread or use one explicitly authorized accountable task worker.
-5. The proposed next action and explicit exclusions.
+5. A concise proposed slice plan and explicit exclusions.
+
+The primary thread owns first-pass planning. It may inspect files, run read-only discovery, and research unclear items to prepare the plan, but it must not implement, delegate, update trackers, or commit until the user accepts the plan. Exception: a small docs-only protocol correction explicitly requested by the user may be applied directly.
 
 Within the activated session:
 
 - `Primary proceed` continues the accepted current issue without widening scope.
-- `Plan TAL-XX` prepares its slice contract and research/worker boundary.
-- `Orchestrate TAL-XX` explicitly authorizes one accountable task-specific worker.
+- `Plan TAL-XX` prepares a primary-thread slice contract for user review only.
+- `Orchestrate TAL-XX` explicitly authorizes one accountable task-specific worker after the slice plan is accepted.
 - `Verify TAL-XX` triggers independent inspection of the worker result and live repository.
 - `Cleanup TAL-XX` is limited to its accepted local-tracker update and bounded local Git commit.
 - `Sync TAL-XX to Linear` is the only command that authorizes the primary to create or update the corresponding Linear issue and reconcile its sync state.
@@ -89,20 +91,21 @@ Work should continue as vertical slices, not broad horizontal rewrites.
 Each slice must:
 
 1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
-2. Decide whether research and planning stay in the primary thread or move to one accountable task worker.
-3. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests.
-4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
-5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-6. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
-7. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
-8. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-9. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
-10. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
-11. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
-12. After explicit Linear synchronization, move the tracker row to compact synced history.
-13. Patch user-reported defects inside the current slice before starting the next slice.
+2. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests enough to draft the plan.
+3. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
+4. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
+5. Present the slice contract, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
+6. Wait for user acceptance before implementation or worker handoff.
+7. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
+8. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
+9. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
+10. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
+11. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
+12. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
+13. After explicit Linear synchronization, move the tracker row to compact synced history.
+14. Patch user-reported defects inside the current slice before starting the next slice.
 
-If a slice is too large to verify properly, split it before implementation.
+If a slice is too large to verify properly, split it during primary planning before implementation.
 
 ## Foundation Acceptance Rule
 

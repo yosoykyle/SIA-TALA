@@ -44,10 +44,12 @@ For each slice:
 2. Review the PRD modules, UI blueprint, architecture specification, schema/migrations, existing code, routes, policies, and tests.
 3. Research unclear framework, UI, plugin, integration, policy, or mature-system questions before implementation.
 4. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current implementation.
-5. Record accepted document changes and review dependent modules before finalizing implementation.
-6. Implement only the accepted slice.
-7. Require worker self-verification and independent primary verification.
-8. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
+5. Primary presents the slice plan, worker boundary, verification plan, human-only steps, and exclusions for user acceptance.
+6. Implement or delegate only after the user accepts the plan.
+7. Record accepted document changes and review dependent modules before finalizing implementation.
+8. Implement only the accepted slice.
+9. Require worker self-verification and independent primary verification.
+10. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
 
 ## Active and Upcoming Issues
 
