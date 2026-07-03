@@ -59,6 +59,8 @@ After activation, complete the intake chain before implementation, delegation, t
 
 The primary thread owns first-pass planning. It may inspect files, run read-only discovery, and research unclear items to prepare the plan, but it must not implement, delegate, update trackers, or commit until the user accepts the plan. Exception: a small docs-only protocol correction explicitly requested by the user may be applied directly.
 
+Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
+
 Within the activated session:
 
 - `Primary proceed` continues the accepted current issue without widening scope.
@@ -94,7 +96,7 @@ Each slice must:
 2. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests enough to draft the plan.
 3. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
 4. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-5. Present the slice contract, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
+5. Present the slice contract, evidence checked, recommendation basis, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
 6. Wait for user acceptance before implementation or worker handoff.
 7. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
 8. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
