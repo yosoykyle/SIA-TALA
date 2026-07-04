@@ -10,6 +10,7 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -22,7 +23,13 @@ class DuplicateProfileResolutionTest extends TestCase
     {
         parent::setUp();
 
+        $this->assertSame('testing', app()->environment());
+        $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', config('database.connections.mysql.database'));
+        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+        $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
+
         Role::findOrCreate(User::StaffRoleRegistrar, 'web');
         Role::findOrCreate('student', 'web');
     }
@@ -91,21 +98,40 @@ class DuplicateProfileResolutionTest extends TestCase
 
     public function test_not_duplicate_keep_separate_flow(): void
     {
-        $duplicate = StudentProfile::factory()->create();
-        $primary = StudentProfile::factory()->create();
+        $notDuplicate = StudentProfile::factory()->create();
+        $notDuplicatePrimary = StudentProfile::factory()->create();
 
         app(DuplicateProfileResolver::class)->resolve(
-            $duplicate,
-            $primary,
+            $notDuplicate,
+            $notDuplicatePrimary,
             'NOT_DUPLICATE',
             'Registrar confirmed these are different people.',
             $this->registrar(),
         );
 
-        $this->assertNull($duplicate->fresh()->archived_at);
-        $this->assertNull($duplicate->fresh()->merged_into_id);
+        $this->assertNull($notDuplicate->fresh()->archived_at);
+        $this->assertNull($notDuplicate->fresh()->merged_into_id);
         $this->assertSame(1, DuplicateProfileResolution::query()
-            ->where('duplicate_student_profile_id', $duplicate->id)
+            ->where('duplicate_student_profile_id', $notDuplicate->id)
+            ->where('resolution_type', 'NOT_DUPLICATE')
+            ->count());
+
+        $keepSeparate = StudentProfile::factory()->create();
+        $keepSeparatePrimary = StudentProfile::factory()->create();
+
+        app(DuplicateProfileResolver::class)->resolve(
+            $keepSeparate,
+            $keepSeparatePrimary,
+            'KEEP_SEPARATE',
+            'Registrar confirmed both official profiles should remain separate.',
+            $this->registrar(),
+        );
+
+        $this->assertNull($keepSeparate->fresh()->archived_at);
+        $this->assertNull($keepSeparate->fresh()->merged_into_id);
+        $this->assertSame(1, DuplicateProfileResolution::query()
+            ->where('duplicate_student_profile_id', $keepSeparate->id)
+            ->where('resolution_type', 'KEEP_SEPARATE')
             ->count());
     }
 
@@ -121,9 +147,9 @@ class DuplicateProfileResolutionTest extends TestCase
             $this->registrar(),
         );
 
-        $this->assertTrue(StudentProfile::query()->get()->contains('id', $duplicate->id));
-        $this->assertFalse(StudentProfile::query()->active()->get()->contains('id', $duplicate->id));
-        $this->assertTrue(StudentProfile::query()->active()->get()->contains('id', $primary->id));
+        $this->assertTrue(StudentProfile::query()->whereKey($duplicate->id)->exists());
+        $this->assertFalse(StudentProfile::query()->active()->whereKey($duplicate->id)->exists());
+        $this->assertTrue(StudentProfile::query()->active()->whereKey($primary->id)->exists());
     }
 
     public function test_student_hub_login_prevention(): void

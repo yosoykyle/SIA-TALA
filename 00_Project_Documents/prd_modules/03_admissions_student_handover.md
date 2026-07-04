@@ -92,10 +92,10 @@ Duplicate official student profiles are resolved by Registrar review. If a dupli
 
 1. **Record Preservation:** Grades, payments, enrollments, and documents stay attached to their original profile. The duplicate profile is linked to the primary profile for audit integrity.
 2. **Primary Selection:** The Registrar reviews the records and selects the primary (master) student profile.
-3. **Archiving Duplicates:** The duplicate student profile is marked as `ARCHIVED`, with `archive_reason` set to `DUPLICATE_PROFILE`.
-4. **Reference Linkage:** The archived duplicate profile stores a pointer to the primary student profile in `merged_into_student_id`.
+3. **Archiving Duplicates:** For `LINKED_DUPLICATE` resolutions, the duplicate student profile is marked with `lifecycle_status = ARCHIVED` and `archived_at` is set. The resolution explanation is stored in `duplicate_profile_resolutions.reason`; no separate `archive_reason` column is used.
+4. **Reference Linkage:** The archived duplicate profile stores a pointer to the primary student profile in `merged_into_id`.
 5. **Resolution Logging:** Every duplicate resolution action creates a record in the `duplicate_profile_resolutions` table containing:
-   - `id`, `duplicate_student_id`, `primary_student_id`
+   - `id`, `duplicate_student_profile_id`, `primary_student_profile_id`
    - `resolution_type` (Enum: `LINKED_DUPLICATE`, `NOT_DUPLICATE`, `KEEP_SEPARATE`)
    - `reason` (Required explanation text)
    - `resolved_by`, `resolved_at`

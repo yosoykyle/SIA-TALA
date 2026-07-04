@@ -16,6 +16,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class DuplicateProfileResolutionResource extends Resource
@@ -36,17 +37,24 @@ class DuplicateProfileResolutionResource extends Resource
             ->components([
                 Section::make('Duplicate Profile Resolution')
                     ->schema([
-                        Select::make('duplicate_student_id')
+                        Select::make('duplicate_student_profile_id')
                             ->label('Duplicate Student Profile')
-                            ->relationship('duplicateStudent', 'student_id', fn ($query) => $query->withDuplicates())
-                            ->getOptionLabelFromRecordUsing(fn (StudentProfile $record) => "{$record->student_id} - {$record->user?->name}")
+                            ->relationship('duplicateStudent', 'student_number', fn (Builder $query): Builder => $query
+                                ->whereNull('archived_at')
+                                ->whereNull('merged_into_id'))
+                            ->getOptionLabelFromRecordUsing(fn (StudentProfile $record): string => "{$record->student_number} - {$record->user?->name}")
                             ->searchable()
+                            ->preload()
                             ->required(),
-                        Select::make('primary_student_id')
+                        Select::make('primary_student_profile_id')
                             ->label('Primary Student Profile')
-                            ->relationship('primaryStudent', 'student_id', fn ($query) => $query->withDuplicates())
-                            ->getOptionLabelFromRecordUsing(fn (StudentProfile $record) => "{$record->student_id} - {$record->user?->name}")
+                            ->relationship('primaryStudent', 'student_number', fn (Builder $query): Builder => $query
+                                ->whereNull('archived_at')
+                                ->whereNull('merged_into_id'))
+                            ->getOptionLabelFromRecordUsing(fn (StudentProfile $record): string => "{$record->student_number} - {$record->user?->name}")
                             ->searchable()
+                            ->preload()
+                            ->rule('different:duplicate_student_profile_id')
                             ->required(),
                         Select::make('resolution_type')
                             ->label('Resolution Type')
@@ -70,16 +78,16 @@ class DuplicateProfileResolutionResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('duplicateStudent.student_id')
-                    ->label('Duplicate Student ID')
+                TextColumn::make('duplicateStudent.student_number')
+                    ->label('Duplicate Student Number')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('duplicateStudent.user.name')
                     ->label('Duplicate Name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('primaryStudent.student_id')
-                    ->label('Primary Student ID')
+                TextColumn::make('primaryStudent.student_number')
+                    ->label('Primary Student Number')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('primaryStudent.user.name')

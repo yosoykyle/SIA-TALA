@@ -13,6 +13,7 @@ use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -110,6 +111,7 @@ class AdminPanelProvider extends PanelProvider
                 SectionMeetingResource::class,
                 StudentProfileResource::class,
                 StudentLifecycleChangeResource::class,
+                DuplicateProfileResolutionResource::class,
             ])
             ->pages([
                 Dashboard::class,

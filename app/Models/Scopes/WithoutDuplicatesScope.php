@@ -13,6 +13,8 @@ class WithoutDuplicatesScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $builder->whereNull('student_profiles.merged_into_student_id');
+        $builder
+            ->whereNull('student_profiles.archived_at')
+            ->whereNull('student_profiles.merged_into_id');
     }
 }

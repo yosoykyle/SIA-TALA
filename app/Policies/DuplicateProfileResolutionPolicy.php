@@ -9,23 +9,17 @@ class DuplicateProfileResolutionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasRole(User::StaffRoleRegistrar)
-            || $user->can('resolve-duplicate-profiles')
-            || $user->can('approve-documents');
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function view(User $user, DuplicateProfileResolution $resolution): bool
     {
-        return $user->hasRole(User::StaffRoleRegistrar)
-            || $user->can('resolve-duplicate-profiles')
-            || $user->can('approve-documents');
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole(User::StaffRoleRegistrar)
-            || $user->can('resolve-duplicate-profiles')
-            || $user->can('approve-documents');
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function update(User $user, DuplicateProfileResolution $resolution): bool
