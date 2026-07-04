@@ -13,6 +13,7 @@ This document is the active planning surface for upcoming work. It is reached af
   6. Remove the completed issue from this planning document immediately after it is recorded in the local tracker.
   7. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
   8. Keep external Linear synchronization pending until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
+- **Parent/Sub-slice Tracking:** If a parent issue is split, keep the parent in this document with a compact sub-slice map. Each sub-slice should show its ID, one-line purpose, status, and next boundary. Completed sub-slices are recorded in the local tracker, but the parent remains here until all sub-slices are complete.
 
 Resume rule: after compaction, interruption, rejected worker output, failed/unclear handoff, or stale state, run the short resume checkpoint from `TALA-Orchestrator-Protocol.md` before continuing.
 
@@ -76,7 +77,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-83 | In progress | Admissions and Student Handover Acceptance: TAL-83A admissions intake and Registrar review is done locally; remaining sub-slices validate applicant-to-student handover, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
+| TAL-83 | In progress | Admissions and Student Handover Acceptance. Sub-slices: TAL-83A done locally / pending explicit Linear sync — Admissions Intake and Registrar Review; TAL-83B next — Applicant-to-Student Handover; TAL-83C planned — Duplicate Profile Resolution; TAL-83D planned — Student Profile and Student Hub Activation Smoke. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |

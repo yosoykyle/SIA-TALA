@@ -118,13 +118,13 @@ Each slice must:
 9. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
 10. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
 11. Before cleanup or commit, run a pre-cleanup acceptance audit: authority alignment, accepted scope, retained-surface purpose, exclusions preserved, verification results, dirty state, and next boundary. Passing tests without this audit is not acceptance.
-12. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
+12. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit. If the completed work is one sub-slice of a larger parent issue, record the sub-slice in the tracker but keep the parent issue in Next Steps with a compact sub-slice map and the next active sub-slice.
 13. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
 14. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
 15. After explicit Linear synchronization, move the tracker row to compact synced history.
 16. Patch user-reported defects inside the current slice before starting the next slice.
 
-If a slice is too large to verify properly, split it during primary planning before implementation.
+If a slice is too large to verify properly, split it during primary planning before implementation. When splitting a parent issue, persist the split in `TALA-Rescue-Next-Steps.md` before or during the first sub-slice cleanup. The parent entry must show the sub-slice IDs, one-line purpose, status, and next boundary. This prevents compaction or thread loss from hiding what remains. Completed sub-slices still move to the local tracker; the parent stays in Next Steps until all sub-slices are done.
 
 ## Foundation Acceptance Rule
 
