@@ -2,245 +2,169 @@
 
 ## Purpose
 
-This document defines how future TALA MVP work should be planned, delegated, verified, tracked, and committed.
+This file controls how TALA MVP work is planned, delegated, verified, tracked, and committed. It should stay compact and TALA-specific. Generic planning, debugging, TDD, verification, review, and subagent workflow details belong to installed skills/plugins when available, not copied here.
 
-It exists because the remaining work must stay aligned with the PRD, UI blueprint, architecture, existing implementation, and the MVP deadline. The goal is not to restart the system. The goal is to continue through small vertical slices that are easier to reason about, test, and correct.
+The goal is not a restart. Continue through small vertical slices, preserve aligned implementation, patch proven gaps, and keep the SIS foundation reliable before CP-SAT and payment hardening.
 
-## Authority and Document Roles
+## Authority and Intake
 
-Use these files for their intended purpose:
+Read in this order before a TALA slice:
 
-1. `AGENTS.md` — local agent/runtime rules for this workspace.
-2. `00_Project_Documents/TALA-Orchestrator-Protocol.md` — committed orchestration rules for future planning and workers.
-3. `00_Project_Documents/TALA-Rescue-Next-Steps.md` — active next-task planning.
-4. `00_Project_Documents/TALA-Local-Linear-Sync-Tracker.md` — local-to-Linear sync status and compact synced history only.
-5. `00_Project_Documents/prd_modules/` — product requirements, MVP boundaries, records, flows, outputs, and role behavior.
-6. `00_Project_Documents/ui_surface_blueprint.md` — UI surfaces, roles, and workspace expectations.
-7. `00_Project_Documents/architecture_specification.md` — system architecture and integration boundaries.
-8. `00_Project_Documents/business-evidence/` — client workflow, sample document, terminology, and data-shape evidence for clarification only.
+1. `AGENTS.md` — runtime rules and Laravel Boost block.
+2. This protocol — orchestration rules.
+3. `TALA-Rescue-Next-Steps.md` — current issue, sequence, sub-slices.
+4. `TALA-Local-Linear-Sync-Tracker.md` — issue numbering and sync state only.
+5. `prd_modules/` — product behavior, MVP boundaries, records, flows, outputs, roles.
+6. `ui_surface_blueprint.md` — UI/role/surface mapping.
+7. `architecture_specification.md` — system and integration boundaries.
+8. `business-evidence/` — clarification only: current forms, terminology, document shape, realistic data. Exclude SHS-only content unless proven relevant to college workflows.
+9. Migrations, models, services, policies, routes, Filament resources/pages, and tests — salvage evidence.
 
-Do not use obsolete working notes or missing `docs/agents/*` links as authority.
+Ownership: Boost/official docs control framework use; PRD controls product; blueprint controls UI mapping; architecture controls integration boundaries; protocol controls workflow; Next Steps controls order; tracker controls sync status. Existing code is accepted only when aligned. On unresolved conflict, stop in the primary thread.
 
-## Agent Intake and Routing Chain
+## Capability and Research Policy
 
-`AGENTS.md` is the entry point for every primary or worker agent in this workspace.
+Use available capabilities instead of duplicating their full instructions:
 
-1. Read the complete `AGENTS.md` without modifying the generated Laravel Boost block.
-2. Read this protocol for the detailed orchestration process.
-3. Read `TALA-Rescue-Next-Steps.md` to identify the authorized issue and next boundary.
-4. Read `TALA-Local-Linear-Sync-Tracker.md` only for issue numbering and synchronization state.
-5. Read the relevant PRD modules, UI blueprint, and architecture specification.
-6. Read relevant business-evidence files only when they can clarify the slice's workflow, terminology, document format, or realistic data shape.
-7. Inspect migrations, models, services, policies, routes, Filament surfaces, and tests as implementation evidence.
-8. Define the slice contract and decide research, delegation, implementation, verification, and handoff only after completing this intake.
+- Laravel ecosystem/framework work: Laravel Boost first, especially version-specific `search-docs`.
+- Library/plugin/current-doc gaps: Context7, official docs, or relevant MCPs/connectors.
+- Policy, integration contracts, or mature SIS behavior: authoritative internet/primary sources; prefer local Philippine campus/SIS context when policy credibility or workflow familiarity is uncertain.
+- Generic planning/debugging/TDD/verification/review/subagent workflows: relevant installed skills/plugins such as Superpowers when available. These guide process only; they do not override TALA authorities.
 
-Use ownership to resolve apparent conflicts:
+Every slice runs a benchmark/implementation-fit gate:
 
-1. Runtime instructions, Laravel Boost, and official version-specific documentation control framework and tool usage.
-2. PRD modules control product behavior and MVP boundaries.
-3. The UI blueprint controls role and surface mapping while remaining subordinate to product behavior.
-4. The architecture specification controls system and integration boundaries.
-5. Business evidence clarifies client context; it is not a requirements document and does not expand MVP by itself.
-6. This protocol controls orchestration and verification.
-7. Next Steps controls task order.
-8. The local tracker records synchronization state only.
-9. Existing code and tests are salvage evidence, not higher authority.
+1. PRD/blueprint intent.
+2. Current implementation.
+3. Native Filament v5/Laravel pattern.
+4. Installed packages.
+5. Qualified plugin option.
+6. Focused custom code.
+7. Whether mature-system or internet benchmarking is needed.
 
-If applicable authorities still conflict, stop and reconcile the conflict in the primary thread before implementation.
+If deep research is not needed, state why the PRD/current implementation/native path is sufficient. If research is used, record material links and why the recommendation is MVP-fit.
 
-## Primary Orchestrator Activation
+## Primary Orchestrator
 
-Repository instruction discovery loads the rules, but the user's prompt activates the orchestration role. A new session becomes the TALA primary orchestrator when the user explicitly says `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or otherwise clearly requests orchestration.
+Activation prompts include `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or equivalent explicit orchestration intent.
 
-After activation, complete the intake chain before implementation, delegation, tracker movement, or commit, then report:
+Before implementation, delegation, tracker movement, or commit, the primary reports:
 
-1. Current Git and dirty-worktree state.
-2. Current issue and next boundary from Next Steps and the local sync tracker.
-3. Relevant authority documents and any detected conflict or stale statement.
-4. Whether work should stay in the primary thread or use one explicitly authorized accountable task worker.
-5. A concise proposed slice plan and explicit exclusions.
+1. Git/dirty state.
+2. Current issue and next boundary.
+3. Authority files checked and conflicts/stale statements.
+4. Primary-vs-worker decision.
+5. Proposed slice plan and exclusions.
 
-Resume checkpoint: after conversation compaction, interruption, rejected worker output, failed/unclear thread handoff, or stale state, do not continue from memory alone. Re-state the current issue, accepted plan, authority evidence checked or missing, exclusions, dirty-worktree state, verification state, and next action before implementation, cleanup, tracker movement, or commit.
+Resume checkpoint after compaction, interruption, rejected worker output, unclear handoff, or stale state: restate issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
 
-The primary thread owns first-pass planning. It may inspect files, run read-only discovery, and research unclear items to prepare the plan, but it must not implement, delegate, update trackers, or commit until the user accepts the plan. Exception: a small docs-only protocol correction explicitly requested by the user may be applied directly.
+Commands:
 
-Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, relevant business-evidence context, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
+- `Primary proceed` — continue accepted current issue only.
+- `Plan TAL-XX` — draft plan only.
+- `Orchestrate TAL-XX` — after accepted plan, authorize one accountable worker.
+- `Verify TAL-XX` — independently inspect worker result and live repo.
+- `Cleanup TAL-XX` — local tracker + bounded local commit only.
+- `Sync TAL-XX to Linear` — only command that authorizes Linear mutation.
 
-Every primary plan must include a benchmark/implementation-fit gate. The gate must explicitly decide whether mature-system or internet benchmarking is required and whether plugin-catalog research is required. If not required, the plan must state why the PRD/current implementation/native Filament path is already sufficient. If required, complete the research before implementation or worker handoff.
+`finish`, `close`, `cleanup`, `commit`, or `proceed` without explicit `Sync TAL-XX to Linear` does not authorize Linear sync.
 
-Each primary plan must include a workflow/UI fit review. Compare the approved PRD and blueprint intent with the current implementation, native Filament v5 capability, installed packages, qualified plugin options, and focused custom code. Use the official Filament plugin directory and Awesome Filament catalog as discovery sources, not automatic authority. A plugin is recommended only when it solves a real slice gap and is safer or faster than native Filament after checking version compatibility, maintenance, license/security, dependency weight, routes/migrations/config, authorization, tests, upgrade/removal cost, and whether domain rules can stay in TALA services/actions/policies/models.
+## Slice Contract
 
-Every retained UI surface must have a plain-purpose statement before acceptance: who uses it, what it is for, whether it is read-only or editable, what workflow/action/decision it supports, and why it belongs in MVP. If the purpose cannot be explained plainly, the surface must be renamed, hidden, deferred, redesigned, or tied to its owning module before the slice is accepted.
+A slice must be small enough to inspect, implement, test, and verify. If broad, split it during primary planning and record a compact sub-slice map in Next Steps.
 
-Simplification means purposeful scope, not feature deletion or feature presence for its own sake. A slice should retain, add, revise, or defer a feature only when the decision supports a real school workflow, inter-department handoff, future CP-SAT or payment integration dependency, user-facing usability need, audit/control requirement, or maintainability requirement. Hybrid manual/digital workflows are preferred when they keep the system credible and useful without encoding unnecessary institutional complexity. Local Philippine campus/SIS benchmarks should be used when workflow familiarity or policy credibility is unclear, but benchmarks do not justify copying broad enterprise complexity into the MVP.
+Each primary plan must define:
 
-Business evidence arbitration: use `business-evidence/` to understand the client's current forms, sample records, terms, and office handoffs, not as a direct build list. Exclude Senior High School-only material unless the same pattern is proven applicable to college workflows. When business evidence conflicts with mature SIS benchmarks or would bloat the MVP, prefer the PRD-approved scope plus benchmark/native-framework implementation pattern, then surface the conflict as a clarification or client-validation item. Mature benchmarks and official docs guide how to implement; business evidence clarifies what the client's current environment looks like.
+- Role and user goal.
+- Trigger/action.
+- Inputs.
+- Changed records.
+- Outputs.
+- UI surface and whether it is read-only/editable.
+- Related modules/downstream consumers.
+- Integration boundary.
+- Purposeful-simplification decision.
+- Benchmark/implementation-fit gate result.
+- Likely files/surfaces.
+- Verification plan.
+- Human-only steps.
+- Explicit exclusions.
 
-Within the activated session:
+Every retained UI surface needs a plain-purpose statement: who uses it, what decision/action it supports, why it belongs in MVP, and why it is read-only or editable. If the purpose is unclear, rename, hide, defer, redesign, or tie it to the owning module before acceptance.
 
-- `Primary proceed` continues the accepted current issue without widening scope.
-- `Plan TAL-XX` prepares a primary-thread slice contract for user review only.
-- `Orchestrate TAL-XX` explicitly authorizes one accountable task-specific worker after the slice plan is accepted.
-- `Verify TAL-XX` triggers independent inspection of the worker result and live repository.
-- `Cleanup TAL-XX` is limited to its accepted local-tracker update and bounded local Git commit.
-- `Sync TAL-XX to Linear` is the only command that authorizes the primary to create or update the corresponding Linear issue and reconcile its sync state.
+Primary planning is evidence-backed. Do not implement or delegate until the user accepts the plan, except for a small docs-only protocol correction explicitly requested by the user.
 
-`Finish`, `close`, `cleanup`, `commit`, or `proceed` without the explicit Linear-sync instruction does not authorize a Linear mutation.
+## Simplification Rule
 
-Worker status is never inferred. A worker must receive an explicit handoff containing the issue, scope, authorities, exclusions, verification, and handshake requirements.
+Simplification means purposeful scope, not deletion or presence for its own sake. Retain/add/revise/defer only when it supports:
 
-## Source-of-Truth Order
+- Clear school workflow.
+- Inter-department handoff.
+- CP-SAT or payment integration dependency.
+- Usability.
+- Audit/control.
+- Maintainability.
 
-Before planning or implementing a slice, read:
+Prefer hybrid manual/digital workflows when they keep the system useful without encoding unnecessary institutional complexity. Benchmarks guide credibility and implementation shape; they do not authorize broad enterprise scope.
 
-1. `00_Project_Documents/prd_modules/README.md`
-2. Relevant PRD module files
-3. `00_Project_Documents/ui_surface_blueprint.md`
-4. `00_Project_Documents/architecture_specification.md`
-5. Relevant `00_Project_Documents/business-evidence/` files when they clarify workflow, terminology, document shape, or realistic data examples
-6. Current migrations, models, policies, routes, Filament resources, and tests
+## Filament and Plugin Gate
 
-Existing code is salvage inventory. It is useful evidence, but it does not override the approved PRD or architecture.
-Business evidence is context inventory. It is useful for realism and client-fit, but it does not override the approved PRD, architecture, framework best practices, or an MVP-fit benchmark decision.
+Default order:
 
-## Vertical Slice Workflow
+1. Keep current aligned, authorized, tested implementation.
+2. Use native Filament v5/Laravel features.
+3. Reuse installed package/component.
+4. Evaluate a new plugin only for a real gap that reduces code or risk.
+5. Build focused custom code when the above do not fit.
 
-Work should continue as vertical slices, not broad horizontal rewrites.
+Catalogs: [Filament plugins](https://filamentphp.com/plugins), [Awesome Filament](https://github.com/spekulatius/awesome-filament). They are discovery aids, not authority.
 
-Each slice must:
+Before adding a dependency, get explicit approval and document compatibility with Laravel 12, Filament 5, Livewire 4, PHP 8.2; maintainer activity; license/security; migrations/routes/config; authorization; tests; upgrade/removal cost; and whether TALA domain rules remain in services/actions/policies/models.
 
-1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
-2. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests enough to draft the plan.
-3. Run the benchmark/implementation-fit gate: compare current implementation, native Filament, installed packages, qualified plugin options, focused custom code, and the need for mature-system benchmarking.
-4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation; when deep research is not needed, state the basis for that decision.
-5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-6. Present the slice contract, purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, retained-surface purpose statements, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
-7. Wait for user acceptance before implementation or worker handoff.
-8. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
-9. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
-10. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-11. Before cleanup or commit, run a pre-cleanup acceptance audit: authority alignment, accepted scope, retained-surface purpose, exclusions preserved, verification results, dirty state, and next boundary. Passing tests without this audit is not acceptance.
-12. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit. If the completed work is one sub-slice of a larger parent issue, record the sub-slice in the tracker but keep the parent issue in Next Steps with a compact sub-slice map and the next active sub-slice.
-13. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
-14. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
-15. After explicit Linear synchronization, move the tracker row to compact synced history.
-16. Patch user-reported defects inside the current slice before starting the next slice.
+## Delegation and Worker Rules
 
-If a slice is too large to verify properly, split it during primary planning before implementation. When splitting a parent issue, persist the split in `TALA-Rescue-Next-Steps.md` before or during the first sub-slice cleanup. The parent entry must show the sub-slice IDs, one-line purpose, status, and next boundary. This prevents compaction or thread loss from hiding what remains. Completed sub-slices still move to the local tracker; the parent stays in Next Steps until all sub-slices are done.
+Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
-## Foundation Acceptance Rule
+Worker handoff includes only: issue, accepted checklist, authority files, allowed changes, exclusions, verification, DB proof requirement, and handshake format. Use minimal context by default.
 
-TALA does not restart from zero. The existing schema, services, policies, Filament resources, pages, and tests are salvage inventory that must be accepted, corrected, or replaced one vertical slice at a time.
+Workers must:
 
-Before additional CP-SAT or PayMongo expansion:
+- Read `AGENTS.md` and relevant authorities before editing.
+- Preserve unrelated worktree changes.
+- Execute the accepted checklist; not act as another primary unless scoped for research/planning.
+- Stop as `BLOCKED` if checklist, current issue, or scope is unclear.
+- Stop for user instructions when dashboards, credentials, approvals, or environment setup are required.
+- Not commit, push, deploy, open PRs, sync external systems, or start next issue unless explicitly scoped.
+- Merge any helper-agent work into one final handshake.
 
-1. Revalidate the school-information-system foundation in dependency order.
-2. Confirm each slice's records, lifecycle behavior, authorization, UI presentation, and downstream consumers.
-3. Retain working implementation when it satisfies the accepted contract.
-4. Patch only proven gaps; do not rewrite a module solely to make it look newer or more customized.
-5. Treat a broad inventory as a sequencing aid, not as authorization for a whole-system rewrite.
+## Worker Handshake and Acceptance
 
-## Research Rules
+Worker final report must include:
 
-Every slice must run the research decision gate. Use deep research when the implementation choice is not already clear from the PRD, current code, native Filament/Laravel guidance, and accepted architecture.
+1. `Status: PASS`, `PARTIAL`, or `FAIL`.
+2. Changed files and exact work.
+3. Verification commands/results.
+4. DB target proof for DB-backed checks.
+5. Untouched exclusions.
+6. Caveats/blockers.
+7. Research/plugin decision and links when applicable.
+8. Next boundary.
 
-Use:
+Primary acceptance requires independent inspection and proportionate verification. Passing tests alone is not acceptance. Before cleanup/commit, report: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
 
-1. Laravel Boost and version-specific docs before Laravel, Filament, Livewire, Fortify, or framework code changes.
-2. Context7, plugin documentation, MCPs, or official docs when library/plugin behavior is unclear.
-3. Authoritative internet research for Philippine policy, institutional standards, external APIs, current integration contracts, or mature-system benchmarking.
-4. Official or primary sources whenever possible.
+## Git, Database, Verification, and Sync
 
-Research may recommend a PRD clarification, but it must not expand MVP without a primary-thread decision.
-
-## Filament and Plugin Decision Gate
-
-The objective is the leanest maintainable implementation, not the largest plugin count and not custom code by default.
-
-Use this order for each UI or behavior requirement:
-
-1. Keep the current implementation when it is aligned, authorized, tested, and maintainable.
-2. Use native Filament v5 Resources, Pages, Tables, Forms, Infolists, Actions, Filters, Widgets, notifications, and panel features when they provide the behavior cleanly.
-3. Reuse an installed package or component when it already fits the accepted behavior better than writing custom code.
-4. Evaluate a new third-party plugin only when it closes a real capability gap or materially reduces custom implementation and maintenance.
-5. Build a focused custom component only when current code, native Filament, installed packages, and qualified plugins do not fit the requirement.
-
-Use the [official Filament plugin directory](https://filamentphp.com/plugins) as the primary live catalog and [Awesome Filament](https://github.com/spekulatius/awesome-filament) as an additional discovery catalog. These are external sources, not repository files and not approval lists.
-
-During a relevant slice, open the live catalogs, search for the specific capability gap, then verify candidate repositories, package metadata, release history, and documentation. Record the selected or rejected candidates and supporting links in the slice report. Do not maintain a copied global plugin inventory because it will become stale. If external research is unavailable, use compatible installed or native Filament capabilities and report the unresolved plugin question.
-
-Before adding a plugin, record:
-
-1. Filament 5, Livewire 4, Laravel 12, and PHP 8.2 compatibility.
-2. Maintainer activity, release recency, issue health, license, and security posture.
-3. Required migrations, services, JavaScript, queues, permissions, or public routes.
-4. Whether it keeps authorization and domain rules inside TALA.
-5. Test strategy, upgrade risk, and a practical removal or replacement path.
-
-Do not add or replace a dependency without explicit primary-thread approval.
-
-## Orchestration Rules
-
-Use a separate Codex thread only when the user explicitly asks for orchestration, delegation, background work, or another thread.
-
-For ordinary work, the primary thread may proceed directly.
-
-The primary thread owns planning. A worker owns execution of an accepted checklist. A worker is not a second primary orchestrator and must not re-plan the product direction unless the handoff explicitly scopes a research or planning task.
-
-For major TAL implementation or research slices, prefer an inspectable visible Codex worker thread when the user explicitly authorizes creating one and the thread tool is available. Internal sub-agents are acceptable for bounded helper work or when no visible-thread tool is available, but they must follow the same accountable-worker contract and final handshake. Do not let an internal helper replace the accepted primary plan.
-
-Use minimal worker context by default. Do not pass the full conversation unless the task genuinely requires it. The handoff should contain only the task ID, accepted plan, authority files, exact surfaces/files to inspect, allowed changes, exclusions, verification requirements, and handshake format.
-
-For delegated work:
-
-1. Keep each task owned by the primary plus one accountable task worker unless the primary explicitly approves more accountable workers.
-2. The primary defines scope, source documents, exclusions, verification, and next boundary.
-3. Workers must read `AGENTS.md` and relevant source docs before editing.
-4. Workers must preserve unrelated worktree changes.
-5. Workers must not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped.
-6. Workers must stop and give user instructions when external dashboards, credentials, approvals, or environment-specific setup are required.
-7. Workers must stop as `BLOCKED` if the accepted checklist, current issue, or allowed scope is unclear.
-8. Workers must not return monitoring/status filler as a completion result. A non-handshake result is rejected by the primary and does not authorize verification, cleanup, tracker movement, or commit.
-
-The accountable task worker may use helper sub-agents when useful. It still owns coordination, verification, and one final handshake to the primary. The primary accepts the accountable worker's combined result, not scattered helper outputs.
-
-When user action is required, the handoff must state what the user must do, why human action is required, current step-by-step instructions, the expected result or evidence, and how that evidence unlocks the next step.
-
-## Worker Handshake
-
-Every worker must end with:
-
-1. `Status: PASS`, `PARTIAL`, or `FAIL`
-2. Changed files
-3. Exact work performed
-4. Verification commands and results
-5. Database target proof for DB-backed checks
-6. Untouched exclusions
-7. Caveats or blockers
-8. Next boundary
-9. Research and plugin decision, including supporting links when applicable
-
-The primary must independently inspect and proportionately verify worker output before accepting it.
-
-## Git, Database, and Verification Rules
-
-1. Preserve user-owned and unrelated changes.
-2. After primary acceptance, create the bounded local Git commit without requiring a separate per-commit prompt; this standing permission does not authorize a push.
-3. Record the completed task in the local tracker as pending explicit Linear sync.
-4. Do not create, update, comment on, or otherwise synchronize a Linear issue until the user explicitly says `Sync TAL-XX to Linear` or gives an equally explicit issue-specific Linear instruction.
-5. Do not treat `finish`, `close`, `cleanup`, `commit`, or `proceed` as Linear authorization.
-6. Do not push unless explicitly requested.
-7. Before DB-backed tests, prove `APP_ENV=testing`, `DB_CONNECTION=mysql`, and `DB_DATABASE=test_tala_db`.
-8. Do not run DB-backed verification against `tala_db` or `tala_test_codex`.
-9. Run focused PHPUnit tests for changed behavior.
-10. Run `vendor/bin/pint --dirty --format agent` after PHP changes.
-11. Run focused PHPStan/Larastan when a slice changes typed PHP paths or tests.
-12. Run `git diff --check` before handoff or commit.
+- Preserve user-owned/unrelated changes.
+- DB-backed checks require proof: `APP_ENV=testing`, `DB_CONNECTION=mysql`, `DB_DATABASE=test_tala_db`; never `tala_db` or `tala_test_codex`.
+- Run focused PHPUnit for changed behavior.
+- Run `vendor/bin/pint --dirty --format agent` after PHP changes.
+- Run focused PHPStan/Larastan when typed PHP paths/tests change.
+- Run `git diff --check` before handoff or commit.
+- After primary acceptance, record local work in tracker as `Done locally; pending explicit Linear sync`, remove completed active planning entry or advance the parent sub-slice map, then create a bounded local Git commit.
+- Local commit permission does not authorize push, deploy, PR, or Linear mutation.
+- Keep tracker row pending until user explicitly says `Sync TAL-XX to Linear`; after sync, move to compact synced history.
+- Give the user a post-commit checklist with pages/actions/expected results/failure signs.
+- Patch current-slice defects before starting the next slice.
 
 ## Product-Rule Ownership
 
-Product behavior and MVP boundaries belong in the PRD modules, UI blueprint, and architecture specification. This protocol must not duplicate scheduling, payment, enrollment, grading, role-surface, or demo rules that can drift from those authorities.
-
-Each task contract must reference the relevant authority files and sections. When product behavior changes, update the owning documents and affected dependent modules before finalizing implementation.
-
-Canonical domain terms live in their owning PRD module. Do not recreate a standalone glossary that can drift from the product flow.
+Product behavior belongs in PRD modules, UI blueprint, and architecture specification, not this protocol. Task contracts must cite relevant owning files. If product behavior changes, update owning documents and dependent modules before finalizing implementation. Do not create duplicate glossaries or module rules here.
