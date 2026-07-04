@@ -54,7 +54,13 @@ class StudentLifecycleChangePolicy
 
     public function apply(User $user, StudentLifecycleChange $studentLifecycleChange): bool
     {
-        return $this->update($user, $studentLifecycleChange);
+        return $this->update($user, $studentLifecycleChange)
+            && $studentLifecycleChange->type === StudentLifecycleChange::TypeProgramShift;
+    }
+
+    public function cancel(User $user, StudentLifecycleChange $studentLifecycleChange): bool
+    {
+        return $this->apply($user, $studentLifecycleChange);
     }
 
     /**

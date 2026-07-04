@@ -53,6 +53,16 @@ class StudentLifecycleChangesTable
                         app(StudentLifecycleService::class)->applyProgramShift($record, auth()->user());
                         Notification::make()->title('Program Shift applied')->success()->send();
                     }),
+                Action::make('cancel')
+                    ->label('Cancel Program Shift')
+                    ->authorize('cancel')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
+                    ->action(function (StudentLifecycleChange $record): void {
+                        app(StudentLifecycleService::class)->cancelProgramShift($record, auth()->user());
+                        Notification::make()->title('Program Shift cancelled')->success()->send();
+                    }),
             ]);
     }
 }

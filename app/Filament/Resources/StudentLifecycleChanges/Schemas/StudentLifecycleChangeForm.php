@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\StudentLifecycleChanges\Schemas;
 
+use App\Models\Course;
 use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use Filament\Forms\Components\DatePicker;
@@ -43,8 +45,19 @@ class StudentLifecycleChangeForm
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeLeaveOfAbsence),
                         Select::make('target_program_id')->relationship('targetProgram', 'name')->searchable()->preload()
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
+                            ->live()
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift),
-                        Select::make('target_curriculum_version_id')->relationship('targetCurriculumVersion', 'name')->searchable()->preload()
+                        Select::make('target_curriculum_version_id')
+                            ->options(fn (Get $get): array => CurriculumVersion::query()
+                                ->when($get('target_program_id'), fn ($query, $programId) => $query->where('program_id', $programId))
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (CurriculumVersion $version): array => [
+                                    $version->id => $version->name.' ('.$version->version_code.')',
+                                ])->all())
+                            ->searchable()
+                            ->preload()
+                            ->live()
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift),
                         TextInput::make('finance_adjustment')->numeric()->default(0),
@@ -54,20 +67,32 @@ class StudentLifecycleChangeForm
                             ->minItems(1)
                             ->schema([
                                 Select::make('curriculum_entry_id')
-                                    ->options(fn (): array => CurriculumEntry::query()
+                                    ->options(fn (Get $get): array => CurriculumEntry::query()
+                                        ->when($get('../../target_curriculum_version_id'), fn ($query, $curriculumVersionId) => $query->where('curriculum_version_id', $curriculumVersionId))
                                         ->with('courseSpecification.course')
                                         ->get()
                                         ->mapWithKeys(fn (CurriculumEntry $entry): array => [
                                             $entry->id => $entry->courseSpecification->course->code.' - '.$entry->courseSpecification->title,
                                         ])->all())
-                                    ->searchable()->required(),
+                                    ->searchable()
+                                    ->required()
+                                    ->distinct()
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                                 Select::make('treatment')->options([
                                     ProgramShiftCreditEntry::TreatmentAccepted => 'Accepted',
                                     ProgramShiftCreditEntry::TreatmentDeficient => 'Deficient',
                                     ProgramShiftCreditEntry::TreatmentRejected => 'Rejected',
-                                ])->required(),
-                                TextInput::make('source_course_id')->integer(),
-                                TextInput::make('numeric_grade')->numeric(),
+                                ])->required()->live(),
+                                Select::make('source_course_id')
+                                    ->options(fn (): array => Course::query()->orderBy('code')->pluck('code', 'id')->all())
+                                    ->searchable()
+                                    ->required(fn (Get $get): bool => $get('treatment') === ProgramShiftCreditEntry::TreatmentAccepted),
+                                TextInput::make('numeric_grade')
+                                    ->numeric()
+                                    ->minValue(1.00)
+                                    ->maxValue(5.00)
+                                    ->step(0.01)
+                                    ->required(fn (Get $get): bool => $get('treatment') === ProgramShiftCreditEntry::TreatmentAccepted),
                             ])->columns(2)->columnSpanFull(),
                     ])->columns(2),
                 Section::make('Late Exception')

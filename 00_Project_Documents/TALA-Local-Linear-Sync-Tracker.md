@@ -28,6 +28,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-83D | Done locally; pending explicit Linear sync | Student Profile and Student Hub Activation Smoke |
 | TAL-84A | Done locally; pending explicit Linear sync | Holds and Lifecycle-Status Contract |
 | TAL-84B | Done locally; pending explicit Linear sync | Core Lifecycle Recorded Results Acceptance |
+| TAL-84C | Done locally; pending explicit Linear sync | Program-Shift Credit Evaluation Acceptance |
 
 ## Compact Synced History
 

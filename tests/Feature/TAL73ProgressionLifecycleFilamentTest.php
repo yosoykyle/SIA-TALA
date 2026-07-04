@@ -90,6 +90,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
 
         Livewire::test(ListStudentLifecycleChanges::class)
             ->assertActionVisible(TestAction::make('apply')->table($shift))
+            ->assertActionVisible(TestAction::make('cancel')->table($shift))
+            ->assertActionHidden(TestAction::make('cancel')->table($withdrawal))
             ->assertActionHidden(TestAction::make('apply')->table($withdrawal));
     }
 

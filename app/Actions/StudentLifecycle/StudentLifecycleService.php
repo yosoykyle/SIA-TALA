@@ -3,7 +3,10 @@
 namespace App\Actions\StudentLifecycle;
 
 use App\Models\CalendarEvent;
+use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\GradeOutcomeEvent;
@@ -49,6 +52,8 @@ class StudentLifecycleService
             'reservation_ids' => EnrollmentSeatReservation::query()->whereIn('course_enrollment_id', $courseEnrollments->modelKeys())->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->pluck('id')->all(),
             'master_schedule_changes' => 0,
             'profile_status_after' => $this->profileStatusAfter($type, $student),
+            'program_before' => ['id' => $student->program_id, 'name' => $student->program->name],
+            'curriculum_version_before' => ['id' => $student->curriculum_version_id, 'name' => $student->curriculumVersion->name],
             'curriculum_version_after' => $data['target_curriculum_version_id'] ?? $student->curriculum_version_id,
             'finance_adjustment' => (float) ($data['finance_adjustment'] ?? 0),
             'cor_available_after' => $this->corAvailableAfter($type, $data),
@@ -110,9 +115,9 @@ class StudentLifecycleService
                 $this->recordShiftCredits($change, $data['credit_entries'] ?? []);
             } else {
                 $this->applyImmediateEffects($change, $student, $enrollment, $actor);
+                $this->finance->execute($change, (float) ($data['finance_adjustment'] ?? 0), $actor);
             }
 
-            $this->finance->execute($change, (float) ($data['finance_adjustment'] ?? 0), $actor);
             $this->recordAudit($change, $actor, 'student_lifecycle_change_recorded');
 
             return $change->refresh();
@@ -139,9 +144,26 @@ class StudentLifecycleService
             if ($locked->target_program_id === null || $locked->target_curriculum_version_id === null) {
                 throw new RuntimeException('Program Shift target program and curriculum are required.');
             }
-            if (! $locked->programShiftCredits()->exists()) {
+            $targetCurriculum = CurriculumVersion::query()->findOrFail($locked->target_curriculum_version_id);
+            if ((int) $targetCurriculum->program_id !== (int) $locked->target_program_id) {
+                throw new RuntimeException('Program Shift target curriculum must belong to the target program.');
+            }
+            $credits = $locked->programShiftCredits()->get();
+            if ($credits->isEmpty()) {
                 throw new RuntimeException('Program Shift credit checklist is required.');
             }
+            $creditRows = [];
+            foreach ($credits as $credit) {
+                if ($credit instanceof ProgramShiftCreditEntry) {
+                    $creditRows[] = [
+                        'curriculum_entry_id' => $credit->curriculum_entry_id,
+                        'source_course_id' => $credit->source_course_id,
+                        'treatment' => $credit->treatment,
+                        'numeric_grade' => $credit->numeric_grade,
+                    ];
+                }
+            }
+            $this->validateProgramShiftCreditEntries($targetCurriculum, $creditRows);
 
             $student = StudentProfile::query()->lockForUpdate()->findOrFail($locked->student_profile_id);
             $student->update([
@@ -150,6 +172,26 @@ class StudentLifecycleService
             ]);
             $locked->update(['state' => StudentLifecycleChange::StateApplied]);
             $this->recordAudit($locked, $actor, 'program_shift_applied');
+
+            return $locked->refresh();
+        }, attempts: 3);
+    }
+
+    public function cancelProgramShift(StudentLifecycleChange $change, User $actor): StudentLifecycleChange
+    {
+        $this->authorizeRegistrar($actor);
+
+        return DB::transaction(function () use ($change, $actor): StudentLifecycleChange {
+            $locked = StudentLifecycleChange::query()->lockForUpdate()->findOrFail($change->id);
+            if ($locked->state === StudentLifecycleChange::StateCancelled) {
+                return $locked;
+            }
+            if ($locked->type !== StudentLifecycleChange::TypeProgramShift || $locked->state !== StudentLifecycleChange::StateRecordedApproved) {
+                throw new RuntimeException('Only a recorded-approved Program Shift may be cancelled before application.');
+            }
+
+            $locked->update(['state' => StudentLifecycleChange::StateCancelled]);
+            $this->recordAudit($locked, $actor, 'program_shift_cancelled');
 
             return $locked->refresh();
         }, attempts: 3);
@@ -181,6 +223,14 @@ class StudentLifecycleService
             if (! $term->starts_on->isFuture()) {
                 throw new RuntimeException('Program Shift must target a future term.');
             }
+            if (Carbon::parse($data['effective_on'])->lt($term->starts_on)) {
+                throw new RuntimeException('Program Shift effective date must be within the future effective term.');
+            }
+            $targetCurriculum = CurriculumVersion::query()->findOrFail((int) $data['target_curriculum_version_id']);
+            if ((int) $targetCurriculum->program_id !== (int) $data['target_program_id']) {
+                throw new RuntimeException('Program Shift target curriculum must belong to the target program.');
+            }
+            $this->validateProgramShiftCreditEntries($targetCurriculum, $data['credit_entries']);
         }
         if ($type === StudentLifecycleChange::TypeReactivation) {
             if (! in_array($student->lifecycle_status, [StudentProfile::LifecycleArchived, StudentProfile::LifecycleInactive, StudentProfile::LifecycleLeaveOfAbsence, StudentProfile::LifecycleWithdrawn], true)) {
@@ -358,6 +408,60 @@ class StudentLifecycleService
                 'state' => ProgramShiftCreditEntry::StateRecorded,
                 'numeric_grade' => $entry['numeric_grade'] ?? null,
             ]);
+        }
+    }
+
+    /** @param list<array<string,mixed>> $entries */
+    private function validateProgramShiftCreditEntries(CurriculumVersion $targetCurriculum, array $entries): void
+    {
+        if ($entries === []) {
+            throw new RuntimeException('Program Shift credit checklist is required.');
+        }
+
+        $seen = [];
+        foreach ($entries as $entry) {
+            $curriculumEntryId = (int) ($entry['curriculum_entry_id'] ?? 0);
+            if ($curriculumEntryId < 1) {
+                throw new RuntimeException('Every Program Shift credit checklist row requires a target curriculum entry.');
+            }
+            if (in_array($curriculumEntryId, $seen, true)) {
+                throw new RuntimeException('Program Shift credit checklist cannot contain duplicate target curriculum entries.');
+            }
+            $seen[] = $curriculumEntryId;
+
+            $curriculumEntry = CurriculumEntry::query()
+                ->where('curriculum_version_id', $targetCurriculum->id)
+                ->find($curriculumEntryId);
+
+            if (! $curriculumEntry instanceof CurriculumEntry) {
+                throw new RuntimeException('Program Shift credit checklist entries must belong to the selected target curriculum.');
+            }
+
+            $treatment = (string) ($entry['treatment'] ?? '');
+            if (! in_array($treatment, [
+                ProgramShiftCreditEntry::TreatmentAccepted,
+                ProgramShiftCreditEntry::TreatmentDeficient,
+                ProgramShiftCreditEntry::TreatmentRejected,
+            ], true)) {
+                throw new RuntimeException('Program Shift credit checklist contains an unsupported treatment.');
+            }
+
+            if (filled($entry['source_course_id'] ?? null) && ! Course::query()->whereKey((int) $entry['source_course_id'])->exists()) {
+                throw new RuntimeException('Program Shift source course must reference an existing course.');
+            }
+
+            if ($treatment === ProgramShiftCreditEntry::TreatmentAccepted) {
+                if (blank($entry['source_course_id'] ?? null)) {
+                    throw new RuntimeException('Accepted internal shift credit requires a source course.');
+                }
+                if (blank($entry['numeric_grade'] ?? null) || ! is_numeric($entry['numeric_grade'])) {
+                    throw new RuntimeException('Accepted internal shift credit requires a numeric grade.');
+                }
+                $numericGrade = (float) $entry['numeric_grade'];
+                if ($numericGrade < 1.00 || $numericGrade > 5.00) {
+                    throw new RuntimeException('Accepted internal shift credit numeric grade must be between 1.00 and 5.00.');
+                }
+            }
         }
     }
 

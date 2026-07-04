@@ -170,16 +170,20 @@ final class StudentLifecycleChangeTest extends TestCase
         $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
         $registrar = $this->registrar();
         $bindingCount = StudentScheduleBinding::query()->where('is_active', true)->count();
+        $ledgerCount = LedgerEntry::query()->count();
         $data = [
             ...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
             'term_id' => $futureTerm->id,
             'enrollment_id' => null,
             'effective_on' => $futureTerm->starts_on->toDateString(),
+            'finance_adjustment' => 1500,
             'target_program_id' => $targetProgram->id,
             'target_curriculum_version_id' => $targetCurriculum->id,
             'credit_entries' => [[
                 'curriculum_entry_id' => $targetEntry->id,
-                'treatment' => ProgramShiftCreditEntry::TreatmentDeficient,
+                'source_course_id' => $targetEntry->courseSpecification->course_id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+                'numeric_grade' => '2.00',
             ]],
         ];
 
@@ -187,6 +191,10 @@ final class StudentLifecycleChangeTest extends TestCase
         $this->assertSame(StudentLifecycleChange::StateRecordedApproved, $change->state);
         $this->assertSame($fixture['profile']->program_id, $fixture['profile']->fresh()->program_id);
         $this->assertSame($bindingCount, StudentScheduleBinding::query()->where('is_active', true)->count());
+        $this->assertSame($ledgerCount, LedgerEntry::query()->count());
+        $impactSnapshot = $change->getAttribute('impact_snapshot');
+        $this->assertIsArray($impactSnapshot);
+        $this->assertSame($fixture['profile']->program_id, data_get($impactSnapshot, 'program_before.id'));
         $this->assertDatabaseHas('program_shift_credit_entries', ['student_lifecycle_change_id' => $change->id, 'curriculum_entry_id' => $targetEntry->id]);
 
         try {
@@ -202,6 +210,118 @@ final class StudentLifecycleChangeTest extends TestCase
         $this->assertSame($targetProgram->id, $fixture['profile']->fresh()->program_id);
         $this->assertSame($targetCurriculum->id, $fixture['profile']->fresh()->curriculum_version_id);
         $this->assertSame($bindingCount, StudentScheduleBinding::query()->where('is_active', true)->count());
+    }
+
+    #[Test]
+    public function program_shift_rejects_mismatched_target_curriculum_invalid_credit_rows_and_current_terms(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $futureTerm = Term::factory()->create([
+            'starts_on' => today()->addMonth(),
+            'ends_on' => today()->addMonths(5),
+        ]);
+        $this->window($futureTerm, 'program_shift');
+        $this->window($fixture['term'], 'program_shift');
+        $targetProgram = Program::factory()->create();
+        $targetCurriculum = CurriculumVersion::factory()->create(['program_id' => $targetProgram->id]);
+        $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
+        $otherCurriculum = CurriculumVersion::factory()->create();
+        $outsideEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $otherCurriculum->id]);
+        $registrar = $this->registrar();
+        $validData = [
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
+            'term_id' => $futureTerm->id,
+            'enrollment_id' => null,
+            'effective_on' => $futureTerm->starts_on->toDateString(),
+            'target_program_id' => $targetProgram->id,
+            'target_curriculum_version_id' => $targetCurriculum->id,
+            'credit_entries' => [[
+                'curriculum_entry_id' => $targetEntry->id,
+                'source_course_id' => $targetEntry->courseSpecification->course_id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+                'numeric_grade' => '2.25',
+            ]],
+        ];
+
+        $cases = [
+            'current term' => [...$validData, 'term_id' => $fixture['term']->id],
+            'mismatched curriculum program' => [...$validData, 'target_curriculum_version_id' => $otherCurriculum->id],
+            'outside curriculum entry' => [...$validData, 'credit_entries' => [[
+                'curriculum_entry_id' => $outsideEntry->id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentDeficient,
+            ]]],
+            'duplicate curriculum entry' => [...$validData, 'credit_entries' => [
+                [
+                    'curriculum_entry_id' => $targetEntry->id,
+                    'treatment' => ProgramShiftCreditEntry::TreatmentDeficient,
+                ],
+                [
+                    'curriculum_entry_id' => $targetEntry->id,
+                    'treatment' => ProgramShiftCreditEntry::TreatmentRejected,
+                ],
+            ]],
+            'accepted missing source grade' => [...$validData, 'credit_entries' => [[
+                'curriculum_entry_id' => $targetEntry->id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+            ]]],
+            'accepted invalid grade scale' => [...$validData, 'credit_entries' => [[
+                'curriculum_entry_id' => $targetEntry->id,
+                'source_course_id' => $targetEntry->courseSpecification->course_id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentAccepted,
+                'numeric_grade' => '6.00',
+            ]]],
+        ];
+
+        foreach ($cases as $case => $data) {
+            $before = StudentLifecycleChange::query()->count();
+
+            try {
+                app(StudentLifecycleService::class)->record($data, $registrar);
+                $this->fail('Expected invalid Program Shift case to fail: '.$case);
+            } catch (RuntimeException) {
+                $this->assertSame($before, StudentLifecycleChange::query()->count(), $case);
+            }
+        }
+    }
+
+    #[Test]
+    public function recorded_program_shift_can_be_cancelled_before_application_without_profile_mutation(): void
+    {
+        $fixture = $this->enrollmentFixture(1);
+        $futureTerm = Term::factory()->create([
+            'starts_on' => today()->addMonth(),
+            'ends_on' => today()->addMonths(5),
+        ]);
+        $this->window($futureTerm, 'program_shift');
+        $targetProgram = Program::factory()->create();
+        $targetCurriculum = CurriculumVersion::factory()->create(['program_id' => $targetProgram->id]);
+        $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
+        $registrar = $this->registrar();
+        $originalProgramId = $fixture['profile']->program_id;
+        $originalCurriculumId = $fixture['profile']->curriculum_version_id;
+
+        $change = app(StudentLifecycleService::class)->record([
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
+            'term_id' => $futureTerm->id,
+            'enrollment_id' => null,
+            'effective_on' => $futureTerm->starts_on->toDateString(),
+            'target_program_id' => $targetProgram->id,
+            'target_curriculum_version_id' => $targetCurriculum->id,
+            'credit_entries' => [[
+                'curriculum_entry_id' => $targetEntry->id,
+                'treatment' => ProgramShiftCreditEntry::TreatmentDeficient,
+            ]],
+        ], $registrar);
+
+        $cancelled = app(StudentLifecycleService::class)->cancelProgramShift($change, $registrar);
+
+        $this->assertSame(StudentLifecycleChange::StateCancelled, $cancelled->state);
+        $this->assertSame($originalProgramId, $fixture['profile']->fresh()->program_id);
+        $this->assertSame($originalCurriculumId, $fixture['profile']->fresh()->curriculum_version_id);
+
+        $this->travelTo($futureTerm->starts_on->copy()->addDay());
+        $this->expectException(RuntimeException::class);
+        app(StudentLifecycleService::class)->applyProgramShift($change, $registrar);
     }
 
     #[Test]
