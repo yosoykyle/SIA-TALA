@@ -15,6 +15,7 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
+use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
@@ -115,6 +116,39 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->placement->confirm($enrollment, $section->id, $systemSuperAdmin);
 
         $this->assertSame($systemSuperAdmin->id, EnrollmentSeatReservation::query()->sole()->registrar_user_id);
+    }
+
+    public function test_non_active_lifecycle_status_blocks_placement_before_schedule_and_seat_effects(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create();
+        $profile = StudentProfile::factory()->create([
+            'lifecycle_status' => StudentProfile::LifecycleArchived,
+            'archived_at' => now(),
+        ]);
+        $enrollment = Enrollment::factory()
+            ->for($profile)
+            ->for($term)
+            ->create(['status' => 'capacity_pending']);
+        $section = $this->publishedPlacement($term)['section'];
+
+        try {
+            $this->placement->confirm($enrollment, $section->id, $registrar);
+            $this->fail('Archived lifecycle status did not block placement.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('student_profile_id', $exception->errors());
+            $this->assertStringContainsString('Archived', $exception->errors()['student_profile_id'][0]);
+        }
+
+        $this->assertSame(0, CourseEnrollment::query()->count());
+        $this->assertSame(0, EnrollmentSeatReservation::query()->count());
+        $this->assertSame(0, StudentScheduleBinding::query()->count());
+        $this->assertDatabaseHas('enrollment_gate_results', [
+            'enrollment_id' => $enrollment->id,
+            'gate_type' => EnrollmentGateResult::GatePlacement,
+            'result' => EnrollmentGateResult::ResultFailed,
+            'blocker_code' => 'lifecycle_status',
+        ]);
     }
 
     public function test_academic_head_and_unauthorized_staff_cannot_confirm_placement(): void

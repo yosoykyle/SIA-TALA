@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Cor\BuildCorOutput;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -107,6 +108,54 @@ final class StudentLifecycleChangeTest extends TestCase
     }
 
     #[Test]
+    public function current_term_leave_releases_current_schedule_and_marks_profile_on_leave(): void
+    {
+        $fixture = $this->enrollmentFixture(2);
+        $this->window($fixture['term'], 'leave_of_absence');
+        $returnTerm = Term::factory()->create(['starts_on' => today()->addMonths(5), 'ends_on' => today()->addMonths(8)]);
+
+        $data = [
+            ...$this->baseData($fixture, StudentLifecycleChange::TypeLeaveOfAbsence),
+            'expected_return_term_id' => $returnTerm->id,
+        ];
+
+        $this->assertFalse(app(StudentLifecycleService::class)->preview($data)['cor_available_after']);
+
+        app(StudentLifecycleService::class)->record($data, $this->registrar());
+
+        $this->assertSame('withdrawn', $fixture['enrollment']->fresh()->status);
+        $this->assertSame(StudentProfile::LifecycleLeaveOfAbsence, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertSame(0, StudentScheduleBinding::query()->whereIn('course_enrollment_id', collect($fixture['courses'])->pluck('id'))->where('is_active', true)->count());
+        $this->assertSame(0, EnrollmentSeatReservation::query()->whereIn('course_enrollment_id', collect($fixture['courses'])->pluck('id'))->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count());
+
+        $cor = app(BuildCorOutput::class)->forStudent($fixture['profile']->user);
+        $this->assertFalse($cor['available']);
+        $this->assertStringContainsString('No current official enrollment is available for COR viewing.', $cor['reason']);
+    }
+
+    #[Test]
+    public function registrar_recorded_inactive_changes_only_profile_lifecycle_status(): void
+    {
+        $fixture = $this->enrollmentFixture(2);
+        $this->window($fixture['term'], 'inactivation');
+        $activeBindingCount = StudentScheduleBinding::query()
+            ->whereIn('course_enrollment_id', collect($fixture['courses'])->pluck('id'))
+            ->where('is_active', true)
+            ->count();
+
+        $change = app(StudentLifecycleService::class)->record(
+            $this->baseData($fixture, StudentLifecycleChange::TypeInactivation),
+            $this->registrar(),
+        );
+
+        $this->assertSame(StudentLifecycleChange::StateApplied, $change->state);
+        $this->assertSame(StudentProfile::LifecycleInactive, $fixture['profile']->fresh()->lifecycle_status);
+        $this->assertSame('officially_enrolled', $fixture['enrollment']->fresh()->status);
+        $this->assertSame($activeBindingCount, StudentScheduleBinding::query()->whereIn('course_enrollment_id', collect($fixture['courses'])->pluck('id'))->where('is_active', true)->count());
+        $this->assertSame(0, LedgerEntry::query()->where('source_type', StudentLifecycleChange::class)->where('source_id', $change->id)->count());
+    }
+
+    #[Test]
     public function future_program_shift_records_a_credit_checklist_then_applies_separately_without_current_schedule_changes(): void
     {
         $fixture = $this->enrollmentFixture(1);
@@ -164,12 +213,16 @@ final class StudentLifecycleChangeTest extends TestCase
         $returnTerm = Term::factory()->create(['starts_on' => today()->addMonths(5), 'ends_on' => today()->addMonths(8)]);
         $this->window($futureTerm, 'leave_of_absence');
         $activeBindings = StudentScheduleBinding::query()->whereIn('course_enrollment_id', collect($futureLeave['courses'])->pluck('id'))->where('is_active', true)->count();
-        app(StudentLifecycleService::class)->record([
+        $futureLeaveData = [
             ...$this->baseData($futureLeave, StudentLifecycleChange::TypeLeaveOfAbsence),
             'term_id' => $futureTerm->id,
             'effective_on' => $futureTerm->starts_on->toDateString(),
             'expected_return_term_id' => $returnTerm->id,
-        ], $registrar);
+        ];
+
+        $this->assertTrue(app(StudentLifecycleService::class)->preview($futureLeaveData)['cor_available_after']);
+
+        app(StudentLifecycleService::class)->record($futureLeaveData, $registrar);
         $this->assertSame(StudentProfile::LifecycleActive, $futureLeave['profile']->fresh()->lifecycle_status);
         $this->assertSame($activeBindings, StudentScheduleBinding::query()->whereIn('course_enrollment_id', collect($futureLeave['courses'])->pluck('id'))->where('is_active', true)->count());
         $this->assertDatabaseHas('holds', ['student_profile_id' => $futureLeave['profile']->id, 'term_id' => $futureTerm->id, 'blocking_level' => 'blocks_enrollment']);

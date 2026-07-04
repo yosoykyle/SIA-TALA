@@ -16,6 +16,7 @@ use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -50,7 +51,7 @@ class StudentLifecycleService
             'profile_status_after' => $this->profileStatusAfter($type, $student),
             'curriculum_version_after' => $data['target_curriculum_version_id'] ?? $student->curriculum_version_id,
             'finance_adjustment' => (float) ($data['finance_adjustment'] ?? 0),
-            'cor_available_after' => ! in_array($type, [StudentLifecycleChange::TypeWithdrawal, StudentLifecycleChange::TypeTransferOut], true),
+            'cor_available_after' => $this->corAvailableAfter($type, $data),
         ];
     }
 
@@ -201,6 +202,7 @@ class StudentLifecycleService
             StudentLifecycleChange::TypeProgramShift => 'program_shift',
             StudentLifecycleChange::TypeTransferOut => 'transfer_out',
             StudentLifecycleChange::TypeReactivation => 'reactivation',
+            StudentLifecycleChange::TypeInactivation => 'inactivation',
             default => throw new RuntimeException('Unsupported lifecycle change type.'),
         };
         $insideWindow = CalendarEvent::query()
@@ -237,6 +239,12 @@ class StudentLifecycleService
         $type = $change->type;
         if ($type === StudentLifecycleChange::TypeReactivation) {
             $student->update(['lifecycle_status' => StudentProfile::LifecycleActive, 'archived_at' => null]);
+
+            return;
+        }
+
+        if ($type === StudentLifecycleChange::TypeInactivation) {
+            $student->update(['lifecycle_status' => StudentProfile::LifecycleInactive]);
 
             return;
         }
@@ -317,8 +325,24 @@ class StudentLifecycleService
             StudentLifecycleChange::TypeLeaveOfAbsence => StudentProfile::LifecycleLeaveOfAbsence,
             StudentLifecycleChange::TypeTransferOut => StudentProfile::LifecycleTransferredOut,
             StudentLifecycleChange::TypeReactivation => StudentProfile::LifecycleActive,
+            StudentLifecycleChange::TypeInactivation => StudentProfile::LifecycleInactive,
             default => $student->lifecycle_status,
         };
+    }
+
+    /** @param array<string,mixed> $data */
+    private function corAvailableAfter(string $type, array $data): bool
+    {
+        if ($type === StudentLifecycleChange::TypeLeaveOfAbsence) {
+            return filled($data['effective_on'] ?? null)
+                && Carbon::parse($data['effective_on'])->isFuture();
+        }
+
+        return ! in_array($type, [
+            StudentLifecycleChange::TypeWithdrawal,
+            StudentLifecycleChange::TypeTransferOut,
+            StudentLifecycleChange::TypeInactivation,
+        ], true);
     }
 
     /** @param list<array<string,mixed>> $entries */

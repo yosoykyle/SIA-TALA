@@ -27,6 +27,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-83C | Done locally; pending explicit Linear sync | Duplicate Profile Resolution Acceptance |
 | TAL-83D | Done locally; pending explicit Linear sync | Student Profile and Student Hub Activation Smoke |
 | TAL-84A | Done locally; pending explicit Linear sync | Holds and Lifecycle-Status Contract |
+| TAL-84B | Done locally; pending explicit Linear sync | Core Lifecycle Recorded Results Acceptance |
 
 ## Compact Synced History
 

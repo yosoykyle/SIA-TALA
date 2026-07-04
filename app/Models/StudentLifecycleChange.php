@@ -29,6 +29,8 @@ class StudentLifecycleChange extends Model
 
     public const TypeReactivation = 'REACTIVATION';
 
+    public const TypeInactivation = 'INACTIVATION';
+
     public const TypeProgramShift = 'PROGRAM_SHIFT';
 
     public const StateRecordedApproved = 'RECORDED_APPROVED';
@@ -59,7 +61,8 @@ class StudentLifecycleChange extends Model
         return [
             self::TypeSubjectDrop => 'Subject Drop', self::TypeWithdrawal => 'Withdrawal',
             self::TypeLeaveOfAbsence => 'Leave of Absence', self::TypeTransferOut => 'Transfer Out',
-            self::TypeReactivation => 'Reactivation', self::TypeProgramShift => 'Program Shift',
+            self::TypeReactivation => 'Reactivation', self::TypeInactivation => 'Registrar Inactive',
+            self::TypeProgramShift => 'Program Shift',
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Models\EnrollmentSeatReservation;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionMeeting;
+use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -93,11 +94,45 @@ class EnrollmentPlacementService
     {
         Gate::forUser($actor)->authorize('confirmPlacement', $enrollment);
 
+        $enrollment->loadMissing('studentProfile');
+        $studentProfile = $enrollment->studentProfile;
+
+        if (! $studentProfile instanceof StudentProfile || $studentProfile->blocksEnrollmentByLifecycle()) {
+            $message = $this->lifecycleBlockerMessage($studentProfile);
+
+            EnrollmentGateResult::query()->updateOrCreate(
+                [
+                    'enrollment_id' => $enrollment->id,
+                    'gate_type' => EnrollmentGateResult::GatePlacement,
+                    'sequence' => 1,
+                ],
+                [
+                    'result' => EnrollmentGateResult::ResultFailed,
+                    'responsible_office' => EnrollmentGateResult::ResponsibleOfficeRegistrar,
+                    'blocker_code' => 'lifecycle_status',
+                    'blocker_message' => $message,
+                    'source_type' => StudentProfile::class,
+                    'source_id' => $studentProfile?->id,
+                    'checked_at' => now(),
+                    'rule_version' => EnrollmentGateResult::RuleVersionTal67Mvp,
+                ],
+            );
+
+            $this->reject('student_profile_id', $message);
+        }
+
         return DB::transaction(function () use ($enrollment, $sectionId, $actor): array {
             $lockedEnrollment = Enrollment::query()
+                ->with('studentProfile')
                 ->whereKey($enrollment->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            $studentProfile = $lockedEnrollment->studentProfile;
+
+            if (! $studentProfile instanceof StudentProfile || $studentProfile->blocksEnrollmentByLifecycle()) {
+                $this->reject('student_profile_id', $this->lifecycleBlockerMessage($studentProfile));
+            }
 
             $section = Section::query()
                 ->with('termOffering.curriculumEntry.courseSpecification')
@@ -409,6 +444,14 @@ class EnrollmentPlacementService
                 ],
             );
         }
+    }
+
+    private function lifecycleBlockerMessage(?StudentProfile $studentProfile): string
+    {
+        return sprintf(
+            'Enrollment placement is unavailable while the student lifecycle status is %s.',
+            StudentProfile::lifecycleStatusLabel($studentProfile?->lifecycle_status),
+        );
     }
 
     private function unitsSnapshot(?TermOffering $termOffering): ?string

@@ -46,6 +46,56 @@ class StudentProfile extends Model
 
     public const LifecycleInactive = 'INACTIVE';
 
+    /** @return list<string> */
+    public static function enrollmentBlockingLifecycleStatuses(): array
+    {
+        return [
+            self::LifecycleLeaveOfAbsence,
+            self::LifecycleWithdrawn,
+            self::LifecycleTransferredOut,
+            self::LifecycleInactive,
+            self::LifecycleArchived,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function corBlockingLifecycleStatuses(): array
+    {
+        return self::enrollmentBlockingLifecycleStatuses();
+    }
+
+    public static function lifecycleStatusLabel(?string $status): string
+    {
+        return match ($status) {
+            self::LifecycleActive => 'Active',
+            self::LifecycleLeaveOfAbsence => 'Leave of Absence',
+            self::LifecycleWithdrawn => 'Withdrawn',
+            self::LifecycleTransferredOut => 'Transferred Out',
+            self::LifecycleInactive => 'Inactive',
+            self::LifecycleArchived => 'Archived',
+            default => filled($status) ? str((string) $status)->headline()->toString() : 'Not recorded',
+        };
+    }
+
+    public function hasActiveLifecycleStatus(): bool
+    {
+        return $this->lifecycle_status === self::LifecycleActive
+            && $this->archived_at === null
+            && $this->merged_into_id === null;
+    }
+
+    public function blocksEnrollmentByLifecycle(): bool
+    {
+        return ! $this->hasActiveLifecycleStatus()
+            || in_array($this->lifecycle_status, self::enrollmentBlockingLifecycleStatuses(), true);
+    }
+
+    public function blocksCurrentCorByLifecycle(): bool
+    {
+        return ! $this->hasActiveLifecycleStatus()
+            || in_array($this->lifecycle_status, self::corBlockingLifecycleStatuses(), true);
+    }
+
     /** @var list<string> */
     protected $fillable = [
         'user_id',

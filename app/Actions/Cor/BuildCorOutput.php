@@ -86,6 +86,13 @@ class BuildCorOutput
             return $this->unavailable('This enrollment is not officially enrolled yet.');
         }
 
+        if ($enrollment->studentProfile->blocksCurrentCorByLifecycle()) {
+            return $this->unavailable(sprintf(
+                'Your current COR is unavailable while your student lifecycle status is %s. Please contact the Registrar Office for the next step.',
+                StudentProfile::lifecycleStatusLabel($enrollment->studentProfile->lifecycle_status),
+            ), $enrollment);
+        }
+
         $activeHolds = $this->blockingCorHolds($enrollment);
 
         if ($activeHolds->isNotEmpty() && $this->actorOwnsEnrollment($actor, $enrollment)) {

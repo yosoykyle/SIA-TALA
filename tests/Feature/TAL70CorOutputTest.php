@@ -118,6 +118,41 @@ final class TAL70CorOutputTest extends TestCase
         $this->assertSame(0, DB::table('output_access_logs')->count());
     }
 
+    public function test_non_active_lifecycle_status_blocks_current_cor_with_student_safe_message(): void
+    {
+        $fixture = $this->officialCorFixture();
+        $fixture['profile']->update(['lifecycle_status' => StudentProfile::LifecycleInactive]);
+
+        $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
+
+        $this->assertFalse($output['available']);
+        $this->assertStringContainsString('Inactive', $output['reason']);
+        $this->assertStringContainsString('Registrar Office', $output['reason']);
+        $this->assertStringNotContainsString('staff-only', mb_strtolower($output['reason']));
+
+        Livewire::actingAs($fixture['student'])
+            ->test(CorView::class)
+            ->assertSee('Unavailable')
+            ->assertSee('Inactive')
+            ->assertSee('Registrar Office')
+            ->assertDontSee('staff-only');
+    }
+
+    public function test_archived_duplicate_profile_blocks_current_cor(): void
+    {
+        $fixture = $this->officialCorFixture();
+        $fixture['profile']->update([
+            'lifecycle_status' => StudentProfile::LifecycleArchived,
+            'archived_at' => now(),
+        ]);
+
+        $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
+
+        $this->assertFalse($output['available']);
+        $this->assertStringContainsString('Archived', $output['reason']);
+        $this->assertSame([], $output['state']['subjects']);
+    }
+
     public function test_student_without_current_official_enrollment_sees_empty_state(): void
     {
         $student = $this->studentUser();
