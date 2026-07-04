@@ -24,6 +24,17 @@ class Course extends Model
         'state',
     ];
 
+    /**
+     * @return array<string, string>
+     */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StateActive => 'Active',
+            self::StateRetired => 'Retired',
+        ];
+    }
+
     public function specifications(): HasMany
     {
         return $this->hasMany(CourseSpecification::class);

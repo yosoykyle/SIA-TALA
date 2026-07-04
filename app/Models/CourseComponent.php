@@ -16,6 +16,12 @@ class CourseComponent extends Model
 
     public const TypeLaboratory = 'LABORATORY';
 
+    public const RoomTypeLectureRoom = 'LECTURE_ROOM';
+
+    public const RoomTypeComputerLaboratory = 'COMPUTER_LABORATORY';
+
+    public const RoomTypeLaboratory = 'LABORATORY';
+
     /**
      * @var list<string>
      */
@@ -46,5 +52,28 @@ class CourseComponent extends Model
     public function courseSpecification(): BelongsTo
     {
         return $this->belongsTo(CourseSpecification::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        return [
+            self::TypeLecture => 'Lecture',
+            self::TypeLaboratory => 'Laboratory',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function roomTypeOptions(): array
+    {
+        return [
+            self::RoomTypeLectureRoom => 'Lecture Room',
+            self::RoomTypeComputerLaboratory => 'Computer Laboratory',
+            self::RoomTypeLaboratory => 'Laboratory',
+        ];
     }
 }

@@ -57,4 +57,15 @@ class CurriculumEntry extends Model
     {
         return $this->hasMany(TermOffering::class);
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function requirementGroupOptions(): array
+    {
+        return [
+            self::RequirementGroupRequired => 'Required',
+            self::RequirementGroupElective => 'Elective',
+        ];
+    }
 }

@@ -20,6 +20,10 @@ class CourseRequirement extends Model
 
     public const StateActive = 'ACTIVE';
 
+    public const DirectionRequires = 'REQUIRES';
+
+    public const RequiredOutcomePassed = 'PASSED';
+
     /**
      * @var list<string>
      */
@@ -54,13 +58,47 @@ class CourseRequirement extends Model
         ];
     }
 
+    /** @return BelongsTo<CourseSpecification, $this> */
     public function courseSpecification(): BelongsTo
     {
         return $this->belongsTo(CourseSpecification::class);
     }
 
+    /** @return BelongsTo<Course, $this> */
     public function relatedCourse(): BelongsTo
     {
         return $this->belongsTo(Course::class, 'related_course_id');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        return [
+            self::TypePrerequisite => 'Prerequisite',
+            self::TypeCorequisite => 'Corequisite',
+            self::TypeEquivalency => 'Equivalent Course',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StateActive => 'Active',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function requiredOutcomeOptions(): array
+    {
+        return [
+            self::RequiredOutcomePassed => 'Passed / Credited',
+        ];
     }
 }

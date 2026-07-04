@@ -70,4 +70,18 @@ class CurriculumVersion extends Model
     {
         return $this->hasMany(CurriculumEntry::class);
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StateDraft => 'Draft',
+            self::StateRecordedApproved => 'Recorded Approved',
+            self::StateActive => 'Active',
+            self::StateSuperseded => 'Superseded',
+            self::StateArchived => 'Archived',
+        ];
+    }
 }

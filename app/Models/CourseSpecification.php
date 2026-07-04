@@ -19,6 +19,16 @@ class CourseSpecification extends Model
 
     public const StateRetired = 'RETIRED';
 
+    public const GradingProfileServitechV1 = 'servitech_v1';
+
+    public const GradingProfileCollegeStandard = 'college_standard';
+
+    public const ModalityFaceToFace = 'FACE_TO_FACE';
+
+    public const ModalityOnline = 'ONLINE';
+
+    public const ModalityBlended = 'BLENDED';
+
     /**
      * @var list<string>
      */
@@ -82,5 +92,40 @@ class CourseSpecification extends Model
     public function totalWeeklyContactHours(): float
     {
         return (float) $this->components()->sum('weekly_contact_hours');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StateDraft => 'Draft',
+            self::StateActive => 'Active',
+            self::StateRetired => 'Retired',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function gradingProfileOptions(): array
+    {
+        return [
+            self::GradingProfileServitechV1 => 'Servitech College Standard',
+            self::GradingProfileCollegeStandard => 'College Standard',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function modalityOptions(): array
+    {
+        return [
+            self::ModalityFaceToFace => 'Face-to-Face',
+            self::ModalityOnline => 'Online',
+            self::ModalityBlended => 'Blended',
+        ];
     }
 }

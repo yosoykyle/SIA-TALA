@@ -15,7 +15,10 @@ use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\CalendarEvent;
+use App\Models\Course;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumSubject;
+use App\Models\CurriculumVersion;
 use App\Models\DeliveryPattern;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
@@ -37,6 +40,9 @@ use App\Policies\ActivityPolicy;
 use App\Policies\AssessmentLinePolicy;
 use App\Policies\AssessmentPolicy;
 use App\Policies\CalendarEventPolicy;
+use App\Policies\CoursePolicy;
+use App\Policies\CourseSpecificationPolicy;
+use App\Policies\CurriculumVersionPolicy;
 use App\Policies\DeliveryPatternPolicy;
 use App\Policies\FeeRulePolicy;
 use App\Policies\LedgerEntryPolicy;
@@ -146,6 +152,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Term::class, TermPolicy::class);
         Gate::policy(CalendarEvent::class, CalendarEventPolicy::class);
         Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
+        Gate::policy(Course::class, CoursePolicy::class);
+        Gate::policy(CourseSpecification::class, CourseSpecificationPolicy::class);
+        Gate::policy(CurriculumVersion::class, CurriculumVersionPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
 

@@ -94,4 +94,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next implementation slice is TAL-82B Academic Setup Curriculum and Course Catalog Acceptance. TAL-82B must start with an evidence-backed primary plan against PRD Module 04, the UI blueprint, architecture specification, current curriculum/course schema, existing resources/imports/routes/policies/tests, and any relevant business-evidence examples for college curriculum/course-list shape. Use business evidence only for realistic terminology and document shape; prefer mature SIS, native Filament, and MVP-fit implementation patterns when evidence is SHS-only, incomplete, or too manual. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next primary planning boundary is the remaining TAL-82 Academic Setup and Calendar Acceptance work after TAL-82B cleanup: calendar/term-window behavior, grade-outcome policy inputs, and guarded import-template acceptance. The primary must resurface a small evidence-backed slice plan before implementation. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
