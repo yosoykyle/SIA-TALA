@@ -63,6 +63,8 @@ Primary planning must be evidence-backed. The recommendation must state what was
 
 Each primary plan must include a workflow/UI fit review. Compare the approved PRD and blueprint intent with the current implementation, native Filament v5 capability, installed packages, qualified plugin options, and focused custom code. Use the official Filament plugin directory and Awesome Filament catalog as discovery sources, not automatic authority. A plugin is recommended only when it solves a real slice gap and is safer or faster than native Filament after checking version compatibility, maintenance, license/security, dependency weight, routes/migrations/config, authorization, tests, upgrade/removal cost, and whether domain rules can stay in TALA services/actions/policies/models.
 
+Simplification means purposeful scope, not feature deletion or feature presence for its own sake. A slice should retain, add, revise, or defer a feature only when the decision supports a real school workflow, inter-department handoff, future CP-SAT or payment integration dependency, user-facing usability need, audit/control requirement, or maintainability requirement. Hybrid manual/digital workflows are preferred when they keep the system credible and useful without encoding unnecessary institutional complexity. Local Philippine campus/SIS benchmarks should be used when workflow familiarity or policy credibility is unclear, but benchmarks do not justify copying broad enterprise complexity into the MVP.
+
 Within the activated session:
 
 - `Primary proceed` continues the accepted current issue without widening scope.
@@ -99,7 +101,7 @@ Each slice must:
 3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for the slice's workflow/UI needs.
 4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-6. Present the slice contract, evidence checked, recommendation basis, workflow/UI fit review, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
+6. Present the slice contract, purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
 7. Wait for user acceptance before implementation or worker handoff.
 8. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
 9. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
