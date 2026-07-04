@@ -13,19 +13,18 @@ class AcademicYearInfolist
         return $schema->components([
             Section::make('Academic Year')
                 ->schema([
-                    TextEntry::make('academic_year')->label('Academic Year'),
-                    TextEntry::make('status')
+                    TextEntry::make('label')->label('Academic Year'),
+                    TextEntry::make('state')
                         ->badge()
                         ->formatStateUsing(fn (?string $state, $record): string => $record->statusLabel())
                         ->color(fn (?string $state): string => match ($state) {
-                            'active' => 'success',
-                            'closed' => 'warning',
-                            'archived' => 'danger',
+                            'ACTIVE' => 'success',
+                            'CLOSED' => 'warning',
+                            'ARCHIVED' => 'danger',
                             default => 'gray',
                         }),
-                    TextEntry::make('school_year_start_date')->date(),
-                    TextEntry::make('school_year_end_date')->date(),
-                    TextEntry::make('reference_note')->placeholder('-')->columnSpanFull(),
+                    TextEntry::make('starts_on')->date(),
+                    TextEntry::make('ends_on')->date(),
                     TextEntry::make('created_at')->dateTime()->placeholder('-'),
                     TextEntry::make('updated_at')->dateTime()->placeholder('-'),
                 ])

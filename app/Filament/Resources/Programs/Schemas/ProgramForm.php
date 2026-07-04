@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Programs\Schemas;
 
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
@@ -24,9 +23,12 @@ class ProgramForm
                     TextInput::make('name')
                         ->required()
                         ->maxLength(255),
-                    Hidden::make('department')
-                        ->default('college')
-                        ->dehydrated(),
+                    TextInput::make('duration_years')
+                        ->label('Program Length (Years)')
+                        ->integer()
+                        ->minValue(1)
+                        ->maxValue(8)
+                        ->helperText('Optional. Used for curriculum and graduation review context, not for creating separate academic calendars.'),
                     Toggle::make('is_active')
                         ->label('Active')
                         ->default(true)

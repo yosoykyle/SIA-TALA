@@ -18,6 +18,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-79 | Protocol amendment pending explicit Linear sync | Explicit local-commit and Linear-authorization boundary |
 | TAL-80 | Done locally; pending explicit Linear sync | Foundation Acceptance Map and Slice Sequencing |
 | TAL-81 | Done locally; pending explicit Linear sync | Identity, Access, Workspace, and Admin Baseline Acceptance |
+| TAL-82A | Done locally; pending explicit Linear sync | Academic Setup Core Surfaces Acceptance |
 
 ## Compact Synced History
 

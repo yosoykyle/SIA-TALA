@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property Carbon $starts_on
  * @property Carbon $ends_on
+ * @property-read AcademicYear|null $academicYear
  */
 class Term extends Model
 {
@@ -79,5 +80,29 @@ class Term extends Model
     public function facultyTermLoadOverrides(): HasMany
     {
         return $this->hasMany(FacultyTermLoadOverride::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        return [
+            self::TypeFirstSemester => 'First Semester',
+            self::TypeSecondSemester => 'Second Semester',
+            self::TypeSummer => 'Summer / Special Term',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function stateOptions(): array
+    {
+        return [
+            self::StateDraft => 'Draft',
+            self::StateActive => 'Active',
+            self::StateClosed => 'Closed',
+        ];
     }
 }

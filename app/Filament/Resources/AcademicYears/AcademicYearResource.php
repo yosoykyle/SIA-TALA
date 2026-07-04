@@ -29,7 +29,7 @@ class AcademicYearResource extends Resource
 
     protected static ?int $navigationSort = 19;
 
-    protected static ?string $recordTitleAttribute = 'academic_year';
+    protected static ?string $recordTitleAttribute = 'label';
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {

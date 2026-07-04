@@ -29,7 +29,7 @@ class TermResource extends Resource
 
     protected static ?int $navigationSort = 23;
 
-    protected static ?string $recordTitleAttribute = 'term_name';
+    protected static ?string $recordTitleAttribute = 'label';
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {

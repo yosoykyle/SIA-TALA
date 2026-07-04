@@ -9,12 +9,12 @@ class AcademicYearPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canManage($user) || $user->can('view-global-records');
+        return $this->canView($user);
     }
 
     public function view(User $user, AcademicYear $academicYear): bool
     {
-        return $this->canManage($user) || $user->can('view-global-records');
+        return $this->canView($user);
     }
 
     public function create(User $user): bool
@@ -44,6 +44,14 @@ class AcademicYearPolicy
 
     private function canManage(User $user): bool
     {
-        return $user->can('manage-terms');
+        return $user->hasRole(User::StaffRoleRegistrar);
+    }
+
+    private function canView(User $user): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+        ]);
     }
 }

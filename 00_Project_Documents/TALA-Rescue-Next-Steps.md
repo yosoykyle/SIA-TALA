@@ -7,11 +7,14 @@ This document is the active planning surface for upcoming work. It is reached af
 - **The Cycle:**
   1. Plan one small issue, or a tightly related contract/implementation/cleanup batch, here.
   2. Complete its research, accepted contract, implementation, worker verification, and independent primary verification.
-  3. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as `Done locally; pending explicit Linear sync`.
-  4. Create the bounded local Git commit. This standing permission does not authorize a push or Linear mutation.
-  5. Remove the completed issue from this planning document immediately after it is recorded in the local tracker.
-  6. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
-  7. Keep external Linear synchronization pending until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
+  3. Before cleanup or commit, primary reports a pre-cleanup acceptance audit: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
+  4. Move the accepted issue to `TALA-Local-Linear-Sync-Tracker.md` as `Done locally; pending explicit Linear sync`.
+  5. Create the bounded local Git commit. This standing permission does not authorize a push or Linear mutation.
+  6. Remove the completed issue from this planning document immediately after it is recorded in the local tracker.
+  7. Give the user an acceptance checklist and patch the current issue before advancing when review finds a defect.
+  8. Keep external Linear synchronization pending until the user explicitly says `Sync TAL-XX to Linear`; no other completion command implies external-sync permission.
+
+Resume rule: after compaction, interruption, rejected worker output, failed/unclear handoff, or stale state, run the short resume checkpoint from `TALA-Orchestrator-Protocol.md` before continuing.
 
 ## Source-of-Truth Order
 
@@ -21,18 +24,22 @@ Use this order before implementing each slice:
 2. `00_Project_Documents/prd_modules/` (All relevant modules inside this directory)
 3. `00_Project_Documents/ui_surface_blueprint.md`
 4. `00_Project_Documents/architecture_specification.md`
-5. Existing code and tests
+5. `00_Project_Documents/business-evidence/` only when it clarifies workflow, terminology, document shape, or realistic data examples
+6. Existing code and tests
+
+Business evidence is context, not scope authority. Use it to understand the client's current environment, then compare it with PRD scope, mature SIS benchmarks, and framework-native implementation patterns. Exclude Senior High School-only material unless it is proven applicable to college workflows. If business evidence conflicts with benchmark/native implementation or would bloat MVP, surface the conflict in the primary plan instead of copying the evidence into the system.
 
 ## Research and Tool-Use Order
 
 Apply this order to every planned worker slice:
 
 1. Read the relevant source-of-truth documents, schema contract, current migrations, and existing implementation before deciding the change.
-2. Use Laravel Boost `application-info` and version-specific `search-docs` before Laravel ecosystem code changes.
-3. When an important technical, integration, or repository question remains unanswered, use the relevant available MCP, connector, or specialized tool before making an assumption.
-4. Use authoritative internet research when an institutional policy, Philippine regulatory requirement, external integration contract, current standard, or mature-system benchmark remains unclear. Prefer primary official sources and record the supporting links in the worker report.
-5. Research resolves gaps but does not override an approved PRD decision or expand the MVP. If authoritative evidence conflicts with the approved flow or would materially change scope, stop and report the conflict to the primary thread for a decision.
-6. Implement only after the required questions are resolved, then run the slice's focused tests and regression checks.
+2. Read relevant business-evidence files only for client-context clarification, not as automatic requirements.
+3. Use Laravel Boost `application-info` and version-specific `search-docs` before Laravel ecosystem code changes.
+4. When an important technical, integration, or repository question remains unanswered, use the relevant available MCP, connector, or specialized tool before making an assumption.
+5. Use authoritative internet research when an institutional policy, Philippine regulatory requirement, external integration contract, current standard, or mature-system benchmark remains unclear. Prefer primary official sources and record the supporting links in the worker report.
+6. Research resolves gaps but does not override an approved PRD decision or expand the MVP. If authoritative evidence conflicts with the approved flow or would materially change scope, stop and report the conflict to the primary thread for a decision.
+7. Implement only after the required questions are resolved, then run the slice's focused tests and regression checks.
 
 ## Vertical Slice Workflow
 
@@ -45,12 +52,15 @@ For each slice:
 3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for workflow/UI fit.
 4. Research unclear framework, UI, plugin, integration, policy, or mature-system questions before implementation.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current implementation.
-6. Primary presents the purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, slice plan, worker boundary, verification plan, human-only steps, and exclusions for user acceptance.
+6. Primary presents the purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, retained-surface purpose statements, slice plan, worker boundary, verification plan, human-only steps, and exclusions for user acceptance.
 7. Implement or delegate only after the user accepts the plan.
-8. Record accepted document changes and review dependent modules before finalizing implementation.
-9. Implement only the accepted slice.
-10. Require worker self-verification and independent primary verification.
-11. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
+8. If delegated, hand off only the accepted checklist. The worker executes the checklist and must stop as `BLOCKED` if the checklist, current issue, or allowed scope is unclear. The worker must not act as another primary orchestrator or return monitoring/status filler as completion.
+9. Use minimal worker context by default. For major TAL slices, prefer an inspectable visible worker thread when explicitly authorized and available; otherwise use one accountable internal worker with the same final handshake requirement.
+10. Record accepted document changes and review dependent modules before finalizing implementation.
+11. Implement only the accepted slice.
+12. Require worker self-verification and independent primary verification.
+13. Run the pre-cleanup acceptance audit before tracker movement or commit.
+14. Follow the tracker, local-commit, explicit Linear-authorization, and user-acceptance sequence above.
 
 ## Active and Upcoming Issues
 
@@ -66,7 +76,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-82 | Planned | Academic Setup and Calendar Acceptance: validate programs, curricula, course specifications, components, grade-outcome policy inputs, academic years, terms, calendar windows, import templates, and setup records used by later modules. |
+| TAL-82 | In Progress | Academic Setup and Calendar Acceptance: continue remaining curriculum, course specification, component, grade-outcome policy input, calendar-window, and import-template acceptance after the accepted core Program, Academic Year, Term, and Scheduling Block surface cleanup. |
 | TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
@@ -84,4 +94,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next implementation slice is TAL-82 Academic Setup and Calendar Acceptance. TAL-82 must start with an evidence-backed primary slice plan against the relevant PRD modules, the UI blueprint, architecture specification, current academic/calendar schema, existing resources, imports, routes, policies, and tests. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next implementation slice is TAL-82B Academic Setup Curriculum and Course Catalog Acceptance. TAL-82B must start with an evidence-backed primary plan against PRD Module 04, the UI blueprint, architecture specification, current curriculum/course schema, existing resources/imports/routes/policies/tests, and any relevant business-evidence examples for college curriculum/course-list shape. Use business evidence only for realistic terminology and document shape; prefer mature SIS, native Filament, and MVP-fit implementation patterns when evidence is SHS-only, incomplete, or too manual. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.

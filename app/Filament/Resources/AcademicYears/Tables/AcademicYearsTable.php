@@ -15,27 +15,26 @@ class AcademicYearsTable
     {
         return $table
             ->columns([
-                TextColumn::make('academic_year')
+                TextColumn::make('label')
                     ->label('Academic Year')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
-                TextColumn::make('status')
+                TextColumn::make('state')
                     ->badge()
                     ->formatStateUsing(fn (?string $state, AcademicYear $record): string => $record->statusLabel())
                     ->color(fn (?string $state): string => match ($state) {
-                        'active' => 'success',
-                        'closed' => 'warning',
-                        'archived' => 'danger',
+                        AcademicYear::StateActive => 'success',
+                        AcademicYear::StateClosed => 'warning',
+                        AcademicYear::StateArchived => 'danger',
                         default => 'gray',
                     })
                     ->sortable(),
-                TextColumn::make('school_year_start_date')->date()->sortable(),
-                TextColumn::make('school_year_end_date')->date()->sortable(),
-                TextColumn::make('reference_note')->limit(40)->placeholder('-')->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('starts_on')->date()->sortable(),
+                TextColumn::make('ends_on')->date()->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')
+                SelectFilter::make('state')
                     ->options(AcademicYear::statusOptions()),
             ])
             ->recordActions([
@@ -43,6 +42,6 @@ class AcademicYearsTable
                 EditAction::make(),
             ])
             ->toolbarActions([])
-            ->defaultSort('school_year_start_date', 'desc');
+            ->defaultSort('starts_on', 'desc');
     }
 }

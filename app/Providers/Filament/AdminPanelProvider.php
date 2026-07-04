@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\ReportsAudit;
+use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
@@ -14,6 +15,7 @@ use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource
 use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
+use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
@@ -22,6 +24,7 @@ use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResourc
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
+use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\Users\UserResource;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -83,6 +86,9 @@ class AdminPanelProvider extends PanelProvider
                 LedgerEntryResource::class,
                 PaymentAttemptResource::class,
                 PaymentResource::class,
+                ProgramResource::class,
+                AcademicYearResource::class,
+                TermResource::class,
                 CalendarEventResource::class,
                 TermOfferingResource::class,
                 GradeRosterResource::class,

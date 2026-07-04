@@ -13,10 +13,7 @@ class ProgramInfolist
         return $schema->components([
             TextEntry::make('code')->label('Code'),
             TextEntry::make('name')->label('Program'),
-            TextEntry::make('department')->label('Level')->badge()->formatStateUsing(fn (?string $state): string => match ($state) {
-                'college' => 'College',
-                default => str((string) $state)->headline()->toString(),
-            }),
+            TextEntry::make('duration_years')->label('Program Length')->suffix(' years')->placeholder('-'),
             IconEntry::make('is_active')->label('Active')->boolean(),
             TextEntry::make('created_at')->dateTime()->placeholder('-'),
             TextEntry::make('updated_at')->dateTime()->placeholder('-'),

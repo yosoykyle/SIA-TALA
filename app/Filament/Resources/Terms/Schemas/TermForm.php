@@ -3,11 +3,10 @@
 namespace App\Filament\Resources\Terms\Schemas;
 
 use App\Models\AcademicYear;
+use App\Models\Term;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -19,46 +18,50 @@ class TermForm
             Section::make('Term Identity')
                 ->description('Configure the canonical term record used by enrollment, payment deadlines, scheduling, grades, and reporting.')
                 ->schema([
-                    TextInput::make('term_name')
+                    TextInput::make('label')
                         ->label('Term Name')
                         ->required()
                         ->maxLength(255),
                     Select::make('academic_year_id')
                         ->label('Academic Year')
-                        ->relationship('academicYear', 'academic_year')
-                        ->getOptionLabelFromRecordUsing(fn (AcademicYear $record): string => $record->displayLabel())
+                        ->options(fn (): array => AcademicYear::query()
+                            ->orderByDesc('starts_on')
+                            ->get()
+                            ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->displayLabel()])
+                            ->all())
                         ->searchable()
                         ->preload()
                         ->required()
                         ->helperText('Select the College academic year umbrella that owns this operational term.'),
-                    Select::make('term_type')
+                    Select::make('type')
                         ->label('Term Type')
-                        ->options([
-                            'quarter' => 'Quarter',
-                            'semester' => 'Semester',
-                            'summer' => 'Summer',
-                        ])
+                        ->options(Term::typeOptions())
                         ->required(),
-                    Toggle::make('is_active')
-                        ->label('Active Term')
-                        ->default(true),
+                    Select::make('state')
+                        ->options(Term::stateOptions())
+                        ->default(Term::StateDraft)
+                        ->required(),
                 ])
                 ->columns(2)
                 ->columnSpanFull(),
             Section::make('Academic Dates')
                 ->description('These dates drive phase gates and solver scheduling windows.')
                 ->schema([
-                    DatePicker::make('term_start_date')->required(),
-                    DatePicker::make('term_end_date')->required(),
-                    DatePicker::make('class_start_date'),
-                    DatePicker::make('class_end_date'),
-                    DateTimePicker::make('scheduling_starts_at')->seconds(false),
-                    DateTimePicker::make('enrollment_starts_at')->seconds(false),
-                    DateTimePicker::make('enrollment_ends_at')->seconds(false),
-                    DateTimePicker::make('late_enrollment_ends_at')->seconds(false),
-                    DateTimePicker::make('payment_deadline')->seconds(false),
-                    DateTimePicker::make('adjustment_ends_at')->seconds(false),
-                    DateTimePicker::make('locked_at')->seconds(false)->disabled()->dehydrated(false),
+                    DatePicker::make('starts_on')->required(),
+                    DatePicker::make('ends_on')->required()->after('starts_on'),
+                    TextInput::make('scheduling_slot_minutes')
+                        ->label('Scheduling Slot Minutes')
+                        ->integer()
+                        ->minValue(15)
+                        ->maxValue(120)
+                        ->default(30)
+                        ->required(),
+                    TextInput::make('default_max_units')
+                        ->label('Default Faculty Max Units')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.25)
+                        ->helperText('Optional term default used by faculty load checks. Approved term-specific overrides remain separate records.'),
                 ])
                 ->columns(2)
                 ->columnSpanFull(),

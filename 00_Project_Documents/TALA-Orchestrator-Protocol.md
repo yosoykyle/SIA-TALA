@@ -17,6 +17,7 @@ Use these files for their intended purpose:
 5. `00_Project_Documents/prd_modules/` — product requirements, MVP boundaries, records, flows, outputs, and role behavior.
 6. `00_Project_Documents/ui_surface_blueprint.md` — UI surfaces, roles, and workspace expectations.
 7. `00_Project_Documents/architecture_specification.md` — system architecture and integration boundaries.
+8. `00_Project_Documents/business-evidence/` — client workflow, sample document, terminology, and data-shape evidence for clarification only.
 
 Do not use obsolete working notes or missing `docs/agents/*` links as authority.
 
@@ -29,8 +30,9 @@ Do not use obsolete working notes or missing `docs/agents/*` links as authority.
 3. Read `TALA-Rescue-Next-Steps.md` to identify the authorized issue and next boundary.
 4. Read `TALA-Local-Linear-Sync-Tracker.md` only for issue numbering and synchronization state.
 5. Read the relevant PRD modules, UI blueprint, and architecture specification.
-6. Inspect migrations, models, services, policies, routes, Filament surfaces, and tests as implementation evidence.
-7. Define the slice contract and decide research, delegation, implementation, verification, and handoff only after completing this intake.
+6. Read relevant business-evidence files only when they can clarify the slice's workflow, terminology, document format, or realistic data shape.
+7. Inspect migrations, models, services, policies, routes, Filament surfaces, and tests as implementation evidence.
+8. Define the slice contract and decide research, delegation, implementation, verification, and handoff only after completing this intake.
 
 Use ownership to resolve apparent conflicts:
 
@@ -38,10 +40,11 @@ Use ownership to resolve apparent conflicts:
 2. PRD modules control product behavior and MVP boundaries.
 3. The UI blueprint controls role and surface mapping while remaining subordinate to product behavior.
 4. The architecture specification controls system and integration boundaries.
-5. This protocol controls orchestration and verification.
-6. Next Steps controls task order.
-7. The local tracker records synchronization state only.
-8. Existing code and tests are salvage evidence, not higher authority.
+5. Business evidence clarifies client context; it is not a requirements document and does not expand MVP by itself.
+6. This protocol controls orchestration and verification.
+7. Next Steps controls task order.
+8. The local tracker records synchronization state only.
+9. Existing code and tests are salvage evidence, not higher authority.
 
 If applicable authorities still conflict, stop and reconcile the conflict in the primary thread before implementation.
 
@@ -57,13 +60,19 @@ After activation, complete the intake chain before implementation, delegation, t
 4. Whether work should stay in the primary thread or use one explicitly authorized accountable task worker.
 5. A concise proposed slice plan and explicit exclusions.
 
+Resume checkpoint: after conversation compaction, interruption, rejected worker output, failed/unclear thread handoff, or stale state, do not continue from memory alone. Re-state the current issue, accepted plan, authority evidence checked or missing, exclusions, dirty-worktree state, verification state, and next action before implementation, cleanup, tracker movement, or commit.
+
 The primary thread owns first-pass planning. It may inspect files, run read-only discovery, and research unclear items to prepare the plan, but it must not implement, delegate, update trackers, or commit until the user accepts the plan. Exception: a small docs-only protocol correction explicitly requested by the user may be applied directly.
 
-Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
+Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, relevant business-evidence context, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
 
 Each primary plan must include a workflow/UI fit review. Compare the approved PRD and blueprint intent with the current implementation, native Filament v5 capability, installed packages, qualified plugin options, and focused custom code. Use the official Filament plugin directory and Awesome Filament catalog as discovery sources, not automatic authority. A plugin is recommended only when it solves a real slice gap and is safer or faster than native Filament after checking version compatibility, maintenance, license/security, dependency weight, routes/migrations/config, authorization, tests, upgrade/removal cost, and whether domain rules can stay in TALA services/actions/policies/models.
 
+Every retained UI surface must have a plain-purpose statement before acceptance: who uses it, what it is for, whether it is read-only or editable, what workflow/action/decision it supports, and why it belongs in MVP. If the purpose cannot be explained plainly, the surface must be renamed, hidden, deferred, redesigned, or tied to its owning module before the slice is accepted.
+
 Simplification means purposeful scope, not feature deletion or feature presence for its own sake. A slice should retain, add, revise, or defer a feature only when the decision supports a real school workflow, inter-department handoff, future CP-SAT or payment integration dependency, user-facing usability need, audit/control requirement, or maintainability requirement. Hybrid manual/digital workflows are preferred when they keep the system credible and useful without encoding unnecessary institutional complexity. Local Philippine campus/SIS benchmarks should be used when workflow familiarity or policy credibility is unclear, but benchmarks do not justify copying broad enterprise complexity into the MVP.
+
+Business evidence arbitration: use `business-evidence/` to understand the client's current forms, sample records, terms, and office handoffs, not as a direct build list. Exclude Senior High School-only material unless the same pattern is proven applicable to college workflows. When business evidence conflicts with mature SIS benchmarks or would bloat the MVP, prefer the PRD-approved scope plus benchmark/native-framework implementation pattern, then surface the conflict as a clarification or client-validation item. Mature benchmarks and official docs guide how to implement; business evidence clarifies what the client's current environment looks like.
 
 Within the activated session:
 
@@ -86,9 +95,11 @@ Before planning or implementing a slice, read:
 2. Relevant PRD module files
 3. `00_Project_Documents/ui_surface_blueprint.md`
 4. `00_Project_Documents/architecture_specification.md`
-5. Current migrations, models, policies, routes, Filament resources, and tests
+5. Relevant `00_Project_Documents/business-evidence/` files when they clarify workflow, terminology, document shape, or realistic data examples
+6. Current migrations, models, policies, routes, Filament resources, and tests
 
 Existing code is salvage inventory. It is useful evidence, but it does not override the approved PRD or architecture.
+Business evidence is context inventory. It is useful for realism and client-fit, but it does not override the approved PRD, architecture, framework best practices, or an MVP-fit benchmark decision.
 
 ## Vertical Slice Workflow
 
@@ -101,16 +112,17 @@ Each slice must:
 3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for the slice's workflow/UI needs.
 4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-6. Present the slice contract, purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
+6. Present the slice contract, purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, retained-surface purpose statements, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
 7. Wait for user acceptance before implementation or worker handoff.
 8. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
 9. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
 10. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-11. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
-12. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
-13. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
-14. After explicit Linear synchronization, move the tracker row to compact synced history.
-15. Patch user-reported defects inside the current slice before starting the next slice.
+11. Before cleanup or commit, run a pre-cleanup acceptance audit: authority alignment, accepted scope, retained-surface purpose, exclusions preserved, verification results, dirty state, and next boundary. Passing tests without this audit is not acceptance.
+12. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
+13. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
+14. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
+15. After explicit Linear synchronization, move the tracker row to compact synced history.
+16. Patch user-reported defects inside the current slice before starting the next slice.
 
 If a slice is too large to verify properly, split it during primary planning before implementation.
 
@@ -171,6 +183,12 @@ Use a separate Codex thread only when the user explicitly asks for orchestration
 
 For ordinary work, the primary thread may proceed directly.
 
+The primary thread owns planning. A worker owns execution of an accepted checklist. A worker is not a second primary orchestrator and must not re-plan the product direction unless the handoff explicitly scopes a research or planning task.
+
+For major TAL implementation or research slices, prefer an inspectable visible Codex worker thread when the user explicitly authorizes creating one and the thread tool is available. Internal sub-agents are acceptable for bounded helper work or when no visible-thread tool is available, but they must follow the same accountable-worker contract and final handshake. Do not let an internal helper replace the accepted primary plan.
+
+Use minimal worker context by default. Do not pass the full conversation unless the task genuinely requires it. The handoff should contain only the task ID, accepted plan, authority files, exact surfaces/files to inspect, allowed changes, exclusions, verification requirements, and handshake format.
+
 For delegated work:
 
 1. Keep each task owned by the primary plus one accountable task worker unless the primary explicitly approves more accountable workers.
@@ -179,6 +197,8 @@ For delegated work:
 4. Workers must preserve unrelated worktree changes.
 5. Workers must not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped.
 6. Workers must stop and give user instructions when external dashboards, credentials, approvals, or environment-specific setup are required.
+7. Workers must stop as `BLOCKED` if the accepted checklist, current issue, or allowed scope is unclear.
+8. Workers must not return monitoring/status filler as a completion result. A non-handshake result is rejected by the primary and does not authorize verification, cleanup, tracker movement, or commit.
 
 The accountable task worker may use helper sub-agents when useful. It still owns coordination, verification, and one final handshake to the primary. The primary accepts the accountable worker's combined result, not scattered helper outputs.
 
