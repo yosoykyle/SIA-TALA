@@ -41,6 +41,34 @@ class CalendarEvent extends Model
 
     public const ProcessMasterSchedule = 'master_schedule';
 
+    public const ProcessTermPlanning = 'term_planning';
+
+    public const ProcessRegularOfferingPreparation = 'regular_offering_preparation';
+
+    public const ProcessSpecialOfferingRequest = 'special_offering_request';
+
+    public const ProcessSpecialOfferingApproval = 'special_offering_approval';
+
+    public const ProcessScheduling = 'scheduling';
+
+    public const ProcessScheduleReviewPublication = 'schedule_review_publication';
+
+    public const ProcessEnrollment = 'enrollment';
+
+    public const ProcessAddDropAdjustment = 'add_drop_adjustment';
+
+    public const ProcessClasses = 'classes';
+
+    public const ProcessExaminations = 'examinations';
+
+    public const ProcessGradeEncoding = 'grade_encoding';
+
+    public const ProcessLateGradeEncodingAuthorization = 'late_grade_encoding_authorization';
+
+    public const ProcessGradeFinalization = 'grade_finalization';
+
+    public const ProcessIncCompletionRemoval = 'inc_completion_removal';
+
     /**
      * @var list<string>
      */
@@ -103,6 +131,29 @@ class CalendarEvent extends Model
     /**
      * @return array<string, string>
      */
+    public static function academicCalendarWindowProcessOptions(): array
+    {
+        return [
+            self::ProcessTermPlanning => 'Term Planning',
+            self::ProcessRegularOfferingPreparation => 'Regular Offering Preparation',
+            self::ProcessSpecialOfferingRequest => 'Special Offering Request',
+            self::ProcessSpecialOfferingApproval => 'Special Offering Approval',
+            self::ProcessScheduling => 'Scheduling',
+            self::ProcessScheduleReviewPublication => 'Schedule Review and Publication',
+            self::ProcessEnrollment => 'Enrollment',
+            self::ProcessAddDropAdjustment => 'Add / Drop / Adjustment',
+            self::ProcessClasses => 'Classes',
+            self::ProcessExaminations => 'Examination Periods',
+            self::ProcessGradeEncoding => 'Grade Encoding',
+            self::ProcessLateGradeEncodingAuthorization => 'Late Grade Encoding Authorization',
+            self::ProcessGradeFinalization => 'Grade Finalization',
+            self::ProcessIncCompletionRemoval => 'INC Completion / Removal',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
     public static function stateOptions(): array
     {
         return [
@@ -133,6 +184,37 @@ class CalendarEvent extends Model
             ->whereNotNull('ends_at');
     }
 
+    /**
+     * @param  Builder<CalendarEvent>  $query
+     * @return Builder<CalendarEvent>
+     */
+    public function scopeAcademicCalendarWindows(Builder $query): Builder
+    {
+        return $query
+            ->where('event_type', self::TypeWindow)
+            ->where('scope_type', self::ScopeInstitution)
+            ->where('blocks_scheduling', false)
+            ->whereNotNull('process_key')
+            ->whereNotNull('start_at')
+            ->whereNotNull('end_at')
+            ->whereNull('day_of_week')
+            ->whereNull('starts_at')
+            ->whereNull('ends_at');
+    }
+
+    public function isAcademicCalendarWindow(): bool
+    {
+        return $this->event_type === self::TypeWindow
+            && $this->scope_type === self::ScopeInstitution
+            && ! $this->blocks_scheduling
+            && $this->process_key !== null
+            && $this->start_at !== null
+            && $this->end_at !== null
+            && $this->day_of_week === null
+            && $this->starts_at === null
+            && $this->ends_at === null;
+    }
+
     public function isFacultyOwnedBy(User $user): bool
     {
         return $this->state === self::StateActive
@@ -152,6 +234,8 @@ class CalendarEvent extends Model
                 'room_id',
                 'faculty_user_id',
                 'process_key',
+                'start_at',
+                'end_at',
                 'day_of_week',
                 'starts_at',
                 'ends_at',

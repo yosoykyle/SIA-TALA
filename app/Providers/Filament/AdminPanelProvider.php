@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\ReportsAudit;
+use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
@@ -95,6 +96,7 @@ class AdminPanelProvider extends PanelProvider
                 CurriculumVersionResource::class,
                 AcademicYearResource::class,
                 TermResource::class,
+                AcademicCalendarWindowResource::class,
                 CalendarEventResource::class,
                 TermOfferingResource::class,
                 GradeRosterResource::class,

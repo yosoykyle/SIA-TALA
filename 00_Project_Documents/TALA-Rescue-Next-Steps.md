@@ -76,7 +76,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-82 | In Progress | Academic Setup and Calendar Acceptance: continue remaining curriculum, course specification, component, grade-outcome policy input, calendar-window, and import-template acceptance after the accepted core Program, Academic Year, Term, and Scheduling Block surface cleanup. |
+| TAL-82 | In Progress | Academic Setup and Calendar Acceptance: continue guarded Course Specification and Curriculum import-template acceptance after the accepted core surfaces, curriculum/course catalog, and academic calendar-window cleanup. |
 | TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
@@ -94,4 +94,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next primary planning boundary is the remaining TAL-82 Academic Setup and Calendar Acceptance work after TAL-82B cleanup: calendar/term-window behavior, grade-outcome policy inputs, and guarded import-template acceptance. The primary must resurface a small evidence-backed slice plan before implementation. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next primary planning boundary is TAL-82D: guarded Course Specification and Curriculum import-template acceptance. The primary must resurface a small evidence-backed slice plan before implementation, including PRD/template validation, current ImportBatch and import-service salvage review, native Filament/Laravel Excel fit, and explicit exclusions. Do not begin admissions handover, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.

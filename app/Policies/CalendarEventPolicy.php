@@ -24,6 +24,10 @@ class CalendarEventPolicy
      */
     public function view(User $user, CalendarEvent $calendarEvent): bool
     {
+        if ($calendarEvent->isAcademicCalendarWindow()) {
+            return $this->viewAcademicCalendarWindow($user, $calendarEvent);
+        }
+
         if (! $this->isRecurringSchedulingBlock($calendarEvent)) {
             return false;
         }
@@ -52,6 +56,10 @@ class CalendarEventPolicy
      */
     public function update(User $user, CalendarEvent $calendarEvent): bool
     {
+        if ($calendarEvent->isAcademicCalendarWindow()) {
+            return $this->updateAcademicCalendarWindow($user, $calendarEvent);
+        }
+
         return $this->view($user, $calendarEvent);
     }
 
@@ -77,6 +85,31 @@ class CalendarEventPolicy
     public function forceDelete(User $user, CalendarEvent $calendarEvent): bool
     {
         return false;
+    }
+
+    public function viewAcademicCalendarWindows(User $user): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+        ]);
+    }
+
+    public function viewAcademicCalendarWindow(User $user, CalendarEvent $calendarEvent): bool
+    {
+        return $calendarEvent->isAcademicCalendarWindow()
+            && $this->viewAcademicCalendarWindows($user);
+    }
+
+    public function createAcademicCalendarWindow(User $user): bool
+    {
+        return $user->hasRole(User::StaffRoleRegistrar);
+    }
+
+    public function updateAcademicCalendarWindow(User $user, CalendarEvent $calendarEvent): bool
+    {
+        return $calendarEvent->isAcademicCalendarWindow()
+            && $user->hasRole(User::StaffRoleRegistrar);
     }
 
     private function isRecurringSchedulingBlock(CalendarEvent $calendarEvent): bool

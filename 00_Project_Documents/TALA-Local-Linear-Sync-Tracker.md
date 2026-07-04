@@ -20,6 +20,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-81 | Done locally; pending explicit Linear sync | Identity, Access, Workspace, and Admin Baseline Acceptance |
 | TAL-82A | Done locally; pending explicit Linear sync | Academic Setup Core Surfaces Acceptance |
 | TAL-82B | Done locally; pending explicit Linear sync | Academic Setup Curriculum and Course Catalog Acceptance |
+| TAL-82C | Done locally; pending explicit Linear sync | Academic Calendar Windows and Grade Window Inputs Acceptance |
 
 ## Compact Synced History
 

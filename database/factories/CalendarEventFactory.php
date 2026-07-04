@@ -26,7 +26,7 @@ class CalendarEventFactory extends Factory
             'scope_type' => CalendarEvent::ScopeInstitution,
             'room_id' => null,
             'faculty_user_id' => null,
-            'process_key' => 'term_planning',
+            'process_key' => CalendarEvent::ProcessTermPlanning,
             'start_at' => $startAt,
             'end_at' => $startAt->copy()->addDays(5),
             'day_of_week' => null,
