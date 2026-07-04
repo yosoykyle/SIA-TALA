@@ -71,7 +71,8 @@ class ChecklistItemsRelationManager extends RelationManager
                 TextColumn::make('reviewed_at')
                     ->dateTime()
                     ->sortable(),
-                TextColumn::make('notes')
+                TextColumn::make('waiver_reason')
+                    ->label('Review Notes')
                     ->placeholder('-')
                     ->limit(50),
             ])
@@ -116,7 +117,7 @@ class ChecklistItemsRelationManager extends RelationManager
                             'verification_status' => ChecklistItem::VerificationRejected,
                             'reviewed_by' => auth()->id(),
                             'reviewed_at' => Carbon::now(),
-                            'notes' => $data['notes'],
+                            'waiver_reason' => $data['notes'],
                         ]);
 
                         Notification::make()

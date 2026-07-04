@@ -75,6 +75,6 @@ class HoldPolicy
 
     public function waive(User $user, Hold $hold): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAccounting, User::StaffRoleSystemSuperAdmin]);
+        return Hold::officeOwnsType($user, (string) $hold->hold_type);
     }
 }

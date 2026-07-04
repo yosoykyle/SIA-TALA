@@ -37,7 +37,14 @@ class LifecycleView extends Page implements HasTable
                 TextColumn::make('term.label')->label('Term'),
                 TextColumn::make('effective_on')->date(),
                 TextColumn::make('state')->badge(),
-                TextColumn::make('reason')->wrap(),
+                TextColumn::make('student_summary')
+                    ->label('Summary')
+                    ->state(fn (StudentLifecycleChange $record): string => sprintf(
+                        '%s recorded effective %s.',
+                        str((string) $record->type)->headline()->toString(),
+                        $record->effective_on->toFormattedDateString(),
+                    ))
+                    ->wrap(),
             ])->defaultSort('effective_on', 'desc')
             ->emptyStateHeading('No recorded lifecycle changes');
     }

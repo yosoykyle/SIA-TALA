@@ -13,6 +13,7 @@ use App\Models\Hold;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
@@ -103,6 +104,71 @@ final class HoldEvaluationServiceTest extends TestCase
         $expiring = Hold::factory()->create(['student_profile_id' => $profile->id, 'expires_at' => now()->subSecond()]);
         app(ExpireHold::class)->execute($expiring);
         $this->assertSame(Hold::StatusExpired, $expiring->fresh()->status);
+    }
+
+    #[Test]
+    public function waiver_authorization_respects_hold_type_office_ownership(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $academicHead = $this->staff(User::StaffRoleAcademicHead);
+
+        $financial = Hold::factory()->create([
+            'student_profile_id' => $profile->id,
+            'hold_type' => Hold::TypeFinancial,
+            'blocking_level' => Hold::BlockingEnrollment,
+        ]);
+        $documentary = Hold::factory()->create([
+            'student_profile_id' => $profile->id,
+            'hold_type' => Hold::TypeDocumentary,
+            'blocking_level' => Hold::BlockingRecordRelease,
+        ]);
+        $prerequisite = Hold::factory()->create([
+            'student_profile_id' => $profile->id,
+            'hold_type' => Hold::TypePrerequisite,
+            'blocking_level' => Hold::BlockingEnrollment,
+        ]);
+
+        $this->assertTrue($accounting->can('waive', $financial));
+        $this->assertFalse($accounting->can('waive', $documentary));
+        $this->assertTrue($registrar->can('waive', $documentary));
+        $this->assertTrue($academicHead->can('waive', $prerequisite));
+
+        try {
+            app(WaiveHold::class)->execute($documentary, $accounting, 'Accounting Director', 'Attempted unrelated waiver.');
+            $this->fail('Accounting must not waive a Registrar-owned hold.');
+        } catch (AuthorizationException) {
+            $this->assertSame(Hold::StatusActive, $documentary->fresh()->status);
+        }
+
+        app(WaiveHold::class)->execute($prerequisite, $academicHead, 'Academic Head', 'Approved prerequisite exception.');
+        $this->assertSame(Hold::StatusWaived, $prerequisite->fresh()->status);
+        $this->assertSame($academicHead->id, $prerequisite->fresh()->waived_by);
+    }
+
+    #[Test]
+    public function student_facing_message_never_falls_back_to_private_staff_reason(): void
+    {
+        $hold = Hold::factory()->make([
+            'hold_type' => Hold::TypeFinancial,
+            'reason' => 'Staff-only ledger investigation detail.',
+            'staff_only_reason' => 'Internal reconciliation note.',
+            'student_message' => null,
+            'resolution_requirement' => null,
+        ]);
+
+        $this->assertSame(
+            'Please contact the Accounting Office for the next step to clear this hold.',
+            $hold->studentFacingMessage(),
+        );
+
+        $hold->resolution_requirement = 'Please settle the verified balance or coordinate an approved accommodation.';
+
+        $this->assertSame(
+            'Please settle the verified balance or coordinate an approved accommodation.',
+            $hold->studentFacingMessage(),
+        );
     }
 
     private function staff(string $role): User

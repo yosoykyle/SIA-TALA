@@ -127,7 +127,7 @@ Flow:
 10. A draft assessment is generated from the reserved subjects and sections; activation requires the active exact Program-and-Term downpayment rule.
 11. Required payment or downpayment is posted to the ledger, or an active Financial Accommodation explicitly allows enrollment for the covered term.
 12. TALA rechecks the remaining enrollment gates.
-13. Enrollment becomes official. TALA automatically transitions the student status to "Officially Enrolled" once every required gate passes, including the Finance Gate.
+13. Enrollment becomes official. TALA transitions the term-specific Enrollment Status to `Officially Enrolled` once every required gate passes, including the Finance Gate.
 14. Student Hub enrollment visibility is enabled.
 15. COR becomes available for viewing and printing if no blocking hold exists.
 

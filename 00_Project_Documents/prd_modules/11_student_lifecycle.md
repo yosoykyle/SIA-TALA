@@ -15,20 +15,21 @@ Student state must be separated into:
 
 Only one should be current at a time.
 
-Allowed values:
+Student lifecycle status starts after applicant-to-student handover. Applicant intake, approval, and handover states remain in the Admissions domain until an official Student Profile is activated.
 
-1. Applicant
-2. Approved for Handover
-3. Active
-4. Leave of Absence
-5. Dropped
-6. Withdrawn
-7. Inactive
-8. Archived
-9. Reactivation Pending
-10. Transferred Out
-11. Completed / Graduated
-12. Closed
+Allowed values for the student lifecycle foundation:
+
+1. Active
+2. Leave of Absence
+3. Dropped
+4. Withdrawn
+5. Inactive
+6. Archived
+7. Reactivation Pending
+8. Transferred Out
+9. Closed
+
+Completed / Graduated is a completion and graduation-review outcome controlled by the graduation/completion workflow. It is not part of the TAL-84 holds and lifecycle foundation acceptance slice.
 
 `Dropped` is reserved for an institution-directed termination of active study under approved policy. A student-approved exit from all current-term subjects uses `Withdrawn`. A Subject Drop is recorded against the affected subject enrollment and does not by itself change the primary lifecycle status.
 
@@ -248,12 +249,14 @@ Rules:
 5. If an irregular student's remaining requirements are all completed, credited, currently enrolled, or cleared by approved source records, the student may become Ready for Registrar Review.
 6. Graduation Eligibility Snapshot visibility defaults to staff-only. Registrar may expose a simplified student-facing view when institution policy allows it.
 
-#### 11.3.2 Account Reactivation
+#### 11.3.2 Financial Holds and Account Reactivation
 
-1. If a student leaves the institution with an outstanding balance at the end of an academic year, their primary status is set to `Archived`.
-2. This archival automatically creates a `Financial Hold` on their profile with blocking level `Blocks Enrollment`.
-3. To reactivate the account, the student must either pay the outstanding debt in full or have an active Financial Accommodation that explicitly allows reactivation or next-term enrollment.
-4. Once the `Financial Hold` is resolved, the Registrar clicks a single "Reactivate" button to return the student's primary status to `Active`, allowing them to enlist.
+1. Unpaid balance or debt does not automatically archive a student.
+2. Primary lifecycle changes such as `Inactive`, `Archived`, `Transferred Out`, or `Closed` require an authorized recorded lifecycle result or another owning workflow, such as duplicate-profile resolution.
+3. Accounting records explicit `Financial Hold` rows for unpaid balance, clearance, record-release, reactivation, or next-term enrollment restrictions when those restrictions are authorized by policy and applicable law.
+4. A Financial Hold states the blocked workflow, student-facing resolution requirement, responsible office, and audit trail. It does not waive, resolve, or replace academic, documentary, disciplinary, Registrar, or Academic Head holds.
+5. To reactivate an eligible student account, the applicable lifecycle status must be cleared by Registrar authority and any finance blocker must be resolved, waived by its owning office, or covered by an active Financial Accommodation effect that explicitly allows reactivation or next-term enrollment.
+6. Registrar records the approved reactivation result to return the primary lifecycle status to `Active`. Reactivation does not create enrollment, reserve a seat, or assign a schedule.
 
 ---
 

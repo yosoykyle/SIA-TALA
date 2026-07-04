@@ -129,7 +129,7 @@ class Hold extends Model
 
     public function studentFacingMessage(): ?string
     {
-        foreach (['student_message', 'resolution_requirement', 'reason'] as $attribute) {
+        foreach (['student_message', 'resolution_requirement'] as $attribute) {
             $message = $this->getAttribute($attribute);
 
             if (is_string($message) && filled($message)) {
@@ -137,6 +137,35 @@ class Hold extends Model
             }
         }
 
-        return null;
+        return sprintf(
+            'Please contact the %s for the next step to clear this hold.',
+            $this->studentFacingOfficeLabel(),
+        );
+    }
+
+    public function studentFacingOfficeLabel(): string
+    {
+        return match ($this->hold_type) {
+            self::TypeFinancial => 'Accounting Office',
+            self::TypeAcademicDeficit, self::TypePrerequisite => 'Academic Head Office',
+            default => 'Registrar Office',
+        };
+    }
+
+    public static function officeOwnsType(User $actor, string $holdType): bool
+    {
+        if ($actor->hasRole(User::StaffRoleSystemSuperAdmin)) {
+            return true;
+        }
+
+        if ($holdType === self::TypeFinancial) {
+            return $actor->hasRole(User::StaffRoleAccounting);
+        }
+
+        if (in_array($holdType, [self::TypeAcademicDeficit, self::TypePrerequisite], true)) {
+            return $actor->hasAnyRole([User::StaffRoleAcademicHead, User::StaffRoleRegistrar]);
+        }
+
+        return $actor->hasRole(User::StaffRoleRegistrar);
     }
 }

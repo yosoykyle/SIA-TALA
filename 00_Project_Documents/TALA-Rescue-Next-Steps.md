@@ -92,6 +92,17 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
+### TAL-84 Sub-slice Map
+
+Parent issue: Holds and Student Lifecycle Foundation Acceptance.
+
+| Sub-slice | Status | Purpose | Next Boundary |
+| --- | --- | --- | --- |
+| TAL-84A | Done locally; pending explicit Linear sync | Holds and lifecycle-status contract: debt uses explicit financial holds, applicant states stay in Admissions, student-facing hold/lifecycle messaging is safe, and waiver ownership follows office responsibility. | Cleanup complete; wait for explicit Linear sync only. |
+| TAL-84B | Next | Core lifecycle recorded results: validate Active/LOA/Withdrawn/Transferred Out/Inactive/Archived/Reactivation effects, staff recording rules, student-safe visibility, and downstream gate inputs. | Primary planning before implementation. |
+| TAL-84C | Planned | Program-shift credit evaluation: validate future-term program shift, target curriculum, credit checklist, and dependent enrollment/progression effects. | Start only after TAL-84B acceptance. |
+| TAL-84D | Planned | Academic standing and student unit-load exceptions: separate student load policy from faculty load, validate exception authority, and align enrollment gate consumers. | Start only after TAL-84C acceptance. |
+
 ### Next Boundary
 
-Next primary planning boundary is TAL-84: Holds and Student Lifecycle Foundation Acceptance. The primary must inspect the owning PRD and related lifecycle, enrollment, finance, COR, and Student Hub contracts; compare them with the clean schema and current implementation; then propose small evidence-backed sub-slices before implementation. Do not begin TAL-85, CP-SAT, or PayMongo hardening until TAL-84 is accepted.
+Next primary planning boundary is TAL-84B: Core lifecycle recorded results. The primary must inspect the owning PRD and related lifecycle, enrollment, finance, COR, and Student Hub contracts; compare them with the clean schema and current implementation; then propose an evidence-backed slice plan before implementation. Do not begin TAL-85, CP-SAT, or PayMongo hardening until all TAL-84 sub-slices are accepted.

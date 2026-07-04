@@ -48,8 +48,9 @@ class HoldsView extends Page implements HasTable
                     ->badge()
                     ->color('warning')
                     ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                TextColumn::make('student_message')
+                TextColumn::make('required_action')
                     ->label('Required Action')
+                    ->state(fn (Hold $record): string => $record->studentFacingMessage())
                     ->wrap(),
                 TextColumn::make('effective_at')
                     ->label('Effective Date')

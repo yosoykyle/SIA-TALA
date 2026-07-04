@@ -37,16 +37,6 @@ class CreateHold
 
     private function ownsType(User $actor, string $holdType): bool
     {
-        if ($actor->hasRole(User::StaffRoleSystemSuperAdmin)) {
-            return true;
-        }
-        if ($holdType === Hold::TypeFinancial) {
-            return $actor->hasRole(User::StaffRoleAccounting);
-        }
-        if (in_array($holdType, [Hold::TypeAcademicDeficit, Hold::TypePrerequisite], true)) {
-            return $actor->hasAnyRole([User::StaffRoleAcademicHead, User::StaffRoleRegistrar]);
-        }
-
-        return $actor->hasRole(User::StaffRoleRegistrar);
+        return Hold::officeOwnsType($actor, $holdType);
     }
 }

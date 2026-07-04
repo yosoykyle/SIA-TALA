@@ -12,15 +12,20 @@ class WaiveHold
 {
     public function execute(Hold $hold, User $actor, string $authority, string $reason): Hold
     {
-        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAccounting, User::StaffRoleSystemSuperAdmin])) {
-            throw new AuthorizationException('The current user cannot waive holds.');
+        if (! Hold::officeOwnsType($actor, (string) $hold->hold_type)) {
+            throw new AuthorizationException('The current office cannot waive this hold.');
         }
+
         if (blank($authority) || blank($reason)) {
             throw new RuntimeException('Waiver authority and reason are required.');
         }
 
         return DB::transaction(function () use ($hold, $actor, $authority, $reason): Hold {
             $locked = Hold::query()->lockForUpdate()->findOrFail($hold->id);
+            if (! Hold::officeOwnsType($actor, (string) $locked->hold_type)) {
+                throw new AuthorizationException('The current office cannot waive this hold.');
+            }
+
             if ($locked->status !== Hold::StatusActive) {
                 return $locked;
             }
