@@ -82,7 +82,7 @@ class ImportBatch extends Model
     public static function statusOptions(): array
     {
         return [
-            self::StatePendingReview => 'Pending Review',
+            self::StatePendingReview => 'Preview Ready',
             self::StatePosted => 'Posted',
             self::StateCancelled => 'Cancelled',
         ];
@@ -94,9 +94,9 @@ class ImportBatch extends Model
     public static function statusColors(): array
     {
         return [
-            'warning' => self::StatePendingReview,
-            'success' => self::StatePosted,
-            'gray' => self::StateCancelled,
+            self::StatePendingReview => 'warning',
+            self::StatePosted => 'success',
+            self::StateCancelled => 'gray',
         ];
     }
 

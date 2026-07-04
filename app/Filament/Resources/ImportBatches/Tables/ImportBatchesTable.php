@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ImportBatches\Tables;
 
 use App\Actions\Imports\ImportBatchLifecycleService;
+use App\Filament\Resources\ImportBatches\ImportBatchDownloadActions;
 use App\Models\ImportBatch;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -19,35 +20,36 @@ class ImportBatchesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['importer', 'committer']))
+            ->modifyQueryUsing(fn ($query) => $query->with('uploader'))
             ->columns([
-                TextColumn::make('import_type')
+                TextColumn::make('type')
                     ->badge()
+                    ->formatStateUsing(fn (?string $state): string => ImportBatch::importTypeOptions()[$state] ?? str((string) $state)->headline()->toString())
                     ->searchable(),
-                TextColumn::make('file_name')
-                    ->searchable(),
-                TextColumn::make('status')
+                TextColumn::make('template_version')
+                    ->searchable()
+                    ->toggleable(),
+                TextColumn::make('state')
                     ->badge()
-                    ->colors(ImportBatch::statusColors()),
-                TextColumn::make('total_rows')
+                    ->color(fn (?string $state): string => ImportBatch::statusColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn (?string $state): string => ImportBatch::statusOptions()[$state] ?? str((string) $state)->headline()->toString()),
+                TextColumn::make('row_count')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('valid_rows')
+                TextColumn::make('error_count')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('error_rows')
+                TextColumn::make('warning_count')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('skipped_rows')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('importer.name')
+                TextColumn::make('uploader.name')
                     ->label('Uploaded By')
                     ->placeholder('-'),
-                TextColumn::make('committer.name')
-                    ->label('Committed By')
+                TextColumn::make('acknowledged_at')
+                    ->dateTime()
+                    ->sortable()
                     ->placeholder('-'),
-                TextColumn::make('committed_at')
+                TextColumn::make('posted_at')
                     ->dateTime()
                     ->sortable()
                     ->placeholder('-'),
@@ -57,31 +59,50 @@ class ImportBatchesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('import_type')
+                SelectFilter::make('type')
                     ->options(ImportBatch::importTypeOptions()),
-                SelectFilter::make('status')
+                SelectFilter::make('state')
                     ->options(ImportBatch::statusOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
-                self::commitAction(),
+                ImportBatchDownloadActions::validationFindings(),
+                ImportBatchDownloadActions::source(),
+                self::acknowledgeWarningsAction(),
+                self::postAction(),
                 self::cancelAction(),
             ])
             ->toolbarActions([]);
     }
 
-    private static function commitAction(): Action
+    private static function acknowledgeWarningsAction(): Action
     {
-        return Action::make('commit')
-            ->label('Commit')
+        return Action::make('acknowledgeWarnings')
+            ->label('Acknowledge warnings')
+            ->icon(Heroicon::OutlinedCheckCircle)
+            ->color('warning')
+            ->requiresConfirmation()
+            ->authorize('update')
+            ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
+                && $record->isPendingReview()
+                && (int) $record->warning_count > 0
+                && $record->acknowledged_at === null)
+            ->action(fn (ImportBatch $record) => self::transition($record, 'acknowledgeWarnings', 'Import warnings acknowledged'));
+    }
+
+    private static function postAction(): Action
+    {
+        return Action::make('post')
+            ->label('Create Draft records')
             ->icon(Heroicon::OutlinedArrowUpTray)
             ->color('success')
             ->requiresConfirmation()
+            ->authorize('update')
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
                 && $record->isPendingReview()
-                && $record->import_type === ImportBatch::TypeCurriculum
-                && (int) $record->error_rows === 0)
-            ->action(fn (ImportBatch $record) => self::commit($record));
+                && (int) $record->error_count === 0
+                && ((int) $record->warning_count === 0 || $record->acknowledged_at !== null))
+            ->action(fn (ImportBatch $record) => self::transition($record, 'post', 'Draft records created'));
     }
 
     private static function cancelAction(): Action
@@ -91,19 +112,10 @@ class ImportBatchesTable
             ->icon(Heroicon::OutlinedXCircle)
             ->color('gray')
             ->requiresConfirmation()
+            ->authorize('update')
             ->visible(fn (ImportBatch $record): bool => self::registrarCanManageImports()
                 && $record->isPendingReview())
-            ->action(fn (ImportBatch $record) => self::cancel($record));
-    }
-
-    private static function commit(ImportBatch $record): void
-    {
-        self::transition($record, 'commit', 'Import batch committed');
-    }
-
-    private static function cancel(ImportBatch $record): void
-    {
-        self::transition($record, 'cancel', 'Import batch cancelled');
+            ->action(fn (ImportBatch $record) => self::transition($record, 'cancel', 'Import batch cancelled'));
     }
 
     private static function transition(ImportBatch $record, string $method, string $successTitle): void
@@ -132,10 +144,6 @@ class ImportBatchesTable
 
     private static function registrarCanManageImports(): bool
     {
-        $user = auth()->user();
-
-        return ($user?->can('manage-curricula') ?? false)
-            || ($user?->can('manage-schedules') ?? false)
-            || ($user?->can('evaluate-transferees') ?? false);
+        return auth()->user()?->can('manage', ImportBatch::class) ?? false;
     }
 }

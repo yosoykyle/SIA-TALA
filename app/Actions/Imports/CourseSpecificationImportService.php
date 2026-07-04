@@ -5,7 +5,7 @@ namespace App\Actions\Imports;
 use App\Models\ImportBatch;
 use App\Models\User;
 
-class CurriculumImportService
+class CourseSpecificationImportService
 {
     public function __construct(private readonly AcademicImportService $academicImportService) {}
 
@@ -14,16 +14,11 @@ class CurriculumImportService
      */
     public static function uploadContract(): array
     {
-        return AcademicImportService::uploadContract(ImportBatch::TypeCurriculum);
+        return AcademicImportService::uploadContract(ImportBatch::TypeCourseSpecification);
     }
 
     public function createPreview(string $filePath, string $fileName, User $actor): ImportBatch
     {
-        return $this->academicImportService->createPreview(ImportBatch::TypeCurriculum, $filePath, $actor);
-    }
-
-    public function commit(ImportBatch $importBatch, User $actor): ImportBatch
-    {
-        return $this->academicImportService->post($importBatch, $actor);
+        return $this->academicImportService->createPreview(ImportBatch::TypeCourseSpecification, $filePath, $actor);
     }
 }

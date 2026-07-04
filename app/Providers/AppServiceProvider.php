@@ -21,6 +21,7 @@ use App\Models\CurriculumSubject;
 use App\Models\CurriculumVersion;
 use App\Models\DeliveryPattern;
 use App\Models\FeeRule;
+use App\Models\ImportBatch;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
@@ -45,6 +46,7 @@ use App\Policies\CourseSpecificationPolicy;
 use App\Policies\CurriculumVersionPolicy;
 use App\Policies\DeliveryPatternPolicy;
 use App\Policies\FeeRulePolicy;
+use App\Policies\ImportBatchPolicy;
 use App\Policies\LedgerEntryPolicy;
 use App\Policies\PaymentAttemptPolicy;
 use App\Policies\PaymentPolicy;
@@ -155,6 +157,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Course::class, CoursePolicy::class);
         Gate::policy(CourseSpecification::class, CourseSpecificationPolicy::class);
         Gate::policy(CurriculumVersion::class, CurriculumVersionPolicy::class);
+        Gate::policy(ImportBatch::class, ImportBatchPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
 

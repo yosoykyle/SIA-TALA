@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources\ImportBatches\Pages;
 
+use App\Actions\Imports\AcademicImportService;
+use App\Actions\Imports\CourseSpecificationImportService;
+use App\Actions\Imports\CourseSpecificationImportTemplate;
 use App\Actions\Imports\CurriculumImportService;
 use App\Actions\Imports\CurriculumImportTemplate;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
+use App\Models\ImportBatch;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -20,42 +24,78 @@ class ListImportBatches extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('downloadCurriculumTemplate')
-                ->label('Download curriculum template')
-                ->icon(Heroicon::OutlinedArrowDownTray)
-                ->color('gray')
-                ->visible(fn (): bool => self::canManageCurriculumImports())
-                ->action(fn () => response()->streamDownload(
-                    fn () => print CurriculumImportTemplate::csv(),
-                    'tala-curriculum-import-template.csv',
-                    ['Content-Type' => 'text/csv; charset=UTF-8'],
-                )),
-            Action::make('uploadCurriculumImport')
-                ->label('Upload curriculum import')
-                ->icon(Heroicon::OutlinedArrowUpTray)
-                ->color('primary')
-                ->schema([
-                    FileUpload::make('file')
-                        ->label('Completed curriculum template')
-                        ->disk('local')
-                        ->directory('imports/curriculum/uploads')
-                        ->visibility('private')
-                        ->acceptedFileTypes(CurriculumImportService::uploadContract()['accepted_file_types'])
-                        ->maxSize(CurriculumImportService::uploadContract()['max_size_kb'])
-                        ->required()
-                        ->helperText('Upload the strict curriculum CSV/XLSX template. The system creates a preview batch; it does not commit rows until the batch has zero validation errors and is explicitly committed.'),
-                ])
-                ->modalHeading('Upload curriculum import')
-                ->modalSubmitActionLabel('Create preview')
-                ->visible(fn (): bool => self::canManageCurriculumImports())
-                ->action(fn (array $data) => $this->createPreview($data)),
+            $this->downloadTemplateAction(
+                name: 'downloadCourseSpecificationTemplate',
+                label: 'Download course spec template',
+                filename: 'tala-course-specification-import-template.csv',
+                csv: CourseSpecificationImportTemplate::csv(),
+            ),
+            $this->downloadTemplateAction(
+                name: 'downloadCurriculumTemplate',
+                label: 'Download curriculum template',
+                filename: 'tala-curriculum-import-template.csv',
+                csv: CurriculumImportTemplate::csv(),
+            ),
+            $this->uploadAction(
+                name: 'uploadCourseSpecificationImport',
+                label: 'Upload course spec import',
+                type: ImportBatch::TypeCourseSpecification,
+                directory: CourseSpecificationImportService::uploadContract()['directory'],
+            ),
+            $this->uploadAction(
+                name: 'uploadCurriculumImport',
+                label: 'Upload curriculum import',
+                type: ImportBatch::TypeCurriculum,
+                directory: CurriculumImportService::uploadContract()['directory'],
+            ),
         ];
+    }
+
+    private function downloadTemplateAction(string $name, string $label, string $filename, string $csv): Action
+    {
+        return Action::make($name)
+            ->label($label)
+            ->icon(Heroicon::OutlinedArrowDownTray)
+            ->color('gray')
+            ->authorize('manage')
+            ->visible(fn (): bool => self::canManageAcademicImports())
+            ->action(fn () => response()->streamDownload(
+                fn () => print $csv,
+                $filename,
+                ['Content-Type' => 'text/csv; charset=UTF-8'],
+            ));
+    }
+
+    private function uploadAction(string $name, string $label, string $type, string $directory): Action
+    {
+        $contract = AcademicImportService::uploadContract($type);
+
+        return Action::make($name)
+            ->label($label)
+            ->icon(Heroicon::OutlinedArrowUpTray)
+            ->color('primary')
+            ->schema([
+                FileUpload::make('file')
+                    ->label('Completed CSV template')
+                    ->disk(AcademicImportService::Disk)
+                    ->directory($directory)
+                    ->visibility('private')
+                    ->acceptedFileTypes($contract['accepted_file_types'])
+                    ->maxSize($contract['max_size_kb'])
+                    ->required()
+                    ->helperText('Upload the strict CSV template. TALA creates a preview batch first; errors block Draft creation, and warnings must be acknowledged.'),
+            ])
+            ->modalHeading($label)
+            ->modalSubmitActionLabel('Create preview')
+            ->authorize('manage')
+            ->visible(fn (): bool => self::canManageAcademicImports())
+            ->action(fn (array $data) => $this->createPreview($type, $data));
     }
 
     /**
      * @param  array<string, mixed>  $data
      */
-    private function createPreview(array $data): void
+    private function createPreview(string $type, array $data): void
     {
         $actor = auth()->user();
 
@@ -72,7 +112,7 @@ class ListImportBatches extends ListRecords
         if (! is_string($path) || blank($path)) {
             Notification::make()
                 ->title('Import upload failed')
-                ->body('No curriculum import file was uploaded.')
+                ->body('No CSV import file was uploaded.')
                 ->danger()
                 ->send();
 
@@ -80,11 +120,11 @@ class ListImportBatches extends ListRecords
         }
 
         try {
-            $batch = app(CurriculumImportService::class)->createPreview($path, basename($path), $actor);
+            $batch = app(AcademicImportService::class)->createPreview($type, $path, $actor);
 
             Notification::make()
-                ->title('Curriculum import preview created')
-                ->body("Valid rows: {$batch->valid_rows}; errors: {$batch->error_rows}.")
+                ->title('Import preview created')
+                ->body("Rows: {$batch->row_count}; errors: {$batch->error_count}; warnings: {$batch->warning_count}.")
                 ->success()
                 ->send();
         } catch (Throwable $exception) {
@@ -96,8 +136,8 @@ class ListImportBatches extends ListRecords
         }
     }
 
-    private static function canManageCurriculumImports(): bool
+    private static function canManageAcademicImports(): bool
     {
-        return auth()->user()?->can('manage-curricula') ?? false;
+        return auth()->user()?->can('manage', ImportBatch::class) ?? false;
     }
 }

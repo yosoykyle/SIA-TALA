@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\ImportBatches\Schemas;
 
 use App\Models\ImportBatch;
+use Filament\Infolists\Components\KeyValueEntry;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -18,21 +20,23 @@ class ImportBatchInfolist
                         TextEntry::make('id')
                             ->label('Batch ID')
                             ->copyable(),
-                        TextEntry::make('import_type')
+                        TextEntry::make('type')
                             ->badge()
                             ->formatStateUsing(fn (?string $state): string => ImportBatch::importTypeOptions()[$state] ?? str((string) $state)->headline()->toString()),
-                        TextEntry::make('file_name')
-                            ->label('Uploaded File'),
-                        TextEntry::make('status')
+                        TextEntry::make('template_version'),
+                        TextEntry::make('state')
                             ->badge()
+                            ->color(fn (?string $state): string => ImportBatch::statusColors()[$state] ?? 'gray')
                             ->formatStateUsing(fn (?string $state): string => ImportBatch::statusOptions()[$state] ?? str((string) $state)->headline()->toString()),
-                        TextEntry::make('importer.name')
+                        TextEntry::make('source_path')
+                            ->label('Private Source Path'),
+                        TextEntry::make('uploader.name')
                             ->label('Uploaded By')
                             ->placeholder('-'),
-                        TextEntry::make('committer.name')
-                            ->label('Committed By')
+                        TextEntry::make('acknowledged_at')
+                            ->dateTime()
                             ->placeholder('-'),
-                        TextEntry::make('committed_at')
+                        TextEntry::make('posted_at')
                             ->dateTime()
                             ->placeholder('-'),
                     ])
@@ -40,20 +44,60 @@ class ImportBatchInfolist
                     ->columnSpanFull(),
                 Section::make('Preview Summary')
                     ->schema([
-                        TextEntry::make('total_rows')
+                        TextEntry::make('row_count')
                             ->numeric(),
-                        TextEntry::make('valid_rows')
+                        TextEntry::make('error_count')
                             ->numeric(),
-                        TextEntry::make('error_rows')
+                        TextEntry::make('warning_count')
                             ->numeric(),
-                        TextEntry::make('skipped_rows')
-                            ->numeric(),
-                        TextEntry::make('preview_summary')
-                            ->label('Validation Preview')
-                            ->state(fn (ImportBatch $record): string => self::previewSummary($record))
+                    ])
+                    ->columns(3)
+                    ->columnSpanFull(),
+                Section::make('Complete Row Preview')
+                    ->description('Every populated source row is shown with its original CSV row number and values.')
+                    ->schema([
+                        RepeatableEntry::make('preview_rows')
+                            ->hiddenLabel()
+                            ->state(fn (ImportBatch $record): array => self::detailList($record, 'rows'))
+                            ->schema([
+                                TextEntry::make('row')
+                                    ->label('Source Row')
+                                    ->numeric(),
+                                TextEntry::make('status')
+                                    ->badge()
+                                    ->color(fn (?string $state): string => match ($state) {
+                                        'ERROR' => 'danger',
+                                        'WARNING' => 'warning',
+                                        'VALID' => 'success',
+                                        default => 'gray',
+                                    }),
+                                TextEntry::make('errors')
+                                    ->listWithLineBreaks()
+                                    ->bulleted()
+                                    ->placeholder('No row errors.'),
+                                TextEntry::make('warnings')
+                                    ->listWithLineBreaks()
+                                    ->bulleted()
+                                    ->placeholder('No row warnings.'),
+                                KeyValueEntry::make('values')
+                                    ->label('Source Values')
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(2)
                             ->columnSpanFull(),
                     ])
-                    ->columns(4)
+                    ->columnSpanFull(),
+                Section::make('Validation Errors')
+                    ->schema([
+                        self::findingEntry('errors', 'No validation errors.'),
+                    ])
+                    ->visible(fn (ImportBatch $record): bool => $record->error_count > 0)
+                    ->columnSpanFull(),
+                Section::make('Validation Warnings')
+                    ->schema([
+                        self::findingEntry('warnings', 'No validation warnings.'),
+                    ])
+                    ->visible(fn (ImportBatch $record): bool => $record->warning_count > 0)
                     ->columnSpanFull(),
                 Section::make('Timeline')
                     ->schema([
@@ -69,27 +113,37 @@ class ImportBatchInfolist
             ]);
     }
 
-    private static function previewSummary(ImportBatch $record): string
+    private static function findingEntry(string $key, string $emptyText): RepeatableEntry
     {
-        $errorLog = $record->error_log ?? [];
-        $errors = collect($errorLog['errors'] ?? [])
-            ->take(10)
-            ->map(function (array $error): string {
-                $messages = implode('; ', $error['messages'] ?? []);
+        return RepeatableEntry::make($key)
+            ->hiddenLabel()
+            ->state(fn (ImportBatch $record): array => self::detailList($record, $key))
+            ->schema([
+                TextEntry::make('row')
+                    ->label('Source Row')
+                    ->formatStateUsing(fn (mixed $state): string => $state === null ? 'Batch' : (string) $state),
+                TextEntry::make('message')
+                    ->columnSpanFull(),
+                KeyValueEntry::make('values')
+                    ->label('Source Values')
+                    ->columnSpanFull(),
+            ])
+            ->columns(2)
+            ->placeholder($emptyText)
+            ->columnSpanFull();
+    }
 
-                return 'Row '.($error['row'] ?? '?').': '.$messages;
-            });
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function detailList(ImportBatch $record, string $key): array
+    {
+        $rawDetails = $record->getAttribute('validation_details');
+        $details = is_array($rawDetails) ? $rawDetails : [];
+        $items = $details[$key] ?? [];
 
-        if ($errors->isEmpty()) {
-            $commitSummary = $errorLog['commit_summary'] ?? null;
-
-            if (is_array($commitSummary)) {
-                return 'Ready/committed with '.$commitSummary['committed_rows'].' committed row(s).';
-            }
-
-            return 'No validation errors. Ready to commit.';
-        }
-
-        return $errors->implode("\n");
+        return is_array($items)
+            ? collect($items)->filter(fn (mixed $item): bool => is_array($item))->values()->all()
+            : [];
     }
 }

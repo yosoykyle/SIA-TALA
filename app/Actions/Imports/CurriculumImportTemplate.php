@@ -4,76 +4,59 @@ namespace App\Actions\Imports;
 
 class CurriculumImportTemplate
 {
+    public const Version = 'curriculum-v2';
+
     /**
      * @return list<string>
      */
     public static function headers(): array
     {
         return [
-            'Program Code',
-            'Program Name',
-            'Curriculum Version',
-            'Effective Year',
-            'Is Active',
-            'Year Level',
-            'Curriculum Period',
-            'Subject Code',
-            'Subject Title',
-            'Units',
-            'Weekly Contact Hours',
-            'Academic Subject Type',
-            'Scheduling Group',
-            'Delivery Rule Override',
-            'Category',
-            'Sort Order',
+            'template_version',
+            'template_type',
+            'program_code',
+            'curriculum_version_code',
+            'curriculum_name',
+            'effective_entry_term_label',
+            'state',
+            'course_code',
+            'course_revision_code',
+            'course_title',
+            'course_units',
+            'prerequisite_course_codes',
+            'year_level',
+            'term_label',
+            'term_type',
+            'sequence',
+            'requirement_group',
+            'client_total_units',
         ];
     }
 
     public static function csv(): string
     {
-        $rows = [
+        return AcademicImportCsv::toCsv([
             self::headers(),
             [
+                self::Version,
+                'CURRICULUM',
                 'BSIT',
-                'Bachelor of Science in Information Technology',
-                'BSIT 2026',
-                '2026',
-                'yes',
-                '1st Year',
-                '1st Semester',
+                'BSIT-2026-DRAFT',
+                'BSIT Curriculum 2026',
+                '',
+                'DRAFT',
                 'IT101',
+                '2026-DRAFT',
                 'Introduction to Computing',
                 '3.00',
-                '3.00',
-                'major',
-                'lecture',
                 '',
-                'lecture',
                 '1',
+                'First Semester',
+                'FIRST_SEMESTER',
+                '1',
+                'required',
+                '3.00',
             ],
-        ];
-
-        return collect($rows)
-            ->map(fn (array $row): string => self::csvLine($row))
-            ->implode("\n")."\n";
-    }
-
-    /**
-     * @param  list<string>  $row
-     */
-    private static function csvLine(array $row): string
-    {
-        $handle = fopen('php://temp', 'r+');
-
-        if ($handle === false) {
-            return implode(',', $row);
-        }
-
-        fputcsv($handle, $row);
-        rewind($handle);
-        $line = stream_get_contents($handle);
-        fclose($handle);
-
-        return rtrim((string) $line, "\r\n");
+        ]);
     }
 }
