@@ -25,6 +25,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-83A | Done locally; pending explicit Linear sync | Admissions Intake and Registrar Review Acceptance |
 | TAL-83B | Done locally; pending explicit Linear sync | Applicant-to-Student Handover Acceptance |
 | TAL-83C | Done locally; pending explicit Linear sync | Duplicate Profile Resolution Acceptance |
+| TAL-83D | Done locally; pending explicit Linear sync | Student Profile and Student Hub Activation Smoke |
 
 ## Compact Synced History
 

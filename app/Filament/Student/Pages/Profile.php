@@ -2,11 +2,18 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Models\StudentProfile;
 use App\Models\User;
 use DateTimeInterface;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Pages\PageConfiguration;
 use Filament\Panel;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use LogicException;
 
 class Profile extends Page
 {
@@ -24,6 +31,9 @@ class Profile extends Page
      * @var array<int, array{heading: string, items: array<int, array{label: string, value: string}>}>
      */
     public array $profileSections = [];
+
+    /** @var array<string, mixed> | null */
+    public ?array $data = [];
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -68,20 +78,20 @@ class Profile extends Page
 
         abort_unless($user instanceof User, 403);
 
-        $studentProfile = $user->studentProfile()->first();
+        $studentProfile = $this->studentProfileFor($user);
         $applicantIntake = $user->applicantIntake()->first();
 
         $this->profileSections = [
             [
-                'heading' => 'Account',
+                'heading' => 'Official Student Record',
                 'items' => [
                     [
                         'label' => 'Name',
                         'value' => $this->firstFilled(
                             $this->joinedName(
-                                $studentProfile?->getAttribute('first_name'),
-                                $studentProfile?->getAttribute('middle_name'),
-                                $studentProfile?->getAttribute('last_name'),
+                                $studentProfile->getAttribute('first_name'),
+                                $studentProfile->getAttribute('middle_name'),
+                                $studentProfile->getAttribute('last_name'),
                             ),
                             $user->hasCanonicalNameParts() ? $user->composedFullName() : null,
                             $user->getAttribute('name'),
@@ -90,7 +100,7 @@ class Profile extends Page
                     [
                         'label' => 'Email',
                         'value' => $this->firstFilled(
-                            $studentProfile?->getAttribute('email'),
+                            $studentProfile->getAttribute('email'),
                             $user->getAttribute('email'),
                             $applicantIntake?->getAttribute('email'),
                         ),
@@ -99,22 +109,25 @@ class Profile extends Page
                         'label' => 'Account status',
                         'value' => $this->displayValue($user->getAttribute('status')),
                     ],
-                ],
-            ],
-            [
-                'heading' => 'Student Record',
-                'items' => [
                     [
                         'label' => 'Student number',
-                        'value' => $this->displayValue($studentProfile?->getAttribute('student_number')),
+                        'value' => $this->displayValue($studentProfile->getAttribute('student_number')),
+                    ],
+                    [
+                        'label' => 'Program',
+                        'value' => $this->displayValue($studentProfile->program?->name),
+                    ],
+                    [
+                        'label' => 'Curriculum',
+                        'value' => $this->displayValue($studentProfile->curriculumVersion?->name),
                     ],
                     [
                         'label' => 'Lifecycle status',
-                        'value' => $this->displayValue($studentProfile?->getAttribute('lifecycle_status')),
+                        'value' => $this->displayValue($studentProfile->getAttribute('lifecycle_status')),
                     ],
                     [
                         'label' => 'Academic standing',
-                        'value' => $this->displayValue($studentProfile?->getAttribute('academic_standing')),
+                        'value' => $this->displayValue($studentProfile->getAttribute('academic_standing')),
                     ],
                 ],
             ],
@@ -132,13 +145,66 @@ class Profile extends Page
                     [
                         'label' => 'Birth date',
                         'value' => $this->firstFilled(
-                            $studentProfile?->getAttribute('birth_date'),
+                            $studentProfile->getAttribute('birth_date'),
                             $applicantIntake?->getAttribute('birth_date'),
                         ),
                     ],
                 ],
             ],
         ];
+
+        $this->profileForm()->fill($studentProfile->only($this->editableProfileAttributes()));
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make('Contact Details You Can Update')
+                    ->description('Official identity, student number, program, curriculum, lifecycle, grades, finance, and enrollment records stay locked to staff workflows.')
+                    ->schema([
+                        TextInput::make('phone')
+                            ->label('Phone number')
+                            ->tel()
+                            ->maxLength(255),
+                        TextInput::make('email')
+                            ->label('Personal email')
+                            ->email()
+                            ->maxLength(255),
+                        Textarea::make('address')
+                            ->label('Current home address')
+                            ->maxLength(2000)
+                            ->columnSpanFull(),
+                        TextInput::make('emergency_contact_name')
+                            ->label('Emergency contact name')
+                            ->maxLength(255),
+                        TextInput::make('emergency_contact_phone')
+                            ->label('Emergency contact phone')
+                            ->tel()
+                            ->maxLength(255),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
+            ])
+            ->statePath('data');
+    }
+
+    public function saveProfile(): void
+    {
+        $user = auth()->user();
+
+        abort_unless($user instanceof User, 403);
+
+        $studentProfile = $this->studentProfileFor($user);
+        $state = $this->profileForm()->getState();
+
+        $studentProfile->fill(collect($state)->only($this->editableProfileAttributes())->all());
+        $studentProfile->save();
+
+        Notification::make()
+            ->title('Profile contact details saved')
+            ->success()
+            ->send();
     }
 
     private function firstFilled(mixed ...$values): string
@@ -173,5 +239,35 @@ class Profile extends Page
         }
 
         return (string) $value;
+    }
+
+    private function studentProfileFor(User $user): StudentProfile
+    {
+        $studentProfile = $user->studentProfile()
+            ->with(['program', 'curriculumVersion'])
+            ->active()
+            ->where('lifecycle_status', '!=', StudentProfile::LifecycleArchived)
+            ->first();
+
+        abort_unless($studentProfile instanceof StudentProfile, 403);
+
+        return $studentProfile;
+    }
+
+    /** @return list<string> */
+    private function editableProfileAttributes(): array
+    {
+        return [
+            'phone',
+            'email',
+            'address',
+            'emergency_contact_name',
+            'emergency_contact_phone',
+        ];
+    }
+
+    private function profileForm(): Schema
+    {
+        return $this->getSchema('form') ?? throw new LogicException('Student profile form schema is unavailable.');
     }
 }

@@ -20,5 +20,15 @@
                 </dl>
             </section>
         @endforeach
+
+        <form wire:submit="saveProfile" class="space-y-4">
+            {{ $this->form }}
+
+            <div>
+                <x-filament::button type="submit" icon="heroicon-m-check">
+                    Save Contact Details
+                </x-filament::button>
+            </div>
+        </form>
     </div>
 </x-filament-panels::page>

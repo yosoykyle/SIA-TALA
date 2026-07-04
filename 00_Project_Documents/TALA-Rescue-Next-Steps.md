@@ -78,7 +78,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-83 | In progress | Admissions and Student Handover Acceptance. Sub-slices: TAL-83A done locally / pending explicit Linear sync — Admissions Intake and Registrar Review; TAL-83B done locally / pending explicit Linear sync — Applicant-to-Student Handover; TAL-83C done locally / pending explicit Linear sync — Duplicate Profile Resolution; TAL-83D next — Student Profile and Student Hub Activation Smoke. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
@@ -95,4 +94,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next primary planning boundary is TAL-83D: Student Profile and Student Hub Activation Smoke. The primary must resurface a small evidence-backed slice plan before implementation, including current student-profile salvage review, applicant handover dependency review, Student Hub activation/access review, native Filament and installed-package fit, business-evidence clarification where useful, and explicit exclusions. Do not begin TAL-84, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next primary planning boundary is TAL-84: Holds and Student Lifecycle Foundation Acceptance. The primary must inspect the owning PRD and related lifecycle, enrollment, finance, COR, and Student Hub contracts; compare them with the clean schema and current implementation; then propose small evidence-backed sub-slices before implementation. Do not begin TAL-85, CP-SAT, or PayMongo hardening until TAL-84 is accepted.

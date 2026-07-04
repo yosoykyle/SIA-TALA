@@ -47,10 +47,18 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     {
         return match ($panel->getId()) {
             'admin' => $this->hasAnyRole(self::staffRoleNames()) && $this->canAuthenticate(),
-            'student' => $this->hasRole('student') && $this->canAuthenticate(),
+            'student' => $this->hasRole('student') && $this->canAuthenticate() && $this->hasAccessibleStudentProfile(),
             'applicant' => $this->hasRole('applicant') && $this->canAuthenticate(),
             default => false,
         };
+    }
+
+    public function hasAccessibleStudentProfile(): bool
+    {
+        return $this->studentProfile()
+            ->active()
+            ->where('lifecycle_status', '!=', StudentProfile::LifecycleArchived)
+            ->exists();
     }
 
     public function canAuthenticate(): bool

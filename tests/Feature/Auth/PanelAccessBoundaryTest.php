@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -100,6 +101,10 @@ class PanelAccessBoundaryTest extends TestCase
     ): void {
         $user = $this->userWithRole($role, $status, $verified);
 
+        if ($role === 'student' && $panel === 'student') {
+            StudentProfile::factory()->create(['user_id' => $user->id]);
+        }
+
         $this->assertTrue($user->canAccessPanel(Filament::getPanel($panel)));
     }
 
@@ -148,6 +153,12 @@ class PanelAccessBoundaryTest extends TestCase
             'applicant cannot access student hub' => [
                 'role' => 'applicant',
                 'status' => User::StatusApplicantPending,
+                'verified' => true,
+                'panel' => 'student',
+            ],
+            'active student without official profile cannot access student hub' => [
+                'role' => 'student',
+                'status' => User::StatusActive,
                 'verified' => true,
                 'panel' => 'student',
             ],
@@ -264,6 +275,11 @@ class PanelAccessBoundaryTest extends TestCase
             'archived student request to student hub' => [
                 'role' => 'student',
                 'status' => User::StatusArchived,
+                'path' => '/student',
+            ],
+            'active student request to student hub without official profile' => [
+                'role' => 'student',
+                'status' => User::StatusActive,
                 'path' => '/student',
             ],
         ];
