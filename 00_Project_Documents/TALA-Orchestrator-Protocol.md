@@ -61,6 +61,8 @@ The primary thread owns first-pass planning. It may inspect files, run read-only
 
 Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
 
+Each primary plan must include a workflow/UI fit review. Compare the approved PRD and blueprint intent with the current implementation, native Filament v5 capability, installed packages, qualified plugin options, and focused custom code. Use the official Filament plugin directory and Awesome Filament catalog as discovery sources, not automatic authority. A plugin is recommended only when it solves a real slice gap and is safer or faster than native Filament after checking version compatibility, maintenance, license/security, dependency weight, routes/migrations/config, authorization, tests, upgrade/removal cost, and whether domain rules can stay in TALA services/actions/policies/models.
+
 Within the activated session:
 
 - `Primary proceed` continues the accepted current issue without widening scope.
@@ -94,18 +96,19 @@ Each slice must:
 
 1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
 2. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests enough to draft the plan.
-3. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
-4. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
-5. Present the slice contract, evidence checked, recommendation basis, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
-6. Wait for user acceptance before implementation or worker handoff.
-7. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
-8. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
-9. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
-10. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
-11. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
-12. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
-13. After explicit Linear synchronization, move the tracker row to compact synced history.
-14. Patch user-reported defects inside the current slice before starting the next slice.
+3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for the slice's workflow/UI needs.
+4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
+5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
+6. Present the slice contract, evidence checked, recommendation basis, workflow/UI fit review, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
+7. Wait for user acceptance before implementation or worker handoff.
+8. When an accepted decision changes a flow, update every affected authority document and review dependent modules before implementation is finalized.
+9. Implement only the accepted scope and keep business rules in Laravel services, actions, policies, and models rather than in Filament presentation classes or third-party plugins.
+10. Require the worker to verify its own output before handoff, then require independent primary-thread inspection and proportionate verification.
+11. Record accepted local work in the sync tracker as `Done locally; pending explicit Linear sync`, remove it from active planning, then create the bounded local Git commit.
+12. Give the user a post-commit acceptance checklist with exact pages, actions, expected results, and likely failure signs.
+13. Keep the task pending in the local tracker until the user explicitly says `Sync TAL-XX to Linear`.
+14. After explicit Linear synchronization, move the tracker row to compact synced history.
+15. Patch user-reported defects inside the current slice before starting the next slice.
 
 If a slice is too large to verify properly, split it during primary planning before implementation.
 
@@ -140,10 +143,11 @@ The objective is the leanest maintainable implementation, not the largest plugin
 
 Use this order for each UI or behavior requirement:
 
-1. Reuse a compatible package or component already installed in TALA when it satisfies the accepted behavior.
+1. Keep the current implementation when it is aligned, authorized, tested, and maintainable.
 2. Use native Filament v5 Resources, Pages, Tables, Forms, Infolists, Actions, Filters, Widgets, notifications, and panel features when they provide the behavior cleanly.
-3. Evaluate a third-party plugin when it closes a real capability gap or materially reduces custom implementation and maintenance.
-4. Build a focused custom component only when native Filament and qualified plugins do not fit the requirement.
+3. Reuse an installed package or component when it already fits the accepted behavior better than writing custom code.
+4. Evaluate a new third-party plugin only when it closes a real capability gap or materially reduces custom implementation and maintenance.
+5. Build a focused custom component only when current code, native Filament, installed packages, and qualified plugins do not fit the requirement.
 
 Use the [official Filament plugin directory](https://filamentphp.com/plugins) as the primary live catalog and [Awesome Filament](https://github.com/spekulatius/awesome-filament) as an additional discovery catalog. These are external sources, not repository files and not approval lists.
 
