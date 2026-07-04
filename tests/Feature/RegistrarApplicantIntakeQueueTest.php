@@ -8,6 +8,7 @@ use App\Models\ApplicantIntake;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -49,6 +50,37 @@ class RegistrarApplicantIntakeQueueTest extends TestCase
         $this->actingAs($accounting)
             ->get(ApplicantIntakeResource::getUrl('index'))
             ->assertForbidden();
+    }
+
+    public function test_authorized_registrar_views_clean_intake_fields_and_private_identity_reference(): void
+    {
+        Storage::fake('local');
+
+        $registrar = $this->staff(User::StaffRoleRegistrar, ['approve-documents']);
+        $intake = ApplicantIntake::factory()->create([
+            'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
+            'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
+            'birth_date' => '2005-05-10',
+            'phone' => '09123456789',
+            'prior_school' => 'Sample Senior High School',
+            'identity_evidence_reference' => 'applicant-identity-documents/identity.pdf',
+            'status' => ApplicantIntake::StatusPending,
+        ]);
+
+        Storage::disk('local')->put($intake->identity_evidence_reference, 'identity evidence');
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $this->actingAs($registrar)
+            ->get(ApplicantIntakeResource::getUrl('view', ['record' => $intake]))
+            ->assertOk()
+            ->assertSee('First-Time College Applicant')
+            ->assertSee('Senior High School Credential')
+            ->assertSee('09123456789')
+            ->assertSee('Sample Senior High School')
+            ->assertSee('identity.pdf')
+            ->assertDontSee('Applicant Type')
+            ->assertDontSee('Preferred Modality');
     }
 
     public function test_staff_intake_resource_is_read_only(): void

@@ -7,6 +7,7 @@ use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\Activities\ActivityResource;
+use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
@@ -85,6 +86,7 @@ class AdminPanelProvider extends PanelProvider
                 RoleResource::class,
                 ActivityResource::class,
                 SystemSettingResource::class,
+                ApplicantIntakeResource::class,
                 EnrollmentResource::class,
                 FeeRuleResource::class,
                 AssessmentResource::class,

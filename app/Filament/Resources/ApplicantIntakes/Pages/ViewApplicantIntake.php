@@ -19,9 +19,9 @@ class ViewApplicantIntake extends ViewRecord
             Action::make('downloadIdentityDocument')
                 ->label('Download Identity Document')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->visible(fn (): bool => filled($this->applicantIntake()->identity_document_url))
+                ->visible(fn (): bool => filled($this->applicantIntake()->identity_evidence_reference))
                 ->action(fn (): StreamedResponse => Storage::disk('local')->download(
-                    $this->applicantIntake()->identity_document_url,
+                    $this->applicantIntake()->identity_evidence_reference,
                 )),
         ];
     }

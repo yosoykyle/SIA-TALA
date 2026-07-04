@@ -134,6 +134,7 @@ class Application extends Page
                             ->directory(fn (): string => 'applicant-identity-documents/'.Auth::id())
                             ->visibility('private')
                             ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxFiles(1)
                             ->maxSize(5120)
                             ->helperText('PDF, JPG, or PNG; maximum 5 MB.'),
                         Checkbox::make('information_confirmed')

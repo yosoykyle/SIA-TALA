@@ -76,7 +76,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-83 | Planned | Admissions and Student Handover Acceptance: validate applicant draft/submission, requirements, review, acceptance, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
+| TAL-83 | In progress | Admissions and Student Handover Acceptance: TAL-83A admissions intake and Registrar review is done locally; remaining sub-slices validate applicant-to-student handover, duplicate handling, official student creation, Program/Curriculum assignment, and Student Hub activation gate. |
 | TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
@@ -93,4 +93,4 @@ Dependency lock:
 
 ### Next Boundary
 
-Next primary planning boundary is TAL-83: Admissions and Student Handover Acceptance. The primary must resurface a small evidence-backed slice plan before implementation, including PRD/applicant workflow validation, current applicant/student-profile salvage review, native Filament and installed-package fit, business-evidence clarification where useful, and explicit exclusions. Do not begin CP-SAT or PayMongo hardening until their prerequisite foundation slices are accepted.
+Next primary planning boundary is TAL-83B: Applicant-to-Student Handover Acceptance. The primary must resurface a small evidence-backed slice plan before implementation, including applicant approval workflow validation, current applicant/student-profile salvage review, native Filament and installed-package fit, business-evidence clarification where useful, and explicit exclusions. Do not begin TAL-83C/TAL-83D, CP-SAT, or PayMongo hardening until their prerequisite foundation slices are accepted.
