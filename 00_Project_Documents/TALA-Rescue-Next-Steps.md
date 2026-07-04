@@ -37,10 +37,11 @@ Apply this order to every planned worker slice:
 1. Read the relevant source-of-truth documents, schema contract, current migrations, and existing implementation before deciding the change.
 2. Read relevant business-evidence files only for client-context clarification, not as automatic requirements.
 3. Use Laravel Boost `application-info` and version-specific `search-docs` before Laravel ecosystem code changes.
-4. When an important technical, integration, or repository question remains unanswered, use the relevant available MCP, connector, or specialized tool before making an assumption.
-5. Use authoritative internet research when an institutional policy, Philippine regulatory requirement, external integration contract, current standard, or mature-system benchmark remains unclear. Prefer primary official sources and record the supporting links in the worker report.
-6. Research resolves gaps but does not override an approved PRD decision or expand the MVP. If authoritative evidence conflicts with the approved flow or would materially change scope, stop and report the conflict to the primary thread for a decision.
-7. Implement only after the required questions are resolved, then run the slice's focused tests and regression checks.
+4. Run the benchmark/implementation-fit gate every slice: decide whether mature-system/internet benchmarking is required and whether plugin-catalog research is required. If not required, state why the PRD/current implementation/native Filament path is sufficient.
+5. When an important technical, integration, or repository question remains unanswered, use the relevant available MCP, connector, or specialized tool before making an assumption.
+6. Use authoritative internet research when an institutional policy, Philippine regulatory requirement, external integration contract, current standard, or mature-system benchmark remains unclear. Prefer primary official sources and record the supporting links in the worker report.
+7. Research resolves gaps but does not override an approved PRD decision or expand the MVP. If authoritative evidence conflicts with the approved flow or would materially change scope, stop and report the conflict to the primary thread for a decision.
+8. Implement only after the required questions are resolved, then run the slice's focused tests and regression checks.
 
 ## Vertical Slice Workflow
 
@@ -50,8 +51,8 @@ For each slice:
 
 1. Define the role, trigger, inputs, changed records, outputs, UI surface, related modules, integration boundary, and exclusions.
 2. Review the PRD modules, UI blueprint, architecture specification, schema/migrations, existing code, routes, policies, and tests.
-3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for workflow/UI fit.
-4. Research unclear framework, UI, plugin, integration, policy, or mature-system questions before implementation.
+3. Run the benchmark/implementation-fit gate: compare current implementation, native Filament, installed packages, qualified plugin options, focused custom code, and the need for mature-system benchmarking.
+4. Research unclear framework, UI, plugin, integration, policy, or mature-system questions before implementation; when deep research is not needed, state the basis for that decision.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current implementation.
 6. Primary presents the purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, retained-surface purpose statements, slice plan, worker boundary, verification plan, human-only steps, and exclusions for user acceptance.
 7. Implement or delegate only after the user accepts the plan.

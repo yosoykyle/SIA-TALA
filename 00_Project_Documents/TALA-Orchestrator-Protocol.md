@@ -66,6 +66,8 @@ The primary thread owns first-pass planning. It may inspect files, run read-only
 
 Primary planning must be evidence-backed. The recommendation must state what was checked and why the proposed path is MVP-fit: current authority documents, relevant business-evidence context, implementation evidence, Laravel/Filament/Boost guidance when relevant, native Filament or installed-package options before new plugins, qualified plugin sources when a real gap exists, and external/benchmark sources when policy, integration, or mature-system behavior is unclear. Do not present model preference alone as the basis for changing or accepting a slice.
 
+Every primary plan must include a benchmark/implementation-fit gate. The gate must explicitly decide whether mature-system or internet benchmarking is required and whether plugin-catalog research is required. If not required, the plan must state why the PRD/current implementation/native Filament path is already sufficient. If required, complete the research before implementation or worker handoff.
+
 Each primary plan must include a workflow/UI fit review. Compare the approved PRD and blueprint intent with the current implementation, native Filament v5 capability, installed packages, qualified plugin options, and focused custom code. Use the official Filament plugin directory and Awesome Filament catalog as discovery sources, not automatic authority. A plugin is recommended only when it solves a real slice gap and is safer or faster than native Filament after checking version compatibility, maintenance, license/security, dependency weight, routes/migrations/config, authorization, tests, upgrade/removal cost, and whether domain rules can stay in TALA services/actions/policies/models.
 
 Every retained UI surface must have a plain-purpose statement before acceptance: who uses it, what it is for, whether it is read-only or editable, what workflow/action/decision it supports, and why it belongs in MVP. If the purpose cannot be explained plainly, the surface must be renamed, hidden, deferred, redesigned, or tied to its owning module before the slice is accepted.
@@ -109,8 +111,8 @@ Each slice must:
 
 1. Define the module, user role, trigger, inputs, records changed, outputs, UI surface, related modules, integration boundary, and explicit exclusions.
 2. Review the PRD, UI blueprint, architecture, schema, existing code, routes, policies, and tests enough to draft the plan.
-3. Compare current implementation, native Filament, installed packages, qualified plugin options, and focused custom code for the slice's workflow/UI needs.
-4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation.
+3. Run the benchmark/implementation-fit gate: compare current implementation, native Filament, installed packages, qualified plugin options, focused custom code, and the need for mature-system benchmarking.
+4. Research unclear framework, plugin, UI, policy, mature-system, or external-integration behavior before implementation; when deep research is not needed, state the basis for that decision.
 5. Decide whether the PRD and UI blueprint remain valid, need clarification, or conflict with the current system.
 6. Present the slice contract, purposeful-simplification judgment, evidence checked, recommendation basis, workflow/UI fit review, retained-surface purpose statements, likely files/surfaces, verification plan, worker boundary, human-only steps, and explicit exclusions to the user.
 7. Wait for user acceptance before implementation or worker handoff.
@@ -140,7 +142,7 @@ Before additional CP-SAT or PayMongo expansion:
 
 ## Research Rules
 
-Use research when the implementation choice is not already clear from the PRD and current code.
+Every slice must run the research decision gate. Use deep research when the implementation choice is not already clear from the PRD, current code, native Filament/Laravel guidance, and accepted architecture.
 
 Use:
 
