@@ -115,7 +115,7 @@ class HandOverApprovedApplicant
             'applicant_intake_id' => $intake->id,
             'student_number' => $this->nextStudentNumber(),
             'lifecycle_status' => StudentProfile::LifecycleActive,
-            'academic_standing' => StudentProfile::StandingGood,
+            'academic_standing' => StudentProfile::StandingRegular,
         ]);
     }
 

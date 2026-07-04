@@ -28,7 +28,7 @@ class StudentProfileFactory extends Factory
                 'state' => CurriculumVersion::StateActive,
             ]),
             'lifecycle_status' => StudentProfile::LifecycleActive,
-            'academic_standing' => StudentProfile::StandingGood,
+            'academic_standing' => StudentProfile::StandingRegular,
             'email' => fake()->safeEmail(),
             'phone' => '09'.fake()->numerify('#########'),
         ];

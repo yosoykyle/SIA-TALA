@@ -35,7 +35,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-84 | Planned | Holds and Student Lifecycle Foundation Acceptance: validate primary lifecycle status, academic standing, active holds, waivers, student unit-load exceptions, and source-record effects used by enrollment, COR, finance, and Student Hub. |
 | TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
 | TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
@@ -49,17 +48,6 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
-### TAL-84 Sub-slice Map
-
-Parent issue: Holds and Student Lifecycle Foundation Acceptance.
-
-| Sub-slice | Status | Purpose | Next Boundary |
-| --- | --- | --- | --- |
-| TAL-84A | Done locally; pending explicit Linear sync | Holds and lifecycle-status contract: debt uses explicit financial holds, applicant states stay in Admissions, student-facing hold/lifecycle messaging is safe, and waiver ownership follows office responsibility. | Cleanup complete; wait for explicit Linear sync only. |
-| TAL-84B | Done locally; pending explicit Linear sync | Core lifecycle recorded results: validate Active/LOA/Withdrawn/Transferred Out/Inactive/Archived/Reactivation effects, staff recording rules, student-safe visibility, and downstream gate inputs. | Cleanup complete; wait for explicit Linear sync only. |
-| TAL-84C | Done locally; pending explicit Linear sync | Program-shift credit evaluation: validate future-term program shift, target curriculum, credit checklist, and dependent enrollment/progression effects. | Cleanup complete; wait for explicit Linear sync only. |
-| TAL-84D | Next | Academic standing and student unit-load exceptions: separate student load policy from faculty load, validate exception authority, and align enrollment gate consumers. | Primary planning before implementation. |
-
 ### Next Boundary
 
-Next primary planning boundary is TAL-84D: Academic standing and student unit-load exceptions. The primary must inspect the owning PRD and related lifecycle, academic progression, enrollment, finance gate, COR, Student Hub, curriculum, and policy contracts; compare them with the clean schema and current implementation; then propose an evidence-backed slice plan before implementation. Do not begin TAL-85, CP-SAT, or PayMongo hardening until all TAL-84 sub-slices are accepted.
+Next primary planning boundary is TAL-85: Term Offerings, Resources, and Master Schedule Foundation Acceptance. The primary must inspect the owning PRD and related academic setup, calendar, resource, faculty load/availability, section/offering, enrollment, Student Hub, and scheduling contracts; compare them with the clean schema and current implementation; then propose an evidence-backed slice plan before implementation. Do not expand CP-SAT hardening until the SIS source records and official `section_meetings` publication/readiness are accepted.

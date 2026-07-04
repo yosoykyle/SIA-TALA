@@ -55,6 +55,7 @@ class TAL83BApplicantHandoverActionTest extends TestCase
         $this->assertSame($applicant->id, $studentProfile->user_id);
         $this->assertSame($curriculum->id, $studentProfile->curriculum_version_id);
         $this->assertSame(StudentProfile::LifecycleActive, $studentProfile->lifecycle_status);
+        $this->assertSame(StudentProfile::StandingRegular, $studentProfile->academic_standing);
         $this->assertMatchesRegularExpression('/^SIA-'.now(config('app.timezone'))->year.'-\d{4}$/', $studentProfile->student_number);
 
         $studentUser = $applicant->fresh();

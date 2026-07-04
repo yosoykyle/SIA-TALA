@@ -13,11 +13,14 @@ use RuntimeException;
 
 class StudentUnitLoadService
 {
+    public function __construct(private readonly StudentUnitLoadPolicy $policy) {}
+
     /** @return array<string, mixed> */
-    public function evaluate(Enrollment $enrollment, float $requestedTotal, float $configuredCap, ?string $yearLevel = null): array
+    public function evaluate(Enrollment $enrollment, float $requestedTotal, ?float $configuredCap = null, ?string $yearLevel = null): array
     {
         $enrollment->loadMissing(['studentProfile', 'term']);
         $normalLoad = $this->normalLoad($enrollment, $yearLevel);
+        $configuredCap ??= $this->policy->configuredCapFor($normalLoad, $enrollment->term);
         $exception = $this->activeException($enrollment);
         $approvedExcess = (float) data_get($exception?->approved_values, 'approved_excess', 0);
         $approvedLimit = min($configuredCap, $normalLoad + $approvedExcess);
@@ -36,6 +39,8 @@ class StudentUnitLoadService
             'configured_cap' => number_format($configuredCap, 2, '.', ''),
             'approved_excess' => number_format($approvedExcess, 2, '.', ''),
             'approved_limit' => number_format($approvedLimit, 2, '.', ''),
+            'default_approving_authority' => $this->policy->defaultApprovingAuthority(),
+            'default_recording_office' => $this->policy->defaultRecordingOffice(),
             'requires_exception' => $requestedTotal > $normalLoad,
             'has_active_exception' => $exception instanceof EnrollmentException,
             'unit_load_passes' => $requestedTotal <= $normalLoad || ($exception instanceof EnrollmentException && $requestedTotal <= $approvedLimit),
@@ -85,6 +90,9 @@ class StudentUnitLoadService
                         'configured_cap' => $cap,
                         'affected_term_offering_ids' => array_values($data['affected_term_offering_ids'] ?? []),
                         'authority' => (string) $data['authority'],
+                        'default_approving_authority' => $this->policy->defaultApprovingAuthority(),
+                        'default_recording_office' => $this->policy->defaultRecordingOffice(),
+                        'recorded_by_role' => $this->recordingRole($actor),
                     ],
                     'reason' => (string) $data['reason'],
                     'evidence_reference' => (string) $data['evidence_reference'],
@@ -107,7 +115,7 @@ class StudentUnitLoadService
             ->join('course_specifications', 'curriculum_entries.course_specification_id', '=', 'course_specifications.id')
             ->sum('course_specifications.credit_units');
 
-        return $normal > 0 ? $normal : (float) ($enrollment->term->default_max_units ?? 0);
+        return $normal > 0 ? $normal : $this->policy->fallbackNormalMaxUnits();
     }
 
     private function activeException(Enrollment $enrollment): ?EnrollmentException
@@ -121,5 +129,18 @@ class StudentUnitLoadService
             ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->latest('approved_at')
             ->first();
+    }
+
+    private function recordingRole(User $actor): string
+    {
+        if ($actor->hasRole(User::StaffRoleAcademicHead)) {
+            return User::StaffRoleAcademicHead;
+        }
+
+        if ($actor->hasRole(User::StaffRoleRegistrar)) {
+            return User::StaffRoleRegistrar;
+        }
+
+        return User::StaffRoleSystemSuperAdmin;
     }
 }

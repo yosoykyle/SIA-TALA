@@ -36,10 +36,17 @@ class ViewEnrollment extends ViewRecord
                         ->label('Computed Normal Load')
                         ->numeric()
                         ->readOnly()
-                        ->default(fn (Enrollment $record): string => app(StudentUnitLoadService::class)->evaluate($record, 0, (float) ($record->term->default_max_units ?? 0))['normal_load'])
+                        ->default(fn (Enrollment $record): string => app(StudentUnitLoadService::class)->evaluate($record, 0)['normal_load'])
                         ->required(),
                     TextInput::make('requested_total')->numeric()->minValue(0)->required()->live(onBlur: true),
-                    TextInput::make('configured_cap')->label('Configured Term Cap')->numeric()->minValue(0)->required()->live(onBlur: true),
+                    TextInput::make('configured_cap')
+                        ->label('Configured Student Overload Cap')
+                        ->helperText('Defaults to the student unit-load policy cap, not the faculty load cap.')
+                        ->numeric()
+                        ->minValue(0)
+                        ->default(fn (Enrollment $record): string => app(StudentUnitLoadService::class)->evaluate($record, 0)['configured_cap'])
+                        ->required()
+                        ->live(onBlur: true),
                     Placeholder::make('approved_excess')->content(fn (Get $get): string => number_format(max(0, (float) $get('requested_total') - (float) $get('normal_limit')), 2).' units'),
                     Select::make('affected_term_offering_ids')
                         ->label('Affected Offerings')
@@ -53,7 +60,12 @@ class ViewEnrollment extends ViewRecord
                             ])->all())
                         ->required(),
                     Placeholder::make('other_gates')->content(fn (Enrollment $record): string => $record->gateResults()->where('result', 'FAILED')->pluck('gate_type')->implode(', ') ?: 'No failed gates'),
-                    TextInput::make('authority')->required()->maxLength(255),
+                    TextInput::make('authority')
+                        ->label('Approving Authority')
+                        ->default(fn (Enrollment $record): string => app(StudentUnitLoadService::class)->evaluate($record, 0)['default_approving_authority'])
+                        ->helperText('Registrar records approved exceptions; Academic Head is the default approving authority.')
+                        ->required()
+                        ->maxLength(255),
                     Textarea::make('reason')->required()->maxLength(2000),
                     TextInput::make('evidence_reference')->required()->maxLength(255),
                     DateTimePicker::make('expires_at')->after('now')->required(),

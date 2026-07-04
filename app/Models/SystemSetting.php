@@ -79,6 +79,15 @@ class SystemSetting extends Model
             'default' => null,
             'helper' => 'Read-only here. Configure through the academic calendar rollout workflow when enabled.',
         ],
+        'student_unit_load_policy_defaults' => [
+            'label' => 'Student Unit Load Policy Defaults',
+            'category' => 'Enrollment',
+            'description' => 'Seeded fallback defaults for student unit-load policy, separate from faculty load settings.',
+            'value_type' => self::ValueTypeJson,
+            'editable' => false,
+            'default' => '{"version":"1.0","fallback_normal_max_units":21,"regular_overload_excess_cap":6,"summer_overload_excess_cap":6,"default_approving_authority":"Academic Head","default_recording_office":"Registrar"}',
+            'helper' => 'Read-only in this generic screen. Student overload decisions are recorded as scoped Student Unit Load Exceptions.',
+        ],
     ];
 
     protected $fillable = [
@@ -153,7 +162,7 @@ class SystemSetting extends Model
 
     public function formattedValue(): string
     {
-        if ($this->value === null || $this->value === '') {
+        if ($this->value === '') {
             return 'Not configured';
         }
 
