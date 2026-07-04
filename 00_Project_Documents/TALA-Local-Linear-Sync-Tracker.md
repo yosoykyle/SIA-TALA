@@ -23,6 +23,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-82C | Done locally; pending explicit Linear sync | Academic Calendar Windows and Grade Window Inputs Acceptance |
 | TAL-82D | Done locally; pending explicit Linear sync | Guarded Course Specification and Curriculum Import Template Acceptance |
 | TAL-83A | Done locally; pending explicit Linear sync | Admissions Intake and Registrar Review Acceptance |
+| TAL-83B | Done locally; pending explicit Linear sync | Applicant-to-Student Handover Acceptance |
 
 ## Compact Synced History
 
