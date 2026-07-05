@@ -6,15 +6,18 @@ use App\Filament\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Resources\Rooms\Pages\ListRooms;
 use App\Filament\Resources\Rooms\Pages\ViewRoom;
+use App\Filament\Resources\Rooms\RelationManagers\FeaturesRelationManager;
 use App\Filament\Resources\Rooms\Schemas\RoomForm;
 use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
 use App\Filament\Resources\Rooms\Tables\RoomsTable;
 use App\Models\Room;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class RoomResource extends Resource
@@ -33,7 +36,7 @@ class RoomResource extends Resource
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
-        if (auth()->user()?->hasRole('academic-head')) {
+        if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
             return 'Academic Head';
         }
 
@@ -53,6 +56,21 @@ class RoomResource extends Resource
     public static function table(Table $table): Table
     {
         return RoomsTable::configure($table);
+    }
+
+    /**
+     * @return Builder<Room>
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return Room::query()->with('features');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            FeaturesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

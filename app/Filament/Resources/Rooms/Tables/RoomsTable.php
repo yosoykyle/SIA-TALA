@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Rooms\Tables;
 
+use App\Models\Room;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
@@ -18,10 +19,28 @@ class RoomsTable
                 TextColumn::make('code')->searchable()->sortable()->weight('bold'),
                 TextColumn::make('name')->searchable()->sortable()->placeholder('-'),
                 TextColumn::make('building')->searchable()->sortable()->placeholder('-'),
-                TextColumn::make('capacity')->numeric()->sortable()->placeholder('-'),
+                TextColumn::make('room_type')
+                    ->label('Room Type')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Room::typeOptions()[$state] ?? str($state)->headline()->toString()))
+                    ->sortable(),
+                TextColumn::make('capacity')->numeric()->suffix(' seats')->sortable()->placeholder('-'),
+                TextColumn::make('features.feature_key')
+                    ->label('Features')
+                    ->badge()
+                    ->separator(',')
+                    ->limitList(3)
+                    ->toggleable(),
                 IconColumn::make('is_active')->label('Active')->boolean()->sortable(),
+                TextColumn::make('notes')
+                    ->limit(40)
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('room_type')
+                    ->label('Room Type')
+                    ->options(Room::typeOptions()),
                 SelectFilter::make('is_active')->label('Active')->options([
                     '1' => 'Active',
                     '0' => 'Inactive',

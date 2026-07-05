@@ -15,6 +15,8 @@ use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
+use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
@@ -24,6 +26,7 @@ use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Roles\RoleResource;
+use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
@@ -104,6 +107,9 @@ class AdminPanelProvider extends PanelProvider
                 TermResource::class,
                 AcademicCalendarWindowResource::class,
                 CalendarEventResource::class,
+                RoomResource::class,
+                FacultyQualificationResource::class,
+                FacultyTermLoadOverrideResource::class,
                 TermOfferingResource::class,
                 SectionResource::class,
                 GradeRosterResource::class,

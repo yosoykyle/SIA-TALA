@@ -49,6 +49,20 @@ class Room extends Model
     /**
      * @return array<string, string>
      */
+    public static function typeOptions(): array
+    {
+        return [
+            self::TypeLectureRoom => 'Lecture Room',
+            self::TypeLaboratory => 'Laboratory',
+            self::TypeComputerLaboratory => 'Computer Laboratory',
+            self::TypeSpecialRoom => 'Special Room',
+            self::TypeOnlineNoPhysicalRoom => 'Online / No Physical Room Required',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
     public static function selectOptions(?string $currentRoom = null): array
     {
         $rooms = self::query()
@@ -72,7 +86,7 @@ class Room extends Model
         return collect([
             $this->code,
             $this->name,
-            $this->room_type,
+            self::typeOptions()[$this->room_type] ?? $this->room_type,
             $this->building,
             "{$this->capacity} seats",
         ])->filter()->implode(' | ');

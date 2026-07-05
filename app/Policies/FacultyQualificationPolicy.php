@@ -2,25 +2,34 @@
 
 namespace App\Policies;
 
-use App\Models\Room;
+use App\Models\FacultyQualification;
 use App\Models\User;
 
-class RoomPolicy
+class FacultyQualificationPolicy
 {
     /**
      * Determine whether the user can view any models.
      */
     public function viewAny(User $user): bool
     {
-        return $this->canView($user);
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleFaculty,
+        ]);
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, Room $room): bool
+    public function view(User $user, FacultyQualification $facultyQualification): bool
     {
-        return $this->canView($user);
+        if ($user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])) {
+            return true;
+        }
+
+        return $user->hasRole(User::StaffRoleFaculty)
+            && (int) $facultyQualification->faculty_user_id === (int) $user->id;
     }
 
     /**
@@ -34,7 +43,7 @@ class RoomPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Room $room): bool
+    public function update(User $user, FacultyQualification $facultyQualification): bool
     {
         return $this->canManage($user);
     }
@@ -42,7 +51,7 @@ class RoomPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Room $room): bool
+    public function delete(User $user, FacultyQualification $facultyQualification): bool
     {
         return false;
     }
@@ -50,7 +59,7 @@ class RoomPolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, Room $room): bool
+    public function restore(User $user, FacultyQualification $facultyQualification): bool
     {
         return false;
     }
@@ -58,7 +67,7 @@ class RoomPolicy
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, Room $room): bool
+    public function forceDelete(User $user, FacultyQualification $facultyQualification): bool
     {
         return false;
     }
@@ -66,13 +75,5 @@ class RoomPolicy
     private function canManage(User $user): bool
     {
         return $user->hasRole(User::StaffRoleRegistrar);
-    }
-
-    private function canView(User $user): bool
-    {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAcademicHead,
-        ]);
     }
 }

@@ -2,10 +2,10 @@
 
 namespace App\Policies;
 
-use App\Models\Room;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\User;
 
-class RoomPolicy
+class FacultyTermLoadOverridePolicy
 {
     /**
      * Determine whether the user can view any models.
@@ -18,7 +18,7 @@ class RoomPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, Room $room): bool
+    public function view(User $user, FacultyTermLoadOverride $facultyTermLoadOverride): bool
     {
         return $this->canView($user);
     }
@@ -34,7 +34,7 @@ class RoomPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Room $room): bool
+    public function update(User $user, FacultyTermLoadOverride $facultyTermLoadOverride): bool
     {
         return $this->canManage($user);
     }
@@ -42,7 +42,7 @@ class RoomPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Room $room): bool
+    public function delete(User $user, FacultyTermLoadOverride $facultyTermLoadOverride): bool
     {
         return false;
     }
@@ -50,7 +50,7 @@ class RoomPolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, Room $room): bool
+    public function restore(User $user, FacultyTermLoadOverride $facultyTermLoadOverride): bool
     {
         return false;
     }
@@ -58,7 +58,7 @@ class RoomPolicy
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, Room $room): bool
+    public function forceDelete(User $user, FacultyTermLoadOverride $facultyTermLoadOverride): bool
     {
         return false;
     }

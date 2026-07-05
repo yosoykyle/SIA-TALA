@@ -53,10 +53,10 @@ Dependency lock:
 | Slice | Status | Purpose | Next Boundary |
 | --- | --- | --- | --- |
 | TAL-85A | Done locally; pending explicit Linear sync | Term Offering and Section Delivery Group source-record UI alignment. | Accepted locally; recorded in the local sync tracker. |
-| TAL-85B | Planned | Resource readiness surfaces. | Validate Rooms, Room Features, Faculty Qualifications, Faculty Term Load Overrides, and Calendar Event availability/blocking surfaces against Module 5/6 without adding new scheduling automation. |
+| TAL-85B | Done locally; pending explicit Linear sync | Resource readiness surfaces. | Accepted locally; recorded in the local sync tracker. |
 | TAL-85C | Planned | Scheduling demand readiness acceptance. | Prove demand generation/readiness uses official offerings, sections, delivery groups, rooms, faculty qualifications/load, and active scheduling windows without expanding CP-SAT dispatch. |
 | TAL-85D | Planned | Master schedule publication/read-only official meetings acceptance. | Prove candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub/COR/enrollment read only published meetings. |
 
 ### Next Boundary
 
-Next implementation boundary is TAL-85B: Resource readiness surfaces. Keep the work limited to validating Rooms, Room Features, Faculty Qualifications, Faculty Term Load Overrides, and Calendar Event availability/blocking surfaces against Module 5/6. Do not expand CP-SAT dispatch, scheduling demand generation, candidate publication, enrollment binding, finance, Student Hub schedule projection, or official publication beyond checks needed to preserve the TAL-85 dependency chain.
+Next implementation boundary is TAL-85C: Scheduling demand readiness acceptance. Keep the work limited to proving demand generation/readiness uses official offerings, sections, delivery groups, rooms, faculty qualifications/load, and active scheduling windows without expanding CP-SAT dispatch, candidate publication, enrollment binding, finance, Student Hub schedule projection, or official publication beyond checks needed to preserve the TAL-85 dependency chain.
