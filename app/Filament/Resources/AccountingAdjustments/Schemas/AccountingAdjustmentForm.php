@@ -21,7 +21,7 @@ class AccountingAdjustmentForm
             ->components([
                 Select::make('student_profile_id')
                     ->label('Student')
-                    ->relationship('studentProfile', 'student_id')
+                    ->relationship('studentProfile', 'student_number')
                     ->getOptionLabelFromRecordUsing(fn (StudentProfile $record): string => AccountingAdjustment::studentOptionLabel($record))
                     ->searchable()
                     ->preload()
@@ -33,7 +33,7 @@ class AccountingAdjustmentForm
                     })
                     ->required(),
                 Select::make('term_id')
-                    ->relationship('term', 'term_name')
+                    ->relationship('term', 'label')
                     ->searchable()
                     ->preload()
                     ->live()
@@ -74,9 +74,9 @@ class AccountingAdjustmentForm
                     ->searchable()
                     ->preload()
                     ->disabled(fn (Get $get): bool => blank($get('student_profile_id')))
-                    ->visible(fn (Get $get): bool => $get('adjustment_type') === AccountingAdjustment::TypeLedgerEntryReversal)
+                    ->visible(fn (Get $get): bool => filled($get('adjustment_type')))
                     ->required(fn (Get $get): bool => $get('adjustment_type') === AccountingAdjustment::TypeLedgerEntryReversal)
-                    ->helperText('Required for reversals. The service posts the exact opposite amount and blocks duplicate reversal.'),
+                    ->helperText('Required for reversals and optional for debit/credit adjustments that correct a specific posted ledger entry.'),
                 TextInput::make('amount')
                     ->prefix('PHP')
                     ->numeric()

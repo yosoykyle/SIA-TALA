@@ -13,6 +13,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 class AccountingAdjustmentService
 {
@@ -26,7 +27,7 @@ class AccountingAdjustmentService
      */
     public function post(array $data, User $actor, ?CarbonImmutable $postedAt = null): array
     {
-        if (! $actor->can('post-accounting-adjustments')) {
+        if (! $this->canPostAccountingAdjustment($actor)) {
             throw new AuthorizationException('Only authorized Accounting users can post accounting adjustments.');
         }
 
@@ -70,8 +71,11 @@ class AccountingAdjustmentService
             $termId = $this->resolveTermId($enrollment, $data);
             $sourceLedgerEntry = $this->resolveSourceLedgerEntry($studentProfile, $enrollment, $termId, $data, $adjustmentType);
             $ledgerAmount = $this->ledgerAmountFor($adjustmentType, $data, $sourceLedgerEntry);
-            $currentBalance = $this->money->normalize((string) $studentProfile->current_balance);
-            $newBalance = $this->money->add($currentBalance, $ledgerAmount);
+            $currentBalance = $this->ledgerBalanceFor($studentProfile, $termId);
+            $ledgerDirection = $adjustmentType === AccountingAdjustment::TypeLedgerEntryReversal
+                ? LedgerEntry::DirectionReversal
+                : LedgerEntry::DirectionAdjustment;
+            $newBalance = $this->money->add($currentBalance, $this->balanceEffect($ledgerDirection, $ledgerAmount));
 
             $adjustment = AccountingAdjustment::query()->create([
                 'student_profile_id' => $studentProfile->id,
@@ -90,25 +94,30 @@ class AccountingAdjustmentService
                 'student_profile_id' => $studentProfile->id,
                 'term_id' => $termId,
                 'enrollment_id' => $enrollment?->id,
-                'entry_type' => 'accounting_adjustment',
-                'reference_type' => 'accounting_adjustment',
-                'reference_id' => $adjustment->id,
+                'direction' => $ledgerDirection,
+                'category' => $adjustmentType === AccountingAdjustment::TypeLedgerEntryReversal
+                    ? AccountingAdjustment::LedgerCategoryReversal
+                    : AccountingAdjustment::LedgerCategoryAdjustment,
                 'description' => $this->ledgerDescription($adjustmentType, $sourceLedgerEntry),
                 'amount' => $ledgerAmount,
-                'running_balance' => $newBalance,
+                'source_type' => AccountingAdjustment::class,
+                'source_id' => $adjustment->id,
+                'reverses_entry_id' => $adjustmentType === AccountingAdjustment::TypeLedgerEntryReversal
+                    ? $sourceLedgerEntry?->id
+                    : null,
+                'adjusts_entry_id' => $adjustmentType !== AccountingAdjustment::TypeLedgerEntryReversal
+                    ? $sourceLedgerEntry?->id
+                    : null,
                 'posted_at' => $timestamp,
                 'posted_by' => $actor->id,
+                'state' => 'posted',
             ]);
 
             $adjustment->forceFill([
                 'ledger_entry_id' => $ledgerEntry->id,
             ])->save();
 
-            $studentProfile->forceFill([
-                'current_balance' => $newBalance,
-            ])->save();
-
-            $this->recordAdjustmentAudit($adjustment, $ledgerEntry, $actor, $timestamp);
+            $this->recordAdjustmentAudit($adjustment, $ledgerEntry, $actor, $timestamp, $newBalance);
 
             return [
                 'adjustment_id' => $adjustment->id,
@@ -149,7 +158,7 @@ class AccountingAdjustmentService
     private function resolveTermId(?Enrollment $enrollment, array $data): ?int
     {
         if ($enrollment instanceof Enrollment) {
-            return $enrollment->term_id !== null ? (int) $enrollment->term_id : null;
+            return (int) $enrollment->term_id;
         }
 
         if (blank($data['term_id'] ?? null)) {
@@ -193,18 +202,21 @@ class AccountingAdjustmentService
             throw new RuntimeException('Source ledger entry must belong to the selected enrollment.');
         }
 
+        if ($sourceLedgerEntry->state !== 'posted') {
+            throw new RuntimeException('Source ledger entry must be posted before it can be adjusted or reversed.');
+        }
+
         if ($adjustmentType === AccountingAdjustment::TypeLedgerEntryReversal) {
-            if (! in_array($sourceLedgerEntry->entry_type, AccountingAdjustment::reversibleEntryTypes(), true)) {
-                throw new RuntimeException('Selected ledger entry type cannot be reversed by this workflow.');
+            if (! in_array($sourceLedgerEntry->direction, AccountingAdjustment::reversibleDirections(), true)) {
+                throw new RuntimeException('Selected ledger direction cannot be reversed by this workflow.');
             }
 
             if ($this->money->toCents((string) $sourceLedgerEntry->amount) === 0) {
                 throw new RuntimeException('Zero-amount ledger entries cannot be reversed.');
             }
 
-            $alreadyReversed = AccountingAdjustment::query()
-                ->where('adjustment_type', AccountingAdjustment::TypeLedgerEntryReversal)
-                ->where('source_ledger_entry_id', $sourceLedgerEntry->id)
+            $alreadyReversed = LedgerEntry::query()
+                ->where('reverses_entry_id', $sourceLedgerEntry->id)
                 ->exists();
 
             if ($alreadyReversed) {
@@ -225,7 +237,7 @@ class AccountingAdjustmentService
                 throw new RuntimeException('A source ledger entry is required for reversals.');
             }
 
-            return $this->money->subtract('0.00', (string) $sourceLedgerEntry->amount);
+            return $this->balanceEffect((string) $sourceLedgerEntry->direction, (string) $sourceLedgerEntry->amount);
         }
 
         if (blank($data['amount'] ?? null)) {
@@ -254,11 +266,55 @@ class AccountingAdjustmentService
         return AccountingAdjustment::typeOptions()[$adjustmentType];
     }
 
+    private function canPostAccountingAdjustment(User $actor): bool
+    {
+        if ($actor->hasRole(User::StaffRoleAccounting)) {
+            return true;
+        }
+
+        try {
+            return $actor->can('post-accounting-adjustments');
+        } catch (PermissionDoesNotExist) {
+            return false;
+        }
+    }
+
+    private function ledgerBalanceFor(StudentProfile $studentProfile, ?int $termId): string
+    {
+        return LedgerEntry::query()
+            ->where('student_profile_id', $studentProfile->id)
+            ->where('state', 'posted')
+            ->when($termId !== null, fn ($query) => $query->where('term_id', $termId))
+            ->oldest('posted_at')
+            ->oldest('id')
+            ->get(['direction', 'amount'])
+            ->reduce(
+                fn (string $balance, LedgerEntry $entry): string => $this->money->add(
+                    $balance,
+                    $this->balanceEffect((string) $entry->direction, (string) $entry->amount),
+                ),
+                '0.00',
+            );
+    }
+
+    private function balanceEffect(string $direction, string $amount): string
+    {
+        return match ($direction) {
+            LedgerEntry::DirectionPayment,
+            LedgerEntry::DirectionDiscount,
+            LedgerEntry::DirectionScholarship,
+            LedgerEntry::DirectionWaiver,
+            LedgerEntry::DirectionReversal => $this->money->subtract('0.00', $amount),
+            default => $this->money->normalize($amount),
+        };
+    }
+
     private function recordAdjustmentAudit(
         AccountingAdjustment $adjustment,
         LedgerEntry $ledgerEntry,
         User $actor,
         CarbonImmutable $recordedAt,
+        string $balanceAfter,
     ): void {
         DB::table('activity_log')->insert([
             'log_name' => 'accounting_adjustment',
@@ -272,8 +328,14 @@ class AccountingAdjustmentService
                 'adjustment_type' => $adjustment->adjustment_type,
                 'source_ledger_entry_id' => $adjustment->source_ledger_entry_id,
                 'ledger_entry_id' => $ledgerEntry->id,
+                'ledger_direction' => $ledgerEntry->direction,
+                'ledger_category' => $ledgerEntry->category,
+                'ledger_source_type' => $ledgerEntry->source_type,
+                'ledger_source_id' => $ledgerEntry->source_id,
+                'reverses_entry_id' => $ledgerEntry->reverses_entry_id,
+                'adjusts_entry_id' => $ledgerEntry->adjusts_entry_id,
                 'amount' => $adjustment->amount,
-                'current_balance_after' => $ledgerEntry->running_balance,
+                'balance_after' => $balanceAfter,
             ], JSON_UNESCAPED_SLASHES),
             'created_at' => $recordedAt->toDateTimeString(),
             'updated_at' => $recordedAt->toDateTimeString(),

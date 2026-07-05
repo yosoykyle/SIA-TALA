@@ -36,6 +36,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-85D | Done locally; pending explicit Linear sync | Master Schedule Publication and Official Meetings Acceptance |
 | TAL-86A | Done locally; pending explicit Linear sync | Fee Rules and Assessment Activation Acceptance |
 | TAL-86B | Done locally; pending explicit Linear sync | Manual Cashier Payment, OR Mapping, and Payment Evidence Ledger Posting Acceptance |
+| TAL-86C | Done locally; pending explicit Linear sync | Ledger Adjustment and Reversal Cleanup Acceptance |
 
 ## Compact Synced History
 

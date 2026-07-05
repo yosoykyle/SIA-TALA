@@ -4,16 +4,13 @@ namespace App\Policies;
 
 use App\Models\AccountingAdjustment;
 use App\Models\User;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 class AccountingAdjustmentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canAny($user, [
-            'post-accounting-adjustments',
-            'process-payments',
-            'create-assessments',
-        ]);
+        return $this->canPostAccountingAdjustment($user);
     }
 
     public function view(User $user, AccountingAdjustment $accountingAdjustment): bool
@@ -23,7 +20,7 @@ class AccountingAdjustmentPolicy
 
     public function create(User $user): bool
     {
-        return $user->can('post-accounting-adjustments');
+        return $this->canPostAccountingAdjustment($user);
     }
 
     public function update(User $user, AccountingAdjustment $accountingAdjustment): bool
@@ -46,17 +43,16 @@ class AccountingAdjustmentPolicy
         return false;
     }
 
-    /**
-     * @param  list<string>  $permissions
-     */
-    private function canAny(User $user, array $permissions): bool
+    private function canPostAccountingAdjustment(User $user): bool
     {
-        foreach ($permissions as $permission) {
-            if ($user->can($permission)) {
-                return true;
-            }
+        if ($user->hasRole(User::StaffRoleAccounting)) {
+            return true;
         }
 
-        return false;
+        try {
+            return $user->can('post-accounting-adjustments');
+        } catch (PermissionDoesNotExist) {
+            return false;
+        }
     }
 }

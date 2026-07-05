@@ -12,6 +12,10 @@ class AccountingAdjustment extends Model
     /** @use HasFactory<AccountingAdjustmentFactory> */
     use HasFactory;
 
+    public const LedgerCategoryAdjustment = 'accounting_adjustment';
+
+    public const LedgerCategoryReversal = 'accounting_reversal';
+
     public const TypeStudentAccountDebit = 'student_account_debit';
 
     public const TypeStudentAccountCredit = 'student_account_credit';
@@ -33,21 +37,24 @@ class AccountingAdjustment extends Model
     /**
      * @return list<string>
      */
-    public static function reversibleEntryTypes(): array
+    public static function reversibleDirections(): array
     {
         return [
-            'assessment',
-            'discount',
-            'installment_penalty',
-            'penalty',
-            'payment',
+            LedgerEntry::DirectionCharge,
+            LedgerEntry::DirectionPenalty,
+            LedgerEntry::DirectionPayment,
+            LedgerEntry::DirectionDiscount,
+            LedgerEntry::DirectionScholarship,
+            LedgerEntry::DirectionWaiver,
+            LedgerEntry::DirectionRefund,
+            LedgerEntry::DirectionAdjustment,
         ];
     }
 
     public static function studentOptionLabel(StudentProfile $studentProfile): string
     {
         return collect([
-            $studentProfile->student_id,
+            $studentProfile->student_number,
             $studentProfile->user?->name,
             $studentProfile->program?->code,
         ])
@@ -78,15 +85,7 @@ class AccountingAdjustment extends Model
 
     public static function enrollmentOptionLabel(Enrollment $enrollment): string
     {
-        return collect([
-            "Enrollment #{$enrollment->id}",
-            $enrollment->status,
-            $enrollment->year_level,
-            $enrollment->section?->name,
-            $enrollment->sectionDeliveryGroup?->name,
-        ])
-            ->filter(fn (?string $part): bool => filled($part))
-            ->implode(' - ');
+        return $enrollment->displayLabel();
     }
 
     /**
@@ -102,7 +101,12 @@ class AccountingAdjustment extends Model
             ->where('student_profile_id', (int) $studentProfileId)
             ->when(filled($termId), fn ($query) => $query->where('term_id', (int) $termId))
             ->when(filled($enrollmentId), fn ($query) => $query->where('enrollment_id', (int) $enrollmentId))
-            ->whereIn('entry_type', self::reversibleEntryTypes())
+            ->where('state', 'posted')
+            ->whereIn('direction', self::reversibleDirections())
+            ->where('amount', '<>', 0)
+            ->whereNotIn('id', LedgerEntry::query()
+                ->select('reverses_entry_id')
+                ->whereNotNull('reverses_entry_id'))
             ->latest('posted_at')
             ->latest('id')
             ->get()
@@ -116,10 +120,10 @@ class AccountingAdjustment extends Model
     {
         return collect([
             "#{$ledgerEntry->id}",
-            $ledgerEntry->entry_type,
+            $ledgerEntry->direction,
+            $ledgerEntry->category,
             $ledgerEntry->description,
             'Amount: PHP '.number_format((float) $ledgerEntry->amount, 2),
-            'Balance: PHP '.number_format((float) $ledgerEntry->running_balance, 2),
         ])
             ->filter(fn (?string $part): bool => filled($part))
             ->implode(' - ');

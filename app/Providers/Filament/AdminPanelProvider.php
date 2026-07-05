@@ -6,6 +6,7 @@ use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
+use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
@@ -95,6 +96,7 @@ class AdminPanelProvider extends PanelProvider
                 EnrollmentResource::class,
                 FeeRuleResource::class,
                 AssessmentResource::class,
+                AccountingAdjustmentResource::class,
                 LedgerEntryResource::class,
                 PaymentAttemptResource::class,
                 PaymentResource::class,

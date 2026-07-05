@@ -53,10 +53,10 @@ Dependency lock:
 | --- | --- | --- | --- |
 | TAL-86A | Done locally; pending explicit Linear sync | Fee Rules and Assessment activation acceptance. | Accepted: Accounting-owned Fee Rules remain the MVP fee setup surface; legacy Fee Templates are hidden from navigation while retained as deferred code. |
 | TAL-86B | Done locally; pending explicit Linear sync | Manual cashier payment, OR mapping, and payment evidence ledger posting acceptance. | Accepted: Accounting can record verified manual payments, payment ledger entries post from verified evidence, OR numbers map to existing posted payments, and pending evidence remains non-authoritative. |
-| TAL-86C | Planned | Ledger adjustment and reversal cleanup acceptance. | Align adjustment/reversal service and UI to clean ledger schema using direction/source links instead of legacy running-balance or entry-type fields. |
+| TAL-86C | Done locally; pending explicit Linear sync | Ledger adjustment and reversal cleanup acceptance. | Accepted: Accounting adjustments and reversals use clean ledger direction/source/reversal links, no legacy running-balance or entry-type fields, and the resource is active for Accounting. |
 | TAL-86D | Planned | Financial Accommodation and promissory-effect acceptance. | Prove Accounting records approved accommodation results and explicit Finance Gate effects while keeping promissory evidence as a reference, not an approval engine. |
 | TAL-86E | Planned | Finance Gate source behavior smoke. | Prove Finance Gate readiness derives from posted ledger payment or active accommodation, while PayMongo checkout/return remains non-authoritative. |
 
 ### Next Boundary
 
-Next implementation boundary is TAL-86C: Ledger adjustment and reversal cleanup acceptance. Keep work limited to aligning adjustment/reversal service and UI behavior to the clean ledger schema using `direction`, `source_type`, `source_id`, reversal/adjustment links, posted-state rules, and Accounting authorization. Do not expand PayMongo hardening, Financial Accommodation, enrollment officialization, COR/SOA output, Student Hub finance redesign, reports, or later TAL-86 sub-slices.
+Next implementation boundary is TAL-86D: Financial Accommodation and promissory-effect acceptance. Keep work limited to Accounting-recorded approved accommodation results, explicit Finance Gate effects, and promissory evidence as reference data. Do not expand PayMongo hardening, enrollment officialization, COR/SOA output, Student Hub finance redesign, reports, or TAL-86E Finance Gate smoke work.

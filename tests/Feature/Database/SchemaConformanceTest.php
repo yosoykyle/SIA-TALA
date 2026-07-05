@@ -16,7 +16,7 @@ final class SchemaConformanceTest extends TestCase
     ];
 
     private const APPLICATION_TABLES = [
-        'academic_years', 'admission_requirement_policies', 'applicant_intakes',
+        'academic_years', 'accounting_adjustments', 'admission_requirement_policies', 'applicant_intakes',
         'assessment_lines', 'assessments', 'calendar_events', 'candidate_schedule_rows',
         'checklist_items', 'course_components', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
@@ -52,9 +52,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(57, self::APPLICATION_TABLES);
+        $this->assertCount(58, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(74, $actual);
+        $this->assertCount(75, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -68,6 +68,7 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('payments', ['payment_attempt_id', 'evidence_status', 'or_number', 'provider_reference']);
         $this->assertColumns('payment_allocations', ['payment_id', 'assessment_line_id', 'payment_schedule_row_id', 'prior_balance_ledger_entry_id']);
         $this->assertColumns('ledger_entries', ['source_type', 'source_id', 'reverses_entry_id', 'adjusts_entry_id']);
+        $this->assertColumns('accounting_adjustments', ['source_ledger_entry_id', 'ledger_entry_id', 'adjustment_type', 'posted_by']);
         $this->assertColumns('grade_outcome_events', ['grade_roster_row_id', 'previous_value', 'new_value', 'previous_category', 'new_category']);
         $this->assertColumns('holds', ['hold_type', 'reason', 'staff_only_reason', 'student_message', 'resolution_requirement']);
 
@@ -91,6 +92,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertForeignKey('payments', 'payment_attempt_id', 'payment_attempts', 'RESTRICT');
         $this->assertForeignKey('payment_allocations', 'payment_id', 'payments', 'RESTRICT');
         $this->assertForeignKey('ledger_entries', 'payment_allocation_id', 'payment_allocations', 'RESTRICT');
+        $this->assertForeignKey('accounting_adjustments', 'ledger_entry_id', 'ledger_entries', 'RESTRICT');
+        $this->assertForeignKey('accounting_adjustments', 'source_ledger_entry_id', 'ledger_entries', 'RESTRICT');
         $this->assertForeignKey('grade_roster_rows', 'course_enrollment_id', 'course_enrollments', 'RESTRICT');
         $this->assertForeignKey('grade_outcome_events', 'grade_roster_row_id', 'grade_roster_rows', 'RESTRICT');
         $this->assertForeignKey('holds', 'student_profile_id', 'student_profiles', 'RESTRICT');
@@ -117,6 +120,7 @@ final class SchemaConformanceTest extends TestCase
             ['payments', 'amount', 12, 2],
             ['payment_allocations', 'amount', 12, 2],
             ['ledger_entries', 'amount', 12, 2],
+            ['accounting_adjustments', 'amount', 12, 2],
             ['course_specifications', 'credit_units', 5, 2],
             ['course_components', 'weekly_contact_hours', 5, 2],
             ['grade_roster_rows', 'computed_average', 7, 4],

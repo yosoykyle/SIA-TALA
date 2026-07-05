@@ -15,7 +15,6 @@ class FilamentRegistrationStabilizationTest extends TestCase
     {
         return [
             'admission readiness dashboard page' => ['route' => 'filament.admin.pages.admission-readiness-dashboard'],
-            'accounting adjustments' => ['route' => 'filament.admin.resources.accounting-adjustments.index'],
             'admission capacity plans' => ['route' => 'filament.admin.resources.admission-capacity-plans.index'],
             'admission offerings' => ['route' => 'filament.admin.resources.admission-offerings.index'],
             'cor verifications' => ['route' => 'filament.admin.resources.cor-verifications.index'],

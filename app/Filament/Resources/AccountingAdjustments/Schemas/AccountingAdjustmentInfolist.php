@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\AccountingAdjustments\Schemas;
 
 use App\Models\AccountingAdjustment;
+use App\Models\Enrollment;
+use App\Models\LedgerEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -12,19 +14,23 @@ class AccountingAdjustmentInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('studentProfile.student_id')
+                TextEntry::make('studentProfile.student_number')
                     ->label('Student ID'),
                 TextEntry::make('studentProfile.user.name')
                     ->label('Student')
                     ->placeholder('-'),
-                TextEntry::make('term.term_name')
+                TextEntry::make('term.label')
                     ->label('Term')
                     ->placeholder('-'),
                 TextEntry::make('enrollment.id')
                     ->label('Enrollment')
-                    ->formatStateUsing(fn (?int $state, AccountingAdjustment $record): string => $record->enrollment === null
-                        ? '-'
-                        : AccountingAdjustment::enrollmentOptionLabel($record->enrollment)),
+                    ->formatStateUsing(function (?int $state, AccountingAdjustment $record): string {
+                        $enrollment = $record->enrollment;
+
+                        return $enrollment instanceof Enrollment
+                            ? AccountingAdjustment::enrollmentOptionLabel($enrollment)
+                            : '-';
+                    }),
                 TextEntry::make('adjustment_type')
                     ->label('Type')
                     ->badge(),
@@ -32,16 +38,28 @@ class AccountingAdjustmentInfolist
                     ->numeric(),
                 TextEntry::make('sourceLedgerEntry.id')
                     ->label('Source Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, AccountingAdjustment $record): string => $record->sourceLedgerEntry === null
-                        ? '-'
-                        : AccountingAdjustment::sourceLedgerOptionLabel($record->sourceLedgerEntry)),
+                    ->formatStateUsing(function (?int $state, AccountingAdjustment $record): string {
+                        $ledgerEntry = $record->sourceLedgerEntry;
+
+                        return $ledgerEntry instanceof LedgerEntry
+                            ? AccountingAdjustment::sourceLedgerOptionLabel($ledgerEntry)
+                            : '-';
+                    }),
                 TextEntry::make('ledgerEntry.id')
                     ->label('Posted Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, AccountingAdjustment $record): string => $record->ledgerEntry === null
-                        ? '-'
-                        : AccountingAdjustment::sourceLedgerOptionLabel($record->ledgerEntry)),
-                TextEntry::make('ledgerEntry.running_balance')
-                    ->label('Balance After')
+                    ->formatStateUsing(function (?int $state, AccountingAdjustment $record): string {
+                        $ledgerEntry = $record->ledgerEntry;
+
+                        return $ledgerEntry instanceof LedgerEntry
+                            ? AccountingAdjustment::sourceLedgerOptionLabel($ledgerEntry)
+                            : '-';
+                    }),
+                TextEntry::make('ledgerEntry.direction')
+                    ->label('Posted Ledger Direction')
+                    ->badge()
+                    ->placeholder('-'),
+                TextEntry::make('ledgerEntry.amount')
+                    ->label('Posted Ledger Amount')
                     ->numeric()
                     ->placeholder('-'),
                 TextEntry::make('posted_at')
