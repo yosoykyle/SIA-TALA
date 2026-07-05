@@ -35,7 +35,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-85 | Split planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
 | TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
 | TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
@@ -48,15 +47,6 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
-### TAL-85 Sub-slice Map
-
-| Slice | Status | Purpose | Next Boundary |
-| --- | --- | --- | --- |
-| TAL-85A | Done locally; pending explicit Linear sync | Term Offering and Section Delivery Group source-record UI alignment. | Accepted locally; recorded in the local sync tracker. |
-| TAL-85B | Done locally; pending explicit Linear sync | Resource readiness surfaces. | Accepted locally; recorded in the local sync tracker. |
-| TAL-85C | Done locally; pending explicit Linear sync | Scheduling demand readiness acceptance. | Accepted locally; recorded in the local sync tracker. |
-| TAL-85D | Planned | Master schedule publication/read-only official meetings acceptance. | Prove candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub/COR/enrollment read only published meetings. |
-
 ### Next Boundary
 
-Next implementation boundary is TAL-85D: Master schedule publication/read-only official meetings acceptance. Keep the work limited to proving candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub, COR, and enrollment read only published meetings. Do not expand enrollment binding, finance, Student Hub schedule projection, CP-SAT dispatch, Cloud Run, or solver hardening beyond checks needed to preserve the TAL-85 dependency chain.
+Next planning boundary is TAL-86: Finance Core and Assessment Acceptance. Primary planning must inspect the PRD, UI blueprint, architecture, clean schema/migrations, current finance services/resources/tests, native Laravel/Filament fit, and any unclear benchmark/policy questions before proposing TAL-86 sub-slices. Do not expand PayMongo end-to-end hardening, enrollment gates, COR output, Student Hub projections, or reports until their owning issues.

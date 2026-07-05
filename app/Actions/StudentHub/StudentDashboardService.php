@@ -3,18 +3,22 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\StudentLifecycle\HoldEvaluationService;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
+use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Support\DecimalMoney;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 class StudentDashboardService
@@ -91,17 +95,17 @@ class StudentDashboardService
     {
         return [
             'student_profile_id' => (int) $studentProfile->id,
-            'user_id' => $studentProfile->user_id !== null ? (int) $studentProfile->user_id : null,
+            'user_id' => (int) $studentProfile->user_id,
             'name' => $studentProfile->user?->name,
-            'student_id' => $studentProfile->student_id,
-            'program_id' => $studentProfile->program_id !== null ? (int) $studentProfile->program_id : null,
+            'student_id' => $this->stringAttribute($studentProfile, 'student_number'),
+            'program_id' => (int) $studentProfile->program_id,
             'program_code' => $studentProfile->program?->code,
             'program_name' => $studentProfile->program?->name,
-            'year_level' => $studentProfile->year_level,
-            'modality' => $studentProfile->modality,
-            'operational_status' => $studentProfile->operational_status,
+            'year_level' => null,
+            'modality' => null,
+            'operational_status' => $this->stringAttribute($studentProfile, 'lifecycle_status'),
             'user_status' => $studentProfile->user?->status,
-            'hard_copy_received' => (bool) $studentProfile->hard_copy_received,
+            'hard_copy_received' => false,
         ];
     }
 
@@ -112,22 +116,22 @@ class StudentDashboardService
     {
         return [
             'enrollment_id' => (int) $enrollment->id,
-            'term_id' => $enrollment->term_id !== null ? (int) $enrollment->term_id : null,
-            'term_name' => $enrollment->term?->term_name,
-            'section_id' => $enrollment->section_id !== null ? (int) $enrollment->section_id : null,
-            'section_name' => $enrollment->section?->name,
-            'section_delivery_group_id' => $enrollment->section_delivery_group_id !== null ? (int) $enrollment->section_delivery_group_id : null,
-            'section_delivery_group_name' => $enrollment->sectionDeliveryGroup?->name,
+            'term_id' => (int) $enrollment->term_id,
+            'term_name' => $enrollment->term?->label,
+            'section_id' => null,
+            'section_name' => null,
+            'section_delivery_group_id' => null,
+            'section_delivery_group_name' => null,
             'status' => $enrollment->status,
             'student_type' => $enrollment->student_type,
-            'year_level' => $enrollment->year_level,
-            'modality' => $enrollment->modality,
-            'lis_status' => $enrollment->lis_status,
-            'is_late_enrollment' => (bool) $enrollment->is_late_enrollment,
-            'enrolled_at' => $enrollment->enrolled_at?->toDateTimeString(),
-            'pre_enrolled_at' => $enrollment->pre_enrolled_at?->toDateTimeString(),
-            'officially_enrolled_at' => $enrollment->officially_enrolled_at?->toDateTimeString(),
-            'completed_at' => $enrollment->completed_at?->toDateTimeString(),
+            'year_level' => null,
+            'modality' => null,
+            'lis_status' => null,
+            'is_late_enrollment' => false,
+            'enrolled_at' => $this->dateTimeString($enrollment->officially_enrolled_at),
+            'pre_enrolled_at' => $this->dateTimeString($enrollment->registered_at),
+            'officially_enrolled_at' => $this->dateTimeString($enrollment->officially_enrolled_at),
+            'completed_at' => null,
         ];
     }
 
@@ -136,45 +140,65 @@ class StudentDashboardService
      */
     private function scheduleFor(Enrollment $enrollment): array
     {
-        if ($enrollment->section_id === null || $enrollment->term_id === null) {
-            return [];
-        }
-
-        return SectionMeeting::query()
-            ->with(['subject', 'faculty', 'sectionDeliveryGroup'])
-            ->activeOfficial()
-            ->where('term_id', $enrollment->term_id)
-            ->where('section_id', $enrollment->section_id)
-            ->when($enrollment->section_delivery_group_id !== null, function ($query) use ($enrollment): void {
-                $query->where(function ($query) use ($enrollment): void {
-                    $query->whereNull('section_delivery_group_id')
-                        ->orWhere('section_delivery_group_id', $enrollment->section_delivery_group_id);
-                });
-            })
-            ->orderBy('day_of_week')
-            ->orderBy('starts_at')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (SectionMeeting $meeting): array => [
-                'section_meeting_id' => (int) $meeting->id,
-                'term_id' => (int) $meeting->term_id,
-                'section_id' => (int) $meeting->section_id,
-                'section_delivery_group_id' => $meeting->section_delivery_group_id !== null ? (int) $meeting->section_delivery_group_id : null,
-                'section_delivery_group_name' => $meeting->sectionDeliveryGroup?->name,
-                'subject_id' => (int) $meeting->subject_id,
-                'subject_code' => $meeting->subject?->code,
-                'subject_description' => $meeting->subject?->description,
-                'faculty_id' => $meeting->faculty_id !== null ? (int) $meeting->faculty_id : null,
-                'faculty_name' => $meeting->faculty?->name,
-                'day_of_week' => (int) $meeting->day_of_week,
-                'day_label' => SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Unscheduled',
-                'starts_at' => $this->timeValue($meeting->starts_at),
-                'ends_at' => $this->timeValue($meeting->ends_at),
-                'time_label' => $this->timeRange($meeting->starts_at, $meeting->ends_at),
-                'room' => $meeting->room,
-                'modality' => $meeting->modality,
-                'modality_label' => SectionMeeting::modalityOptions()[$meeting->modality] ?? $meeting->modality,
+        return StudentScheduleBinding::query()
+            ->with([
+                'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
+                'sectionMeeting.scheduleRun',
+                'sectionMeeting.schedulingDemand.sectionDeliveryGroup.section',
+                'sectionMeeting.faculty',
+                'sectionMeeting.room',
             ])
+            ->where('is_active', true)
+            ->whereHas('courseEnrollment', function ($query) use ($enrollment): void {
+                $query
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('status', CourseEnrollment::StatusActive);
+            })
+            ->whereHas('sectionMeeting', function ($query): void {
+                $query
+                    ->where('state', SectionMeeting::StateActive)
+                    ->whereHas('scheduleRun', function ($query): void {
+                        $query->where('status', ScheduleGenerationRun::StatusPublished);
+                    });
+            })
+            ->get()
+            ->filter(fn (StudentScheduleBinding $binding): bool => $binding->sectionMeeting instanceof SectionMeeting)
+            ->sortBy(fn (StudentScheduleBinding $binding): string => sprintf(
+                '%02d-%s-%010d',
+                (int) $binding->sectionMeeting->day_of_week,
+                (string) $binding->sectionMeeting->starts_at,
+                (int) $binding->sectionMeeting->id,
+            ))
+            ->map(function (StudentScheduleBinding $binding): array {
+                $meeting = $binding->sectionMeeting;
+                $courseEnrollment = $binding->courseEnrollment;
+                $termOffering = $courseEnrollment?->termOffering;
+                $courseSpecification = $termOffering?->curriculumEntry?->courseSpecification;
+                $course = $courseSpecification?->course;
+                $deliveryGroup = $meeting->schedulingDemand?->sectionDeliveryGroup;
+                $section = $deliveryGroup?->section;
+
+                return [
+                    'section_meeting_id' => (int) $meeting->id,
+                    'term_id' => $termOffering?->term_id !== null ? (int) $termOffering->term_id : null,
+                    'section_id' => $section?->id !== null ? (int) $section->id : null,
+                    'section_delivery_group_id' => $deliveryGroup?->id !== null ? (int) $deliveryGroup->id : null,
+                    'section_delivery_group_name' => $deliveryGroup?->name,
+                    'subject_id' => $course?->id !== null ? (int) $course->id : null,
+                    'subject_code' => $course?->code,
+                    'subject_description' => $courseSpecification?->title ?: $courseSpecification?->description,
+                    'faculty_id' => (int) $meeting->faculty_user_id,
+                    'faculty_name' => $meeting->faculty?->name,
+                    'day_of_week' => (int) $meeting->day_of_week,
+                    'day_label' => SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Unscheduled',
+                    'starts_at' => $this->timeValue($meeting->starts_at),
+                    'ends_at' => $this->timeValue($meeting->ends_at),
+                    'time_label' => $this->timeRange($meeting->starts_at, $meeting->ends_at),
+                    'room' => $meeting->room?->code,
+                    'modality' => $meeting->modality,
+                    'modality_label' => SectionMeeting::modalityOptions()[$meeting->modality] ?? $meeting->modality,
+                ];
+            })
             ->values()
             ->all();
     }
@@ -184,7 +208,11 @@ class StudentDashboardService
      */
     private function financials(StudentProfile $studentProfile): array
     {
-        $currentBalance = $this->money->normalize((string) $studentProfile->current_balance);
+        $currentBalance = $this->sumAmounts(
+            LedgerEntry::query()
+                ->where('student_profile_id', $studentProfile->id)
+                ->pluck('amount')
+        );
         $ledgerEntries = LedgerEntry::query()
             ->with('term')
             ->where('student_profile_id', $studentProfile->id)
@@ -194,29 +222,32 @@ class StudentDashboardService
         $payments = Payment::query()
             ->with('term')
             ->where('student_profile_id', $studentProfile->id)
-            ->where('status', 'confirmed')
-            ->orderByDesc('confirmed_at')
+            ->where('evidence_status', 'verified')
+            ->orderByDesc('paid_at')
             ->orderByDesc('id')
             ->get();
+        $latestPayments = [];
+
+        foreach ($payments->take(5) as $payment) {
+            $term = $payment->term;
+
+            $latestPayments[] = [
+                'payment_id' => (int) $payment->id,
+                'term_id' => (int) $payment->term_id,
+                'term_name' => $term instanceof Term ? $this->stringAttribute($term, 'label') : null,
+                'payment_reference' => $this->stringAttribute($payment, 'provider_reference') ?? $this->stringAttribute($payment, 'or_number'),
+                'channel' => $payment->channel,
+                'amount' => $this->money->normalize((string) $payment->amount),
+                'status' => $this->stringAttribute($payment, 'evidence_status'),
+                'confirmed_at' => $this->dateTimeString($payment->verified_at ?? $payment->paid_at),
+            ];
+        }
 
         return [
             'current_balance' => $currentBalance,
             'has_balance' => $this->money->greaterThanZero($currentBalance),
             'term_summaries' => $this->financialTermSummaries($ledgerEntries, $payments),
-            'latest_payments' => $payments
-                ->take(5)
-                ->map(fn (Payment $payment): array => [
-                    'payment_id' => (int) $payment->id,
-                    'term_id' => $payment->term_id !== null ? (int) $payment->term_id : null,
-                    'term_name' => $payment->term?->term_name,
-                    'payment_reference' => $payment->payment_reference,
-                    'channel' => $payment->channel,
-                    'amount' => $this->money->normalize((string) $payment->amount),
-                    'status' => $payment->status,
-                    'confirmed_at' => $payment->confirmed_at?->toDateTimeString(),
-                ])
-                ->values()
-                ->all(),
+            'latest_payments' => $latestPayments,
         ];
     }
 
@@ -227,42 +258,44 @@ class StudentDashboardService
      */
     private function financialTermSummaries(EloquentCollection $ledgerEntries, EloquentCollection $payments): array
     {
-        $termIds = $ledgerEntries->pluck('term_id')
+        $termIds = $ledgerEntries
+            ->pluck('term_id')
             ->merge($payments->pluck('term_id'))
             ->filter()
+            ->map(fn (int|string $termId): int => (int) $termId)
             ->unique()
-            ->values();
+            ->values()
+            ->all();
 
-        if ($termIds->isEmpty()) {
+        if ($termIds === []) {
             return [];
         }
 
-        $terms = Term::query()
-            ->whereKey($termIds->all())
-            ->get()
-            ->keyBy('id');
+        $termLabels = Term::query()
+            ->whereKey($termIds)
+            ->pluck('label', 'id');
+        $summaries = [];
 
-        return $termIds
-            ->map(function (int|string $termId) use ($ledgerEntries, $payments, $terms): array {
-                $termLedgerEntries = $ledgerEntries->where('term_id', $termId)->values();
-                $termPayments = $payments->where('term_id', $termId)->values();
-                $latestLedgerEntry = $termLedgerEntries->first();
+        foreach ($termIds as $termId) {
+            $termLedgerEntries = $ledgerEntries->where('term_id', $termId)->values();
+            $termPayments = $payments->where('term_id', $termId)->values();
+            $latestLedgerEntry = $termLedgerEntries->first();
 
-                return [
-                    'term_id' => (int) $termId,
-                    'term_name' => $terms->get($termId)?->term_name,
-                    'total_assessment' => $this->sumAmounts($termLedgerEntries->where('entry_type', 'assessment')->pluck('amount')),
-                    'total_paid' => $termPayments->isNotEmpty()
-                        ? $this->sumAmounts($termPayments->pluck('amount'))
-                        : $this->sumAbsoluteAmounts($termLedgerEntries->where('entry_type', 'payment')->pluck('amount')),
-                    'remaining_balance' => $latestLedgerEntry instanceof LedgerEntry && $latestLedgerEntry->running_balance !== null
-                        ? $this->money->normalize((string) $latestLedgerEntry->running_balance)
-                        : $this->sumAmounts($termLedgerEntries->pluck('amount')),
-                    'latest_entry_at' => $latestLedgerEntry?->posted_at?->toDateTimeString(),
-                ];
-            })
-            ->values()
-            ->all();
+            $summaries[] = [
+                'term_id' => $termId,
+                'term_name' => $this->collectionString($termLabels, $termId),
+                'total_assessment' => $this->sumAmounts($termLedgerEntries->where('direction', LedgerEntry::DirectionCharge)->pluck('amount')),
+                'total_paid' => $termPayments->isNotEmpty()
+                    ? $this->sumAmounts($termPayments->pluck('amount'))
+                    : $this->sumAbsoluteAmounts($termLedgerEntries->where('direction', LedgerEntry::DirectionPayment)->pluck('amount')),
+                'remaining_balance' => $this->sumAmounts($termLedgerEntries->pluck('amount')),
+                'latest_entry_at' => $latestLedgerEntry instanceof LedgerEntry
+                    ? $this->dateTimeString($latestLedgerEntry->posted_at)
+                    : null,
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
@@ -365,21 +398,27 @@ class StudentDashboardService
             return [];
         }
 
-        return $studentProfile->user
+        $notifications = [];
+
+        foreach ($studentProfile->user
             ->notifications()
             ->latest()
             ->limit(5)
-            ->get()
-            ->map(fn (DatabaseNotification $notification): array => [
+            ->get() as $notification) {
+            $type = $this->stringAttribute($notification, 'type') ?? 'notification';
+            $data = $notification->getAttribute('data');
+
+            $notifications[] = [
                 'id' => (string) $notification->id,
-                'type' => $notification->type,
-                'title' => data_get($notification->data, 'title', $notification->type),
-                'body' => data_get($notification->data, 'body'),
-                'read_at' => $notification->read_at?->toDateTimeString(),
-                'created_at' => $notification->created_at?->toDateTimeString(),
-            ])
-            ->values()
-            ->all();
+                'type' => $type,
+                'title' => data_get($data, 'title', $type),
+                'body' => data_get($data, 'body'),
+                'read_at' => $this->dateTimeString($notification->getAttribute('read_at')),
+                'created_at' => $this->dateTimeString($notification->getAttribute('created_at')),
+            ];
+        }
+
+        return $notifications;
     }
 
     /**
@@ -387,25 +426,53 @@ class StudentDashboardService
      */
     private function help(): array
     {
+        $faqEntries = [];
+
+        foreach (FaqEntry::query()
+            ->where('is_published', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->limit(5)
+            ->get() as $entry) {
+            $category = $this->stringAttribute($entry, 'category');
+
+            $faqEntries[] = [
+                'faq_entry_id' => (int) $entry->id,
+                'question' => $this->stringAttribute($entry, 'question'),
+                'answer' => $this->stringAttribute($entry, 'answer'),
+                'category' => $category,
+                'category_label' => FaqEntry::categoryLabel($category),
+            ];
+        }
+
         return [
             'help_path' => null,
             'public_faq_path' => null,
-            'faq_entries' => FaqEntry::query()
-                ->where('is_published', true)
-                ->orderBy('sort_order')
-                ->orderBy('id')
-                ->limit(5)
-                ->get()
-                ->map(fn (FaqEntry $entry): array => [
-                    'faq_entry_id' => (int) $entry->id,
-                    'question' => $entry->question,
-                    'answer' => $entry->answer,
-                    'category' => $entry->category,
-                    'category_label' => FaqEntry::categoryLabel($entry->category),
-                ])
-                ->values()
-                ->all(),
+            'faq_entries' => $faqEntries,
         ];
+    }
+
+    private function stringAttribute(Model $model, string $key): ?string
+    {
+        $value = $model->getAttribute($key);
+
+        return $value === null || $value === '' ? null : (string) $value;
+    }
+
+    private function collectionString(Collection $collection, int $key): ?string
+    {
+        $value = $collection->get($key);
+
+        return $value === null || $value === '' ? null : (string) $value;
+    }
+
+    private function dateTimeString(mixed $value): ?string
+    {
+        if ($value instanceof DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        return $value === null || $value === '' ? null : (string) $value;
     }
 
     /**
