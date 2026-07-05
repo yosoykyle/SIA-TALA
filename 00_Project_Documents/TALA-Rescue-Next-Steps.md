@@ -47,6 +47,16 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
+### TAL-86 Sub-slice Map
+
+| Slice | Status | Purpose | Next Boundary |
+| --- | --- | --- | --- |
+| TAL-86A | Done locally; pending explicit Linear sync | Fee Rules and Assessment activation acceptance. | Accepted: Accounting-owned Fee Rules remain the MVP fee setup surface; legacy Fee Templates are hidden from navigation while retained as deferred code. |
+| TAL-86B | Planned | Manual cashier payment, OR mapping, and payment evidence ledger posting acceptance. | Prove Accounting records verified/manual payment evidence, posts payment ledger entries, maps OR numbers to existing payment evidence, and keeps pending evidence separate from ledger posting. |
+| TAL-86C | Planned | Ledger adjustment and reversal cleanup acceptance. | Align adjustment/reversal service and UI to clean ledger schema using direction/source links instead of legacy running-balance or entry-type fields. |
+| TAL-86D | Planned | Financial Accommodation and promissory-effect acceptance. | Prove Accounting records approved accommodation results and explicit Finance Gate effects while keeping promissory evidence as a reference, not an approval engine. |
+| TAL-86E | Planned | Finance Gate source behavior smoke. | Prove Finance Gate readiness derives from posted ledger payment or active accommodation, while PayMongo checkout/return remains non-authoritative. |
+
 ### Next Boundary
 
-Next planning boundary is TAL-86: Finance Core and Assessment Acceptance. Primary planning must inspect the PRD, UI blueprint, architecture, clean schema/migrations, current finance services/resources/tests, native Laravel/Filament fit, and any unclear benchmark/policy questions before proposing TAL-86 sub-slices. Do not expand PayMongo end-to-end hardening, enrollment gates, COR output, Student Hub projections, or reports until their owning issues.
+Next implementation boundary is TAL-86B: Manual cashier payment, OR mapping, and payment evidence ledger posting acceptance. Keep work limited to Accounting-recorded manual/verified payment evidence, payment ledger posting, OR-number mapping to existing payment evidence, and the pending-evidence versus posted-ledger boundary. Do not expand PayMongo hardening, adjustment/reversal, Financial Accommodation, enrollment officialization, COR/SOA output, Student Hub finance redesign, reports, or later TAL-86 sub-slices.

@@ -34,6 +34,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-85B | Done locally; pending explicit Linear sync | Resource Readiness Surfaces |
 | TAL-85C | Done locally; pending explicit Linear sync | Scheduling Demand Readiness Acceptance |
 | TAL-85D | Done locally; pending explicit Linear sync | Master Schedule Publication and Official Meetings Acceptance |
+| TAL-86A | Done locally; pending explicit Linear sync | Fee Rules and Assessment Activation Acceptance |
 
 ## Compact Synced History
 
