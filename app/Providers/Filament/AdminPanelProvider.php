@@ -19,6 +19,7 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
+use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
@@ -97,6 +98,7 @@ class AdminPanelProvider extends PanelProvider
                 FeeRuleResource::class,
                 AssessmentResource::class,
                 AccountingAdjustmentResource::class,
+                FinancialAccommodationResource::class,
                 LedgerEntryResource::class,
                 PaymentAttemptResource::class,
                 PaymentResource::class,

@@ -8,7 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FinancialAccommodation extends Model
 {
+    public const BasisDswDLguCertification = 'DSWD_LGU_CERTIFICATION';
+
+    public const BasisInstitutionalAccommodation = 'INSTITUTIONAL_ACCOMMODATION';
+
+    public const StatusPending = 'PENDING';
+
     public const StatusActive = 'ACTIVE';
+
+    public const StatusFulfilled = 'FULFILLED';
+
+    public const StatusDefaulted = 'DEFAULTED';
+
+    public const StatusExpired = 'EXPIRED';
+
+    public const StatusCancelled = 'CANCELLED';
 
     /**
      * @var list<string>
@@ -66,9 +80,54 @@ class FinancialAccommodation extends Model
         return $this->belongsTo(Term::class);
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function recorder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
+    }
+
     /** @return HasMany<PaymentScheduleRow, $this> */
     public function paymentScheduleRows(): HasMany
     {
         return $this->hasMany(PaymentScheduleRow::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function basisOptions(): array
+    {
+        return [
+            self::BasisDswDLguCertification => 'DSWD/LGU Certification',
+            self::BasisInstitutionalAccommodation => 'Institutional Accommodation',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::StatusPending => 'Pending',
+            self::StatusActive => 'Active',
+            self::StatusFulfilled => 'Fulfilled',
+            self::StatusDefaulted => 'Defaulted',
+            self::StatusExpired => 'Expired',
+            self::StatusCancelled => 'Cancelled',
+        ];
+    }
+
+    public static function studentOptionLabel(StudentProfile $studentProfile): string
+    {
+        $name = $studentProfile->user instanceof User && filled($studentProfile->user->name)
+            ? $studentProfile->user->name
+            : collect([$studentProfile->first_name, $studentProfile->middle_name, $studentProfile->last_name])
+                ->filter()
+                ->implode(' ');
+
+        return collect([$studentProfile->student_number, $name])
+            ->filter()
+            ->implode(' — ');
     }
 }

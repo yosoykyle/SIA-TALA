@@ -14,6 +14,7 @@ use App\Models\Term;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -375,6 +376,8 @@ class FinanceEvidenceService
             ->where('student_profile_id', $assessment->enrollment->student_profile_id)
             ->where('term_id', $assessment->enrollment->term_id)
             ->where('status', FinancialAccommodation::StatusActive)
+            ->where('effective_from', '<=', today())
+            ->where(fn (Builder $query) => $query->whereNull('expires_on')->orWhere('expires_on', '>=', today()))
             ->orderByDesc('effective_from')
             ->first();
     }
@@ -510,6 +513,7 @@ class FinanceEvidenceService
                 'basis' => '-',
                 'covered_amount' => 'PHP 0.00',
                 'next_due' => '-',
+                'approved_effects' => [],
             ];
         }
 
@@ -519,11 +523,42 @@ class FinanceEvidenceService
             ->first();
 
         return [
-            'status' => str($accommodation->status)->headline()->toString(),
-            'basis' => str($accommodation->basis)->replace('_', ' ')->headline()->toString(),
+            'status' => FinancialAccommodation::statusOptions()[$accommodation->status] ?? str($accommodation->status)->headline()->toString(),
+            'basis' => FinancialAccommodation::basisOptions()[$accommodation->basis] ?? str($accommodation->basis)->replace('_', ' ')->headline()->toString(),
             'covered_amount' => $this->formatPeso((string) $accommodation->covered_amount),
             'next_due' => $nextDue instanceof PaymentScheduleRow ? $this->dateValue($nextDue->due_date) : '-',
+            'approved_effects' => $this->accommodationEffects($accommodation),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function accommodationEffects(FinancialAccommodation $accommodation): array
+    {
+        $effects = [];
+
+        if ($accommodation->allows_finance_gate) {
+            $effects[] = 'Current-term Finance Gate';
+        }
+
+        if ($accommodation->allows_next_term_enrollment) {
+            $effects[] = 'Next-term Enrollment';
+        }
+
+        if ($accommodation->allows_reactivation) {
+            $effects[] = 'Reactivation';
+        }
+
+        if ($accommodation->allows_record_release) {
+            $effects[] = 'Record Release';
+        }
+
+        if ($accommodation->waives_downpayment) {
+            $effects[] = 'Downpayment Waived';
+        }
+
+        return $effects;
     }
 
     private function actorCanAccessAssessment(User $actor, Assessment $assessment): bool
@@ -632,6 +667,7 @@ class FinanceEvidenceService
                     'basis' => '-',
                     'covered_amount' => 'PHP 0.00',
                     'next_due' => '-',
+                    'approved_effects' => [],
                 ],
             ],
         ];

@@ -136,8 +136,12 @@ class Finance extends Page
                         TextEntry::make('accommodation_summary.basis')->label('Basis'),
                         TextEntry::make('accommodation_summary.covered_amount')->label('Covered Amount'),
                         TextEntry::make('accommodation_summary.next_due')->label('Next Due'),
+                        TextEntry::make('accommodation_summary.approved_effects')
+                            ->label('Approved Effects')
+                            ->listWithLineBreaks()
+                            ->placeholder('No explicit finance effects recorded.'),
                     ])
-                    ->columns(4),
+                    ->columns(5),
             ]);
     }
 
