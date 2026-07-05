@@ -126,10 +126,11 @@ Before adding a dependency, get explicit approval and document compatibility wit
 
 Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
-Worker handoff includes only: issue, accepted checklist, authority files, allowed changes, exclusions, verification, DB proof requirement, and handshake format. Use minimal context by default.
+Before starting a worker, the primary writes a compact handoff packet to the OS temp directory and points the worker to that absolute path. The packet includes only: issue, accepted checklist, authority files, allowed changes, exclusions, verification, DB proof requirement, and handshake format. Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
 
 Workers must:
 
+- Read the handoff packet before acting.
 - Read `AGENTS.md` and relevant authorities before editing.
 - Preserve unrelated worktree changes.
 - Execute the accepted checklist; not act as another primary unless scoped for research/planning.
