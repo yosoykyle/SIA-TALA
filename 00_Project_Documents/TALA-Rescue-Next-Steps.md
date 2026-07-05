@@ -46,6 +46,19 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
+### TAL-87 Sub-slice Map
+
+Parent goal: Enrollment Gate and Official Enrollment Acceptance.
+
+| Sub-slice | Status | Purpose | Next boundary |
+| --- | --- | --- | --- |
+| TAL-87A | Done locally; pending explicit Linear sync | Clean enrollment source-record baseline and retire or bypass stale legacy sectioning paths that no longer match the clean schema. | Recorded in local tracker; waits for explicit Linear sync. |
+| TAL-87B | Planned | Add or align the staff gate review surface so Registrar-facing enrollment gate status is clear, evidence-backed, and based on current source records. | Starts only after TAL-87A is accepted and cleaned up. |
+| TAL-87C | Planned | Evaluate document, academic, lifecycle, unit-load, capacity, finance, and exception gates without over-automating manual office decisions. | Starts only after TAL-87B is accepted and cleaned up. |
+| TAL-87D | Planned | Finalize official enrollment acceptance: verify all gates, convert reservation/source records, bind official schedule records, and expose the source records needed by COR and Student Hub. | Starts only after TAL-87C is accepted and cleaned up. |
+
+TAL-87 exclusions for all sub-slices: no CP-SAT solver hardening, PayMongo hardening, COR redesign, Student Hub redesign, reports/export work, seeders/demo database work, push/deploy/PR, or Linear sync.
+
 ### Next Boundary
 
-Next primary-planning boundary is TAL-87: Enrollment Gate and Official Enrollment Acceptance. Do not implement TAL-87 until primary planning classifies the slice, checks the PRD/blueprint/code fit, records any needed sub-slices, and receives user approval.
+Next primary-planning boundary is TAL-87B: staff gate review surface. Do not implement TAL-87B until primary planning classifies the slice, checks the PRD/blueprint/code fit, and receives user approval.

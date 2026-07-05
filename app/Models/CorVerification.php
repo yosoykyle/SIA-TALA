@@ -5,7 +5,15 @@ namespace App\Models;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property string $status
+ * @property Carbon|null $issued_at
+ * @property Carbon|null $expires_at
+ * @property Carbon|null $revoked_at
+ * @property string|null $revocation_reason
+ */
 class CorVerification extends Model
 {
     public const StatusValid = 'valid';
@@ -99,16 +107,19 @@ class CorVerification extends Model
         return (string) $this->status;
     }
 
+    /** @return BelongsTo<StudentProfile, $this> */
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
     }
 
+    /** @return BelongsTo<Enrollment, $this> */
     public function enrollment(): BelongsTo
     {
         return $this->belongsTo(Enrollment::class);

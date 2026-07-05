@@ -39,6 +39,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-86C | Done locally; pending explicit Linear sync | Ledger Adjustment and Reversal Cleanup Acceptance |
 | TAL-86D | Done locally; pending explicit Linear sync | Financial Accommodation and Promissory-Effect Acceptance |
 | TAL-86E | Done locally; pending explicit Linear sync | Finance Gate Source Behavior Smoke |
+| TAL-87A | Done locally; pending explicit Linear sync | Clean Enrollment Source-Record Baseline |
 
 ## Compact Synced History
 

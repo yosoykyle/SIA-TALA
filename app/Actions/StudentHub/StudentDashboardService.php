@@ -82,7 +82,7 @@ class StudentDashboardService
     private function enrollmentsFor(StudentProfile $studentProfile): EloquentCollection
     {
         return Enrollment::query()
-            ->with(['term', 'section.program', 'sectionDeliveryGroup'])
+            ->with('term')
             ->where('student_profile_id', $studentProfile->id)
             ->orderByDesc('id')
             ->get();

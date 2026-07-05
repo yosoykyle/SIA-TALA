@@ -72,7 +72,7 @@ class AccountingAdjustment extends Model
         }
 
         return Enrollment::query()
-            ->with(['section', 'sectionDeliveryGroup'])
+            ->with('term')
             ->where('student_profile_id', (int) $studentProfileId)
             ->when(filled($termId), fn ($query) => $query->where('term_id', (int) $termId))
             ->latest('id')

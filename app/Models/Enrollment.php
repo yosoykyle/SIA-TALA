@@ -63,16 +63,6 @@ class Enrollment extends Model
         return $this->belongsTo(Term::class);
     }
 
-    public function section(): BelongsTo
-    {
-        return $this->belongsTo(Section::class);
-    }
-
-    public function sectionDeliveryGroup(): BelongsTo
-    {
-        return $this->belongsTo(SectionDeliveryGroup::class);
-    }
-
     public function ledgerEntries(): HasMany
     {
         return $this->hasMany(LedgerEntry::class);

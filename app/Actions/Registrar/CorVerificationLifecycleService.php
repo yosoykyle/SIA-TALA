@@ -37,7 +37,7 @@ class CorVerificationLifecycleService
 
             if (! $readiness['ready']) {
                 throw ValidationException::withMessages([
-                    'enrollment' => 'COR generation requires a finance-cleared enrollment with an active student account, assigned section, and assigned delivery group.',
+                    'enrollment' => 'COR generation requires an official enrollment with an active student account, active course enrollments, and schedule bindings.',
                     'blockers' => implode(', ', $readiness['blockers']),
                 ]);
             }
@@ -224,9 +224,9 @@ class CorVerificationLifecycleService
             'status' => $status,
             'label' => CorVerification::statusOptions()[$status] ?? 'Not Found',
             'message' => $message,
-            'student_id' => $corVerification?->studentProfile?->student_id,
+            'student_id' => $corVerification?->studentProfile?->student_number,
             'student_name' => $corVerification?->studentProfile?->user?->name,
-            'term' => $corVerification?->term?->term_name,
+            'term' => $corVerification?->term?->label,
             'enrollment_status' => $corVerification?->enrollment?->status,
             'issued_at' => $corVerification?->issued_at?->toDateTimeString(),
             'expires_at' => $corVerification?->expires_at?->toDateTimeString(),

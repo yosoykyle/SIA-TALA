@@ -2,10 +2,12 @@
 
 namespace App\Actions\Applicants;
 
+use App\Actions\Enrollment\StartEnrollment;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
 use App\Models\CurriculumVersion;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -14,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class HandOverApprovedApplicant
 {
+    public function __construct(
+        private readonly StartEnrollment $startEnrollment,
+    ) {}
+
     public function execute(
         ApplicantIntake $intake,
         User $actor,
@@ -27,7 +33,10 @@ class HandOverApprovedApplicant
             $lockedIntake = ApplicantIntake::query()->lockForUpdate()->findOrFail($intake->id);
 
             if ($lockedIntake->handed_over_at !== null) {
-                return $this->previouslyHandedOverProfile($lockedIntake, $confirmedExistingProfile);
+                $studentProfile = $this->previouslyHandedOverProfile($lockedIntake, $confirmedExistingProfile);
+                $this->startEnrollment($studentProfile, $lockedIntake, $actor);
+
+                return $studentProfile;
             }
 
             if ($lockedIntake->status !== ApplicantIntake::StatusApproved || $lockedIntake->approved_at === null) {
@@ -44,6 +53,7 @@ class HandOverApprovedApplicant
 
             $this->carryForwardRelevantChecklistItems($lockedIntake, $studentProfile);
             $this->transitionWorkspaceAccess($lockedIntake, $studentProfile);
+            $this->startEnrollment($studentProfile, $lockedIntake, $actor);
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $lockedIntake->forceFill([
@@ -217,5 +227,27 @@ class HandOverApprovedApplicant
                 'archived_at' => now(config('app.timezone')),
             ])->save();
         }
+    }
+
+    private function startEnrollment(
+        StudentProfile $studentProfile,
+        ApplicantIntake $intake,
+        User $actor,
+    ): void {
+        $studentType = match ($intake->admission_category) {
+            ApplicantIntake::AdmissionCategoryFirstTimeCollege => 'new',
+            ApplicantIntake::AdmissionCategoryTransfer => 'transferee',
+            ApplicantIntake::AdmissionCategoryReturning => 'returnee',
+            default => throw ValidationException::withMessages([
+                'admission_category' => 'The applicant admission category cannot start an enrollment.',
+            ]),
+        };
+
+        $this->startEnrollment->execute(
+            studentProfile: $studentProfile,
+            term: Term::query()->findOrFail($intake->term_id),
+            studentType: $studentType,
+            actor: $actor,
+        );
     }
 }
