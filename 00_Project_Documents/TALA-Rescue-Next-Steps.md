@@ -35,7 +35,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
 | TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
 | TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
 | TAL-89 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. |
@@ -47,16 +46,6 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
-### TAL-86 Sub-slice Map
-
-| Slice | Status | Purpose | Next Boundary |
-| --- | --- | --- | --- |
-| TAL-86A | Done locally; pending explicit Linear sync | Fee Rules and Assessment activation acceptance. | Accepted: Accounting-owned Fee Rules remain the MVP fee setup surface; legacy Fee Templates are hidden from navigation while retained as deferred code. |
-| TAL-86B | Done locally; pending explicit Linear sync | Manual cashier payment, OR mapping, and payment evidence ledger posting acceptance. | Accepted: Accounting can record verified manual payments, payment ledger entries post from verified evidence, OR numbers map to existing posted payments, and pending evidence remains non-authoritative. |
-| TAL-86C | Done locally; pending explicit Linear sync | Ledger adjustment and reversal cleanup acceptance. | Accepted: Accounting adjustments and reversals use clean ledger direction/source/reversal links, no legacy running-balance or entry-type fields, and the resource is active for Accounting. |
-| TAL-86D | Done locally; pending explicit Linear sync | Financial Accommodation and promissory-effect acceptance. | Accepted: Accounting records approved Financial Accommodation results, explicit financial effects drive hold/Finance Gate behavior, and promissory evidence remains reference data rather than an approval engine. |
-| TAL-86E | Planned | Finance Gate source behavior smoke. | Prove Finance Gate readiness derives from posted ledger payment or active accommodation, while PayMongo checkout/return remains non-authoritative. |
-
 ### Next Boundary
 
-Next implementation boundary is TAL-86E: Finance Gate source behavior smoke. Keep work limited to proving Finance Gate readiness derives from posted ledger payment or active accommodation, while PayMongo checkout/return remains non-authoritative. Do not expand PayMongo hardening, enrollment officialization, COR/SOA output, Student Hub finance redesign, reports, or TAL-87 enrollment officialization.
+Next primary-planning boundary is TAL-87: Enrollment Gate and Official Enrollment Acceptance. Do not implement TAL-87 until primary planning classifies the slice, checks the PRD/blueprint/code fit, records any needed sub-slices, and receives user approval.

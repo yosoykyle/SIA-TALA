@@ -7,6 +7,7 @@ use App\Actions\Enrollment\AdmissionFinanceReadinessGateService;
 use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
+use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\StudentProfile;
@@ -24,7 +25,7 @@ class EnrollmentFinanceClearanceService
     ) {}
 
     /**
-     * @return array{minimum_required_payment:string,total_confirmed_payments:string,finance_cleared:bool,enrollment_status:string}
+     * @return array{minimum_required_payment:string,total_confirmed_payments:string,finance_cleared:bool,finance_clearance_source:string,enrollment_status:string}
      */
     public function clearIfEligible(
         Enrollment $enrollment,
@@ -36,7 +37,16 @@ class EnrollmentFinanceClearanceService
         $netAssessment = $this->netAssessment($enrollment);
         $minimumRequiredPayment = $this->minimumRequiredPayment($enrollment, $studentProfile, $netAssessment);
         $totalConfirmedPayments = $this->totalConfirmedPayments($enrollment);
-        $financeCleared = $this->shouldClearFinance($enrollment, $currentBalance, $minimumRequiredPayment, $totalConfirmedPayments, $netAssessment);
+        $financeClearanceSource = $this->financeClearanceSource(
+            $enrollment,
+            $studentProfile,
+            $currentBalance,
+            $minimumRequiredPayment,
+            $totalConfirmedPayments,
+            $netAssessment,
+            $timestamp,
+        );
+        $financeCleared = $financeClearanceSource !== 'none';
 
         if ($financeCleared) {
             $this->admissionReadinessGate->assertReadyForFinanceClearance($enrollment, $studentProfile, $timestamp);
@@ -51,6 +61,9 @@ class EnrollmentFinanceClearanceService
                 ->latest('id')
                 ->first();
             $ledgerEntry = $payment instanceof Payment ? $payment->ledgerEntry : null;
+            if (! $ledgerEntry instanceof LedgerEntry) {
+                $ledgerEntry = null;
+            }
 
             $this->capacityReservations->secureForFinanceClearedEnrollment(
                 enrollment: $enrollment,
@@ -63,7 +76,7 @@ class EnrollmentFinanceClearanceService
             if (! in_array($enrollment->status, ['pre_enrolled', 'officially_enrolled'], true)) {
                 $enrollment->forceFill([
                     'status' => 'pre_enrolled',
-                    'pre_enrolled_at' => $enrollment->pre_enrolled_at ?? $timestamp,
+                    'registered_at' => $enrollment->registered_at ?? $timestamp,
                 ])->save();
             }
 
@@ -74,6 +87,7 @@ class EnrollmentFinanceClearanceService
             'minimum_required_payment' => $minimumRequiredPayment,
             'total_confirmed_payments' => $totalConfirmedPayments,
             'finance_cleared' => $financeCleared,
+            'finance_clearance_source' => $financeClearanceSource,
             'enrollment_status' => (string) $enrollment->fresh()->status,
         ];
     }
@@ -134,17 +148,54 @@ class EnrollmentFinanceClearanceService
         return $this->money->normalize((string) $sum);
     }
 
-    private function shouldClearFinance(Enrollment $enrollment, string $currentBalance, string $minimumRequiredPayment, string $totalConfirmedPayments, string $netAssessment): bool
-    {
+    private function financeClearanceSource(
+        Enrollment $enrollment,
+        StudentProfile $studentProfile,
+        string $currentBalance,
+        string $minimumRequiredPayment,
+        string $totalConfirmedPayments,
+        string $netAssessment,
+        CarbonImmutable $timestamp,
+    ): string {
         if (! $this->money->greaterThanZero($netAssessment)) {
-            return false;
+            return 'none';
         }
 
         if ($this->money->isZeroOrNegative($currentBalance)) {
-            return true;
+            return 'cleared_balance';
         }
 
-        return $this->money->toCents($totalConfirmedPayments) >= $this->money->toCents($minimumRequiredPayment)
-            && $this->money->greaterThanZero($minimumRequiredPayment);
+        if (
+            $this->money->toCents($totalConfirmedPayments) >= $this->money->toCents($minimumRequiredPayment)
+            && $this->money->greaterThanZero($minimumRequiredPayment)
+        ) {
+            return 'posted_ledger_payment';
+        }
+
+        if ($this->hasActiveEnrollmentEffectiveAccommodation($enrollment, $studentProfile, $timestamp)) {
+            return 'active_financial_accommodation';
+        }
+
+        return 'none';
+    }
+
+    private function hasActiveEnrollmentEffectiveAccommodation(
+        Enrollment $enrollment,
+        StudentProfile $studentProfile,
+        CarbonImmutable $timestamp,
+    ): bool {
+        $effectiveDate = $timestamp->toDateString();
+
+        return FinancialAccommodation::query()
+            ->where('student_profile_id', $studentProfile->id)
+            ->where('term_id', $enrollment->term_id)
+            ->where('status', FinancialAccommodation::StatusActive)
+            ->where('allows_finance_gate', true)
+            ->whereDate('effective_from', '<=', $effectiveDate)
+            ->where(function ($query) use ($effectiveDate): void {
+                $query->whereNull('expires_on')
+                    ->orWhereDate('expires_on', '>=', $effectiveDate);
+            })
+            ->exists();
     }
 }
