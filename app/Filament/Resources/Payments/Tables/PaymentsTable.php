@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
+use App\Actions\Finance\MapOfficialReceiptToPayment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\TextInput;
@@ -120,42 +122,39 @@ class PaymentsTable
                     ->label('Map OR')
                     ->icon(Heroicon::OutlinedClipboardDocument)
                     ->color('primary')
-                    ->form([
+                    ->schema([
                         TextInput::make('or_number')
                             ->label('OR Number')
                             ->required()
                             ->maxLength(255),
                     ])
                     ->action(function (Payment $record, array $data): void {
-                        if (Payment::query()->where('or_number', $data['or_number'])->where('id', '!=', $record->id)->exists()) {
-                            Notification::make()
-                                ->title('OR Number already exists')
-                                ->danger()
-                                ->send();
+                        $actor = auth()->user();
 
-                            return;
+                        if (! $actor instanceof User) {
+                            abort(403);
                         }
 
-                        $record->update([
-                            'or_number' => $data['or_number'],
-                            'or_mapped_by' => auth()->id(),
-                            'or_mapped_at' => now(),
-                        ]);
+                        try {
+                            app(MapOfficialReceiptToPayment::class)->execute(
+                                payment: $record,
+                                orNumber: (string) $data['or_number'],
+                                actor: $actor,
+                            );
 
-                        Notification::make()
-                            ->title('Official Receipt mapped successfully')
-                            ->success()
-                            ->send();
+                            Notification::make()
+                                ->title('Official Receipt mapped successfully')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $exception) {
+                            Notification::make()
+                                ->title('Official Receipt was not mapped')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     })
-                    ->visible(function (Payment $record): bool {
-                        $ledgerEntry = $record->ledgerEntry;
-
-                        return (auth()->user()?->can('process-payments') ?? false)
-                            && $record->evidence_status === 'verified'
-                            && $ledgerEntry instanceof LedgerEntry
-                            && $ledgerEntry->state === 'posted'
-                            && empty($record->or_number);
-                    }),
+                    ->visible(fn (Payment $record): bool => auth()->user()?->can('mapOfficialReceipt', $record) ?? false),
             ])
             ->toolbarActions([]);
     }

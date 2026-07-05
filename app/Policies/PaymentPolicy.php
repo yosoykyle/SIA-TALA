@@ -56,4 +56,15 @@ class PaymentPolicy
         return $user->hasRole(User::StaffRoleAccounting)
             || $payment->studentProfile()->where('user_id', $user->id)->exists();
     }
+
+    public function mapOfficialReceipt(User $user, Payment $payment): bool
+    {
+        $ledgerEntry = $payment->ledgerEntry;
+
+        return $user->canProcessPayments()
+            && $payment->evidence_status === 'verified'
+            && $ledgerEntry instanceof LedgerEntry
+            && $ledgerEntry->state === 'posted'
+            && blank($payment->or_number);
+    }
 }

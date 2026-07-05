@@ -528,7 +528,7 @@ class FinanceEvidenceService
 
     private function actorCanAccessAssessment(User $actor, Assessment $assessment): bool
     {
-        return $actor->can('process-payments')
+        return $actor->canProcessPayments()
             || (int) $assessment->enrollment->studentProfile->user_id === (int) $actor->id;
     }
 
@@ -536,7 +536,7 @@ class FinanceEvidenceService
     {
         $profile = $payment->studentProfile;
 
-        return $actor->can('process-payments')
+        return $actor->canProcessPayments()
             || ($profile instanceof StudentProfile && (int) $profile->user_id === (int) $actor->id);
     }
 

@@ -16,7 +16,7 @@ class BillingSlipController extends Controller
 
         abort_unless($actor instanceof User, 401);
 
-        $copyContext = $actor->can('process-payments')
+        $copyContext = $actor->canProcessPayments()
             ? FinanceEvidenceService::CopyAccounting
             : FinanceEvidenceService::CopyStudent;
         $slip = $evidence->billingSlip($assessment, $actor, $copyContext);

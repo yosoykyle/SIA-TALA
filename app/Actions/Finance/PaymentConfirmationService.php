@@ -38,7 +38,7 @@ class PaymentConfirmationService
         ?string $orNumber = null,
         ?string $orAttachmentPath = null,
     ): array {
-        if (! $actor->can('process-payments')) {
+        if (! $actor->canProcessPayments()) {
             throw new AuthorizationException('Only Accounting/Cashier can confirm payments.');
         }
 

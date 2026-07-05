@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser, MustVerifyEmail
@@ -250,5 +251,18 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public static function staffRoleNames(): array
     {
         return array_keys(self::staffRoleOptions());
+    }
+
+    public function canProcessPayments(): bool
+    {
+        if ($this->hasRole(self::StaffRoleAccounting)) {
+            return true;
+        }
+
+        try {
+            return $this->can('process-payments');
+        } catch (PermissionDoesNotExist) {
+            return false;
+        }
     }
 }
