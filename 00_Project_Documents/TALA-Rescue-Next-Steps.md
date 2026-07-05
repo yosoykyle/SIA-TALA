@@ -35,7 +35,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-85 | Planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
+| TAL-85 | Split planned | Term Offerings, Resources, and Master Schedule Foundation Acceptance: validate offerings, sections, delivery groups, rooms, faculty qualifications/load/availability, scheduling blocks, and official `section_meetings` publication/readiness without expanding CP-SAT. |
 | TAL-86 | Planned | Finance Core and Assessment Acceptance: validate fee rules, downpayment rules, assessments, ledger ownership, adjustments, financial accommodations, OR mapping boundary, and Finance Gate source behavior without expanding PayMongo. |
 | TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
 | TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
@@ -48,6 +48,15 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
+### TAL-85 Sub-slice Map
+
+| Slice | Status | Purpose | Next Boundary |
+| --- | --- | --- | --- |
+| TAL-85A | Planned | Term Offering and Section Delivery Group source-record UI alignment. | Align stale Section Delivery Group Filament forms/tables/infolists/routes with the clean term offering, section, and delivery-group schema before scheduling demand is trusted. |
+| TAL-85B | Planned | Resource readiness surfaces. | Validate Rooms, Room Features, Faculty Qualifications, Faculty Term Load Overrides, and Calendar Event availability/blocking surfaces against Module 5/6 without adding new scheduling automation. |
+| TAL-85C | Planned | Scheduling demand readiness acceptance. | Prove demand generation/readiness uses official offerings, sections, delivery groups, rooms, faculty qualifications/load, and active scheduling windows without expanding CP-SAT dispatch. |
+| TAL-85D | Planned | Master schedule publication/read-only official meetings acceptance. | Prove candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub/COR/enrollment read only published meetings. |
+
 ### Next Boundary
 
-Next primary planning boundary is TAL-85: Term Offerings, Resources, and Master Schedule Foundation Acceptance. The primary must inspect the owning PRD and related academic setup, calendar, resource, faculty load/availability, section/offering, enrollment, Student Hub, and scheduling contracts; compare them with the clean schema and current implementation; then propose an evidence-backed slice plan before implementation. Do not expand CP-SAT hardening until the SIS source records and official `section_meetings` publication/readiness are accepted.
+Next implementation boundary is TAL-85A: Term Offering and Section Delivery Group source-record UI alignment. Keep the work limited to source-record UI/schema/route/policy alignment for term offerings, sections, and delivery groups. Do not expand CP-SAT, demand dispatch, enrollment binding, finance, Student Hub schedule projection, or official publication beyond the checks needed to preserve the TAL-85 dependency chain.

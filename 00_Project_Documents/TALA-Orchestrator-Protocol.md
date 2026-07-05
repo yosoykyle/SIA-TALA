@@ -91,6 +91,8 @@ Each primary plan must define:
 
 Every retained UI surface needs a plain-purpose statement: who uses it, what decision/action it supports, why it belongs in MVP, and why it is read-only or editable. If the purpose is unclear, rename, hide, defer, redesign, or tie it to the owning module before acceptance.
 
+Every proposed feature must be classified before implementation as one of: source record, generated read-only view, manual-office result record, integration input/output, or deferred. If it does not fit one category cleanly, challenge its MVP purpose in the primary thread before handoff.
+
 Primary planning is evidence-backed. Do not implement or delegate until the user accepts the plan, except for a small docs-only protocol correction explicitly requested by the user.
 
 ## Simplification Rule
