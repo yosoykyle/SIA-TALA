@@ -173,6 +173,7 @@ class GenerateSchedulingDemand
             : [];
         $suitableRoomCount = $this->suitableRoomCount($modality, $roomTypeRequirement, (int) $group->expected_count);
         $schedulingWindowCount = $this->schedulingWindowCount($term);
+        $blockingCalendarBlocks = $this->recurringBlockingCalendarBlocks($term);
         $sameFacultyDefault = $specification instanceof CourseSpecification ? $specification->same_faculty_default : null;
 
         $snapshot = [
@@ -197,7 +198,8 @@ class GenerateSchedulingDemand
             'faculty_load_options' => $facultyLoadOptions,
             'suitable_room_count' => $suitableRoomCount,
             'active_scheduling_window_count' => $schedulingWindowCount,
-            'blocking_calendar_event_count' => $this->blockingCalendarEventCount($term),
+            'blocking_calendar_event_count' => count($blockingCalendarBlocks),
+            'blocking_calendar_blocks' => $blockingCalendarBlocks,
         ];
 
         $findings = $this->findings(
@@ -210,9 +212,12 @@ class GenerateSchedulingDemand
             course: $course,
             modality: $modality,
             roomTypeRequirement: is_string($roomTypeRequirement) ? $roomTypeRequirement : null,
+            fixedInputs: $fixedInputs,
             facultyLoadOptions: $facultyLoadOptions,
             suitableRoomCount: $suitableRoomCount,
             schedulingWindowCount: $schedulingWindowCount,
+            blockingCalendarBlocks: $blockingCalendarBlocks,
+            durationMinutes: $durationMinutes,
         );
 
         return [
@@ -337,17 +342,41 @@ class GenerateSchedulingDemand
             ->count();
     }
 
-    private function blockingCalendarEventCount(Term $term): int
+    /**
+     * @return list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>
+     */
+    private function recurringBlockingCalendarBlocks(Term $term): array
     {
         return CalendarEvent::query()
             ->whereBelongsTo($term)
             ->where('blocks_scheduling', true)
             ->where('state', CalendarEvent::StateActive)
-            ->count();
+            ->whereNotNull('day_of_week')
+            ->whereNotNull('starts_at')
+            ->whereNotNull('ends_at')
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (CalendarEvent $event): array => [
+                'id' => (int) $event->id,
+                'scope_type' => (string) $event->scope_type,
+                'room_id' => $event->room_id === null ? null : (int) $event->room_id,
+                'faculty_user_id' => $event->faculty_user_id === null ? null : (int) $event->faculty_user_id,
+                'event_type' => (string) $event->event_type,
+                'process_key' => $event->process_key,
+                'day_of_week' => (int) $event->day_of_week,
+                'starts_at' => $this->timeString($event->starts_at),
+                'ends_at' => $this->timeString($event->ends_at),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
+     * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
      * @param  list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>  $facultyLoadOptions
+     * @param  list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
      * @return list<array{key:string,severity:string,source_type:string,source_id:int|null,message:string}>
      */
     private function findings(
@@ -360,9 +389,12 @@ class GenerateSchedulingDemand
         ?Course $course,
         string $modality,
         ?string $roomTypeRequirement,
+        array $fixedInputs,
         array $facultyLoadOptions,
         int $suitableRoomCount,
         int $schedulingWindowCount,
+        array $blockingCalendarBlocks,
+        int $durationMinutes,
     ): array {
         $findings = [];
 
@@ -412,6 +444,34 @@ class GenerateSchedulingDemand
             } elseif ($suitableRoomCount === 0) {
                 $findings[] = $this->finding('missing_suitable_room', 'blocking', 'room', null, 'No active room matches the required room type and expected delivery-group count.');
             }
+
+            if ($fixedInputs['fixed_room_id'] !== null && ! $this->fixedRoomIsSuitable($fixedInputs['fixed_room_id'], $roomTypeRequirement, (int) $group->expected_count)) {
+                $findings[] = $this->finding('fixed_room_not_suitable', 'blocking', 'room', $fixedInputs['fixed_room_id'], 'The fixed room override is inactive, below expected count, or does not match the required room type.');
+            }
+        }
+
+        if ($fixedInputs['fixed_faculty_user_id'] !== null && ! collect($facultyLoadOptions)->contains(
+            fn (array $option): bool => (int) $option['faculty_user_id'] === $fixedInputs['fixed_faculty_user_id']
+        )) {
+            $findings[] = $this->finding('fixed_faculty_not_qualified', 'blocking', 'faculty_qualification', $fixedInputs['fixed_faculty_user_id'], 'The fixed faculty override does not point to an active qualified faculty/load option for this course and term.');
+        }
+
+        if ($fixedInputs['fixed_day_of_week'] !== null && ($fixedInputs['fixed_day_of_week'] < 1 || $fixedInputs['fixed_day_of_week'] > 7)) {
+            $findings[] = $this->finding('invalid_fixed_day_of_week', 'blocking', 'section_delivery_group', $group->id, 'The fixed day override must use a valid recurring day of week.');
+        }
+
+        if ($fixedInputs['fixed_start_time'] !== null && $fixedInputs['fixed_day_of_week'] === null) {
+            $findings[] = $this->finding('missing_fixed_day_for_fixed_time', 'blocking', 'section_delivery_group', $group->id, 'A fixed start time override must include the recurring day it belongs to.');
+        }
+
+        if ($fixedInputs['fixed_start_time'] !== null && $this->minutesFromTime($fixedInputs['fixed_start_time']) === null) {
+            $findings[] = $this->finding('invalid_fixed_start_time', 'blocking', 'section_delivery_group', $group->id, 'The fixed start time override must be a valid time value.');
+        }
+
+        $conflictingBlockId = $this->conflictingCalendarBlockId($fixedInputs, $blockingCalendarBlocks, $durationMinutes);
+
+        if ($conflictingBlockId !== null) {
+            $findings[] = $this->finding('fixed_time_conflicts_with_calendar_block', 'blocking', 'calendar_event', $conflictingBlockId, 'The fixed day/time override overlaps an active recurring scheduling block.');
         }
 
         return $findings;
@@ -429,5 +489,95 @@ class GenerateSchedulingDemand
             'source_id' => $sourceId,
             'message' => $message,
         ];
+    }
+
+    private function fixedRoomIsSuitable(int $roomId, ?string $roomTypeRequirement, int $expectedCount): bool
+    {
+        return Room::query()
+            ->whereKey($roomId)
+            ->where('is_active', true)
+            ->where('capacity', '>=', $expectedCount)
+            ->when(filled($roomTypeRequirement), fn ($query) => $query->where('room_type', $roomTypeRequirement))
+            ->exists();
+    }
+
+    /**
+     * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
+     * @param  list<array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     */
+    private function conflictingCalendarBlockId(array $fixedInputs, array $blockingCalendarBlocks, int $durationMinutes): ?int
+    {
+        if ($fixedInputs['fixed_day_of_week'] === null || $fixedInputs['fixed_start_time'] === null) {
+            return null;
+        }
+
+        $fixedStart = $this->minutesFromTime($fixedInputs['fixed_start_time']);
+
+        if ($fixedStart === null) {
+            return null;
+        }
+
+        $fixedEnd = $fixedStart + $durationMinutes;
+
+        foreach ($blockingCalendarBlocks as $block) {
+            if ((int) $block['day_of_week'] !== $fixedInputs['fixed_day_of_week'] || ! $this->calendarBlockAppliesToFixedInputs($block, $fixedInputs)) {
+                continue;
+            }
+
+            $blockStart = $this->minutesFromTime($block['starts_at']);
+            $blockEnd = $this->minutesFromTime($block['ends_at']);
+
+            if ($blockStart !== null && $blockEnd !== null && $fixedStart < $blockEnd && $fixedEnd > $blockStart) {
+                return (int) $block['id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array{id:int,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}  $block
+     * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
+     */
+    private function calendarBlockAppliesToFixedInputs(array $block, array $fixedInputs): bool
+    {
+        if ($block['scope_type'] === CalendarEvent::ScopeInstitution) {
+            return true;
+        }
+
+        if ($block['scope_type'] === CalendarEvent::ScopeRoom) {
+            return $fixedInputs['fixed_room_id'] !== null && $block['room_id'] === $fixedInputs['fixed_room_id'];
+        }
+
+        if ($block['scope_type'] === CalendarEvent::ScopeFaculty) {
+            return $fixedInputs['fixed_faculty_user_id'] !== null && $block['faculty_user_id'] === $fixedInputs['fixed_faculty_user_id'];
+        }
+
+        return false;
+    }
+
+    private function minutesFromTime(?string $time): ?int
+    {
+        if ($time === null || ! preg_match('/^(\d{1,2}):(\d{2})/', $time, $matches)) {
+            return null;
+        }
+
+        $hours = (int) $matches[1];
+        $minutes = (int) $matches[2];
+
+        if ($hours > 23 || $minutes > 59) {
+            return null;
+        }
+
+        return ($hours * 60) + $minutes;
+    }
+
+    private function timeString(mixed $time): string
+    {
+        if ($time instanceof \DateTimeInterface) {
+            return $time->format('H:i:s');
+        }
+
+        return (string) $time;
     }
 }

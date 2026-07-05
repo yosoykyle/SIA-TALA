@@ -54,9 +54,9 @@ Dependency lock:
 | --- | --- | --- | --- |
 | TAL-85A | Done locally; pending explicit Linear sync | Term Offering and Section Delivery Group source-record UI alignment. | Accepted locally; recorded in the local sync tracker. |
 | TAL-85B | Done locally; pending explicit Linear sync | Resource readiness surfaces. | Accepted locally; recorded in the local sync tracker. |
-| TAL-85C | Planned | Scheduling demand readiness acceptance. | Prove demand generation/readiness uses official offerings, sections, delivery groups, rooms, faculty qualifications/load, and active scheduling windows without expanding CP-SAT dispatch. |
+| TAL-85C | Done locally; pending explicit Linear sync | Scheduling demand readiness acceptance. | Accepted locally; recorded in the local sync tracker. |
 | TAL-85D | Planned | Master schedule publication/read-only official meetings acceptance. | Prove candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub/COR/enrollment read only published meetings. |
 
 ### Next Boundary
 
-Next implementation boundary is TAL-85C: Scheduling demand readiness acceptance. Keep the work limited to proving demand generation/readiness uses official offerings, sections, delivery groups, rooms, faculty qualifications/load, and active scheduling windows without expanding CP-SAT dispatch, candidate publication, enrollment binding, finance, Student Hub schedule projection, or official publication beyond checks needed to preserve the TAL-85 dependency chain.
+Next implementation boundary is TAL-85D: Master schedule publication/read-only official meetings acceptance. Keep the work limited to proving candidate publication creates official `section_meetings`, keeps them read-only, and preserves the boundary that Student Hub, COR, and enrollment read only published meetings. Do not expand enrollment binding, finance, Student Hub schedule projection, CP-SAT dispatch, Cloud Run, or solver hardening beyond checks needed to preserve the TAL-85 dependency chain.
