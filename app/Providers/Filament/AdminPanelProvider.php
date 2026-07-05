@@ -27,6 +27,7 @@ use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
+use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\SystemSettings\SystemSettingResource;
@@ -104,6 +105,7 @@ class AdminPanelProvider extends PanelProvider
                 AcademicCalendarWindowResource::class,
                 CalendarEventResource::class,
                 TermOfferingResource::class,
+                SectionResource::class,
                 GradeRosterResource::class,
                 GraduationReviewBatchResource::class,
                 SchedulingDemandResource::class,

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sections\Pages;
 
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Filament\Resources\Sections\SectionResource;
+use App\Models\Section;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Validation\ValidationException;
@@ -27,6 +28,11 @@ class EditSection extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return app(SectionPlanningService::class)->prepareForSave($data, $this->record);
+        $record = $this->record;
+
+        return app(SectionPlanningService::class)->prepareForSave(
+            $data,
+            $record instanceof Section ? $record : null,
+        );
     }
 }

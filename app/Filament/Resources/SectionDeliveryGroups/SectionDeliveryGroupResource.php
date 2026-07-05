@@ -31,6 +31,11 @@ class SectionDeliveryGroupResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationGroup(): string|UnitEnum|null
     {
         if (auth()->user()?->hasRole('academic-head')) {

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sections\Schemas;
 
 use App\Models\Section;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section as InfolistSection;
 use Filament\Schemas\Schema;
 
 class SectionInfolist
@@ -12,37 +13,32 @@ class SectionInfolist
     {
         return $schema
             ->components([
-                TextEntry::make('term.term_name')
-                    ->label('Term'),
-                TextEntry::make('program.name')
-                    ->label('Program'),
-                TextEntry::make('curriculum.version_name')
-                    ->label('Curriculum')
-                    ->placeholder('-'),
-                TextEntry::make('year_level')
-                    ->label('Year Level')
-                    ->placeholder('-'),
-                TextEntry::make('curriculum_period')
-                    ->label('Curriculum Period')
-                    ->placeholder('-'),
-                TextEntry::make('name')
-                    ->label('Section Name'),
-                TextEntry::make('modality')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextEntry::make('room')
-                    ->label('Fixed Room')
-                    ->placeholder('-'),
-                TextEntry::make('max_seats')
-                    ->numeric(),
-                TextEntry::make('enrolled_count')
-                    ->numeric(),
-                TextEntry::make('created_at')
-                    ->dateTime()
-                    ->placeholder('-'),
-                TextEntry::make('updated_at')
-                    ->dateTime()
-                    ->placeholder('-'),
+                InfolistSection::make('Section Source Record')
+                    ->schema([
+                        TextEntry::make('termOffering.term.label')
+                            ->label('Term'),
+                        TextEntry::make('termOffering.curriculumEntry.courseSpecification.course.code')
+                            ->label('Course Code')
+                            ->placeholder('-'),
+                        TextEntry::make('termOffering.curriculumEntry.courseSpecification.title')
+                            ->label('Course Title')
+                            ->placeholder('-'),
+                        TextEntry::make('code')
+                            ->label('Section Code'),
+                        TextEntry::make('capacity')
+                            ->numeric(),
+                        TextEntry::make('state')
+                            ->badge()
+                            ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
+                        TextEntry::make('created_at')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('updated_at')
+                            ->dateTime()
+                            ->placeholder('-'),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 }

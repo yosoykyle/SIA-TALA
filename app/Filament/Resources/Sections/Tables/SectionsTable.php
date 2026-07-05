@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sections\Tables;
 
 use App\Models\Section;
+use App\Models\TermOffering;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -14,58 +15,37 @@ class SectionsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['term', 'program', 'curriculum']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course']))
             ->columns([
-                TextColumn::make('term.term_name')
+                TextColumn::make('termOffering.term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('name')
-                    ->label('Section')
+                TextColumn::make('termOffering.curriculumEntry.courseSpecification.course.code')
+                    ->label('Course')
+                    ->searchable(),
+                TextColumn::make('termOffering.curriculumEntry.courseSpecification.title')
+                    ->label('Course Title')
+                    ->searchable(),
+                TextColumn::make('code')
+                    ->label('Section Code')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('program.code')
-                    ->label('Program')
-                    ->searchable(),
-                TextColumn::make('year_level')
-                    ->label('Year Level')
-                    ->searchable(),
-                TextColumn::make('curriculum_period')
-                    ->label('Period')
-                    ->searchable(),
-                TextColumn::make('curriculum.version_name')
-                    ->label('Curriculum')
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('modality')
+                TextColumn::make('capacity')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('state')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextColumn::make('room')
-                    ->label('Fixed Room')
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('max_seats')
-                    ->label('Max')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('enrolled_count')
-                    ->label('Enrolled')
-                    ->numeric()
-                    ->sortable(),
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
             ])
             ->filters([
-                SelectFilter::make('term_id')
-                    ->label('Term')
-                    ->relationship('term', 'term_name')
+                SelectFilter::make('term_offering_id')
+                    ->label('Term Offering')
+                    ->options(fn (): array => self::termOfferingOptions())
                     ->searchable()
                     ->preload(),
-                SelectFilter::make('program_id')
-                    ->label('Program')
-                    ->relationship('program', 'name')
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('modality')
-                    ->options(Section::modalityOptions()),
+                SelectFilter::make('state')
+                    ->options(Section::stateOptions()),
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
@@ -73,5 +53,26 @@ class SectionsTable
                 EditAction::make(),
             ])
             ->toolbarActions([]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function termOfferingOptions(): array
+    {
+        return TermOffering::query()
+            ->with(['term', 'curriculumEntry.courseSpecification.course'])
+            ->orderByDesc('id')
+            ->get()
+            ->mapWithKeys(fn (TermOffering $offering): array => [
+                $offering->id => collect([
+                    $offering->term?->label,
+                    $offering->curriculumEntry?->courseSpecification?->course?->code,
+                    $offering->delivery_variant,
+                    $offering->modality,
+                    "Expected {$offering->expected_count}",
+                ])->filter()->implode(' | '),
+            ])
+            ->all();
     }
 }

@@ -5,7 +5,6 @@ namespace App\Filament\Resources\SectionDeliveryGroups\Tables;
 use App\Models\SectionDeliveryGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -15,54 +14,41 @@ class SectionDeliveryGroupsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['section.term', 'section.program', 'deliveryPattern']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['section.termOffering.term', 'section.termOffering.curriculumEntry.courseSpecification.course']))
             ->columns([
-                TextColumn::make('section.term.term_name')
+                TextColumn::make('section.termOffering.term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('section.name')
-                    ->label('Section')
+                TextColumn::make('section.code')
+                    ->label('Section Code')
+                    ->searchable(),
+                TextColumn::make('section.termOffering.curriculumEntry.courseSpecification.course.code')
+                    ->label('Course')
                     ->searchable(),
                 TextColumn::make('name')
                     ->label('Group')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('deliveryPattern.code')
-                    ->label('Pattern')
-                    ->searchable(),
+                TextColumn::make('expected_count')
+                    ->label('Expected')
+                    ->numeric()
+                    ->sortable(),
                 TextColumn::make('modality')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextColumn::make('capacity')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('assigned_count')
-                    ->label('Assigned')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('available_seats')
-                    ->label('Available')
-                    ->state(fn (SectionDeliveryGroup $record): int => $record->availableSeats())
+                TextColumn::make('state')
                     ->badge()
-                    ->color(fn (int $state): string => $state > 0 ? 'success' : 'danger'),
-                IconColumn::make('room_required')
-                    ->boolean(),
-                TextColumn::make('room')
-                    ->placeholder('-')
-                    ->searchable(),
-                TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::statusOptions()[$state] ?? str($state)->headline()->toString())),
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::stateOptions()[$state] ?? str($state)->headline()->toString())),
             ])
             ->filters([
                 SelectFilter::make('modality')
                     ->options(SectionDeliveryGroup::modalityOptions()),
-                SelectFilter::make('status')
-                    ->options(SectionDeliveryGroup::statusOptions()),
+                SelectFilter::make('state')
+                    ->options(SectionDeliveryGroup::stateOptions()),
                 SelectFilter::make('section_id')
                     ->label('Section')
-                    ->relationship('section', 'name')
+                    ->relationship('section', 'code')
                     ->searchable()
                     ->preload(),
             ])

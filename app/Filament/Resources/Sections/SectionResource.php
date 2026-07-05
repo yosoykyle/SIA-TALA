@@ -11,6 +11,7 @@ use App\Filament\Resources\Sections\Schemas\SectionForm;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\Tables\SectionsTable;
 use App\Models\Section;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -30,7 +31,12 @@ class SectionResource extends Resource
 
     protected static ?int $navigationSort = 29;
 
-    protected static ?string $recordTitleAttribute = 'name';
+    protected static ?string $recordTitleAttribute = 'code';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false;
+    }
 
     public static function form(Schema $schema): Schema
     {

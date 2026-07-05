@@ -3,21 +3,18 @@
 namespace App\Filament\Resources\Sections\RelationManagers;
 
 use App\Actions\Scheduling\SectionDeliveryGroupService;
-use App\Models\DeliveryPattern;
-use App\Models\Room;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\User;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Section as FormSection;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -34,36 +31,28 @@ class DeliveryGroupsRelationManager extends RelationManager
             ->components([
                 FormSection::make('Delivery Group')
                     ->schema([
-                        Select::make('delivery_pattern_id')
-                            ->label('Delivery Pattern')
-                            ->options(fn (?SectionDeliveryGroup $record): array => self::deliveryPatternOptions($record?->delivery_pattern_id))
-                            ->searchable()
-                            ->preload()
-                            ->required(),
                         TextInput::make('name')
                             ->label('Group Name')
                             ->required()
                             ->maxLength(255),
-                        Select::make('modality')
-                            ->options(SectionDeliveryGroup::modalityOptions())
-                            ->live()
-                            ->required(),
-                        TextInput::make('capacity')
+                        TextInput::make('expected_count')
+                            ->label('Expected Count')
                             ->required()
                             ->integer()
-                            ->minValue(1)
-                            ->maxValue(Section::MaxRescueSeats),
-                        Select::make('status')
-                            ->options(SectionDeliveryGroup::statusOptions())
-                            ->required()
-                            ->default(SectionDeliveryGroup::StatusActive),
-                        Select::make('room')
-                            ->label('Fixed Room')
-                            ->options(fn (?SectionDeliveryGroup $record): array => Room::selectOptions($record?->room))
-                            ->searchable()
-                            ->preload()
-                            ->required(fn (Get $get): bool => SectionDeliveryGroup::modalityRequiresRoom($get('modality')))
-                            ->visible(fn (Get $get): bool => SectionDeliveryGroup::modalityRequiresRoom($get('modality'))),
+                            ->minValue(0),
+                        Select::make('modality')
+                            ->options(SectionDeliveryGroup::modalityOptions())
+                            ->required(),
+                        Select::make('state')
+                            ->options(SectionDeliveryGroup::stateOptions())
+                            ->default(SectionDeliveryGroup::StatePlanned)
+                            ->required(),
+                        KeyValue::make('delivery_override')
+                            ->label('Delivery Override')
+                            ->keyLabel('Override key')
+                            ->valueLabel('Value')
+                            ->helperText('Optional source-record override for later scheduling demand generation.')
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
@@ -78,37 +67,22 @@ class DeliveryGroupsRelationManager extends RelationManager
                     ->label('Group')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('deliveryPattern.code')
-                    ->label('Pattern')
-                    ->searchable(),
+                TextColumn::make('expected_count')
+                    ->label('Expected')
+                    ->numeric()
+                    ->sortable(),
                 TextColumn::make('modality')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextColumn::make('capacity')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('assigned_count')
-                    ->label('Assigned')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('available_seats')
-                    ->label('Available')
-                    ->state(fn (SectionDeliveryGroup $record): int => $record->availableSeats())
+                TextColumn::make('state')
                     ->badge()
-                    ->color(fn (int $state): string => $state > 0 ? 'success' : 'danger'),
-                IconColumn::make('room_required')
-                    ->boolean(),
-                TextColumn::make('room')
-                    ->placeholder('-'),
-                TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::statusOptions()[$state] ?? str($state)->headline()->toString())),
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (SectionDeliveryGroup::stateOptions()[$state] ?? str($state)->headline()->toString())),
             ])
             ->filters([
                 SelectFilter::make('modality')
                     ->options(SectionDeliveryGroup::modalityOptions()),
-                SelectFilter::make('status')
-                    ->options(SectionDeliveryGroup::statusOptions()),
+                SelectFilter::make('state')
+                    ->options(SectionDeliveryGroup::stateOptions()),
             ])
             ->headerActions([
                 CreateAction::make()
@@ -153,33 +127,5 @@ class DeliveryGroupsRelationManager extends RelationManager
         $actor = auth()->user();
 
         return $actor instanceof User ? $actor : null;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function deliveryPatternOptions(mixed $currentPatternId = null): array
-    {
-        return DeliveryPattern::query()
-            ->where(function ($query) use ($currentPatternId): void {
-                $query->where('is_active', true);
-
-                if (filled($currentPatternId)) {
-                    $query->orWhereKey((int) $currentPatternId);
-                }
-            })
-            ->orderBy('code')
-            ->orderByDesc('version')
-            ->get()
-            ->mapWithKeys(fn (DeliveryPattern $pattern): array => [
-                $pattern->id => collect([
-                    $pattern->code,
-                    "v{$pattern->version}",
-                    $pattern->name,
-                    $pattern->modality === null ? 'Generic' : (DeliveryPattern::modalityOptions()[$pattern->modality] ?? $pattern->modality),
-                    $pattern->is_active ? null : 'inactive',
-                ])->filter()->implode(' | '),
-            ])
-            ->all();
     }
 }
