@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\Enrollments\Pages;
 
+use App\Actions\Enrollment\EnrollmentGateEvaluator;
+use App\Actions\Enrollment\RecordAcademicException;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
+use App\Models\EnrollmentGateResult;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -27,8 +30,61 @@ class ViewEnrollment extends ViewRecord
     {
         return [
             EnrollmentsTable::confirmPlacementAction(),
+            Action::make('refreshGateResults')
+                ->label('Refresh Gate Results')
+                ->icon('heroicon-o-arrow-path')
+                ->authorize(fn (): bool => auth()->user()?->can('refreshGates', $this->getRecord()) ?? false)
+                ->action(function (Enrollment $record): void {
+                    app(EnrollmentGateEvaluator::class)->persist($record);
+                    $this->record = $record->refresh();
+                    Notification::make()->title('Enrollment gate results refreshed')->success()->send();
+                }),
+            Action::make('academicException')
+                ->label('Record Approved Academic Exception')
+                ->icon('heroicon-o-academic-cap')
+                ->authorize(fn (): bool => auth()->user()?->can('create', EnrollmentException::class) ?? false)
+                ->schema([
+                    Select::make('exception_type')
+                        ->label('Exception Type')
+                        ->options([
+                            EnrollmentException::TypePrerequisite => 'Prerequisite',
+                            EnrollmentException::TypeCorequisite => 'Corequisite',
+                            EnrollmentException::TypeBridging => 'Bridging',
+                            EnrollmentException::TypeConflict => 'Schedule Conflict',
+                        ])
+                        ->required(),
+                    Select::make('target_term_offering_id')
+                        ->label('Affected Offering')
+                        ->options(fn (Enrollment $record): array => $this->termOfferingOptions($record))
+                        ->required(),
+                    TextInput::make('original_rule')
+                        ->label('Original Failed Rule')
+                        ->helperText('Use the specific prerequisite, corequisite, bridging, or conflict rule being cleared.')
+                        ->required()
+                        ->maxLength(255),
+                    TextInput::make('authority')
+                        ->label('Approving Authority')
+                        ->default('Academic Head')
+                        ->required()
+                        ->maxLength(255),
+                    Textarea::make('reason')->required()->maxLength(2000),
+                    TextInput::make('evidence_reference')->required()->maxLength(255),
+                    DateTimePicker::make('expires_at')
+                        ->label('Effective Until')
+                        ->after('now')
+                        ->required(),
+                ])
+                ->action(function (Enrollment $record, array $data): void {
+                    /** @var User $actor */
+                    $actor = auth()->user();
+                    app(RecordAcademicException::class)->record($record, $data, $actor);
+                    app(EnrollmentGateEvaluator::class)->persist($record->refresh());
+                    $this->record = $record->refresh();
+                    Notification::make()->title('Academic exception recorded')->success()->send();
+                })
+                ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin]) ?? false),
             Action::make('unitLoadException')
-                ->label('Student Unit Load Exception')
+                ->label('Record Approved Unit-Load Exception')
                 ->icon('heroicon-o-scale')
                 ->authorize(fn (): bool => auth()->user()?->can('create', EnrollmentException::class) ?? false)
                 ->schema([
@@ -59,7 +115,7 @@ class ViewEnrollment extends ViewRecord
                                 $offering->id => $offering->curriculumEntry->courseSpecification->course->code,
                             ])->all())
                         ->required(),
-                    Placeholder::make('other_gates')->content(fn (Enrollment $record): string => $record->gateResults()->where('result', 'FAILED')->pluck('gate_type')->implode(', ') ?: 'No failed gates'),
+                    Placeholder::make('other_gates')->content(fn (Enrollment $record): string => $record->gateResults()->where('result', EnrollmentGateResult::ResultFailed)->pluck('gate_type')->implode(', ') ?: 'No failed gates'),
                     TextInput::make('authority')
                         ->label('Approving Authority')
                         ->default(fn (Enrollment $record): string => app(StudentUnitLoadService::class)->evaluate($record, 0)['default_approving_authority'])
@@ -74,6 +130,8 @@ class ViewEnrollment extends ViewRecord
                     /** @var User $actor */
                     $actor = auth()->user();
                     app(StudentUnitLoadService::class)->approve($record, $data, $actor);
+                    app(EnrollmentGateEvaluator::class)->persist($record->refresh());
+                    $this->record = $record->refresh();
                     Notification::make()->title('Unit-load exception recorded')->success()->send();
                 })
                 ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin]) ?? false),
@@ -93,5 +151,22 @@ class ViewEnrollment extends ViewRecord
                         && $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAccounting]);
                 }),
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function termOfferingOptions(Enrollment $record): array
+    {
+        return TermOffering::query()
+            ->with('curriculumEntry.courseSpecification.course')
+            ->where('term_id', $record->term_id)
+            ->get()
+            ->mapWithKeys(fn (TermOffering $offering): array => [
+                $offering->id => collect([
+                    $offering->curriculumEntry?->courseSpecification?->course?->code,
+                    $offering->curriculumEntry?->courseSpecification?->title,
+                ])->filter()->implode(' - '),
+            ])->all();
     }
 }

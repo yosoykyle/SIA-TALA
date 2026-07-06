@@ -189,11 +189,8 @@ class EnrollmentPlacementService
             );
 
             foreach ($existingReservations as $reservation) {
-                if ((int) $reservation->course_enrollment_id !== (int) $courseEnrollment->id) {
-                    $this->reject('section_id', 'This enrollment already has a different active placement reservation.');
-                }
-
-                if ((int) $reservation->section_id !== (int) $section->id) {
+                if ((int) $reservation->course_enrollment_id === (int) $courseEnrollment->id
+                    && (int) $reservation->section_id !== (int) $section->id) {
                     $this->releaseReservation($reservation, $actor, 'Replaced by Registrar-confirmed TAL-67 placement.');
                 }
             }

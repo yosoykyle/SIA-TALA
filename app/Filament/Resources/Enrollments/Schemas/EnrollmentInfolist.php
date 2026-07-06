@@ -93,7 +93,9 @@ class EnrollmentInfolist
                                         'Passed' => 'success',
                                         'Failed' => 'danger',
                                         'Pending Review' => 'warning',
+                                        'Waived', 'Overridden' => 'info',
                                         'Not Checked' => 'gray',
+                                        'Not Applicable' => 'gray',
                                         default => 'gray',
                                     }),
                                 TextEntry::make('office_label')

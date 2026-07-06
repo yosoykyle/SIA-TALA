@@ -33,6 +33,12 @@ class EnrollmentGateResult extends Model
 
     public const ResultPendingReview = 'pending_review';
 
+    public const ResultWaived = 'waived';
+
+    public const ResultOverridden = 'overridden';
+
+    public const ResultNotApplicable = 'not_applicable';
+
     public const ResponsibleOfficeRegistrar = 'registrar';
 
     public const ResponsibleOfficeAccounting = 'accounting';
@@ -40,6 +46,8 @@ class EnrollmentGateResult extends Model
     public const ResponsibleOfficeAcademicHead = 'academic_head';
 
     public const RuleVersionTal67Mvp = 'tal-67-mvp';
+
+    public const RuleVersionTal87C = 'tal-87c-gate-evaluator';
 
     /**
      * @var list<string>

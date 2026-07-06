@@ -207,6 +207,9 @@ class EnrollmentGateReviewSummary
             EnrollmentGateResult::ResultPassed => 'Passed',
             EnrollmentGateResult::ResultFailed => 'Failed',
             EnrollmentGateResult::ResultPendingReview => 'Pending Review',
+            EnrollmentGateResult::ResultWaived => 'Waived',
+            EnrollmentGateResult::ResultOverridden => 'Overridden',
+            EnrollmentGateResult::ResultNotApplicable => 'Not Applicable',
             EnrollmentGateResult::ResultNotChecked => 'Not Checked',
             default => Str::headline($result),
         };
@@ -218,6 +221,8 @@ class EnrollmentGateReviewSummary
             EnrollmentGateResult::ResultPassed => 'success',
             EnrollmentGateResult::ResultFailed => 'danger',
             EnrollmentGateResult::ResultPendingReview => 'warning',
+            EnrollmentGateResult::ResultWaived, EnrollmentGateResult::ResultOverridden => 'info',
+            EnrollmentGateResult::ResultNotApplicable => 'gray',
             EnrollmentGateResult::ResultNotChecked => 'gray',
             default => 'gray',
         };
@@ -239,6 +244,9 @@ class EnrollmentGateReviewSummary
             EnrollmentGateResult::ResultPassed => 'Gate passed.',
             EnrollmentGateResult::ResultPendingReview => 'Gate requires office review.',
             EnrollmentGateResult::ResultFailed => 'Gate is blocking enrollment.',
+            EnrollmentGateResult::ResultWaived => 'Gate was waived by an authorized office record.',
+            EnrollmentGateResult::ResultOverridden => 'Gate was cleared by a scoped approved exception.',
+            EnrollmentGateResult::ResultNotApplicable => 'Gate is not applicable until prerequisite source gates clear.',
             default => 'No source-backed gate result has been recorded yet.',
         };
     }

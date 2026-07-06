@@ -269,7 +269,7 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, StudentScheduleBinding::query()->where('is_active', true)->count());
     }
 
-    public function test_existing_different_active_reservation_is_blocked_for_mvp(): void
+    public function test_existing_active_reservation_for_another_course_does_not_block_per_course_placement(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
@@ -292,16 +292,11 @@ final class TAL67EnrollmentPlacementTest extends TestCase
             'registrar_user_id' => $registrar->id,
         ]);
 
-        try {
-            $this->placement->confirm($enrollment, $target['section']->id, $registrar);
-            $this->fail('Different active placement reservation was not blocked.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('section_id', $exception->errors());
-        }
+        $this->placement->confirm($enrollment, $target['section']->id, $registrar);
 
-        $this->assertSame(1, CourseEnrollment::query()->count());
-        $this->assertSame(1, EnrollmentSeatReservation::query()->where('status', EnrollmentSeatReservation::StatusPending)->count());
-        $this->assertSame(0, StudentScheduleBinding::query()->count());
+        $this->assertSame(2, CourseEnrollment::query()->count());
+        $this->assertSame(2, EnrollmentSeatReservation::query()->where('status', EnrollmentSeatReservation::StatusPending)->count());
+        $this->assertSame(1, StudentScheduleBinding::query()->count());
     }
 
     public function test_filament_action_visibility_and_confirmation_behavior_follow_policy(): void

@@ -34,19 +34,11 @@ class EnrollmentFinanceClearanceService
         ?User $actor,
         CarbonImmutable $timestamp,
     ): array {
-        $netAssessment = $this->netAssessment($enrollment);
-        $minimumRequiredPayment = $this->minimumRequiredPayment($enrollment, $studentProfile, $netAssessment);
-        $totalConfirmedPayments = $this->totalConfirmedPayments($enrollment);
-        $financeClearanceSource = $this->financeClearanceSource(
-            $enrollment,
-            $studentProfile,
-            $currentBalance,
-            $minimumRequiredPayment,
-            $totalConfirmedPayments,
-            $netAssessment,
-            $timestamp,
-        );
-        $financeCleared = $financeClearanceSource !== 'none';
+        $readiness = $this->readiness($enrollment, $studentProfile, $currentBalance, $timestamp);
+        $minimumRequiredPayment = $readiness['minimum_required_payment'];
+        $totalConfirmedPayments = $readiness['total_confirmed_payments'];
+        $financeClearanceSource = $readiness['finance_clearance_source'];
+        $financeCleared = $readiness['finance_cleared'];
 
         if ($financeCleared) {
             $this->admissionReadinessGate->assertReadyForFinanceClearance($enrollment, $studentProfile, $timestamp);
@@ -89,6 +81,39 @@ class EnrollmentFinanceClearanceService
             'finance_cleared' => $financeCleared,
             'finance_clearance_source' => $financeClearanceSource,
             'enrollment_status' => (string) $enrollment->fresh()->status,
+        ];
+    }
+
+    /**
+     * @return array{minimum_required_payment:string,total_confirmed_payments:string,finance_cleared:bool,finance_clearance_source:string,net_assessment:string,current_balance:string}
+     */
+    public function readiness(
+        Enrollment $enrollment,
+        StudentProfile $studentProfile,
+        string $currentBalance,
+        CarbonImmutable $timestamp,
+    ): array {
+        $netAssessment = $this->netAssessment($enrollment);
+        $minimumRequiredPayment = $this->minimumRequiredPayment($enrollment, $studentProfile, $netAssessment);
+        $totalConfirmedPayments = $this->totalConfirmedPayments($enrollment);
+        $financeClearanceSource = $this->financeClearanceSource(
+            $enrollment,
+            $studentProfile,
+            $currentBalance,
+            $minimumRequiredPayment,
+            $totalConfirmedPayments,
+            $netAssessment,
+            $timestamp,
+        );
+        $financeCleared = $financeClearanceSource !== 'none';
+
+        return [
+            'minimum_required_payment' => $minimumRequiredPayment,
+            'total_confirmed_payments' => $totalConfirmedPayments,
+            'finance_cleared' => $financeCleared,
+            'finance_clearance_source' => $financeClearanceSource,
+            'net_assessment' => $netAssessment,
+            'current_balance' => $this->money->normalize($currentBalance),
         ];
     }
 

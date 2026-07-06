@@ -84,6 +84,14 @@ class EnrollmentPolicy
         ]);
     }
 
+    public function refreshGates(User $user, Enrollment $enrollment): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ]);
+    }
+
     /**
      * @param  list<string>  $permissions
      */

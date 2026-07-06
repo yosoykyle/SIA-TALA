@@ -72,16 +72,16 @@ final class StudentUnitLoadExceptionTest extends TestCase
 
         EnrollmentGateResult::query()->create([
             'enrollment_id' => $enrollment->id,
-            'gate_type' => 'FINANCE',
+            'gate_type' => EnrollmentGateResult::GateFinance,
             'sequence' => 1,
-            'result' => 'FAILED',
-            'responsible_office' => 'Accounting',
+            'result' => EnrollmentGateResult::ResultFailed,
+            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeAccounting,
             'checked_at' => now(),
             'rule_version' => 'v1',
         ]);
         $after = $service->evaluate($enrollment, 24, null, 'First Year');
         $this->assertFalse($after['all_gates_pass']);
-        $this->assertSame(['FINANCE'], $after['other_failed_gates']);
+        $this->assertSame([EnrollmentGateResult::GateFinance], $after['other_failed_gates']);
 
         $exception->update(['expires_at' => now()->subSecond()]);
         $this->assertFalse($service->evaluate($enrollment, 24, null, 'First Year')['unit_load_passes']);

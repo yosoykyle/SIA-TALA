@@ -47,7 +47,7 @@ Status rules:
 3. The responsible office and blocking reason come from the pending Enrollment Gate result.
 4. `Capacity Pending` is used only while compatible section placement or capacity confirmation remains unresolved.
 5. `Payment Pending` is used only after placement and assessment are ready and the Finance Gate has not passed.
-6. `Ready for Official Enrollment` means every required gate has passed, been waived, or been validly overridden.
+6. `Ready for Official Enrollment` means every source-derived gate has passed, been waived, or been validly overridden; the Final Approval Gate may still show Registrar pending review until the official-enrollment action is recorded.
 7. `Cancelled`, `Dropped`, and `Withdrawn` remain distinct final statuses with separate academic, capacity, COR, and ledger effects.
 8. Record replacement or correction history is auditable metadata attached to the enrollment record.
 

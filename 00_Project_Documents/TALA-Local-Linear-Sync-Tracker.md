@@ -41,6 +41,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-86E | Done locally; pending explicit Linear sync | Finance Gate Source Behavior Smoke |
 | TAL-87A | Done locally; pending explicit Linear sync | Clean Enrollment Source-Record Baseline |
 | TAL-87B | Done locally; pending explicit Linear sync | Staff Gate Review Surface |
+| TAL-87C | Done locally; pending explicit Linear sync | Enrollment Gate Evaluator and Exception Gate Acceptance |
 
 ## Compact Synced History
 

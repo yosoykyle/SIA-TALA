@@ -26,8 +26,8 @@ class StudentUnitLoadService
         $approvedLimit = min($configuredCap, $normalLoad + $approvedExcess);
         $otherFailedGates = EnrollmentGateResult::query()
             ->where('enrollment_id', $enrollment->id)
-            ->where('result', 'FAILED')
-            ->where('gate_type', '!=', EnrollmentException::TypeUnitLoad)
+            ->where('result', EnrollmentGateResult::ResultFailed)
+            ->where('gate_type', '!=', EnrollmentGateResult::GateAcademicProgression)
             ->pluck('gate_type')
             ->values()
             ->all();
@@ -53,7 +53,7 @@ class StudentUnitLoadService
     public function approve(Enrollment $enrollment, array $data, User $actor): EnrollmentException
     {
         if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin])) {
-            throw new AuthorizationException('Only authorized academic staff may approve a unit-load exception.');
+            throw new AuthorizationException('Only authorized academic staff may record an approved unit-load exception.');
         }
 
         foreach (['normal_limit', 'requested_total', 'configured_cap', 'authority', 'reason', 'evidence_reference'] as $required) {
@@ -93,6 +93,7 @@ class StudentUnitLoadService
                         'default_approving_authority' => $this->policy->defaultApprovingAuthority(),
                         'default_recording_office' => $this->policy->defaultRecordingOffice(),
                         'recorded_by_role' => $this->recordingRole($actor),
+                        'recorded_by_user_id' => $actor->id,
                     ],
                     'reason' => (string) $data['reason'],
                     'evidence_reference' => (string) $data['evidence_reference'],
