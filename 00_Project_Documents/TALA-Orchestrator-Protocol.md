@@ -33,6 +33,11 @@ Use available capabilities instead of duplicating their full instructions:
 
 Every slice runs a benchmark/implementation-fit gate:
 
+The gate runs in two phases:
+
+- Phase A (scope establishment): items 1–3 define the slice's domain shape — what records, what workflow category, which office owns the decision, and what TALA's responsibility is. This phase uses only PRD, current code, and manual/digital judgment.
+- Phase B (research and tool assessment): items 4–9 use the domain shape from Phase A to determine whether external research, reference inspection, or additional tooling is needed. Do not execute Phase B without a clear domain shape from Phase A.
+
 1. PRD/blueprint intent.
 2. Current implementation.
 3. Manual/digital reality check: office owner, manual office step, TALA-owned record/view/integration responsibility, and whether the proposed behavior over-automates office judgment.
@@ -54,6 +59,14 @@ Business benchmarking validates workflow credibility; a qualified reference vali
 ### Qualified Reference Implementation
 
 Use the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES` as the default reference when the current slice has meaningful overlap; canonical remote: [academico-sis/academico](https://github.com/academico-sis/academico). Do not scan it routinely or broadly.
+
+Overlap assessment order:
+
+1. Complete gate Phase A (items 1–3) to establish the slice's domain shape.
+2. Ask: "Does this workflow category, record type, or office/role pattern plausibly exist in the reference?" A structural check (directory listing, model file names, or a focused GitHub API query) is sufficient to confirm or rule out overlap without deep inspection.
+3. If no plausible overlap: record depth 0 with the reason (e.g., "domain mismatch: TALA 9-category enrollment gate vs. language-school course enrollment") and proceed.
+4. If plausible overlap: proceed to minimum-depth inspection per the rules below.
+5. If the local checkout is unavailable or stale, use the canonical remote via GitHub API at the same minimum depth.
 
 Use the minimum depth: `0` skip, `1` rendered UI, `2` directly relevant files, `3` dependencies/tests/data model only when adoption or copying is plausible. Check the remote only for freshness, license, dependency, or copy decisions. Record the source, depth, examined surfaces, and one disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile a PRD/blueprint conflict.
 
@@ -87,6 +100,16 @@ Commands:
 ## Slice Contract
 
 A slice must be small enough to inspect, implement, test, and verify. If broad, split it during primary planning and record a compact sub-slice map in Next Steps.
+
+Sub-slice map recording sequence:
+
+1. Primary identifies during planning that the issue is too broad for one slice.
+2. Primary proposes the sub-slice map in its report (IDs, one-line purposes, dependency order, next boundary for each).
+3. User approves the plan (including the split).
+4. Primary immediately records the approved sub-slice map in Next Steps. This is planning documentation, not implementation — it does not require a separate approval step.
+5. Primary then plans the first sub-slice per normal gate/benchmark rules.
+
+If the primary realizes mid-implementation that an approved sub-slice itself needs further splitting: stop implementation, report the new split proposal in the primary thread, get user approval, record the updated map, then continue.
 
 Each primary plan must define:
 
@@ -190,4 +213,23 @@ Primary acceptance requires independent inspection and proportionate verificatio
 
 ## Product-Rule Ownership
 
-Product behavior belongs in PRD modules, UI blueprint, and architecture specification, not this protocol. Task contracts must cite relevant owning files. If product behavior changes, update owning documents and dependent modules before finalizing implementation. Do not create duplicate glossaries or module rules here.
+Product behavior belongs in PRD modules, UI blueprint, and architecture specification, not this protocol. Task contracts must cite relevant owning files. Do not create duplicate glossaries or module rules here.
+
+### PRD Correction During Planning
+
+If the primary identifies a PRD error, contradiction, gap, or stale statement during intake or planning:
+
+1. Flag it in the Phase 2 primary report under "contradictions/gaps."
+2. Propose the correction or resolution with evidence (benchmark result, code discovery, authority conflict).
+3. Include the PRD patch as part of the slice plan. It is approved alongside the implementation plan, not as a separate task — unless the PRD issue changes scope for multiple future slices, in which case it becomes a standalone docs-only micro-task before the implementation slice.
+4. Apply the PRD update before finalizing implementation. The commit includes both the PRD fix and the implementation that depends on it.
+
+Trivial fixes (typos, obviously wrong terms) may be included without separate justification. Substantive behavior changes always require explicit user approval.
+
+### PRD Stability After Verification
+
+The PRD describes desired behavior (the contract). Failed or partial verification does not trigger PRD changes.
+
+- Worker delivers PARTIAL or primary verification finds failures: fix the code or re-delegate. The PRD stays unchanged because the target is still correct.
+- Only change the PRD when implementation reveals a design flaw in the PRD itself — not when the code fails to meet a correct specification.
+- If a design flaw is discovered during verification: loop back to Phase 2, flag the PRD issue, propose correction, get user approval, then continue.
