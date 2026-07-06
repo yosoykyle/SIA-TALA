@@ -35,13 +35,18 @@ Every slice runs a benchmark/implementation-fit gate:
 
 1. PRD/blueprint intent.
 2. Current implementation.
-3. Native Filament v5/Laravel pattern.
-4. Installed packages.
-5. Qualified plugin option.
-6. Focused custom code.
-7. Whether mature-system or internet benchmarking is needed.
+3. Manual/digital reality check: office owner, manual office step, TALA-owned record/view/integration responsibility, and whether the proposed behavior over-automates office judgment.
+4. Native Filament v5/Laravel pattern.
+5. Installed packages.
+6. Qualified plugin option.
+7. Focused custom code.
+8. Whether mature-system or internet benchmarking is needed.
 
-If deep research is not needed, state why the PRD/current implementation/native path is sufficient. If research is used, record material links and why the recommendation is MVP-fit.
+Clear does not mean the PRD has readable wording. A slice is clear only when the plan identifies the office owner, the manual workflow step, TALA's exact responsibility, the proposed feature category, and why current code or a bounded benchmark does not contradict the plan.
+
+A bounded reality-check benchmark is mandatory before implementation for every new parent issue and the first sub-slice touching admissions/applicant data, document evidence, enrollment gates, finance/ledger/payment, CP-SAT/scheduling, COR or official outputs, Student Hub/student-facing data, integrations/settings, security/privacy, audit, retention, or reporting. A later sub-slice may reuse a recent accepted benchmark only when it stays inside the same workflow and introduces no new role, source record, integration boundary, official output, exposed data class, or manual-office decision.
+
+If deep research is not needed, state why the slice is internal cleanup, framework/native implementation, or direct code alignment to a recently accepted benchmarked contract. If research is used, record material links and why the recommendation is MVP-fit. If the PRD appears complete but the manual/digital boundary or benchmark fit has not been checked, mark the slice unclear and stop before implementation.
 
 ## Primary Orchestrator
 
@@ -83,7 +88,7 @@ Each primary plan must define:
 - Related modules/downstream consumers.
 - Integration boundary.
 - Purposeful-simplification decision.
-- Benchmark/implementation-fit gate result.
+- Manual/digital boundary and benchmark/implementation-fit gate result.
 - Likely files/surfaces.
 - Verification plan.
 - Human-only steps.
@@ -97,7 +102,7 @@ Primary planning is evidence-backed. Do not implement or delegate until the user
 
 ## Simplification Rule
 
-Simplification means purposeful scope, not deletion or presence for its own sake. Retain/add/revise/defer only when it supports:
+Simplification means purposeful scope, not deletion or presence for its own sake. A clear school workflow names the office owner, the manual decision or action, and the TALA source record, generated view, office-result record, integration input/output, or deferred boundary. Retain/add/revise/defer only when it supports:
 
 - Clear school workflow.
 - Inter-department handoff.
