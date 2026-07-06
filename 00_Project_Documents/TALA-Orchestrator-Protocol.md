@@ -31,7 +31,7 @@ Use available capabilities instead of duplicating their full instructions:
 - Policy, integration contracts, or mature SIS behavior: authoritative internet/primary sources; prefer local Philippine campus/SIS context when policy credibility or workflow familiarity is uncertain.
 - Generic planning/debugging/TDD/verification/review/subagent workflows: relevant installed skills/plugins such as Superpowers when available. These guide process only; they do not override TALA authorities.
 
-Timing: use Boost `search-docs`, plugin catalogs, and available MCPs during planning (gate Phase B, items 6–8) to verify that proposed framework patterns, plugins, or integrations exist and are version-compatible before the plan is finalized. Activate domain skills when implementation enters their scope. Do not defer all tool usage to implementation if it would leave the plan unverified.
+Timing: use Boost `search-docs`, plugin catalogs, and available MCPs during planning (gate Phase B, items 6–8) to verify that proposed framework patterns, plugins, or integrations exist and are version-compatible before the plan is finalized. During planning, identify which installed skills apply to the slice's domain and activate them so their conventions inform the plan. Do not defer all tool and skill usage to implementation if it would leave the plan unverified.
 
 Every slice runs a benchmark/implementation-fit gate:
 
