@@ -40,6 +40,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-86D | Done locally; pending explicit Linear sync | Financial Accommodation and Promissory-Effect Acceptance |
 | TAL-86E | Done locally; pending explicit Linear sync | Finance Gate Source Behavior Smoke |
 | TAL-87A | Done locally; pending explicit Linear sync | Clean Enrollment Source-Record Baseline |
+| TAL-87B | Done locally; pending explicit Linear sync | Staff Gate Review Surface |
 
 ## Compact Synced History
 

@@ -7,11 +7,25 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EnrollmentGateResult extends Model
 {
-    public const GatePlacement = 'placement';
+    public const GateIdentity = 'identity';
+
+    public const GateAdmissionOrStudentStatus = 'admission_or_student_status';
+
+    public const GateDocument = 'document';
+
+    public const GateFinance = 'finance';
+
+    public const GateAcademicProgression = 'academic_progression';
 
     public const GateCapacity = 'capacity';
 
+    public const GatePlacement = 'placement';
+
     public const GateConflict = 'conflict';
+
+    public const GateFinalApproval = 'final_approval';
+
+    public const ResultNotChecked = 'not_checked';
 
     public const ResultPassed = 'passed';
 
@@ -20,6 +34,10 @@ class EnrollmentGateResult extends Model
     public const ResultPendingReview = 'pending_review';
 
     public const ResponsibleOfficeRegistrar = 'registrar';
+
+    public const ResponsibleOfficeAccounting = 'accounting';
+
+    public const ResponsibleOfficeAcademicHead = 'academic_head';
 
     public const RuleVersionTal67Mvp = 'tal-67-mvp';
 

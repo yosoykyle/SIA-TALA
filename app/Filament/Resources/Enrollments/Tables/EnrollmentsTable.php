@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Enrollments\Tables;
 
+use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Models\Enrollment;
 use App\Models\User;
@@ -20,7 +21,7 @@ class EnrollmentsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.program', 'term']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.program', 'term', 'gateResults']))
             ->columns([
                 TextColumn::make('studentProfile.student_number')
                     ->label('Student No.')
@@ -58,6 +59,13 @@ class EnrollmentsTable
                     ->badge()
                     ->placeholder('-')
                     ->searchable(),
+                TextColumn::make('gate_review')
+                    ->label('Gate Review')
+                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatus($record))
+                    ->description(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactResponsibleOffice($record))
+                    ->badge()
+                    ->color(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatusColor($record))
+                    ->wrap(),
                 TextColumn::make('registered_at')
                     ->dateTime()
                     ->placeholder('-')

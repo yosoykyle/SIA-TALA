@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Enrollments\Schemas;
 
+use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Models\Enrollment;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -65,6 +67,55 @@ class EnrollmentInfolist
                                     ->placeholder('-'),
                             ]),
                     ]),
+                Section::make('Enrollment Gate Review')
+                    ->description('Read-only TAL-87B staff summary from recorded gate results; missing gate rows are shown as Not Checked without database writes.')
+                    ->schema([
+                        TextEntry::make('gate_review_current')
+                            ->label('Current blocker / next gate')
+                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatus($record))
+                            ->badge()
+                            ->color(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatusColor($record)),
+                        TextEntry::make('gate_review_office')
+                            ->label('Responsible Office')
+                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactResponsibleOffice($record))
+                            ->badge(),
+                        RepeatableEntry::make('gate_review_rows')
+                            ->label('Gate Summary')
+                            ->state(fn (Enrollment $record): array => app(EnrollmentGateReviewSummary::class)->rows($record))
+                            ->schema([
+                                TextEntry::make('label')
+                                    ->label('Gate')
+                                    ->weight('bold'),
+                                TextEntry::make('result_label')
+                                    ->label('Result')
+                                    ->badge()
+                                    ->color(fn (string $state): string => match ($state) {
+                                        'Passed' => 'success',
+                                        'Failed' => 'danger',
+                                        'Pending Review' => 'warning',
+                                        'Not Checked' => 'gray',
+                                        default => 'gray',
+                                    }),
+                                TextEntry::make('office_label')
+                                    ->label('Office'),
+                                TextEntry::make('blocker_code')
+                                    ->label('Blocker Code')
+                                    ->placeholder('-'),
+                                TextEntry::make('blocker_message')
+                                    ->label('Blocker / Message')
+                                    ->placeholder('-'),
+                                TextEntry::make('source_reference')
+                                    ->label('Source')
+                                    ->placeholder('-'),
+                                TextEntry::make('checked_at')
+                                    ->label('Checked At')
+                                    ->placeholder('-'),
+                            ])
+                            ->columns(4)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 }
