@@ -10,7 +10,7 @@ The goal is not a restart. Continue through small vertical slices, preserve alig
 
 Read in this order before a TALA slice:
 
-1. `AGENTS.md` — runtime rules and Laravel Boost block. Read it from the active worktree root when present. If absent in a Codex worktree, read the canonical project copy at `C:\C SCHOOL\1st_SEM_Resources\Fundamentals_of_Research\GROUP\ACTIVITIES\SIA-TALA\AGENTS.md`. If neither path is available, stop before planning, delegation, or implementation.
+1. `AGENTS.md` — runtime rules and Laravel Boost block. Read it from the project root. If it is not available, stop before planning, delegation, or implementation.
 2. This protocol — orchestration rules.
 3. `TALA-Rescue-Next-Steps.md` — current issue, sequence, sub-slices.
 4. `TALA-Local-Linear-Sync-Tracker.md` — issue numbering and sync state only.
