@@ -87,6 +87,24 @@ class CorView extends Page
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
+                Section::make('Installment Schedule')
+                    ->visible(fn (): bool => (bool) ($this->cor['state']['installment_applicable'] ?? false))
+                    ->schema([
+                        RepeatableEntry::make('installment_rows')
+                            ->label('Installments')
+                            ->schema([
+                                TextEntry::make('number')->label('No.'),
+                                TextEntry::make('category')->label('Category'),
+                                TextEntry::make('due_date')->label('Due Date'),
+                                TextEntry::make('amount')->label('Amount'),
+                                TextEntry::make('reference')->label('Receipt No. / Reference'),
+                                TextEntry::make('date_paid')->label('Date Paid'),
+                                TextEntry::make('remaining_balance')->label('Remaining'),
+                            ])
+                            ->columns(7)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
             ]);
     }
 

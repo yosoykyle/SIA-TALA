@@ -259,6 +259,36 @@
             </tbody>
         </table>
 
+        @if (($cor['installment']['applicable'] ?? false) === true)
+            <h2>Installment Schedule</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Installment No.</th>
+                        <th>Category</th>
+                        <th>Due Date</th>
+                        <th>Amount</th>
+                        <th>Receipt No. / Reference</th>
+                        <th>Date Paid</th>
+                        <th>Remaining Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($cor['installment']['rows'] as $installment)
+                        <tr>
+                            <td class="right">{{ $installment['number'] }}</td>
+                            <td>{{ $installment['category'] }}</td>
+                            <td>{{ $installment['due_date'] }}</td>
+                            <td class="right">PHP {{ $installment['amount'] }}</td>
+                            <td>{{ $installment['reference'] }}</td>
+                            <td>{{ $installment['date_paid'] }}</td>
+                            <td class="right">PHP {{ $installment['remaining_balance'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
         <section class="signature-grid">
             <div class="signature">Encoded / Enlisted By</div>
             <div class="signature">Evaluated By / Registrar</div>

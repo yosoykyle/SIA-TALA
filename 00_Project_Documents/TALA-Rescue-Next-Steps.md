@@ -36,7 +36,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
+| TAL-88 | In Progress | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. Split approved: TAL-88A COR source-output acceptance; TAL-88B finance official outputs acceptance; TAL-88C stale public COR verification deferral; TAL-88D cross-role output regression. Sub-slice map: TAL-88A done locally; TAL-88B next; TAL-88C planned; TAL-88D planned. |
 | TAL-89 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. |
 | TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
 | TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
@@ -48,4 +48,4 @@ Dependency lock:
 
 ### Next Boundary
 
-TAL-87 parent is complete (all sub-slices done locally). Next primary-planning boundary is TAL-88: COR and Official Output Acceptance. Do not implement TAL-88 until primary planning classifies the slice, checks the PRD/blueprint/code fit, runs the protocol manual/digital reality-check benchmark, and receives user approval.
+TAL-88A is done locally (COR source-output acceptance, installment schedule, lifecycle blocking, source alignment, dropped-subject exclusion, lecture+lab rows — all tested). Next primary-planning boundary is TAL-88B: finance official outputs acceptance (SOA, billing slip, payment acknowledgement — source alignment, access logging, print rendering, extended payment statuses). Do not implement TAL-88B until primary planning validates PRD Module 8 finance-output sections, current FinanceEvidenceService, finance output views, existing TAL-71 tests, and the deferred extended-payment-status mapping, then receives user approval.

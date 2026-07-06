@@ -5,6 +5,7 @@ namespace App\Actions\Cor;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\FinancialAccommodation;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\PaymentScheduleRow;
@@ -15,6 +16,7 @@ use App\Models\StudentScheduleBinding;
 use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\DecimalMoney;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -131,6 +133,7 @@ class BuildCorOutput
             'schedule_version' => $scheduleVersion !== null ? (int) $scheduleVersion : null,
             'subjects' => $subjects,
             'fees' => $finance['fees'],
+            'installment' => $finance['installment'],
             'summary' => [
                 'enrollment_id' => (int) $enrollment->id,
                 'student_number' => $enrollment->studentProfile->student_number,
@@ -161,6 +164,8 @@ class BuildCorOutput
                 'total_units' => $totalUnits,
                 'balance' => 'PHP '.$finance['balance'],
                 'subjects' => $subjects,
+                'installment_applicable' => $finance['installment']['applicable'],
+                'installment_rows' => $finance['installment']['rows'],
             ],
         ];
     }
@@ -350,7 +355,7 @@ class BuildCorOutput
     }
 
     /**
-     * @return array{payment_status:string,balance:string,fees:list<array{label:string,amount:string}>}
+     * @return array{payment_status:string,balance:string,fees:list<array{label:string,amount:string}>,installment:array{applicable:bool,rows:list<array<string,mixed>>}}
      */
     private function financeSummary(Enrollment $enrollment): array
     {
@@ -394,7 +399,136 @@ class BuildCorOutput
             'payment_status' => $this->paymentStatus($assessment, $balance, $postedPayments),
             'balance' => $balance,
             'fees' => $fees,
+            'installment' => $this->installmentSchedule($enrollment, $assessment),
         ];
+    }
+
+    /**
+     * Build the COR installment schedule (PRD 9.1.5).
+     *
+     * Rows come from an active Financial Accommodation payment schedule when present,
+     * otherwise from a multi-row assessment payment schedule. A single-row assessment
+     * schedule represents a full-payment plan and is not treated as an installment plan.
+     *
+     * @return array{applicable:bool,rows:list<array<string,mixed>>}
+     */
+    private function installmentSchedule(Enrollment $enrollment, ?Assessment $assessment): array
+    {
+        $accommodationRows = $this->accommodationScheduleRows($enrollment);
+
+        if ($accommodationRows->isNotEmpty()) {
+            return $this->buildInstallmentRows($accommodationRows);
+        }
+
+        if ($assessment instanceof Assessment) {
+            $assessmentRows = $assessment->paymentScheduleRows->sortBy('sequence')->values();
+
+            if ($assessmentRows->count() > 1) {
+                return $this->buildInstallmentRows($assessmentRows);
+            }
+        }
+
+        return ['applicable' => false, 'rows' => []];
+    }
+
+    /**
+     * @return Collection<int, PaymentScheduleRow>
+     */
+    private function accommodationScheduleRows(Enrollment $enrollment): Collection
+    {
+        $accommodation = FinancialAccommodation::query()
+            ->where('student_profile_id', $enrollment->student_profile_id)
+            ->where('term_id', $enrollment->term_id)
+            ->where('status', FinancialAccommodation::StatusActive)
+            ->where('effective_from', '<=', today())
+            ->where(fn (Builder $query): Builder => $query->whereNull('expires_on')->orWhere('expires_on', '>=', today()))
+            ->orderByDesc('effective_from')
+            ->first();
+
+        if (! $accommodation instanceof FinancialAccommodation) {
+            return collect();
+        }
+
+        return $accommodation->paymentScheduleRows()->orderBy('sequence')->get();
+    }
+
+    /**
+     * @param  Collection<int, PaymentScheduleRow>  $scheduleRows
+     * @return array{applicable:bool,rows:list<array<string,mixed>>}
+     */
+    private function buildInstallmentRows(Collection $scheduleRows): array
+    {
+        $totalScheduled = $scheduleRows->reduce(
+            fn (string $carry, PaymentScheduleRow $row): string => $this->money->add($carry, (string) $row->amount),
+            '0.00',
+        );
+        $references = $this->scheduleRowPaymentReferences($scheduleRows);
+        $cumulative = '0.00';
+        $number = 1;
+        $rows = [];
+
+        foreach ($scheduleRows as $row) {
+            $cumulative = $this->money->add($cumulative, (string) $row->amount);
+            $reference = $references[$row->linked_payment_allocation_id] ?? null;
+            $rows[] = [
+                'number' => $number++,
+                'category' => str((string) $row->category)->headline()->toString(),
+                'due_date' => $this->dateLabel($row->due_date),
+                'amount' => $this->money->normalize((string) $row->amount),
+                'reference' => $reference['reference'] ?? 'Pending',
+                'date_paid' => $reference['date_paid'] ?? 'Unpaid',
+                'remaining_balance' => $this->money->subtract($totalScheduled, $cumulative),
+            ];
+        }
+
+        return ['applicable' => true, 'rows' => $rows];
+    }
+
+    /**
+     * Resolve receipt/payment references for schedule rows linked to a posted payment allocation.
+     *
+     * @param  Collection<int, PaymentScheduleRow>  $scheduleRows
+     * @return array<int, array{reference:string,date_paid:string}>
+     */
+    private function scheduleRowPaymentReferences(Collection $scheduleRows): array
+    {
+        $allocationIds = $scheduleRows
+            ->pluck('linked_payment_allocation_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($allocationIds->isEmpty()) {
+            return [];
+        }
+
+        $records = DB::table('payment_allocations')
+            ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
+            ->whereIn('payment_allocations.id', $allocationIds->all())
+            ->get(['payment_allocations.id as allocation_id', 'payments.or_number', 'payments.provider_reference', 'payments.paid_at']);
+
+        $map = [];
+
+        foreach ($records as $record) {
+            $reference = $record->or_number ?: ($record->provider_reference ?: 'Recorded payment');
+            $map[(int) $record->allocation_id] = [
+                'reference' => (string) $reference,
+                'date_paid' => $record->paid_at !== null
+                    ? Carbon::parse($record->paid_at)->toFormattedDateString()
+                    : 'Unpaid',
+            ];
+        }
+
+        return $map;
+    }
+
+    private function dateLabel(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return 'Not set';
+        }
+
+        return Carbon::parse($value)->toFormattedDateString();
     }
 
     private function balanceAmount(LedgerEntry $entry): string
@@ -504,6 +638,8 @@ class BuildCorOutput
                 'total_units' => '0.00',
                 'balance' => 'PHP 0.00',
                 'subjects' => [],
+                'installment_applicable' => false,
+                'installment_rows' => [],
             ],
         ];
     }
