@@ -36,7 +36,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-88 | In Progress | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. Split approved: TAL-88A COR source-output acceptance; TAL-88B finance official outputs acceptance; TAL-88C stale public COR verification deferral; TAL-88D cross-role output regression. Sub-slice map: TAL-88A done locally; TAL-88B done locally; TAL-88C done locally; TAL-88D next. |
 | TAL-89 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. |
 | TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
 | TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
@@ -48,4 +47,4 @@ Dependency lock:
 
 ### Next Boundary
 
-TAL-88A, TAL-88B, and TAL-88C are done locally (COR source-output, finance official outputs acceptance, and stale public COR verification deferral). Next primary-planning boundary is TAL-88D: cross-role output regression. This sub-slice verifies the accepted authenticated COR and finance output surfaces across Registrar, Accounting, Student, unauthorized staff, and unauthenticated users without adding public verification, QR artifacts, or new official-output behavior.
+TAL-88A, TAL-88B, TAL-88C, and TAL-88D are done locally (COR source-output, finance official outputs acceptance, stale public COR verification deferral, and cross-role output regression). Next primary-planning boundary is TAL-89: Grades Acceptance.
