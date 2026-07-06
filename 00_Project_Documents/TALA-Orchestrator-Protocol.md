@@ -27,7 +27,7 @@ Ownership: Boost/official docs control framework use; PRD controls product; blue
 Use available capabilities instead of duplicating their full instructions:
 
 - Laravel ecosystem/framework work: Laravel Boost first, especially version-specific `search-docs`.
-- Library/plugin/current-doc gaps: Context7, official docs, or relevant MCPs/connectors.
+- Library/plugin/SDK/API work: use Context7 for focused, current, version-specific documentation and code examples when Boost is insufficient. Resolve the exact library/version, ask a specific question, and reuse the result. Context7 may retrieve repository-indexed documentation, but it is technical context only; use official sources for missing, conflicting, security-critical, or contractual details.
 - Policy, integration contracts, or mature SIS behavior: authoritative internet/primary sources; prefer local Philippine campus/SIS context when policy credibility or workflow familiarity is uncertain.
 - Generic planning/debugging/TDD/verification/review/subagent workflows: relevant installed skills/plugins such as Superpowers when available. These guide process only; they do not override TALA authorities.
 
@@ -36,17 +36,28 @@ Every slice runs a benchmark/implementation-fit gate:
 1. PRD/blueprint intent.
 2. Current implementation.
 3. Manual/digital reality check: office owner, manual office step, TALA-owned record/view/integration responsibility, and whether the proposed behavior over-automates office judgment.
-4. Native Filament v5/Laravel pattern.
-5. Installed packages.
-6. Qualified plugin option.
-7. Focused custom code.
-8. Whether mature-system or internet benchmarking is needed.
+4. Whether a mature-system benchmark is required or reusable.
+5. Whether a qualified reference implementation overlaps.
+6. Native Filament v5/Laravel pattern.
+7. Installed packages.
+8. Qualified plugin/dependency option.
+9. Focused custom code.
 
 Clear does not mean the PRD has readable wording. A slice is clear only when the plan identifies the office owner, the manual workflow step, TALA's exact responsibility, the proposed feature category, and why current code or a bounded benchmark does not contradict the plan.
 
 A bounded reality-check benchmark is mandatory before implementation for every new parent issue and the first sub-slice touching admissions/applicant data, document evidence, enrollment gates, finance/ledger/payment, CP-SAT/scheduling, COR or official outputs, Student Hub/student-facing data, integrations/settings, security/privacy, audit, retention, or reporting. A later sub-slice may reuse a recent accepted benchmark only when it stays inside the same workflow and introduces no new role, source record, integration boundary, official output, exposed data class, or manual-office decision.
 
 If deep research is not needed, state why the slice is internal cleanup, framework/native implementation, or direct code alignment to a recently accepted benchmarked contract. If research is used, record material links and why the recommendation is MVP-fit. If the PRD appears complete but the manual/digital boundary or benchmark fit has not been checked, mark the slice unclear and stop before implementation.
+
+Business benchmarking validates workflow credibility; a qualified reference validates implementation fit. Neither overrides TALA authorities.
+
+### Qualified Reference Implementation
+
+Use the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES` as the default reference when the current slice has meaningful overlap; canonical remote: [academico-sis/academico](https://github.com/academico-sis/academico). Do not scan it routinely or broadly.
+
+Use the minimum depth: `0` skip, `1` rendered UI, `2` directly relevant files, `3` dependencies/tests/data model only when adoption or copying is plausible. Check the remote only for freshness, license, dependency, or copy decisions. Record the source, depth, examined surfaces, and one disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile a PRD/blueprint conflict.
+
+Reuse an accepted finding for related sub-slices unless the workflow, reference, or integration boundary changes. The primary gives workers exact reference paths and allowed patterns; workers do not repeat broad discovery.
 
 ## Primary Orchestrator
 
@@ -89,6 +100,7 @@ Each primary plan must define:
 - Integration boundary.
 - Purposeful-simplification decision.
 - Manual/digital boundary and benchmark/implementation-fit gate result.
+- Qualified-reference source, depth, and disposition, or why it is not applicable.
 - Likely files/surfaces.
 - Verification plan.
 - Human-only steps.
@@ -113,25 +125,28 @@ Simplification means purposeful scope, not deletion or presence for its own sake
 
 Prefer hybrid manual/digital workflows when they keep the system useful without encoding unnecessary institutional complexity. Benchmarks guide credibility and implementation shape; they do not authorize broad enterprise scope.
 
+Do not preserve a reduced feature solely because richer behavior was assumed expensive when a compatible native, packaged, or qualified-reference implementation makes it bounded. Domain fit and purposeful scope still control.
+
 ## Filament and Plugin Gate
 
 Default order:
 
 1. Keep current aligned, authorized, tested implementation.
 2. Use native Filament v5/Laravel features.
-3. Reuse installed package/component.
-4. Evaluate a new plugin only for a real gap that reduces code or risk.
-5. Build focused custom code when the above do not fit.
+3. Adapt a qualified-reference pattern when domain semantics fit.
+4. Reuse an installed package/component.
+5. Add a qualified plugin/dependency only for a real gap that reduces code or risk.
+6. Build focused custom code when the above do not fit.
 
 Catalogs: [Filament plugins](https://filamentphp.com/plugins), [Awesome Filament](https://github.com/spekulatius/awesome-filament). They are discovery aids, not authority.
 
-Before adding a dependency, get explicit approval and document compatibility with Laravel 12, Filament 5, Livewire 4, PHP 8.2; maintainer activity; license/security; migrations/routes/config; authorization; tests; upgrade/removal cost; and whether TALA domain rules remain in services/actions/policies/models.
+A dependency included in an accepted slice plan needs no second approval. The plan must document compatibility with Laravel 12, Filament 5, Livewire 4, PHP 8.2; maintenance; license/security; migrations/routes/config; authorization; tests; upgrade/removal cost; and whether TALA domain rules remain in services/actions/policies/models.
 
 ## Delegation and Worker Rules
 
 Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
-Before starting a worker, the primary writes a compact handoff packet to the OS temp directory and points the worker to that absolute path. The packet includes only: issue, accepted checklist, authority files, allowed changes, exclusions, verification, DB proof requirement, and handshake format. Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
+Before starting a worker, the primary writes a compact handoff packet to the OS temp directory and points the worker to that absolute path. The packet includes only: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, and handshake format. Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
 
 Workers must:
 
@@ -154,7 +169,7 @@ Worker final report must include:
 4. DB target proof for DB-backed checks.
 5. Untouched exclusions.
 6. Caveats/blockers.
-7. Research/plugin decision and links when applicable.
+7. Research/reference/dependency decision and links or paths when applicable.
 8. Next boundary.
 
 Primary acceptance requires independent inspection and proportionate verification. Passing tests alone is not acceptance. Before cleanup/commit, report: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
