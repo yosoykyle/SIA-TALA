@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Enrollments\Pages;
 
 use App\Actions\Enrollment\EnrollmentGateEvaluator;
+use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Enrollment\RecordAcademicException;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -21,6 +22,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Utilities\Get;
+use Throwable;
 
 class ViewEnrollment extends ViewRecord
 {
@@ -135,6 +137,52 @@ class ViewEnrollment extends ViewRecord
                     Notification::make()->title('Unit-load exception recorded')->success()->send();
                 })
                 ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin]) ?? false),
+            Action::make('recordOfficialEnrollment')
+                ->label('Record Official Enrollment')
+                ->icon('heroicon-o-check-badge')
+                ->color('success')
+                ->authorize(fn (): bool => auth()->user()?->can('officiallyEnroll', $this->getRecord()) ?? false)
+                ->visible(function (): bool {
+                    $record = $this->getRecord();
+                    $user = auth()->user();
+
+                    return $record instanceof Enrollment
+                        && in_array($record->status, ['ready_for_official_enrollment', 'pre_enrolled'], true)
+                        && $user instanceof User
+                        && $user->can('officiallyEnroll', $record);
+                })
+                ->schema([
+                    Textarea::make('remark')
+                        ->label('Registrar remark (optional)')
+                        ->maxLength(2000),
+                ])
+                ->modalHeading('Record official enrollment')
+                ->modalDescription('This rechecks every enrollment gate, converts the seat reservation, binds the official schedule, and makes the COR available. The result is recorded and auditable.')
+                ->modalSubmitActionLabel('Record Official Enrollment')
+                ->action(function (Enrollment $record, array $data): void {
+                    $actor = auth()->user();
+
+                    if (! $actor instanceof User) {
+                        return;
+                    }
+
+                    try {
+                        app(FinalizeOfficialEnrollment::class)->execute($record, $actor, $data['remark'] ?? null);
+                        $this->record = $record->refresh();
+
+                        Notification::make()
+                            ->title('Official enrollment recorded')
+                            ->body('The enrollment is now official and the COR is available.')
+                            ->success()
+                            ->send();
+                    } catch (Throwable $exception) {
+                        Notification::make()
+                            ->title('Official enrollment failed')
+                            ->body($exception->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
             Action::make('printCor')
                 ->label('Print COR')
                 ->icon('heroicon-o-printer')

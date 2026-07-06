@@ -92,6 +92,14 @@ class EnrollmentPolicy
         ]);
     }
 
+    public function officiallyEnroll(User $user, Enrollment $enrollment): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ]);
+    }
+
     /**
      * @param  list<string>  $permissions
      */

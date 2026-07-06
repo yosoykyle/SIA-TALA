@@ -36,7 +36,6 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-87 | Planned | Enrollment Gate and Official Enrollment Acceptance: validate eligibility, section placement, capacity, seat reservation, document/academic/finance gates, exceptions, official enrollment, and schedule binding. |
 | TAL-88 | Planned | COR and Official Output Acceptance: validate owning records, read-only views, authenticated print output, access logging, hold behavior, and source alignment with enrollment, schedule, and ledger. |
 | TAL-89 | Planned | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. |
 | TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
@@ -47,19 +46,6 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
-### TAL-87 Sub-slice Map
-
-Parent goal: Enrollment Gate and Official Enrollment Acceptance.
-
-| Sub-slice | Status | Purpose | Next boundary |
-| --- | --- | --- | --- |
-| TAL-87A | Done locally; pending explicit Linear sync | Clean enrollment source-record baseline and retire or bypass stale legacy sectioning paths that no longer match the clean schema. | Recorded in local tracker; waits for explicit Linear sync. |
-| TAL-87B | Done locally; pending explicit Linear sync | Add or align the staff gate review surface so Registrar-facing enrollment gate status is clear, evidence-backed, and based on current source records. | Recorded in local tracker; waits for explicit Linear sync. |
-| TAL-87C | Done locally; pending explicit Linear sync | Evaluate document, academic, lifecycle, unit-load, capacity, finance, and exception gates without over-automating manual office decisions. | Recorded in local tracker; waits for explicit Linear sync. |
-| TAL-87D | Planned | Finalize official enrollment acceptance: verify all gates, convert reservation/source records, bind official schedule records, and expose the source records needed by COR and Student Hub. | Starts only after TAL-87C is accepted and cleaned up. |
-
-TAL-87 exclusions for all sub-slices: no CP-SAT solver hardening, PayMongo hardening, COR redesign, Student Hub redesign, reports/export work, seeders/demo database work, push/deploy/PR, or Linear sync.
-
 ### Next Boundary
 
-Next primary-planning boundary is TAL-87D: official enrollment acceptance. Do not implement TAL-87D until primary planning classifies the slice, checks the PRD/blueprint/code fit, runs the protocol manual/digital reality-check benchmark, and receives user approval.
+TAL-87 parent is complete (all sub-slices done locally). Next primary-planning boundary is TAL-88: COR and Official Output Acceptance. Do not implement TAL-88 until primary planning classifies the slice, checks the PRD/blueprint/code fit, runs the protocol manual/digital reality-check benchmark, and receives user approval.

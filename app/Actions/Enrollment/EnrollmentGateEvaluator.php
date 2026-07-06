@@ -58,7 +58,7 @@ class EnrollmentGateEvaluator
 
         return [
             ...$sourceGates,
-            $this->finalApprovalGate($sourceGates, $checkedAt),
+            $this->finalApprovalGate($enrollment, $sourceGates, $checkedAt),
         ];
     }
 
@@ -359,8 +359,16 @@ class EnrollmentGateEvaluator
      * @param  list<array<string, mixed>>  $sourceGates
      * @return array<string, mixed>
      */
-    private function finalApprovalGate(array $sourceGates, CarbonImmutable $checkedAt): array
+    /**
+     * @param  list<array<string, mixed>>  $sourceGates
+     * @return array<string, mixed>
+     */
+    private function finalApprovalGate(Enrollment $enrollment, array $sourceGates, CarbonImmutable $checkedAt): array
     {
+        if ($enrollment->status === 'officially_enrolled' && $enrollment->officially_enrolled_at !== null) {
+            return $this->row(EnrollmentGateResult::GateFinalApproval, 9, EnrollmentGateResult::ResultPassed, EnrollmentGateResult::ResponsibleOfficeRegistrar, null, 'Registrar recorded official enrollment; final approval gate is cleared.', $enrollment, $checkedAt);
+        }
+
         $sourceGatesClear = collect($sourceGates)
             ->every(fn (array $gate): bool => $this->isClearResult((string) $gate['result']));
 

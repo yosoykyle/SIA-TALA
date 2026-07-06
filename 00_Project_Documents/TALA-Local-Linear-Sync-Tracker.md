@@ -42,6 +42,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-87A | Done locally; pending explicit Linear sync | Clean Enrollment Source-Record Baseline |
 | TAL-87B | Done locally; pending explicit Linear sync | Staff Gate Review Surface |
 | TAL-87C | Done locally; pending explicit Linear sync | Enrollment Gate Evaluator and Exception Gate Acceptance |
+| TAL-87D | Done locally; pending explicit Linear sync | Official Enrollment Finalization Acceptance |
 
 ## Compact Synced History
 

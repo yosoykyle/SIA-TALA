@@ -49,6 +49,8 @@ class EnrollmentGateResult extends Model
 
     public const RuleVersionTal87C = 'tal-87c-gate-evaluator';
 
+    public const RuleVersionTal87D = 'tal-87d-official-enrollment';
+
     /**
      * @var list<string>
      */

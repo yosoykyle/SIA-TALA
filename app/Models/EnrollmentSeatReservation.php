@@ -13,6 +13,8 @@ class EnrollmentSeatReservation extends Model
 
     public const StatusReleased = 'released';
 
+    public const StatusConverted = 'converted';
+
     /**
      * @var list<string>
      */
