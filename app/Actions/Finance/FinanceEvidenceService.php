@@ -38,7 +38,10 @@ class FinanceEvidenceService
 
     public const CopyAccounting = 'ACCOUNTING_COPY';
 
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly PaymentStatusResolver $paymentStatusResolver,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -74,6 +77,11 @@ class FinanceEvidenceService
         abort_unless($enrollment instanceof Enrollment, 404);
         abort_unless($this->actorCanAccessAssessment($actor, $assessment), 403);
 
+        // Students may view only their current active SOA; Accounting may view historical assessments (PRD 8.9.3 rules 4-5).
+        if (! $actor->canProcessPayments() && $assessment->state !== Assessment::StateActive) {
+            abort(403, 'Only the current active Statement of Account is available.');
+        }
+
         $ledgerEntries = $this->ledgerEntries($assessment);
         $payments = $this->payments($assessment);
         $paymentAttempts = $this->paymentAttempts($assessment);
@@ -81,6 +89,15 @@ class FinanceEvidenceService
         $postedPaymentTotal = $ledgerEntries
             ->where('direction', LedgerEntry::DirectionPayment)
             ->reduce(fn (string $carry, LedgerEntry $entry): string => $this->money->add($carry, (string) $entry->amount), '0.00');
+        $paymentStatus = $this->paymentStatusResolver->resolve(
+            $assessment,
+            $balance,
+            $postedPaymentTotal,
+            $paymentAttempts,
+            $payments,
+            $assessment->paymentScheduleRows,
+        );
+        $verificationStatus = $this->verificationStatus($assessment);
         $due = $this->currentDue($assessment, $balance);
         $availableAcknowledgements = $payments
             ->filter(fn (Payment $payment): bool => $this->hasPostedPaymentLedgerEntry($payment))
@@ -119,7 +136,9 @@ class FinanceEvidenceService
                 'posted_payments' => $postedPaymentTotal,
                 'balance' => $balance,
                 'current_due' => $due['amount'],
-                'payment_status' => $this->paymentStatus($assessment, $balance, $postedPaymentTotal, $paymentAttempts),
+                'payment_status' => $paymentStatus,
+                'soa_version' => (int) $assessment->version,
+                'verification_status' => $verificationStatus,
                 'or_mapping_state' => $this->orMappingState($payments),
             ],
             'state' => [
@@ -135,7 +154,9 @@ class FinanceEvidenceService
                 'ledger_balance' => $this->formatPeso($balance),
                 'current_due' => $this->formatPeso($due['amount']),
                 'current_due_source' => $due['label'],
-                'payment_status' => $this->paymentStatus($assessment, $balance, $postedPaymentTotal, $paymentAttempts),
+                'payment_status' => $paymentStatus,
+                'soa_version' => (int) $assessment->version,
+                'verification_status' => $verificationStatus,
                 'or_mapping_state' => $this->orMappingState($payments),
                 'charge_lines' => $this->chargeLines($assessment),
                 'ledger_rows' => $this->ledgerRows($ledgerEntries),
@@ -382,25 +403,11 @@ class FinanceEvidenceService
             ->first();
     }
 
-    private function paymentStatus(Assessment $assessment, string $balance, string $postedPayments, Collection $attempts): string
+    private function verificationStatus(Assessment $assessment): string
     {
-        if (! $this->money->greaterThanZero($balance)) {
-            return 'Full Paid';
-        }
-
-        if ($attempts->contains(fn (PaymentAttempt $attempt): bool => in_array($attempt->status, ['pending', 'under_review'], true))) {
-            return 'Payment Pending or Under Review';
-        }
-
-        if (! $this->money->greaterThanZero($postedPayments)) {
-            return 'Unpaid';
-        }
-
-        if ($assessment->paymentScheduleRows->where('state', PaymentScheduleRow::StateDue)->isNotEmpty()) {
-            return 'Installment';
-        }
-
-        return 'Partially Paid';
+        return $assessment->state === Assessment::StateActive
+            ? 'Current'
+            : 'Historical ('.str($assessment->state)->headline()->toString().')';
     }
 
     /** @param Collection<int, Payment> $payments */
@@ -656,6 +663,8 @@ class FinanceEvidenceService
                 'current_due' => 'PHP 0.00',
                 'current_due_source' => 'Unavailable',
                 'payment_status' => 'Unavailable',
+                'soa_version' => 0,
+                'verification_status' => 'Unavailable',
                 'or_mapping_state' => 'Unavailable',
                 'charge_lines' => [],
                 'ledger_rows' => [],

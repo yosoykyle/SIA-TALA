@@ -29,7 +29,10 @@
 
     <header>
         <h1>Statement of Account</h1>
-        <div>SERVITECH INSTITUTE ASIA INC.</div>
+        <div>{{ config('institution.name') }}</div>
+        @if (filled(config('institution.address')))
+            <div>{{ config('institution.address') }}</div>
+        @endif
         <div>{{ $statement['summary']['term'] }}</div>
         <div>{{ $statement['copy_context'] === 'ACCOUNTING_COPY' ? 'Accounting Copy' : 'Student Copy' }}</div>
     </header>
@@ -99,6 +102,8 @@
                 <tr><th>Posted Payments</th><td>{{ $statement['state']['posted_payments'] }}</td></tr>
                 <tr><th>Current Balance</th><td>{{ $statement['state']['ledger_balance'] }}</td></tr>
                 <tr><th>Status</th><td>{{ $statement['state']['payment_status'] }}</td></tr>
+                <tr><th>Assessment Version</th><td>{{ $statement['state']['soa_version'] }}</td></tr>
+                <tr><th>Verification Status</th><td>{{ $statement['state']['verification_status'] }}</td></tr>
             </tbody>
         </table>
     </section>

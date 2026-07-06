@@ -44,6 +44,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-87C | Done locally; pending explicit Linear sync | Enrollment Gate Evaluator and Exception Gate Acceptance |
 | TAL-87D | Done locally; pending explicit Linear sync | Official Enrollment Finalization Acceptance |
 | TAL-88A | Done locally; pending explicit Linear sync | COR Source-Output Acceptance |
+| TAL-88B | Done locally; pending explicit Linear sync | Finance Official Outputs Acceptance |
 
 ## Compact Synced History
 

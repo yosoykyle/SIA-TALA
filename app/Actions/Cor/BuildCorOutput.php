@@ -2,12 +2,15 @@
 
 namespace App\Actions\Cor;
 
+use App\Actions\Finance\PaymentStatusResolver;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
+use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
@@ -36,7 +39,10 @@ class BuildCorOutput
 
     public const CopyAccounting = 'ACCOUNTING_COPY';
 
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly PaymentStatusResolver $paymentStatusResolver,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -395,8 +401,24 @@ class BuildCorOutput
         $fees[] = ['label' => 'Posted Payments', 'amount' => $postedPayments];
         $fees[] = ['label' => 'Balance', 'amount' => $balance];
 
+        $attempts = $assessment instanceof Assessment
+            ? PaymentAttempt::query()->where('assessment_id', $assessment->id)->get()
+            : collect();
+        $payments = Payment::query()
+            ->where('student_profile_id', $enrollment->student_profile_id)
+            ->where('term_id', $enrollment->term_id)
+            ->get();
+        $scheduleRows = $assessment instanceof Assessment ? $assessment->paymentScheduleRows : collect();
+
         return [
-            'payment_status' => $this->paymentStatus($assessment, $balance, $postedPayments),
+            'payment_status' => $this->paymentStatusResolver->resolve(
+                $assessment,
+                $balance,
+                $postedPayments,
+                $attempts,
+                $payments,
+                $scheduleRows,
+            ),
             'balance' => $balance,
             'fees' => $fees,
             'installment' => $this->installmentSchedule($enrollment, $assessment),
@@ -542,27 +564,6 @@ class BuildCorOutput
             LedgerEntry::DirectionWaiver => str_starts_with($amount, '-') ? $amount : '-'.$amount,
             default => $amount,
         };
-    }
-
-    private function paymentStatus(?Assessment $assessment, string $balance, string $postedPayments): string
-    {
-        if (! $assessment instanceof Assessment) {
-            return 'No Active Assessment';
-        }
-
-        if (! $this->money->greaterThanZero($balance)) {
-            return 'Full Paid';
-        }
-
-        if (! $this->money->greaterThanZero($postedPayments)) {
-            return 'Unpaid';
-        }
-
-        if ($assessment->paymentScheduleRows->where('state', PaymentScheduleRow::StateDue)->count() > 1) {
-            return 'Installment';
-        }
-
-        return 'Partially Paid';
     }
 
     private function deliveryModality(Enrollment $enrollment): string
