@@ -31,6 +31,8 @@ Use available capabilities instead of duplicating their full instructions:
 - Policy, integration contracts, or mature SIS behavior: authoritative internet/primary sources; prefer local Philippine campus/SIS context when policy credibility or workflow familiarity is uncertain.
 - Generic planning/debugging/TDD/verification/review/subagent workflows: relevant installed skills/plugins such as Superpowers when available. These guide process only; they do not override TALA authorities.
 
+Timing: use Boost `search-docs`, plugin catalogs, and available MCPs during planning (gate Phase B, items 6–8) to verify that proposed framework patterns, plugins, or integrations exist and are version-compatible before the plan is finalized. Activate domain skills when implementation enters their scope. Do not defer all tool usage to implementation if it would leave the plan unverified.
+
 Every slice runs a benchmark/implementation-fit gate:
 
 The gate runs in two phases:
@@ -215,21 +217,21 @@ Primary acceptance requires independent inspection and proportionate verificatio
 
 Product behavior belongs in PRD modules, UI blueprint, and architecture specification, not this protocol. Task contracts must cite relevant owning files. Do not create duplicate glossaries or module rules here.
 
-### PRD Correction During Planning
+### Authority Document Correction During Planning
 
-If the primary identifies a PRD error, contradiction, gap, or stale statement during intake or planning:
+If the primary identifies an error, contradiction, gap, or stale statement in any authority document (PRD modules, UI blueprint, or architecture specification) during intake or planning:
 
 1. Flag it in the Phase 2 primary report under "contradictions/gaps."
-2. Propose the correction or resolution with evidence (benchmark result, code discovery, authority conflict).
-3. Include the PRD patch as part of the slice plan. It is approved alongside the implementation plan, not as a separate task — unless the PRD issue changes scope for multiple future slices, in which case it becomes a standalone docs-only micro-task before the implementation slice.
-4. Apply the PRD update before finalizing implementation. The commit includes both the PRD fix and the implementation that depends on it.
+2. Propose the correction or resolution with evidence (benchmark result, code discovery, authority conflict, plugin/pattern research).
+3. Include the authority document patch as part of the slice plan. It is approved alongside the implementation plan, not as a separate task — unless the issue changes scope for multiple future slices, in which case it becomes a standalone docs-only micro-task before the implementation slice.
+4. Apply the authority document update before finalizing implementation. The commit includes both the document fix and the implementation that depends on it.
 
 Trivial fixes (typos, obviously wrong terms) may be included without separate justification. Substantive behavior changes always require explicit user approval.
 
-### PRD Stability After Verification
+### Authority Document Stability After Verification
 
-The PRD describes desired behavior (the contract). Failed or partial verification does not trigger PRD changes.
+Authority documents describe desired behavior (the contract). Failed or partial verification does not trigger authority document changes.
 
-- Worker delivers PARTIAL or primary verification finds failures: fix the code or re-delegate. The PRD stays unchanged because the target is still correct.
-- Only change the PRD when implementation reveals a design flaw in the PRD itself — not when the code fails to meet a correct specification.
-- If a design flaw is discovered during verification: loop back to Phase 2, flag the PRD issue, propose correction, get user approval, then continue.
+- Worker delivers PARTIAL or primary verification finds failures: fix the code or re-delegate. The documents stay unchanged because the target is still correct.
+- Only change an authority document when implementation reveals a design flaw — not when the code fails to meet a correct specification. This includes blueprint surfaces that are discovered to be infeasible with the chosen framework pattern.
+- If a design flaw is discovered during verification: loop back to Phase 2, flag the issue, propose correction, get user approval, then continue.
