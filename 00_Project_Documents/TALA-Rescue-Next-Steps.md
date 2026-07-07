@@ -57,10 +57,10 @@ Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub p
 | TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | Recorded in local tracker; TAL-91C next. |
 | TAL-91C | Done locally; pending explicit Linear sync | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | Recorded in local tracker; TAL-91D next. |
 | TAL-91D | Done locally; pending explicit Linear sync | Academic status student-safe regression: Holds view office-to-contact column, Academic Standing surfaced on Lifecycle view, grades/completion re-verified as regression. | Recorded in local tracker. Parent TAL-91 complete (91A-91D all done). |
-| TAL-91E | Planned (deferral destination) | Student Hub Display Priority completion: implement remaining resolver tiers 6 (Missing requirements), 7 (Active academic deficiency), 8 (Schedule available), 9 (COR available), 10 (Grades released) in `StudentHubPriorityResolver`, deferred out of TAL-91D per user decision on 2026-07-08. | Next primary boundary. |
+| TAL-91E | Done locally; pending explicit Linear sync | Student Hub Display Priority completion: implemented remaining resolver tiers 6-10 (Missing requirements, Active academic deficiency, Schedule available, COR available, Grades released) in `StudentHubPriorityResolver`, each reusing an already-existing data source rather than new logic. All 11 §12.2 tiers now implemented. | Recorded in local tracker. |
 
 Parent TAL-91 (Student Hub Projection Acceptance) is complete: 91A, 91B, 91C, and 91D all done locally, pending explicit Linear sync.
 
 ### Next Boundary
 
-Next primary boundary: plan TAL-91E (resolver tiers 6-10) or TAL-92, per user choice.
+Next primary boundary: plan TAL-92.
