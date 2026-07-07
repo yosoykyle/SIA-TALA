@@ -459,8 +459,15 @@ class AcademicProgressionService
             return StudentProfile::StandingDeficient;
         }
 
-        $requiredCount = $entries->where('requirement_group', CurriculumEntry::RequirementGroupRequired)->count();
-        if ($requiredCount > 0 && count($completed) === $requiredCount) {
+        $requiredEntryIds = $entries
+            ->where('requirement_group', CurriculumEntry::RequirementGroupRequired)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id);
+        $completedRequiredCount = collect($completed)
+            ->whereIn('curriculum_entry_id', $requiredEntryIds)
+            ->count();
+
+        if ($requiredEntryIds->isNotEmpty() && $completedRequiredCount === $requiredEntryIds->count()) {
             return StudentProfile::StandingCompletionCandidate;
         }
 

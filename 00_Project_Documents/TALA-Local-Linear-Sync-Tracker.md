@@ -51,6 +51,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-89B | Done locally; pending explicit Linear sync | Late Grade Authorization and Returned-Roster Re-Entry Acceptance |
 | TAL-89C | Done locally; pending explicit Linear sync | INC Completion/Removal and Posted Correction Acceptance |
 | TAL-89D | Done locally; pending explicit Linear sync | Student Released-Grade Visibility and Cross-Role Grade Regression |
+| TAL-90A | Done locally; pending explicit Linear sync | Progression and Standing Acceptance |
 
 ## Compact Synced History
 

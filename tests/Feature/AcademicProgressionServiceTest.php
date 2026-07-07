@@ -19,9 +19,11 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -157,6 +159,49 @@ final class AcademicProgressionServiceTest extends TestCase
     }
 
     #[Test]
+    public function it_recommends_completion_candidate_when_all_required_requirements_are_completed(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        $requiredA = $this->entry($profile, 'REQ-A', 1);
+        $requiredB = $this->entry($profile, 'REQ-B', 2);
+        $elective = $this->entry($profile, 'ELEC-A', 3, requirementGroup: CurriculumEntry::RequirementGroupElective);
+        $this->grade($profile, $requiredA, '1.75', GradeRosterRow::CategoryPassing);
+        $this->grade($profile, $requiredB, '2.00', GradeRosterRow::CategoryPassing);
+        $this->grade($profile, $elective, '1.50', GradeRosterRow::CategoryPassing);
+
+        $result = app(AcademicProgressionService::class)->evaluate($profile);
+
+        $this->assertSame(2, $result['facts']['required_count']);
+        $this->assertSame(3, $result['facts']['completed_count']);
+        $this->assertSame(StudentProfile::StandingCompletionCandidate, $result['standing']);
+    }
+
+    #[Test]
+    public function current_out_of_curriculum_enrollment_recommends_irregular_standing(): void
+    {
+        $profile = StudentProfile::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $this->entry($profile, 'IN-CURR', 1);
+        $outsideEntry = $this->entry(StudentProfile::factory()->create(), 'OUT-CURR', 1);
+        $outsideOffering = TermOffering::factory()->create([
+            'term_id' => $term->id,
+            'curriculum_entry_id' => $outsideEntry->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+        $enrollment = Enrollment::factory()->create(['student_profile_id' => $profile->id, 'term_id' => $term->id]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_offering_id' => $outsideOffering->id,
+            'status' => CourseEnrollment::StatusActive,
+        ]);
+
+        $result = app(AcademicProgressionService::class)->evaluate($profile, $term);
+
+        $this->assertContains($outsideEntry->courseSpecification->course_id, $result['current_course_ids']);
+        $this->assertSame(StudentProfile::StandingIrregular, $result['standing']);
+    }
+
+    #[Test]
     public function registrar_confirmation_is_audited_and_does_not_happen_during_evaluation(): void
     {
         $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingRegular]);
@@ -172,8 +217,41 @@ final class AcademicProgressionServiceTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['event' => 'academic_standing_confirmed', 'subject_id' => $profile->id]);
     }
 
-    private function entry(StudentProfile $profile, string $code, int $sequence, string $year = 'First Year'): CurriculumEntry
+    #[Test]
+    public function non_registrar_cannot_confirm_academic_standing(): void
     {
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingRegular]);
+        $actor = User::factory()->create(['status' => User::StatusActive]);
+
+        $this->expectException(AuthorizationException::class);
+
+        app(AcademicProgressionService::class)->confirmStanding(
+            $profile,
+            StudentProfile::StandingCompletionCandidate,
+            $actor,
+            'Completion facts reviewed.',
+        );
+    }
+
+    #[Test]
+    public function standing_confirmation_requires_a_valid_standing_and_reason(): void
+    {
+        $profile = StudentProfile::factory()->create(['academic_standing' => StudentProfile::StandingRegular]);
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        $this->expectException(RuntimeException::class);
+
+        app(AcademicProgressionService::class)->confirmStanding($profile, 'INVALID_STANDING', $registrar, ' ');
+    }
+
+    private function entry(
+        StudentProfile $profile,
+        string $code,
+        int $sequence,
+        string $year = 'First Year',
+        string $requirementGroup = CurriculumEntry::RequirementGroupRequired,
+    ): CurriculumEntry {
         $course = Course::factory()->create(['code' => $code]);
         $specification = CourseSpecification::factory()->create(['course_id' => $course->id, 'title' => $code]);
 
@@ -182,6 +260,7 @@ final class AcademicProgressionServiceTest extends TestCase
             'course_specification_id' => $specification->id,
             'year_level' => $year,
             'sequence' => $sequence,
+            'requirement_group' => $requirementGroup,
         ])->load('courseSpecification.course');
     }
 

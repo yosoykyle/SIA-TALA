@@ -36,7 +36,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
+| TAL-90 | Split approved | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
 | TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
 | TAL-92 | Planned | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, and operational monitoring. |
 | TAL-93 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, schedule visibility, and safe failure/infeasibility handling. |
@@ -44,6 +44,14 @@ Dependency lock:
 | TAL-95 | Planned | Cross-Role Regression, Security, and UAT Readiness: verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. |
 | TAL-96 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows. |
 
+### TAL-90 Sub-slice Map
+
+| Sub-slice | Status | Purpose | Next Boundary |
+| --- | --- | --- | --- |
+| TAL-90A | Done locally; pending explicit Linear sync | Progression and Standing Acceptance: validate prerequisite/progression effects, irregular/deficient/completion-candidate standing, current enrollment/corequisite behavior, transfer/shift credit, scoped exceptions, and Registrar-confirmed standing audit. | Recorded in local tracker; no further TAL-90A work unless defects are found. |
+| TAL-90B | Planned | Graduation Batch and Snapshot Acceptance: validate graduation review batch membership, snapshot generation/refresh, immutable versions, blocker categories, holds/clearance, accepted credits, approved exceptions, and source references. | Next primary-planning boundary. |
+| TAL-90C | Planned | Staff Visibility and Student-Safe Completion Regression: validate Registrar/System Super Admin expose/hide controls, Academic Head view-only boundary, inactive member behavior, and latest visible student-safe completion projection. | Starts after TAL-90B is accepted locally. |
+
 ### Next Boundary
 
-TAL-89A, TAL-89B, TAL-89C, and TAL-89D are done locally pending explicit Linear sync. Next primary-planning boundary is TAL-90: Progression, Completion, and Graduation Review Acceptance. This slice should validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility without expanding transcript/GWA reporting, Student Hub projection work reserved for TAL-91, CP-SAT scheduling hardening, payment gateway hardening, or demo/rehearsal support.
+TAL-90A is done locally pending explicit Linear sync. Next primary boundary is TAL-90B: Graduation Batch and Snapshot Acceptance. TAL-90 remains bounded to prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility without expanding transcript/GWA reporting, Student Hub projection work reserved for TAL-91, CP-SAT scheduling hardening, payment gateway hardening, or demo/rehearsal support.
