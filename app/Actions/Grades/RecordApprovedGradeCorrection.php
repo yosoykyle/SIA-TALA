@@ -5,6 +5,7 @@ namespace App\Actions\Grades;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -14,6 +15,10 @@ class RecordApprovedGradeCorrection
 
     public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
     {
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+            throw new AuthorizationException('Only Registrar staff can record posted grade corrections.');
+        }
+
         return DB::transaction(function () use ($row, $correctedCode, $authority, $reason, $evidenceReference, $actor): GradeRosterRow {
             $locked = GradeRosterRow::query()->lockForUpdate()->findOrFail($row->id);
 

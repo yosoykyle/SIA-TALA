@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\User;
 
@@ -21,5 +22,23 @@ class GradeRosterRowPolicy
 
         return (int) $gradeRosterRow->roster->faculty_user_id === (int) $user->id
             && $user->hasRole(User::StaffRoleFaculty);
+    }
+
+    public function resolveInc(User $user, GradeRosterRow $gradeRosterRow): bool
+    {
+        $gradeRosterRow->loadMissing('roster');
+
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $gradeRosterRow->roster->state === GradeRoster::StateReleased
+            && $gradeRosterRow->current_outcome_code === 'INC';
+    }
+
+    public function recordCorrection(User $user, GradeRosterRow $gradeRosterRow): bool
+    {
+        $gradeRosterRow->loadMissing('roster');
+
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $gradeRosterRow->roster->state === GradeRoster::StateReleased
+            && $gradeRosterRow->released_at !== null;
     }
 }

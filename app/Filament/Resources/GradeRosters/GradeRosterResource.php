@@ -4,6 +4,7 @@ namespace App\Filament\Resources\GradeRosters;
 
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
 use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
+use App\Filament\Resources\GradeRosters\RelationManagers\RowsRelationManager;
 use App\Filament\Resources\GradeRosters\Schemas\GradeRosterInfolist;
 use App\Filament\Resources\GradeRosters\Tables\GradeRostersTable;
 use App\Models\GradeRoster;
@@ -40,6 +41,13 @@ class GradeRosterResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         return auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead]) ?? false;
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RowsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
