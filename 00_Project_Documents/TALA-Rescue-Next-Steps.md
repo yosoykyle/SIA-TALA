@@ -39,7 +39,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-91 | Split approved | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. Split into TAL-91A–D. |
+| TAL-91 | Done locally; pending explicit Linear sync | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. Split into TAL-91A-D, all complete; see Local Linear Sync Tracker. |
 | TAL-92 | Planned | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, and operational monitoring. |
 | TAL-93 | Planned | Cross-Role Regression, Security, and UAT Readiness (Pre-Integration Gate): verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. Must pass before integration hardening begins. |
 | TAL-94 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, schedule visibility, and safe failure/infeasibility handling. Human-gated; requires credentials, solver deployment, and manual verification steps. |
@@ -56,8 +56,11 @@ Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub p
 | TAL-91A | Done locally; pending explicit Linear sync | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | Recorded in local tracker. |
 | TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | Recorded in local tracker; TAL-91C next. |
 | TAL-91C | Done locally; pending explicit Linear sync | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | Recorded in local tracker; TAL-91D next. |
-| TAL-91D | Planned | Academic status student-safe regression: grades, holds, and lifecycle/irregular summary. | After TAL-91C. |
+| TAL-91D | Done locally; pending explicit Linear sync | Academic status student-safe regression: Holds view office-to-contact column, Academic Standing surfaced on Lifecycle view, grades/completion re-verified as regression. | Recorded in local tracker. Parent TAL-91 complete (91A-91D all done). |
+| TAL-91E | Planned (deferral destination) | Student Hub Display Priority completion: implement remaining resolver tiers 6 (Missing requirements), 7 (Active academic deficiency), 8 (Schedule available), 9 (COR available), 10 (Grades released) in `StudentHubPriorityResolver`, deferred out of TAL-91D per user decision on 2026-07-08. | Next primary boundary. |
+
+Parent TAL-91 (Student Hub Projection Acceptance) is complete: 91A, 91B, 91C, and 91D all done locally, pending explicit Linear sync.
 
 ### Next Boundary
 
-Next primary boundary: plan TAL-91D.
+Next primary boundary: plan TAL-91E (resolver tiers 6-10) or TAL-92, per user choice.

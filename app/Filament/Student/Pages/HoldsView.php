@@ -52,6 +52,9 @@ class HoldsView extends Page implements HasTable
                     ->label('Required Action')
                     ->state(fn (Hold $record): string => $record->studentFacingMessage())
                     ->wrap(),
+                TextColumn::make('office_to_contact')
+                    ->label('Office to Contact')
+                    ->state(fn (Hold $record): string => $record->studentFacingOfficeLabel()),
                 TextColumn::make('effective_at')
                     ->label('Effective Date')
                     ->date(),

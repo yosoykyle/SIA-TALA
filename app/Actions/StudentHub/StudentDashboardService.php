@@ -105,6 +105,7 @@ class StudentDashboardService
             'year_level' => null,
             'modality' => null,
             'operational_status' => $this->stringAttribute($studentProfile, 'lifecycle_status'),
+            'academic_standing' => $studentProfile->academic_standing,
             'user_status' => $studentProfile->user?->status,
             'hard_copy_received' => false,
         ];

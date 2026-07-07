@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Models\StudentLifecycleChange;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -25,6 +26,12 @@ class LifecycleView extends Page implements HasTable
 
     public function table(Table $table): Table
     {
+        /** @var User $user */
+        $user = auth()->user();
+        $academicStanding = StudentProfile::query()
+            ->where('user_id', $user->id)
+            ->value('academic_standing');
+
         return $table->query(StudentLifecycleChange::query()
             ->whereHas('studentProfile', function (Builder $query): void {
                 /** @var User $user */
@@ -32,6 +39,7 @@ class LifecycleView extends Page implements HasTable
                 $query->where('user_id', $user->id);
             })
             ->where('state', StudentLifecycleChange::StateApplied))
+            ->description(filled($academicStanding) ? "Current Academic Standing: {$academicStanding}" : null)
             ->columns([
                 TextColumn::make('type')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('term.label')->label('Term'),
