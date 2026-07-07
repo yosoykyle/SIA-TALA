@@ -170,11 +170,13 @@ class GraduationEligibilitySnapshotService
                     default => $missing[] = $fact,
                 };
             } elseif ($currentEnrollments->has($courseId)) {
+                $courseEnrollment = $currentEnrollments->get($courseId);
                 $current[] = [
                     ...$fact,
-                    'source' => ['type' => 'course_enrollment', 'id' => (int) $currentEnrollments->get($courseId)->id],
+                    'finalized' => $this->isFinalizedEnrollment($courseEnrollment),
+                    'source' => ['type' => 'course_enrollment', 'id' => (int) $courseEnrollment->id],
                 ];
-                $sourceReferences[] = $this->reference('course_enrollment', (int) $currentEnrollments->get($courseId)->id, $entry->courseSpecification->course->code);
+                $sourceReferences[] = $this->reference('course_enrollment', (int) $courseEnrollment->id, $entry->courseSpecification->course->code);
             } else {
                 $missing[] = $fact;
             }
@@ -196,7 +198,10 @@ class GraduationEligibilitySnapshotService
             $sourceReferences[] = $this->reference('hold', (int) $hold->id, $hold->blocking_level);
         }
 
-        $blockerGroups = $this->blockerGroups($activeHolds, $clearanceBlockers, $current, $pending, $inc, $failed, $missing);
+        $currentFinalized = array_values(array_filter($current, static fn (array $item): bool => (bool) ($item['finalized'] ?? false)));
+        $currentPending = array_values(array_filter($current, static fn (array $item): bool => ! ($item['finalized'] ?? false)));
+
+        $blockerGroups = $this->blockerGroups($activeHolds, $clearanceBlockers, $currentPending, $pending, $inc, $failed, $missing, $withdrawn);
         $result = $this->resultStatus($blockerGroups, $remainingUnits);
 
         return [
@@ -234,7 +239,7 @@ class GraduationEligibilitySnapshotService
             'clearance_blockers' => $clearanceBlockers,
             'remaining_units' => (float) $remainingUnits,
             'source_references' => collect($sourceReferences)->unique(fn (array $reference): string => $reference['type'].':'.$reference['id'])->values()->all(),
-            'student_projection' => $this->studentProjection($result, $missing, $pending, $inc, $activeHolds, $clearanceBlockers, $remainingUnits),
+            'student_projection' => $this->studentProjection($result, $missing, $withdrawn, $pending, $inc, $currentFinalized, $activeHolds, $clearanceBlockers, $remainingUnits),
         ];
     }
 
@@ -274,7 +279,7 @@ class GraduationEligibilitySnapshotService
         return CourseEnrollment::query()
             ->where('status', CourseEnrollment::StatusActive)
             ->whereHas('enrollment', fn ($query) => $query->where('student_profile_id', $profile->id))
-            ->with('termOffering.curriculumEntry.courseSpecification')
+            ->with(['termOffering.curriculumEntry.courseSpecification', 'enrollment'])
             ->get()
             ->toBase()
             ->mapWithKeys(function (CourseEnrollment $enrollment): array {
@@ -339,15 +344,34 @@ class GraduationEligibilitySnapshotService
         return ['type' => $type, 'id' => $id, 'label' => $label];
     }
 
-    /** @return list<array<string, mixed>> */
-    private function blockerGroups(array $activeHolds, array $clearanceBlockers, array $current, array $pending, array $inc, array $failed, array $missing): array
+    private function isFinalizedEnrollment(CourseEnrollment $courseEnrollment): bool
+    {
+        $enrollment = $courseEnrollment->enrollment;
+
+        return $enrollment !== null
+            && $enrollment->status === 'officially_enrolled'
+            && $enrollment->officially_enrolled_at !== null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $activeHolds
+     * @param  list<array<string, mixed>>  $clearanceBlockers
+     * @param  list<array<string, mixed>>  $currentPending
+     * @param  list<array<string, mixed>>  $pending
+     * @param  list<array<string, mixed>>  $inc
+     * @param  list<array<string, mixed>>  $failed
+     * @param  list<array<string, mixed>>  $missing
+     * @param  list<array<string, mixed>>  $withdrawn
+     * @return list<array<string, mixed>>
+     */
+    private function blockerGroups(array $activeHolds, array $clearanceBlockers, array $currentPending, array $pending, array $inc, array $failed, array $missing, array $withdrawn): array
     {
         $groups = [];
         if ($activeHolds !== [] || $clearanceBlockers !== []) {
             $groups[] = ['key' => 'hold_or_clearance', 'label' => self::ResultBlockedHoldOrClearance, 'count' => count($activeHolds) + count($clearanceBlockers)];
         }
-        if ($current !== []) {
-            $groups[] = ['key' => 'current_enrollment_not_finalized', 'label' => self::ResultBlockedCurrentEnrollmentNotFinalized, 'count' => count($current)];
+        if ($currentPending !== []) {
+            $groups[] = ['key' => 'current_enrollment_not_finalized', 'label' => self::ResultBlockedCurrentEnrollmentNotFinalized, 'count' => count($currentPending)];
         }
         if ($pending !== []) {
             $groups[] = ['key' => 'pending_grade', 'label' => self::ResultBlockedPendingGrade, 'count' => count($pending)];
@@ -358,8 +382,8 @@ class GraduationEligibilitySnapshotService
         if ($failed !== []) {
             $groups[] = ['key' => 'failed_requirement', 'label' => self::ResultBlockedFailedRequirement, 'count' => count($failed)];
         }
-        if ($missing !== []) {
-            $groups[] = ['key' => 'missing_requirement', 'label' => self::ResultBlockedMissingRequirement, 'count' => count($missing)];
+        if ($missing !== [] || $withdrawn !== []) {
+            $groups[] = ['key' => 'missing_requirement', 'label' => self::ResultBlockedMissingRequirement, 'count' => count($missing) + count($withdrawn)];
         }
 
         return $groups;
@@ -381,19 +405,30 @@ class GraduationEligibilitySnapshotService
         };
     }
 
-    /** @return array<string, mixed> */
-    private function studentProjection(string $result, array $missing, array $pending, array $inc, array $activeHolds, array $clearanceBlockers, float $remainingUnits): array
+    /**
+     * @param  list<array<string, mixed>>  $missing
+     * @param  list<array<string, mixed>>  $withdrawn
+     * @param  list<array<string, mixed>>  $pending
+     * @param  list<array<string, mixed>>  $inc
+     * @param  list<array<string, mixed>>  $currentFinalized
+     * @param  list<array<string, mixed>>  $activeHolds
+     * @param  list<array<string, mixed>>  $clearanceBlockers
+     * @return array<string, mixed>
+     */
+    private function studentProjection(string $result, array $missing, array $withdrawn, array $pending, array $inc, array $currentFinalized, array $activeHolds, array $clearanceBlockers, float $remainingUnits): array
     {
         $holdLabels = collect([...$activeHolds, ...$clearanceBlockers])->pluck('label')->values()->all();
+        $label = static fn (array $item): string => $item['course_code'].' '.$item['title'];
 
         return [
             'result_status' => $result,
             'remaining_units' => $remainingUnits,
-            'remaining_requirements' => collect($missing)->map(fn (array $item): string => $item['course_code'].' '.$item['title'])->values()->all(),
-            'pending_grade_blockers' => collect($pending)->map(fn (array $item): string => $item['course_code'].' '.$item['title'])->values()->all(),
-            'inc_blockers' => collect($inc)->map(fn (array $item): string => $item['course_code'].' '.$item['title'])->values()->all(),
+            'remaining_requirements' => collect([...$missing, ...$withdrawn])->map($label)->values()->all(),
+            'in_progress_requirements' => collect($currentFinalized)->map($label)->values()->all(),
+            'pending_grade_blockers' => collect($pending)->map($label)->values()->all(),
+            'inc_blockers' => collect($inc)->map($label)->values()->all(),
             'hold_or_clearance_labels' => $holdLabels,
-            'required_action' => $holdLabels === [] ? 'Please contact the Registrar' : 'Please contact the Registrar',
+            'required_action' => 'Please contact the Registrar',
             'office_to_contact' => 'Registrar Office',
         ];
     }

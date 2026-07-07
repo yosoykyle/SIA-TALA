@@ -246,8 +246,10 @@ Rules:
 2. Graduation Eligibility Snapshot is read-only and regenerated from source records.
 3. TALA shows completion blockers from source records for staff review.
 4. Irregular students are evaluated against the same assigned Curriculum Version requirements as regular students.
-5. If an irregular student's remaining requirements are all completed, credited, currently enrolled, or cleared by approved source records, the student may become Ready for Registrar Review.
-6. Graduation Eligibility Snapshot visibility defaults to staff-only. Registrar may expose a simplified student-facing view when institution policy allows it.
+5. Remaining requirements that are officially-finalized current enrollments (the parent term enrollment is officially enrolled) do not block the snapshot; when no other blocker exists, the result is Ready for Registrar Review, pending this term's released grades. This rule applies equally to irregular students, whose remaining requirements may all be completed, credited, officially-finalized current enrollments, or cleared by approved source records.
+6. A remaining requirement that is a current enrollment whose parent term enrollment is not yet officially finalized produces Blocked: Current Enrollment Not Finalized.
+7. A required course that was withdrawn or dropped and is not otherwise satisfied by a released passing grade, accepted credit, officially-finalized current enrollment, or approved Academic Exception is an unmet requirement that contributes to Blocked: Missing Requirement, while remaining itemized under the Withdrawn or dropped requirements output field for staff visibility.
+8. Graduation Eligibility Snapshot visibility defaults to staff-only. Registrar may expose a simplified student-facing view when institution policy allows it.
 
 #### 11.3.2 Financial Holds and Account Reactivation
 
