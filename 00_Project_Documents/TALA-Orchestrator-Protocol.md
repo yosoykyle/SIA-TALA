@@ -242,6 +242,17 @@ Prefer hybrid manual/digital workflows when they keep the system useful without 
 
 DO NOT preserve a reduced feature solely because richer behavior was assumed expensive — IF a compatible native, packaged, or qualified-reference implementation makes it bounded. Domain fit and purposeful scope still control.
 
+### Deferral Tracking
+
+CONDITION: A feature is deferred during planning, implementation, or parent closure.
+
+REQUIRED: Record where the deferral lands:
+- Route to an existing or new issue in Next Steps (default).
+- Not in any authority document → discard (state explicitly).
+- Disagree with PRD scope → use Authority Document Correction rule.
+
+BLOCK: Do NOT defer without a recorded destination. Do NOT close a parent issue with unrouted deferrals.
+
 ## Filament and Plugin Gate
 
 Default order:
