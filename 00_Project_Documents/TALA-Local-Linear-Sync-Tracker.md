@@ -55,6 +55,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-90B | Done locally; pending explicit Linear sync | Graduation Batch and Snapshot Acceptance (incl. PRD §11.3.1 rules 5-7 clarification) |
 | TAL-90C | Done locally; pending explicit Linear sync | Staff Visibility and Student-Safe Completion Regression (incl. PRD §11.3.1 rule 9 inactive-membership retraction) |
 | TAL-91A | Done locally; pending explicit Linear sync | Student Hub Dashboard Priority-Notice Acceptance (PRD §12.2 tiers 1/2/3/5/11; native `databaseNotifications()` + notifications table added) |
+| TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance Projection and Official-Output Access Logging Acceptance (PRD §12.1 item 14 accommodation staff-field hiding, page-level own-records isolation, §12.2 rule 9 payment/ledger/OR-mapping state distinction; test-only, no production leak found) |
 
 ## Compact Synced History
 
