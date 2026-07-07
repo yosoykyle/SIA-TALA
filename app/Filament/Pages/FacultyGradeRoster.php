@@ -9,6 +9,7 @@ use App\Models\GradeRosterRow;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -79,6 +80,28 @@ class FacultyGradeRoster extends Page implements HasTable
                 TextColumn::make('current_outcome_code')->label('Outcome')->badge(),
             ])
             ->headerActions([
+                Action::make('selectRoster')
+                    ->label('Select Roster')
+                    ->schema([
+                        Select::make('rosterId')
+                            ->label('Roster')
+                            ->options(fn (): array => $this->assignedRosterOptions())
+                            ->required(),
+                    ])
+                    ->fillForm(fn (): array => ['rosterId' => $this->rosterId])
+                    ->visible(fn (): bool => count($this->assignedRosterOptions()) > 1)
+                    ->action(function (array $data): void {
+                        $rosterId = (int) $data['rosterId'];
+
+                        if (! array_key_exists($rosterId, $this->assignedRosterOptions())) {
+                            return;
+                        }
+
+                        $this->rosterId = $rosterId;
+                        $this->resetTable();
+
+                        Notification::make()->title('Grade roster selected')->success()->send();
+                    }),
                 Action::make('submit')
                     ->requiresConfirmation()
                     ->visible(fn (): bool => $this->rosterId !== null)
@@ -101,5 +124,26 @@ class FacultyGradeRoster extends Page implements HasTable
             ->whereHas('roster', fn (Builder $query) => $query->where('faculty_user_id', auth()->id()))
             ->when($this->rosterId !== null, fn (Builder $query) => $query->where('grade_roster_id', $this->rosterId))
             ->whereRaw($this->rosterId === null ? '1 = 0' : '1 = 1');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function assignedRosterOptions(): array
+    {
+        return GradeRoster::query()
+            ->with(['termOffering.term', 'section'])
+            ->where('faculty_user_id', auth()->id())
+            ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
+            ->orderByDesc('id')
+            ->get()
+            ->mapWithKeys(fn (GradeRoster $roster): array => [
+                $roster->id => collect([
+                    $roster->termOffering?->term?->label,
+                    $roster->section?->code,
+                    $roster->state,
+                ])->filter()->implode(' / '),
+            ])
+            ->all();
     }
 }

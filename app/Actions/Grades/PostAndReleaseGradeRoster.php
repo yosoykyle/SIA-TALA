@@ -5,6 +5,7 @@ namespace App\Actions\Grades;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -14,6 +15,10 @@ class PostAndReleaseGradeRoster
 
     public function execute(GradeRoster $roster, User $actor, string $authority = 'Registrar Post & Release'): GradeRoster
     {
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+            throw new AuthorizationException('Only Registrar staff can post and release grade rosters.');
+        }
+
         return DB::transaction(function () use ($roster, $actor, $authority): GradeRoster {
             $locked = GradeRoster::query()->with('rows')->lockForUpdate()->findOrFail($roster->id);
 
