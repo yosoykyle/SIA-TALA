@@ -2,10 +2,12 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentStatusResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Enrollment;
+use App\Models\EnrollmentGateResult;
 use App\Models\Hold;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -15,16 +17,25 @@ use Illuminate\Notifications\DatabaseNotification;
  * Resolves the single highest-priority actionable notice for the Student Hub
  * Dashboard, per PRD `12_student_hub.md` §12.2 (Student Hub Display Priority).
  *
- * This sub-slice (TAL-91A) implements only the tiers whose signals already
- * exist in {@see HoldEvaluationService}, {@see FinanceEvidenceService}, and
- * the user's database notifications. Tiers owned by later sub-slices
- * (TAL-91B/C/D) are intentionally not matched here.
+ * TAL-91A implements the tiers whose signals already exist in
+ * {@see HoldEvaluationService}, {@see FinanceEvidenceService}, and the
+ * user's database notifications: security/account notice, enrollment
+ * blocked, payment pending or rejected, COR blocked, and informational
+ * notices.
+ *
+ * TAL-91C additionally implements the Capacity Pending tier and the
+ * Pending Review gate-reason tier, both reusing already-persisted
+ * `EnrollmentGateResult` rows via {@see EnrollmentGateReviewSummary} rather
+ * than evaluating any new gate logic. Tiers still deferred to TAL-91D:
+ * missing requirements, active academic deficiency, schedule available,
+ * COR available, and grades released.
  */
 class StudentHubPriorityResolver
 {
     public function __construct(
         private readonly HoldEvaluationService $holds,
         private readonly FinanceEvidenceService $finance,
+        private readonly EnrollmentGateReviewSummary $gateReviewSummary,
     ) {}
 
     /**
@@ -55,6 +66,18 @@ class StudentHubPriorityResolver
 
         if ($paymentTier !== null) {
             return $paymentTier;
+        }
+
+        $capacityPendingTier = $this->capacityPendingTier($currentEnrollment);
+
+        if ($capacityPendingTier !== null) {
+            return $capacityPendingTier;
+        }
+
+        $pendingReviewTier = $this->pendingReviewTier($currentEnrollment);
+
+        if ($pendingReviewTier !== null) {
+            return $pendingReviewTier;
         }
 
         $corBlockingHold = $this->holds->mostRestrictiveActiveHold(
@@ -165,6 +188,52 @@ class StudentHubPriorityResolver
                 default => 'Complete your pending payment checkout.',
             },
             'office_to_contact' => 'Accounting Office',
+        ];
+    }
+
+    /**
+     * Capacity Pending tier (PRD `12_student_hub.md` §12.2 tier 4, rule 7).
+     *
+     * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
+     */
+    private function capacityPendingTier(?Enrollment $currentEnrollment): ?array
+    {
+        if (! $currentEnrollment instanceof Enrollment || $currentEnrollment->status !== 'capacity_pending') {
+            return null;
+        }
+
+        return [
+            'tier' => 'Capacity Pending',
+            'student_reason' => 'Your section placement is awaiting Registrar action.',
+            'required_action' => null,
+            'office_to_contact' => 'Registrar Office',
+        ];
+    }
+
+    /**
+     * Pending-Review gate-reason tier (PRD `12_student_hub.md` §12.2 rule 8). Reuses
+     * already-persisted {@see EnrollmentGateResult} rows via
+     * {@see EnrollmentGateReviewSummary} rather than evaluating any new gate logic.
+     *
+     * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
+     */
+    private function pendingReviewTier(?Enrollment $currentEnrollment): ?array
+    {
+        if (! $currentEnrollment instanceof Enrollment || $currentEnrollment->status !== 'pending_review') {
+            return null;
+        }
+
+        $reason = $this->gateReviewSummary->studentFacingReason($currentEnrollment);
+
+        if ($reason === null) {
+            return null;
+        }
+
+        return [
+            'tier' => 'Pending Review',
+            'student_reason' => $reason['reason'],
+            'required_action' => null,
+            'office_to_contact' => $reason['office'],
         ];
     }
 

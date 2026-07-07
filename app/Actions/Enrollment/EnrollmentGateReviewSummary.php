@@ -69,6 +69,34 @@ class EnrollmentGateReviewSummary
             ->all();
     }
 
+    /**
+     * Student-safe reason/office for the highest-priority (lowest sequence) unresolved
+     * gate on the enrollment, for use when Enrollment Status is Pending Review.
+     *
+     * Per PRD `12_student_hub.md` §12.2 rule 8. Only the already student-safe
+     * `blocker_message` text and the mapped office label are returned; `blocker_code`
+     * and any other staff-only field are never exposed.
+     *
+     * @return array{reason:string, office:string}|null
+     */
+    public function studentFacingReason(Enrollment $enrollment): ?array
+    {
+        $blockingRow = collect($this->rows($enrollment))
+            ->first(fn (array $row): bool => $row['is_recorded'] === true && in_array($row['result'], [
+                EnrollmentGateResult::ResultFailed,
+                EnrollmentGateResult::ResultPendingReview,
+            ], true));
+
+        if (! is_array($blockingRow)) {
+            return null;
+        }
+
+        return [
+            'reason' => $blockingRow['blocker_message'],
+            'office' => $blockingRow['office_label'],
+        ];
+    }
+
     public function compactStatus(Enrollment $enrollment): string
     {
         $blockingRow = $this->blockingRow($enrollment);

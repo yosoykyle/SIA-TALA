@@ -2,6 +2,8 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Models\ScheduleGenerationRun;
+use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Filament\Pages\Page;
@@ -33,6 +35,13 @@ class ScheduleView extends Page implements HasTable
                         /** @var User $user */
                         $user = auth()->user();
                         $query->where('user_id', $user->id);
+                    })
+                    ->whereHas('sectionMeeting', function (Builder $query): void {
+                        $query
+                            ->where('state', SectionMeeting::StateActive)
+                            ->whereHas('scheduleRun', function (Builder $query): void {
+                                $query->where('status', ScheduleGenerationRun::StatusPublished);
+                            });
                     })
             )
             ->columns([

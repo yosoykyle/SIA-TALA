@@ -55,9 +55,9 @@ Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub p
 | --- | --- | --- | --- |
 | TAL-91A | Done locally; pending explicit Linear sync | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | Recorded in local tracker. |
 | TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | Recorded in local tracker; TAL-91C next. |
-| TAL-91C | Planned | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | After TAL-91B. |
-| TAL-91D | Planned | Academic status student-safe regression: grades, holds, and lifecycle/irregular summary. | After TAL-91B. |
+| TAL-91C | Done locally; pending explicit Linear sync | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | Recorded in local tracker; TAL-91D next. |
+| TAL-91D | Planned | Academic status student-safe regression: grades, holds, and lifecycle/irregular summary. | After TAL-91C. |
 
 ### Next Boundary
 
-Next primary boundary: plan TAL-91C.
+Next primary boundary: plan TAL-91D.
