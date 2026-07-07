@@ -33,6 +33,7 @@ class StudentPanelProvider extends PanelProvider
             ->login()
             ->passwordReset()
             ->emailVerification()
+            ->databaseNotifications()
             ->profile(Profile::class)
             ->brandName('TALA Student Hub')
             ->brandLogo(asset('talalogo.png'))

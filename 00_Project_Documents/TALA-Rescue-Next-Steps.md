@@ -53,11 +53,11 @@ Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub p
 
 | Sub-slice | Status | Purpose | Next Boundary |
 | --- | --- | --- | --- |
-| TAL-91A | Planned | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | First sub-slice; plan next. |
+| TAL-91A | Done locally; pending explicit Linear sync | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | Recorded in local tracker; TAL-91B next. |
 | TAL-91B | Planned | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | After TAL-91A. |
 | TAL-91C | Planned | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | After TAL-91A. |
 | TAL-91D | Planned | Academic status student-safe regression: grades, holds, and lifecycle/irregular summary. | After TAL-91A. |
 
 ### Next Boundary
 
-Next primary boundary: plan TAL-91A.
+Next primary boundary: plan TAL-91B.
