@@ -39,8 +39,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-90 | All sub-slices done locally; pending explicit Linear sync | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. Sub-slices TAL-90A/90B/90C all complete locally. |
-| TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
+| TAL-91 | Split approved | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. Split into TAL-91A–D. |
 | TAL-92 | Planned | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, and operational monitoring. |
 | TAL-93 | Planned | Cross-Role Regression, Security, and UAT Readiness (Pre-Integration Gate): verify schema, routes, policies, role surfaces, focused feature coverage, static analysis, formatting, and documentation alignment. Must pass before integration hardening begins. |
 | TAL-94 | Planned | CP-SAT End-to-End Scheduling Hardening: prove validated foundation records through solver dispatch, candidate review, publication, schedule visibility, and safe failure/infeasibility handling. Human-gated; requires credentials, solver deployment, and manual verification steps. |
@@ -48,16 +47,17 @@ Dependency lock:
 | TAL-96 | Planned | Cross-Role Regression and Integration Coherence (Post-Integration Gate): verify the full system remains correct after CP-SAT and PayMongo integrations are wired in; catch regressions introduced by external service handlers, solver publication effects, and payment posting side-effects. |
 | TAL-97 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows, on top of a fully verified and integration-tested system. |
 
-### TAL-90 Sub-slice Map
+### TAL-91 Sub-slice Map
+
+Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub page map.
 
 | Sub-slice | Status | Purpose | Next Boundary |
 | --- | --- | --- | --- |
-| TAL-90A | Done locally; pending explicit Linear sync | Progression and Standing Acceptance: validate prerequisite/progression effects, irregular/deficient/completion-candidate standing, current enrollment/corequisite behavior, transfer/shift credit, scoped exceptions, and Registrar-confirmed standing audit. | Recorded in local tracker; no further TAL-90A work unless defects are found. |
-| TAL-90B | Done locally; pending explicit Linear sync | Graduation Batch and Snapshot Acceptance: validated review batch membership integrity, snapshot generation/refresh, immutable versions, blocker categories, holds/clearance, accepted credits, approved exceptions, and source references. Included a PRD §11.3.1 clarification (rules 5-7): officially-finalized current enrollment → Ready for Registrar Review; non-finalized current enrollment → Blocked: Current Enrollment Not Finalized; unmet withdrawn/dropped requirement → Blocked: Missing Requirement (still itemized). | Recorded in local tracker; TAL-90C next. |
-| TAL-90C | Done locally; pending explicit Linear sync | Staff Visibility and Student-Safe Completion Regression: validated Registrar/System Super Admin expose/hide controls, Academic Head view-only boundary, inactive member behavior (soft-deactivate on delete, refresh blocked on inactive, bulk skips inactive), and latest-visible student-safe completion projection. Added PRD §11.3.1 rule 9 (inactive membership retracts the student-facing completion view; audit preserved) with a matching `is_active` read-guard on the student Completion page. | Recorded in local tracker; parent TAL-90 complete. |
+| TAL-91A | Planned | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | First sub-slice; plan next. |
+| TAL-91B | Planned | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | After TAL-91A. |
+| TAL-91C | Planned | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | After TAL-91A. |
+| TAL-91D | Planned | Academic status student-safe regression: grades, holds, and lifecycle/irregular summary. | After TAL-91A. |
 
 ### Next Boundary
 
-TAL-90A, TAL-90B, and TAL-90C are all done locally pending explicit Linear sync, so parent TAL-90 is complete locally. Next primary boundary is TAL-91: Student Hub Projection Acceptance (student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices). TAL-91 will regression-check the completion projection alongside the other Student Hub views, inheriting the corrected TAL-90B snapshot semantics and the TAL-90C active-membership visibility guard.
-
-Downstream semantic dependency (from TAL-90B): the Graduation Eligibility Snapshot `result_status` and `student_projection` semantics were clarified — officially-finalized current enrollment yields `Ready for Registrar Review`; non-finalized current enrollment yields `Blocked: Current Enrollment Not Finalized`; an unmet withdrawn/dropped required course now contributes to `Blocked: Missing Requirement` while remaining itemized under the withdrawn/dropped field, and the student projection now lists withdrawn under remaining requirements plus an `in_progress_requirements` list. TAL-90C (student-safe completion projection), TAL-91 (Student Hub projection), and TAL-92 (graduation snapshot report) consume these corrected values with no scope change; their acceptance expectations should reference the corrected semantics.
+Next primary boundary: plan TAL-91A.
