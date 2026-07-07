@@ -36,7 +36,7 @@ Dependency lock:
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-89 | In Progress | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. Split approved: TAL-89A faculty roster entry and Registrar post/release acceptance; TAL-89B late grade authorization and returned-roster re-entry acceptance; TAL-89C INC completion/removal and posted correction acceptance; TAL-89D student released-grade visibility and cross-role grade regression. Sub-slice map: TAL-89A done locally pending explicit Linear sync; TAL-89B next; TAL-89C pending; TAL-89D pending. |
+| TAL-89 | In Progress | Grades Acceptance: validate faculty rosters, period outcomes, temporary/final marks, posting/release, completion/removal, correction, and student visibility. Split approved: TAL-89A faculty roster entry and Registrar post/release acceptance; TAL-89B late grade authorization and returned-roster re-entry acceptance; TAL-89C INC completion/removal and posted correction acceptance; TAL-89D student released-grade visibility and cross-role grade regression. Sub-slice map: TAL-89A done locally pending explicit Linear sync; TAL-89B done locally pending explicit Linear sync; TAL-89C next; TAL-89D pending. |
 | TAL-90 | Planned | Progression, Completion, and Graduation Review Acceptance: validate prerequisite/progression effects, irregular/completion standing, graduation review batches, eligibility snapshots, and staff-controlled visibility. |
 | TAL-91 | Planned | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. |
 | TAL-92 | Planned | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, and operational monitoring. |
@@ -47,4 +47,4 @@ Dependency lock:
 
 ### Next Boundary
 
-TAL-89A is done locally pending explicit Linear sync. Next primary-planning boundary is TAL-89B: late grade authorization and returned-roster re-entry acceptance. This sub-slice should validate scoped late grade encoding authorization and returned-roster faculty re-entry without implementing INC completion/removal, posted corrections, student grade visibility expansion, transcript/GWA reporting, TAL-90 progression behavior, or legacy generic Grade CRUD.
+TAL-89A and TAL-89B are done locally pending explicit Linear sync. Next primary-planning boundary is TAL-89C: INC completion/removal and posted correction acceptance. This sub-slice should validate Registrar-controlled INC resolution and posted-grade correction records without expanding student grade visibility, transcript/GWA reporting, TAL-90 progression behavior, or legacy generic Grade CRUD.

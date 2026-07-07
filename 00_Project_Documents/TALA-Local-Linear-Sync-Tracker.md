@@ -48,6 +48,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-88C | Done locally; pending explicit Linear sync | Stale Public COR Verification Deferral |
 | TAL-88D | Done locally; pending explicit Linear sync | Cross-Role Output Regression |
 | TAL-89A | Done locally; pending explicit Linear sync | Faculty Roster Entry and Registrar Post/Release Acceptance |
+| TAL-89B | Done locally; pending explicit Linear sync | Late Grade Authorization and Returned-Roster Re-Entry Acceptance |
 
 ## Compact Synced History
 
