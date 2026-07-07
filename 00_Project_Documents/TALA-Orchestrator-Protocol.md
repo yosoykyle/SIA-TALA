@@ -50,11 +50,56 @@ The gate runs in two phases:
 8. Qualified plugin/dependency option.
 9. Focused custom code.
 
-Clear does not mean the PRD has readable wording. A slice is clear only when the plan identifies the office owner, the manual workflow step, TALA's exact responsibility, the proposed feature category, and why current code or a bounded benchmark does not contradict the plan.
+### Slice Clarity Gate
 
-A bounded reality-check benchmark is mandatory before implementation for every new parent issue and the first sub-slice touching admissions/applicant data, document evidence, enrollment gates, finance/ledger/payment, CP-SAT/scheduling, COR or official outputs, Student Hub/student-facing data, integrations/settings, security/privacy, audit, retention, or reporting. A later sub-slice may reuse a recent accepted benchmark only when it stays inside the same workflow and introduces no new role, source record, integration boundary, official output, exposed data class, or manual-office decision.
+CONDITION: Every slice, before the plan is finalized.
 
-If deep research is not needed, state why the slice is internal cleanup, framework/native implementation, or direct code alignment to a recently accepted benchmarked contract. If research is used, record material links and why the recommendation is MVP-fit. If the PRD appears complete but the manual/digital boundary or benchmark fit has not been checked, mark the slice unclear and stop before implementation.
+REQUIRED: The plan MUST identify all of the following:
+- Office owner (who owns the decision in the real institution).
+- Manual workflow step (what humans do outside TALA).
+- TALA's exact responsibility (source record, generated view, office-result record, integration I/O, or deferred).
+- Proposed feature category (one of the above).
+- Why current code or a bounded benchmark does not contradict the plan.
+
+BLOCK: If any item above is missing or unclear → mark the slice unclear → do not implement.
+
+NOTE: "PRD wording is readable" does not satisfy this gate. Readable wording without the five items above is still unclear.
+
+### Benchmark Gate
+
+TRIGGER: First sub-slice of a new parent issue, OR first sub-slice touching any of:
+admissions/applicant data, document evidence, enrollment gates, finance/ledger/payment,
+CP-SAT/scheduling, COR/official outputs, Student Hub/student-facing data,
+integrations/settings, security/privacy, audit, retention, or reporting.
+
+REQUIRED: Run a bounded reality-check benchmark BEFORE finalizing the plan.
+
+OUTPUT: The primary report MUST include a "Benchmark Result" section containing:
+- Domain checked.
+- Sources consulted (Boost docs, web search, business evidence, or prior benchmark).
+- Findings (what the research confirmed or contradicted).
+- PRD alignment confirmation (does the PRD match real-world practice?).
+
+BLOCK: If the trigger applies and this section is absent or states "not needed" without
+citing a valid skip condition → plan is incomplete → do not approve or implement.
+
+SKIP: A later sub-slice may reuse a recent accepted benchmark ONLY when ALL of these hold:
+- Same workflow as the benchmarked slice.
+- No new role introduced.
+- No new source record introduced.
+- No new integration boundary introduced.
+- No new official output introduced.
+- No new exposed data class introduced.
+- No new manual-office decision introduced.
+Cite the prior accepted benchmark by TAL-XX ID.
+
+### Research Recording
+
+IF deep research is not needed → state why: internal cleanup, framework/native implementation, or direct code alignment to a recently accepted benchmarked contract.
+
+IF research is used → record material links and state why the recommendation is MVP-fit.
+
+IF the PRD appears complete but manual/digital boundary or benchmark fit has not been checked → mark the slice unclear → stop before implementation.
 
 Business benchmarking validates workflow credibility; a qualified reference validates implementation fit. Neither overrides TALA authorities.
 
@@ -125,6 +170,7 @@ Each primary plan must define:
 - Integration boundary.
 - Purposeful-simplification decision.
 - Manual/digital boundary and benchmark/implementation-fit gate result.
+- Benchmark result (REQUIRED when the Benchmark Gate trigger applies; cite sources, findings, and PRD alignment — or state the skip condition and prior TAL-XX ID).
 - Qualified-reference source, depth, and disposition, or why it is not applicable.
 - Likely files/surfaces.
 - Verification plan.
@@ -139,18 +185,29 @@ Primary planning is evidence-backed. Do not implement or delegate until the user
 
 ## Simplification Rule
 
-Simplification means purposeful scope, not deletion or presence for its own sake. A clear school workflow names the office owner, the manual decision or action, and the TALA source record, generated view, office-result record, integration input/output, or deferred boundary. Retain/add/revise/defer only when it supports:
+Simplification means purposeful scope, not deletion or presence for its own sake.
 
-- Clear school workflow.
+### Retain/Add/Revise/Defer Decision
+
+CONDITION: Every proposed feature or surface in a slice plan.
+
+REQUIRED: The feature MUST support at least one of:
+- Clear school workflow (names office owner, manual decision, and TALA record type).
 - Inter-department handoff.
 - CP-SAT or payment integration dependency.
 - Usability.
 - Audit/control.
 - Maintainability.
 
+BLOCK: If a feature does not clearly support at least one item above → defer it or challenge its MVP purpose in the primary thread before handoff.
+
+### Hybrid Manual/Digital Preference
+
 Prefer hybrid manual/digital workflows when they keep the system useful without encoding unnecessary institutional complexity. Benchmarks guide credibility and implementation shape; they do not authorize broad enterprise scope.
 
-Do not preserve a reduced feature solely because richer behavior was assumed expensive when a compatible native, packaged, or qualified-reference implementation makes it bounded. Domain fit and purposeful scope still control.
+### Reduced-Feature Override
+
+DO NOT preserve a reduced feature solely because richer behavior was assumed expensive — IF a compatible native, packaged, or qualified-reference implementation makes it bounded. Domain fit and purposeful scope still control.
 
 ## Filament and Plugin Gate
 
