@@ -250,6 +250,7 @@ Rules:
 6. A remaining requirement that is a current enrollment whose parent term enrollment is not yet officially finalized produces Blocked: Current Enrollment Not Finalized.
 7. A required course that was withdrawn or dropped and is not otherwise satisfied by a released passing grade, accepted credit, officially-finalized current enrollment, or approved Academic Exception is an unmet requirement that contributes to Blocked: Missing Requirement, while remaining itemized under the Withdrawn or dropped requirements output field for staff visibility.
 8. Graduation Eligibility Snapshot visibility defaults to staff-only. Registrar may expose a simplified student-facing view when institution policy allows it.
+9. A student-facing completion view is surfaced only while the student's Graduation Review Batch membership is active. Deactivating (removing) a member from the review list retracts the student-facing view even if a prior snapshot was exposed. The retained snapshot and its visibility audit fields are preserved for staff records; re-exposure requires an active membership.
 
 #### 11.3.2 Financial Holds and Account Reactivation
 

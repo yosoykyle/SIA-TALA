@@ -27,7 +27,9 @@ class Completion extends Page
         $this->snapshot = GraduationSnapshot::query()
             ->with('member.studentProfile')
             ->whereNotNull('made_visible_at')
-            ->whereHas('member', fn ($query) => $query->where('student_profile_id', $studentProfileId ?? 0))
+            ->whereHas('member', fn ($query) => $query
+                ->where('is_active', true)
+                ->where('student_profile_id', $studentProfileId ?? 0))
             ->latest('version')
             ->latest('generated_at')
             ->first();

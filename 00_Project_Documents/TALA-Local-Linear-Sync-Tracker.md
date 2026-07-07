@@ -53,6 +53,7 @@ This document is the local staging area for completed issues awaiting explicit u
 | TAL-89D | Done locally; pending explicit Linear sync | Student Released-Grade Visibility and Cross-Role Grade Regression |
 | TAL-90A | Done locally; pending explicit Linear sync | Progression and Standing Acceptance |
 | TAL-90B | Done locally; pending explicit Linear sync | Graduation Batch and Snapshot Acceptance (incl. PRD §11.3.1 rules 5-7 clarification) |
+| TAL-90C | Done locally; pending explicit Linear sync | Staff Visibility and Student-Safe Completion Regression (incl. PRD §11.3.1 rule 9 inactive-membership retraction) |
 
 ## Compact Synced History
 
