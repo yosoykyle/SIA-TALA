@@ -26,6 +26,7 @@ class StudentDashboardService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly HoldEvaluationService $holds,
+        private readonly StudentGradeLabelFormatter $gradeLabels,
     ) {}
 
     /**
@@ -329,6 +330,7 @@ class StudentDashboardService
                             'subject_code' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->course?->code,
                             'subject_description' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->title,
                             'grade' => $grade->current_outcome_code,
+                            'display_grade' => $this->gradeLabels->displayGrade($grade->current_outcome_code, $grade->current_outcome_category),
                             'remarks' => $grade->current_outcome_category,
                             'is_inc' => $grade->current_outcome_code === 'INC',
                             'is_finalized' => true,

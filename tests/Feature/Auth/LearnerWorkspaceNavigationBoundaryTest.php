@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -138,6 +139,12 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if ($role === 'student') {
+            StudentProfile::factory()->create([
+                'user_id' => $user->id,
+            ]);
+        }
 
         return $user;
     }

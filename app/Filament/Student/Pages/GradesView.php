@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\StudentHub\StudentGradeLabelFormatter;
 use App\Models\GradeRosterRow;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -32,6 +33,8 @@ class GradesView extends Page implements HasTable
                 TextColumn::make('roster.termOffering.curriculumEntry.courseSpecification.title')->label('Description')->wrap(),
                 TextColumn::make('roster.termOffering.curriculumEntry.courseSpecification.credit_units')->label('Units'),
                 TextColumn::make('current_outcome_code')->label('Released Grade')
+                    ->formatStateUsing(fn (?string $state, GradeRosterRow $record): ?string => app(StudentGradeLabelFormatter::class)
+                        ->displayGrade($state, $record->current_outcome_category))
                     ->badge(),
                 TextColumn::make('current_outcome_category')->label('Status')->badge(),
                 TextColumn::make('released_at')->label('Released')->dateTime(),

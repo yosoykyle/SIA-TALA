@@ -135,7 +135,7 @@ TALA implements a public Blade landing page plus authenticated Filament workspac
   * **No API Duplication:** With Livewire, database logic and template variables are bound directly in PHP. We do not have to write separate REST APIs or manage state synchronization between the browser and server.
   * **Mobile Performance & Bundle Size:** SPA frameworks require the client to download large JavaScript bundles before the first page render, slowing down load times on lower-end mobile phones. Filament and Livewire render server-driven interfaces with smaller client payloads.
   * **Workflow Consistency:** Applicant, student, faculty, registrar, accounting, academic head, and system administration surfaces can share the same Laravel authorization, audit, and service-layer boundaries.
-  * **Current Rescue Boundary:** Applicant and Student Hub workflows are not yet implemented inside `app/Filament/Applicant/*` or `app/Filament/Student/*`. The workspace gate and applicant-to-student handover must be proven before expanding applicant/student UI.
+  * **Current Rescue Boundary:** Applicant and Student Hub workflows now exist inside `app/Filament/Applicant/*` and `app/Filament/Student/*` as role-scoped, read-mostly learner surfaces. The workspace gate and applicant-to-student handover remain the prerequisite before expanding applicant/student UI.
 
 ---
 
