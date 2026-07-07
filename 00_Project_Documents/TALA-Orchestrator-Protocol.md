@@ -105,19 +105,52 @@ Business benchmarking validates workflow credibility; a qualified reference vali
 
 ### Qualified Reference Implementation
 
-Use the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES` as the default reference when the current slice has meaningful overlap; canonical remote: [academico-sis/academico](https://github.com/academico-sis/academico). Do not scan it routinely or broadly.
+Use the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES` as the default reference; canonical remote: [academico-sis/academico](https://github.com/academico-sis/academico). Do not scan it routinely or broadly.
 
-Overlap assessment order:
+#### Overlap Assessment Gate
 
-1. Complete gate Phase A (items 1–3) to establish the slice's domain shape.
-2. Ask: "Does this workflow category, record type, or office/role pattern plausibly exist in the reference?" A structural check (directory listing, model file names, or a focused GitHub API query) is sufficient to confirm or rule out overlap without deep inspection.
-3. If no plausible overlap: record depth 0 with the reason (e.g., "domain mismatch: TALA 9-category enrollment gate vs. language-school course enrollment") and proceed.
-4. If plausible overlap: proceed to minimum-depth inspection per the rules below.
-5. If the local checkout is unavailable or stale, use the canonical remote via GitHub API at the same minimum depth.
+CONDITION: Every slice, during gate Phase B (after Phase A establishes the domain shape).
 
-Use the minimum depth: `0` skip, `1` rendered UI, `2` directly relevant files, `3` dependencies/tests/data model only when adoption or copying is plausible. Check the remote only for freshness, license, dependency, or copy decisions. Record the source, depth, examined surfaces, and one disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile a PRD/blueprint conflict.
+ASSESS BOTH QUESTIONS:
 
-Reuse an accepted finding for related sub-slices unless the workflow, reference, or integration boundary changes. The primary gives workers exact reference paths and allowed patterns; workers do not repeat broad discovery.
+**Question 1 — Business-logic overlap:**
+"Does this exact workflow (same records, same rules, same domain) exist in the reference?"
+
+- IF yes → inspect at depth 2–3 for logic reuse, service patterns, and data model.
+- IF no → record "no business-logic overlap" and continue to Question 2.
+
+**Question 2 — Implementation-pattern overlap:**
+"Does the reference have a similar UI need (displaying similar data shapes, roster tables,
+review queues, submission flows, Filament resource patterns, plugin usage) even if the
+business rules differ?"
+
+- IF yes → inspect at depth 1–2 for UI patterns, Filament components, plugins, and code architecture.
+- IF no → record depth 0 with reason and proceed.
+
+BLOCK: Do NOT skip entirely (depth 0) until BOTH questions are answered "no."
+
+OUTPUT: Record in the plan:
+- Source (local checkout or remote).
+- Depth used (0–3).
+- Examined surfaces (models, Filament resources, views, plugins).
+- Disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile a PRD/blueprint conflict.
+
+#### Depth Levels
+
+- `0` skip — both overlap questions answered "no."
+- `1` rendered UI — inspect Filament resource structure, table/form layout, action patterns.
+- `2` directly relevant files — inspect service classes, models, policies, and migrations.
+- `3` dependencies/tests/data model — only when adoption or copying is plausible.
+
+#### Access Rules
+
+- Check the local checkout first.
+- If the local checkout is unavailable or stale, use the canonical remote via GitHub API at the same minimum depth.
+- Check the remote only for freshness, license, dependency, or copy decisions.
+
+#### Reuse Rule
+
+Reuse an accepted finding for related sub-slices UNLESS the workflow, reference, or integration boundary changes. The primary gives workers exact reference paths and allowed patterns; workers do not repeat broad discovery.
 
 ## Primary Orchestrator
 
