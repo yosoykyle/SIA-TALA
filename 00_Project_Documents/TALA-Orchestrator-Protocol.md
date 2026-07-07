@@ -272,7 +272,7 @@ A dependency included in an accepted slice plan needs no second approval. The pl
 
 Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
-Before starting a worker, the primary writes a compact handoff packet to the OS temp directory and points the worker to that absolute path. The packet includes only: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, and handshake format. Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
+Before starting a worker, the primary assembles a compact handoff packet containing: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, and handshake format. Deliver via the environment's available delegation mechanism (temp file, inline sub-agent prompt, shared context, or equivalent). Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
 
 Workers must:
 
