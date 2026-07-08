@@ -1,0 +1,93 @@
+<?php
+
+namespace App\Filament\Resources\OperationalEvents\Schemas;
+
+use App\Filament\Resources\OperationalEvents\Tables\OperationalEventsTable;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Schema;
+
+class OperationalEventInfolist
+{
+    /**
+     * PII-safety posture (V1, matching TAL-92B's note): `payload`,
+     * `diagnostics`, and `recipient_snapshot` are rendered as formatted JSON
+     * as-is, with no new masking logic added beyond what the model already
+     * casts. Secret substrings are the responsibility of upstream producers
+     * never writing them into these columns; this view does not add or
+     * remove protection.
+     */
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                TextEntry::make('event_domain')
+                    ->label('Domain')
+                    ->badge(),
+                TextEntry::make('integration')
+                    ->placeholder('-'),
+                TextEntry::make('channel')
+                    ->placeholder('-'),
+                TextEntry::make('direction')
+                    ->placeholder('-'),
+                TextEntry::make('event_type')
+                    ->label('Event type'),
+                TextEntry::make('event_version')
+                    ->label('Event version')
+                    ->placeholder('-'),
+                TextEntry::make('status')
+                    ->badge()
+                    ->color(fn (?string $state): string => OperationalEventsTable::statusColors()[$state] ?? 'gray'),
+                TextEntry::make('user.name')
+                    ->label('Actor')
+                    ->placeholder('System'),
+                TextEntry::make('external_id')
+                    ->label('External ID')
+                    ->placeholder('-'),
+                TextEntry::make('related_record_type')
+                    ->label('Related record type')
+                    ->placeholder('-'),
+                TextEntry::make('related_record_id')
+                    ->label('Related record ID')
+                    ->placeholder('-'),
+                TextEntry::make('occurred_at')
+                    ->dateTime(),
+                TextEntry::make('processed_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('sent_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('failed_at')
+                    ->dateTime()
+                    ->placeholder('-'),
+                TextEntry::make('diagnostics')
+                    ->label('Diagnostics')
+                    ->formatStateUsing(fn (mixed $state): string => self::formatJsonColumn($state))
+                    ->columnSpanFull(),
+                TextEntry::make('payload')
+                    ->label('Payload')
+                    ->formatStateUsing(fn (mixed $state): string => self::formatJsonColumn($state))
+                    ->columnSpanFull(),
+                TextEntry::make('recipient_snapshot')
+                    ->label('Recipient snapshot')
+                    ->formatStateUsing(fn (mixed $state): string => self::formatJsonColumn($state))
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private static function formatJsonColumn(mixed $state): string
+    {
+        if ($state === null || $state === [] || $state === '') {
+            return '-';
+        }
+
+        if (is_string($state)) {
+            $decoded = json_decode($state, true);
+            $state = $decoded ?? $state;
+        }
+
+        return is_array($state)
+            ? (string) json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+            : (string) $state;
+    }
+}

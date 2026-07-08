@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\OperationalEventFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OperationalEvent extends Model
 {
+    /** @use HasFactory<OperationalEventFactory> */
+    use HasFactory;
+
     public $timestamps = false;
 
     /** @var list<string> */

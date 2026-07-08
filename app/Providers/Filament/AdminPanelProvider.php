@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
@@ -24,6 +25,7 @@ use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
+use App\Filament\Resources\OperationalEvents\OperationalEventResource;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Filament\Resources\Programs\ProgramResource;
@@ -93,6 +95,7 @@ class AdminPanelProvider extends PanelProvider
                 RoleResource::class,
                 ActivityResource::class,
                 SystemSettingResource::class,
+                OperationalEventResource::class,
                 ApplicantIntakeResource::class,
                 EnrollmentResource::class,
                 FeeRuleResource::class,
@@ -129,6 +132,7 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 FacultyGradeRoster::class,
                 ReportsAudit::class,
+                IntegrationStatus::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

@@ -310,6 +310,8 @@ Rules:
 2. Email delivery failures must be logged in TALA’s integration logs.
 3. Successful email delivery metadata (message ID, recipient, timestamp) must be recorded in notification history.
 
+> **Implementation note (recorded 2026-07-08):** integration/email settings (mail transport, PayMongo keys, and scheduler credentials) are environment-managed — driver selection and secrets live in `.env`/`config/`, never in the database or rendered in the UI. TALA exposes a restricted read-only status view (`App\Filament\Pages\IntegrationStatus`) showing current driver/mode, configured-or-not (derived from whether a required secret/key is non-empty, never its value), and non-secret reference fields, plus a safe "Send test email" action that always targets only the acting admin's own address. The Operational Events monitor (§13.8 "Integration events and failures" row) reviews integration outcomes read-only in V1 via the new `OperationalEventResource`; retry execution is deferred until the live PayMongo (TAL-95) and CP-SAT solver (TAL-94) producers exist, since safe/idempotent retry requires those handlers. The daily/monthly email send-usage counter (Settings item 4 above) and successful-delivery notification-history metadata (Rules item 3 above) are deferred and not built in this slice.
+
 ---
 
 ### 13.6. Privacy, Security, and Audit
