@@ -22,6 +22,19 @@ Read in this order before a TALA slice:
 
 Ownership: Boost/official docs control framework use; PRD controls product; blueprint controls UI mapping; architecture controls integration boundaries; protocol controls workflow; Next Steps controls order; tracker controls sync status. Existing code is accepted only when aligned. On unresolved conflict, stop in the primary thread.
 
+### Salvage Assessment
+
+Item 9 of the reading order (migrations, models, services, policies, routes, Filament resources/pages, and tests) is read as salvage evidence, not as an authority. Before a slice plan cites existing code as accepted, aligned, or gap-only:
+
+1. Read the relevant existing file(s) in full — not a partial grep — before classifying them.
+2. Classify each piece of salvage evidence against the owning PRD/blueprint/architecture section as one of:
+   - **Aligned** — matches the authority; keep silently, cite in the plan as accepted evidence.
+   - **Gap** — the authority's behavior is missing or incomplete; patch it as a focused addition, cited in the plan (do not restart or rewrite what is already aligned).
+   - **Conflict** — existing code and the authority disagree, or an authority's stated design does not match what is actually implemented/possible. Route through the existing PRD/blueprint/architecture correction rule (Product-Rule Ownership section) — do not silently patch code to match a PRD that may itself be wrong, and do not silently rewrite the PRD to match code without evidence.
+3. Cite the classification and evidence in the plan per file/surface, not as a blanket "existing code accepted" statement.
+
+This does not replace or duplicate the benchmark/implementation-fit gate, the overlap assessment gate, or the Authority Document Correction rule — it governs how item 9 evidence specifically is read and classified before those gates and rules are applied.
+
 ## Capability and Research Policy
 
 Use available capabilities instead of duplicating their full instructions:
