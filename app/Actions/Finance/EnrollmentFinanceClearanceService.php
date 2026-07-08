@@ -2,14 +2,11 @@
 
 namespace App\Actions\Finance;
 
-use App\Actions\Enrollment\AdmissionCapacityReservationService;
-use App\Actions\Enrollment\AdmissionFinanceReadinessGateService;
 use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
-use App\Models\Payment;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\DecimalMoney;
@@ -20,8 +17,6 @@ class EnrollmentFinanceClearanceService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly StudentEnrollmentService $studentEnrollmentService,
-        private readonly AdmissionCapacityReservationService $capacityReservations,
-        private readonly AdmissionFinanceReadinessGateService $admissionReadinessGate,
     ) {}
 
     /**
@@ -41,30 +36,6 @@ class EnrollmentFinanceClearanceService
         $financeCleared = $readiness['finance_cleared'];
 
         if ($financeCleared) {
-            $this->admissionReadinessGate->assertReadyForFinanceClearance($enrollment, $studentProfile, $timestamp);
-
-            $payment = Payment::query()
-                ->whereHas('ledgerEntries', fn ($query) => $query
-                    ->where('enrollment_id', $enrollment->id)
-                    ->where('direction', LedgerEntry::DirectionPayment)
-                    ->where('state', 'posted'))
-                ->where('evidence_status', 'verified')
-                ->latest('verified_at')
-                ->latest('id')
-                ->first();
-            $ledgerEntry = $payment instanceof Payment ? $payment->ledgerEntry : null;
-            if (! $ledgerEntry instanceof LedgerEntry) {
-                $ledgerEntry = null;
-            }
-
-            $this->capacityReservations->secureForFinanceClearedEnrollment(
-                enrollment: $enrollment,
-                studentProfile: $studentProfile,
-                payment: $payment,
-                ledgerEntry: $ledgerEntry,
-                securedAt: $timestamp,
-            );
-
             if (! in_array($enrollment->status, ['pre_enrolled', 'officially_enrolled'], true)) {
                 $enrollment->forceFill([
                     'status' => 'pre_enrolled',

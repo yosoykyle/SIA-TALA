@@ -2,10 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\AdmissionCapacityReservationService;
-use App\Actions\Enrollment\AdmissionFinanceReadinessGateService;
 use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Models\ApplicantIntake;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
@@ -61,6 +60,41 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         $this->assertSame('1500.00', $clearance['minimum_required_payment']);
         $this->assertSame('1500.00', $clearance['total_confirmed_payments']);
         $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
+    }
+
+    public function test_first_term_applicant_with_approved_intake_clears_finance_without_capacity_crash(): void
+    {
+        // TAL-93F2 regression: a first-term student with an approved ApplicantIntake for the term
+        // previously reached the retired admission-capacity path during finance clearance
+        // (a tableless admission-capacity readiness query -> SQL crash). Clearance must now succeed.
+        $fixture = $this->activeAssessmentFixture();
+
+        ApplicantIntake::factory()
+            ->approved()
+            ->create([
+                'user_id' => $fixture['student']->id,
+                'term_id' => $fixture['term']->id,
+                'program_id' => $fixture['profile']->program_id,
+            ]);
+
+        $this->verifiedPostedPayment($fixture, amount: '1500.00', orNumber: 'OR-93F2-POSTED');
+
+        $clearance = $this->clearanceService()->clearIfEligible(
+            $fixture['enrollment'],
+            $fixture['profile'],
+            '4300.00',
+            null,
+            CarbonImmutable::parse('2026-07-01 09:00:00'),
+        );
+
+        $this->assertTrue($clearance['finance_cleared']);
+        $this->assertSame('posted_ledger_payment', $clearance['finance_clearance_source']);
+        $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
+        $this->assertSame(1, ApplicantIntake::query()
+            ->where('user_id', $fixture['student']->id)
+            ->where('term_id', $fixture['term']->id)
+            ->where('status', ApplicantIntake::StatusApproved)
+            ->count());
     }
 
     public function test_active_current_term_financial_accommodation_with_explicit_effect_clears_without_payment_ledger(): void
@@ -385,17 +419,6 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         return new EnrollmentFinanceClearanceService(
             app(DecimalMoney::class),
             app(StudentEnrollmentService::class),
-            new class extends AdmissionCapacityReservationService
-            {
-                public function secureForFinanceClearedEnrollment(
-                    Enrollment $enrollment,
-                    StudentProfile $studentProfile,
-                    ?Payment $payment,
-                    ?LedgerEntry $ledgerEntry,
-                    CarbonImmutable $securedAt,
-                ): void {}
-            },
-            app(AdmissionFinanceReadinessGateService::class),
         );
     }
 }
