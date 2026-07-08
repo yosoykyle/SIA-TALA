@@ -47,20 +47,6 @@ Dependency lock:
 | TAL-96 | Planned | Cross-Role Regression and Integration Coherence (Post-Integration Gate): verify the full system remains correct after CP-SAT and PayMongo integrations are wired in; catch regressions introduced by external service handlers, solver publication effects, and payment posting side-effects. |
 | TAL-97 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows, on top of a fully verified and integration-tested system. |
 
-### TAL-91 Sub-slice Map
-
-Owning contract: PRD `prd_modules/12_student_hub.md`; UI blueprint Student Hub page map.
-
-| Sub-slice | Status | Purpose | Next Boundary |
-| --- | --- | --- | --- |
-| TAL-91A | Done locally; pending explicit Linear sync | Hub access, own-records-only isolation, Dashboard display-priority ordering, and account/security notices. | Recorded in local tracker. |
-| TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance projection and official-output (SOA/billing/acknowledgement) access logging. | Recorded in local tracker; TAL-91C next. |
-| TAL-91C | Done locally; pending explicit Linear sync | Academic outputs projection: COR, published schedule, enrolled subjects, and enrollment-status surface. | Recorded in local tracker; TAL-91D next. |
-| TAL-91D | Done locally; pending explicit Linear sync | Academic status student-safe regression: Holds view office-to-contact column, Academic Standing surfaced on Lifecycle view, grades/completion re-verified as regression. | Recorded in local tracker. Parent TAL-91 complete (91A-91D all done). |
-| TAL-91E | Done locally; pending explicit Linear sync | Student Hub Display Priority completion: implemented remaining resolver tiers 6-10 (Missing requirements, Active academic deficiency, Schedule available, COR available, Grades released) in `StudentHubPriorityResolver`, each reusing an already-existing data source rather than new logic. All 11 §12.2 tiers now implemented. | Recorded in local tracker. |
-
-Parent TAL-91 (Student Hub Projection Acceptance) is complete: 91A, 91B, 91C, and 91D all done locally, pending explicit Linear sync.
-
 ### Next Boundary
 
 Next primary boundary: plan TAL-92.
