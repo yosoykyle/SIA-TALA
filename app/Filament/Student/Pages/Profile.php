@@ -199,7 +199,17 @@ class Profile extends Page
         $state = $this->profileForm()->getState();
 
         $studentProfile->fill(collect($state)->only($this->editableProfileAttributes())->all());
+        $changedFields = array_keys($studentProfile->getDirty());
         $studentProfile->save();
+
+        if ($changedFields !== []) {
+            activity()
+                ->performedOn($studentProfile)
+                ->causedBy($user)
+                ->event('student_profile_self_service_update')
+                ->withProperties(['updated_fields' => $changedFields])
+                ->log('Student self-service profile update');
+        }
 
         Notification::make()
             ->title('Profile contact details saved')

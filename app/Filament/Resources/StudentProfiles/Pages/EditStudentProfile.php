@@ -16,4 +16,24 @@ class EditStudentProfile extends EditRecord
             ViewAction::make(),
         ];
     }
+
+    protected function afterSave(): void
+    {
+        $changedFields = collect($this->record->getChanges())
+            ->keys()
+            ->reject(fn (string $field): bool => $field === 'updated_at')
+            ->values()
+            ->all();
+
+        if ($changedFields === []) {
+            return;
+        }
+
+        activity()
+            ->performedOn($this->record)
+            ->causedBy(auth()->user())
+            ->event('student_profile_updated')
+            ->withProperties(['updated_fields' => $changedFields])
+            ->log('Student profile updated (Admin Override)');
+    }
 }

@@ -13,6 +13,7 @@ use App\Models\Term;
 use BackedEnum;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -48,6 +49,8 @@ class StudentProfileResource extends Resource
                 TextInput::make('first_name')->required()->maxLength(255),
                 TextInput::make('middle_name')->maxLength(255),
                 TextInput::make('last_name')->required()->maxLength(255),
+                DatePicker::make('birth_date')->label('Date of Birth')->native(false)->displayFormat('M d, Y'),
+                TextInput::make('prior_identifier')->label('LRN / Prior-Education Identifier')->maxLength(255),
                 Select::make('program_id')->relationship('program', 'name')->required()->searchable()->preload(),
                 Select::make('curriculum_version_id')->relationship('curriculumVersion', 'name')->required()->searchable()->preload(),
                 TextInput::make('email')->email()->maxLength(255),

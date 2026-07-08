@@ -159,18 +159,6 @@ class AdmissionsStudentHandoverUiTest extends TestCase
     }
 
     #[Test]
-    public function registrar_can_approve_personal_data_correction_requests(): void
-    {
-        $this->markTestSkipped('Personal data correction request storage is not present in the current clean schema.');
-    }
-
-    #[Test]
-    public function registrar_can_reject_personal_data_correction_requests(): void
-    {
-        $this->markTestSkipped('Personal data correction request storage is not present in the current clean schema.');
-    }
-
-    #[Test]
     public function registrar_can_resolve_duplicate_profiles(): void
     {
         $registrar = User::factory()->create(['status' => User::StatusActive]);
@@ -229,11 +217,5 @@ class AdmissionsStudentHandoverUiTest extends TestCase
         $studentProfile->refresh();
         $this->assertEquals('updatedemail@example.com', $studentProfile->email);
         $this->assertEquals('09179999999', $studentProfile->phone);
-    }
-
-    #[Test]
-    public function student_can_submit_correction_request(): void
-    {
-        $this->markTestSkipped('Personal data correction request storage is not present in the current clean schema.');
     }
 }

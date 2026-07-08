@@ -133,7 +133,7 @@ Use navigation groups to prevent the existing resource inventory from becoming o
 
 | Group | Primary roles | Contents |
 | --- | --- | --- |
-| Admissions | Registrar | Applicant queue, checklist review, handover, profile correction, duplicate-profile resolution |
+| Admissions | Registrar | Applicant queue, checklist review, handover, manual student profile updates (Admin Override), duplicate-profile resolution |
 | Academic Setup | Registrar, Academic Head | Academic calendar, programs, course specifications, curricula, terms, grade outcomes, unit-load policy |
 | Offerings & Scheduling | Registrar, Academic Head, Faculty where applicable | Term offerings, sections, delivery groups, rooms, faculty qualification/availability, scheduling demand, solver runs, publication |
 | Enrollment | Registrar, Academic Head for exceptions | Gate queue, placement, reservations, academic exceptions, unit-load exceptions |
@@ -176,7 +176,7 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | --- | --- | --- | --- |
 | 01 Product Intent & Architecture | Public entry plus three authenticated panel shells | Existing public page and Panel Providers | Reuse confirmed baseline |
 | 02 Identity, Access & Workspaces | Panel auth, profile, role-aware landing, fixed-role access | Panel auth features, policies, `canAccessPanel`, role-scoped navigation | Reuse confirmed baseline; retain three panels |
-| 03 Admissions & Student Handover | Applicant application, requirements, Registrar review, handover, student master record, corrections, duplicate resolution | Applicant custom Pages; staff queue Resources; focused Actions; Student Profile Resource | Intake is confirmed; current profile/correction/duplicate work requires baseline review |
+| 03 Admissions & Student Handover | Applicant application, requirements, Registrar review, handover, student master record, manual profile updates (Admin Override), duplicate resolution | Applicant custom Pages; staff queue Resources; focused Actions; Student Profile Resource | Intake is confirmed; current profile-update (Admin Override)/duplicate work requires baseline review |
 | 04 Academic Setup | Calendar, programs, course specifications, curricula, terms, grade outcomes, policy values | Resources, relation managers, date/time forms, import Page, readiness infolists | Audit existing resources; add only missing PRD fields and workflows |
 | 05 Term Offerings & Resources | Generated offerings, special offerings, sections, faculty, rooms, capacity | Resources and relation managers; filtered selection Tables; date/time availability forms | Audit existing offerings/resource Resources before reuse |
 | 06 CP-SAT Scheduling | Demand readiness, solver run, candidate review, publication, revision | Schedule run Resource, candidate relation manager, validation infolist, focused publish/revision Actions | Reuse existing run/candidate inventory after contract audit; table view is canonical |
