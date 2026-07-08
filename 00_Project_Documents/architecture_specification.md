@@ -152,9 +152,8 @@ TALA's architecture relies on the following verified dependencies declared in th
 * `laravel/mcp: ^0.8` (Laravel MCP integration support)
 * `spatie/laravel-permission: ^6.24` (Role-based access control [RBAC])
 * `spatie/laravel-model-states: ^2.8` (Available state-machine support)
-* `spatie/laravel-activitylog: ^4.8` & `pxlrbt/filament-activity-log: ^2.2` (Audit trail logs for overrides)
+* `spatie/laravel-activitylog: ^4.8` (Audit trail logs for overrides; surfaced via the hand-built read-only `ActivityResource`)
 * `chillerlan/php-qrcode: ^5.0` (Installed QR capability; public COR verification and QR artifact lookup are not part of the MVP output path unless a later approved policy activates them)
-* `maatwebsite/excel: ^3.1` (Excel importing for curricula and exporting for grade reports)
 * `luigel/laravel-paymongo: ^2.6` & `spatie/laravel-webhook-client: ^3.5` (PayMongo and webhook support packages)
 * `google/auth: ~1.52` (Google service-account authentication for invoking the private Cloud Run CP-SAT solver)
 * `tallstackui/tallstackui: 3.0.0` (Premium UI layout components)
@@ -162,7 +161,7 @@ TALA's architecture relies on the following verified dependencies declared in th
 
 The public landing page also serves local Bootstrap v5.3.3 and Bootstrap Icons assets from `public/landing/vendor/`. They are not npm or Composer dependencies and are intentionally scoped to the public landing Blade layout only.
 
-Not currently installed: `laravel/horizon`. Redis support is available through Laravel's standard configuration if the runtime provides the Redis PHP extension or a compatible client, but Redis/Horizon are not the active queue baseline.
+Not currently installed: `laravel/horizon`. Removed in TAL-93A as unused: `pxlrbt/filament-activity-log` (superseded by the hand-built read-only `ActivityResource`) and `maatwebsite/excel` (imports and exports use native `fgetcsv`/`fputcsv`, not an Excel library). Redis support is available through Laravel's standard configuration if the runtime provides the Redis PHP extension or a compatible client, but Redis/Horizon are not the active queue baseline.
 
 ### 4.2 JavaScript Packages (package.json)
 * `tailwindcss: ^4.0.0` & `@tailwindcss/vite: ^4.0.0` (Tailwind CSS v4 compiler)

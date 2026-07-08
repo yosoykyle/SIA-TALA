@@ -340,7 +340,7 @@ MVP audit scope:
 
 V1 audit focuses on official-record changes, sensitive output access, and high-risk exports.
 
-> **Implementation note (recorded 2026-07-08):** V1 audit immutability is enforced at the application layer only — the read-only `ActivityPolicy` (no `update`/`delete`/`restore`/`forceDelete`) and `ActivityResource::canCreate() = false` prevent staff-surface tampering with audit records. There is no database-level append-only or tamper-evident storage (e.g., write-once constraints, hash chaining) for the `activity_log` table in V1. DB-level tamper-evidence hardening is deferred to TAL-93.
+> **Implementation note (recorded 2026-07-08):** V1 audit immutability is enforced at the application layer only — the read-only `ActivityPolicy` (no `update`/`delete`/`restore`/`forceDelete`) and `ActivityResource::canCreate() = false` prevent staff-surface tampering with audit records. There is no database-level append-only or tamper-evident storage (e.g., write-once constraints, hash chaining) for the `activity_log` table in V1. DB-level tamper-evidence hardening (e.g., write-once constraints or hash chaining) was assessed in TAL-93A and accepted as out of MVP scope: application-layer immutability is the proportionate baseline for V1 (the money trail in `ledger_entries` is separately protected by the reversal-based, no-hard-delete design from TAL-86C), and DB-level hardening is routed to post-MVP issue TAL-101.
 
 ---
 

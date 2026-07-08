@@ -17,8 +17,6 @@
         "laravel/tinker": "^2.10.1",
         "livewire/livewire": "^4.0",
         "luigel/laravel-paymongo": "^2.6",
-        "maatwebsite/excel": "^3.1",
-        "pxlrbt/filament-activity-log": "^2.2",
         "spatie/laravel-activitylog": "^4.8",
         "spatie/laravel-model-states": "^2.8",
         "spatie/laravel-permission": "^6.24",
