@@ -259,12 +259,14 @@ DO NOT preserve a reduced feature solely because richer behavior was assumed exp
 
 CONDITION: A feature is deferred during planning, implementation, or parent closure.
 
-REQUIRED: Record where the deferral lands:
-- Route to an existing or new issue in Next Steps (default).
-- Not in any authority document → discard (state explicitly).
-- Disagree with PRD scope → use Authority Document Correction rule.
+REQUIRED: Every deferral MUST land in exactly one destination, chosen in this order:
+- Backed by an authority document (PRD, blueprint, or architecture) → route to an existing issue in Next Steps, or create a new issue if none fits. Post-MVP enhancements also get their own issue (a "future enhancement, post-MVP" entry, e.g. TAL-98 / TAL-99 / TAL-100). There is NO note-only destination for an authority-backed deferral.
+- Not in any authority document → discard, and state the discard explicitly.
+- Reflects a disagreement with PRD scope → use the Authority Document Correction rule (never silently drop).
 
-BLOCK: Do NOT defer without a recorded destination. Do NOT close a parent issue with unrouted deferrals.
+The Next Steps roadmap rows are the single source of truth for where a deferral lives. Completed-work detail belongs in the Local Linear Sync Tracker, not the roadmap.
+
+BLOCK: Do NOT defer without a recorded destination issue (or an explicit, stated discard). Do NOT close a parent issue with unrouted deferrals.
 
 ## Filament and Plugin Gate
 
