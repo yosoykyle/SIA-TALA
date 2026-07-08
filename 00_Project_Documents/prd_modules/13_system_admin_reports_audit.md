@@ -274,6 +274,8 @@ Rules:
 6. Import batch must preserve uploader, timestamp, source file, row count, error count, and affected records.
 7. A confirmed Course Specification or Curriculum import creates Draft records only; activation remains a separate authorized action.
 
+> **Implementation note (reconciled 2026-07-08):** the implementation uses a synchronous 3-state persisted model (`PENDING_REVIEW` = "Preview Ready", `POSTED` = "Draft Created", `CANCELLED` = "Cancelled") rather than persisting all 6 PRD-named states, because validation is synchronous for the fixed ≤5MB CSV templates in V1 — `Uploaded`/`Validating` are transient in-request states that are never persisted, and `Validation Failed` is represented as a Preview Ready batch with `error_count > 0` that cannot be posted (rather than a distinct terminal state). The "Posted" batch state corresponds to the PRD's "Draft Created" state: posting an import batch creates Draft records only, and activation remains a separate authorized action, already true in the implementation and already correctly labeled "Create Draft records" in the UI.
+
 #### 13.4.3 Export Rules
 
 1. Export actor must be recorded.

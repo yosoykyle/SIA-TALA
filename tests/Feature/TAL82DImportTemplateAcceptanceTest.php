@@ -7,6 +7,7 @@ use App\Actions\Imports\AcademicImportService;
 use App\Actions\Imports\CourseSpecificationImportTemplate;
 use App\Actions\Imports\CurriculumImportTemplate;
 use App\Actions\Imports\ImportBatchLifecycleService;
+use App\Filament\Resources\Activities\Pages\ListActivities;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\ImportBatches\Pages\ListImportBatches;
 use App\Filament\Resources\ImportBatches\Pages\ViewImportBatch;
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -48,6 +50,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
             User::StaffRoleFaculty,
+            User::StaffRoleSystemSuperAdmin,
         ] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
@@ -679,6 +682,102 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
 
         $this->expectException(AuthorizationException::class);
         app(ImportBatchLifecycleService::class)->post($batch, $academicHead);
+    }
+
+    #[Test]
+    public function non_utf8_encoded_uploads_are_rejected_before_domain_rows_are_validated(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $path = AcademicImportService::CourseSpecificationDirectory.'/latin1-encoded.csv';
+        $headerLine = implode(',', CourseSpecificationImportTemplate::headers());
+        // "Introducción" encoded as Latin-1/ISO-8859-1 is not valid UTF-8 (the
+        // "ó" byte 0xF3 is not a legal UTF-8 continuation of any lead byte here).
+        $latin1Row = implode(',', $this->validCourseSpecificationRow(['title' => "Introducci\xF3n"]));
+
+        Storage::disk(AcademicImportService::Disk)->put($path, $headerLine."\n".$latin1Row."\n");
+
+        $this->assertFalse(mb_check_encoding(Storage::disk(AcademicImportService::Disk)->get($path), 'UTF-8'));
+
+        try {
+            app(AcademicImportService::class)->createPreview(ImportBatch::TypeCourseSpecification, $path, $registrar);
+            $this->fail('Non-UTF-8 encoded uploads must be rejected before domain rows are validated.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('file', $exception->errors());
+            $this->assertSame(['CSV imports must be encoded as UTF-8.'], $exception->errors()['file']);
+        }
+
+        $this->assertSame(0, ImportBatch::query()->count());
+    }
+
+    #[Test]
+    public function import_batch_lifecycle_actions_write_activity_log_rows_visible_to_super_admin(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $path = AcademicImportService::CourseSpecificationDirectory.'/activity-log.csv';
+
+        Storage::disk(AcademicImportService::Disk)->put($path, AcademicImportCsv::toCsv([
+            CourseSpecificationImportTemplate::headers(),
+            $this->validCourseSpecificationRow([
+                'credit_units' => '4.00',
+                'weekly_contact_hours' => '3.00',
+            ]),
+        ]));
+
+        $batch = app(AcademicImportService::class)->createPreview(ImportBatch::TypeCourseSpecification, $path, $registrar);
+        $acknowledged = app(ImportBatchLifecycleService::class)->acknowledgeWarnings($batch, $registrar);
+        $posted = app(ImportBatchLifecycleService::class)->post($acknowledged, $registrar);
+        $cancelBatch = app(AcademicImportService::class)->createPreview(ImportBatch::TypeCourseSpecification, $path, $registrar);
+        app(ImportBatchLifecycleService::class)->cancel($cancelBatch, $registrar);
+
+        foreach ([
+            'import_batch_preview_created' => $batch->id,
+            'import_batch_warnings_acknowledged' => $acknowledged->id,
+            'import_batch_posted' => $posted->id,
+            'import_batch_cancelled' => $cancelBatch->id,
+        ] as $event => $importBatchId) {
+            $activity = Activity::query()
+                ->where('log_name', 'imports')
+                ->where('event', $event)
+                ->where('causer_id', $registrar->id)
+                ->get()
+                ->sole(fn (Activity $candidate): bool => data_get($candidate->properties, 'import_batch_id') === $importBatchId);
+
+            $this->assertSame(User::class, $activity->causer_type);
+            $this->assertNull($activity->subject_id);
+            $this->assertSame($importBatchId, data_get($activity->properties, 'import_batch_id'));
+        }
+
+        $this->actingAs($superAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ListActivities::class)->assertOk();
+    }
+
+    #[Test]
+    public function findings_csv_download_neutralizes_formula_injection_in_source_values(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $path = AcademicImportService::CourseSpecificationDirectory.'/formula-injection.csv';
+
+        Storage::disk(AcademicImportService::Disk)->put($path, AcademicImportCsv::toCsv([
+            CourseSpecificationImportTemplate::headers(),
+            $this->validCourseSpecificationRow([
+                'course_code' => 'IT901',
+                'title' => '=SUM(A1:A9)',
+                'credit_units' => 'bad',
+            ]),
+        ]));
+
+        $batch = app(AcademicImportService::class)->createPreview(ImportBatch::TypeCourseSpecification, $path, $registrar);
+
+        $this->assertGreaterThanOrEqual(1, $batch->error_count);
+
+        $csv = app(AcademicImportService::class)->validationFindingsCsv($batch, $registrar);
+
+        $this->assertStringContainsString('severity,source_row,message,source_values', $csv);
+        $this->assertStringContainsString("'=SUM(A1:A9)", $csv);
+        $this->assertStringNotContainsString('"title":"=SUM(A1:A9)"', $csv);
     }
 
     /**
