@@ -4,9 +4,11 @@ namespace Tests\Feature\Auth;
 
 use App\Http\Responses\ApplicantRegistrationResponse;
 use App\Http\Responses\RoleAwareLoginResponse;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
@@ -81,6 +83,7 @@ class EmailVerificationBoundaryTest extends TestCase
 
         $response = app(RoleAwareLoginResponse::class)->toResponse($request);
 
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertSame(route($promptRoute), $response->getTargetUrl());
     }
 
@@ -90,6 +93,7 @@ class EmailVerificationBoundaryTest extends TestCase
 
         $response = app(ApplicantRegistrationResponse::class)->toResponse($request);
 
+        $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertSame(route('filament.applicant.auth.email-verification.prompt'), $response->getTargetUrl());
     }
 
@@ -138,6 +142,10 @@ class EmailVerificationBoundaryTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if ($role === 'student') {
+            StudentProfile::factory()->create(['user_id' => $user->id]);
+        }
 
         return $user;
     }

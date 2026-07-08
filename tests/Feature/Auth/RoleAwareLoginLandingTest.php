@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -159,6 +160,10 @@ class RoleAwareLoginLandingTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if ($role === 'student') {
+            StudentProfile::factory()->create(['user_id' => $user->id]);
+        }
 
         return $user;
     }
