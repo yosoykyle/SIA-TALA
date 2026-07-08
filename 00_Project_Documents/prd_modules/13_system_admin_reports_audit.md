@@ -395,6 +395,16 @@ TALA must support retention categories and disposal controls.
 9. V1 tracks retention categories and supports manual disposal review.
 10. Automated disposal jobs are deferred unless the institution explicitly requires them.
 
+#### 13.7.5 Record Accessibility and Archival Tiers
+
+1. Retention is driven by record category and retention period, not by batch or age alone. A record being old or from a previous batch is not by itself a reason to make it inaccessible or to dispose of it.
+2. Permanent and long-term records (13.7.1) remain directly accessible in the system indefinitely, including for alumni and historical requests. They are never moved to offline storage that the operational system cannot reach.
+3. Archive-after-review records (13.7.2) may be moved to a quieter archived state after their active-use and institutional review period, but must remain retrievable while under any institutional, legal, audit, or active-workflow hold.
+4. Short-operational records (13.7.3) are disposed after their retention period through the manual disposal review (13.7.4).
+5. V1 archival is a soft, in-database state: archived records are hidden from normal and student-facing views but remain queryable by authorized staff for audit and history. Physically relocating records out of the operational database is not required in V1.
+6. Backup (disaster recovery) and archival (long-term retention) are distinct. Backup handling is defined in the architecture specification and does not change how the application accesses live records.
+7. Physical or offline archival storage, an archive-management interface, and automated cold-storage export are deferred future enhancements, not V1 scope.
+
 ---
 
 ### 13.8. Administration, Import, Report, and Audit Interaction Contract
