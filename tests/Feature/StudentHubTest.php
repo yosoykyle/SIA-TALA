@@ -20,8 +20,8 @@ class StudentHubTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Role::create(['name' => 'student']);
-        Role::create(['name' => 'applicant']);
+        Role::findOrCreate('student', 'web');
+        Role::findOrCreate('applicant', 'web');
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
     }

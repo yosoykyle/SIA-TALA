@@ -25,7 +25,7 @@ class TAL72GradesFilamentTest extends TestCase
         parent::setUp();
 
         foreach (['registrar', 'faculty', 'academic-head', 'student'] as $role) {
-            Role::create(['name' => $role]);
+            Role::findOrCreate($role, 'web');
         }
     }
 

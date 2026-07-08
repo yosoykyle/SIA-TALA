@@ -46,7 +46,7 @@ class TAL72GradesMvpTest extends TestCase
         parent::setUp();
 
         foreach (['registrar', 'faculty', 'academic-head', 'student'] as $role) {
-            Role::create(['name' => $role]);
+            Role::findOrCreate($role, 'web');
         }
     }
 

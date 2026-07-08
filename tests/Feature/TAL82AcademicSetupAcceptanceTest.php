@@ -29,7 +29,7 @@ class TAL82AcademicSetupAcceptanceTest extends TestCase
         parent::setUp();
 
         foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleAccounting, User::StaffRoleFaculty, User::StaffRoleSystemSuperAdmin] as $role) {
-            Role::create(['name' => $role]);
+            Role::findOrCreate($role, 'web');
         }
     }
 
