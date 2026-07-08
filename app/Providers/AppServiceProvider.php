@@ -21,6 +21,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumSubject;
 use App\Models\CurriculumVersion;
 use App\Models\DeliveryPattern;
+use App\Models\DisposalReview;
 use App\Models\DuplicateProfileResolution;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
@@ -52,6 +53,7 @@ use App\Policies\CoursePolicy;
 use App\Policies\CourseSpecificationPolicy;
 use App\Policies\CurriculumVersionPolicy;
 use App\Policies\DeliveryPatternPolicy;
+use App\Policies\DisposalReviewPolicy;
 use App\Policies\DuplicateProfileResolutionPolicy;
 use App\Policies\FacultyQualificationPolicy;
 use App\Policies\FacultyTermLoadOverridePolicy;
@@ -181,6 +183,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(CurriculumVersion::class, CurriculumVersionPolicy::class);
         Gate::policy(ImportBatch::class, ImportBatchPolicy::class);
         Gate::policy(DuplicateProfileResolution::class, DuplicateProfileResolutionPolicy::class);
+        Gate::policy(DisposalReview::class, DisposalReviewPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
 

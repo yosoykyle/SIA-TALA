@@ -15,6 +15,7 @@ use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Resources\DisposalReviews\DisposalReviewResource;
 use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
@@ -127,6 +128,7 @@ class AdminPanelProvider extends PanelProvider
                 StudentProfileResource::class,
                 StudentLifecycleChangeResource::class,
                 DuplicateProfileResolutionResource::class,
+                DisposalReviewResource::class,
             ])
             ->pages([
                 Dashboard::class,
