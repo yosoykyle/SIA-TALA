@@ -1,0 +1,1741 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$curriculum_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$curriculum_period\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$last_blocker_hash\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$last_transition_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$last_transition_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$academic_subject_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$curriculum_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$delivery_rule_override\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$scheduling_group\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$semester\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$weekly_contact_hours\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumSubject\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Section\:\:\$curriculum_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Section\:\:\$curriculum_period\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Section\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, int\|string\>\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/AcademicFoundation/CurriculumScopeReadinessService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$capacity_limit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$reserved_count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$scope_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Enrollment\:\:\$modality\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Enrollment\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int\<0, max\> and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Actions/Enrollment/AdmissionCapacityReservationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$capacity_limit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$reserved_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$enrollment_ends_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$enrollment_starts_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$payment_deadline\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Method App\\Actions\\Enrollment\\AdmissionFinanceReadinessGateService\:\:activePolicyCount\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Method App\\Actions\\Enrollment\\AdmissionFinanceReadinessGateService\:\:publishedOfferingCount\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Result of \|\| is always false\.$#'
+			identifier: booleanOr.alwaysFalse
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int\<0, max\> and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between int\<0, max\> and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 2
+			path: app/Actions/Enrollment/AdmissionFinanceReadinessGateService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$capacity_limit\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$reserved_count\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$program_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$published_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionRequirementPolicy\:\:\$documentRequirementItems\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionRequirementPolicy\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$enrollment_starts_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$payment_deadline\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Method App\\Actions\\Enrollment\\AdmissionReadinessDashboardService\:\:activePolicies\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\AdmissionRequirementPolicy\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\AdmissionRequirementPolicy\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Enrollment/AdmissionReadinessDashboardService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$hard_copy_received\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Enrollment/EnrollmentHardCopyReceiptService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$approved_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$enrollment_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$student_profile_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$expiry_warning_sent_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
+
+		-
+			message: '#^Instanceof between App\\Models\\User and Illuminate\\Contracts\\Auth\\MustVerifyEmail will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Actions/Fortify/UpdateUserProfileInformation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$final_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$grade\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$inc_expires_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_inc\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$midterm_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$prelim_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$remarks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$academic_head_review_note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$grade_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Parameter \$academicHead of method App\\Actions\\Grades\\GradeCorrectionService\:\:recordGradeChangeAudit\(\) expects App\\Models\\User, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Grades/GradeCorrectionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeEncodingService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeEncodingService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeEncodingService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeEncodingService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$enrollment_subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$final_grade\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$grade\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$inc_expires_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_inc\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$midterm_grade\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$prelim_grade\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$remarks\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Actions/Grades/GradeFinalizationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$final_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$inc_expires_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_inc\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$midterm_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$prelim_grade\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$remarks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$section_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$state\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$grade_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Grades/GradeSubmissionPackageService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>term_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Integrations/Payments/PayMongoWebhookProcessor.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$applicant_intake_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Registrar/DocumentUploadReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$document_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Registrar/DocumentUploadReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$registrar_approved_payload\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Registrar/DocumentUploadReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$conflict_payload\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$generation_run_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$modality\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$section_delivery_group_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$section_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$warning_payload\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$allowed_days\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$cloned_from_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$default_room_required\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$enforcement_level\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$is_frozen\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$modality\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$subject_routing\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$used_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$version\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Call to an undefined static method App\\Models\\SectionDeliveryGroup\:\:modalityRequiresRoom\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>allowed_days" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>created_by" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>default_room_required" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>enforcement_level" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>is_active" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>is_frozen" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>subject_routing" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>version" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/DeliveryPatternService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$creates_submission_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$submission_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$version\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\FacultyAvailabilitySubmission\>\:\:\$availability_period_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\FacultyAvailabilitySubmission\>\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\FacultyAvailabilitySubmission\>\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$day_of_week\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ends_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$notes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$starts_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityChangeRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$closes_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$opens_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$scheduling_starts_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$term_end_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$term_start_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>created_by" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Scheduling/FacultyAvailabilityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Section\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$assigned_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$capacity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$room\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$room_required\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\SectionDeliveryGroup\:\:StatusActive\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
+			identifier: classConstant.notFound
+			count: 2
+			path: app/Filament/Resources/AdmissionRequirementPolicies/Schemas/AdmissionRequirementPolicyForm.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusDraft\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Filament/Resources/AdmissionRequirementPolicies/Schemas/AdmissionRequirementPolicyForm.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Filament/Resources/AdmissionRequirementPolicies/Tables/AdmissionRequirementPoliciesTable.php
+
+		-
+			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusRetired\.$#'
+			identifier: classConstant.notFound
+			count: 1
+			path: app/Filament/Resources/AdmissionRequirementPolicies/Tables/AdmissionRequirementPoliciesTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumForm.php
+
+		-
+			message: '#^Call to an undefined static method App\\Models\\Section\:\:curriculumPeriodOptions\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumForm.php
+
+		-
+			message: '#^Call to an undefined static method App\\Models\\Section\:\:yearLevelOptions\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$curriculum_period\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$semester\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$subject\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: string, Closure\(App\\Models\\CurriculumReadinessScope\)\: string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/Curriculums/Schemas/CurriculumInfolist.php
+
+		-
+			message: '#^Call to an undefined static method App\\Models\\Section\:\:curriculumPeriodOptions\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Tables/CurriculumsTable.php
+
+		-
+			message: '#^Call to an undefined static method App\\Models\\Section\:\:yearLevelOptions\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Filament/Resources/Curriculums/Tables/CurriculumsTable.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Filament/Resources/Curriculums/Tables/CurriculumsTable.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type App\\Models\\User\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/Curriculums/Tables/CurriculumsTable.php
+
+		-
+			message: '#^Parameter \#2 \$deliveryPattern of method App\\Actions\\Scheduling\\DeliveryPatternService\:\:prepareForSave\(\) expects App\\Models\\DeliveryPattern\|null, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/DeliveryPatterns/Pages/EditDeliveryPattern.php
+
+		-
+			message: '#^Relation ''admissionOffering'' is not found in App\\Models\\AdmissionRequirementPolicy model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Filament/Resources/DocumentRequirementItems/Schemas/DocumentRequirementItemForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/DocumentUploads/Schemas/DocumentUploadInfolist.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/DocumentUploads/Tables/DocumentUploadsTable.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:assignedToFaculty\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/EnrollmentSubjectResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\EnrollmentSubject\:\:\$enrollment_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\EnrollmentSubject\:\:\$subject_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$section_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$student_profile_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilityChangeRequests/Schemas/FacultyAvailabilityChangeRequestForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$version\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilityChangeRequests/Schemas/FacultyAvailabilityChangeRequestForm.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilityChangeRequests/Schemas/FacultyAvailabilityChangeRequestForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$scheduling_starts_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilityPeriods/Schemas/FacultyAvailabilityPeriodForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Term\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilityPeriods/Schemas/FacultyAvailabilityPeriodForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$closes_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilitySubmissions/Schemas/FacultyAvailabilitySubmissionForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$opens_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilitySubmissions/Schemas/FacultyAvailabilitySubmissionForm.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilitySubmissions/Schemas/FacultyAvailabilitySubmissionForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultyAvailabilitySubmissions/Tables/FacultyAvailabilitySubmissionsTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultySubjectEligibilities/Schemas/FacultySubjectEligibilityForm.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/FacultySubjectEligibilities/Schemas/FacultySubjectEligibilityForm.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:role\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/FacultySubjectEligibilities/Schemas/FacultySubjectEligibilityForm.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleToFaculty\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/GradeCorrections/GradeCorrectionResource.php
+
+		-
+			message: '#^Parameter \#1 \$enrollment of static method App\\Models\\PromissoryNote\:\:enrollmentOptionLabel\(\) expects App\\Models\\Enrollment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PromissoryNotes/Schemas/PromissoryNoteInfolist.php
+
+		-
+			message: '#^Parameter \#1 \$ledgerEntry of static method App\\Models\\PromissoryNote\:\:ledgerEntryOptionLabel\(\) expects App\\Models\\LedgerEntry, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PromissoryNotes/Schemas/PromissoryNoteInfolist.php
+
+		-
+			message: '#^Parameter \#1 \$enrollment of static method App\\Models\\PromissoryNote\:\:enrollmentOptionLabel\(\) expects App\\Models\\Enrollment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
+
+		-
+			message: '#^Parameter \#1 \$ledgerEntry of static method App\\Models\\PromissoryNote\:\:ledgerEntryOptionLabel\(\) expects App\\Models\\LedgerEntry, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$delivery_setup\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionCapacityPlan.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$scope_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/AdmissionCapacityPlan.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionCapacityPlan\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionCapacityPlan.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionCapacityPlan.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionCapacityPlan.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionOffering.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionOffering.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionOffering.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AdmissionOffering.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/CurriculumReadinessScope.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$is_frozen\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeliveryPattern.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeliveryPattern.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$used_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeliveryPattern.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeliveryPattern\:\:\$version\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeliveryPattern.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentRequirementItem\:\:\$key\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DocumentRequirementItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentRequirementItem\:\:\$label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DocumentRequirementItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/DocumentUpload.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\EnrollmentSubject\:\:\$is_dropped\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/EnrollmentSubject.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\EnrollmentSubject\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/EnrollmentSubject.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FacultyAvailabilityChangeRequest.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityPeriod\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FacultyAvailabilityPeriod.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FacultyAvailabilitySubmission.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FaqEntry\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FaqEntry.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FaqEntry\:\:\$updated_by\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/FaqEntry.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FeeTemplate\:\:\$program_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/FeeTemplate.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FeeTemplate\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/FeeTemplate.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FeeTemplate.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:accountingScopeAttributes\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/FeeTemplate.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:normalizeAccountingScope\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/FeeTemplate.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$academic_head_review_status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/GradeCorrection.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$academic_head_reviewed_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/GradeCorrection.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$academic_head_reviewed_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/GradeCorrection.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$grade_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/GradeCorrection.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/GradeCorrection.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\InstallmentPolicy\:\:\$program_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/InstallmentPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\InstallmentPolicy\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/InstallmentPolicy.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/InstallmentPolicy.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:accountingScopeAttributes\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/InstallmentPolicy.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:normalizeAccountingScope\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/InstallmentPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$student_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/PromissoryNote.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$year_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/PromissoryNote.php
+
+		-
+			message: '#^Method App\\Policies\\CorVerificationPolicy\:\:canAny\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Policies/CorVerificationPolicy.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/EnrollmentSubjectPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilityChangeRequest\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/FacultyAvailabilityChangeRequestPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultyAvailabilitySubmission\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/FacultyAvailabilitySubmissionPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FacultySubjectEligibility\:\:\$faculty_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/FacultySubjectEligibilityPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$grade_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/GradeCorrectionPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeCorrection\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/GradeCorrectionPolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Grade\:\:\$is_finalized\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Policies/GradePolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GradeSubmissionPackage\:\:\$state\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Policies/GradeSubmissionPackagePolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Policies/PromissoryNotePolicy.php
