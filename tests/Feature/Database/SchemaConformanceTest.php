@@ -10,7 +10,7 @@ final class SchemaConformanceTest extends TestCase
 {
     private const PLATFORM_TABLES = [
         'activity_log', 'cache', 'cache_locks', 'failed_jobs', 'job_batches', 'jobs',
-        'migrations', 'model_has_permissions', 'model_has_roles', 'passkeys',
+        'migrations', 'model_has_permissions', 'model_has_roles', 'notifications', 'passkeys',
         'password_reset_tokens', 'permissions', 'role_has_permissions', 'roles',
         'sessions', 'users', 'webhook_calls',
     ];
@@ -20,7 +20,7 @@ final class SchemaConformanceTest extends TestCase
         'assessment_lines', 'assessments', 'calendar_events', 'candidate_schedule_rows',
         'checklist_items', 'course_components', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
-        'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
+        'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
         'faculty_qualifications', 'faculty_term_load_overrides', 'fee_rules',
         'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
@@ -52,9 +52,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(58, self::APPLICATION_TABLES);
-        $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(75, $actual);
+        $this->assertCount(59, self::APPLICATION_TABLES);
+        $this->assertCount(18, self::PLATFORM_TABLES);
+        $this->assertCount(77, $actual);
         $this->assertSame($expected, $actual);
     }
 

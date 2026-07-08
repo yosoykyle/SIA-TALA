@@ -95,6 +95,8 @@ Notification scope rules:
 5. Grade-release notifications are sent only to the affected student.
 6. V1 notification delivery uses direct email to affected users.
 
+> **V1 implementation note (recorded 2026-07-08, TAL-92F):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 configurable record #17) are a post-MVP administration enhancement, not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps) is captured by the `operational_events` monitoring surface built in TAL-92D. (The student-facing Student Hub priority notices in TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production alert triggers that depend on external integrations — Payment Received (PayMongo) and Schedule Released (CP-SAT scheduler) — are wired as those integrations are hardened in TAL-95 and TAL-94 respectively.
+
 ---
 
 ### 13.3. Reports
@@ -156,7 +158,7 @@ The system provides standardized CSV exports for the legacy three-way parity aud
 
 #### 13.3.4 Admin / Audit Reports
 
-> **Deferral note (approved 2026-07-08):** the items below beyond the fixed operational catalog already implemented under TAL-92A are deferred to later sub-slices rather than built here: Sensitive Access Audit / Document Access Audit / Login-Session Audit distinct breakdowns → TAL-92B; Solver Run History → TAL-94; PayMongo Webhook Event Log → TAL-95; Privacy Request Log → TAL-92F (no source record exists yet).
+> **Deferral note (approved 2026-07-08):** the items below beyond the fixed operational catalog already implemented under TAL-92A are deferred to later sub-slices rather than built here: Sensitive Access Audit / Document Access Audit / Login-Session Audit distinct breakdowns → TAL-92B; Solver Run History → TAL-94; PayMongo Webhook Event Log → TAL-95; Privacy Request Log → deferred to new post-MVP issue TAL-99 (Data-Subject Privacy Request Handling & Log, RA 10173 §16). Assessed during TAL-92F: no source record exists; data-subject-request handling is a DPO-owned manual/hybrid process (RA 10173 §16 rights — access, rectification, erasure/blocking, object, data portability, complaint); RA 10173 and its IRR mandate no specific in-system request-log UI; no MVP slice depends on it; access-request evidence is already partly served by `activity_log` + `output_access_logs`, and the erasure/blocking right routes through the TAL-92E hold-aware disposal-review ledger and the TAL-98 archival scope.
 
 1. User and Role Report
 2. Sensitive Access Audit
