@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Reports\ExportOperationalReport;
 use App\Actions\Reports\OperationalReportService;
 use App\Filament\Pages\ReportsAudit;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
 use App\Models\FinancialAccommodation;
@@ -78,7 +79,7 @@ class TAL75ReportsAuditTest extends TestCase
 
         $this->assertCount(6, $reports->optionsFor($this->user(User::StaffRoleRegistrar)));
         $this->assertCount(5, $reports->optionsFor($this->user(User::StaffRoleAccounting)));
-        $this->assertCount(9, $reports->optionsFor($this->user(User::StaffRoleAcademicHead)));
+        $this->assertCount(11, $reports->optionsFor($this->user(User::StaffRoleAcademicHead)));
         $this->assertCount(5, $reports->optionsFor($this->user(User::StaffRoleSystemSuperAdmin)));
         $this->assertSame([], $reports->optionsFor($this->user('student')));
         $this->assertSame([], $reports->optionsFor($this->user('applicant')));
@@ -182,6 +183,64 @@ class TAL75ReportsAuditTest extends TestCase
 
         $this->expectException(AuthorizationException::class);
         $reports->query(OperationalReportService::StudentLedger, $academicHead);
+    }
+
+    #[Test]
+    public function curriculum_version_report_is_program_and_status_filterable_and_academic_head_scoped(): void
+    {
+        $academicHead = $this->user(User::StaffRoleAcademicHead);
+        $program = Program::factory()->create();
+        $otherProgram = Program::factory()->create();
+        $included = CurriculumVersion::factory()->for($program)->create([
+            'state' => CurriculumVersion::StateActive,
+        ]);
+        CurriculumVersion::factory()->for($program)->create([
+            'state' => CurriculumVersion::StateDraft,
+        ]);
+        CurriculumVersion::factory()->for($otherProgram)->create([
+            'state' => CurriculumVersion::StateActive,
+        ]);
+        $reports = app(OperationalReportService::class);
+
+        $filtered = $reports->applyFilters(
+            OperationalReportService::AcademicCurriculumVersion,
+            $reports->query(OperationalReportService::AcademicCurriculumVersion, $academicHead),
+            ['program_id' => $program->id, 'status' => CurriculumVersion::StateActive],
+        )->get();
+
+        $this->assertSame([$included->id], $filtered->pluck('id')->all());
+
+        $accounting = $this->user(User::StaffRoleAccounting);
+        $this->expectException(AuthorizationException::class);
+        $reports->query(OperationalReportService::AcademicCurriculumVersion, $accounting);
+    }
+
+    #[Test]
+    public function academic_head_gains_graduation_snapshot_visibility_without_affecting_other_roles(): void
+    {
+        $registrar = $this->user(User::StaffRoleRegistrar);
+        $academicHead = $this->user(User::StaffRoleAcademicHead);
+        $accounting = $this->user(User::StaffRoleAccounting);
+        $reports = app(OperationalReportService::class);
+
+        $this->assertArrayHasKey(OperationalReportService::GraduationSnapshot, $reports->optionsFor($registrar));
+        $this->assertArrayHasKey(OperationalReportService::GraduationSnapshot, $reports->optionsFor($academicHead));
+        $this->assertArrayNotHasKey(OperationalReportService::GraduationSnapshot, $reports->optionsFor($accounting));
+
+        $reports->query(OperationalReportService::GraduationSnapshot, $registrar)->limit(1)->get();
+        $reports->query(OperationalReportService::GraduationSnapshot, $academicHead)->limit(1)->get();
+        $this->addToAssertionCount(2);
+
+        $export = app(ExportOperationalReport::class)->execute(
+            $academicHead,
+            OperationalReportService::GraduationSnapshot,
+            [],
+            'Academic Head graduation eligibility review.',
+        );
+        $this->assertStringContainsString('Student No.', $this->streamedContent($export));
+
+        $this->expectException(AuthorizationException::class);
+        $reports->query(OperationalReportService::GraduationSnapshot, $accounting);
     }
 
     #[Test]

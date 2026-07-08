@@ -156,6 +156,8 @@ The system provides standardized CSV exports for the legacy three-way parity aud
 
 #### 13.3.4 Admin / Audit Reports
 
+> **Deferral note (approved 2026-07-08):** the items below beyond the fixed operational catalog already implemented under TAL-92A are deferred to later sub-slices rather than built here: Sensitive Access Audit / Document Access Audit / Login-Session Audit distinct breakdowns → TAL-92B; Solver Run History → TAL-94; PayMongo Webhook Event Log → TAL-95; Privacy Request Log → TAL-92F (no source record exists yet).
+
 1. User and Role Report
 2. Sensitive Access Audit
 3. Document Access Audit
@@ -177,6 +179,8 @@ The system provides standardized CSV exports for the legacy three-way parity aud
 6. Report downloads must be auditable.
 
 #### 13.3.6 Report Export Audit Contract
+
+> **Implementation note (reconciled 2026-07-08):** this contract is persisted in the existing unified `output_access_logs` table (`output_type = 'REPORT'`, `action = 'EXPORT'`) rather than a separate `report_export_log` table. "Export Format" is implicitly `CSV` in v1, since no other export format exists. "Hidden Fields Excluded" is enforced structurally by the fixed per-report column allow-list in `OperationalReportService::columns()` rather than a stored boolean field.
 
 Every CSV export creates one `report_export_log` record.
 

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Reports;
 
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
 use App\Models\EnrollmentSeatReservation;
@@ -83,6 +84,8 @@ class OperationalReportService
     public const LateGradeAuthorization = 'academic.late-grade-authorization';
 
     public const UnitLoadException = 'academic.unit-load-exception';
+
+    public const AcademicCurriculumVersion = 'academic.curriculum-version';
 
     public const UserRole = 'audit.user-role';
 
@@ -193,6 +196,7 @@ class OperationalReportService
                 LateGradeAuthorization::StateExpired => 'Expired',
                 LateGradeAuthorization::StateRevoked => 'Revoked',
             ],
+            self::AcademicCurriculumVersion => CurriculumVersion::stateOptions(),
             self::UserRole => [
                 User::StatusActive => 'Active',
                 User::StatusInactive => 'Inactive',
@@ -390,6 +394,16 @@ class OperationalReportService
                 $this->column('subject', 'Source Record', resolver: 'activity_subject'),
                 $this->column('log_name', 'Log', 'log_name'),
             ],
+            self::AcademicCurriculumVersion => [
+                $this->column('program', 'Program', 'program.code'),
+                $this->column('version_code', 'Version Code', 'version_code'),
+                $this->column('name', 'Name', 'name'),
+                $this->column('effective_entry_term', 'Effective Entry Term', 'effectiveEntryTerm.label'),
+                $this->column('state', 'State', 'state', badge: true),
+                $this->column('approval_reference', 'Approval Reference', 'approval_reference'),
+                $this->column('approver', 'Approved By', 'approver.name'),
+                $this->column('approved_at', 'Approved At', 'approved_at', 'datetime'),
+            ],
             self::GeneratedOutput => $this->outputAuditColumns(),
             self::ReportExport => $this->outputAuditColumns(includeFilterSummary: true),
             self::IntegrationEvent => [
@@ -513,6 +527,9 @@ class OperationalReportService
                 ->with(['studentProfile.program', 'term.academicYear', 'approver'])
                 ->where('exception_type', EnrollmentException::TypeUnitLoad)
                 ->latest('approved_at'),
+            self::AcademicCurriculumVersion => CurriculumVersion::query()
+                ->with(['program', 'effectiveEntryTerm.academicYear', 'approver'])
+                ->latest('id'),
             self::UserRole => User::query()->with('roles')->latest('id'),
             self::ActivityLog => Activity::query()->with(['causer', 'subject'])->latest('id'),
             self::GeneratedOutput => OutputAccessLog::query()
@@ -659,6 +676,7 @@ class OperationalReportService
             self::IncCompletion => $this->definitionRow('INC Completion / Removal List', 'Current INC outcomes and preserved INC resolution history.', self::SensitivityStudentData, $studentFilters),
             self::LateGradeAuthorization => $this->definitionRow('Late Grade Encoding Authorization List', 'Scoped late grade windows and approving authority.', self::SensitivitySensitive, ['academic_year_id', 'term_id', 'section_id', 'status', 'date_from', 'date_until', 'actor_id']),
             self::UnitLoadException => $this->definitionRow('Student Unit Load Exception List', 'Approved unit-load exceptions from the consolidated enrollment exception source.', self::SensitivityStudentData, $studentFilters),
+            self::AcademicCurriculumVersion => $this->definitionRow('Curriculum Version Report', 'Curriculum versions with program scope, approval reference, and approval authority.', self::SensitivityNormal, ['program_id', 'status']),
             self::UserRole => $this->definitionRow('User and Role Report', 'Application identities, canonical roles, and account status.', self::SensitivitySensitive, ['status', 'date_from', 'date_until']),
             self::ActivityLog => $this->definitionRow('Activity / Audit Log', 'Read-only high-risk application activity from the existing activity-log source.', self::SensitivitySensitive, ['date_from', 'date_until', 'actor_id']),
             self::GeneratedOutput => $this->definitionRow('Generated Output Access Audit', 'Official output view, print, download, and export evidence.', self::SensitivitySensitive, ['date_from', 'date_until', 'actor_id', 'output_type', 'sensitivity', 'source_record_id']),
@@ -786,6 +804,7 @@ class OperationalReportService
             self::PendingGrade => 'courseEnrollment.enrollment.studentProfile.program',
             self::IncCompletion => 'courseEnrollment.enrollment.studentProfile.program',
             self::UnitLoadException => 'studentProfile.program',
+            self::AcademicCurriculumVersion => 'program',
         ];
     }
 
@@ -811,6 +830,7 @@ class OperationalReportService
             self::ProgressionException => 'state', self::PendingGrade => 'current_outcome_category',
             self::IncCompletion => 'current_outcome_category', self::LateGradeAuthorization => 'state',
             self::UnitLoadException => 'state', self::UserRole => 'status',
+            self::AcademicCurriculumVersion => 'state',
         ];
     }
 
@@ -829,6 +849,7 @@ class OperationalReportService
             self::LateGradeAuthorization => 'opens_at', self::UnitLoadException => 'approved_at',
             self::UserRole => 'created_at', self::ActivityLog => 'created_at', self::GeneratedOutput => 'occurred_at',
             self::ReportExport => 'occurred_at', self::IntegrationEvent => 'occurred_at',
+            self::AcademicCurriculumVersion => 'approved_at',
         ];
     }
 
@@ -843,6 +864,7 @@ class OperationalReportService
             self::GradeCorrection => 'recorded_by', self::LateGradeAuthorization => 'approved_by',
             self::ActivityLog => 'causer_id', self::GeneratedOutput => 'actor_user_id',
             self::ReportExport => 'actor_user_id', self::IntegrationEvent => 'user_id',
+            self::AcademicCurriculumVersion => 'approved_by',
         ];
     }
 
