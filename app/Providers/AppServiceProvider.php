@@ -10,6 +10,7 @@ use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Listeners\LogAuthenticationActivity;
 use App\Models\AcademicYear;
 use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
@@ -71,7 +72,11 @@ use App\Policies\SectionPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Policies\TermPolicy;
 use App\Support\DecimalMoney;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -175,6 +180,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(DuplicateProfileResolution::class, DuplicateProfileResolutionPolicy::class);
 
         CurriculumSubject::observe(CurriculumSubjectObserver::class);
+
+        Event::listen(Login::class, [LogAuthenticationActivity::class, 'handleLogin']);
+        Event::listen(Logout::class, [LogAuthenticationActivity::class, 'handleLogout']);
+        Event::listen(Failed::class, [LogAuthenticationActivity::class, 'handleFailed']);
 
         Blade::component('layouts.guest', 'guest-layout');
         Blade::component('layouts.app', 'app-layout');

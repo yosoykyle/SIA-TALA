@@ -24,12 +24,26 @@ class ResolveHold
             if ($locked->status !== Hold::StatusActive) {
                 return $locked;
             }
+            $statusBefore = $locked->status;
             $locked->update([
                 'status' => Hold::StatusResolved,
                 'resolved_by' => $actor->id,
                 'resolved_at' => now(),
                 'staff_only_reason' => trim(collect([$locked->staff_only_reason, 'Resolution evidence: '.$evidence])->filter()->implode("\n")),
             ]);
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('hold_resolved')
+                ->withProperties([
+                    'hold_type' => $locked->hold_type,
+                    'blocking_level' => $locked->blocking_level,
+                    'evidence' => $evidence,
+                    'status_before' => $statusBefore,
+                    'status_after' => Hold::StatusResolved,
+                ])
+                ->log('Hold resolved');
 
             return $locked->refresh();
         }, attempts: 3);

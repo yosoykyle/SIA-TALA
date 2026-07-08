@@ -334,6 +334,8 @@ MVP audit scope:
 
 V1 audit focuses on official-record changes, sensitive output access, and high-risk exports.
 
+> **Implementation note (recorded 2026-07-08):** V1 audit immutability is enforced at the application layer only — the read-only `ActivityPolicy` (no `update`/`delete`/`restore`/`forceDelete`) and `ActivityResource::canCreate() = false` prevent staff-surface tampering with audit records. There is no database-level append-only or tamper-evident storage (e.g., write-once constraints, hash chaining) for the `activity_log` table in V1. DB-level tamper-evidence hardening is deferred to TAL-93.
+
 ---
 
 ### 13.7. Retention and Disposal

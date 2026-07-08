@@ -29,12 +29,27 @@ class WaiveHold
             if ($locked->status !== Hold::StatusActive) {
                 return $locked;
             }
+            $statusBefore = $locked->status;
             $locked->update([
                 'status' => Hold::StatusWaived,
                 'waived_by' => $actor->id,
                 'waived_at' => now(),
                 'staff_only_reason' => trim(collect([$locked->staff_only_reason, "Waived by authority [$authority]: $reason"])->filter()->implode("\n")),
             ]);
+
+            activity()
+                ->performedOn($locked)
+                ->causedBy($actor)
+                ->event('hold_waived')
+                ->withProperties([
+                    'hold_type' => $locked->hold_type,
+                    'blocking_level' => $locked->blocking_level,
+                    'authority' => $authority,
+                    'reason' => $reason,
+                    'status_before' => $statusBefore,
+                    'status_after' => Hold::StatusWaived,
+                ])
+                ->log('Hold waived');
 
             return $locked->refresh();
         }, attempts: 3);

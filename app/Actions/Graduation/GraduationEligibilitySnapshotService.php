@@ -67,7 +67,7 @@ class GraduationEligibilitySnapshotService
                 ->lockForUpdate()
                 ->max('version') + 1;
 
-            return GraduationSnapshot::query()->create([
+            $snapshot = GraduationSnapshot::query()->create([
                 'graduation_review_member_id' => $locked->id,
                 'version' => $version,
                 'result_status' => $payload['result_status'],
@@ -75,6 +75,19 @@ class GraduationEligibilitySnapshotService
                 'generated_by' => $actor->id,
                 'generated_at' => now(),
             ]);
+
+            activity()
+                ->performedOn($snapshot)
+                ->causedBy($actor)
+                ->event('graduation_snapshot_generated')
+                ->withProperties([
+                    'graduation_review_member_id' => $locked->id,
+                    'version' => $snapshot->version,
+                    'result_status' => $snapshot->result_status,
+                ])
+                ->log('Graduation Eligibility Snapshot refreshed');
+
+            return $snapshot;
         }, attempts: 3);
     }
 

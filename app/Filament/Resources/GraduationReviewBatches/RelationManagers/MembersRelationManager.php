@@ -63,7 +63,18 @@ class MembersRelationManager extends RelationManager
                         'added_by' => auth()->id(),
                         'added_at' => now(),
                         'is_active' => true,
-                    ]),
+                    ])
+                    ->after(function (GraduationReviewMember $record): void {
+                        activity()
+                            ->performedOn($record)
+                            ->causedBy(auth()->user())
+                            ->event('graduation_review_member_added')
+                            ->withProperties([
+                                'graduation_review_batch_id' => $record->graduation_review_batch_id,
+                                'student_profile_id' => $record->student_profile_id,
+                            ])
+                            ->log('Graduation Review member added');
+                    }),
             ])
             ->recordActions([
                 Action::make('refreshSnapshot')
@@ -84,12 +95,26 @@ class MembersRelationManager extends RelationManager
                     ->action(function (array $data, GraduationReviewMember $record): void {
                         $snapshot = $this->latestSnapshot($record);
                         Gate::authorize('updateVisibility', $snapshot);
+                        $visibleBefore = $snapshot->made_visible_at !== null;
 
                         $snapshot->update([
                             'made_visible_by' => auth()->id(),
                             'made_visible_at' => now(),
                             'visibility_reason' => $data['visibility_reason'],
                         ]);
+
+                        activity()
+                            ->performedOn($snapshot)
+                            ->causedBy(auth()->user())
+                            ->event('graduation_snapshot_visibility_changed')
+                            ->withProperties([
+                                'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                                'visibility_reason' => $data['visibility_reason'],
+                                'visible_before' => $visibleBefore,
+                                'visible_after' => true,
+                            ])
+                            ->log('Graduation Eligibility Snapshot made visible to student');
+
                         Notification::make()->title('Snapshot visibility updated')->success()->send();
                     }),
                 Action::make('hideVisible')
@@ -100,16 +125,45 @@ class MembersRelationManager extends RelationManager
                     ->action(function (GraduationReviewMember $record): void {
                         $snapshot = $this->latestSnapshot($record);
                         Gate::authorize('updateVisibility', $snapshot);
+                        $visibilityReason = 'Hidden by Registrar.';
 
                         $snapshot->update([
                             'made_visible_by' => auth()->id(),
                             'made_visible_at' => null,
-                            'visibility_reason' => 'Hidden by Registrar.',
+                            'visibility_reason' => $visibilityReason,
                         ]);
+
+                        activity()
+                            ->performedOn($snapshot)
+                            ->causedBy(auth()->user())
+                            ->event('graduation_snapshot_visibility_changed')
+                            ->withProperties([
+                                'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                                'visibility_reason' => $visibilityReason,
+                                'visible_before' => true,
+                                'visible_after' => false,
+                            ])
+                            ->log('Graduation Eligibility Snapshot hidden from student');
+
                         Notification::make()->title('Snapshot hidden from Student Hub')->success()->send();
                     }),
                 DeleteAction::make()
-                    ->action(fn (GraduationReviewMember $record): bool => $record->update(['is_active' => false])),
+                    ->action(function (GraduationReviewMember $record): bool {
+                        $updated = $record->update(['is_active' => false]);
+
+                        activity()
+                            ->performedOn($record)
+                            ->causedBy(auth()->user())
+                            ->event('graduation_review_member_removed')
+                            ->withProperties([
+                                'graduation_review_batch_id' => $record->graduation_review_batch_id,
+                                'student_profile_id' => $record->student_profile_id,
+                                'is_active_after' => false,
+                            ])
+                            ->log('Graduation Review member removed');
+
+                        return $updated;
+                    }),
             ])
             ->toolbarActions([
                 BulkAction::make('refreshSelectedSnapshots')

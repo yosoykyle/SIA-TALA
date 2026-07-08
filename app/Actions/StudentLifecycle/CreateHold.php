@@ -11,7 +11,6 @@ use RuntimeException;
 
 class CreateHold
 {
-    /** @param array<string,mixed> $data */
     public function execute(StudentProfile $studentProfile, array $data, User $actor): Hold
     {
         $holdType = (string) ($data['hold_type'] ?? '');
@@ -26,13 +25,29 @@ class CreateHold
             }
         }
 
-        return DB::transaction(fn (): Hold => Hold::query()->create([
-            ...$data,
-            'student_profile_id' => $studentProfile->id,
-            'created_by' => $actor->id,
-            'status' => Hold::StatusActive,
-            'effective_at' => $data['effective_at'] ?? now(),
-        ]), attempts: 3);
+        return DB::transaction(function () use ($studentProfile, $data, $actor): Hold {
+            $hold = Hold::query()->create([
+                ...$data,
+                'student_profile_id' => $studentProfile->id,
+                'created_by' => $actor->id,
+                'status' => Hold::StatusActive,
+                'effective_at' => $data['effective_at'] ?? now(),
+            ]);
+
+            activity()
+                ->performedOn($hold)
+                ->causedBy($actor)
+                ->event('hold_created')
+                ->withProperties([
+                    'hold_type' => $hold->hold_type,
+                    'blocking_level' => $hold->blocking_level,
+                    'reason' => $hold->reason,
+                    'status_after' => $hold->status,
+                ])
+                ->log('Hold created');
+
+            return $hold;
+        }, attempts: 3);
     }
 
     private function ownsType(User $actor, string $holdType): bool
