@@ -35,6 +35,10 @@ Item 9 of the reading order (migrations, models, services, policies, routes, Fil
 
 This does not replace or duplicate the benchmark/implementation-fit gate, the overlap assessment gate, or the Authority Document Correction rule — it governs how item 9 evidence specifically is read and classified before those gates and rules are applied.
 
+### Ground-Truth Gate
+
+Applies at planning, before proceeding (re-confirm the exact files about to change), and when orchestrating (carried in the handoff packet and confirmed in the handshake). For every model, table, resource, service, or column in scope, verify BOTH sides with cited evidence before classifying or acting: (1) what exists in the running system - `Schema::hasTable` on `test_tala_db`, `AdminPanelProvider` registration, the creating migration, and live references/passing tests; and (2) what the PRD/blueprint/architecture requires. Then assign a verdict: aligned (keep); gap (patch); superseded remnant (retire, naming the live replacement that satisfies the authority); required-but-unbuilt (defer or build - never delete a required feature merely because it is not yet built). "Does not exist" alone never decides an action: the existence check chooses write-vs-delete, and the authority check decides whether it is warranted. Never trust an issue's or Next Steps' framing over this reality check; on conflict, stop and re-surface to the user before acting. The trigger "GTG" invokes it explicitly, but it applies always.
+
 ## Capability and Research Policy
 
 Use available capabilities instead of duplicating their full instructions:
@@ -287,7 +291,7 @@ A dependency included in an accepted slice plan needs no second approval. The pl
 
 Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
-Before starting a worker, the primary assembles a compact handoff packet containing: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, and handshake format. Deliver via the environment's available delegation mechanism (temp file, inline sub-agent prompt, shared context, or equivalent). Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
+Before starting a worker, the primary assembles a compact handoff packet containing: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, handshake format, and the Ground-Truth Gate classification (verified existence + authority verdict per in-scope surface, with cited evidence). Deliver via the environment's available delegation mechanism (temp file, inline sub-agent prompt, shared context, or equivalent). Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
 
 Workers must:
 
@@ -296,6 +300,7 @@ Workers must:
 - Preserve unrelated worktree changes.
 - Execute the accepted checklist; not act as another primary unless scoped for research/planning.
 - Stop as `BLOCKED` if checklist, current issue, or scope is unclear.
+- Halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the handoff packet - do not retire, build, or patch on a stale premise.
 - Stop for user instructions when dashboards, credentials, approvals, or environment setup are required.
 - Not commit, push, deploy, open PRs, sync external systems, or start next issue unless explicitly scoped.
 - Merge any helper-agent work into one final handshake.
@@ -311,7 +316,8 @@ Worker final report must include:
 5. Untouched exclusions.
 6. Caveats/blockers.
 7. Research/reference/dependency decision and links or paths when applicable.
-8. Next boundary.
+8. Ground-truth re-check for the surfaces touched: evidence that existence (tables/registration) and authority alignment were re-confirmed - retire/build/patch decisions backed by proof, not passing tests alone.
+9. Next boundary.
 
 Primary acceptance requires independent inspection and proportionate verification. Passing tests alone is not acceptance. Before cleanup/commit, report: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
 
