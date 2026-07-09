@@ -943,30 +943,6 @@ parameters:
 			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
 
 		-
-			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
-			identifier: classConstant.notFound
-			count: 2
-			path: app/Filament/Resources/AdmissionRequirementPolicies/Schemas/AdmissionRequirementPolicyForm.php
-
-		-
-			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusDraft\.$#'
-			identifier: classConstant.notFound
-			count: 1
-			path: app/Filament/Resources/AdmissionRequirementPolicies/Schemas/AdmissionRequirementPolicyForm.php
-
-		-
-			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusActive\.$#'
-			identifier: classConstant.notFound
-			count: 1
-			path: app/Filament/Resources/AdmissionRequirementPolicies/Tables/AdmissionRequirementPoliciesTable.php
-
-		-
-			message: '#^Access to undefined constant App\\Models\\AdmissionRequirementPolicy\:\:StatusRetired\.$#'
-			identifier: classConstant.notFound
-			count: 1
-			path: app/Filament/Resources/AdmissionRequirementPolicies/Tables/AdmissionRequirementPoliciesTable.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$code\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1219,30 +1195,6 @@ parameters:
 			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AdmissionOffering.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AdmissionOffering\:\:\$year_level\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AdmissionOffering.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AdmissionOffering.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$term_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AdmissionOffering.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\CurriculumReadinessScope\:\:\$status\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1271,18 +1223,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Models/DeliveryPattern.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentRequirementItem\:\:\$key\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/DocumentRequirementItem.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentRequirementItem\:\:\$label\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/DocumentRequirementItem.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
