@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\CorVerifications\CorVerificationResource;
-use App\Filament\Resources\Curriculums\CurriculumResource;
+use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\EnrollmentSubjects\EnrollmentSubjectResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\Payments\PaymentResource;
@@ -188,8 +188,8 @@ class RoleAccessMatrixTest extends TestCase
             'faculty cannot reach payments' => [
                 'role' => 'faculty', 'resource' => PaymentResource::class, 'expected' => false,
             ],
-            'academic head reaches curriculum' => [
-                'role' => 'academic-head', 'resource' => CurriculumResource::class, 'expected' => true,
+            'academic head reaches curriculum version' => [
+                'role' => 'academic-head', 'resource' => CurriculumVersionResource::class, 'expected' => true,
             ],
             'academic head cannot reach section placement' => [
                 'role' => 'academic-head', 'resource' => SectionResource::class, 'expected' => false,

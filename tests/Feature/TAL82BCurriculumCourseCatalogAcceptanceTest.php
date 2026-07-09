@@ -6,7 +6,6 @@ use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\Courses\Pages\CreateCourse;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CourseSpecifications\Pages\CreateCourseSpecification;
-use App\Filament\Resources\Curriculums\CurriculumResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\CurriculumVersions\Pages\CreateCurriculumVersion;
 use App\Filament\Resources\Subjects\SubjectResource;
@@ -61,7 +60,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         $this->assertContains(CourseSpecificationResource::class, $resources);
         $this->assertContains(CurriculumVersionResource::class, $resources);
         $this->assertNotContains(SubjectResource::class, $resources);
-        $this->assertNotContains(CurriculumResource::class, $resources);
+        $this->assertNotContains('App\Filament\Resources\Curriculums\CurriculumResource', $resources);
     }
 
     /**

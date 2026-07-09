@@ -52,11 +52,6 @@ class Subject extends Model
         return $this->hasMany(FacultySubjectEligibility::class);
     }
 
-    public function curriculumSubjects(): HasMany
-    {
-        return $this->hasMany(CurriculumSubject::class);
-    }
-
     public function prerequisites(): BelongsToMany
     {
         return $this->belongsToMany(

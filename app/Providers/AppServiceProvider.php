@@ -18,7 +18,6 @@ use App\Models\AssessmentLine;
 use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseSpecification;
-use App\Models\CurriculumSubject;
 use App\Models\CurriculumVersion;
 use App\Models\DeliveryPattern;
 use App\Models\DisposalReview;
@@ -42,7 +41,6 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\SystemSetting;
 use App\Models\Term;
-use App\Observers\CurriculumSubjectObserver;
 use App\Policies\AcademicYearPolicy;
 use App\Policies\AccountingAdjustmentPolicy;
 use App\Policies\ActivityPolicy;
@@ -184,8 +182,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ImportBatch::class, ImportBatchPolicy::class);
         Gate::policy(DuplicateProfileResolution::class, DuplicateProfileResolutionPolicy::class);
         Gate::policy(DisposalReview::class, DisposalReviewPolicy::class);
-
-        CurriculumSubject::observe(CurriculumSubjectObserver::class);
 
         Event::listen(Login::class, [LogAuthenticationActivity::class, 'handleLogin']);
         Event::listen(Logout::class, [LogAuthenticationActivity::class, 'handleLogout']);
