@@ -137,14 +137,15 @@ final class SchemaConformanceTest extends TestCase
         }
     }
 
-    public function test_foundation_seeder_creates_only_the_seven_canonical_roles(): void
+    public function test_foundation_seeder_creates_the_canonical_roles_and_permissions(): void
     {
         $this->seed();
 
         $this->assertSame([
             'academic-head', 'accounting', 'applicant', 'faculty', 'registrar', 'student', 'system-super-admin',
         ], DB::table('roles')->orderBy('name')->pluck('name')->all());
-        $this->assertSame(0, DB::table('permissions')->count());
+        $this->assertSame(26, DB::table('permissions')->count());
+        $this->assertGreaterThan(0, DB::table('role_has_permissions')->count());
         $this->assertSame(0, DB::table('users')->count());
     }
 
