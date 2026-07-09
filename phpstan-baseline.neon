@@ -901,48 +901,6 @@ parameters:
 			path: app/Actions/Scheduling/FacultyAvailabilityService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Section\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$assigned_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$capacity\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$room\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$room_required\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SectionDeliveryGroup\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
-			message: '#^Access to undefined constant App\\Models\\SectionDeliveryGroup\:\:StatusActive\.$#'
-			identifier: classConstant.notFound
-			count: 1
-			path: app/Actions/Scheduling/SectionMeetingAssignmentService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Subject\:\:\$code\.$#'
 			identifier: property.notFound
 			count: 1
