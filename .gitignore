@@ -33,7 +33,12 @@ dont access
 /.codex/
 /.qwen/
 /.serena/
+/.kiro/
+/.junie/
+/.claude/
 /app/BoostAgents/
+CLAUDE.md
+.mcp.json
 
 # Local Dev Outputs & Helper Scripts
 /outputs/
@@ -47,3 +52,4 @@ __pycache__/
 *.py[cod]
 /cloud/scheduler-solver/.venv/
 /cloud/scheduler-solver.zip
+
