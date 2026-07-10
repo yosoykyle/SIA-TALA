@@ -47,11 +47,6 @@ class Subject extends Model
         return $this->hasMany(GradeCorrection::class);
     }
 
-    public function facultySubjectEligibilities(): HasMany
-    {
-        return $this->hasMany(FacultySubjectEligibility::class);
-    }
-
     public function prerequisites(): BelongsToMany
     {
         return $this->belongsToMany(

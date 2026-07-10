@@ -2,8 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\CorVerifications\CorVerificationResource;
-use App\Filament\Resources\FacultySubjectEligibilities\FacultySubjectEligibilityResource;
+use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
@@ -55,13 +56,17 @@ class StaffNavigationVisibilityTest extends TestCase
         $user->givePermissionTo([
             Permission::findOrCreate('manage-cor-verifications', 'web'),
             Permission::findOrCreate('manage-faculty-subject-eligibilities', 'web'),
+            Permission::findOrCreate('review-lock-faculty-availability', 'web'),
+            Permission::findOrCreate('view-faculty-availability', 'web'),
+            Permission::findOrCreate('submit-faculty-availability', 'web'),
         ]);
 
         $this->actingAs($user);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $this->assertFalse(CorVerificationResource::canAccess());
-        $this->assertFalse(FacultySubjectEligibilityResource::canAccess());
+        $this->assertFalse(CalendarEventResource::canAccess());
+        $this->assertFalse(FacultyQualificationResource::canAccess());
     }
 
     public function test_system_administration_baseline_is_system_super_admin_only(): void
@@ -113,6 +118,10 @@ class StaffNavigationVisibilityTest extends TestCase
         $this->assertDatabaseMissing('permissions', ['name' => 'view-advising-status']);
         $this->assertDatabaseMissing('permissions', ['name' => 'start-enrollment']);
         $this->assertDatabaseMissing('permissions', ['name' => 'upload-enrollment-documents']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'manage-faculty-subject-eligibilities']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'review-lock-faculty-availability']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'submit-faculty-availability']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'view-faculty-availability']);
     }
 
     /**

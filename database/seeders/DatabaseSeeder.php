@@ -30,6 +30,13 @@ class DatabaseSeeder extends Seeder
             Role::findOrCreate($roleName, 'web')->syncPermissions($permissions);
         }
 
+        // Prune any permission outside the canonical set so retired slugs do not
+        // persist across re-seeds of an existing database (idempotent).
+        Permission::query()
+            ->where('guard_name', 'web')
+            ->whereNotIn('name', $this->canonicalPermissions())
+            ->delete();
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $this->call(AdmissionRequirementPolicySeeder::class);
@@ -70,7 +77,6 @@ class DatabaseSeeder extends Seeder
             'manage-admission-setup',
             'manage-cor-verifications',
             'manage-curricula',
-            'manage-faculty-subject-eligibilities',
             'manage-faqs',
             'manage-grade-corrections',
             'manage-schedules',
@@ -79,11 +85,8 @@ class DatabaseSeeder extends Seeder
             'post-accounting-adjustments',
             'process-payments',
             'request-grade-corrections',
-            'review-lock-faculty-availability',
-            'submit-faculty-availability',
             'verify-grade-submissions',
             'view-class-list',
-            'view-faculty-availability',
             'view-global-records',
             'view-grade-submission-progress',
         ];
@@ -121,9 +124,6 @@ class DatabaseSeeder extends Seeder
                 'manage-schedules',
                 'manage-sections',
                 'manage-curricula',
-                'manage-faculty-subject-eligibilities',
-                'review-lock-faculty-availability',
-                'view-faculty-availability',
             ],
 
             // §2.3.5 Accounting: fee setup, assessment, payments, adjustments, accommodations.
@@ -138,7 +138,6 @@ class DatabaseSeeder extends Seeder
             'faculty' => [
                 'encode-grades',
                 'finalize-grades',
-                'submit-faculty-availability',
                 'view-class-list',
             ],
 
@@ -147,9 +146,6 @@ class DatabaseSeeder extends Seeder
             'academic-head' => [
                 'authorize-overrides',
                 'manage-curricula',
-                'manage-faculty-subject-eligibilities',
-                'review-lock-faculty-availability',
-                'view-faculty-availability',
                 'view-global-records',
             ],
 
