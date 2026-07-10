@@ -213,7 +213,7 @@ For MVP, TALA does not require a drag-and-drop timetable, FullCalendar plugin, g
 
 ### Imports
 
-Course Specification and Curriculum imports use a custom Filament Page composed from native `FileUpload`, validation summaries, a preview Table, and an explicit Draft-creation Action. This preserves the PRD's versioned-template, full-preview, and all-errors-block-posting behavior. The installed Laravel Excel package handles file parsing; no additional import plugin is required.
+Course Specification and Curriculum imports use a custom Filament Page composed from native `FileUpload`, validation summaries, a preview Table, and an explicit Draft-creation Action. This preserves the PRD's versioned-template, full-preview, and all-errors-block-posting behavior. Current imports use the native CSV implementation; no additional import plugin is required.
 
 ### Reports
 
@@ -231,7 +231,7 @@ Approved baseline:
 2. Existing Auth Designer integration for Filament panel authentication screens, preserving the custom Applicant registration page.
 3. Isolated Bootstrap v5.3.3 public assets for the public landing page; existing TallStackUI components remain available for other non-Filament Blade/Livewire surfaces with a documented need.
 4. Existing `pxlrbt/filament-activity-log` integration for authorized audit visibility when it satisfies Module 13.
-5. Existing Laravel Excel package for fixed-template import parsing and CSV/Excel support where already compatible.
+5. Native CSV import/export handling for fixed templates; no spreadsheet package is required.
 
 Do not add a calendar, saved-filter, dashboard, permissions, import, or custom UI plugin until a vertical slice documents a required capability gap, compatibility check, maintenance cost, and focused test plan.
 

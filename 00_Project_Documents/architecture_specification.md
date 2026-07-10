@@ -169,7 +169,7 @@ Not currently installed: `laravel/horizon`. Removed in TAL-93A as unused: `pxlrb
 * `alpinejs: ^3.15.10` (Client-side toggles, modals, and animations)
 * `driver.js: ^1.4.0` (Interactive onboarding guides)
 * `heroicons: ^2.2.0` (Frontend iconography)
-* `xlsx: ^0.18.5` (Client-side spreadsheet validation)
+* Current imports and exports use native CSV handling (`fgetcsv` / `fputcsv`); no client-side spreadsheet library is required.
 * `axios: ^1.11.0` (HTTP client utility)
 
 ---
