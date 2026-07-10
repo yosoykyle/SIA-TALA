@@ -291,6 +291,25 @@ A dependency included in an accepted slice plan needs no second approval. The pl
 
 Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
 
+### Multi-Worker Authorization (max 3)
+
+Up to 3 concurrent workers are permitted ONLY when ALL of the following hold:
+
+1. The primary plan explicitly identifies parallelizable sub-tasks with ZERO file overlap.
+2. Each worker's file scope is enumerated in its handoff packet — no worker may edit a file assigned to another.
+3. At most ONE worker may run PHPUnit/PHPStan at any given time (shared `test_tala_db`). Others must wait or perform non-DB work.
+4. No worker touches a migration, seeder, or shared service that another worker depends on.
+5. The user approves the parallel plan (multi-worker is never implicit).
+
+SAFE parallel patterns:
+- Multiple read-only verification/audit workers (no edits, no test writes).
+- Research/benchmark workers gathering information in parallel.
+- Non-overlapping implementation workers with staggered (not simultaneous) test runs.
+
+BLOCK: If any file, model, service, or test-DB access overlaps between workers → fall back to sequential single-worker execution.
+
+The primary remains responsible for merging all worker handshakes into one coherent acceptance before cleanup/commit.
+
 Before starting a worker, the primary assembles a compact handoff packet containing: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, handshake format, and the Ground-Truth Gate classification (verified existence + authority verdict per in-scope surface, with cited evidence). Deliver via the environment's available delegation mechanism (temp file, inline sub-agent prompt, shared context, or equivalent). Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
 
 Workers must:
