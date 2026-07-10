@@ -9,6 +9,7 @@ use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResourc
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Activities\ActivityResource;
+use App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
@@ -98,6 +99,7 @@ class AdminPanelProvider extends PanelProvider
                 SystemSettingResource::class,
                 OperationalEventResource::class,
                 ApplicantIntakeResource::class,
+                AdmissionRequirementPolicyResource::class,
                 EnrollmentResource::class,
                 FeeRuleResource::class,
                 AssessmentResource::class,

@@ -50,6 +50,12 @@ class ChecklistItem extends Model
 
     public const BlockingAdvisoryOnly = 'ADVISORY_ONLY';
 
+    public const EvidenceMethodPhysicalCopy = 'PHYSICAL_COPY';
+
+    public const EvidenceMethodDigitalUpload = 'DIGITAL_UPLOAD';
+
+    public const EvidenceMethodMetadataOnly = 'METADATA_ONLY';
+
     /** @var list<string> */
     protected $fillable = [
         'owner_type',

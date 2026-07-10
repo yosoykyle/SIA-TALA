@@ -31,6 +31,86 @@ class AdmissionRequirementPolicy extends Model
     }
 
     /**
+     * Admission categories, keyed by the exact ApplicantIntake constants the
+     * resolver matches on, so this configuration surface cannot drift.
+     *
+     * @return array<string, string>
+     */
+    public static function admissionCategoryOptions(): array
+    {
+        return [
+            ApplicantIntake::AdmissionCategoryFirstTimeCollege => 'First-Time College',
+            ApplicantIntake::AdmissionCategoryTransfer => 'Transfer',
+            ApplicantIntake::AdmissionCategoryReturning => 'Returning',
+        ];
+    }
+
+    /**
+     * Credential bases, keyed by the exact ApplicantIntake constants the
+     * resolver matches on.
+     *
+     * @return array<string, string>
+     */
+    public static function credentialBasisOptions(): array
+    {
+        return [
+            ApplicantIntake::CredentialBasisSeniorHighSchool => 'Senior High School',
+            ApplicantIntake::CredentialBasisTransferCredentials => 'Transfer Credentials',
+            ApplicantIntake::CredentialBasisPriorStudentRecord => 'Prior Student Record',
+        ];
+    }
+
+    /**
+     * Curated document requirement types. IDENTITY_DOCUMENT is required by the
+     * intake service to attach digital identity evidence.
+     *
+     * @return array<string, string>
+     */
+    public static function requirementTypeOptions(): array
+    {
+        return [
+            'IDENTITY_DOCUMENT' => 'Identity Document',
+            'BIRTH_CERTIFICATE' => 'PSA Birth Certificate',
+            'FORM_137' => 'Form 137',
+            'TRANSCRIPT_OF_RECORDS' => 'Transcript of Records',
+            'GOOD_MORAL' => 'Good Moral Certificate',
+        ];
+    }
+
+    /**
+     * Evidence methods, keyed by the ChecklistItem constants copied onto each
+     * generated checklist item at submission time.
+     *
+     * @return array<string, string>
+     */
+    public static function evidenceMethodOptions(): array
+    {
+        return [
+            ChecklistItem::EvidenceMethodPhysicalCopy => 'Physical Copy',
+            ChecklistItem::EvidenceMethodDigitalUpload => 'Digital Upload',
+            ChecklistItem::EvidenceMethodMetadataOnly => 'Metadata Only',
+        ];
+    }
+
+    /**
+     * Blocking levels, keyed by the ChecklistItem constants that gate the
+     * downstream handover and enrollment workflows.
+     *
+     * @return array<string, string>
+     */
+    public static function blockingLevelOptions(): array
+    {
+        return [
+            ChecklistItem::BlockingHandover => 'Blocks Handover',
+            ChecklistItem::BlockingEnrollment => 'Blocks Enrollment',
+            ChecklistItem::BlockingCorPrint => 'Blocks COR Print',
+            ChecklistItem::BlockingRecordRelease => 'Blocks Record Release',
+            ChecklistItem::BlockingRetentionOnly => 'Retention Only',
+            ChecklistItem::BlockingAdvisoryOnly => 'Advisory Only',
+        ];
+    }
+
+    /**
      * @var list<string>
      */
     protected $fillable = [
