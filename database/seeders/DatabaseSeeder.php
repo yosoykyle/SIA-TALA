@@ -71,24 +71,18 @@ class DatabaseSeeder extends Seeder
             'approve-promissory-notes',
             'authorize-overrides',
             'create-assessments',
-            'encode-grades',
             'evaluate-transferees',
-            'finalize-grades',
             'manage-admission-setup',
             'manage-cor-verifications',
             'manage-curricula',
             'manage-faqs',
-            'manage-grade-corrections',
             'manage-schedules',
             'manage-sections',
             'manage-student-profiles',
             'post-accounting-adjustments',
             'process-payments',
-            'request-grade-corrections',
-            'verify-grade-submissions',
             'view-class-list',
             'view-global-records',
-            'view-grade-submission-progress',
         ];
     }
 
@@ -105,22 +99,19 @@ class DatabaseSeeder extends Seeder
             // §2.3.1 Applicant actions are role- and ownership-scoped; no action permissions.
             'applicant' => [],
 
-            // §2.3.2 Student may request posted-grade corrections (recorded by Registrar).
-            'student' => [
-                'request-grade-corrections',
-            ],
+            // §2.3.2 Posted-grade corrections are recorded by the Registrar after the physical
+            //         school policy (§10.4); the student has no in-TALA action permission.
+            'student' => [],
 
-            // §2.3.4 Registrar: admissions, records, COR, sections/scheduling, grade review,
-            //         curriculum/eligibility setup, and faculty-availability review.
+            // §2.3.4 Registrar: admissions, records, COR, sections/scheduling, and curriculum
+            //         setup; grade review (Post & Release, INC/correction recording) runs through
+            //         the role-gated Grade Roster workflow rather than dedicated permission slugs.
             'registrar' => [
                 'approve-documents',
                 'evaluate-transferees',
                 'manage-student-profiles',
                 'manage-admission-setup',
                 'manage-cor-verifications',
-                'verify-grade-submissions',
-                'view-grade-submission-progress',
-                'manage-grade-corrections',
                 'manage-schedules',
                 'manage-sections',
                 'manage-curricula',
@@ -134,10 +125,9 @@ class DatabaseSeeder extends Seeder
                 'approve-promissory-notes',
             ],
 
-            // §2.3.3 Faculty: own availability, assigned class lists, grade encoding/submission.
+            // §2.3.3 Faculty: assigned class lists; grade encoding/submission runs through the
+            //         role-gated Grade Roster workflow rather than a dedicated permission slug.
             'faculty' => [
-                'encode-grades',
-                'finalize-grades',
                 'view-class-list',
             ],
 

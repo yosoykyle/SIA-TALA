@@ -79,11 +79,6 @@ class Enrollment extends Model
         return $this->hasMany(Hold::class);
     }
 
-    public function grades(): HasMany
-    {
-        return $this->hasMany(Grade::class);
-    }
-
     /** @return HasMany<CourseEnrollment, $this> */
     public function courseEnrollments(): HasMany
     {

@@ -57,7 +57,6 @@ class EnrollmentSubjectResource extends Resource
                 'enrollment.section',
                 'subject',
                 'sectionMeeting',
-                'grade',
             ]);
 
         $user = auth()->user();
@@ -76,7 +75,7 @@ class EnrollmentSubjectResource extends Resource
                 });
         }
 
-        if ($user->can('view-grade-submission-progress') || $user->can('view-global-records')) {
+        if ($user->can('view-global-records')) {
             return $query;
         }
 

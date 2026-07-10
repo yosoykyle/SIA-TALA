@@ -122,6 +122,12 @@ class StaffNavigationVisibilityTest extends TestCase
         $this->assertDatabaseMissing('permissions', ['name' => 'review-lock-faculty-availability']);
         $this->assertDatabaseMissing('permissions', ['name' => 'submit-faculty-availability']);
         $this->assertDatabaseMissing('permissions', ['name' => 'view-faculty-availability']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'encode-grades']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'finalize-grades']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'verify-grade-submissions']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'manage-grade-corrections']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'request-grade-corrections']);
+        $this->assertDatabaseMissing('permissions', ['name' => 'view-grade-submission-progress']);
     }
 
     /**

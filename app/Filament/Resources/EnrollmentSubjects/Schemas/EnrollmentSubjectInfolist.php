@@ -41,26 +41,6 @@ class EnrollmentSubjectInfolist
                 IconEntry::make('is_dropped')
                     ->label('Dropped')
                     ->boolean(),
-                TextEntry::make('grade.prelim_grade')
-                    ->label('Prelim/Q1')
-                    ->placeholder('-'),
-                TextEntry::make('grade.midterm_grade')
-                    ->label('Midterm/Q2')
-                    ->placeholder('-'),
-                TextEntry::make('grade.final_grade')
-                    ->label('Final Raw')
-                    ->placeholder('-'),
-                TextEntry::make('grade.grade')
-                    ->label('Final Grade')
-                    ->placeholder('-'),
-                TextEntry::make('grade.remarks')
-                    ->label('Remarks')
-                    ->badge()
-                    ->placeholder('-'),
-                TextEntry::make('grade.finalized_at')
-                    ->label('Finalized At')
-                    ->dateTime()
-                    ->placeholder('-'),
                 TextEntry::make('created_at')
                     ->dateTime()
                     ->placeholder('-'),

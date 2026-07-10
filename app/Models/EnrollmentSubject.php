@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class EnrollmentSubject extends Model
 {
@@ -51,11 +50,6 @@ class EnrollmentSubject extends Model
         return $this->belongsTo(SectionMeeting::class);
     }
 
-    public function grade(): HasOne
-    {
-        return $this->hasOne(Grade::class);
-    }
-
     public function scopeAssignedToFaculty(Builder $query, User $faculty): Builder
     {
         return $query->where(function (Builder $query) use ($faculty): void {
@@ -79,10 +73,5 @@ class EnrollmentSubject extends Model
             ->whereKey($this->getKey())
             ->assignedToFaculty($faculty)
             ->exists();
-    }
-
-    public function canReceiveFacultyGrade(): bool
-    {
-        return $this->status === 'enrolled' && ! $this->is_dropped;
     }
 }

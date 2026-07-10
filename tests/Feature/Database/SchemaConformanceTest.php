@@ -144,8 +144,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertSame([
             'academic-head', 'accounting', 'applicant', 'faculty', 'registrar', 'student', 'system-super-admin',
         ], DB::table('roles')->orderBy('name')->pluck('name')->all());
-        $this->assertSame(22, DB::table('permissions')->count());
-        $this->assertSame(23, DB::table('role_has_permissions')->count());
+        $this->assertSame(16, DB::table('permissions')->count());
+        $this->assertSame(17, DB::table('role_has_permissions')->count());
         $this->assertSame(0, DB::table('users')->count());
     }
 

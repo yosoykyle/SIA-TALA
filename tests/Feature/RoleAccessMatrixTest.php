@@ -72,9 +72,9 @@ class RoleAccessMatrixTest extends TestCase
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
         $this->assertSame(
-            22,
+            16,
             Permission::query()->where('guard_name', 'web')->count(),
-            'Exactly the 22 canonical permissions must be seeded.',
+            'Exactly the 16 canonical permissions must be seeded.',
         );
 
         $orphans = Permission::query()->whereDoesntHave('roles')->pluck('name')->all();
@@ -96,9 +96,9 @@ class RoleAccessMatrixTest extends TestCase
                 'role' => 'applicant',
                 'expected' => [],
             ],
-            'student may request grade corrections' => [
+            'student has no action permissions' => [
                 'role' => 'student',
-                'expected' => ['request-grade-corrections'],
+                'expected' => [],
             ],
             'registrar owns admissions, records, scheduling, and grade review' => [
                 'role' => 'registrar',
@@ -108,9 +108,6 @@ class RoleAccessMatrixTest extends TestCase
                     'manage-student-profiles',
                     'manage-admission-setup',
                     'manage-cor-verifications',
-                    'verify-grade-submissions',
-                    'view-grade-submission-progress',
-                    'manage-grade-corrections',
                     'manage-schedules',
                     'manage-sections',
                     'manage-curricula',
@@ -125,11 +122,9 @@ class RoleAccessMatrixTest extends TestCase
                     'approve-promissory-notes',
                 ],
             ],
-            'faculty owns own availability, class lists, and grade submission' => [
+            'faculty owns assigned class lists' => [
                 'role' => 'faculty',
                 'expected' => [
-                    'encode-grades',
-                    'finalize-grades',
                     'view-class-list',
                 ],
             ],

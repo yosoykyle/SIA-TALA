@@ -36,7 +36,6 @@ class StudentDashboardService
      *     schedule:array{current:list<array<string,mixed>>},
      *     financials:array<string,mixed>,
      *     grades:array{terms:list<array<string,mixed>>},
-     *     requests:array{grade_corrections:list<array<string,mixed>>},
      *     holds:list<array<string,mixed>>,
      *     notifications:list<array<string,mixed>>,
      *     help:array<string,mixed>,
@@ -64,7 +63,6 @@ class StudentDashboardService
             'grades' => [
                 'terms' => $this->gradesByTerm($studentProfile),
             ],
-            'requests' => $this->requests($studentProfile),
             'holds' => $holds,
             'notifications' => $this->notifications($studentProfile),
             'help' => $this->help(),
@@ -343,24 +341,6 @@ class StudentDashboardService
             })
             ->values()
             ->all();
-    }
-
-    /**
-     * @return array{grade_corrections:list<array<string,mixed>>}
-     */
-    private function requests(StudentProfile $studentProfile): array
-    {
-        return [
-            'grade_corrections' => $this->gradeCorrections($studentProfile),
-        ];
-    }
-
-    /**
-     * @return list<array<string,mixed>>
-     */
-    private function gradeCorrections(StudentProfile $studentProfile): array
-    {
-        return [];
     }
 
     /**
