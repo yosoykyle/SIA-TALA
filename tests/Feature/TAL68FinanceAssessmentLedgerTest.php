@@ -6,7 +6,6 @@ use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Filament\Resources\Assessments\Pages\ViewAssessment;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\FeeRules\Pages\CreateFeeRule;
-use App\Filament\Resources\FeeTemplates\FeeTemplateResource;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\CourseEnrollment;
@@ -174,10 +173,10 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertSame(0, FeeRule::query()->where('code', 'DOWNPAYMENT')->count());
     }
 
-    public function test_fee_templates_remain_deferred_from_navigation_while_fee_rules_are_the_accounting_setup_surface(): void
+    public function test_fee_rules_are_the_accounting_setup_surface_and_the_retired_fee_template_resource_stays_absent(): void
     {
         $this->assertTrue(FeeRuleResource::shouldRegisterNavigation());
-        $this->assertFalse(FeeTemplateResource::shouldRegisterNavigation());
+        $this->assertFalse(class_exists('App\\Filament\\Resources\\FeeTemplates\\FeeTemplateResource'));
     }
 
     public function test_non_accounting_user_cannot_create_or_activate_finance_records(): void
