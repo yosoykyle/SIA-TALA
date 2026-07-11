@@ -65,9 +65,3 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
-
-		-
-			message: '#^Method App\\Policies\\CorVerificationPolicy\:\:canAny\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: app/Policies/CorVerificationPolicy.php

@@ -402,9 +402,6 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertSame(0, DB::table('payment_allocations')->count());
         $this->assertSame(0, DB::table('output_access_logs')->count());
 
-        if (Schema::hasTable('cor_verifications')) {
-            $this->assertSame(0, DB::table('cor_verifications')->count());
-        }
     }
 
     public function test_registrar_can_view_finance_summary_but_cannot_mutate_assessment_or_ledger(): void

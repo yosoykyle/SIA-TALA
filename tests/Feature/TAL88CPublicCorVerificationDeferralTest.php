@@ -29,6 +29,24 @@ class TAL88CPublicCorVerificationDeferralTest extends TestCase
         $this->assertSame([], $publicCorVerificationRoutes);
     }
 
+    public function test_retired_cor_verification_island_remains_absent(): void
+    {
+        $retiredFiles = [
+            app_path('Models/CorVerification.php'),
+            app_path('Actions/Registrar/CorVerificationLifecycleService.php'),
+            app_path('Policies/CorVerificationPolicy.php'),
+            app_path('Filament/Resources/CorVerifications/CorVerificationResource.php'),
+            app_path('Filament/Resources/CorVerifications/Pages/ListCorVerifications.php'),
+            app_path('Filament/Resources/CorVerifications/Pages/ViewCorVerification.php'),
+            app_path('Filament/Resources/CorVerifications/Schemas/CorVerificationInfolist.php'),
+            app_path('Filament/Resources/CorVerifications/Tables/CorVerificationsTable.php'),
+        ];
+
+        foreach ($retiredFiles as $retiredFile) {
+            $this->assertFileDoesNotExist($retiredFile);
+        }
+    }
+
     public function test_authenticated_cor_print_route_remains_available(): void
     {
         $route = RouteFacade::getRoutes()->getByName('cor.print');

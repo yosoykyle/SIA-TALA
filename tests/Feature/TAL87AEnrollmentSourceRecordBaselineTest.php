@@ -5,10 +5,8 @@ namespace Tests\Feature;
 use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Actions\Enrollment\StartEnrollment;
 use App\Actions\Enrollment\StudentEnrollmentService;
-use App\Actions\Registrar\CorVerificationLifecycleService;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
-use App\Models\CorVerification;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
@@ -225,32 +223,5 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
 
         $this->assertTrue($readiness['ready']);
         $this->assertSame([], $readiness['blockers']);
-    }
-
-    public function test_cor_compatibility_payload_uses_clean_student_and_term_fields(): void
-    {
-        $studentProfile = new StudentProfile([
-            'student_number' => 'SIA-2026-8702',
-        ]);
-        $term = new Term(['label' => 'First Semester 2026-2027']);
-        $enrollment = new Enrollment(['status' => 'officially_enrolled']);
-        $verification = new CorVerification([
-            'status' => CorVerification::StatusValid,
-            'issued_at' => now(),
-        ]);
-        $verification->setRelation('studentProfile', $studentProfile);
-        $verification->setRelation('term', $term);
-        $verification->setRelation('enrollment', $enrollment);
-
-        $publicPayload = new \ReflectionMethod(CorVerificationLifecycleService::class, 'publicPayload');
-        $result = $publicPayload->invoke(
-            app(CorVerificationLifecycleService::class),
-            CorVerification::StatusValid,
-            'Valid.',
-            $verification,
-        );
-
-        $this->assertSame('SIA-2026-8702', $result['student_id']);
-        $this->assertSame('First Semester 2026-2027', $result['term']);
     }
 }

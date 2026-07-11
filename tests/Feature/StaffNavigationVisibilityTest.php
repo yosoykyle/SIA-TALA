@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
-use App\Filament\Resources\CorVerifications\CorVerificationResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -54,7 +53,6 @@ class StaffNavigationVisibilityTest extends TestCase
     {
         $user = User::role(User::StaffRoleSystemSuperAdmin)->firstOrFail();
         $user->givePermissionTo([
-            Permission::findOrCreate('manage-cor-verifications', 'web'),
             Permission::findOrCreate('manage-faculty-subject-eligibilities', 'web'),
             Permission::findOrCreate('review-lock-faculty-availability', 'web'),
             Permission::findOrCreate('view-faculty-availability', 'web'),
@@ -64,7 +62,6 @@ class StaffNavigationVisibilityTest extends TestCase
         $this->actingAs($user);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertFalse(CorVerificationResource::canAccess());
         $this->assertFalse(CalendarEventResource::canAccess());
         $this->assertFalse(FacultyQualificationResource::canAccess());
     }
