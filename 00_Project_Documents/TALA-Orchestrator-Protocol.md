@@ -195,7 +195,7 @@ The worker's final report must include:
 
 Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance.
 
-Large or high-risk deletion slices — retiring a cluster of files, models, tables, or permissions — additionally require a **cold audit** before cleanup. A fresh, read-only reviewer with no prior context (a separate subagent or a clearly reset review pass) independently re-checks that every deletion is safe: no live caller, no required-but-unbuilt authority need, and a named live replacement wherever the concept must survive. The reviewer returns its own `JUSTIFIED` or `NOT JUSTIFIED` verdict with cited evidence; a `NOT JUSTIFIED` finding blocks cleanup until reconciled. This gate is proportionate: additive builds and small, behavior-neutral retires (for example, an unregistered, tableless, untested surface whose only edge is a guarded no-op) may skip it, stating the reason in the acceptance report.
+High-risk deletion slices need one independent party to re-check the deletion before cleanup. Orchestrated work already has two — the worker's ground-truth re-check plus the primary's verification — so no extra step applies. Primary-direct deletions do not, so they require a **cold audit**: a fresh, read-only reviewer confirms each deletion is safe (no live caller, no required-but-unbuilt need, a named live replacement where the concept survives) and returns a `JUSTIFIED` / `NOT JUSTIFIED` verdict with evidence; `NOT JUSTIFIED` blocks cleanup. Small, behavior-neutral retires may skip it with a stated reason.
 
 Before cleanup or commit, the primary reports: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
 
