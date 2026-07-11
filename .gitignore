@@ -26,7 +26,6 @@ dont access
 # Laravel Boost & Agents
 .gemini/
 /boost.json
-/AGENTS.md
 /GEMINI.md
 /.agents/
 /.ai/
