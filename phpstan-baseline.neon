@@ -85,24 +85,6 @@ parameters:
 			path: app/Actions/Integrations/Payments/PayMongoWebhookProcessor.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$applicant_intake_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Registrar/DocumentUploadReviewService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$document_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Registrar/DocumentUploadReviewService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$registrar_approved_payload\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Registrar/DocumentUploadReviewService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\CandidateScheduleRow\:\:\$conflict_payload\.$#'
 			identifier: property.notFound
 			count: 1
@@ -151,36 +133,6 @@ parameters:
 			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Filament/Resources/DocumentUploads/Schemas/DocumentUploadInfolist.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Filament/Resources/DocumentUploads/Tables/DocumentUploadsTable.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:assignedToFaculty\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Filament/Resources/EnrollmentSubjects/EnrollmentSubjectResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\EnrollmentSubject\:\:\$enrollment_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$student_profile_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Filament/Resources/EnrollmentSubjects/Tables/EnrollmentSubjectsTable.php
-
-		-
 			message: '#^Parameter \#1 \$enrollment of static method App\\Models\\PromissoryNote\:\:enrollmentOptionLabel\(\) expects App\\Models\\Enrollment, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
 			count: 1
@@ -203,12 +155,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DocumentUpload\:\:\$review_status\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Models/DocumentUpload.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\FaqEntry\:\:\$created_by\.$#'

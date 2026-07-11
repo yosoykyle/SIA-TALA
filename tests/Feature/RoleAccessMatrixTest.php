@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\CorVerifications\CorVerificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
-use App\Filament\Resources\EnrollmentSubjects\EnrollmentSubjectResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Filament\Resources\Sections\SectionResource;
@@ -72,9 +72,9 @@ class RoleAccessMatrixTest extends TestCase
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
         $this->assertSame(
-            16,
+            15,
             Permission::query()->where('guard_name', 'web')->count(),
-            'Exactly the 16 canonical permissions must be seeded.',
+            'Exactly the 15 canonical permissions must be seeded.',
         );
 
         $orphans = Permission::query()->whereDoesntHave('roles')->pluck('name')->all();
@@ -122,11 +122,9 @@ class RoleAccessMatrixTest extends TestCase
                     'approve-promissory-notes',
                 ],
             ],
-            'faculty owns assigned class lists' => [
+            'faculty has no action permissions' => [
                 'role' => 'faculty',
-                'expected' => [
-                    'view-class-list',
-                ],
+                'expected' => [],
             ],
             'academic head owns overrides, curriculum, and oversight' => [
                 'role' => 'academic-head',
@@ -168,7 +166,7 @@ class RoleAccessMatrixTest extends TestCase
                 'role' => 'accounting', 'resource' => SectionResource::class, 'expected' => false,
             ],
             'faculty reaches assigned class lists' => [
-                'role' => 'faculty', 'resource' => EnrollmentSubjectResource::class, 'expected' => true,
+                'role' => 'faculty', 'resource' => FacultyGradeRoster::class, 'expected' => true,
             ],
             'faculty cannot reach section placement' => [
                 'role' => 'faculty', 'resource' => SectionResource::class, 'expected' => false,

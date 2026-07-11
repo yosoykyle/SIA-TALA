@@ -81,7 +81,6 @@ class DatabaseSeeder extends Seeder
             'manage-student-profiles',
             'post-accounting-adjustments',
             'process-payments',
-            'view-class-list',
             'view-global-records',
         ];
     }
@@ -125,11 +124,10 @@ class DatabaseSeeder extends Seeder
                 'approve-promissory-notes',
             ],
 
-            // §2.3.3 Faculty: assigned class lists; grade encoding/submission runs through the
-            //         role-gated Grade Roster workflow rather than a dedicated permission slug.
-            'faculty' => [
-                'view-class-list',
-            ],
+            // §2.3.3 Faculty class lists + grade encoding/submission run through role-gated
+            //         surfaces (the FacultyGradeRoster page), not dedicated permission slugs; no
+            //         action permissions.
+            'faculty' => [],
 
             // §2.3.6 Academic Head: academic overrides, curriculum/eligibility governance,
             //         faculty-availability review, and read-only global records oversight.
