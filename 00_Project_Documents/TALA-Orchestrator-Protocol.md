@@ -133,6 +133,14 @@ Before any implementation, delegation, tracker change, or commit, the primary re
 
 After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: restate the issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
 
+### Memory Freshness Check
+
+**When:** Primary activation, resumed or compacted work, and Cleanup.
+
+**Do:** Read Git state, Next Steps, and the tracker first. List memories, then read only relevant Serena and available agent-native entries. Through supported memory interfaces, correct stale durable guidance and delete expired temporary carry-ins; during Cleanup, route useful carry-ins to Git first. Keep current boundaries, commits, statuses, and counters only in Git authorities. Report `Memory: current`, `Memory: corrected - <items>`, or `Memory: unavailable - <reason>`.
+
+**Block:** Never scan or rewrite all memories by default, edit proprietary storage directly, duplicate Git state, or claim an unconfirmed update.
+
 Commands:
 
 - `Primary proceed` — continue the accepted current issue only.
