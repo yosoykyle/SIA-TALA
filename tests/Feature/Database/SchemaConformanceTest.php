@@ -22,7 +22,7 @@ final class SchemaConformanceTest extends TestCase
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
         'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
-        'faculty_qualifications', 'faculty_term_load_overrides', 'fee_rules',
+        'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
         'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
         'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
         'graduation_snapshots', 'holds', 'import_batches', 'late_grade_authorizations',
@@ -52,9 +52,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(59, self::APPLICATION_TABLES);
+        $this->assertCount(60, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(77, $actual);
+        $this->assertCount(78, $actual);
         $this->assertSame($expected, $actual);
     }
 

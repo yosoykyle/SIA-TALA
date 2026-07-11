@@ -30,7 +30,7 @@ Approves curriculum versions, academic exceptions, and Student Unit Load Excepti
 
 #### 2.1.7 System Super Admin
 
-Manages users, roles, permissions, configuration, integration settings, security policy, access policy, and audit visibility. System Super Admin configures policy values but does not decide individual student academic eligibility.
+Manages users, roles, permissions, configuration, integration settings, security policy, access policy, audit visibility, and public-content curation (the admin-managed landing FAQ entries). System Super Admin configures policy values but does not decide individual student academic eligibility.
 
 ---
 
@@ -40,7 +40,7 @@ TALA must separate Applicant, Student, Faculty, Registrar, Accounting, Academic 
 
 Application surfaces:
 
-1. The public landing page is the only public, non-authenticated surface. It provides institutional information, admission guidance, Filament sign-in/apply entry points, account-boundary explanations, notices, and FAQ content.
+1. The public landing page is the only public, non-authenticated surface. It provides institutional information, admission guidance, Filament sign-in/apply entry points, account-boundary explanations, notices, and FAQ content. The landing FAQ is not static: it is dynamically sourced from admin-curated, published `FaqEntry` records (categorized and ordered), managed by System Super Admin via the FAQ Entries staff resource.
 2. Applicant Workspace is an authenticated Filament workspace for applicants before handover, including Filament-handled applicant registration/auth UI.
 3. Student Hub is an authenticated Filament workspace for students after handover.
 4. Faculty Workspace means authenticated Filament surfaces for faculty academic work; MVP may implement these as role-scoped faculty pages inside the shared Staff Workspace rather than as a separate panel.

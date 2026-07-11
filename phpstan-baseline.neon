@@ -157,18 +157,6 @@ parameters:
 			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\FaqEntry\:\:\$created_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/FaqEntry.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FaqEntry\:\:\$updated_by\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Models/FaqEntry.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$student_id\.$#'
 			identifier: property.notFound
 			count: 1

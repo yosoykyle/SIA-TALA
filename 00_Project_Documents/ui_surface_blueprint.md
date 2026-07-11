@@ -31,7 +31,7 @@ MVP decisions:
 2. Registrar, Accounting, Academic Head, and System Super Admin share `/admin`. Navigation visibility improves usability; policies and action authorization enforce access.
 3. Applicant and Student surfaces remain separate because handover changes both the account lifecycle and the authorized records.
 4. Authentication UI stays in the Filament panels. Laravel Fortify remains the backend authentication contract for login, registration, verification, password reset, and custom response handling where already integrated.
-5. The public landing page uses an isolated Bootstrap v5.3.3 Blade layout with landing-only public assets. Authenticated work remains Filament-first and does not load Bootstrap globally.
+5. The public landing page uses an isolated Bootstrap v5.3.3 Blade layout with landing-only public assets. Authenticated work remains Filament-first and does not load Bootstrap globally. The `/` FAQ accordion is dynamic and admin-managed: it renders published `FaqEntry` records (ordered by `sort_order`), and `FaqEntryResource` is a registered staff surface under System Administration for System Super Admin curation.
 6. Filament resources, pages, tables, forms, infolists, actions, filters, widgets, and notifications are the default authenticated UI toolkit.
 7. Core Filament components are used before custom Blade or a new plugin. A plugin is introduced only when a required PRD behavior cannot be delivered cleanly with installed components.
 8. Auth Designer is retained for Filament authentication screens. Applicant registration must keep the custom `RegisterApplicant` page through the package-supported page hook, not a generic replacement page.

@@ -24,7 +24,6 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'document uploads' => ['route' => 'filament.admin.resources.document-uploads.index'],
             'enrollment subjects' => ['route' => 'filament.admin.resources.enrollment-subjects.index'],
             'faculty subject eligibilities' => ['route' => 'filament.admin.resources.faculty-subject-eligibilities.index'],
-            'faq entries' => ['route' => 'filament.admin.resources.faq-entries.index'],
             'fee templates' => ['route' => 'filament.admin.resources.fee-templates.index'],
             'grade corrections' => ['route' => 'filament.admin.resources.grade-corrections.index'],
             'grades' => ['route' => 'filament.admin.resources.grades.index'],
@@ -58,6 +57,7 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'admin users' => ['route' => 'filament.admin.resources.users.index'],
             'admin roles' => ['route' => 'filament.admin.resources.roles.index'],
             'admin activities' => ['route' => 'filament.admin.resources.activities.index'],
+            'faq entries' => ['route' => 'filament.admin.resources.faq-entries.index'],
             'scheduling blocks' => ['route' => 'filament.admin.resources.calendar-events.index'],
             'schedule generation runs' => ['route' => 'filament.admin.resources.schedule-generation-runs.index'],
         ];

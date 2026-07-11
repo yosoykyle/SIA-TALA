@@ -294,68 +294,30 @@
                 <div class="row">
                     <div class="col-lg-8 mx-auto">
                         <div class="accordion accordion-custom" id="faqAccordion">
-                            <div class="accordion-item img-faq-1">
-                                <div class="card-blur" aria-hidden="true">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                                <h3 class="accordion-header" id="headingFaqOne">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqOne" aria-expanded="false" aria-controls="collapseFaqOne">
-                                        HOW DO I APPLY FOR ADMISSION?
-                                    </button>
-                                </h3>
-                                <div id="collapseFaqOne" class="accordion-collapse collapse" aria-labelledby="headingFaqOne" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        Use <a class="link-light fw-bold" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a> to create an applicant account. The Applicant Workspace guides draft application, checklist, and allowed evidence steps.
+                            @forelse ($faqEntries as $entry)
+                                <div class="accordion-item img-faq-{{ $loop->index % 3 + 1 }}">
+                                    <div class="card-blur" aria-hidden="true">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </div>
+                                    <h3 class="accordion-header" id="headingFaq{{ $entry->id }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaq{{ $entry->id }}" aria-expanded="false" aria-controls="collapseFaq{{ $entry->id }}">
+                                            {{ $entry->question }}
+                                        </button>
+                                    </h3>
+                                    <div id="collapseFaq{{ $entry->id }}" class="accordion-collapse collapse" aria-labelledby="headingFaq{{ $entry->id }}" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body">
+                                            {{ $entry->answer }}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="accordion-item img-faq-2">
-                                <div class="card-blur" aria-hidden="true">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                                <h3 class="accordion-header" id="headingFaqTwo">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqTwo" aria-expanded="false" aria-controls="collapseFaqTwo">
-                                        WHAT WORKSPACES CAN I ACCESS?
-                                    </button>
-                                </h3>
-                                <div id="collapseFaqTwo" class="accordion-collapse collapse" aria-labelledby="headingFaqTwo" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        Applicants use the Applicant Workspace before handover. Students use Student Hub after official activation. Staff users use the Staff Workspace according to assigned role and authorization.
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="accordion-item img-faq-3">
-                                <div class="card-blur" aria-hidden="true">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                                <h3 class="accordion-header" id="headingFaqThree">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaqThree" aria-expanded="false" aria-controls="collapseFaqThree">
-                                        CAN STUDENTS OR STAFF REGISTER HERE?
-                                    </button>
-                                </h3>
-                                <div id="collapseFaqThree" class="accordion-collapse collapse" aria-labelledby="headingFaqThree" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        No. Public self-registration is only for applicants. Student and staff accounts are activated through official school processes.
-                                    </div>
-                                </div>
-                            </div>
+                            @empty
+                                <p class="text-muted mb-0">No frequently asked questions are available right now.</p>
+                            @endforelse
                         </div>
                     </div>
                 </div>

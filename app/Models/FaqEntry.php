@@ -2,12 +2,20 @@
 
 namespace App\Models;
 
+use Database\Factories\FaqEntryFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class FaqEntry extends Model
 {
+    /** @use HasFactory<FaqEntryFactory> */
+    use HasFactory, LogsActivity;
+
     public const CategoryGeneral = 'general';
 
     public const CategoryAdmissionEnrollment = 'admission_enrollment';
@@ -20,12 +28,16 @@ class FaqEntry extends Model
 
     public const CategoryTechnicalSupport = 'technical_support';
 
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'question',
         'answer',
         'category',
         'sort_order',
         'is_published',
+        'system_key',
     ];
 
     protected static function booted(): void
@@ -44,11 +56,44 @@ class FaqEntry extends Model
         });
     }
 
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
             'is_published' => 'boolean',
         ];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('faq')
+            ->logOnly([
+                'question',
+                'answer',
+                'category',
+                'sort_order',
+                'is_published',
+                'system_key',
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
+
+    /**
+     * Published entries in their public display order.
+     *
+     * @param  Builder<FaqEntry>  $query
+     * @return Builder<FaqEntry>
+     */
+    public function scopePublishedOrdered(Builder $query): Builder
+    {
+        return $query
+            ->where('is_published', true)
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 
     public function creator(): BelongsTo

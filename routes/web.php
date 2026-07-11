@@ -4,10 +4,13 @@ use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\PaymentAcknowledgementController;
+use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('welcome', [
+        'faqEntries' => FaqEntry::query()->publishedOrdered()->get(),
+    ]);
 });
 
 Route::get('/outputs/cor/{enrollment}', CorPrintController::class)

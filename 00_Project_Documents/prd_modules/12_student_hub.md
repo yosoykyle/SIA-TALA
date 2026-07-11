@@ -6,7 +6,7 @@
 
 Student Hub v1 is the authenticated student-facing workspace for current academic status, finance status, holds, schedules, grades, and generated outputs.
 
-The public landing page is the public non-authenticated surface. It explains TALA, admission guidance, account access boundaries, notices, and FAQ links before users continue to sign-in or applicant application access.
+The public landing page is the public non-authenticated surface. It explains TALA, admission guidance, account access boundaries, notices, and FAQ links before users continue to sign-in or applicant application access. The FAQ is a landing-page surface only; there is no Student Hub FAQ page, and the Student Hub page map below intentionally omits one.
 
 Student Hub v1 includes:
 

@@ -21,6 +21,7 @@ use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
+use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
 use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -97,6 +98,7 @@ class AdminPanelProvider extends PanelProvider
                 RoleResource::class,
                 ActivityResource::class,
                 SystemSettingResource::class,
+                FaqEntryResource::class,
                 OperationalEventResource::class,
                 ApplicantIntakeResource::class,
                 AdmissionRequirementPolicyResource::class,

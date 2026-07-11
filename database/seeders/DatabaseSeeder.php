@@ -40,6 +40,7 @@ class DatabaseSeeder extends Seeder
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $this->call(AdmissionRequirementPolicySeeder::class);
+        $this->call(FaqEntrySeeder::class);
     }
 
     /**

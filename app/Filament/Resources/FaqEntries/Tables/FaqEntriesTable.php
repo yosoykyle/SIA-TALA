@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FaqEntries\Tables;
 
 use App\Models\FaqEntry;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -49,6 +50,7 @@ class FaqEntriesTable
             ])
             ->recordActions([
                 EditAction::make(),
+                DeleteAction::make(),
             ])
             ->toolbarActions([]);
     }
