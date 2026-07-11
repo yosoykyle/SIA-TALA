@@ -5,7 +5,7 @@
 This is the active planning surface: it controls issue order and scope, not product behavior. It is read after `AGENTS.md` and `TALA-Orchestrator-Protocol.md` in the intake chain. For each issue it shows only the status, goal, sub-slice map (when split), dependency lock, and next boundary. The protocol owns the full cycle — planning, gates, delegation, verification, tracker movement, commits, and sync — so do not restate those here.
 
 - **Issue numbering:** the next issue continues from the last ID in `TALA-Local-Linear-Sync-Tracker.md` (or Linear).
-- **Sub-slice maps:** when a parent issue is split, the primary records the map here on plan acceptance (ID, one-line purpose, status, and next boundary per sub-slice) and keeps the parent here until every sub-slice is complete; completed sub-slices are recorded in the tracker.
+- **Sub-slice maps:** when a parent issue is split, the primary records the map here on plan acceptance (ID, one-line purpose, status, and next boundary per sub-slice) and keeps the parent here until every sub-slice is complete. A finished sub-slice is trimmed to a one-line status stub — its delivered detail lives in the git commit message, not here — and the parent is removed once every sub-slice is complete.
 - **Resume:** after compaction, interruption, rejected worker output, or stale state, run the resume checkpoint from the protocol before continuing.
 
 ## Active and Upcoming Issues

@@ -115,7 +115,7 @@ A dependency named in an accepted plan needs no second approval, but the plan mu
 
 **Do:** Simplification means purposeful scope, not deletion or presence for its own sake. Each feature must support at least one of: a clear school workflow (naming the office owner, manual decision, and TALA record type); an inter-department handoff; a CP-SAT or payment integration dependency; usability; audit and control; or maintainability. Prefer hybrid manual/digital workflows that stay useful without encoding unnecessary institutional complexity. Do not preserve a reduced feature merely because richer behavior was assumed expensive — if a compatible native, packaged, or qualified-reference option makes it bounded, use it; domain fit and purposeful scope still control.
 
-Route every deferral to exactly one destination, in this order: backed by an authority document → an existing Next Steps issue, or a new issue if none fits (post-MVP enhancements get their own "future enhancement, post-MVP" issue); not in any authority → discard, stated explicitly; a disagreement with PRD scope → the Authority Document Correction rule. Next Steps rows are the single source of truth for where a deferral lives; completed-work detail belongs in the tracker.
+Route every deferral to exactly one destination, in this order: backed by an authority document → an existing Next Steps issue, or a new issue if none fits (post-MVP enhancements get their own "future enhancement, post-MVP" issue); not in any authority → discard, stated explicitly; a disagreement with PRD scope → the Authority Document Correction rule. Next Steps rows are the single source of truth for where a deferral lives; completed-work detail belongs in the git commit message, not the roadmap or tracker.
 
 **Block:** Do not defer without a recorded destination issue or an explicit stated discard. Do not close a parent issue with unrouted deferrals. If a feature supports none of the criteria above, defer it or challenge its MVP purpose in the primary thread before handoff.
 
@@ -151,6 +151,7 @@ A slice must be small enough to inspect, implement, test, and verify in one pass
 3. The user approves the plan, including the split.
 4. The primary immediately records the approved map in Next Steps. This is planning documentation and needs no separate approval.
 5. The primary plans the first sub-slice under the normal gates.
+6. On completion, trim each finished sub-slice's map row to a one-line status stub (its delivered detail lives in the commit message, not here). When every sub-slice of a parent is complete, remove the parent and its map from Next Steps; the record persists in the commit messages and, once synced, in Linear.
 
 If an approved sub-slice is later found mid-implementation to need further splitting, stop, propose the new split in the primary thread, get approval, record the updated map, then continue.
 
@@ -194,7 +195,9 @@ Primary acceptance requires independent inspection and proportionate verificatio
 - Run `vendor/bin/pint --dirty --format agent` after PHP changes.
 - Run focused PHPStan or Larastan when typed PHP paths or tests change.
 - Run `git diff --check` before any handoff or commit.
-- After primary acceptance: record the work in the tracker as `Done locally; pending explicit Linear sync`, remove the completed active-planning entry or advance the parent sub-slice map, then make one bounded local Git commit.
+- After primary acceptance, make one bounded local Git commit whose message is the canonical record of what the slice delivered and why: scope, key changes, verification evidence, and any routed deferrals.
+- Keep delivered detail in the commit message, not the roadmap or tracker. Next Steps holds scope, order, and the sub-slice map; the tracker holds ID, status, and title/domain; the commit message — and, once synced, Linear — holds the detail. Never paste verification or evidence blocks into Next Steps or the tracker.
+- Then record a lean tracker row (`Done locally; pending explicit Linear sync`, title/domain only), and either remove the completed active-planning entry or trim its sub-slice map row to a one-line status stub.
 - A local commit never authorizes push, deploy, PR, or Linear mutation.
 - Keep the tracker row pending until the user says `Sync TAL-XX to Linear`; after sync, move it to compact synced history.
 - Give the user a post-commit checklist: pages, actions, expected results, and failure signs.
