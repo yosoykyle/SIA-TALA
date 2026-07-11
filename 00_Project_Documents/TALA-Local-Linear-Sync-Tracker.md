@@ -84,6 +84,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J2c | Done locally; pending explicit Linear sync | Retire catalog/enrollment/docs phantom cluster |
 | TAL-93J2d | Done locally; pending explicit Linear sync | Retire finance phantom cluster |
 | TAL-93J2e | Done locally; pending explicit Linear sync | Dynamic admin-managed landing FAQ |
+| TAL-93J2f | Done locally; pending explicit Linear sync | Retire standalone PromissoryNote island |
 
 ## Compact Synced History
 

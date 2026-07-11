@@ -7,72 +7,6 @@ parameters:
 			path: app/Actions/Enrollment/EnrollmentHardCopyReceiptService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$amount\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$approved_at\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$due_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$enrollment_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$student_profile_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$due_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$expiry_warning_sent_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\PromissoryNote\>\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Finance/PromissoryNoteLifecycleService.php
-
-		-
 			message: '#^Instanceof between App\\Models\\User and Illuminate\\Contracts\\Auth\\MustVerifyEmail will always evaluate to true\.$#'
 			identifier: instanceof.alwaysTrue
 			count: 1
@@ -133,49 +67,7 @@ parameters:
 			path: app/Actions/Scheduling/CandidateScheduleRowReviewService.php
 
 		-
-			message: '#^Parameter \#1 \$enrollment of static method App\\Models\\PromissoryNote\:\:enrollmentOptionLabel\(\) expects App\\Models\\Enrollment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Filament/Resources/PromissoryNotes/Schemas/PromissoryNoteInfolist.php
-
-		-
-			message: '#^Parameter \#1 \$ledgerEntry of static method App\\Models\\PromissoryNote\:\:ledgerEntryOptionLabel\(\) expects App\\Models\\LedgerEntry, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Filament/Resources/PromissoryNotes/Schemas/PromissoryNoteInfolist.php
-
-		-
-			message: '#^Parameter \#1 \$enrollment of static method App\\Models\\PromissoryNote\:\:enrollmentOptionLabel\(\) expects App\\Models\\Enrollment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
-
-		-
-			message: '#^Parameter \#1 \$ledgerEntry of static method App\\Models\\PromissoryNote\:\:ledgerEntryOptionLabel\(\) expects App\\Models\\LedgerEntry, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Filament/Resources/PromissoryNotes/Tables/PromissoryNotesTable.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$student_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/PromissoryNote.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$year_level\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/PromissoryNote.php
-
-		-
 			message: '#^Method App\\Policies\\CorVerificationPolicy\:\:canAny\(\) is unused\.$#'
 			identifier: method.unused
 			count: 1
 			path: app/Policies/CorVerificationPolicy.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PromissoryNote\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Policies/PromissoryNotePolicy.php

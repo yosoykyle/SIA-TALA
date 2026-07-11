@@ -69,7 +69,6 @@ class DatabaseSeeder extends Seeder
     {
         return [
             'approve-documents',
-            'approve-promissory-notes',
             'authorize-overrides',
             'create-assessments',
             'evaluate-transferees',
@@ -122,7 +121,6 @@ class DatabaseSeeder extends Seeder
                 'create-assessments',
                 'process-payments',
                 'post-accounting-adjustments',
-                'approve-promissory-notes',
             ],
 
             // §2.3.3 Faculty class lists + grade encoding/submission run through role-gated

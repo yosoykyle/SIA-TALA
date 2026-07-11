@@ -72,9 +72,9 @@ class RoleAccessMatrixTest extends TestCase
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
         $this->assertSame(
-            15,
+            14,
             Permission::query()->where('guard_name', 'web')->count(),
-            'Exactly the 15 canonical permissions must be seeded.',
+            'Exactly the 14 canonical permissions must be seeded.',
         );
 
         $orphans = Permission::query()->whereDoesntHave('roles')->pluck('name')->all();
@@ -119,7 +119,6 @@ class RoleAccessMatrixTest extends TestCase
                     'create-assessments',
                     'process-payments',
                     'post-accounting-adjustments',
-                    'approve-promissory-notes',
                 ],
             ],
             'faculty has no action permissions' => [

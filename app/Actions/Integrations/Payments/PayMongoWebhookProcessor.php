@@ -3,7 +3,6 @@
 namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
-use App\Actions\Finance\PromissoryNoteLifecycleService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -28,7 +27,6 @@ class PayMongoWebhookProcessor
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
-        private readonly PromissoryNoteLifecycleService $promissoryNoteLifecycleService,
     ) {}
 
     /**
@@ -420,12 +418,6 @@ class PayMongoWebhookProcessor
         string $newBalance,
         CarbonImmutable $timestamp,
     ): array {
-        $this->promissoryNoteLifecycleService->settleEligibleForEnrollment(
-            enrollment: $enrollment,
-            actor: null,
-            settledAt: $timestamp,
-        );
-
         $clearance = $this->financeClearanceService->clearIfEligible(
             enrollment: $enrollment,
             studentProfile: $studentProfile,
