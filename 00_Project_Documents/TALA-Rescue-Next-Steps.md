@@ -2,25 +2,11 @@
 
 ## Purpose
 
-This document is the active planning surface for upcoming work. It is reached after `AGENTS.md` and `TALA-Orchestrator-Protocol.md` in the agent intake chain, and it controls issue sequencing rather than product behavior.
-- **Issue Numbering:** Always look at the last Issue ID in the `TALA-Local-Linear-Sync-Tracker.md` or on the Linear website. The next issue planned here will start from the subsequent number.
-- **The Cycle:**
-  1. Primary plans the current issue or sub-slice and waits for acceptance.
-  2. If the plan includes a sub-slice split, primary records the approved sub-slice map in this file immediately after acceptance, then plans the first sub-slice.
-  3. Implementation/delegation follows `TALA-Orchestrator-Protocol.md`.
-  4. Before cleanup or commit, primary reports the protocol acceptance audit.
-  5. Move accepted local work to `TALA-Local-Linear-Sync-Tracker.md` as `Done locally; pending explicit Linear sync`.
-  6. Create the bounded local Git commit. This standing permission does not authorize push, deploy, PR, or Linear mutation.
-  7. Remove completed standalone issues from this file. For parent issues, update the sub-slice map and keep the parent until all sub-slices are complete.
-  8. Give the user an acceptance checklist. Patch current-slice defects before advancing.
-  9. External Linear synchronization waits for the explicit command `Sync TAL-XX to Linear`.
-- **Parent/Sub-slice Tracking:** If a parent issue is split, keep the parent in this document with a compact sub-slice map. Each sub-slice should show its ID, one-line purpose, status, and next boundary. Completed sub-slices are recorded in the local tracker, but the parent remains here until all sub-slices are complete.
+This is the active planning surface: it controls issue order and scope, not product behavior. It is read after `AGENTS.md` and `TALA-Orchestrator-Protocol.md` in the intake chain. For each issue it shows only the status, goal, sub-slice map (when split), dependency lock, and next boundary. The protocol owns the full cycle — planning, gates, delegation, verification, tracker movement, commits, and sync — so do not restate those here.
 
-Resume rule: after compaction, interruption, rejected worker output, failed/unclear handoff, or stale state, run the short resume checkpoint from `TALA-Orchestrator-Protocol.md` before continuing.
-
-## Planning Rule
-
-Do not duplicate protocol details here. For each active issue, this file should show only the status, goal, sub-slice map when needed, dependency lock, and next boundary. Source order, research/tool rules, benchmark/plugin gates, worker handoff, verification, tracker movement, and commits are controlled by `TALA-Orchestrator-Protocol.md`.
+- **Issue numbering:** the next issue continues from the last ID in `TALA-Local-Linear-Sync-Tracker.md` (or Linear).
+- **Sub-slice maps:** when a parent issue is split, the primary records the map here on plan acceptance (ID, one-line purpose, status, and next boundary per sub-slice) and keeps the parent here until every sub-slice is complete; completed sub-slices are recorded in the tracker.
+- **Resume:** after compaction, interruption, rejected worker output, or stale state, run the resume checkpoint from the protocol before continuing.
 
 ## Active and Upcoming Issues
 

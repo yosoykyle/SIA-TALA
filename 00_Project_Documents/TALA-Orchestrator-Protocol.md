@@ -1,378 +1,220 @@
 # TALA Orchestrator Protocol
 
-## Purpose
+## 1. Purpose
 
-This file controls how TALA MVP work is planned, delegated, verified, tracked, and committed. It should stay compact and TALA-specific. Generic planning, debugging, TDD, verification, review, and subagent workflow details belong to installed skills/plugins when available, not copied here.
+This protocol controls how TALA MVP work is planned, delegated, verified, tracked, and committed. It stays compact and TALA-specific: generic planning, debugging, TDD, verification, review, and subagent technique belongs to installed skills and plugins, not here.
 
-The goal is not a restart. Continue through small vertical slices, preserve aligned implementation, patch proven gaps, and keep the SIS foundation reliable before CP-SAT and payment hardening.
+The goal is never a restart. Work in small vertical slices, keep aligned implementation, patch proven gaps, and keep the SIS foundation reliable before CP-SAT and payment hardening.
 
-## Authority and Intake
+The `AGENTS.md` router carries the always-loaded summary (intake chain, non-negotiables, commands). This file is the single home for every detailed rule below. If the router and this file ever differ, this file wins and the router must be corrected.
 
-Read in this order before a TALA slice:
+## 2. Intake and authority
 
-1. `AGENTS.md` — runtime rules and Laravel Boost block. Read it from the project root. If it is not available, stop before planning, delegation, or implementation.
+Read in this order before planning a slice:
+
+1. `AGENTS.md` — runtime rules and the Laravel Boost block. If it is unavailable, stop before planning, delegating, or implementing.
 2. This protocol — orchestration rules.
-3. `TALA-Rescue-Next-Steps.md` — current issue, sequence, sub-slices.
+3. `TALA-Rescue-Next-Steps.md` — current issue, order, sub-slices.
 4. `TALA-Local-Linear-Sync-Tracker.md` — issue numbering and sync state only.
 5. `prd_modules/` — product behavior, MVP boundaries, records, flows, outputs, roles.
-6. `ui_surface_blueprint.md` — UI/role/surface mapping.
+6. `ui_surface_blueprint.md` — UI, role, and surface mapping.
 7. `architecture_specification.md` — system and integration boundaries.
-8. `business-evidence/` — clarification only: current forms, terminology, document shape, realistic data. Exclude SHS-only content unless proven relevant to college workflows.
-9. Migrations, models, services, policies, routes, Filament resources/pages, and tests — salvage evidence.
+8. `business-evidence/` — clarification only (current forms, terminology, document shape, realistic data). Exclude senior-high-only content unless it is proven relevant to college workflows.
+9. Migrations, models, services, policies, routes, Filament resources and pages, and tests — salvage evidence, not authority.
 
-Ownership: Boost/official docs control framework use; PRD controls product; blueprint controls UI mapping; architecture controls integration boundaries; protocol controls workflow; Next Steps controls order; tracker controls sync status. Existing code is accepted only when aligned. On unresolved conflict, stop in the primary thread.
+Owners: Boost and official docs own framework use; PRD owns product; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order; tracker owns sync state. Accept existing code only when it is aligned. On any unresolved conflict, stop in the primary thread.
 
-### Salvage Assessment
+## 3. Planning sequence
 
-Item 9 of the reading order (migrations, models, services, policies, routes, Filament resources/pages, and tests) is read as salvage evidence, not as an authority. Before a slice plan cites existing code as accepted, aligned, or gap-only:
+Every slice plan follows these steps in order. Each named gate is defined once in Section 4. Do not begin research (steps 4-5) before the slice's domain shape is established (steps 2-3).
 
-1. Read the relevant existing file(s) in full — not a partial grep — before classifying them.
-2. Classify each piece of salvage evidence against the owning PRD/blueprint/architecture section as one of:
-   - **Aligned** — matches the authority; keep silently, cite in the plan as accepted evidence.
-   - **Gap** — the authority's behavior is missing or incomplete; patch it as a focused addition, cited in the plan (do not restart or rewrite what is already aligned).
-   - **Conflict** — existing code and the authority disagree, or an authority's stated design does not match what is actually implemented/possible. Route through the existing PRD/blueprint/architecture correction rule (Product-Rule Ownership section) — do not silently patch code to match a PRD that may itself be wrong, and do not silently rewrite the PRD to match code without evidence.
-3. Cite the classification and evidence in the plan per file/surface, not as a blanket "existing code accepted" statement.
+1. **Intake** — read the authorities above for the slice's domain.
+2. **Ground-Truth Gate** — verify what exists and what the authority requires for every in-scope surface, then assign a verdict.
+3. **Slice Clarity Gate** — fix the domain shape: office owner, manual step, TALA responsibility, feature category, and purposeful simplification.
+4. **Benchmark Gate** — when triggered, run a bounded reality-check benchmark and record the result.
+5. **Qualified-Reference Gate** — assess reference overlap at the minimum useful depth and decide the implementation source.
+6. **Write the plan contract** (Section 5) and report it.
+7. **User approval** — do not implement or delegate until the user accepts. The only exception is a small docs-only protocol fix the user explicitly requests.
 
-This does not replace or duplicate the benchmark/implementation-fit gate, the overlap assessment gate, or the Authority Document Correction rule — it governs how item 9 evidence specifically is read and classified before those gates and rules are applied.
+Use Boost `search-docs`, Context7, plugin catalogs, and available MCPs during steps 4-5 to confirm that proposed patterns, packages, or integrations exist and are version-compatible; do not defer tool and skill use to implementation. Activate the installed skills that match the slice's domain so their conventions shape the plan.
 
-### Ground-Truth Gate
+Sources: use Laravel Boost first for the Laravel ecosystem, especially version-specific `search-docs`; Context7 for focused, version-specific library, plugin, SDK, or API docs when Boost is insufficient — treat it as technical context only, never product, benchmark, or reference authority; authoritative internet or primary sources for policy, integration contracts, or mature-SIS behavior, preferring local Philippine campus and SIS context when credibility is uncertain; and installed skills or plugins for generic process, which never override TALA authorities. Use official sources for missing, conflicting, security-critical, or contractual details. If deep research is not needed, state why — internal cleanup, native or framework implementation, or direct alignment to a recently accepted benchmark.
 
-Applies at planning, before proceeding (re-confirm the exact files about to change), and when orchestrating (carried in the handoff packet and confirmed in the handshake). For every model, table, resource, service, or column in scope, verify BOTH sides with cited evidence before classifying or acting: (1) what exists in the running system - `Schema::hasTable` on `test_tala_db`, `AdminPanelProvider` registration, the creating migration, and live references/passing tests; and (2) what the PRD/blueprint/architecture requires. Then assign a verdict: aligned (keep); gap (patch); superseded remnant (retire, naming the live replacement that satisfies the authority); required-but-unbuilt (defer or build - never delete a required feature merely because it is not yet built). "Does not exist" alone never decides an action: the existence check chooses write-vs-delete, and the authority check decides whether it is warranted. Never trust an issue's or Next Steps' framing over this reality check; on conflict, stop and re-surface to the user before acting. The trigger "GTG" invokes it explicitly, but it applies always.
+## 4. Gates
 
-## Capability and Research Policy
+Each gate uses the same shape: **When**, **Do**, **Block**, and **Skip** where applicable.
 
-Use available capabilities instead of duplicating their full instructions:
+### 4.1 Ground-Truth Gate
 
-- Laravel ecosystem/framework work: Laravel Boost first, especially version-specific `search-docs`.
-- Library/plugin/SDK/API work: use Context7 for focused, current, version-specific documentation and code examples when Boost is insufficient. Resolve the exact library/version, ask a specific question, and reuse the result. Context7 may retrieve repository-indexed documentation, but it is technical context only; use official sources for missing, conflicting, security-critical, or contractual details.
-- Policy, integration contracts, or mature SIS behavior: authoritative internet/primary sources; prefer local Philippine campus/SIS context when policy credibility or workflow familiarity is uncertain.
-- Generic planning/debugging/TDD/verification/review/subagent workflows: relevant installed skills/plugins such as Superpowers when available. These guide process only; they do not override TALA authorities.
+**When:** Before every plan, before proceeding (re-confirm the exact files about to change), and when orchestrating (carried in the handoff packet and re-confirmed in the worker handshake). The trigger "GTG" invokes it explicitly, but it always applies.
 
-Timing: use Boost `search-docs`, plugin catalogs, and available MCPs during planning (gate Phase B, items 6–8) to verify that proposed framework patterns, plugins, or integrations exist and are version-compatible before the plan is finalized. During planning, identify which installed skills apply to the slice's domain and activate them so their conventions inform the plan. Do not defer all tool and skill usage to implementation if it would leave the plan unverified.
+**Do:** Read each in-scope file in full — never a partial grep. For every model, table, resource, service, or column in scope, verify both sides with cited evidence: (1) what exists in the running system — `Schema::hasTable` on `test_tala_db`, `AdminPanelProvider` registration, the creating migration, and live references or passing tests; and (2) what the PRD, blueprint, or architecture requires. Then assign one verdict per surface:
 
-Every slice runs a benchmark/implementation-fit gate:
+- **Aligned** — exists and matches the authority. Keep it; cite it as accepted evidence.
+- **Gap** — exists but the required behavior is missing or incomplete. Patch it as a focused addition; never rewrite what is aligned.
+- **Superseded remnant** — exists, but a live replacement already satisfies the authority. Retire it, naming the replacement.
+- **Required-but-unbuilt** — the authority requires it and it does not exist. Build it or defer it; never delete a required feature merely because it is unbuilt.
+- **Conflict** — code and authority disagree, or the authority's own design is wrong or infeasible. Route it to the Authority Document Correction rule (Section 9); never silently patch code to a possibly-wrong authority, and never silently rewrite an authority to match code.
 
-The gate runs in two phases:
+"Does not exist" alone never decides an action: the existence check chooses write-versus-delete, and the authority check decides whether the action is warranted. Cite the verdict and evidence per surface, not as a blanket "existing code accepted."
 
-- Phase A (scope establishment): items 1–3 define the slice's domain shape — what records, what workflow category, which office owns the decision, and what TALA's responsibility is. This phase uses only PRD, current code, and manual/digital judgment.
-- Phase B (research and tool assessment): items 4–9 use the domain shape from Phase A to determine whether external research, reference inspection, or additional tooling is needed. Do not execute Phase B without a clear domain shape from Phase A.
+**Block:** Never trust an issue's or Next Steps' framing over this check. If reality differs from the framing, stop and re-surface to the user before acting.
 
-1. PRD/blueprint intent.
-2. Current implementation.
-3. Manual/digital reality check: office owner, manual office step, TALA-owned record/view/integration responsibility, and whether the proposed behavior over-automates office judgment.
-4. Whether a mature-system benchmark is required or reusable.
-5. Whether a qualified reference implementation overlaps.
-6. Native Filament v5/Laravel pattern.
-7. Installed packages.
-8. Qualified plugin/dependency option.
-9. Focused custom code.
+### 4.2 Slice Clarity Gate
 
-### Slice Clarity Gate
+**When:** Every slice, before the plan is finalized.
 
-CONDITION: Every slice, before the plan is finalized.
+**Do:** State all five, using PRD intent, current code, and manual/digital judgment:
 
-REQUIRED: The plan MUST identify all of the following:
-- Office owner (who owns the decision in the real institution).
-- Manual workflow step (what humans do outside TALA).
-- TALA's exact responsibility (source record, generated view, office-result record, integration I/O, or deferred).
-- Proposed feature category (one of the above).
-- Why current code or a bounded benchmark does not contradict the plan.
+- Office owner — who owns the decision in the real institution.
+- Manual workflow step — what humans do outside TALA.
+- TALA's responsibility — source record, generated read-only view, office-result record, integration input/output, or deferred.
+- Feature category — one of the responsibilities above.
+- Why current code or a bounded benchmark does not contradict the plan, and whether the behavior over-automates office judgment.
 
-BLOCK: If any item above is missing or unclear → mark the slice unclear → do not implement.
+**Block:** If any item is missing or unclear, mark the slice unclear and do not implement. "PRD wording is readable" does not satisfy this gate.
 
-NOTE: "PRD wording is readable" does not satisfy this gate. Readable wording without the five items above is still unclear.
+### 4.3 Benchmark Gate
 
-### Benchmark Gate
+**When:** The first sub-slice of a new parent issue, or the first sub-slice touching any of: admissions or applicant data, document evidence, enrollment gates, finance, ledger, or payment, CP-SAT or scheduling, COR or official outputs, Student Hub or student-facing data, integrations or settings, security or privacy, audit, retention, or reporting.
 
-TRIGGER: First sub-slice of a new parent issue, OR first sub-slice touching any of:
-admissions/applicant data, document evidence, enrollment gates, finance/ledger/payment,
-CP-SAT/scheduling, COR/official outputs, Student Hub/student-facing data,
-integrations/settings, security/privacy, audit, retention, or reporting.
+**Do:** Run a bounded reality-check benchmark before finalizing the plan. Record a "Benchmark Result" section with: the domain checked; sources consulted (Boost docs, web search, business evidence, or a prior benchmark); findings (what was confirmed or contradicted); and PRD-alignment confirmation (does the PRD match real-world practice?). Business benchmarking validates workflow credibility; a qualified reference validates implementation fit; neither overrides TALA authorities.
 
-REQUIRED: Run a bounded reality-check benchmark BEFORE finalizing the plan.
+**Block:** If the trigger applies and this section is absent or says "not needed" without a valid skip citation, the plan is incomplete — do not approve or implement.
 
-OUTPUT: The primary report MUST include a "Benchmark Result" section containing:
-- Domain checked.
-- Sources consulted (Boost docs, web search, business evidence, or prior benchmark).
-- Findings (what the research confirmed or contradicted).
-- PRD alignment confirmation (does the PRD match real-world practice?).
+**Skip:** A later sub-slice may reuse a recent accepted benchmark only when all of these hold: same workflow; no new role; no new source record; no new integration boundary; no new official output; no new exposed-data class; no new manual-office decision. Cite the prior benchmark by TAL-XX ID.
 
-BLOCK: If the trigger applies and this section is absent or states "not needed" without
-citing a valid skip condition → plan is incomplete → do not approve or implement.
+### 4.4 Qualified-Reference (Overlap) Gate
 
-SKIP: A later sub-slice may reuse a recent accepted benchmark ONLY when ALL of these hold:
-- Same workflow as the benchmarked slice.
-- No new role introduced.
-- No new source record introduced.
-- No new integration boundary introduced.
-- No new official output introduced.
-- No new exposed data class introduced.
-- No new manual-office decision introduced.
-Cite the prior accepted benchmark by TAL-XX ID.
+**When:** Every slice, after the Slice Clarity Gate establishes the domain shape. Default reference: the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES`; canonical remote: https://github.com/academico-sis/academico. Do not scan it routinely or broadly.
 
-### Research Recording
+**Do:** Answer both questions, then record the disposition:
 
-IF deep research is not needed → state why: internal cleanup, framework/native implementation, or direct code alignment to a recently accepted benchmarked contract.
+- **Business-logic overlap** — does this exact workflow (same records, rules, domain) exist in the reference? If yes, inspect at depth 2-3 for logic, service patterns, and data model. If no, record "no business-logic overlap."
+- **Implementation-pattern overlap** — does the reference have a similar UI need (data shapes, roster tables, review queues, submission flows, Filament resource patterns, plugin usage) even if the rules differ? If yes, inspect at depth 1-2 for UI patterns, components, plugins, and architecture. If no, record depth 0 with a reason.
 
-IF research is used → record material links and state why the recommendation is MVP-fit.
+Depth levels: `0` skip (both answers "no"); `1` rendered UI (resource structure, table and form layout, actions); `2` relevant files (services, models, policies, migrations); `3` dependencies, tests, and data model (only when adoption or copying is plausible). Record the source (local or remote), depth used, surfaces examined, and disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile an authority conflict.
 
-IF the PRD appears complete but manual/digital boundary or benchmark fit has not been checked → mark the slice unclear → stop before implementation.
+**Block:** Do not skip to depth 0 until both questions are answered "no."
 
-Business benchmarking validates workflow credibility; a qualified reference validates implementation fit. Neither overrides TALA authorities.
+**Skip and reuse:** Check the local checkout first; use the canonical remote via the GitHub API at the same minimum depth only if the local checkout is unavailable or stale, or to settle freshness, license, dependency, or copy decisions. Reuse an accepted finding for related sub-slices unless the workflow, reference, or integration boundary changes. The primary gives workers exact reference paths and allowed patterns; workers do not repeat broad discovery.
 
-### Qualified Reference Implementation
+### 4.5 Implementation-source order (Filament and plugins)
 
-Use the local Academico checkout at `D:\D SCHOOL\SYSTEMS\SIA-TALA-COGNITRES` as the default reference; canonical remote: [academico-sis/academico](https://github.com/academico-sis/academico). Do not scan it routinely or broadly.
+**When:** Choosing how to build any surface in an accepted plan.
 
-#### Overlap Assessment Gate
+**Do:** Prefer, in order: (1) keep current aligned, authorized, tested code; (2) native Filament v5 and Laravel features; (3) adapt a qualified-reference pattern when domain semantics fit; (4) reuse an installed package or component; (5) add a qualified plugin or dependency only for a real gap that reduces code or risk; (6) build focused custom code when none of the above fit. Plugin catalogs (https://filamentphp.com/plugins, https://github.com/spekulatius/awesome-filament) are discovery aids, not authority.
 
-CONDITION: Every slice, during gate Phase B (after Phase A establishes the domain shape).
+A dependency named in an accepted plan needs no second approval, but the plan must document: compatibility with Laravel 12, Filament 5, Livewire 4, and PHP 8.2; maintenance; license and security; migrations, routes, and config; authorization; tests; upgrade and removal cost; and that TALA domain rules stay in services, actions, policies, and models.
 
-ASSESS BOTH QUESTIONS:
+**Block:** Do not add a dependency that is not documented in the accepted plan.
 
-**Question 1 — Business-logic overlap:**
-"Does this exact workflow (same records, same rules, same domain) exist in the reference?"
+### 4.6 Simplification and deferral
 
-- IF yes → inspect at depth 2–3 for logic reuse, service patterns, and data model.
-- IF no → record "no business-logic overlap" and continue to Question 2.
+**When:** Every proposed feature or surface in a slice plan.
 
-**Question 2 — Implementation-pattern overlap:**
-"Does the reference have a similar UI need (displaying similar data shapes, roster tables,
-review queues, submission flows, Filament resource patterns, plugin usage) even if the
-business rules differ?"
+**Do:** Simplification means purposeful scope, not deletion or presence for its own sake. Each feature must support at least one of: a clear school workflow (naming the office owner, manual decision, and TALA record type); an inter-department handoff; a CP-SAT or payment integration dependency; usability; audit and control; or maintainability. Prefer hybrid manual/digital workflows that stay useful without encoding unnecessary institutional complexity. Do not preserve a reduced feature merely because richer behavior was assumed expensive — if a compatible native, packaged, or qualified-reference option makes it bounded, use it; domain fit and purposeful scope still control.
 
-- IF yes → inspect at depth 1–2 for UI patterns, Filament components, plugins, and code architecture.
-- IF no → record depth 0 with reason and proceed.
+Route every deferral to exactly one destination, in this order: backed by an authority document → an existing Next Steps issue, or a new issue if none fits (post-MVP enhancements get their own "future enhancement, post-MVP" issue); not in any authority → discard, stated explicitly; a disagreement with PRD scope → the Authority Document Correction rule. Next Steps rows are the single source of truth for where a deferral lives; completed-work detail belongs in the tracker.
 
-BLOCK: Do NOT skip entirely (depth 0) until BOTH questions are answered "no."
+**Block:** Do not defer without a recorded destination issue or an explicit stated discard. Do not close a parent issue with unrouted deferrals. If a feature supports none of the criteria above, defer it or challenge its MVP purpose in the primary thread before handoff.
 
-OUTPUT: Record in the plan:
-- Source (local checkout or remote).
-- Depth used (0–3).
-- Examined surfaces (models, Filament resources, views, plugins).
-- Disposition: keep TALA, adapt a pattern, copy bounded code with attribution, adopt a dependency, reject as incompatible, or reconcile a PRD/blueprint conflict.
+## 5. Primary orchestrator and the plan contract
 
-#### Depth Levels
+Activation prompts include `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or equivalent explicit intent.
 
-- `0` skip — both overlap questions answered "no."
-- `1` rendered UI — inspect Filament resource structure, table/form layout, action patterns.
-- `2` directly relevant files — inspect service classes, models, policies, and migrations.
-- `3` dependencies/tests/data model — only when adoption or copying is plausible.
+Before any implementation, delegation, tracker change, or commit, the primary reports:
 
-#### Access Rules
-
-- Check the local checkout first.
-- If the local checkout is unavailable or stale, use the canonical remote via GitHub API at the same minimum depth.
-- Check the remote only for freshness, license, dependency, or copy decisions.
-
-#### Reuse Rule
-
-Reuse an accepted finding for related sub-slices UNLESS the workflow, reference, or integration boundary changes. The primary gives workers exact reference paths and allowed patterns; workers do not repeat broad discovery.
-
-## Primary Orchestrator
-
-Activation prompts include `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`, or equivalent explicit orchestration intent.
-
-Before implementation, delegation, tracker movement, or commit, the primary reports:
-
-1. Git/dirty state.
+1. Git and dirty state.
 2. Current issue and next boundary.
-3. Authority files checked and conflicts/stale statements.
-4. Primary-vs-worker decision.
+3. Authority files checked, and any conflicts or stale statements.
+4. Primary-versus-worker decision.
 5. Proposed slice plan and exclusions.
 
-Resume checkpoint after compaction, interruption, rejected worker output, unclear handoff, or stale state: restate issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
+After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: restate the issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
 
 Commands:
 
-- `Primary proceed` — continue accepted current issue only.
-- `Plan TAL-XX` — draft plan only.
-- `Orchestrate TAL-XX` — after accepted plan, authorize one accountable worker.
-- `Verify TAL-XX` — independently inspect worker result and live repo.
-- `Cleanup TAL-XX` — local tracker + bounded local commit only.
-- `Sync TAL-XX to Linear` — only command that authorizes Linear mutation.
+- `Primary proceed` — continue the accepted current issue only.
+- `Plan TAL-XX` — draft a plan only.
+- `Orchestrate TAL-XX` — after an accepted plan, authorize one accountable worker.
+- `Verify TAL-XX` — independently inspect the worker result and the live repo.
+- `Cleanup TAL-XX` — local tracker update plus one bounded local commit only.
+- `Sync TAL-XX to Linear` — the only command that authorizes Linear mutation. `finish`, `close`, `cleanup`, `commit`, or `proceed` never authorize a Linear sync.
 
-`finish`, `close`, `cleanup`, `commit`, or `proceed` without explicit `Sync TAL-XX to Linear` does not authorize Linear sync.
+### Slice contract
 
-## Slice Contract
+A slice must be small enough to inspect, implement, test, and verify in one pass. If it is broad, split it during planning and record a compact sub-slice map in Next Steps:
 
-A slice must be small enough to inspect, implement, test, and verify. If broad, split it during primary planning and record a compact sub-slice map in Next Steps.
+1. The primary identifies during planning that the issue is too broad.
+2. The primary proposes the sub-slice map in its report (IDs, one-line purposes, dependency order, and next boundary for each).
+3. The user approves the plan, including the split.
+4. The primary immediately records the approved map in Next Steps. This is planning documentation and needs no separate approval.
+5. The primary plans the first sub-slice under the normal gates.
 
-Sub-slice map recording sequence:
+If an approved sub-slice is later found mid-implementation to need further splitting, stop, propose the new split in the primary thread, get approval, record the updated map, then continue.
 
-1. Primary identifies during planning that the issue is too broad for one slice.
-2. Primary proposes the sub-slice map in its report (IDs, one-line purposes, dependency order, next boundary for each).
-3. User approves the plan (including the split).
-4. Primary immediately records the approved sub-slice map in Next Steps. This is planning documentation, not implementation — it does not require a separate approval step.
-5. Primary then plans the first sub-slice per normal gate/benchmark rules.
+Each plan must define: role and user goal; trigger and action; inputs; changed records; outputs; UI surface and whether it is read-only or editable; related modules and downstream consumers; integration boundary; purposeful-simplification decision; manual/digital boundary and gate results; benchmark result when the Benchmark Gate triggers (otherwise the skip condition and prior TAL-XX ID); qualified-reference source, depth, and disposition (or why it is not applicable); likely files and surfaces; verification plan; human-only steps; and explicit exclusions.
 
-If the primary realizes mid-implementation that an approved sub-slice itself needs further splitting: stop implementation, report the new split proposal in the primary thread, get user approval, record the updated map, then continue.
+Every retained UI surface needs a plain-purpose statement: who uses it, what decision or action it supports, why it belongs in the MVP, and why it is read-only or editable. If the purpose is unclear, rename, hide, defer, redesign, or tie it to its owning module before acceptance. Classify every feature before implementation as one of: source record, generated read-only view, manual-office result record, integration input/output, or deferred. If it fits no category cleanly, challenge its MVP purpose before handoff.
 
-Each primary plan must define:
+State each human-only step with what it is, why it is manual, the exact steps, the expected evidence, and what it unlocks.
 
-- Role and user goal.
-- Trigger/action.
-- Inputs.
-- Changed records.
-- Outputs.
-- UI surface and whether it is read-only/editable.
-- Related modules/downstream consumers.
-- Integration boundary.
-- Purposeful-simplification decision.
-- Manual/digital boundary and benchmark/implementation-fit gate result.
-- Benchmark result (REQUIRED when the Benchmark Gate trigger applies; cite sources, findings, and PRD alignment — or state the skip condition and prior TAL-XX ID).
-- Qualified-reference source, depth, and disposition, or why it is not applicable.
-- Likely files/surfaces.
-- Verification plan.
-- Human-only steps.
-- Explicit exclusions.
+## 6. Delegation and workers
 
-Every retained UI surface needs a plain-purpose statement: who uses it, what decision/action it supports, why it belongs in MVP, and why it is read-only or editable. If the purpose is unclear, rename, hide, defer, redesign, or tie it to the owning module before acceptance.
+Use a separate worker only when the user explicitly asks for orchestration, delegation, or background work, or when an accepted plan authorizes it. Default to one primary and one accountable worker.
 
-Every proposed feature must be classified before implementation as one of: source record, generated read-only view, manual-office result record, integration input/output, or deferred. If it does not fit one category cleanly, challenge its MVP purpose in the primary thread before handoff.
+**Multi-worker (max 3):** permitted only when all of these hold — (1) the plan identifies parallelizable sub-tasks with zero file overlap; (2) each worker's file scope is enumerated in its packet and no worker edits another's file; (3) at most one worker runs PHPUnit or PHPStan at a time (shared `test_tala_db`); (4) no worker touches a migration, seeder, or shared service another depends on; (5) the user approves the parallel plan. Safe parallel patterns: multiple read-only audit workers; parallel research or benchmark workers; non-overlapping implementers with staggered test runs. If any file, model, service, or test-DB access overlaps, fall back to sequential single-worker execution. The primary merges all handshakes into one acceptance.
 
-Primary planning is evidence-backed. Do not implement or delegate until the user accepts the plan, except for a small docs-only protocol correction explicitly requested by the user.
+**Handoff packet:** before starting a worker, assemble a compact packet with the issue; accepted checklist; authority files; allowed changes; approved reference paths and patterns; exclusions; verification; DB-proof requirement; handshake format; and the Ground-Truth Gate classification (verified existence plus authority verdict per surface, with cited evidence and a stop-rule if reality differs). Deliver it via any available mechanism (temp file, inline sub-agent prompt, shared context). Reference existing docs, commits, and diffs by path instead of copying them. Redact secrets and keep context minimal.
 
-## Simplification Rule
+**Workers must:** read the packet first; read `AGENTS.md` and the relevant authorities before editing; preserve unrelated worktree changes; execute the accepted checklist and not act as a second primary unless scoped for research or planning; stop as `BLOCKED` if the checklist, issue, or scope is unclear; halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the packet; stop for the user when dashboards, credentials, approvals, or environment setup are needed; not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped; and merge any helper work into one final handshake.
 
-Simplification means purposeful scope, not deletion or presence for its own sake.
+## 7. Worker handshake and acceptance
 
-### Retain/Add/Revise/Defer Decision
+The worker's final report must include:
 
-CONDITION: Every proposed feature or surface in a slice plan.
-
-REQUIRED: The feature MUST support at least one of:
-- Clear school workflow (names office owner, manual decision, and TALA record type).
-- Inter-department handoff.
-- CP-SAT or payment integration dependency.
-- Usability.
-- Audit/control.
-- Maintainability.
-
-BLOCK: If a feature does not clearly support at least one item above → defer it or challenge its MVP purpose in the primary thread before handoff.
-
-### Hybrid Manual/Digital Preference
-
-Prefer hybrid manual/digital workflows when they keep the system useful without encoding unnecessary institutional complexity. Benchmarks guide credibility and implementation shape; they do not authorize broad enterprise scope.
-
-### Reduced-Feature Override
-
-DO NOT preserve a reduced feature solely because richer behavior was assumed expensive — IF a compatible native, packaged, or qualified-reference implementation makes it bounded. Domain fit and purposeful scope still control.
-
-### Deferral Tracking
-
-CONDITION: A feature is deferred during planning, implementation, or parent closure.
-
-REQUIRED: Every deferral MUST land in exactly one destination, chosen in this order:
-- Backed by an authority document (PRD, blueprint, or architecture) → route to an existing issue in Next Steps, or create a new issue if none fits. Post-MVP enhancements also get their own issue (a "future enhancement, post-MVP" entry, e.g. TAL-98 / TAL-99 / TAL-100). There is NO note-only destination for an authority-backed deferral.
-- Not in any authority document → discard, and state the discard explicitly.
-- Reflects a disagreement with PRD scope → use the Authority Document Correction rule (never silently drop).
-
-The Next Steps roadmap rows are the single source of truth for where a deferral lives. Completed-work detail belongs in the Local Linear Sync Tracker, not the roadmap.
-
-BLOCK: Do NOT defer without a recorded destination issue (or an explicit, stated discard). Do NOT close a parent issue with unrouted deferrals.
-
-## Filament and Plugin Gate
-
-Default order:
-
-1. Keep current aligned, authorized, tested implementation.
-2. Use native Filament v5/Laravel features.
-3. Adapt a qualified-reference pattern when domain semantics fit.
-4. Reuse an installed package/component.
-5. Add a qualified plugin/dependency only for a real gap that reduces code or risk.
-6. Build focused custom code when the above do not fit.
-
-Catalogs: [Filament plugins](https://filamentphp.com/plugins), [Awesome Filament](https://github.com/spekulatius/awesome-filament). They are discovery aids, not authority.
-
-A dependency included in an accepted slice plan needs no second approval. The plan must document compatibility with Laravel 12, Filament 5, Livewire 4, PHP 8.2; maintenance; license/security; migrations/routes/config; authorization; tests; upgrade/removal cost; and whether TALA domain rules remain in services/actions/policies/models.
-
-## Delegation and Worker Rules
-
-Use a separate worker only when the user explicitly asks for orchestration/delegation/background work or when an accepted plan authorizes it. One primary + one accountable worker by default.
-
-### Multi-Worker Authorization (max 3)
-
-Up to 3 concurrent workers are permitted ONLY when ALL of the following hold:
-
-1. The primary plan explicitly identifies parallelizable sub-tasks with ZERO file overlap.
-2. Each worker's file scope is enumerated in its handoff packet — no worker may edit a file assigned to another.
-3. At most ONE worker may run PHPUnit/PHPStan at any given time (shared `test_tala_db`). Others must wait or perform non-DB work.
-4. No worker touches a migration, seeder, or shared service that another worker depends on.
-5. The user approves the parallel plan (multi-worker is never implicit).
-
-SAFE parallel patterns:
-- Multiple read-only verification/audit workers (no edits, no test writes).
-- Research/benchmark workers gathering information in parallel.
-- Non-overlapping implementation workers with staggered (not simultaneous) test runs.
-
-BLOCK: If any file, model, service, or test-DB access overlaps between workers → fall back to sequential single-worker execution.
-
-The primary remains responsible for merging all worker handshakes into one coherent acceptance before cleanup/commit.
-
-Before starting a worker, the primary assembles a compact handoff packet containing: issue, accepted checklist, authority files, allowed changes, approved reference paths/patterns, exclusions, verification, DB proof requirement, handshake format, and the Ground-Truth Gate classification (verified existence + authority verdict per in-scope surface, with cited evidence). Deliver via the environment's available delegation mechanism (temp file, inline sub-agent prompt, shared context, or equivalent). Reference existing docs/commits/diffs by path instead of duplicating them. Redact secrets and use minimal context by default.
-
-Workers must:
-
-- Read the handoff packet before acting.
-- Read `AGENTS.md` and relevant authorities before editing.
-- Preserve unrelated worktree changes.
-- Execute the accepted checklist; not act as another primary unless scoped for research/planning.
-- Stop as `BLOCKED` if checklist, current issue, or scope is unclear.
-- Halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the handoff packet - do not retire, build, or patch on a stale premise.
-- Stop for user instructions when dashboards, credentials, approvals, or environment setup are required.
-- Not commit, push, deploy, open PRs, sync external systems, or start next issue unless explicitly scoped.
-- Merge any helper-agent work into one final handshake.
-
-## Worker Handshake and Acceptance
-
-Worker final report must include:
-
-1. `Status: PASS`, `PARTIAL`, or `FAIL`.
-2. Changed files and exact work.
-3. Verification commands/results.
-4. DB target proof for DB-backed checks.
+1. Status: `PASS`, `PARTIAL`, or `FAIL`.
+2. Changed files and the exact work.
+3. Verification commands and results.
+4. DB-target proof for DB-backed checks.
 5. Untouched exclusions.
-6. Caveats/blockers.
-7. Research/reference/dependency decision and links or paths when applicable.
-8. Ground-truth re-check for the surfaces touched: evidence that existence (tables/registration) and authority alignment were re-confirmed - retire/build/patch decisions backed by proof, not passing tests alone.
+6. Caveats and blockers.
+7. Research, reference, and dependency decisions, with links or paths.
+8. Ground-truth re-check for the surfaces touched — evidence that existence and authority alignment were re-confirmed, not passing tests alone.
 9. Next boundary.
 
-Primary acceptance requires independent inspection and proportionate verification. Passing tests alone is not acceptance. Before cleanup/commit, report: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
+Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance. Before cleanup or commit, the primary reports: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
 
-## Git, Database, Verification, and Sync
+## 8. Git, database, verification, and sync
 
-- Preserve user-owned/unrelated changes.
-- DB-backed checks require proof: `APP_ENV=testing`, `DB_CONNECTION=mysql`, `DB_DATABASE=test_tala_db`; never `tala_db` or `tala_test_codex`.
+- Preserve user-owned and unrelated changes.
+- DB-backed checks require proof of target: `APP_ENV=testing`, `DB_CONNECTION=mysql`, `DB_DATABASE=test_tala_db` — never `tala_db` or `tala_test_codex`.
 - Run focused PHPUnit for changed behavior.
 - Run `vendor/bin/pint --dirty --format agent` after PHP changes.
-- Run focused PHPStan/Larastan when typed PHP paths/tests change.
-- Run `git diff --check` before handoff or commit.
-- After primary acceptance, record local work in tracker as `Done locally; pending explicit Linear sync`, remove completed active planning entry or advance the parent sub-slice map, then create a bounded local Git commit.
-- Local commit permission does not authorize push, deploy, PR, or Linear mutation.
-- Keep tracker row pending until user explicitly says `Sync TAL-XX to Linear`; after sync, move to compact synced history.
-- Give the user a post-commit checklist with pages/actions/expected results/failure signs.
+- Run focused PHPStan or Larastan when typed PHP paths or tests change.
+- Run `git diff --check` before any handoff or commit.
+- After primary acceptance: record the work in the tracker as `Done locally; pending explicit Linear sync`, remove the completed active-planning entry or advance the parent sub-slice map, then make one bounded local Git commit.
+- A local commit never authorizes push, deploy, PR, or Linear mutation.
+- Keep the tracker row pending until the user says `Sync TAL-XX to Linear`; after sync, move it to compact synced history.
+- Give the user a post-commit checklist: pages, actions, expected results, and failure signs.
 - Patch current-slice defects before starting the next slice.
 
-## Product-Rule Ownership
+## 9. Product-rule ownership
 
-Product behavior belongs in PRD modules, UI blueprint, and architecture specification, not this protocol. Task contracts must cite relevant owning files. Do not create duplicate glossaries or module rules here.
+Product behavior belongs in the PRD modules, UI blueprint, and architecture specification — not this protocol. Task contracts must cite the owning files. Do not create duplicate glossaries or module rules here.
 
-### Authority Document Correction During Planning
+### Authority Document Correction (during planning)
 
-If the primary identifies an error, contradiction, gap, or stale statement in any authority document (PRD modules, UI blueprint, or architecture specification) during intake or planning:
+If the primary finds an error, contradiction, gap, or stale statement in any authority document during intake or planning:
 
-1. Flag it in the Phase 2 primary report under "contradictions/gaps."
-2. Propose the correction or resolution with evidence (benchmark result, code discovery, authority conflict, plugin/pattern research).
-3. Include the authority document patch as part of the slice plan. It is approved alongside the implementation plan, not as a separate task — unless the issue changes scope for multiple future slices, in which case it becomes a standalone docs-only micro-task before the implementation slice.
-4. Apply the authority document update before finalizing implementation. The commit includes both the document fix and the implementation that depends on it.
+1. Flag it in the primary report under authorities checked and conflicts.
+2. Propose the correction with evidence (benchmark result, code discovery, authority conflict, or plugin/pattern research).
+3. Include the document patch in the slice plan, approved alongside the implementation — unless it changes scope for multiple future slices, in which case it becomes a standalone docs-only micro-task before the implementation slice.
+4. Apply the document update before finalizing implementation; the commit includes both the document fix and the dependent implementation.
 
-Trivial fixes (typos, obviously wrong terms) may be included without separate justification. Substantive behavior changes always require explicit user approval.
+Trivial fixes (typos, obviously wrong terms) need no separate justification. Substantive behavior changes always require explicit user approval.
 
-### Authority Document Stability After Verification
+### Authority Document Stability (after verification)
 
-Authority documents describe desired behavior (the contract). Failed or partial verification does not trigger authority document changes.
-
-- Worker delivers PARTIAL or primary verification finds failures: fix the code or re-delegate. The documents stay unchanged because the target is still correct.
-- Only change an authority document when implementation reveals a design flaw — not when the code fails to meet a correct specification. This includes blueprint surfaces that are discovered to be infeasible with the chosen framework pattern.
-- If a design flaw is discovered during verification: loop back to Phase 2, flag the issue, propose correction, get user approval, then continue.
+Authority documents describe the desired contract, so failed or partial verification does not change them. If a worker returns PARTIAL or the primary finds failures, fix the code or re-delegate — the target is still correct. Change an authority document only when implementation reveals a design flaw, including a blueprint surface that proves infeasible with the chosen framework pattern: return to planning, flag the issue, propose the correction, get user approval, then continue.
