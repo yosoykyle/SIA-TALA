@@ -185,7 +185,11 @@ The worker's final report must include:
 8. Ground-truth re-check for the surfaces touched — evidence that existence and authority alignment were re-confirmed, not passing tests alone.
 9. Next boundary.
 
-Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance. Before cleanup or commit, the primary reports: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
+Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance.
+
+Large or high-risk deletion slices — retiring a cluster of files, models, tables, or permissions — additionally require a **cold audit** before cleanup. A fresh, read-only reviewer with no prior context (a separate subagent or a clearly reset review pass) independently re-checks that every deletion is safe: no live caller, no required-but-unbuilt authority need, and a named live replacement wherever the concept must survive. The reviewer returns its own `JUSTIFIED` or `NOT JUSTIFIED` verdict with cited evidence; a `NOT JUSTIFIED` finding blocks cleanup until reconciled. This gate is proportionate: additive builds and small, behavior-neutral retires (for example, an unregistered, tableless, untested surface whose only edge is a guarded no-op) may skip it, stating the reason in the acceptance report.
+
+Before cleanup or commit, the primary reports: authority alignment, accepted scope, retained-surface purpose, exclusions, verification, dirty state, and next boundary.
 
 ## 8. Git, database, verification, and sync
 
