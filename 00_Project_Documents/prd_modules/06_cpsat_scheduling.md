@@ -126,7 +126,7 @@ Soft constraints:
 6. Minimize changes from previous published version.
 7. Prefer earlier institutional time blocks when multiple valid assignments exist.
 
-Faculty requested-time preference is deferred until a later approved solver contract implements and verifies `PREFERRED` calendar-event scoring.
+Faculty requested-time preference is routed to post-MVP TAL-102, whose separately approved solver contract must implement and verify `PREFERRED` calendar-event scoring.
 
 Soft constraint rules:
 
@@ -200,7 +200,7 @@ Availability and calendar-block payload rules:
 6. No faculty-scoped availability row means no additional restriction inside the generated term time grid.
 7. Solver readiness does not require a synthetic availability row. It validates the term grid, active recurring blocks, qualified faculty, rooms, and demand sources that exist.
 8. Recurring manual assignment uses the same active recurring calendar-block overlap rules as the solver and cannot bypass an unavailable block through a note-only override.
-9. Preferred-time capture and optimization are deferred from MVP and are not included in solver claims.
+9. Preferred-time capture and optimization are routed to post-MVP TAL-102 and are not included in MVP or TAL-94 solver claims.
 10. The immutable run snapshot retains the deterministic recurring source rows actually enforced. Later calendar changes affect a new run or explicit revalidation and never rewrite a captured run or published schedule.
 
 #### 6.2.2 Required Input IDs
@@ -352,13 +352,13 @@ Rules:
 | Faculty and room constraints | Read-only consolidated validation table linked to the authoritative forms in Module 5 |
 | Start solver run | Read-only input summary and validation report followed by explicit run confirmation |
 | Run progress and status | Generated Read-Only View showing queued/running/completed/infeasible/failed state and diagnostic summary |
-| Candidate assignments | Review Table of section, course, faculty, room, day, start/end time, and validation status; a timetable/calendar view may supplement but not replace the table |
+| Candidate assignments | Review Table of section, course, faculty, room, day, start/end time, and validation status; no timetable visualization is planned without a new approved Next Steps issue, and any approved view may supplement but not replace the table |
 | Resolve an infeasible or invalid result | Exception list identifying the failed constraint and linking staff to the authoritative input record, soft-priority preset, approved policy override, or Manual Schedule Override form |
 | Publish Master Schedule | Read-only comparison and conflict report followed by explicit publication confirmation |
 | Revise published schedule | Focused Record Form selecting affected meeting rows, change reason, effective date, and approved replacements, followed by impact preview |
 | CP-SAT integration settings | Restricted Record Form; credentials are stored by secure reference and shown only as masked status |
 
-Candidate rows remain provisional until publication. Dragging or visually moving a timetable block, if later implemented, updates the same validated assignment fields and passes the same fixed hard-constraint validation.
+Candidate rows remain provisional until publication. No drag-and-drop task is planned; if a future approved issue adds visual movement, it must update the same validated assignment fields and pass the same fixed hard-constraint validation.
 
 ---
 
@@ -370,7 +370,7 @@ This map identifies how scheduling is surfaced for v1. It is not a visual design
 | --- | --- | --- | --- |
 | Academic Calendar scheduling grid | Registrar or authorized staff | Calendar / Date-Range Input | Define operating days, hours, no-class dates, examination blocking behavior, and Institutional Break Blocks. |
 | Room and facility setup | Registrar or authorized staff | Record Form and Editable Table | Maintain room capacity, room type, flat features, active status, and room-scoped unavailability. |
-| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Preferred-time optimization is deferred. |
+| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Preferred-time optimization is routed to TAL-102. |
 | Term Offering builder | Registrar | Generated Editable Table | Create Regular offerings from Curriculum Entries and add approved offering-owned values. |
 | Section delivery groups | Registrar | Editable Table | Define schedulable cohort or section groups and expected counts. |
 | Scheduling Demand review | Registrar | Generated Review Table | Show the demand rows that CP-SAT will schedule, with source links and validation status. |

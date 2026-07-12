@@ -16,38 +16,38 @@ For MVP implementation, configuration is grouped by operational area instead of 
 6. Integrations.
 7. Reports, audit, and retention.
 
-#### 13.1.1 Configurable Records
+#### 13.1.1 Configuration Capability Dispositions
 
-TALA must support configuration for:
+TALA must support configuration for the following institutional data and rules, but "configuration" does not imply that every item has a runtime-editable administration UI. Each item uses the capability-depth taxonomy in Module 1:
 
-1. Academic years.
-2. Terms.
-3. Programs.
-4. Course Catalog identities and Course Specification revisions.
-5. Curriculum versions.
-6. Admission categories.
-7. Credential bases.
-8. Document types (e.g. Birth Certificate, Form 137).
-9. Hold types and blocking levels.
-10. Fee rules in one Accounting-owned matrix with Program and Term scope, fixed amounts, per-unit PHP rates, exact Program-and-Term downpayment rules, discount/scholarship rules, and Accounting-posted penalty rules.
-11. Financial Accommodation basis, allowed effects, evidence-reference requirements, and status rules.
-12. Delivery modality rules.
-13. Room types and room features.
-14. Faculty qualification groups.
-15. Scheduling constraint profile, including fixed hard constraints, policy constraints, institutional break blocks, and the default soft-priority preset.
-16. Role permissions.
-17. Email notification templates.
-18. Retention categories.
-19. Integration credentials and webhook settings.
-20. Student Lifecycle Change windows, decision authorities, late-exception rules, class-standing requirements, and fee/refund policies.
-21. Academic Calendar windows, optional window scopes, scheduling-grid defaults, institutional break blocks, Special Offering reasons, tutorial thresholds, and offering approval authorities.
-22. Grade Outcome categories, allowed marks, Servitech v1 final formula, conversion scale, passing threshold, prerequisite effects, GWA effects, `P` and `INC` authority rules, INC completion/removal deadline, lapsed-INC result, and late grade authorization authorities.
-23. Prerequisite completion results, optional minimum-grade policy, accepted credit sources, corequisite treatment, and Academic Exception authorities.
-24. Course Component types, limited to Lecture and Laboratory in v1.
-25. Same-faculty requirement defaults and authorized override rules for linked course components.
-26. Scheduling policy authorities, including which policy constraints require authority, reason, and audit evidence.
-27. Graduation Review Batch filters, visibility rules, snapshot blocker labels, and review authorities.
-28. Student Unit Load Exception authorities, normal-load rules, excess-unit caps, and allowed scopes.
+1. **Runtime-configurable policy/reference data:** Academic years.
+2. **Runtime-configurable policy/reference data:** Terms.
+3. **Runtime-configurable policy/reference data:** Programs.
+4. **Core system-managed workflow:** Course Catalog identities and Course Specification revisions.
+5. **Core system-managed workflow:** Curriculum versions.
+6. **Runtime-configurable policy/reference data:** Admission categories.
+7. **Runtime-configurable policy/reference data:** Credential bases.
+8. **Runtime-configurable policy/reference data:** Document types (e.g. Birth Certificate, Form 137).
+9. **Runtime-configurable policy/reference data:** Hold types and blocking levels.
+10. **Runtime-configurable policy/reference data:** Fee rules in one Accounting-owned matrix with Program and Term scope, fixed amounts, per-unit PHP rates, exact Program-and-Term downpayment rules, discount/scholarship rules, and Accounting-posted penalty rules.
+11. **Fixed/seeded V1 policy:** Financial Accommodation basis, allowed effects, evidence-reference requirements, and status rules.
+12. **Fixed/seeded V1 policy:** Delivery modality rules.
+13. **Runtime-configurable policy/reference data:** Room types and room features.
+14. **Runtime-configurable policy/reference data:** Faculty qualification groups.
+15. **Fixed/seeded V1 policy:** Scheduling constraints and the default soft-priority preset remain controlled; **Runtime-configurable policy/reference data:** authorized institutional break-block source records are managed through Calendar Events.
+16. **Fixed/seeded V1 policy:** Role permissions are seeded and read-only in V1.
+17. **Deferred/post-MVP:** Email notification templates are deferred to TAL-100.
+18. **Fixed/seeded V1 policy:** Retention categories.
+19. **Supporting/frozen capability:** Integration credentials and webhook settings are environment-managed; administrators have restricted read-only status, not runtime secret editing.
+20. **Runtime-configurable policy/reference data:** Student Lifecycle Change windows are managed through academic-calendar window records; **Fixed/seeded V1 policy:** decision authorities, late-exception rules, class-standing requirements, and fee/refund policies remain controlled; **Recorded office result:** approved office decisions are recorded as lifecycle results.
+21. **Core system-managed workflow:** Academic Calendar windows and institutional break blocks are managed source records; **Runtime-configurable policy/reference data:** authorized staff maintain those records; **Fixed/seeded V1 policy:** scheduling-grid defaults, Special Offering reasons, tutorial thresholds, and offering approval authorities remain controlled unless runtime variation is proven.
+22. **Fixed/seeded V1 policy:** Grade Outcome categories, allowed marks, Servitech v1 final formula, conversion scale, passing threshold, prerequisite effects, GWA effects, `P` and `INC` authority rules, INC completion/removal deadline, lapsed-INC result, and late grade authorization authorities.
+23. **Fixed/seeded V1 policy:** Prerequisite completion results, optional minimum-grade policy, accepted credit sources, corequisite treatment, and Academic Exception authorities.
+24. **Fixed/seeded V1 policy:** Course Component types, limited to Lecture and Laboratory in V1.
+25. **Fixed/seeded V1 policy:** Same-faculty requirement defaults and authorized override rules for linked course components.
+26. **Fixed/seeded V1 policy:** Scheduling policy authorities, including which policy constraints require authority, reason, and audit evidence.
+27. **Core system-managed workflow; generated read-only projection:** Graduation Review Batch filters, visibility rules, snapshot blocker labels, and review authorities.
+28. **Fixed/seeded V1 policy; recorded office result:** Student Unit Load Exception authorities, normal-load rules, excess-unit caps, and allowed scopes; approved exceptions are recorded as office results.
 
 Rules:
 
@@ -95,7 +95,7 @@ Notification scope rules:
 5. Grade-release notifications are sent only to the affected student.
 6. V1 notification delivery uses direct email to affected users.
 
-> **V1 implementation note (recorded 2026-07-08, TAL-92F):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 configurable record #17) are a post-MVP administration enhancement, not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps) is captured by the `operational_events` monitoring surface built in TAL-92D. (The student-facing Student Hub priority notices in TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production alert triggers that depend on external integrations — Payment Received (PayMongo) and Schedule Released (CP-SAT scheduler) — are wired as those integrations are hardened in TAL-95 and TAL-94 respectively.
+> **V1 implementation note (recorded 2026-07-08, reconciled during TAL-93J3b):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 disposition #17) are routed to post-MVP TAL-100 and are not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps) is captured by the `operational_events` monitoring surface delivered under TAL-92D. (The student-facing Student Hub priority notices delivered under TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production Payment Received and Schedule Released triggers remain routed to TAL-95 and TAL-94 respectively, each subject to its integration Ground-Truth Gate.
 
 ---
 
@@ -107,7 +107,7 @@ Report boundaries:
 
 1. Reports are basic filtered tables with CSV export.
 2. V1 reports use filtered operational tables and CSV export.
-3. Printable official outputs such as COR, SOA, billing slip, and payment acknowledgement use authenticated HTML/CSS print views for MVP; server-side PDF generation is used only when a later approved configuration requires retained generated files.
+3. Printable official outputs such as COR, SOA, billing slip, and payment acknowledgement use authenticated HTML/CSS print views for MVP. Server-generated retained files are not planned; a future approved retention requirement must receive a new Next Steps issue.
 4. Report analysis beyond filtering and CSV export happens outside TALA.
 
 Faculty sees only reports for assigned classes.
@@ -158,7 +158,7 @@ The system provides standardized CSV exports for the legacy three-way parity aud
 
 #### 13.3.4 Admin / Audit Reports
 
-> **Deferral note (approved 2026-07-08):** the items below beyond the fixed operational catalog already implemented under TAL-92A are deferred to later sub-slices rather than built here: Sensitive Access Audit / Document Access Audit / Login-Session Audit distinct breakdowns → TAL-92B; Solver Run History → TAL-94; PayMongo Webhook Event Log → TAL-95; Privacy Request Log → deferred to new post-MVP issue TAL-99 (Data-Subject Privacy Request Handling & Log, RA 10173 §16). Assessed during TAL-92F: no source record exists; data-subject-request handling is a DPO-owned manual/hybrid process (RA 10173 §16 rights — access, rectification, erasure/blocking, object, data portability, complaint); RA 10173 and its IRR mandate no specific in-system request-log UI; no MVP slice depends on it; access-request evidence is already partly served by `activity_log` + `output_access_logs`, and the erasure/blocking right routes through the TAL-92E hold-aware disposal-review ledger and the TAL-98 archival scope.
+> **Routing note (approved 2026-07-08, reconciled during TAL-93J3b):** the fixed operational catalog was delivered under TAL-92A, and the Sensitive Access Audit / Document Access Audit / Login-Session Audit breakdowns were delivered under TAL-92B. Remaining work is routed by Next Steps: Solver Run History → TAL-94; PayMongo Webhook Event Log → TAL-95; Privacy Request Log → post-MVP TAL-99 (Data-Subject Privacy Request Handling & Log, RA 10173 §16). Assessed during TAL-92F: no privacy-request source record exists; data-subject-request handling is a DPO-owned manual/hybrid process (RA 10173 §16 rights — access, rectification, erasure/blocking, object, data portability, complaint); RA 10173 and its IRR mandate no specific in-system request-log UI; no MVP slice depends on it; access-request evidence is already partly served by `activity_log` + `output_access_logs`, and the erasure/blocking right routes through the TAL-92E hold-aware disposal-review ledger and the TAL-98 archival scope.
 
 1. User and Role Report
 2. Sensitive Access Audit
@@ -312,7 +312,7 @@ Rules:
 2. Email delivery failures must be logged in TALA’s integration logs.
 3. Successful email delivery metadata (message ID, recipient, timestamp) must be recorded in notification history.
 
-> **Implementation note (recorded 2026-07-08):** integration/email settings (mail transport, PayMongo keys, and scheduler credentials) are environment-managed — driver selection and secrets live in `.env`/`config/`, never in the database or rendered in the UI. TALA exposes a restricted read-only status view (`App\Filament\Pages\IntegrationStatus`) showing current driver/mode, configured-or-not (derived from whether a required secret/key is non-empty, never its value), and non-secret reference fields, plus a safe "Send test email" action that always targets only the acting admin's own address. The Operational Events monitor (§13.8 "Integration events and failures" row) reviews integration outcomes read-only in V1 via the new `OperationalEventResource`; retry execution is deferred until the live PayMongo (TAL-95) and CP-SAT solver (TAL-94) producers exist, since safe/idempotent retry requires those handlers. The daily/monthly email send-usage counter (Settings item 4 above) and successful-delivery notification-history metadata (Rules item 3 above) are deferred and not built in this slice.
+> **Implementation note (recorded 2026-07-08, reconciled during TAL-93J3b):** integration/email settings (mail transport, PayMongo keys, and scheduler credentials) are environment-managed — driver selection and secrets live in `.env`/`config/`, never in the database or rendered in the UI. TALA exposes a restricted read-only status view (`App\Filament\Pages\IntegrationStatus`) showing current driver/mode, configured-or-not (derived from whether a required secret/key is non-empty, never its value), and non-secret reference fields, plus a safe "Send test email" action that always targets only the acting admin's own address. The Operational Events monitor (§13.8 "Integration events and failures" row) reviews integration outcomes read-only in V1 via `OperationalEventResource`. Safe/idempotent retry execution remains routed to TAL-95 and TAL-94 and may be added only after each integration Ground-Truth Gate proves the corresponding live handler. The daily/monthly email send-usage counter and successful-delivery notification-history metadata are not planned MVP work; a future approved requirement must receive its own Next Steps issue.
 
 ---
 
@@ -395,7 +395,7 @@ TALA must support retention categories and disposal controls.
 7. Disposal actions must be permission-controlled.
 8. Disposal is held when a record is under institutional, legal, audit, or active workflow hold.
 9. V1 tracks retention categories and supports manual disposal review.
-10. Automated disposal jobs are deferred unless the institution explicitly requires them.
+10. Automated disposal jobs are routed to post-MVP TAL-98 and are built only if the institution explicitly requires them.
 
 #### 13.7.5 Record Accessibility and Archival Tiers
 
@@ -405,7 +405,7 @@ TALA must support retention categories and disposal controls.
 4. Short-operational records (13.7.3) are disposed after their retention period through the manual disposal review (13.7.4).
 5. V1 archival is a soft, in-database state: archived records are hidden from normal and student-facing views but remain queryable by authorized staff for audit and history. Physically relocating records out of the operational database is not required in V1.
 6. Backup (disaster recovery) and archival (long-term retention) are distinct. Backup handling is defined in the architecture specification and does not change how the application accesses live records.
-7. Physical or offline archival storage, an archive-management interface, and automated cold-storage export are deferred future enhancements, not V1 scope.
+7. Physical or offline archival storage, an archive-management interface, and automated cold-storage export are routed to post-MVP TAL-98 and are not V1 scope.
 
 ---
 

@@ -96,7 +96,7 @@ Stored as term-scoped `calendar_events` rows rather than a submission, locking, 
   5. Solver snapshots preserve the deterministic recurring source blocks actually enforced by the weekly Master Schedule model.
   6. Absolute dated events remain calendar occurrence records and use make-up, revision, or operational handling when applicable. A whole-term restriction requires an equivalent recurring block for solver enforcement.
   7. Editing availability affects future runs or explicit revalidation only. Published meetings change through the controlled schedule-revision flow.
-  8. Preferred-time input and optimization are deferred from MVP. V1 records and enforces recurring unavailable blocks only.
+  8. Preferred-time input and optimization are routed to post-MVP TAL-102. V1 records and enforces recurring unavailable blocks only.
   9. Availability edits are auditable through the application activity log; solver snapshots preserve the exact recurring rows used for each run.
 
 **Faculty Qualifications:**

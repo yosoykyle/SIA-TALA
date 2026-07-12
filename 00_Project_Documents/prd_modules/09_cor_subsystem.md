@@ -176,7 +176,7 @@ Rules:
 
 The COR is the official source-derived registration output. It is rendered as a clean HTML/CSS view with `@media print` stylesheets. Users click "Print" in the Student Hub or Registrar Workspace to save as PDF or route to a physical printer via the browser.
 
-For MVP, COR download uses the browser's print or save-as-PDF flow from the authenticated printable view. TALA does not generate or store a server-side PDF unless a later approved policy requires retained generated files.
+For MVP, COR download uses the browser's print or save-as-PDF flow from the authenticated printable view. Server-generated or retained PDF files are not planned; a future approved retention policy must receive a new Next Steps issue.
 
 ---
 
@@ -196,7 +196,7 @@ TALA renders the COR from the student's current official enrollment, active publ
    - `copy_context` (Enum: `STUDENT_COPY`, `REGISTRAR_COPY`, `ACCOUNTING_COPY`)
    - `schedule_version`, `request_context`, `status`, `occurred_at`
 5. **Holds Blocking:** Student Hub shows the COR after active `COR Download Hold` records are resolved or waived. COR Download Hold remains separate from enrollment-blocking holds.
-6. **Public Verification Boundary:** Public COR verification, unauthenticated QR scanning, and public artifact lookup require a future approved institutional policy.
+6. **Public Verification Boundary:** Public COR verification, unauthenticated QR scanning, and public artifact lookup are not planned. A future approved institutional policy must receive a new Next Steps issue.
 7. **Lifecycle Refresh:** Subject Drop updates the dynamically rendered subject list. Withdrawal or current-term Leave of Absence removes the COR from current-active availability while preserving source records and audit history. These changes do not regenerate the Master Schedule.
 
 ---

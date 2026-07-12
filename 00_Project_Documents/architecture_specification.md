@@ -2,9 +2,9 @@
 
 ## 1. Executive Summary & System Title
 
-**T.A.L.A.** (Technology for Administrative Ledger and Academic Management) is the College-focused school information system designed for Servitech Institute Asia (SIA). The title "TALA" (Filipino for _Star/Guide_) reflects the system's role as the central source of truth for academic lifecycle records.
+**T.A.L.A.** (Technology for Administrative Ledger and Academic Management) is the College-focused school information system designed for Servitech Institute Asia (SIA). The title "TALA" (Filipino for _Star/Guide_) reflects the system's role as the central source of truth for approved in-scope official academic lifecycle records and recorded office results.
 
-TALA replaces fragmented legacy processes with a unified digital command center for staff (Registrar, Accounting, Faculty, Academic Head, and System Super Admin) and role-scoped authenticated workspaces for applicants and students. It supports operations from applicant intake through student handover, curriculum assignment, scheduling, enrollment, finance evidence, COR/SOA output, grade release, Student Hub visibility, reports, and audit.
+TALA connects and consolidates approved in-scope records and workflows for staff (Registrar, Accounting, Faculty, Academic Head, and System Super Admin) and role-scoped authenticated workspaces for applicants and students, without replacing office-owned departmental processes. It supports operations from applicant intake through student handover, curriculum assignment, scheduling, enrollment, finance evidence, COR/SOA output, grade release, Student Hub visibility, reports, and audit.
 
 ---
 
@@ -80,7 +80,7 @@ The diagram below illustrates the system structure, clearly separating the core 
    * **Public Landing Page and Authenticated Workspaces:** The public route is a Blade surface using isolated Bootstrap v5.3.3 assets served from `public/landing`. Its FAQ section reads published `FaqEntry` records (ordered by `sort_order`) passed from the `/` route, so public FAQ content is admin-managed rather than hardcoded. Authenticated staff, applicant, and student workspaces are Filament panel shells backed by Laravel authorization and do not load Bootstrap globally.
    * **Laravel 12 Business Core:** The PHP codebase containing models, policies, service classes, queued jobs, imports, outputs, and integration clients.
    * **Finance Rule Evaluation:** One fee-rule model supplies Accounting's editable configuration surface. The service ranks exact Program-and-Term scope before broader ordinary-charge scopes, then effective date and record ID. Assessment activation separately requires an active exact Program-and-Term downpayment rule.
-   * **Local Database, Queue, and Cache Stores:** The relational storage is MySQL in the current environment. The current Laravel queue and cache defaults are database-backed. Redis and Laravel Horizon are not installed in the current dependency set and must be treated as future deployment decisions, not active baseline dependencies.
+   * **Local Database, Queue, and Cache Stores:** The relational storage is MySQL in the current environment. The current Laravel queue and cache defaults are database-backed. Redis and Laravel Horizon are not installed, are not planned work, and require a new approved Next Steps issue if deployment evidence later proves a need.
 2. **Dedicated Isolated Infrastructure:**
    * **CP-SAT Scheduler Engine (Google Cloud Run):** The deterministic Google OR-Tools CP-SAT scheduling solver, packaged as a lightweight Python Docker container. To prevent server resources from starving, it is hosted externally on Google Cloud Run and invoked securely via authenticated HTTPS requests.
 3. **Outside Integrations (External SaaS/APIs):**
@@ -108,7 +108,7 @@ To establish a solid theoretical and practical foundation for TALA, each core ar
 
 #### 3. Queue & Cache Store: Database-Backed Baseline vs. Redis / Horizon
 * **Selected rescue baseline:** Laravel database queue and database cache, matching the current application configuration.
-* **Counterpart / future optimization:** Redis queues/cache plus Laravel Horizon for higher queue throughput and queue-dashboard operations.
+* **Conditional deployment counterpart:** Redis queues/cache plus Laravel Horizon could support higher queue throughput and queue-dashboard operations, but no task is planned without measured deployment need and a new approved Next Steps issue.
 * **Comparative Justification:**
   * **Current-Code Accuracy:** `config/queue.php` and the live configuration resolve the default queue connection to `database`. `config/cache.php` and the live configuration resolve the default cache store to `database`. The code already dispatches queued jobs for PayMongo webhooks and schedule solver runs through Laravel's queue contracts.
   * **Dependency Discipline:** `laravel/horizon` is not present in `composer.json` or `composer.lock`. Reintroducing Horizon would be a dependency change and must be approved separately.
@@ -153,7 +153,7 @@ TALA's architecture relies on the following verified dependencies declared in th
 * `spatie/laravel-permission: ^6.24` (Role-based access control [RBAC])
 * `spatie/laravel-model-states: ^2.8` (Available state-machine support)
 * `spatie/laravel-activitylog: ^4.8` (Audit trail logs for overrides; surfaced via the hand-built read-only `ActivityResource`)
-* `chillerlan/php-qrcode: ^5.0` (Installed QR capability; public COR verification and QR artifact lookup are not part of the MVP output path unless a later approved policy activates them)
+* `chillerlan/php-qrcode: ^5.0` (Installed QR capability; public COR verification and QR artifact lookup are not planned, and a future approved policy must receive a new Next Steps issue before activation)
 * `luigel/laravel-paymongo: ^2.6` & `spatie/laravel-webhook-client: ^3.5` (PayMongo and webhook support packages)
 * `google/auth: ~1.52` (Google service-account authentication for invoking the private Cloud Run CP-SAT solver)
 * `tallstackui/tallstackui: 3.0.0` (Premium UI layout components)
@@ -186,7 +186,7 @@ Not currently installed: `laravel/horizon`. Removed in TAL-93A as unused: `pxlrb
 * **Technical Flow:** When the scheduling run is initiated, TALA aggregates `Scheduling Demand` records, rooms, faculty qualification/load inputs, and active recurring term-scoped `calendar_events` into an immutable JSON payload. `calendar_events` is the single MVP source for room/faculty unavailability and institutional blocks. The weekly solver receives deterministic recurring day/time blocks; no faculty event means no extra restriction inside the term operating grid.
 * **Execution:** TALA dispatches the request to the dedicated `tala-scheduler-solver` container deployed on Google Cloud Run. The connection is authenticated securely using Google service account IAM private keys (`scheduler-invoker.json`). The solver executes the integer-optimization model and returns candidate section-meeting patterns as a JSON payload back to TALA for review.
 * **Laravel Authentication Dependency:** The Laravel monolith uses the official `google/auth` Composer package to mint Google identity tokens from the configured service-account credential file before calling the private Cloud Run solver. This package authenticates the HTTP request only; Google OR-Tools remains packaged inside the isolated Python Cloud Run solver container and is not installed into the Laravel application.
-* **Availability Boundary:** Active recurring `UNAVAILABLE` faculty events with `blocks_scheduling=true` are hard constraints for weekly solver and recurring manual assignment. Absolute holidays, no-class dates, and dated exceptions remain occurrence records handled through make-up, revision, or operational workflows; they are not repeated by the date-blind solver. A whole-term dated restriction requires an equivalent recurring block. Preferred-time optimization is deferred from MVP. Availability edits apply only to future solver runs or explicit revalidation and never rewrite a captured run or published schedule automatically.
+* **Availability Boundary:** Active recurring `UNAVAILABLE` faculty events with `blocks_scheduling=true` are hard constraints for weekly solver and recurring manual assignment. Absolute holidays, no-class dates, and dated exceptions remain occurrence records handled through make-up, revision, or operational workflows; they are not repeated by the date-blind solver. A whole-term dated restriction requires an equivalent recurring block. Preferred-time optimization is routed to post-MVP TAL-102 and is not a TAL-94 dependency. Availability edits apply only to future solver runs or explicit revalidation and never rewrite a captured run or published schedule automatically.
 
 #### Comparative Justification: Why CP-SAT over Machine Learning or Genetic Algorithms?
 * **Selected Solver:** Google OR-Tools CP-SAT (Constraint Programming - Satisfiability).
@@ -255,7 +255,7 @@ The hybrid structure is selected based on a strict balance of cost, resource iso
 * **Counterpart:** Fully managed multi-server AWS/GCP stack (EC2 for web, RDS for database, ElastiCache for Redis).
 * **Comparative Justification:**
   * **Cost Efficiency:** For a local school like SIA (with class section sizes capped at 100 students), a multi-server setup is likely over-provisioned for v1. The single-node candidate keeps the deployment simple while the rescue baseline proves the SIS lifecycle.
-  * **Network Latency:** In a multi-server setup, database and cache calls cross the internal network. Co-locating the app and database for v1 reduces moving parts and request latency. Redis can be added later only if the approved deployment requires it.
+  * **Network Latency:** In a multi-server setup, database and cache calls cross the internal network. Co-locating the app and database for V1 reduces moving parts and request latency. Redis is not planned; measured deployment need and a new approved Next Steps issue are required before adoption.
   * **Backups and Recovery:** Instead of paying for expensive managed database replica instances, TALA utilizes automated daily database snapshots backed up to **DigitalOcean Spaces** (₱292.50/month), ensuring a point-in-time recovery strategy at a fraction of the cost.
   * **Backup vs Archival:** The daily database snapshots above are for disaster recovery, not long-term archival tiering. TALA V1 keeps all records — including archived ones — inside the operational MySQL database (soft-archive: hidden-but-queryable). If the institution operates on-premise HDD/SSD rack storage, it may serve as an optional additional backup target or a cold-archive destination for exported document evidence; this is an infrastructure/backup concern and does not change how the application accesses live records. Automated offline/cold-storage export and an archive-management interface are deferred future enhancements (see PRD §13.7.5 and TAL-98).
 

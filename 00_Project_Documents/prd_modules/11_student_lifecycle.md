@@ -29,7 +29,7 @@ Allowed values for the student lifecycle foundation:
 8. Transferred Out
 9. Closed
 
-Completed / Graduated is a completion and graduation-review outcome controlled by the graduation/completion workflow. It is not part of the TAL-84 holds and lifecycle foundation acceptance slice.
+Completed / Graduated is a completion and graduation-review outcome controlled by the graduation/completion workflow. It was intentionally outside the TAL-84 holds/lifecycle foundation and was delivered through the TAL-90 graduation and completion slices.
 
 `Dropped` is reserved for an institution-directed termination of active study under approved policy. A student-approved exit from all current-term subjects uses `Withdrawn`. A Subject Drop is recorded against the affected subject enrollment and does not by itself change the primary lifecycle status.
 

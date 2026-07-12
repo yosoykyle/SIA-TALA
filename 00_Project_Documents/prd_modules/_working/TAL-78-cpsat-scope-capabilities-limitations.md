@@ -1,5 +1,7 @@
 # TAL-78 CP-SAT Scope, Capabilities, and Limitations
 
+> Historical working analysis. Current task order and status live only in `TALA-Rescue-Next-Steps.md`; TAL-94 owns the remaining CP-SAT end-to-end hardening boundary.
+
 ## Purpose
 
 This document defines the safe MVP boundary for Google OR-Tools CP-SAT in TALA. It explains what the solver can do, what it cannot do, what the current implementation supports, and what must be completed before the system can claim an end-to-end published schedule.
@@ -142,7 +144,7 @@ Do not say unless verified in the current demo database:
 
 The safe wording is:
 
-> The implemented scheduling workflow separates school records from optimization. TALA prepares validated demand, the CP-SAT service attempts the schedule, and staff publish accepted results into official meetings. The current MVP hardening task is to prove the full path from demo demand to published section meetings and Student Hub visibility.
+> The implemented scheduling workflow separates school records from optimization. TALA prepares validated demand, the CP-SAT service attempts the schedule, and staff publish accepted results into official meetings. Planned TAL-94 must first run its Ground-Truth Gate, then prove only the integration path that the gate confirms exists or requires a bounded patch.
 
 ## Recommended MVP Boundary
 
@@ -156,7 +158,7 @@ For MVP, keep CP-SAT narrow:
 6. Let staff publish accepted candidate rows.
 7. Read official student schedules from `section_meetings`.
 
-Defer these post-MVP:
+Not planned in the active sequence (preferred-time scheduling alone is routed to TAL-102; any other approved proposal requires a new Next Steps issue):
 
 1. Automatic policy relaxation.
 2. Multi-objective tuning UI.
@@ -178,7 +180,7 @@ Defer these post-MVP:
 
 ## Main-Chain Implications
 
-The next MVP scheduling work should not expand the solver. It should harden the existing path:
+TAL-94 must not assume the solver path is already complete or expand it before its Ground-Truth Gate. Subject to that gate, the intended hardening evidence is:
 
 1. Confirm solver endpoint and demo credentials are configured.
 2. Dispatch one real Cloud Run run using seeded demo demand.

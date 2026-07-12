@@ -30,7 +30,7 @@ Curriculum and Course Catalog preparation may occur independently of a Term. Ter
 Institution-wide calendar rules:
 
 1. Calendar periods, terms, and date rules are strictly institution-wide.
-2. V1 supports one College Academic Calendar. Program-specific calendar overrides and separate graduate-school calendars are deferred unless Servitech formally adopts materially different academic calendars.
+2. V1 supports one College Academic Calendar. Program-specific overrides and separate graduate-school calendars are not planned; a formal Servitech requirement must receive a new Next Steps issue.
 3. Program length does not create a separate Academic Calendar. A three-year, four-year, or other-length program uses the same term calendar unless it uses a materially different term system.
 4. Calendar windows may have a simple scope, such as all students, continuing students, first-year students, graduating-review students, or a named term process.
 
@@ -93,7 +93,7 @@ Scheduling Availability source rules:
 4. Absolute `start_at` / `end_at` holidays, no-class dates, and dated exceptions remain Academic Calendar occurrence and lifecycle records. They do not repeat weekly or alter the recurring published Master Schedule automatically.
 5. Dated exceptions use the applicable make-up, published-schedule revision, or operational handling workflow. When an absolute event represents a whole-term restriction, staff also records its equivalent recurring block for Master Schedule enforcement.
 6. Zero faculty availability events means the faculty member has no additional restriction inside the configured term operating grid.
-7. Preferred-time capture and optimization are deferred from MVP. The system does not present or claim `PREFERRED` scheduling behavior until the solver implements and verifies it.
+7. Preferred-time capture and optimization are routed to post-MVP TAL-102. The system does not present or claim `PREFERRED` scheduling behavior until that separately approved solver contract implements and verifies it.
 8. Availability changes apply to future solver snapshots and explicit revalidation. They do not regenerate a schedule or rewrite published meetings automatically.
 
 Institutional class suspensions or temporary closures are decided outside TALA. Authorized staff record the resulting no-class or make-up date only when it changes the official Academic Calendar.
@@ -179,7 +179,7 @@ Course Component rules:
 3. Separate course identities are used only when the institution assigns separate subject codes or requires separate released grades.
 4. Derived Total Contact Hours is computed from the Course Components.
 5. The course-level Credit Units, prerequisite/corequisite rules, grading profile, and equivalency rules remain owned by the Course Specification Revision.
-6. V1 limits component types to Lecture and Laboratory. Discussion, seminar, recitation, tutorial, studio, or similar component types are deferred unless Servitech formally requires them as distinct scheduled components.
+6. V1 limits component types to Lecture and Laboratory. Additional component types are not planned; a formal Servitech requirement for a distinct scheduled component must receive a new Next Steps issue.
 7. Different qualified faculty may teach different components of the same course by default.
 8. The Course Specification Revision may require the same faculty member across linked Lecture and Laboratory components only when institutional policy or course design requires it.
 

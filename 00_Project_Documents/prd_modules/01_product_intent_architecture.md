@@ -10,9 +10,9 @@ Full capstone title:
 
 **T.A.L.A.: A Technology for Administrative Ledger and Academic Management System with Constraint-Based Academic Scheduling Using Google OR-Tools**
 
-TALA is a College-focused academic lifecycle administration system for managing the official academic flow of Servitech Institute Asia. Its central technical feature is timetable-integrated, constraint-based academic scheduling connected to curriculum, term offerings, faculty availability, room assignment, enrollment, COR generation, and Student Hub visibility.
+TALA is a College-focused companion and integration platform for managing approved in-scope official academic lifecycle records at Servitech Institute Asia. Its central technical contribution is timetable-integrated, constraint-based CP-SAT academic scheduling connected to curriculum, term offerings, faculty availability, room assignment, enrollment, COR generation, and Student Hub visibility.
 
-TALA must support institutional workflows from applicant intake to official enrollment, finance evidence, scheduling, grades, student status, reports, source-derived outputs, and audit.
+TALA supports approved academic-lifecycle workflows from applicant intake to official enrollment, finance evidence, scheduling, grades, student status, reports, source-derived outputs, and audit. It integrates with, records the lifecycle effects of, and provides visibility for office-owned processes; it does not replace every departmental process.
 
 ### 1.2. Product Intent
 
@@ -20,9 +20,9 @@ TALA supports the official College academic lifecycle:
 
 Applicant intake → admission review → applicant-to-student handover → student master record → curriculum assignment → term offering → scheduling → enrollment gates → assessment → payment evidence → ledger posting → COR/SOA generation → Student Hub visibility → faculty rosters → grade encoding → grade release → lifecycle status management → reporting and audit.
 
-Manual office activities continue where institutional policy requires paper review, signatures, or cashier handling. TALA owns the academic, enrollment, scheduling, finance-evidence, grade, source-derived output, report, security, and audit records required for official SIS operation.
+Manual office activities continue where institutional policy requires paper review, signatures, or cashier handling. TALA is authoritative for the explicitly approved in-scope academic, enrollment, scheduling, finance-evidence, grade, source-derived output, report, security, and audit records it manages or records as official lifecycle results.
 
-TALA is the source of truth for official SIS records. External systems provide computation, infrastructure, or payment evidence only.
+TALA is the source of truth for approved in-scope official SIS records and recorded office results. External systems provide computation, infrastructure, or payment evidence only; office-owned decisions remain with the responsible office until an authorized staff member records their lifecycle effect in TALA.
 
 Known product integrations:
 
@@ -36,7 +36,7 @@ Known product integrations:
 
 #### 1.3.1 Included Product Scope
 
-TALA owns and implements the following product areas:
+TALA supports and, where approved, implements the following product areas. This list does not require TALA to replace every departmental procedure or make every capability runtime-editable:
 
 1. Identity, users, roles, permissions, and account lifecycle.
 2. Applicant intake, minimal upfront identity verification, admission checklist metadata, and requested digital admission evidence.
@@ -79,6 +79,19 @@ TALA owns and implements the following product areas:
 39. Privacy, security, access logs, retention categories, and audit.
 40. System configuration and integration settings.
 
+Capability-depth taxonomy:
+
+1. **Core system-managed workflow:** TALA creates, governs, and traces the approved lifecycle records and actions.
+2. **Supporting/frozen capability:** an accepted V1 capability that remains aligned but is not expanded without proof of need.
+3. **Recorded office result:** an authorized staff member records an office decision and its lifecycle effects in TALA.
+4. **Generated read-only projection:** TALA derives a view, output, status, print, download, or export from source records.
+5. **Runtime-configurable policy/reference data:** authorized staff maintain genuinely variable institutional reference data or policy.
+6. **Fixed/seeded V1 policy:** an accepted rule is seeded, code-defined, or otherwise controlled until runtime variation is proven.
+7. **Deferred/post-MVP:** a routed enhancement that is not an MVP dependency.
+8. **Conflicting:** a statement or implementation that must be reconciled or routed before change.
+
+Aligned accepted supporting features remain in scope unless they are proven harmful, conflicting, or unjustified. This taxonomy clarifies depth; it does not create a new backlog or invalidate accepted implementation.
+
 Rules:
 
 1. TALA separates checklist requirements from stored files.
@@ -95,10 +108,10 @@ The following workflows are handled by the relevant office outside TALA. TALA su
 3. TOR, Diploma, Form 137, Form 138, and certificate release are handled by the Registrar office.
 4. Courier, LBC, pickup, and claiming activities are handled by office procedures.
 5. Official tax receipts are issued through the institution's cashier/accounting process.
-6. Government portal reporting is prepared outside TALA unless a future integration is approved.
+6. Government portal reporting is prepared outside TALA. No integration task is planned; a future approved requirement must receive a new Next Steps issue.
 7. Full-section and excess-demand decisions are resolved by Registrar reassignment, a capacity adjustment that remains within physical-room limits, or a new scheduling run.
 8. LMS instruction, modular packet distribution, and learning-material tracking remain classroom or LMS processes.
-9. Public artifact verification and QR scanning are handled only if a future approved policy adds them.
+9. Public artifact verification and QR scanning are not planned. A future approved institutional policy must receive a new Next Steps issue before implementation.
 
 TALA still tracks admission-document requirements, stores approved admission evidence, and renders or exports internal outputs such as COR, SOA, payment acknowledgement, student schedules, class rosters, and graduation eligibility snapshots.
 
@@ -108,7 +121,7 @@ When an office-handled workflow affects the academic lifecycle, the PRD must nam
 
 Pattern:
 
-Office action happens outside TALA -> authorized staff records the result in TALA -> TALA applies gates, visibility, output, and audit rules.
+Office action happens outside TALA -> authorized staff records the result in TALA -> TALA applies the resulting lifecycle effects, gates, visibility, output, and audit rules.
 
 Examples:
 

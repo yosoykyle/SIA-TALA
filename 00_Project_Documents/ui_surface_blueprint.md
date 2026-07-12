@@ -141,9 +141,9 @@ Use navigation groups to prevent the existing resource inventory from becoming o
 | Grades | Faculty, Registrar, Academic Head | Faculty rosters, late authorization, submission review, posting/release, INC completion, corrections |
 | Student Records | Registrar, Accounting for owned holds | Student profile, holds, lifecycle changes, program shifts, graduation review |
 | Reports & Audit | Authorized staff | Filtered operational reports, CSV export, audit log, integration events |
-| System | System Super Admin | Users, fixed canonical role assignment, settings, email templates, integration configuration |
+| System | System Super Admin | Users, fixed canonical role assignment, governed settings, code-defined notification content, and restricted read-only integration status |
 
-Staff dashboards show a small number of actionable counts and links. The operational table remains the source for work; charts are deferred unless a PRD report requires a comparison that a table cannot express clearly.
+Staff dashboards show a small number of actionable counts and links. The operational table remains the source for work; charts are not planned unless a revised PRD proves a comparison need and a new Next Steps issue is approved.
 
 ## TAL-60 Realignment Decisions
 
@@ -151,12 +151,12 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | --- | --- | --- | --- | --- |
 | Fortify and Filament auth | Keep current setup | Fortify already supplies backend auth contracts while Filament panels own the login, registration, password reset, and verification UI. This keeps the three workspace entry points proven by tests. | Low if response contracts and panel route names remain covered. | Future auth changes should extend focused response/panel tests rather than add public Fortify views. |
 | Applicant registration and Auth Designer | Use existing plugin | Auth Designer is already installed on the panels and the Applicant panel preserves `RegisterApplicant` with the package page hook. This keeps branded auth without losing applicant role assignment. | Medium if future package updates change page-extension APIs. | Keep applicant registration regression tests in every auth/panel slice. |
-| Staff operational workflows | Use native Filament | Resources, tables, forms, actions, infolists, relation managers, filters, and widgets cover the MVP staff workflows without custom JavaScript. | Medium only when old inventory resources point at stale schema. | Each domain slice must explicitly register only accepted resources and leave stale families deferred. |
+| Staff operational workflows | Use native Filament | Resources, tables, forms, actions, infolists, relation managers, filters, and widgets cover the MVP staff workflows without custom JavaScript. | Medium only when old inventory resources point at stale schema. | Each domain slice explicitly registers accepted resources and routes or discards stale families through the protocol. |
 | Student Hub and Applicant Workspace pages | Use native Filament pages | Student and applicant surfaces are task-focused panels, not generic CRUD portals. Filament pages composed from forms, tables, infolists, and actions keep authorization server-side. | Low to medium, depending on source-record readiness. | Future learner-facing slices should build read-mostly pages after the owning staff source records exist. |
-| Calendar-like scheduling views | Defer plugin/package | MVP scheduling review is table-first; date/time inputs and validation tables are sufficient. A timetable/calendar view may supplement after the canonical table path is stable. | Low for MVP; adding a plugin early would create maintenance and test cost. | TAL-61 and scheduling slices must not start with drag-and-drop calendar UI. |
+| Calendar-like scheduling views | Not planned for MVP | MVP scheduling review is table-first; date/time inputs and validation tables are sufficient. | Low; avoiding an unproven plugin preserves the validated table path. | No active Next Steps issue. A future approved visualization must receive a new bounded issue and may supplement, never replace, the canonical table and validation path. |
 | TallStackUI | Keep available outside the public landing replacement | TallStackUI remains installed for non-Filament Blade/Livewire surfaces that prove a need. The current public landing page is implemented with isolated Bootstrap assets instead. | Low if it stays out of Filament panel implementation decisions and Bootstrap remains landing-only. | Use TallStackUI only for non-Filament Blade/Livewire surfaces with a documented need. |
 | Activity Log plugin | Use existing plugin | The existing Activity Resource gives System Super Admin audit visibility aligned with Module 13. | Low if activity tables remain migrated and authorization is retained. | Official-record slices should write audit events and expose them through the accepted audit surface. |
-| Additional UI/plugins | Defer plugin/package | No current PRD requirement proves a need for saved-filter, import, calendar, dashboard, permissions, or custom UI plugins before native Filament is tried. | Low; deferral preserves dependency discipline. | Future plugin proposals require a capability gap, compatibility check, maintenance cost, and focused tests. |
+| Additional UI/plugins | Not planned | No current PRD requirement proves a need for saved-filter, import, calendar, dashboard, permissions, or custom UI plugins beyond accepted native Filament surfaces. | Low; rejecting speculative dependencies preserves dependency discipline. | No active Next Steps issue. A future proposal requires a proven capability gap and a new approved bounded issue. |
 
 ## TAL-71 Finance Output and Student Hub Decisions
 
@@ -207,7 +207,7 @@ Scheduling remains table-first because validation and exception details are easi
 | Published revision | Controlled decision | Focused Action modal with impact preview and validation result |
 | Student/faculty schedule | Authorized output | Read-only Table grouped by day and printable view |
 
-For MVP, TALA does not require a drag-and-drop timetable, FullCalendar plugin, generic constraint builder, or user-editable scoring weights. An optional timetable visualization may be added later without replacing the candidate review table or validation path.
+For MVP, TALA does not require a drag-and-drop timetable, FullCalendar plugin, generic constraint builder, or user-editable scoring weights. No visualization task is currently planned; a future approved proposal must receive a new Next Steps issue and may supplement, never replace, the candidate review table or validation path.
 
 ## Imports, Reports, Notifications, and Plugins
 
