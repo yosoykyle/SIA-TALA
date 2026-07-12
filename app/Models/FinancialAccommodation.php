@@ -118,6 +118,36 @@ class FinancialAccommodation extends Model
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public static function creationStatusOptions(): array
+    {
+        return array_intersect_key(self::statusOptions(), array_flip([
+            self::StatusPending,
+            self::StatusActive,
+        ]));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function transitionStatusOptions(): array
+    {
+        $targets = match ($this->status) {
+            self::StatusPending => [self::StatusActive, self::StatusCancelled],
+            self::StatusActive => [
+                self::StatusFulfilled,
+                self::StatusDefaulted,
+                self::StatusExpired,
+                self::StatusCancelled,
+            ],
+            default => [],
+        };
+
+        return array_intersect_key(self::statusOptions(), array_flip($targets));
+    }
+
     public static function studentOptionLabel(StudentProfile $studentProfile): string
     {
         $name = $studentProfile->user instanceof User && filled($studentProfile->user->name)

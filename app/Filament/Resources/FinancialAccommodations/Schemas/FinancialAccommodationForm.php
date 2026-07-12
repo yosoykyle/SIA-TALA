@@ -51,7 +51,7 @@ class FinancialAccommodationForm
                             ->options(FinancialAccommodation::basisOptions())
                             ->required(),
                         Select::make('status')
-                            ->options(FinancialAccommodation::statusOptions())
+                            ->options(FinancialAccommodation::creationStatusOptions())
                             ->default(FinancialAccommodation::StatusActive)
                             ->required(),
                         DatePicker::make('effective_from')

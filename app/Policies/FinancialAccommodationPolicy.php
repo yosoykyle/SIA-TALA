@@ -27,6 +27,11 @@ class FinancialAccommodationPolicy
         return false;
     }
 
+    public function transition(User $user, FinancialAccommodation $financialAccommodation): bool
+    {
+        return $user->canProcessPayments();
+    }
+
     public function delete(User $user, FinancialAccommodation $financialAccommodation): bool
     {
         return false;
