@@ -73,7 +73,6 @@ class DatabaseSeeder extends Seeder
             'create-assessments',
             'evaluate-transferees',
             'manage-admission-setup',
-            'manage-curricula',
             'manage-faqs',
             'manage-schedules',
             'manage-sections',
@@ -101,9 +100,10 @@ class DatabaseSeeder extends Seeder
             //         school policy (§10.4); the student has no in-TALA action permission.
             'student' => [],
 
-            // §2.3.4 Registrar: admissions, records, COR, sections/scheduling, and curriculum
-            //         setup; grade review (Post & Release, INC/correction recording) runs through
-            //         the role-gated Grade Roster workflow rather than dedicated permission slugs.
+            // §2.3.4 Registrar: admissions, records, COR, and sections/scheduling. Curriculum
+            //         setup and grade review (Post & Release, INC/correction recording) run
+            //         through role-gated surfaces (the curriculum resource policies and the Grade
+            //         Roster workflow) rather than dedicated permission slugs.
             'registrar' => [
                 'approve-documents',
                 'evaluate-transferees',
@@ -111,7 +111,6 @@ class DatabaseSeeder extends Seeder
                 'manage-admission-setup',
                 'manage-schedules',
                 'manage-sections',
-                'manage-curricula',
             ],
 
             // §2.3.5 Accounting: fee setup, assessment, payments, adjustments, accommodations.
@@ -126,11 +125,12 @@ class DatabaseSeeder extends Seeder
             //         action permissions.
             'faculty' => [],
 
-            // §2.3.6 Academic Head: academic overrides, curriculum/eligibility governance,
-            //         faculty-availability review, and read-only global records oversight.
+            // §2.3.6 Academic Head: academic overrides and read-only global records oversight.
+            //         Curriculum/eligibility governance and faculty-availability review are
+            //         role-gated (the curriculum resource policies view-gate the academic-head
+            //         role) rather than dedicated permission slugs.
             'academic-head' => [
                 'authorize-overrides',
-                'manage-curricula',
                 'view-global-records',
             ],
 

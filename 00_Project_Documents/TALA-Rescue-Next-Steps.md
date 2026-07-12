@@ -54,7 +54,7 @@ Parent TAL-93 (pre-integration gate) split into TAL-93A-I + TAL-93J1-J3. TAL-93A
 | TAL-93I | Core config build | Admission Requirement Policy Configuration Filament surface for the live state-based model, gated on `manage-admission-setup`. | Done locally; pending Linear sync |
 | TAL-93J1 | Tooling/security | Gate environment + dependency prep: forced `test_tala_db` target, bootstrap guard, idempotent baseline seed, tool security patches. | Done locally; pending Linear sync |
 | TAL-93J2 | Read-only audit | Whole-repository Ground-Truth + static-analysis audit; findings routed to fix boundaries TAL-93J2a-h. | Done locally; pending Linear sync |
-| TAL-93J3 | Gate (final TAL-93 boundary) | Automated Cross-Role Regression, Security, and UAT-Readiness Gate. After all TAL-93J2 fix boundaries are resolved, verify all five staff roles against every registered staff surface per PRD role ownership; run the complete automated regression/security stack; produce a concise checklist containing only the visual, institutional-workflow, real-email, and later integration validations that genuinely require people. Pure pass/fail; no product fixes inside the gate. CARRY-IN (from TAL-93J2c): `manage-curricula` is assigned (registrar + academic-head) but no live policy checks it after the already-dead `SubjectPolicy` was retired -> J3 surfaces the decision to wire it into the live curriculum resource policies (CourseResource/CourseSpecificationResource/CurriculumVersionResource) OR formally accept role-gating; if a fix is chosen it becomes a separate bounded boundary, not a product fix inside the gate. | Planned; only remaining TAL-93 sub-slice |
+| TAL-93J3 | Scope alignment + gate (J3a-J3c) | Final TAL-93 preparation: J3a reconciles the assigned-but-unused `manage-curricula` permission; J3b applies the full protocol to a docs-only capstone scope-clarity and policy-alignment authority correction; J3c then runs the pure pass/fail cross-role/security/UAT-readiness gate against the clarified authority. | J3a done locally; J3b next, then J3c |
 
 ### TAL-93J2 Fix-Boundary Map
 
@@ -71,6 +71,16 @@ TAL-93J2 (read-only audit) findings were routed here as separately-approved fix 
 | TAL-93J2g | RETIRE | Tableless CorVerification token/lifecycle/resource island + orphaned `manage-cor-verifications`; authenticated source-derived COR (BuildCorOutput/CorPrintController/CorView/`output_access_logs`) preserved. | Done locally; pending Linear sync |
 | TAL-93J2h | PATCH/COMPLETE | FinancialAccommodation controlled lifecycle transitions, Accounting authorization, audit evidence, and view action. | Done locally; pending Linear sync |
 
+### TAL-93J3 Boundary Map
+
+The revised split is approved before implementation planning. Each sub-slice requires its own accepted plan and orchestration command. J3b changes authority documents only after benchmark-backed, user-approved findings; it preserves aligned implementation and routes any proven code mismatch into a separately approved bounded fix. J3c remains a pure gate and must route, not repair, any defect it finds.
+
+| Sub-slice | Nature | Purpose | Status |
+| --- | --- | --- | --- |
+| TAL-93J3a | Permission reconciliation | Pruned the vestigial `manage-curricula` slug (0 live checkers after J2c retired `SubjectPolicy`); curriculum capability preserved by role-gating in the Course/CourseSpecification/CurriculumVersion policies. 13->12 permissions, 14->12 assignments; no PRD change. | Done locally; pending Linear sync |
+| TAL-93J3b | Docs-only authority correction | Apply the Ground-Truth, Slice Clarity, Benchmark, Qualified-Reference, and Purposeful Simplification gates to classify capabilities as core, supporting/frozen, recorded-result, read-only, fixed V1 policy, configurable, deferred, or conflicting; make only approved PRD/blueprint/architecture corrections. Preserve aligned implementation and existing tests; do not edit the historical baseline research-paper files. | Revised split approved; J3a complete - awaiting plan |
+| TAL-93J3c | Final gate | After J3b and every separately approved routed fix are complete, verify all five staff roles against every registered staff surface; run the complete automated regression, static-analysis, dependency-security, build, and thin rendered-smoke stack; produce only the visual, institutional-workflow, real-email, and later-integration checklist that still requires people. Pure pass/fail; no product fixes. | Revised split approved; blocked on J3b and routed fixes, then awaiting plan |
+
 ### Next Boundary
 
-Next primary boundary: **TAL-93J3** (final automated cross-role/security/UAT-readiness gate). It runs on the cleaned system now that TAL-93J2a-h are complete, and retains only the `manage-curricula` assigned-but-unchecked decision carry-in. On plan acceptance, if TAL-93J3 is split, its sub-slice map is recorded here. Once TAL-93J3 is complete and the carry-in is routed, the entire TAL-93 parent block is removed from this file.
+Next primary boundary: **Plan TAL-93J3b** (docs-only authority-correction slice); route any proven implementation mismatch separately. Run TAL-93J3c only after J3b and every approved routed fix are complete. (TAL-93J3a permission reconciliation is done locally.) Once J3a-J3c are complete, remove the entire TAL-93 parent block from this file.

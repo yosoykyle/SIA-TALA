@@ -87,6 +87,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J2f | Done locally; pending explicit Linear sync | Retire standalone PromissoryNote island |
 | TAL-93J2g | Done locally; pending explicit Linear sync | Retire deferred CorVerification token/lifecycle/resource island while preserving authenticated COR output |
 | TAL-93J2h | Done locally; pending explicit Linear sync | Complete FinancialAccommodation controlled lifecycle transitions |
+| TAL-93J3a | Done locally; pending explicit Linear sync | Prune vestigial `manage-curricula` permission; curriculum capability preserved by role-gated policies |
 
 ## Compact Synced History
 

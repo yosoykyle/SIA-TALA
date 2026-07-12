@@ -71,9 +71,9 @@ class RoleAccessMatrixTest extends TestCase
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
         $this->assertSame(
-            13,
+            12,
             Permission::query()->where('guard_name', 'web')->count(),
-            'Exactly the 13 canonical permissions must be seeded.',
+            'Exactly the 12 canonical permissions must be seeded.',
         );
 
         $orphans = Permission::query()->whereDoesntHave('roles')->pluck('name')->all();
@@ -108,7 +108,6 @@ class RoleAccessMatrixTest extends TestCase
                     'manage-admission-setup',
                     'manage-schedules',
                     'manage-sections',
-                    'manage-curricula',
                 ],
             ],
             'accounting owns assessment, payments, and accommodations' => [
@@ -127,7 +126,6 @@ class RoleAccessMatrixTest extends TestCase
                 'role' => 'academic-head',
                 'expected' => [
                     'authorize-overrides',
-                    'manage-curricula',
                     'view-global-records',
                 ],
             ],
