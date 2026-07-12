@@ -89,6 +89,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J2h | Done locally; pending explicit Linear sync | Complete FinancialAccommodation controlled lifecycle transitions |
 | TAL-93J3a | Done locally; pending explicit Linear sync | Prune vestigial `manage-curricula` permission; curriculum capability preserved by role-gated policies |
 | TAL-93J3b | Done locally; pending explicit Linear sync | Capstone capability-depth and deferral-routing authority correction |
+| TAL-93J3b1 | Done locally; pending explicit Linear sync | Scheduler authority and independent benchmark reconciliation |
 
 ## Compact Synced History
 

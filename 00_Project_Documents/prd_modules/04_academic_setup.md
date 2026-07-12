@@ -93,7 +93,7 @@ Scheduling Availability source rules:
 4. Absolute `start_at` / `end_at` holidays, no-class dates, and dated exceptions remain Academic Calendar occurrence and lifecycle records. They do not repeat weekly or alter the recurring published Master Schedule automatically.
 5. Dated exceptions use the applicable make-up, published-schedule revision, or operational handling workflow. When an absolute event represents a whole-term restriction, staff also records its equivalent recurring block for Master Schedule enforcement.
 6. Zero faculty availability events means the faculty member has no additional restriction inside the configured term operating grid.
-7. Preferred-time capture and optimization are routed to post-MVP TAL-102. The system does not present or claim `PREFERRED` scheduling behavior until that separately approved solver contract implements and verifies it.
+7. Requested or preferred-time capture and optimization are not part of the approved scope and are not planned. The system records and enforces recurring unavailable blocks only; a future institutional requirement must pass the protocol gates before the product can present or claim preferred-time behavior.
 8. Availability changes apply to future solver snapshots and explicit revalidation. They do not regenerate a schedule or rewrite published meetings automatically.
 
 Institutional class suspensions or temporary closures are decided outside TALA. Authorized staff record the resulting no-class or make-up date only when it changes the official Academic Calendar.

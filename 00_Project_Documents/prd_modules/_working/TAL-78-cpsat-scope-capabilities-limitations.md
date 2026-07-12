@@ -158,7 +158,7 @@ For MVP, keep CP-SAT narrow:
 6. Let staff publish accepted candidate rows.
 7. Read official student schedules from `section_meetings`.
 
-Not planned in the active sequence (preferred-time scheduling alone is routed to TAL-102; any other approved proposal requires a new Next Steps issue):
+Not planned in the active sequence (requested or preferred-time scheduling is outside the approved scope; any future institutional requirement or other approved proposal requires a new Next Steps issue):
 
 1. Automatic policy relaxation.
 2. Multi-objective tuning UI.

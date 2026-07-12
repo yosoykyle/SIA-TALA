@@ -126,7 +126,7 @@ Soft constraints:
 6. Minimize changes from previous published version.
 7. Prefer earlier institutional time blocks when multiple valid assignments exist.
 
-Faculty requested-time preference is routed to post-MVP TAL-102, whose separately approved solver contract must implement and verify `PREFERRED` calendar-event scoring.
+Faculty requested-time preference is not part of the approved scope and is not planned. The scheduler must not present or claim preferred-time optimization; recurring unavailable blocks remain mandatory scheduling inputs.
 
 Soft constraint rules:
 
@@ -157,8 +157,8 @@ Fixed Assignments and Pre-locking:
 
 Consecutive Block Scheduling:
 
-1. For components requiring large contact hours (e.g., 6 hours or 12 half-hour blocks) that must be scheduled in a single day, the solver treats the class session as a single contiguous interval variable (using `NewIntervalVar`).
-2. CP-SAT uses `AddNoOverlap` on this interval to ensure the entire 6-hour block is scheduled without interruption in a suitable room, without conflicting with faculty availability or cohort schedules.
+1. For components requiring large contact hours (e.g., 6 hours or 12 half-hour blocks) that must be scheduled in a single day, the solver must represent and validate the class session as one uninterrupted assignment across valid institutional time blocks.
+2. The selected CP-SAT model must prevent the complete assignment from overlapping faculty, room, cohort, calendar, or break constraints. TAL-94 chooses and verifies the proportionate modeling technique after its independent benchmark.
 
 ---
 
@@ -200,7 +200,7 @@ Availability and calendar-block payload rules:
 6. No faculty-scoped availability row means no additional restriction inside the generated term time grid.
 7. Solver readiness does not require a synthetic availability row. It validates the term grid, active recurring blocks, qualified faculty, rooms, and demand sources that exist.
 8. Recurring manual assignment uses the same active recurring calendar-block overlap rules as the solver and cannot bypass an unavailable block through a note-only override.
-9. Preferred-time capture and optimization are routed to post-MVP TAL-102 and are not included in MVP or TAL-94 solver claims.
+9. Requested or preferred-time capture and optimization are not part of the approved scope or TAL-94 solver claims. A future institutional requirement must pass the protocol gates before changing this contract.
 10. The immutable run snapshot retains the deterministic recurring source rows actually enforced. Later calendar changes affect a new run or explicit revalidation and never rewrite a captured run or published schedule.
 
 #### 6.2.2 Required Input IDs
@@ -352,7 +352,7 @@ Rules:
 | Faculty and room constraints | Read-only consolidated validation table linked to the authoritative forms in Module 5 |
 | Start solver run | Read-only input summary and validation report followed by explicit run confirmation |
 | Run progress and status | Generated Read-Only View showing queued/running/completed/infeasible/failed state and diagnostic summary |
-| Candidate assignments | Review Table of section, course, faculty, room, day, start/end time, and validation status; no timetable visualization is planned without a new approved Next Steps issue, and any approved view may supplement but not replace the table |
+| Candidate assignments | Accessible review presentation that makes section, course, faculty, room, day, start/end time, validation status, conflicts, and quality understandable; TAL-94 selects the minimum proportionate presentation after its independent benchmark, while preserving a canonical record/table representation |
 | Resolve an infeasible or invalid result | Exception list identifying the failed constraint and linking staff to the authoritative input record, soft-priority preset, approved policy override, or Manual Schedule Override form |
 | Publish Master Schedule | Read-only comparison and conflict report followed by explicit publication confirmation |
 | Revise published schedule | Focused Record Form selecting affected meeting rows, change reason, effective date, and approved replacements, followed by impact preview |
@@ -370,14 +370,14 @@ This map identifies how scheduling is surfaced for v1. It is not a visual design
 | --- | --- | --- | --- |
 | Academic Calendar scheduling grid | Registrar or authorized staff | Calendar / Date-Range Input | Define operating days, hours, no-class dates, examination blocking behavior, and Institutional Break Blocks. |
 | Room and facility setup | Registrar or authorized staff | Record Form and Editable Table | Maintain room capacity, room type, flat features, active status, and room-scoped unavailability. |
-| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Preferred-time optimization is routed to TAL-102. |
+| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Requested or preferred-time optimization is not in the approved scope. |
 | Term Offering builder | Registrar | Generated Editable Table | Create Regular offerings from Curriculum Entries and add approved offering-owned values. |
 | Section delivery groups | Registrar | Editable Table | Define schedulable cohort or section groups and expected counts. |
 | Scheduling Demand review | Registrar | Generated Review Table | Show the demand rows that CP-SAT will schedule, with source links and validation status. |
 | Constraint profile | System Super Admin or authorized staff | Editable Table / Record Form | Maintain the fixed hard-constraint profile, policy constraints, and default soft-priority preset. |
 | Readiness check | Registrar | Generated Read-Only validation table | Show missing inputs, invalid source records, and constraints that must be corrected before a solver run. |
 | Solver run setup | Registrar | Record Form plus confirmation | Select term, included demands, constraint profile, and solver settings. |
-| Candidate schedule review | Registrar and Academic Head where required | Review Table plus optional timetable/calendar view | Compare candidate assignments, constraint results, soft scores, and warnings before publication. |
+| Candidate schedule review | Registrar and Academic Head where required | Benchmark-selected accessible review presentation with a canonical Review Table | Understand and compare candidate assignments, constraint results, quality measures, warnings, and publication impact without predetermining a visualization or interaction pattern. |
 | Manual Schedule Override | Registrar with required authority | Focused Record Form | Record a validated replacement assignment, authority, reason, affected rows, and validation result. |
 | Master Schedule publication | Registrar / Academic Head where required | Confirmation with conflict summary | Publish validated candidate rows into official section meetings. |
 | Published schedule revision | Registrar | Focused Record Form with impact preview | Change room, faculty, modality, time, or cancellation after publication while preserving revision history. |
