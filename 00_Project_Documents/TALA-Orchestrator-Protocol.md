@@ -14,7 +14,7 @@ Read in this order before planning a slice:
 
 1. `AGENTS.md` — runtime rules and the Laravel Boost block. If it is unavailable, stop before planning, delegating, or implementing.
 2. This protocol — orchestration rules.
-3. `TALA-Rescue-Next-Steps.md` — current issue, order, sub-slices.
+3. `TALA-Rescue-Next-Steps.md` — current issue, order, sub-slices, and the one active approved plan contract.
 4. `TALA-Local-Linear-Sync-Tracker.md` — issue numbering and sync state only.
 5. `prd_modules/` — product behavior, MVP boundaries, records, flows, outputs, roles.
 6. `ui_surface_blueprint.md` — UI, role, and surface mapping.
@@ -22,7 +22,7 @@ Read in this order before planning a slice:
 8. `business-evidence/` — clarification only (current forms, terminology, document shape, realistic data). Exclude senior-high-only content unless it is proven relevant to college workflows.
 9. Migrations, models, services, policies, routes, Filament resources and pages, and tests — salvage evidence, not authority.
 
-Owners: Boost and official docs own framework use; PRD owns product; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order; tracker owns sync state. Accept existing code only when it is aligned. On any unresolved conflict, stop in the primary thread.
+Owners: Boost and official docs own framework use; PRD owns product; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order and the active approved contract; tracker owns sync state. Accept existing code only when it is aligned. On any unresolved conflict, stop in the primary thread.
 
 ## 3. Planning sequence
 
@@ -131,7 +131,7 @@ Before any implementation, delegation, tracker change, or commit, the primary re
 4. Primary-versus-worker decision.
 5. Proposed slice plan and exclusions.
 
-After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: restate the issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
+After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: load the accepted plan from the active contract in Next Steps, then restate the issue, authority evidence, exclusions, dirty state, verification state, and next action. Never reconstruct the accepted plan from conversation or memory.
 
 ### Durable active plan contract
 
@@ -140,6 +140,8 @@ After the user approves a slice plan, the primary must record the complete accep
 The active contract contains the Section 5 plan fields, accepted implementation checklist, authority corrections, exclusions, expected verification, and human-only steps. Keep it concise: cite authority paths and accepted benchmark/reference conclusions instead of copying source text, transcripts, code, test results, volatile counters, or delivered-work history.
 
 An approved revision replaces the active contract in place; do not retain stale versions. After compaction or interruption, read this section, re-run the Ground-Truth Gate, and stop if repository reality differs. If the slice is canceled or replaced, remove or replace the contract only after the user approves that disposition.
+
+After a worker launch succeeds, mark the roadmap row and active contract `In progress` and change the Next Boundary to `Verify TAL-XX`. If launch fails, leave the contract `Approved; awaiting orchestration`. These Git-tracked states are the only durable execution marker; do not create a separate handoff file or memory entry.
 
 During `Cleanup TAL-XX`, move delivered detail into the canonical commit message, remove the active contract, and compact or remove the roadmap row as Section 8 requires. Active task contracts never belong in Serena or agent-native memory; those systems may retain only durable procedure or genuine non-Git carry-ins.
 
@@ -185,9 +187,9 @@ Use a separate worker only when the user explicitly asks for orchestration, dele
 
 **Multi-worker (max 3):** permitted only when all of these hold — (1) the plan identifies parallelizable sub-tasks with zero file overlap; (2) each worker's file scope is enumerated in its packet and no worker edits another's file; (3) at most one worker runs PHPUnit or PHPStan at a time (shared `test_tala_db`); (4) no worker touches a migration, seeder, or shared service another depends on; (5) the user approves the parallel plan. Safe parallel patterns: multiple read-only audit workers; parallel research or benchmark workers; non-overlapping implementers with staggered test runs. If any file, model, service, or test-DB access overlaps, fall back to sequential single-worker execution. The primary merges all handshakes into one acceptance.
 
-**Handoff packet:** before starting a worker, confirm that the active approved contract exists in Next Steps and matches the requested issue, then assemble a compact packet that references it and includes the issue; accepted checklist; authority files; allowed changes; approved reference paths and patterns; exclusions; verification; DB-proof requirement; handshake format; and the Ground-Truth Gate classification (verified existence plus authority verdict per surface, with cited evidence and a stop-rule if reality differs). Deliver it via any available mechanism (inline sub-agent prompt, shared context, or another supported interface). Reference existing docs, commits, and diffs by path instead of copying them. Redact secrets and keep context minimal. A missing or inconsistent active contract blocks delegation.
+**Thin launch envelope:** before starting a worker, confirm that the active approved contract exists in Next Steps and matches the requested issue. The launch envelope references that heading instead of repeating it and contains only execution-time facts: issue ID; current commit and attributable dirty state; fresh Ground-Truth Gate findings or deltas; exact worker-owned files and concurrency/test-DB ordering; required skills, tools, worker model/effort, runtime and DB-proof commands; any narrower stop condition; and the required return-handshake format. Deliver it inline or through another supported worker interface. Do not restate the contract's checklist, authorities, benchmark, exclusions, or verification plan unless an execution-time fact narrows them; any contradiction or expansion blocks delegation and returns to the primary for approved plan revision. Redact secrets and keep context minimal.
 
-**Workers must:** read the packet first; read `AGENTS.md` and the relevant authorities before editing; preserve unrelated worktree changes; execute the accepted checklist and not act as a second primary unless scoped for research or planning; stop as `BLOCKED` if the checklist, issue, or scope is unclear; halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the packet; stop for the user when dashboards, credentials, approvals, or environment setup are needed; not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped; and merge any helper work into one final handshake.
+**Workers must:** read the launch envelope first, then `AGENTS.md`, this protocol, the full active contract, and its relevant authorities before editing; preserve unrelated worktree changes; execute the accepted contract and not act as a second primary unless scoped for research or planning; stop as `BLOCKED` if the contract, issue, or scope is unclear; halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the contract or envelope; stop for the user when dashboards, credentials, approvals, or environment setup are needed; not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped; and merge any helper work into one final handshake.
 
 ## 7. Worker handshake and acceptance
 

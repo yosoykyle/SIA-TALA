@@ -452,9 +452,9 @@ Always-loaded router for TALA MVP orchestration. It carries only the intake chai
 
 ### Intake chain and owners
 
-Read in order: this router -> master protocol -> `TALA-Rescue-Next-Steps.md` (issue order) -> `TALA-Local-Linear-Sync-Tracker.md` (sync state) -> relevant `prd_modules/` -> `ui_surface_blueprint.md` -> `architecture_specification.md` -> `business-evidence/` (clarification only) -> code and tests (salvage evidence).
+Read in order: this router -> master protocol -> `TALA-Rescue-Next-Steps.md` (issue order and active approved contract) -> `TALA-Local-Linear-Sync-Tracker.md` (sync state) -> relevant `prd_modules/` -> `ui_surface_blueprint.md` -> `architecture_specification.md` -> `business-evidence/` (clarification only) -> code and tests (salvage evidence).
 
-Owners: Boost and official docs own framework use; PRD owns product behavior; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order; tracker owns sync state. On any unresolved conflict, stop and reconcile in the primary thread before acting.
+Owners: Boost and official docs own framework use; PRD owns product behavior; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order and the active approved contract; tracker owns sync state. On any unresolved conflict, stop and reconcile in the primary thread before acting.
 
 ### Non-negotiables
 
