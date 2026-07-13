@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -58,6 +59,10 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_stub');
+        $this->app->forgetInstance(SchedulingSolverClient::class);
+        Queue::fake();
 
         $this->demandGenerator = app(GenerateSchedulingDemand::class);
         $this->runService = app(ScheduleGenerationService::class);

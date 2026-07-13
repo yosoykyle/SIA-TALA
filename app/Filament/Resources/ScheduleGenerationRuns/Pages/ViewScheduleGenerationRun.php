@@ -2,16 +2,21 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Pages;
 
+use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
+use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\On;
 
 class ViewScheduleGenerationRun extends ViewRecord
 {
@@ -23,8 +28,77 @@ class ViewScheduleGenerationRun extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->manualScheduleOverrideAction(),
             $this->publishScheduleAction(),
         ];
+    }
+
+    public function manualScheduleOverrideAction(): Action
+    {
+        return Action::make('manualScheduleOverride')
+            ->label('Manual Schedule Override')
+            ->icon(Heroicon::OutlinedWrenchScrewdriver)
+            ->color('warning')
+            ->modalHeading('Manual Schedule Override')
+            ->modalDescription('Provide one complete replacement assignment set. TALA saves nothing unless every current hard constraint passes.')
+            ->modalSubmitActionLabel('Validate Complete Schedule')
+            ->modalWidth(Width::SevenExtraLarge)
+            ->fillForm(fn (): array => [
+                'assignments' => CandidateScheduleReviewForm::replacementRows($this->run()),
+                'override_authority' => null,
+                'override_reason' => null,
+            ])
+            ->schema(fn (): array => CandidateScheduleReviewForm::manualOverrideSchema($this->run()))
+            ->visible(fn (): bool => $this->canManualOverride())
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    abort(403);
+                }
+
+                $run = $this->run();
+                $assignments = $data['assignments'] ?? null;
+
+                if (! is_array($assignments)) {
+                    throw ValidationException::withMessages([
+                        'assignments' => 'A complete replacement assignment set is required.',
+                    ]);
+                }
+
+                try {
+                    $this->record = app(CandidateScheduleRowReviewService::class)->replace(
+                        $run,
+                        array_values($assignments),
+                        $actor,
+                        (string) ($data['override_authority'] ?? ''),
+                        (string) ($data['override_reason'] ?? ''),
+                    );
+
+                    Notification::make()
+                        ->title('Manual Schedule Override accepted')
+                        ->body('The complete replacement schedule passed current hard-constraint validation.')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Manual Schedule Override blocked')
+                        ->body($this->validationMessage($exception))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                } finally {
+                    $fresh = $run->fresh();
+
+                    if ($fresh instanceof ScheduleGenerationRun) {
+                        $this->record = $fresh;
+                    }
+
+                    $this->dispatch('schedule-run-updated');
+                }
+            });
     }
 
     public function publishScheduleAction(): Action
@@ -79,6 +153,49 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run instanceof ScheduleGenerationRun
             && Gate::forUser($publisher)->allows('publish', $run)
             && $run->canBePublished();
+    }
+
+    private function canManualOverride(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->getRecord();
+
+        return $actor instanceof User
+            && $run instanceof ScheduleGenerationRun
+            && in_array($run->status, [
+                ScheduleGenerationRun::StatusUnderReview,
+                ScheduleGenerationRun::StatusBlocked,
+                ScheduleGenerationRun::StatusFailed,
+            ], true)
+            && Gate::forUser($actor)->allows('reviewCandidates', $run);
+    }
+
+    #[On('schedule-run-updated')]
+    public function refreshScheduleRun(): void
+    {
+        $fresh = $this->run()->fresh();
+
+        if ($fresh instanceof ScheduleGenerationRun) {
+            $this->record = $fresh;
+        }
+    }
+
+    private function run(): ScheduleGenerationRun
+    {
+        $run = $this->getRecord();
+
+        if (! $run instanceof ScheduleGenerationRun) {
+            abort(404);
+        }
+
+        return $run;
+    }
+
+    private function validationMessage(ValidationException $exception): string
+    {
+        $message = collect($exception->errors())->flatten()->first();
+
+        return is_string($message) ? $message : 'The complete replacement schedule failed current hard-constraint validation.';
     }
 
     private function publicationConfirmationDescription(): string

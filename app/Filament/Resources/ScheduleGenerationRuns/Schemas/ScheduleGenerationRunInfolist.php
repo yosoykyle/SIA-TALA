@@ -50,6 +50,7 @@ class ScheduleGenerationRunInfolist
                             ->numeric()
                             ->placeholder('-'),
                         TextEntry::make('objective_value')
+                            ->label('Original Solver Score')
                             ->numeric()
                             ->placeholder('-'),
                         TextEntry::make('candidate_key')
@@ -93,10 +94,50 @@ class ScheduleGenerationRunInfolist
                             ->columnSpanFull(),
                     ])
                     ->columns(3),
-                Section::make('Diagnostics')
+                Section::make('Current Validation')
+                    ->schema([
+                        TextEntry::make('current_validation_status')
+                            ->label('Result')
+                            ->state(fn (ScheduleGenerationRun $record): string => (string) (self::currentRevalidation($record)['status'] ?? '-'))
+                            ->badge()
+                            ->color(fn (string $state): string => $state === 'accepted' ? 'success' : ($state === 'blocked' ? 'danger' : 'gray')),
+                        TextEntry::make('current_validation_context')
+                            ->label('Validation Context')
+                            ->state(fn (ScheduleGenerationRun $record): string => Str::headline((string) (self::currentRevalidation($record)['context'] ?? '-'))),
+                        TextEntry::make('current_validation_time')
+                            ->label('Validated At')
+                            ->state(fn (ScheduleGenerationRun $record): mixed => self::currentRevalidation($record)['validated_at'] ?? null)
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('current_validation_assigned')
+                            ->label('Assigned')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['assigned_count'] ?? 0))
+                            ->numeric(),
+                        TextEntry::make('current_validation_unassigned')
+                            ->label('Unassigned')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['unassigned_count'] ?? 0))
+                            ->numeric(),
+                        TextEntry::make('current_validation_hard_violations')
+                            ->label('Hard Violations')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['hard_violation_count'] ?? 0))
+                            ->badge()
+                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
+                        TextEntry::make('current_validation_warnings')
+                            ->label('Warnings')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::currentSummary($record)['warning_count'] ?? 0))
+                            ->badge()
+                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                    ])
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                        'xl' => 4,
+                    ])
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::currentRevalidation($record) !== []),
+                Section::make('Original Solver Result')
                     ->schema([
                         TextEntry::make('solver_result_status')
-                            ->label('Solver Result')
+                            ->label('Result')
                             ->state(fn (ScheduleGenerationRun $record): string => (string) (self::solverResult($record)['solver_status'] ?? '-'))
                             ->badge()
                             ->color(fn (string $state): string => in_array($state, ['optimal', 'feasible'], true) ? 'success' : ($state === '-' ? 'gray' : 'danger')),
@@ -118,6 +159,17 @@ class ScheduleGenerationRunInfolist
                             ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['warning_count'] ?? 0))
                             ->badge()
                             ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                    ])
+                    ->columns([
+                        'default' => 1,
+                        'md' => 3,
+                        'xl' => 5,
+                    ]),
+                Section::make('Validation Findings')
+                    ->description(fn (ScheduleGenerationRun $record): string => self::currentRevalidation($record) !== []
+                        ? 'Latest current-record revalidation findings.'
+                        : 'Original solver-result validation findings.')
+                    ->schema([
                         TextEntry::make('validation_result_empty')
                             ->label('Validation Findings')
                             ->state('No validation findings.')
@@ -151,7 +203,7 @@ class ScheduleGenerationRunInfolist
                             ->visible(fn (ScheduleGenerationRun $record): bool => self::findingRows($record) !== [])
                             ->columnSpanFull(),
                     ])
-                    ->columns(5),
+                    ->columns(1),
             ]);
     }
 
@@ -177,11 +229,35 @@ class ScheduleGenerationRunInfolist
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function currentRevalidation(ScheduleGenerationRun $record): array
+    {
+        $diagnostics = $record->getAttribute('diagnostics');
+        $revalidation = is_array($diagnostics) ? $diagnostics['current_revalidation'] ?? null : null;
+
+        return is_array($revalidation) ? $revalidation : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function currentSummary(ScheduleGenerationRun $record): array
+    {
+        $summary = self::currentRevalidation($record)['summary'] ?? null;
+
+        return is_array($summary) ? $summary : [];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private static function findingRows(ScheduleGenerationRun $record): array
     {
-        $findings = self::solverResult($record)['findings'] ?? null;
+        $latestValidation = self::currentRevalidation($record);
+        $findings = $latestValidation !== []
+            ? ($latestValidation['findings'] ?? null)
+            : (self::solverResult($record)['findings'] ?? null);
 
         if (! is_array($findings)) {
             return [];
