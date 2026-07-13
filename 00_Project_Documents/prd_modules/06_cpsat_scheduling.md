@@ -301,9 +301,9 @@ Once the schedule is published and the Enrollment Calendar opens, the schedule i
 1. **In-Place Updates:** Mid-term schedule adjustments update the `section_meetings` table directly in-place.
 2. **Revision Event (Audit Log):** Every in-place schedule modification generates an immutable record in the `schedule_revision_events` table containing:
    - `id`, `term_id`, `section_meeting_id`
-   - `change_type` (Enum: `ROOM_CHANGE`, `FACULTY_REASSIGNMENT`, `TIME_CHANGE`, `DELIVERY_MODALITY_CHANGE`, `SECTION_CANCELLATION`, `MINOR_LABEL_CORRECTION`)
+   - `change_type` (Enum: `ROOM_CHANGE`, `FACULTY_REASSIGNMENT`, `TIME_CHANGE`, `DELIVERY_MODALITY_CHANGE`, `SECTION_CANCELLATION`)
    - `reason` (Required text explanation entered by Registrar)
-   - `effective_date`, `changed_by`
+   - `effective_date` (system-derived from the immediate apply date; V1 has no future-dated activation queue), `changed_by`
    - `old_snapshot_json`, `new_snapshot_json` (structural data snapshots of the modified assignment to preserve history without cloning the entire schedule)
    - `affected_student_count`, `affected_faculty_count`
    - `created_at`
@@ -313,11 +313,11 @@ Once the schedule is published and the Enrollment Calendar opens, the schedule i
 
 Revision scope rules:
 
-1. **Minor live revision:** A room replacement, faculty reassignment, modality correction, minor label correction, or time change for one affected meeting group may be edited directly if validation passes.
+1. **Minor live revision:** A room replacement, faculty reassignment, modality correction, or time change for one affected meeting group may be edited directly if validation passes. One controlled operation may update multiple linked meetings atomically when their shared constraints require it.
 2. **Validation required:** Minor live revisions must recheck room no-overlap, faculty no-overlap, room capacity, room suitability, faculty qualification, contact-hour completion, blocked calendar periods, affected cohort/student conflicts, same-faculty requirements, and COR visibility.
 3. **Structural schedule change:** Opening a new section, dissolving a section with enrolled students, splitting or merging sections, changing expected cohort allocation, changing Course Component contact-hour structure, or changing multiple cohort schedules requires a scheduling revision decision.
 4. **Structural handling:** A structural schedule change requires a scheduling revision decision. Staff either rerun CP-SAT for the affected scope, manually create a validated replacement through Manual Schedule Override, or record an approved section cancellation only when no replacement schedule is needed.
-5. **Section cancellation boundary:** `SECTION_CANCELLATION` is recorded as a revision event after the authorized structural decision and includes the approved academic handling for enrolled students, capacity, and contact-hour effects.
+5. **Section cancellation boundary:** `SECTION_CANCELLATION` cancels the entire Section and all of its active delivery groups and meetings, never one arbitrary meeting. It is allowed only after active student schedule bindings and capacity-holding reservations have been resolved or released. TALA records the approved decision but does not automatically reassign students; replacement scheduling uses the existing placement/manual-handling workflow or a staff-triggered solver run first.
 6. **Staff-triggered rerun:** A new solver run is a staff-triggered action when the Master Schedule structure needs re-optimization.
 
 ---

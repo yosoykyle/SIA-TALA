@@ -26,6 +26,11 @@ class SectionMeetingPolicy
         return false;
     }
 
+    public function revise(User $user): bool
+    {
+        return $user->hasRole(User::StaffRoleRegistrar);
+    }
+
     public function update(User $user, SectionMeeting $sectionMeeting): bool
     {
         return false;

@@ -24,8 +24,9 @@ final class ScheduleAssignmentRevalidationService
     public function validateCandidateSet(
         ScheduleGenerationRun $run,
         array $assignments,
+        array $excludedDemandIds = [],
     ): ScheduleValidationResult {
-        $snapshot = $this->snapshotService->currentForRun($run);
+        $snapshot = $this->snapshotService->currentForRun($run, $excludedDemandIds);
 
         return $this->assignmentValidator->validateCandidateAssignments(
             $run,
@@ -39,13 +40,15 @@ final class ScheduleAssignmentRevalidationService
      *
      * @param  list<array<string, mixed>>  $assignments
      * @param  list<int>  $excludedMeetingIds
+     * @param  list<int>  $excludedDemandIds
      */
     public function validateLiveAssignments(
         ScheduleGenerationRun $run,
         array $assignments,
         array $excludedMeetingIds = [],
+        array $excludedDemandIds = [],
     ): ScheduleValidationResult {
-        $validation = $this->validateCandidateSet($run, $assignments);
+        $validation = $this->validateCandidateSet($run, $assignments, $excludedDemandIds);
         $liveFindings = $this->liveConflictFindings($run, $assignments, $excludedMeetingIds);
 
         return $this->withAdditionalFindings($validation, $liveFindings);
@@ -205,6 +208,10 @@ final class ScheduleAssignmentRevalidationService
 
         foreach ($assignments as $assignment) {
             foreach ($meetings as $meeting) {
+                if ($this->integerValue($assignment['source_section_meeting_id'] ?? null) === (int) $meeting->id) {
+                    continue;
+                }
+
                 if (! $this->overlaps($assignment, $meeting->getAttributes())) {
                     continue;
                 }
@@ -301,6 +308,7 @@ final class ScheduleAssignmentRevalidationService
 
                 if (! in_array($studentId, $studentIds, true)
                     || ! $meeting instanceof SectionMeeting
+                    || $sourceMeetingId === (int) $meeting->id
                     || ! $this->overlaps($assignment, $meeting->getAttributes())) {
                     continue;
                 }

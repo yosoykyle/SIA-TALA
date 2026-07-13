@@ -96,6 +96,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94B2 | Done locally; pending explicit Linear sync | Controlled Revalidation Boundaries |
 | TAL-94C | Done locally; pending explicit Linear sync | Candidate Review and Controlled Correction UX |
 | TAL-94D1 | Done locally; pending explicit Linear sync | Approval and Impact-Safe Publication |
+| TAL-94D2 | Done locally; pending explicit Linear sync | Controlled Live Revision Domain |
 
 ## Compact Synced History
 

@@ -11,6 +11,8 @@ class SectionMeeting extends Model
 {
     public const StateActive = 'active';
 
+    public const StateCancelled = 'cancelled';
+
     /**
      * @var list<string>
      */

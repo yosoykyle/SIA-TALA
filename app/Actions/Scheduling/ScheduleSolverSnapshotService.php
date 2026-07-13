@@ -83,7 +83,7 @@ class ScheduleSolverSnapshotService
      *
      * @return array<string, mixed>
      */
-    public function currentForRun(ScheduleGenerationRun $run): array
+    public function currentForRun(ScheduleGenerationRun $run, array $excludedDemandIds = []): array
     {
         $run->loadMissing('term');
         $term = $run->term;
@@ -95,9 +95,25 @@ class ScheduleSolverSnapshotService
         }
 
         $demandIds = $this->demandIdsForRun($run);
-        $demands = $this->demandsForTerm($term, $demandIds);
+        $excludedDemandIds = collect($excludedDemandIds)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        if ($demands->isEmpty()) {
+        if (array_diff($excludedDemandIds, $demandIds) !== []) {
+            throw ValidationException::withMessages([
+                'scheduling_demands' => 'Only demands captured by the selected run may be excluded from live validation.',
+            ]);
+        }
+
+        $demands = $this->demandsForTerm($term, $demandIds);
+        $demands = $demands->reject(
+            fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
+        );
+
+        if ($demands->isEmpty() && count($excludedDemandIds) !== count($demandIds)) {
             throw ValidationException::withMessages([
                 'scheduling_demands' => 'Schedule revalidation requires current Scheduling Demand rows.',
             ]);

@@ -67,7 +67,11 @@ final class GraduationReviewBatchFilamentTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $year = AcademicYear::factory()->create(['label' => '2026-2027']);
         $term = Term::factory()->create(['academic_year_id' => $year->id, 'label' => 'Second Semester']);
-        $other = GraduationReviewBatch::factory()->create(['state' => 'closed']);
+        $other = GraduationReviewBatch::factory()->create([
+            'academic_year_id' => $year->id,
+            'term_id' => $term->id,
+            'state' => 'closed',
+        ]);
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
