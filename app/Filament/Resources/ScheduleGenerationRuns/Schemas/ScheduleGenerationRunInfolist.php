@@ -282,7 +282,7 @@ class ScheduleGenerationRunInfolist
      * @param  array<string, mixed>  $finding
      * @return array{label:string,url:string|null}
      */
-    private static function sourcePresentation(array $finding): array
+    public static function sourcePresentation(array $finding): array
     {
         $type = (string) ($finding['source_type'] ?? 'source');
         $id = is_numeric($finding['source_id'] ?? null) ? (int) $finding['source_id'] : null;

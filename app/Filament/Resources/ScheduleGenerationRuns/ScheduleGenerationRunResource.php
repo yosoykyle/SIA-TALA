@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
+use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\RevisionEventsRelationManager;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\ScheduleGenerationRunInfolist;
 use App\Filament\Resources\ScheduleGenerationRuns\Tables\ScheduleGenerationRunsTable;
 use App\Models\ScheduleGenerationRun;
@@ -59,6 +60,7 @@ class ScheduleGenerationRunResource extends Resource
     {
         return [
             CandidateRowsRelationManager::class,
+            RevisionEventsRelationManager::class,
         ];
     }
 

@@ -54,6 +54,18 @@ class ScheduleRevisionEvent extends Model
         ];
     }
 
+    /** @return array<string, string> */
+    public static function changeTypeOptions(): array
+    {
+        return [
+            self::ChangeRoom => 'Room Change',
+            self::ChangeFacultyReassignment => 'Faculty Reassignment',
+            self::ChangeTime => 'Time Change',
+            self::ChangeDeliveryModality => 'Delivery Modality Change',
+            self::ChangeSectionCancellation => 'Section Cancellation',
+        ];
+    }
+
     protected static function booted(): void
     {
         static::updating(function (): never {

@@ -3,11 +3,15 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Pages;
 
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
+use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
+use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
 use App\Models\ScheduleGenerationRun;
+use App\Models\ScheduleRevisionEvent;
+use App\Models\SectionMeeting;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
@@ -31,9 +35,86 @@ class ViewScheduleGenerationRun extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->revisePublishedScheduleAction(),
             $this->manualScheduleOverrideAction(),
             $this->publishScheduleAction(),
         ];
+    }
+
+    public function revisePublishedScheduleAction(): Action
+    {
+        return Action::make('revisePublishedSchedule')
+            ->label('Revise Published Schedule')
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->color('warning')
+            ->modalHeading('Revise Published Schedule')
+            ->modalDescription('Preview one controlled live revision. TALA locks and revalidates the complete published schedule before applying any change.')
+            ->modalSubmitActionLabel('Validate and Apply Revision')
+            ->modalWidth(Width::SevenExtraLarge)
+            ->fillForm(fn (): array => [
+                'change_type' => null,
+                'section_meeting_ids' => [],
+                'section_id' => null,
+                'replacement_room_id' => null,
+                'replacement_faculty_user_id' => null,
+                'day_of_week' => null,
+                'starts_at' => null,
+                'ends_at' => null,
+                'reason' => null,
+            ])
+            ->schema(fn (): array => PublishedScheduleRevisionForm::schema($this->run()))
+            ->visible(fn (): bool => $this->canRevisePublishedSchedule())
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    abort(403);
+                }
+
+                $run = $this->run();
+                $changeType = (string) ($data['change_type'] ?? '');
+                $reason = (string) ($data['reason'] ?? '');
+
+                try {
+                    $events = $changeType === ScheduleRevisionEvent::ChangeSectionCancellation
+                        ? app(PublishedScheduleRevisionService::class)->cancelSection(
+                            $run,
+                            PublishedScheduleRevisionForm::section($run, $data),
+                            $actor,
+                            $reason,
+                        )
+                        : app(PublishedScheduleRevisionService::class)->revise(
+                            $run,
+                            $actor,
+                            $changeType,
+                            PublishedScheduleRevisionForm::changes($run, $data),
+                            $reason,
+                        );
+
+                    Notification::make()
+                        ->title('Published schedule revised')
+                        ->body($events->count().' immutable revision '.str('event')->plural($events->count()).' recorded.')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Published schedule revision blocked')
+                        ->body($this->validationMessage($exception))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                } finally {
+                    $fresh = $run->fresh();
+
+                    if ($fresh instanceof ScheduleGenerationRun) {
+                        $this->record = $fresh;
+                    }
+
+                    $this->dispatch('schedule-run-updated');
+                }
+            });
     }
 
     public function manualScheduleOverrideAction(): Action
@@ -181,6 +262,17 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run instanceof ScheduleGenerationRun
             && Gate::forUser($publisher)->allows('publish', $run)
             && $run->canBePublished();
+    }
+
+    private function canRevisePublishedSchedule(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->getRecord();
+
+        return $actor instanceof User
+            && $run instanceof ScheduleGenerationRun
+            && $run->isPublished()
+            && Gate::forUser($actor)->allows('revise', SectionMeeting::class);
     }
 
     private function canManualOverride(): bool

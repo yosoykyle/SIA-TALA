@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class ScheduleGenerationRun extends Model
 {
@@ -180,5 +181,16 @@ class ScheduleGenerationRun extends Model
     public function sectionMeetings(): HasMany
     {
         return $this->hasMany(SectionMeeting::class, 'schedule_run_id');
+    }
+
+    /** @return HasManyThrough<ScheduleRevisionEvent, SectionMeeting, $this> */
+    public function revisionEvents(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            ScheduleRevisionEvent::class,
+            SectionMeeting::class,
+            'schedule_run_id',
+            'section_meeting_id',
+        );
     }
 }
