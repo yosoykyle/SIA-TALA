@@ -27,21 +27,29 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
         $conflictCount = collect($assignments)
             ->filter(fn (array $assignment): bool => ($assignment['assignment_status'] ?? null) === 'conflict')
             ->count();
+        $hardViolations = collect($assignments)
+            ->flatMap(fn (array $assignment): array => $assignment['violations'] ?? [])
+            ->values()
+            ->all();
+        $objectiveScore = $conflictCount === 0 ? count($assignments) : null;
 
         return [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
             'solver_status' => $conflictCount > 0 ? 'infeasible' : 'optimal',
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
             'assignments' => $assignments,
-            'hard_constraint_violations' => $conflictCount,
+            'hard_constraint_violations' => $hardViolations,
             'hard_violation_count' => $conflictCount,
             'soft_constraint_scores' => [
-                'stub_score' => max(0, count($assignments) - $conflictCount),
+                'assigned_count' => count($assignments) - $conflictCount,
+                'conflict_count' => $conflictCount,
+                'stub_score' => $objectiveScore,
             ],
-            'infeasible_reasons' => [],
+            'infeasible_reasons' => $hardViolations,
             'warnings' => [],
             'runtime_seconds' => 0.0,
-            'objective_score' => max(0, count($assignments) - $conflictCount),
+            'objective_score' => $objectiveScore,
+            'objective_details' => $this->objectiveDetails($snapshot, $objectiveScore),
             'solver_version' => 'local-stub-tal94-demand-v2',
             'model_version' => 'tal94-demand-v2',
             'generated_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
@@ -111,6 +119,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'subject_id' => $demand['course_id'] !== null ? (int) $demand['course_id'] : null,
             'course_component_id' => (int) $demand['course_component_id'],
             'faculty_id' => $facultyId,
+            'faculty_user_id' => $facultyId,
             'room_id' => $roomId,
             'day' => $time['day_of_week'] ?? null,
             'day_of_week' => $time['day_of_week'] ?? null,
@@ -120,6 +129,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'ends_at' => $endsAt,
             'time_slot_id' => $time['time_slot_id'] ?? null,
             'time_block_reference' => $time['time_block_key'] ?? null,
+            'time_block_key' => $time['time_block_key'] ?? null,
             'meeting_sequence' => 1,
             'meeting_pattern' => 'single_block',
             'assignment_status' => $violations === [] ? 'ok' : 'conflict',
@@ -128,6 +138,54 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'scores' => [
                 'stub_priority' => $time['time_slot_id'] ?? null,
             ],
+            'soft_constraint_scores' => [
+                'stub_priority' => $time['time_slot_id'] ?? null,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, mixed>
+     */
+    private function objectiveDetails(array $snapshot, ?int $objectiveScore): array
+    {
+        $profile = is_array($snapshot['constraint_profile'] ?? null)
+            ? $snapshot['constraint_profile']
+            : [];
+        $weights = is_array($profile['soft_weights'] ?? null)
+            ? $profile['soft_weights']
+            : [];
+
+        if ($objectiveScore === null) {
+            return [
+                'profile_key' => $profile['key'] ?? null,
+                'profile_version' => $profile['version'] ?? null,
+                'terms' => collect($weights)
+                    ->map(fn (mixed $weight): array => [
+                        'raw' => null,
+                        'weight' => (int) $weight,
+                    ])
+                    ->all(),
+            ];
+        }
+
+        $terms = [];
+
+        foreach ($weights as $name => $weight) {
+            $raw = $name === 'prefer_earlier_time_blocks' ? $objectiveScore : 0;
+            $terms[$name] = [
+                'raw' => $raw,
+                'weight' => (int) $weight,
+                'weighted' => $raw * (int) $weight,
+            ];
+        }
+
+        return [
+            'profile_key' => $profile['key'] ?? null,
+            'profile_version' => $profile['version'] ?? null,
+            'terms' => $terms,
+            'total' => collect($terms)->sum('weighted'),
         ];
     }
 

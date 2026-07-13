@@ -243,11 +243,22 @@ final class TAL66SchedulePublicationTest extends TestCase
         $run = $this->scheduleRun($term, overrides: [
             'diagnostics' => [
                 'solver_result' => [
+                    'solver_status' => 'blocked',
                     'summary' => [
-                        'rejected_rows' => [
-                            ['reason' => 'demo nested diagnostic'],
-                        ],
+                        'assigned_count' => 0,
+                        'unassigned_count' => 1,
+                        'hard_violation_count' => 1,
+                        'warning_count' => 0,
                     ],
+                    'findings' => [[
+                        'code' => 'demo_nested_diagnostic',
+                        'severity' => 'blocking',
+                        'constraint' => 'solver_response_contract',
+                        'message' => 'demo nested diagnostic',
+                        'source_type' => 'schedule_run',
+                        'source_id' => null,
+                        'source_field' => 'solver_result',
+                    ]],
                 ],
             ],
         ]);

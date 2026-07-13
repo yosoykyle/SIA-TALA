@@ -352,7 +352,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $this->assertIsArray($diagnostics);
         $this->assertSame(
-            'missing_scheduling_demand_identifier',
+            'legacy_draft_rows_not_allowed',
             $diagnostics['solver_result']['summary']['rejected_rows'][0]['reason'],
         );
     }
@@ -367,7 +367,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $run = $this->runService->generate($source['term'], $registrar);
         $snapshot = $run->getAttribute('input_snapshot');
         $demand = $snapshot['scheduling_demands'][0];
-        $room = Room::query()->firstOrFail();
+        $room = Room::query()->findOrFail((int) $snapshot['rooms'][0]['room_id']);
 
         app(ScheduleCloudResultIngestor::class)->ingest($run, [
             'solver_run_id' => $run->id,
@@ -381,35 +381,67 @@ final class TAL62SolverRunDispatchTest extends TestCase
                 'subject_id' => $demand['course_id'],
                 'course_component_id' => $demand['course_component_id'],
                 'faculty_id' => $demand['eligible_faculty_user_ids'][0],
+                'faculty_user_id' => $demand['eligible_faculty_user_ids'][0],
                 'room_id' => $room->id,
                 'day' => 1,
+                'day_of_week' => 1,
                 'start_time' => '07:00:00',
                 'end_time' => '10:00:00',
+                'starts_at' => '07:00:00',
+                'ends_at' => '10:00:00',
                 'time_slot_id' => 1,
                 'time_block_reference' => 'D1-0700',
+                'time_block_key' => 'D1-0700',
+                'meeting_sequence' => 1,
                 'meeting_pattern' => 'single_block',
                 'assignment_status' => 'ok',
+                'violations' => [],
+                'warnings' => [],
+                'scores' => [],
+                'soft_constraint_scores' => [],
             ]],
             'hard_constraint_violations' => [],
+            'hard_violation_count' => 0,
             'soft_constraint_scores' => [
-                'objective' => 1,
+                'objective' => 0,
             ],
             'infeasible_reasons' => [],
             'warnings' => [],
             'runtime_seconds' => 0.21,
-            'objective_score' => 1,
+            'objective_score' => 0,
+            'objective_details' => [
+                'profile_key' => 'balanced_v1',
+                'profile_version' => 1,
+                'terms' => [
+                    'prefer_earlier_time_blocks' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
+                    'reduce_faculty_idle_gaps' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
+                    'balance_faculty_load' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
+                    'use_rooms_efficiently' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
+                ],
+                'total' => 0,
+            ],
             'solver_version' => 'cloud-run-tal63',
             'model_version' => 'tal94-demand-v2',
             'generated_at' => now()->toIso8601String(),
+            'assigned_count' => 1,
+            'unassigned_count' => 0,
+            'warning_count' => 0,
+            'timeout' => false,
         ]);
 
         $run->refresh();
         $diagnostics = $run->getAttribute('diagnostics');
+
+        $this->assertSame(
+            ScheduleGenerationRun::StatusUnderReview,
+            $run->status,
+            json_encode($diagnostics['solver_result']['findings'] ?? [], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+        );
+
         $candidate = CandidateScheduleRow::query()
             ->where('schedule_run_id', $run->id)
             ->firstOrFail();
 
-        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
         $this->assertSame('cloud-run-tal63', $run->solver_version);
         $this->assertSame((int) $demand['scheduling_demand_id'], $candidate->scheduling_demand_id);
         $this->assertSame(CandidateScheduleRow::StatusOk, $candidate->status);
