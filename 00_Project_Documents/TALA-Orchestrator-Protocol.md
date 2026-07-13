@@ -133,6 +133,16 @@ Before any implementation, delegation, tracker change, or commit, the primary re
 
 After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: restate the issue, accepted plan, authority evidence, exclusions, dirty state, verification state, and next action.
 
+### Durable active plan contract
+
+After the user approves a slice plan, the primary must record the complete accepted contract under one `Active Approved Plan Contract` section in `TALA-Rescue-Next-Steps.md` before `Primary proceed` or `Orchestrate TAL-XX`. The compact parent/sub-slice table remains the roadmap; the active section is the temporary Git-tracked execution authority. Exactly one active contract may exist.
+
+The active contract contains the Section 5 plan fields, accepted implementation checklist, authority corrections, exclusions, expected verification, and human-only steps. Keep it concise: cite authority paths and accepted benchmark/reference conclusions instead of copying source text, transcripts, code, test results, volatile counters, or delivered-work history.
+
+An approved revision replaces the active contract in place; do not retain stale versions. After compaction or interruption, read this section, re-run the Ground-Truth Gate, and stop if repository reality differs. If the slice is canceled or replaced, remove or replace the contract only after the user approves that disposition.
+
+During `Cleanup TAL-XX`, move delivered detail into the canonical commit message, remove the active contract, and compact or remove the roadmap row as Section 8 requires. Active task contracts never belong in Serena or agent-native memory; those systems may retain only durable procedure or genuine non-Git carry-ins.
+
 ### Memory Freshness Check
 
 **When:** Primary activation, resumed or compacted work, and Cleanup.
@@ -152,7 +162,7 @@ Commands:
 
 ### Slice contract
 
-A slice must be small enough to inspect, implement, test, and verify in one pass. If it is broad, split it during planning and record a compact sub-slice map in Next Steps:
+A slice must be small enough to inspect, implement, test, and verify in one pass. If it is broad, split it during planning and record a compact sub-slice map in Next Steps. This roadmap map is separate from the one detailed active contract required above:
 
 1. The primary identifies during planning that the issue is too broad.
 2. The primary proposes the sub-slice map in its report (IDs, one-line purposes, dependency order, and next boundary for each).
@@ -175,7 +185,7 @@ Use a separate worker only when the user explicitly asks for orchestration, dele
 
 **Multi-worker (max 3):** permitted only when all of these hold — (1) the plan identifies parallelizable sub-tasks with zero file overlap; (2) each worker's file scope is enumerated in its packet and no worker edits another's file; (3) at most one worker runs PHPUnit or PHPStan at a time (shared `test_tala_db`); (4) no worker touches a migration, seeder, or shared service another depends on; (5) the user approves the parallel plan. Safe parallel patterns: multiple read-only audit workers; parallel research or benchmark workers; non-overlapping implementers with staggered test runs. If any file, model, service, or test-DB access overlaps, fall back to sequential single-worker execution. The primary merges all handshakes into one acceptance.
 
-**Handoff packet:** before starting a worker, assemble a compact packet with the issue; accepted checklist; authority files; allowed changes; approved reference paths and patterns; exclusions; verification; DB-proof requirement; handshake format; and the Ground-Truth Gate classification (verified existence plus authority verdict per surface, with cited evidence and a stop-rule if reality differs). Deliver it via any available mechanism (temp file, inline sub-agent prompt, shared context). Reference existing docs, commits, and diffs by path instead of copying them. Redact secrets and keep context minimal.
+**Handoff packet:** before starting a worker, confirm that the active approved contract exists in Next Steps and matches the requested issue, then assemble a compact packet that references it and includes the issue; accepted checklist; authority files; allowed changes; approved reference paths and patterns; exclusions; verification; DB-proof requirement; handshake format; and the Ground-Truth Gate classification (verified existence plus authority verdict per surface, with cited evidence and a stop-rule if reality differs). Deliver it via any available mechanism (inline sub-agent prompt, shared context, or another supported interface). Reference existing docs, commits, and diffs by path instead of copying them. Redact secrets and keep context minimal. A missing or inconsistent active contract blocks delegation.
 
 **Workers must:** read the packet first; read `AGENTS.md` and the relevant authorities before editing; preserve unrelated worktree changes; execute the accepted checklist and not act as a second primary unless scoped for research or planning; stop as `BLOCKED` if the checklist, issue, or scope is unclear; halt as `BLOCKED` and return to the primary if any surface's ground truth (existence, registration, or authority alignment) differs from the packet; stop for the user when dashboards, credentials, approvals, or environment setup are needed; not commit, push, deploy, open PRs, sync external systems, or start the next issue unless explicitly scoped; and merge any helper work into one final handshake.
 
@@ -208,7 +218,7 @@ Before cleanup or commit, the primary reports: authority alignment, accepted sco
 - Run focused PHPStan or Larastan when typed PHP paths or tests change.
 - Run `git diff --check` before any handoff or commit.
 - After primary acceptance, make one bounded local Git commit whose message is the canonical record of what the slice delivered and why: scope, key changes, verification evidence, and any routed deferrals.
-- Keep delivered detail in the commit message, not the roadmap or tracker. Next Steps holds scope, order, and the sub-slice map; the tracker holds ID, status, and title/domain; the commit message — and, once synced, Linear — holds the detail. Never paste verification or evidence blocks into Next Steps or the tracker.
+- Keep delivered detail in the commit message, not the roadmap or tracker. While a slice is active, Next Steps also holds its approved plan contract; at Cleanup that section is removed. Otherwise Next Steps holds scope, order, and the sub-slice map; the tracker holds ID, status, and title/domain; the commit message — and, once synced, Linear — holds the delivered detail. Never paste verification results or evidence blocks into Next Steps or the tracker.
 - Then record a lean tracker row (`Done locally; pending explicit Linear sync`, title/domain only), and either remove the completed active-planning entry or trim its sub-slice map row to a one-line status stub.
 - A local commit never authorizes push, deploy, PR, or Linear mutation.
 - Keep the tracker row pending until the user says `Sync TAL-XX to Linear`; after sync, move it to compact synced history.

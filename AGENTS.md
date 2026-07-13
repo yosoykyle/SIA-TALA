@@ -459,6 +459,7 @@ Owners: Boost and official docs own framework use; PRD owns product behavior; bl
 ### Non-negotiables
 
 - Plan first. Do not implement or delegate until the user accepts the plan. The only exception is a small docs-only protocol fix the user explicitly requests.
+- After approval, record the complete active slice contract in `TALA-Rescue-Next-Steps.md` before proceeding or delegating. Keep only one active contract and compact it during Cleanup; never rely on conversation or memory as its sole copy.
 - Run the Ground-Truth Gate before every plan, handoff, or code change: verify both what exists (DB, migration, registration, live references on `test_tala_db`) and what the authority requires. Never trust issue or Next-Steps framing over verified reality; on conflict, stop and re-surface.
 - Commit only on an explicit `Cleanup TAL-XX`, and only as one bounded local commit. Never push, deploy, open a PR, or mutate Linear without an explicit command. `finish`, `close`, `cleanup`, `commit`, or `proceed` never authorize a Linear sync.
 - Target `test_tala_db` for DB-backed checks (`APP_ENV=testing`, `DB_CONNECTION=mysql`); never `tala_db` or `tala_test_codex`.
