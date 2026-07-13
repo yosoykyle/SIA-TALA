@@ -35,6 +35,8 @@ final class TAL93J2hFinancialAccommodationLifecycleTest extends TestCase
     {
         parent::setUp();
 
+        $this->travelTo(CarbonImmutable::parse('2026-07-10 09:00:00', config('app.timezone')));
+
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
