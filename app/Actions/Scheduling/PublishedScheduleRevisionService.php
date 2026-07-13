@@ -19,6 +19,7 @@ final class PublishedScheduleRevisionService
 {
     public function __construct(
         private ScheduleRevisionImpactService $impactService,
+        private ScheduleRevisionNotificationService $notificationService,
     ) {}
 
     /**
@@ -53,6 +54,7 @@ final class PublishedScheduleRevisionService
                 event: 'published_schedule_revised',
                 description: 'Published schedule revised in place.',
             );
+            $this->notificationService->recordAndQueue($events);
 
             return $events;
         }, attempts: 5);
@@ -106,6 +108,7 @@ final class PublishedScheduleRevisionService
                 description: 'Published schedule Section cancelled.',
                 sectionId: (int) $lockedSection->id,
             );
+            $this->notificationService->recordAndQueue($events);
 
             return $events;
         }, attempts: 5);

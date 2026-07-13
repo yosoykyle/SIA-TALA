@@ -60,7 +60,7 @@ class OperationalEventsTable
                     ->sortable()
                     ->placeholder('-'),
                 TextColumn::make('user.name')
-                    ->label('Actor')
+                    ->label('Related User')
                     ->placeholder('System'),
             ])
             ->filters([

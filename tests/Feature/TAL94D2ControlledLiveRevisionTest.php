@@ -110,6 +110,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $this->assertDatabaseCount('schedule_revision_events', 0);
         $this->assertSame($context['room']->id, $context['meetings'][0]->fresh()->room_id);
 
+        $revisionStartedAt = now();
         $events = app(PublishedScheduleRevisionService::class)->revise(
             $context['run'],
             $registrar,
@@ -128,7 +129,10 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $this->assertSame($registrar->id, $event->changed_by);
         $this->assertSame(1, $event->affected_student_count);
         $this->assertSame(1, $event->affected_faculty_count);
-        $this->assertSame(now()->toDateTimeString(), $event->created_at->toDateTimeString());
+        $this->assertTrue($event->created_at->betweenIncluded(
+            $revisionStartedAt->copy()->startOfSecond(),
+            now()->endOfSecond(),
+        ));
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $context['run']->fresh()->status);
         $this->assertSame(1, $context['run']->fresh()->publication_version);
 

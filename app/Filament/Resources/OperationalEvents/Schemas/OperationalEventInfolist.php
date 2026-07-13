@@ -38,7 +38,7 @@ class OperationalEventInfolist
                     ->badge()
                     ->color(fn (?string $state): string => OperationalEventsTable::statusColors()[$state] ?? 'gray'),
                 TextEntry::make('user.name')
-                    ->label('Actor')
+                    ->label('Related User')
                     ->placeholder('System'),
                 TextEntry::make('external_id')
                     ->label('External ID')
