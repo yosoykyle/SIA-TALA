@@ -93,6 +93,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J3c | Done locally; pending explicit Linear sync | Seven-role pre-integration regression and rendered acceptance gate |
 | TAL-94A | Done locally; pending explicit Linear sync | Solver Contract and Hard Constraints |
 | TAL-94B1 | Done locally; pending explicit Linear sync | Solver Result Validation and Diagnostics |
+| TAL-94B2 | Done locally; pending explicit Linear sync | Controlled Revalidation Boundaries |
 
 ## Compact Synced History
 

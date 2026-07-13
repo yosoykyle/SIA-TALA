@@ -166,6 +166,36 @@ final class ScheduleAssignmentValidationService
     }
 
     /**
+     * Validate a complete assignment set against an explicitly supplied context.
+     * Solver-envelope checks remain owned by validate().
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @param  list<array<string, mixed>>  $assignments
+     */
+    public function validateCandidateAssignments(
+        ScheduleGenerationRun $run,
+        array $snapshot,
+        array $assignments,
+    ): ScheduleValidationResult {
+        [$candidateRows, $findings] = $this->validateAssignments($run, $snapshot, $assignments);
+
+        return $this->result(
+            candidateRows: $candidateRows,
+            findings: $findings,
+            metadata: [
+                'validation_context' => 'current_authoritative_records',
+                'validated_at' => now()->toIso8601String(),
+            ],
+            solverResult: [
+                'assigned_count' => count($assignments),
+                'unassigned_count' => 0,
+                'hard_violation_count' => 0,
+            ],
+            assignments: $assignments,
+        );
+    }
+
+    /**
      * @param  array<string, mixed>  $solverResult
      * @return list<array<string, mixed>>
      */
@@ -599,6 +629,20 @@ final class ScheduleAssignmentValidationService
                 sourceType: 'scheduling_demand',
                 sourceId: $demandId,
                 sourceField: $demandField,
+            );
+        }
+
+        if (($demand['validation_state'] ?? SchedulingDemand::ValidationReadyForReview) !== SchedulingDemand::ValidationReadyForReview) {
+            $findings[] = $this->finding(
+                run: $run,
+                code: 'scheduling_demand_not_ready',
+                constraint: 'assign_every_ready_scheduling_demand_once',
+                message: 'The current Scheduling Demand is no longer ready for scheduling.',
+                demandId: $demandId,
+                meetingSequence: $sequence,
+                sourceType: 'scheduling_demand',
+                sourceId: $demandId,
+                sourceField: 'validation_state',
             );
         }
 

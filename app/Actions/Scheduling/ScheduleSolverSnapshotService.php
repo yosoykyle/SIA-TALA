@@ -6,6 +6,8 @@ use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\FacultyQualification;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -76,6 +78,34 @@ class ScheduleSolverSnapshotService
         }, 3);
     }
 
+    /**
+     * Build a read-only validation context from current authoritative records.
+     *
+     * @return array<string, mixed>
+     */
+    public function currentForRun(ScheduleGenerationRun $run): array
+    {
+        $run->loadMissing('term');
+        $term = $run->term;
+
+        if (! $term instanceof Term) {
+            throw ValidationException::withMessages([
+                'term_id' => 'Schedule revalidation requires a valid term.',
+            ]);
+        }
+
+        $demandIds = $this->demandIdsForRun($run);
+        $demands = $this->demandsForTerm($term, $demandIds);
+
+        if ($demands->isEmpty()) {
+            throw ValidationException::withMessages([
+                'scheduling_demands' => 'Schedule revalidation requires current Scheduling Demand rows.',
+            ]);
+        }
+
+        return $this->buildSnapshot($run, $term, $demands, useCurrentSources: true);
+    }
+
     private function assertDemandReadiness(Term $term): void
     {
         $blockingCount = SchedulingDemand::query()
@@ -95,6 +125,15 @@ class ScheduleSolverSnapshotService
      */
     private function readyDemandsForTerm(Term $term): EloquentCollection
     {
+        return $this->demandsForTerm($term)
+            ->where('validation_state', SchedulingDemand::ValidationReadyForReview);
+    }
+
+    /**
+     * @return EloquentCollection<int, SchedulingDemand>
+     */
+    private function demandsForTerm(Term $term, ?array $demandIds = null): EloquentCollection
+    {
         return SchedulingDemand::query()
             ->with([
                 'courseComponent.courseSpecification.course',
@@ -104,7 +143,7 @@ class ScheduleSolverSnapshotService
                 'termOffering.curriculumEntry.courseSpecification.course',
             ])
             ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
-            ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
+            ->when($demandIds !== null, fn ($query) => $query->whereKey($demandIds))
             ->orderBy('term_offering_id')
             ->orderBy('section_delivery_group_id')
             ->orderBy('course_component_id')
@@ -112,13 +151,47 @@ class ScheduleSolverSnapshotService
     }
 
     /**
+     * @return list<int>|null
+     */
+    private function demandIdsForRun(ScheduleGenerationRun $run): ?array
+    {
+        $snapshot = $this->arrayValue($run->getAttribute('input_snapshot'));
+        $capturedIds = collect($snapshot['scheduling_demands'] ?? [])
+            ->filter(fn (mixed $demand): bool => is_array($demand))
+            ->pluck('scheduling_demand_id')
+            ->filter(fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($capturedIds !== []) {
+            return $capturedIds;
+        }
+
+        $persistedIds = $run->candidateRows()
+            ->pluck('scheduling_demand_id')
+            ->merge($run->sectionMeetings()->pluck('scheduling_demand_id'))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $persistedIds !== [] ? $persistedIds : null;
+    }
+
+    /**
      * @param  EloquentCollection<int, SchedulingDemand>  $demands
      * @return array<string, mixed>
      */
-    private function buildSnapshot(ScheduleGenerationRun $run, Term $term, EloquentCollection $demands): array
-    {
+    private function buildSnapshot(
+        ScheduleGenerationRun $run,
+        Term $term,
+        EloquentCollection $demands,
+        bool $useCurrentSources = false,
+    ): array {
         $timeSlots = $this->timeSlots($term);
-        $demandPayload = $this->schedulingDemandsPayload($demands);
+        $demandPayload = $this->schedulingDemandsPayload($demands, $term, $useCurrentSources);
 
         return [
             'contract_version' => self::ContractVersion,
@@ -204,11 +277,13 @@ class ScheduleSolverSnapshotService
      * @param  EloquentCollection<int, SchedulingDemand>  $demands
      * @return list<array<string, mixed>>
      */
-    private function schedulingDemandsPayload(EloquentCollection $demands): array
-    {
+    private function schedulingDemandsPayload(
+        EloquentCollection $demands,
+        Term $term,
+        bool $useCurrentSources,
+    ): array {
         return $demands
-            ->map(function ($demand): array {
-                $source = $this->arrayValue($demand->getAttribute('source_snapshot'));
+            ->map(function ($demand) use ($term, $useCurrentSources): array {
                 $group = $demand->getRelationValue('sectionDeliveryGroup');
                 $group = $group instanceof SectionDeliveryGroup ? $group : null;
                 $section = $group?->getRelationValue('section');
@@ -219,10 +294,18 @@ class ScheduleSolverSnapshotService
                 $specification = $specification instanceof CourseSpecification ? $specification : null;
                 $course = $specification?->getRelationValue('course');
                 $course = $course instanceof Course ? $course : null;
+                $offering = $demand->getRelationValue('termOffering');
+                $offering = $offering instanceof TermOffering ? $offering : null;
+                $source = $useCurrentSources
+                    ? $this->currentSourceSnapshot($term, $demand, $offering, $group, $section, $component, $specification, $course)
+                    : $this->arrayValue($demand->getAttribute('source_snapshot'));
                 $facultyOptions = collect($source['faculty_load_options'] ?? [])
                     ->filter(fn (mixed $option): bool => is_array($option) && isset($option['faculty_user_id']))
                     ->values()
                     ->all();
+                $modality = $useCurrentSources
+                    ? (filled($group?->modality) ? (string) $group->modality : (string) $offering?->modality)
+                    : (string) $demand->modality;
 
                 return [
                     'scheduling_demand_id' => (int) $demand->id,
@@ -234,9 +317,12 @@ class ScheduleSolverSnapshotService
                     'course_code' => $course->code ?? ($source['course_code'] ?? null),
                     'course_component_id' => (int) $demand->course_component_id,
                     'component_type' => $component->component_type ?? ($source['component_type'] ?? null),
-                    'required_duration_minutes' => (int) $demand->required_duration_minutes,
+                    'required_duration_minutes' => $useCurrentSources && $component instanceof CourseComponent
+                        ? max(1, (int) round((float) $component->weekly_contact_hours * 60))
+                        : (int) $demand->required_duration_minutes,
                     'meeting_count' => (int) $demand->meeting_count,
-                    'modality' => $demand->modality,
+                    'modality' => $modality,
+                    'validation_state' => $demand->validation_state,
                     'expected_count' => (int) ($source['expected_count'] ?? $group->expected_count ?? 0),
                     'section_capacity' => (int) ($source['section_capacity'] ?? $section->capacity ?? 0),
                     'room_type_requirement' => $source['room_type_requirement'] ?? null,
@@ -248,7 +334,7 @@ class ScheduleSolverSnapshotService
                         ->values()
                         ->all(),
                     'load_units' => $specification?->credit_units,
-                    'room_required' => $demand->modality === TermOffering::ModalityFaceToFace,
+                    'room_required' => $modality === TermOffering::ModalityFaceToFace,
                     'same_faculty_required' => (bool) ($source['same_faculty_required'] ?? false),
                     'requires_consecutive_block' => (bool) ($component->requires_consecutive_block ?? false),
                     'eligible_faculty_user_ids' => collect($facultyOptions)
@@ -262,6 +348,81 @@ class ScheduleSolverSnapshotService
                     'fixed_day_of_week' => $demand->fixed_day_of_week !== null ? (int) $demand->fixed_day_of_week : null,
                     'fixed_start_time' => $this->timeString($demand->fixed_start_time),
                     'source_snapshot' => $source,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function currentSourceSnapshot(
+        Term $term,
+        SchedulingDemand $demand,
+        TermOffering $offering,
+        SectionDeliveryGroup $group,
+        Section $section,
+        CourseComponent $component,
+        CourseSpecification $specification,
+        Course $course,
+    ): array {
+        $facultyLoadOptions = $this->currentFacultyLoadOptions($term, $course);
+
+        return [
+            'term_id' => (int) $term->id,
+            'term_offering_id' => (int) $demand->term_offering_id,
+            'section_id' => (int) $section->id,
+            'section_delivery_group_id' => (int) $demand->section_delivery_group_id,
+            'curriculum_entry_id' => (int) $offering->curriculum_entry_id,
+            'course_specification_id' => (int) $specification->id,
+            'course_id' => (int) $course->id,
+            'course_code' => $course->code,
+            'course_component_id' => (int) $demand->course_component_id,
+            'component_type' => $component->component_type,
+            'weekly_contact_hours' => $component->weekly_contact_hours,
+            'expected_count' => (int) $group->expected_count,
+            'section_capacity' => (int) $section->capacity,
+            'offering_modality' => $offering->modality,
+            'demand_modality' => filled($group->modality) ? (string) $group->modality : (string) $offering->modality,
+            'room_type_requirement' => $offering->room_type_override ?: $component->room_type_default,
+            'same_faculty_required' => (bool) ($offering->same_faculty_override ?? $specification->same_faculty_default ?? $component->same_faculty),
+            'eligible_faculty_count' => count($facultyLoadOptions),
+            'faculty_load_options' => $facultyLoadOptions,
+        ];
+    }
+
+    /**
+     * @return list<array{faculty_user_id:int,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>
+     */
+    private function currentFacultyLoadOptions(Term $term, Course $course): array
+    {
+        $qualifications = FacultyQualification::query()
+            ->whereBelongsTo($course)
+            ->where('is_active', true)
+            ->orderBy('faculty_user_id')
+            ->get();
+        $overrides = FacultyTermLoadOverride::query()
+            ->whereBelongsTo($term)
+            ->where('is_active', true)
+            ->whereIn('faculty_user_id', $qualifications->pluck('faculty_user_id')->all())
+            ->get()
+            ->keyBy('faculty_user_id');
+
+        return $qualifications
+            ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
+                $override = $overrides->get($qualification->faculty_user_id);
+                $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
+                    ? $override->allowedLoadUnits()
+                    : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+
+                return [
+                    'faculty_user_id' => (int) $qualification->faculty_user_id,
+                    'qualification_id' => (int) $qualification->id,
+                    'term_load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
+                    'max_allowed_units' => $maxAllowedUnits !== null
+                        ? number_format($maxAllowedUnits, 2, '.', '')
+                        : null,
                 ];
             })
             ->values()

@@ -15,6 +15,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -292,7 +293,7 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         ]);
         $component = CourseComponent::factory()->for($specification)->create([
             'component_type' => CourseComponent::TypeLecture,
-            'weekly_contact_hours' => 3.00,
+            'weekly_contact_hours' => 2.00,
             'room_type_default' => Room::TypeLectureRoom,
             'sequence' => 1,
         ]);
@@ -324,8 +325,14 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             ->create([
                 'modality' => $modality,
                 'fixed_room_id' => $room?->id,
+                'required_duration_minutes' => 120,
                 'validation_state' => SchedulingDemand::ValidationReadyForReview,
             ]);
+
+        FacultyQualification::factory()
+            ->for($this->faculty, 'faculty')
+            ->for($course)
+            ->create();
 
         return [
             'term' => $term,

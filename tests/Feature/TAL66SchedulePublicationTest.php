@@ -8,6 +8,8 @@ use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
+use App\Models\CourseSpecification;
+use App\Models\FacultyQualification;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -63,7 +65,11 @@ final class TAL66SchedulePublicationTest extends TestCase
 
         $this->publisher = app(SchedulePublishService::class);
         $this->faculty = $this->staff(User::StaffRoleFaculty);
-        $this->room = Room::factory()->create();
+        $this->room = Room::factory()->create([
+            'room_type' => Room::TypeLectureRoom,
+            'capacity' => 100,
+            'is_active' => true,
+        ]);
     }
 
     public function test_authorized_registrar_publishes_clean_candidate_mapping_and_audit_metadata(): void
@@ -317,7 +323,7 @@ final class TAL66SchedulePublicationTest extends TestCase
         $run = $this->scheduleRun($term);
         $demand = $this->demand($term, meetingCount: 2);
         $this->candidate($run, $demand, meetingSequence: 1);
-        $this->candidate($run, $demand, meetingSequence: 2, startsAt: '11:00:00', endsAt: '12:00:00');
+        $this->candidate($run, $demand, meetingSequence: 2, startsAt: '11:00:00', endsAt: '13:00:00');
         $eventName = 'eloquent.created: '.SectionMeeting::class;
 
         Event::listen($eventName, function (SectionMeeting $meeting): void {
@@ -420,9 +426,15 @@ final class TAL66SchedulePublicationTest extends TestCase
         int $meetingCount = 1,
     ): SchedulingDemand {
         $offering = TermOffering::factory()->for($term)->create(['modality' => $modality]);
-        $component = CourseComponent::factory()->create();
+        $specification = CourseSpecification::factory()->create();
+        $component = CourseComponent::factory()->for($specification)->create(['weekly_contact_hours' => 2.00]);
         $section = Section::factory()->for($offering, 'termOffering')->create();
         $group = SectionDeliveryGroup::factory()->for($section)->create(['modality' => $modality]);
+
+        FacultyQualification::factory()
+            ->for($this->faculty, 'faculty')
+            ->for($specification->course)
+            ->create();
 
         return SchedulingDemand::factory()
             ->for($offering)
@@ -431,6 +443,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             ->create([
                 'modality' => $modality,
                 'meeting_count' => $meetingCount,
+                'required_duration_minutes' => 120,
             ]);
     }
 

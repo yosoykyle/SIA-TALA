@@ -4,212 +4,408 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
-use App\Models\SectionMeeting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
-class CandidateScheduleRowReviewService
+final class CandidateScheduleRowReviewService
 {
-    public function __construct(private readonly ScheduleCloudResultIngestor $resultIngestor) {}
+    public function __construct(
+        private readonly ScheduleAssignmentRevalidationService $revalidator,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
-     *
-     * @throws AuthorizationException
-     * @throws ValidationException
      */
-    public function revise(CandidateScheduleRow $draftRow, array $data, User $registrar): ScheduleGenerationRun
-    {
-        $this->authorizeRegistrar($registrar);
-        $prepared = $this->validatedPayload($data);
+    public function revise(
+        CandidateScheduleRow $candidateRow,
+        array $data,
+        User $actor,
+    ): ScheduleGenerationRun {
+        $proposal = $this->validatedRevision($data);
 
-        return DB::transaction(function () use ($draftRow, $prepared, $registrar): ScheduleGenerationRun {
+        $outcome = DB::transaction(function () use ($candidateRow, $proposal, $actor): array {
             /** @var CandidateScheduleRow $lockedRow */
             $lockedRow = CandidateScheduleRow::query()
-                ->with('generationRun')
                 ->lockForUpdate()
-                ->findOrFail($draftRow->id);
+                ->findOrFail($candidateRow->id);
+            /** @var ScheduleGenerationRun $run */
+            $run = ScheduleGenerationRun::query()
+                ->lockForUpdate()
+                ->findOrFail($lockedRow->schedule_run_id);
 
-            $run = $lockedRow->generationRun;
+            Gate::forUser($actor)->authorize('reviewCandidates', $run);
 
-            if (! $run instanceof ScheduleGenerationRun || in_array($run->status, [
-                ScheduleGenerationRun::StatusCommitted,
-                ScheduleGenerationRun::StatusPublished,
-                ScheduleGenerationRun::StatusAbandoned,
-                ScheduleGenerationRun::StatusSuperseded,
-            ], true)) {
+            if ($run->status !== ScheduleGenerationRun::StatusUnderReview) {
                 throw ValidationException::withMessages([
-                    'status' => 'This schedule run can no longer be edited.',
+                    'status' => 'Only an under-review schedule can receive a candidate correction.',
                 ]);
             }
 
-            $draftRows = CandidateScheduleRow::query()
-                ->where('generation_run_id', $lockedRow->generation_run_id)
-                ->orderBy('id')
+            $rows = CandidateScheduleRow::query()
+                ->where('schedule_run_id', $run->id)
+                ->orderBy('scheduling_demand_id')
+                ->orderBy('meeting_sequence')
+                ->lockForUpdate()
                 ->get();
+            $identity = $this->identity($lockedRow->scheduling_demand_id, $lockedRow->meeting_sequence);
+            $assignments = $rows
+                ->map(fn (CandidateScheduleRow $row): array => $this->candidatePayload($row, $row->id === $lockedRow->id ? $proposal : []))
+                ->values()
+                ->all();
 
-            $solverResult = [
-                'solver_status' => 'optimal',
-                'draft_rows' => $draftRows
-                    ->map(fn (CandidateScheduleRow $row): array => $row->id === $lockedRow->id
-                        ? $this->reviewedRowPayload($row, $prepared)
-                        : $this->existingRowPayload($row))
-                    ->values()
-                    ->all(),
-            ];
+            return $this->validateAndApply(
+                run: $run,
+                assignments: $assignments,
+                existingRows: $rows,
+                affectedIdentities: [$identity],
+                actor: $actor,
+                authority: $proposal['override_authority'],
+                reason: $proposal['override_reason'],
+                context: 'candidate_correction',
+            );
+        }, attempts: 5);
 
-            $this->resultIngestor->ingest($run, $solverResult);
-
-            $reviewedRow = $this->findReviewedRow($lockedRow, $prepared);
-            $timestamp = CarbonImmutable::now(config('app.timezone'));
-
-            if ($reviewedRow instanceof CandidateScheduleRow) {
-                $reviewedRow->forceFill([
-                    'override_reason' => $prepared['override_reason'],
-                    'edited_by' => $registrar->id,
-                    'edited_at' => $timestamp,
-                ])->save();
-            }
-
-            return $run->fresh();
-        });
+        return $this->resolvedRun($outcome);
     }
 
-    private function authorizeRegistrar(User $registrar): void
-    {
-        if ($registrar->can('manage-schedules')) {
-            return;
+    /**
+     * @param  list<array<string, mixed>>  $assignments
+     */
+    public function replace(
+        ScheduleGenerationRun $run,
+        array $assignments,
+        User $actor,
+        string $authority,
+        string $reason,
+    ): ScheduleGenerationRun {
+        $assignments = $this->validatedReplacement($assignments);
+        ['override_authority' => $authority, 'override_reason' => $reason] = $this->validatedEvidence($authority, $reason);
+
+        $outcome = DB::transaction(function () use ($run, $assignments, $actor, $authority, $reason): array {
+            /** @var ScheduleGenerationRun $lockedRun */
+            $lockedRun = ScheduleGenerationRun::query()
+                ->lockForUpdate()
+                ->findOrFail($run->id);
+
+            Gate::forUser($actor)->authorize('reviewCandidates', $lockedRun);
+
+            if (! in_array($lockedRun->status, [
+                ScheduleGenerationRun::StatusUnderReview,
+                ScheduleGenerationRun::StatusBlocked,
+                ScheduleGenerationRun::StatusFailed,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only an under-review, blocked, or failed run can receive a Manual Schedule Override.',
+                ]);
+            }
+
+            $rows = CandidateScheduleRow::query()
+                ->where('schedule_run_id', $lockedRun->id)
+                ->orderBy('scheduling_demand_id')
+                ->orderBy('meeting_sequence')
+                ->lockForUpdate()
+                ->get();
+            $affected = collect($assignments)
+                ->map(fn (array $assignment): string => $this->identity(
+                    (int) $assignment['scheduling_demand_id'],
+                    (int) $assignment['meeting_sequence'],
+                ))
+                ->all();
+
+            return $this->validateAndApply(
+                run: $lockedRun,
+                assignments: $assignments,
+                existingRows: $rows,
+                affectedIdentities: $affected,
+                actor: $actor,
+                authority: $authority,
+                reason: $reason,
+                context: 'manual_schedule_override',
+            );
+        }, attempts: 5);
+
+        return $this->resolvedRun($outcome);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $assignments
+     * @param  Collection<int, CandidateScheduleRow>  $existingRows
+     * @param  list<string>  $affectedIdentities
+     * @return array{run:ScheduleGenerationRun,validation:ScheduleValidationResult}
+     */
+    private function validateAndApply(
+        ScheduleGenerationRun $run,
+        array $assignments,
+        Collection $existingRows,
+        array $affectedIdentities,
+        User $actor,
+        string $authority,
+        string $reason,
+        string $context,
+    ): array {
+        $manualWarning = [[
+            'type' => $context,
+            'message' => $context === 'candidate_correction'
+                ? 'Authorized staff corrected this candidate assignment.'
+                : 'Authorized staff supplied this Manual Schedule Override assignment.',
+        ]];
+        $assignments = collect($assignments)
+            ->map(function (array $assignment) use ($affectedIdentities, $manualWarning): array {
+                $identity = $this->identity(
+                    (int) ($assignment['scheduling_demand_id'] ?? 0),
+                    (int) ($assignment['meeting_sequence'] ?? 0),
+                );
+
+                if (! in_array($identity, $affectedIdentities, true)) {
+                    return $assignment;
+                }
+
+                return [
+                    ...$assignment,
+                    'status' => CandidateScheduleRow::StatusWarning,
+                    'scores' => [],
+                    'warnings' => $manualWarning,
+                    'violations' => [],
+                ];
+            })
+            ->values()
+            ->all();
+        $validation = $this->revalidator->validateCandidateSet($run, $assignments);
+        $this->storeDiagnostics($run, $validation, $context, $actor);
+
+        if (! $validation->passes()) {
+            return ['run' => $run->fresh(), 'validation' => $validation];
         }
 
-        throw new AuthorizationException('Only authorized Registrar staff can review schedule draft rows.');
+        $existingByIdentity = $existingRows->keyBy(
+            fn (CandidateScheduleRow $row): string => $this->identity($row->scheduling_demand_id, $row->meeting_sequence),
+        );
+
+        CandidateScheduleRow::query()
+            ->where('schedule_run_id', $run->id)
+            ->delete();
+
+        foreach ($validation->candidateRows() as $candidate) {
+            $identity = $this->identity(
+                (int) $candidate['scheduling_demand_id'],
+                (int) $candidate['meeting_sequence'],
+            );
+            $affected = in_array($identity, $affectedIdentities, true);
+            $previous = $existingByIdentity->get($identity);
+
+            CandidateScheduleRow::query()->create([
+                ...$candidate,
+                'status' => $affected ? CandidateScheduleRow::StatusWarning : $candidate['status'],
+                'scores' => $affected ? null : $candidate['scores'],
+                'warnings' => $affected ? $manualWarning : $candidate['warnings'],
+                'violations' => null,
+                'override_authority' => $affected ? $authority : $previous?->override_authority,
+                'override_reason' => $affected ? $reason : $previous?->override_reason,
+            ]);
+        }
+
+        $run->forceFill(['status' => ScheduleGenerationRun::StatusUnderReview])->save();
+        $this->recordActivity($run, $actor, $authority, $reason, $affectedIdentities, $context);
+
+        return ['run' => $run->fresh(['candidateRows']), 'validation' => $validation];
+    }
+
+    /**
+     * @param  array{run:ScheduleGenerationRun,validation:ScheduleValidationResult}  $outcome
+     */
+    private function resolvedRun(array $outcome): ScheduleGenerationRun
+    {
+        if ($outcome['validation']->passes()) {
+            return $outcome['run'];
+        }
+
+        $first = $outcome['validation']->blockingFindings()[0] ?? null;
+
+        throw ValidationException::withMessages([
+            'candidate_schedule_rows' => is_array($first)
+                ? (string) $first['message']
+                : 'The complete candidate schedule failed current hard-constraint validation.',
+        ]);
     }
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}
-     *
-     * @throws ValidationException
+     * @return array{faculty_user_id:int,room_id:int|null,day_of_week:int,starts_at:string,ends_at:string,time_block_key:string|null,override_authority:string,override_reason:string}
      */
-    private function validatedPayload(array $data): array
+    private function validatedRevision(array $data): array
     {
+        ['override_authority' => $authority, 'override_reason' => $reason] = $this->validatedEvidence(
+            (string) ($data['override_authority'] ?? ''),
+            (string) ($data['override_reason'] ?? ''),
+        );
         $payload = [
-            'faculty_id' => $this->integerValue($data['faculty_id'] ?? null),
-            'section_delivery_group_id' => $this->integerValue($data['section_delivery_group_id'] ?? null),
-            'room' => filled($data['room'] ?? null) ? trim((string) $data['room']) : null,
-            'day_of_week' => $this->integerValue($data['day_of_week'] ?? null),
+            'faculty_user_id' => $data['faculty_user_id'] ?? null,
+            'room_id' => $data['room_id'] ?? null,
+            'day_of_week' => $data['day_of_week'] ?? null,
             'starts_at' => $this->timeValue($data['starts_at'] ?? null),
             'ends_at' => $this->timeValue($data['ends_at'] ?? null),
-            'modality' => filled($data['modality'] ?? null) ? trim((string) $data['modality']) : null,
-            'override_reason' => filled($data['override_reason'] ?? null) ? trim((string) $data['override_reason']) : null,
+            'time_block_key' => filled($data['time_block_key'] ?? null) ? trim((string) $data['time_block_key']) : null,
+            'override_authority' => $authority,
+            'override_reason' => $reason,
         ];
-
         $validator = Validator::make($payload, [
-            'faculty_id' => ['required', 'integer', 'exists:users,id'],
-            'section_delivery_group_id' => ['required', 'integer', 'exists:section_delivery_groups,id'],
-            'room' => ['nullable', 'string', 'max:255'],
+            'faculty_user_id' => ['required', 'integer', 'exists:users,id'],
+            'room_id' => ['nullable', 'integer', 'exists:rooms,id'],
             'day_of_week' => ['required', 'integer', 'min:1', 'max:7'],
             'starts_at' => ['required', 'date_format:H:i:s'],
             'ends_at' => ['required', 'date_format:H:i:s', 'after:starts_at'],
-            'modality' => ['required', 'string', Rule::in(array_keys(SectionMeeting::modalityOptions()))],
-            'override_reason' => ['required', 'string', 'max:500'],
+            'time_block_key' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
-        /** @var array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string} $payload */
+        /** @var array{faculty_user_id:int,room_id:int|null,day_of_week:int,starts_at:string,ends_at:string,time_block_key:string|null,override_authority:string,override_reason:string} $payload */
         return $payload;
     }
 
     /**
-     * @param  array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
-     * @return array<string, mixed>
-     */
-    private function reviewedRowPayload(CandidateScheduleRow $row, array $prepared): array
-    {
-        return [
-            'section_id' => $row->section_id,
-            'section_delivery_group_id' => $prepared['section_delivery_group_id'],
-            'subject_id' => $row->subject_id,
-            'faculty_id' => $prepared['faculty_id'],
-            'room' => $prepared['room'],
-            'day_of_week' => $prepared['day_of_week'],
-            'starts_at' => $prepared['starts_at'],
-            'ends_at' => $prepared['ends_at'],
-            'modality' => $prepared['modality'],
-            'status' => CandidateScheduleRow::StatusWarning,
-            'warning_payload' => [
-                [
-                    'type' => 'registrar_manual_revision',
-                    'message' => 'Registrar manually revised this draft row during schedule review.',
-                    'reason' => $prepared['override_reason'],
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function existingRowPayload(CandidateScheduleRow $row): array
-    {
-        return [
-            'section_id' => $row->section_id,
-            'section_delivery_group_id' => $row->section_delivery_group_id,
-            'subject_id' => $row->subject_id,
-            'faculty_id' => $row->faculty_id,
-            'room' => $row->room,
-            'day_of_week' => $row->day_of_week,
-            'starts_at' => $this->timeValue($row->starts_at),
-            'ends_at' => $this->timeValue($row->ends_at),
-            'modality' => $row->modality,
-            'status' => $row->status,
-            'conflict_payload' => $this->payloadItems($row->conflict_payload),
-            'warning_payload' => $this->payloadItems($row->warning_payload),
-        ];
-    }
-
-    /**
+     * @param  list<array<string, mixed>>  $assignments
      * @return list<array<string, mixed>>
      */
-    private function payloadItems(?array $payload): array
+    private function validatedReplacement(array $assignments): array
     {
-        $items = $payload['items'] ?? $payload ?? [];
+        $payload = ['assignments' => collect($assignments)
+            ->map(fn (array $assignment): array => [
+                ...$assignment,
+                'starts_at' => $this->timeValue($assignment['starts_at'] ?? null),
+                'ends_at' => $this->timeValue($assignment['ends_at'] ?? null),
+            ])
+            ->values()
+            ->all()];
+        $validator = Validator::make($payload, [
+            'assignments' => ['required', 'array', 'min:1'],
+            'assignments.*.scheduling_demand_id' => ['required', 'integer', 'exists:scheduling_demands,id'],
+            'assignments.*.meeting_sequence' => ['required', 'integer', 'min:1'],
+            'assignments.*.faculty_user_id' => ['required', 'integer', 'exists:users,id'],
+            'assignments.*.room_id' => ['nullable', 'integer', 'exists:rooms,id'],
+            'assignments.*.day_of_week' => ['required', 'integer', 'min:1', 'max:7'],
+            'assignments.*.starts_at' => ['required', 'date_format:H:i:s'],
+            'assignments.*.ends_at' => ['required', 'date_format:H:i:s'],
+            'assignments.*.time_block_key' => ['nullable', 'string', 'max:255'],
+        ]);
 
-        return is_array($items) ? array_values($items) : [];
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        return $payload['assignments'];
     }
 
     /**
-     * @param  array{section_delivery_group_id:int, faculty_id:int, room:string|null, day_of_week:int, starts_at:string, ends_at:string, modality:string, override_reason:string}  $prepared
+     * @return array{override_authority:string,override_reason:string}
      */
-    private function findReviewedRow(CandidateScheduleRow $originalRow, array $prepared): ?CandidateScheduleRow
+    private function validatedEvidence(string $authority, string $reason): array
     {
-        return CandidateScheduleRow::query()
-            ->where('generation_run_id', $originalRow->generation_run_id)
-            ->where('section_id', $originalRow->section_id)
-            ->where('section_delivery_group_id', $prepared['section_delivery_group_id'])
-            ->where('subject_id', $originalRow->subject_id)
-            ->where('faculty_id', $prepared['faculty_id'])
-            ->where('day_of_week', $prepared['day_of_week'])
-            ->where('starts_at', $prepared['starts_at'])
-            ->where('ends_at', $prepared['ends_at'])
-            ->where('modality', $prepared['modality'])
-            ->first();
-    }
+        $payload = [
+            'override_authority' => trim($authority),
+            'override_reason' => trim($reason),
+        ];
+        $validator = Validator::make($payload, [
+            'override_authority' => ['required', 'string', 'max:255'],
+            'override_reason' => ['required', 'string', 'max:2000'],
+        ]);
 
-    private function integerValue(mixed $value): ?int
-    {
-        if ($value === null || $value === '') {
-            return null;
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
         }
 
-        return (int) $value;
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function candidatePayload(CandidateScheduleRow $row, array $overrides = []): array
+    {
+        $scores = $row->getAttribute('scores');
+        $warnings = $row->getAttribute('warnings');
+        $violations = $row->getAttribute('violations');
+
+        return [
+            'scheduling_demand_id' => (int) $row->scheduling_demand_id,
+            'meeting_sequence' => (int) $row->meeting_sequence,
+            'faculty_user_id' => (int) ($overrides['faculty_user_id'] ?? $row->faculty_user_id),
+            'room_id' => array_key_exists('room_id', $overrides) ? $overrides['room_id'] : $row->room_id,
+            'day_of_week' => (int) ($overrides['day_of_week'] ?? $row->day_of_week),
+            'starts_at' => $this->timeValue($overrides['starts_at'] ?? $row->starts_at),
+            'ends_at' => $this->timeValue($overrides['ends_at'] ?? $row->ends_at),
+            'time_block_key' => array_key_exists('time_block_key', $overrides) ? $overrides['time_block_key'] : $row->time_block_key,
+            'status' => $overrides === [] ? $row->status : CandidateScheduleRow::StatusWarning,
+            'scores' => $overrides === [] && is_array($scores) ? $scores : [],
+            'warnings' => $overrides === [] && is_array($warnings) ? $warnings : [],
+            'violations' => $overrides === [] && is_array($violations) ? $violations : [],
+        ];
+    }
+
+    private function storeDiagnostics(
+        ScheduleGenerationRun $run,
+        ScheduleValidationResult $validation,
+        string $context,
+        User $actor,
+    ): void {
+        $currentDiagnostics = $run->getAttribute('diagnostics');
+        $diagnostics = is_array($currentDiagnostics) ? $currentDiagnostics : [];
+        $diagnostics['current_revalidation'] = [
+            'context' => $context,
+            'status' => $validation->passes() ? 'accepted' : 'blocked',
+            'validated_at' => now()->toIso8601String(),
+            'actor_id' => (int) $actor->id,
+            'summary' => $validation->summary(),
+            'findings' => $validation->findings(),
+        ];
+        $run->forceFill(['diagnostics' => $diagnostics])->save();
+    }
+
+    /**
+     * @param  list<string>  $affectedIdentities
+     */
+    private function recordActivity(
+        ScheduleGenerationRun $run,
+        User $actor,
+        string $authority,
+        string $reason,
+        array $affectedIdentities,
+        string $context,
+    ): void {
+        $timestamp = CarbonImmutable::now(config('app.timezone'));
+
+        DB::table('activity_log')->insert([
+            'log_name' => 'scheduling',
+            'description' => $context === 'candidate_correction'
+                ? 'Candidate schedule assignment corrected and revalidated.'
+                : 'Manual Schedule Override recorded and revalidated.',
+            'subject_type' => ScheduleGenerationRun::class,
+            'subject_id' => $run->id,
+            'event' => $context,
+            'causer_type' => User::class,
+            'causer_id' => $actor->id,
+            'properties' => json_encode([
+                'authority' => $authority,
+                'reason' => $reason,
+                'affected_assignments' => $affectedIdentities,
+                'validation_result' => 'accepted',
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            'created_at' => $timestamp->toDateTimeString(),
+            'updated_at' => $timestamp->toDateTimeString(),
+        ]);
+    }
+
+    private function identity(int $demandId, int $meetingSequence): string
+    {
+        return $demandId.':'.$meetingSequence;
     }
 
     private function timeValue(mixed $value): ?string
