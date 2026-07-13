@@ -207,6 +207,8 @@ Scheduling remains table-first because validation and exception details are easi
 | Published revision | Controlled decision | Focused Action modal with impact preview and validation result |
 | Student/faculty schedule | Authorized output | Read-only Table grouped by day and printable view |
 
+The Registrar is the V1 Master Schedule publisher. Academic Head access supports read-only scheduling-exception review, not a universal publication approval, and System Super Admin configuration authority does not grant academic publication authority. Candidate runs close to mutation but remain retained as publication provenance. Whole-version replacement stops once active student bindings exist; subsequent operational changes use the focused published-revision action.
+
 For MVP, TALA does not require a drag-and-drop timetable, FullCalendar plugin, generic constraint builder, or user-editable scoring weights. No visualization task is currently planned; a future approved proposal must receive a new Next Steps issue and may supplement, never replace, the candidate review table or validation path.
 
 ## Imports, Reports, Notifications, and Plugins

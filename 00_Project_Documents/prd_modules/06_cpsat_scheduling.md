@@ -21,7 +21,7 @@ Scheduling Demand:
 5. CP-SAT schedules demand rows, not raw subjects.
 6. **Two-Phase Architecture:** 
    - **Phase 1 (AI Sandbox):** The CP-SAT solver outputs candidate schedules strictly to the `CandidateScheduleRow` staging table for Registrar review.
-   - **Phase 2 (In-Place Live):** Once approved, candidate rows are published (copied) to the official `section_meetings` table. The solver sandbox is then cleared.
+   - **Phase 2 (In-Place Live):** Once approved, candidate rows are published (copied) to the official `section_meetings` table. The candidate run then closes to mutation but remains retained as immutable publication provenance.
 7. Candidate schedules remain separate from official section meeting records until publication.
 8. The client curriculum table supplies curriculum-owned academic data. Default contact and room requirements come from the Course Specification Revision; actual modality and approved overrides come from the Term Offering; assignment choices come from section delivery groups, faculty, rooms, calendar, and scheduling configuration.
 9. CP-SAT schedules cohort delivery groups and regular section blocks. Irregular placement happens post-publication through TALA validation and Registrar-confirmed Enrollment Seat Reservations.
@@ -282,14 +282,16 @@ A candidate schedule becomes official only after:
 
 1. TALA validates non-overrideable hard constraints and any recorded Manual Schedule Override scope.
 2. Registrar reviews schedule.
-3. Academic Head or authorized staff approves where required.
-4. Schedule is published as a versioned schedule.
+3. Registrar confirms publication after review. Academic Head reviews scheduling exceptions but does not provide a universal V1 publication approval unless later institutional evidence explicitly requires that workflow.
+4. Registrar publishes the schedule as a versioned schedule. System Super Admin configuration authority does not include academic schedule publication.
 
 ---
 
 ### 6.3. Schedule Publication and Mid-Term Schedule Revisions
 
 TALA uses the AI Sandbox for pre-publication candidate schedules and In-Place Live Edits for post-publication revisions.
+
+Whole-version replacement is available only before active Student Schedule Bindings exist for the current published version. Once enrollment placement creates an active binding, TALA retains that published version and routes operational changes through the controlled live-revision flow below; publication does not remap student bindings.
 
 **Post-Publication (Mid-Term Edits):**
 Once the schedule is published and the Enrollment Calendar opens, the schedule is live. If an operational change happens mid-term (e.g., a room floods, an instructor resigns, or a meeting time must move), the Registrar updates the affected live section meeting rows through a controlled revision form, and TALA validates the replacement before saving it.
@@ -377,8 +379,8 @@ This map identifies how scheduling is surfaced for v1. It is not a visual design
 | Constraint profile | System Super Admin or authorized staff | Generated Read-Only View | Inspect the versioned code-defined profile. Hard constraints are immutable and the approved `balanced_v1` soft-priority weights are not user-editable in v1. |
 | Readiness check | Registrar | Generated Read-Only validation table | Show missing inputs, invalid source records, and constraints that must be corrected before a solver run. |
 | Solver run setup | Registrar | Record Form plus confirmation | Select term and included demands, inspect the captured profile version, and confirm bounded solver settings. |
-| Candidate schedule review | Registrar and Academic Head where required | Benchmark-selected accessible review presentation with a canonical Review Table | Understand and compare candidate assignments, constraint results, quality measures, warnings, and publication impact without predetermining a visualization or interaction pattern. |
+| Candidate schedule review | Registrar; Academic Head for scheduling-exception review | Benchmark-selected accessible review presentation with a canonical Review Table | Understand and compare candidate assignments, constraint results, quality measures, warnings, and publication impact without predetermining a visualization or interaction pattern. |
 | Manual Schedule Override | Registrar with required authority | Focused Record Form | Record a validated replacement assignment, authority, reason, affected rows, and validation result. |
-| Master Schedule publication | Registrar / Academic Head where required | Confirmation with conflict summary | Publish validated candidate rows into official section meetings. |
+| Master Schedule publication | Registrar | Confirmation with conflict and impact summary | Publish validated candidate rows into official section meetings before active student bindings exist; later changes use controlled published-schedule revision. |
 | Published schedule revision | Registrar | Focused Record Form with impact preview | Change room, faculty, modality, time, or cancellation after publication while preserving revision history. |
 | Student and faculty schedule visibility | Student Hub and Faculty Workspace | Generated Read-Only View | Show only published schedule records and authorized current assignments. |

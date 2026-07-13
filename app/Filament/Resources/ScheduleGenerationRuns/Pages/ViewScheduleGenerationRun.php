@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Pages;
 
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
+use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
@@ -10,8 +11,10 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
@@ -112,10 +115,15 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->modalDescription(fn (): string => $this->publicationConfirmationDescription())
             ->modalSubmitActionLabel('Publish Schedule')
             ->schema([
+                Toggle::make('accept_lower_quality')
+                    ->label('Accept lower soft-quality result')
+                    ->helperText('Use only when all hard constraints pass but the selected candidate has a lower soft-quality score.'),
                 Textarea::make('publication_note')
                     ->label('Publication note')
                     ->maxLength(2000)
-                    ->helperText('Optional. Record the reason for accepting advisory warnings or other publication context.'),
+                    ->required(fn (Get $get): bool => $this->run()->publicationSummary()['warnings'] > 0
+                        || (bool) $get('accept_lower_quality'))
+                    ->helperText('Required when accepting advisory warnings or a lower soft-quality result.'),
             ])
             ->visible(fn (): bool => $this->canPublish())
             ->action(function (array $data): void {
@@ -131,16 +139,36 @@ class ViewScheduleGenerationRun extends ViewRecord
                     abort(404);
                 }
 
-                $this->record = app(SchedulePublishService::class)->publish(
-                    $run,
-                    $publisher,
-                    $data['publication_note'] ?? null,
-                );
+                try {
+                    $this->record = app(SchedulePublishService::class)->publish(
+                        $run,
+                        $publisher,
+                        $data['publication_note'] ?? null,
+                        (bool) ($data['accept_lower_quality'] ?? false),
+                    );
 
-                Notification::make()
-                    ->title('Schedule published')
-                    ->success()
-                    ->send();
+                    Notification::make()
+                        ->title('Schedule published')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Schedule publication blocked')
+                        ->body($this->validationMessage($exception))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                } finally {
+                    $fresh = $run->fresh();
+
+                    if ($fresh instanceof ScheduleGenerationRun) {
+                        $this->record = $fresh;
+                    }
+
+                    $this->dispatch('schedule-run-updated');
+                }
             });
     }
 
@@ -203,15 +231,34 @@ class ViewScheduleGenerationRun extends ViewRecord
         /** @var ScheduleGenerationRun $run */
         $run = $this->getRecord();
         $summary = $run->publicationSummary();
+        $impact = app(SchedulePublicationImpactService::class)->preview($run);
 
-        return sprintf(
-            '%d candidate %s, %d warning %s, and %d conflict or violation %s. Publication makes these assignments official and supersedes the prior published version for this term.',
+        $description = sprintf(
+            '%d candidate %s, %d warning %s, and %d conflict or violation %s. Impact: %d new, %d changed %s, %d removed, and %d unchanged; %d affected faculty. Publication makes these assignments official and supersedes the prior published version for this term.',
             $summary['assignments'],
             $summary['assignments'] === 1 ? 'assignment' : 'assignments',
             $summary['warnings'],
             $summary['warnings'] === 1 ? 'row' : 'rows',
             $summary['conflicts'],
             $summary['conflicts'] === 1 ? 'row' : 'rows',
+            $impact->newAssignments(),
+            $impact->changedAssignments(),
+            $impact->changedAssignments() === 1 ? 'assignment' : 'assignments',
+            $impact->removedAssignments(),
+            $impact->unchangedAssignments(),
+            $impact->affectedFaculty(),
+        );
+
+        if (! $impact->blocksFullReplacement()) {
+            return $description;
+        }
+
+        return $description.' '.sprintf(
+            'Full replacement is blocked because the current schedule has %d active student %s across %d affected %s. Use the controlled live-revision workflow instead.',
+            $impact->activeBindings(),
+            $impact->activeBindings() === 1 ? 'binding' : 'bindings',
+            $impact->affectedStudents(),
+            $impact->affectedStudents() === 1 ? 'student' : 'students',
         );
     }
 }

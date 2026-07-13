@@ -40,10 +40,7 @@ class ScheduleGenerationRunPolicy
 
     public function publish(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
     {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function reviewCandidates(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool

@@ -120,19 +120,17 @@ final class TAL66SchedulePublicationTest extends TestCase
         }
     }
 
-    public function test_system_super_admin_is_authorized_to_publish(): void
+    public function test_system_super_admin_is_not_authorized_to_publish(): void
     {
         $systemSuperAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $term = Term::factory()->create();
         $run = $this->scheduleRun($term);
         $this->candidate($run, $this->demand($term));
 
-        $this->assertTrue(Gate::forUser($systemSuperAdmin)->allows('publish', $run));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('publish', $run));
 
-        $published = $this->publisher->publish($run, $systemSuperAdmin);
-
-        $this->assertSame(ScheduleGenerationRun::StatusPublished, $published->status);
-        $this->assertSame($systemSuperAdmin->id, $published->published_by);
+        $this->expectException(AuthorizationException::class);
+        $this->publisher->publish($run, $systemSuperAdmin);
     }
 
     public function test_academic_head_and_unauthorized_staff_cannot_publish(): void

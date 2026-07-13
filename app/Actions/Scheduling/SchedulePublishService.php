@@ -4,11 +4,8 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
-use App\Models\SchedulingDemand;
-use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Term;
-use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,17 +18,19 @@ class SchedulePublishService
 {
     public function __construct(
         private readonly ScheduleAssignmentRevalidationService $revalidator,
+        private readonly SchedulePublicationImpactService $impactService,
     ) {}
 
     public function publish(
         ScheduleGenerationRun $run,
         User $publisher,
         ?string $note = null,
+        bool $acceptLowerQuality = false,
     ): ScheduleGenerationRun {
         Gate::forUser($publisher)->authorize('publish', $run);
         $note = $this->normalizedNote($note);
 
-        $outcome = DB::transaction(function () use ($run, $publisher, $note): array {
+        $outcome = DB::transaction(function () use ($run, $publisher, $note, $acceptLowerQuality): array {
             Term::query()
                 ->whereKey($run->term_id)
                 ->lockForUpdate()
@@ -62,6 +61,7 @@ class SchedulePublishService
                 ->get();
 
             $this->assertPublishable($lockedRun, $candidateRows);
+            $this->assertPublicationReason($candidateRows, $note, $acceptLowerQuality);
 
             $validation = $this->revalidator->validateCandidateSet(
                 $lockedRun,
@@ -77,6 +77,25 @@ class SchedulePublishService
                     'run' => $lockedRun->fresh(),
                     'validation' => $validation,
                 ];
+            }
+
+            $currentPublishedRun = $termRuns->first(
+                fn (ScheduleGenerationRun $termRun): bool => $termRun->status === ScheduleGenerationRun::StatusPublished
+                    && ! $termRun->is($lockedRun),
+            );
+            $impact = $this->impactService->lockForPublication(
+                $currentPublishedRun instanceof ScheduleGenerationRun ? $currentPublishedRun : null,
+                $candidateRows,
+            );
+
+            if ($impact->blocksFullReplacement()) {
+                throw ValidationException::withMessages([
+                    'publication_impact' => sprintf(
+                        'Full replacement is blocked because the current published schedule has %d active student %s. Use the controlled live-revision workflow instead.',
+                        $impact->activeBindings(),
+                        $impact->activeBindings() === 1 ? 'binding' : 'bindings',
+                    ),
+                ]);
             }
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
@@ -101,7 +120,7 @@ class SchedulePublishService
                     'day_of_week' => $candidateRow->day_of_week,
                     'starts_at' => $candidateRow->starts_at,
                     'ends_at' => $candidateRow->ends_at,
-                    'modality' => $this->currentPublicationModality($candidateRow),
+                    'modality' => $this->impactService->modalityFor($candidateRow),
                     'state' => SectionMeeting::StateActive,
                     'published_at' => $timestamp,
                 ]);
@@ -121,6 +140,9 @@ class SchedulePublishService
                 $timestamp,
                 $publicationVersion,
                 $candidateRows->count(),
+                $note,
+                $acceptLowerQuality,
+                $impact,
             );
 
             return [
@@ -170,6 +192,25 @@ class SchedulePublishService
         }
     }
 
+    /**
+     * @param  Collection<int, CandidateScheduleRow>  $candidateRows
+     */
+    private function assertPublicationReason(
+        Collection $candidateRows,
+        ?string $note,
+        bool $acceptLowerQuality,
+    ): void {
+        $hasWarnings = $candidateRows->contains(
+            fn (CandidateScheduleRow $candidateRow): bool => $candidateRow->hasWarnings(),
+        );
+
+        if (($hasWarnings || $acceptLowerQuality) && $note === null) {
+            throw ValidationException::withMessages([
+                'publication_note' => 'A publication note is required when accepting advisory warnings or a lower soft-quality result.',
+            ]);
+        }
+    }
+
     private function normalizedNote(?string $note): ?string
     {
         if ($note === null) {
@@ -185,32 +226,6 @@ class SchedulePublishService
         }
 
         return $note === '' ? null : $note;
-    }
-
-    private function currentPublicationModality(CandidateScheduleRow $candidateRow): string
-    {
-        $demand = $candidateRow->getRelation('schedulingDemand');
-
-        if (! $demand instanceof SchedulingDemand) {
-            throw ValidationException::withMessages([
-                'candidate_schedule_rows' => 'A candidate assignment must reference a current Scheduling Demand.',
-            ]);
-        }
-
-        $group = $demand->getRelation('sectionDeliveryGroup');
-        $offering = $demand->getRelation('termOffering');
-
-        if ($group instanceof SectionDeliveryGroup && filled($group->modality)) {
-            return (string) $group->modality;
-        }
-
-        if ($offering instanceof TermOffering) {
-            return (string) $offering->modality;
-        }
-
-        throw ValidationException::withMessages([
-            'candidate_schedule_rows' => 'A candidate assignment must reference a current Term Offering.',
-        ]);
     }
 
     /**
@@ -262,6 +277,9 @@ class SchedulePublishService
         CarbonImmutable $timestamp,
         int $publicationVersion,
         int $publishedMeetings,
+        ?string $publicationNote,
+        bool $acceptLowerQuality,
+        SchedulePublicationImpact $impact,
     ): void {
         DB::table('activity_log')->insert([
             'log_name' => 'scheduling',
@@ -276,6 +294,9 @@ class SchedulePublishService
                 'status_after' => ScheduleGenerationRun::StatusPublished,
                 'publication_version' => $publicationVersion,
                 'published_meetings' => $publishedMeetings,
+                'publication_note' => $publicationNote,
+                'accepted_lower_quality' => $acceptLowerQuality,
+                'impact' => $impact->toArray(),
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             'created_at' => $timestamp->toDateTimeString(),
             'updated_at' => $timestamp->toDateTimeString(),

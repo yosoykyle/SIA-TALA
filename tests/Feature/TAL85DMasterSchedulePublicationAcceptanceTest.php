@@ -194,7 +194,7 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         $this->candidate($publishableRun, $source['demand'], roomId: null);
 
         $this->assertTrue(Gate::forUser($registrar)->allows('publish', $publishableRun));
-        $this->assertTrue(Gate::forUser($systemSuperAdmin)->allows('publish', $publishableRun));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('publish', $publishableRun));
         $this->assertFalse(Gate::forUser($academicHead)->allows('publish', $publishableRun));
 
         Livewire::actingAs($registrar)
@@ -213,7 +213,15 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             $this->assertSame(0, SectionMeeting::query()->count());
         }
 
-        $published = $this->publisher->publish($publishableRun, $systemSuperAdmin);
+        try {
+            $this->publisher->publish($publishableRun, $systemSuperAdmin);
+            $this->fail('System Super Admin publication was not blocked.');
+        } catch (AuthorizationException) {
+            $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $publishableRun->fresh()->status);
+            $this->assertSame(0, SectionMeeting::query()->count());
+        }
+
+        $published = $this->publisher->publish($publishableRun, $registrar);
         $currentMeeting = $published->sectionMeetings()->firstOrFail();
         $historicalRun = $this->scheduleRun($source['term'], ScheduleGenerationRun::StatusSuperseded, [
             'published_by' => $registrar->id,
