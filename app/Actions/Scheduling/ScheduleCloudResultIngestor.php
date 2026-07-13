@@ -24,9 +24,9 @@ class ScheduleCloudResultIngestor
                 ->lockForUpdate()
                 ->findOrFail($run->id);
 
-            if (($this->inputSnapshot($lockedRun)['contract_version'] ?? null) !== 'tal61-demand-v1') {
+            if (($this->inputSnapshot($lockedRun)['contract_version'] ?? null) !== 'tal94-demand-v2') {
                 throw ValidationException::withMessages([
-                    'input_snapshot' => 'Solver result ingestion requires a TAL-61 demand input snapshot.',
+                    'input_snapshot' => 'Solver result ingestion requires a TAL-94 V2 demand input snapshot.',
                 ]);
             }
 
@@ -305,7 +305,7 @@ class ScheduleCloudResultIngestor
             return 'missing_solver_status';
         }
 
-        if (! in_array($normalizedStatus, ['optimal', 'feasible', 'partial', 'infeasible', 'local_stub', 'ok'], true)) {
+        if (! in_array($normalizedStatus, ['optimal', 'feasible', 'infeasible', 'model_invalid', 'unknown', 'local_stub', 'ok'], true)) {
             return 'unsupported_solver_status';
         }
 

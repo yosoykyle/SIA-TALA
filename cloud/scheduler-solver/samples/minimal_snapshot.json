@@ -1,5 +1,5 @@
 {
-  "contract_version": "tal61-demand-v1",
+  "contract_version": "tal94-demand-v2",
   "captured_at": "2026-06-29T08:00:00+08:00",
   "run_metadata": {
     "solver_run_id": 1,
@@ -15,6 +15,9 @@
     "starts_on": "2026-08-03",
     "ends_on": "2026-12-18",
     "scheduling_slot_minutes": 30,
+    "scheduling_days": [1, 2, 3, 4, 5, 6],
+    "scheduling_day_starts_at": "07:00:00",
+    "scheduling_day_ends_at": "20:00:00",
     "default_max_units": "21.00"
   },
   "time_slots": [
@@ -80,6 +83,8 @@
       "expected_count": 30,
       "section_capacity": 30,
       "room_type_requirement": "LECTURE_ROOM",
+      "required_room_feature_keys": [],
+      "load_units": "3.00",
       "room_required": true,
       "same_faculty_required": false,
       "requires_consecutive_block": true,
@@ -117,6 +122,8 @@
       "expected_count": 30,
       "section_capacity": 30,
       "room_type_requirement": "LECTURE_ROOM",
+      "required_room_feature_keys": [],
+      "load_units": "3.00",
       "room_required": true,
       "same_faculty_required": false,
       "requires_consecutive_block": true,
@@ -160,6 +167,7 @@
       "name": "Room 101",
       "room_type": "LECTURE_ROOM",
       "capacity": 40
+      ,"feature_keys": []
     }
   ],
   "faculty": [
@@ -225,6 +233,26 @@
     "balance_faculty_load",
     "use_rooms_efficiently"
   ],
+  "constraint_profile": {
+    "key": "balanced_v1",
+    "version": 1,
+    "hard_constraints": [
+      "assign_every_ready_scheduling_demand_once",
+      "faculty_no_overlap",
+      "room_no_overlap",
+      "section_delivery_group_no_overlap",
+      "respect_fixed_assignments",
+      "respect_calendar_blocks",
+      "respect_room_capacity_type_and_features",
+      "respect_faculty_qualification_and_load"
+    ],
+    "soft_weights": {
+      "prefer_earlier_time_blocks": 1,
+      "reduce_faculty_idle_gaps": 1,
+      "balance_faculty_load": 1,
+      "use_rooms_efficiently": 1
+    }
+  },
   "fixed_assignments": [],
   "optimization_settings": {
     "slot_granularity_minutes": 30,

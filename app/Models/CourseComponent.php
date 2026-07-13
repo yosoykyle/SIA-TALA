@@ -30,6 +30,7 @@ class CourseComponent extends Model
         'component_type',
         'weekly_contact_hours',
         'room_type_default',
+        'required_room_feature_keys',
         'modality_restriction',
         'requires_consecutive_block',
         'same_faculty',
@@ -43,6 +44,7 @@ class CourseComponent extends Model
     {
         return [
             'weekly_contact_hours' => 'decimal:2',
+            'required_room_feature_keys' => 'array',
             'requires_consecutive_block' => 'boolean',
             'same_faculty' => 'boolean',
             'sequence' => 'integer',

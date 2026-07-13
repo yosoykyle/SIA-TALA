@@ -8,8 +8,25 @@ from typing import Any
 from ortools.sat.python import cp_model
 
 
-CONTRACT_VERSION = "tal61-demand-v1"
-SOLVER_VERSION = "cloud-cp-sat-tal61-demand-v1"
+CONTRACT_VERSION = "tal94-demand-v2"
+SOLVER_VERSION = "cloud-cp-sat-tal94-demand-v2"
+SOFT_TERMS = (
+    "prefer_earlier_time_blocks",
+    "reduce_faculty_idle_gaps",
+    "balance_faculty_load",
+    "use_rooms_efficiently",
+)
+HARD_CONSTRAINTS = (
+    "assign_every_ready_scheduling_demand_once",
+    "faculty_no_overlap",
+    "room_no_overlap",
+    "section_delivery_group_no_overlap",
+    "respect_fixed_assignments",
+    "respect_calendar_blocks",
+    "respect_room_capacity_type_and_features",
+    "respect_faculty_qualification_and_load",
+)
+BALANCED_V1_WEIGHTS = {term: 1 for term in SOFT_TERMS}
 
 
 @dataclass(frozen=True)
@@ -33,6 +50,8 @@ class Candidate:
     meeting_sequence: int
     priority: int
     duration_minutes: int
+    load_units_scaled: int
+    room_capacity: int
 
 
 def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict[str, Any]:
@@ -44,16 +63,69 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         return _result(
             snapshot=snapshot,
             solver_run_id=solver_run_id,
-            solver_status="infeasible",
+            solver_status="model_invalid",
             assignments=[],
             objective_score=None,
             timeout=False,
             started_at=started_at,
-            warnings=[_reason("unsupported_contract_version", "Solver requires tal61-demand-v1 snapshots.")],
-            infeasible_reasons=[_reason("unsupported_contract_version", "Solver requires tal61-demand-v1 snapshots.")],
+            warnings=[_reason("unsupported_contract_version", f"Solver requires {CONTRACT_VERSION} snapshots.")],
+            infeasible_reasons=[_reason("unsupported_contract_version", f"Solver requires {CONTRACT_VERSION} snapshots.")],
+        )
+
+    profile = snapshot.get("constraint_profile")
+    if (
+        not isinstance(profile, dict)
+        or profile.get("key") != "balanced_v1"
+        or profile.get("version") != 1
+        or tuple(profile.get("hard_constraints") or ()) != HARD_CONSTRAINTS
+        or profile.get("soft_weights") != BALANCED_V1_WEIGHTS
+    ):
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
+            infeasible_reasons=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
+        )
+
+    unsupported_demands = [
+        demand for demand in _demands(snapshot)
+        if _int_or_none(demand.get("meeting_count")) != 1
+    ]
+    if unsupported_demands:
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
+            infeasible_reasons=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
         )
 
     demands = _demands(snapshot)
+    if any(_decimal_or_none(demand.get("load_units")) is None for demand in demands) or any(
+        _decimal_or_none(row.get("max_allowed_units")) is None
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict)
+    ):
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
+            infeasible_reasons=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
+        )
     rooms = _rooms(snapshot)
     time_slots = _time_slots(snapshot)
     availability = _faculty_availability(snapshot)
@@ -89,7 +161,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         for faculty_id in faculty_ids:
             for room_id in room_ids:
                 for slot in slots:
-                    candidate = _candidate(demand, faculty_id, room_id, slot)
+                    candidate = _candidate(demand, faculty_id, room_id, slot, rooms.get(room_id, {}))
 
                     if candidate is None:
                         continue
@@ -105,6 +177,36 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
                     candidates.append(candidate)
 
+    candidate_demand_ids = {candidate.scheduling_demand_id for candidate in candidates}
+    for demand in demands:
+        demand_id = int(demand["scheduling_demand_id"])
+        if demand_id not in candidate_demand_ids and demand_id not in unassignable_reasons:
+            unassignable_reasons[demand_id] = [
+                _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
+            ]
+
+    if unassignable_reasons:
+        assignments = [
+            _conflict_assignment(
+                demand,
+                unassignable_reasons.get(int(demand["scheduling_demand_id"])) or [
+                    _reason("solver_unassigned", "No conflict-free candidate exists for this Scheduling Demand."),
+                ],
+            )
+            for demand in demands
+        ]
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="infeasible",
+            assignments=assignments,
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[],
+            infeasible_reasons=[item for items in unassignable_reasons.values() for item in items],
+        )
+
     model = cp_model.CpModel()
     variables = [model.new_bool_var(f"candidate_{index}") for index, _ in enumerate(candidates)]
 
@@ -115,15 +217,27 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
                 for index, candidate in enumerate(candidates)
                 if candidate.scheduling_demand_id == demand_id
             )
-            <= 1
+            == 1
         )
 
     _add_no_overlap_constraints(model, variables, candidates)
     _add_same_faculty_constraints(model, variables, candidates, demands)
+    load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
 
-    model.maximize(
-        sum(_candidate_weight(candidate) * variables[index] for index, candidate in enumerate(candidates))
+    weights = BALANCED_V1_WEIGHTS
+    objective_terms: list[cp_model.LinearExpr] = []
+    objective_terms.extend(
+        weights["prefer_earlier_time_blocks"] * _earlier_candidate_score(candidate) * variables[index]
+        for index, candidate in enumerate(candidates)
     )
+    objective_terms.extend(
+        weights["use_rooms_efficiently"] * _room_efficiency_score(candidate) * variables[index]
+        for index, candidate in enumerate(candidates)
+    )
+    objective_terms.extend(_idle_gap_objective_terms(model, variables, candidates, weights["reduce_faculty_idle_gaps"]))
+    objective_terms.extend(_load_balance_objective_terms(model, load_variables, weights["balance_faculty_load"]))
+
+    model.maximize(sum(objective_terms))
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(timeout_seconds)
@@ -135,25 +249,18 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         for index, candidate in enumerate(candidates)
         if status in {cp_model.OPTIMAL, cp_model.FEASIBLE} and solver.boolean_value(variables[index])
     ]
-    selected_ids = {candidate.scheduling_demand_id for candidate in selected}
     assignments = [_assignment(candidate) for candidate in sorted(selected, key=_candidate_sort_key)]
 
-    for demand in demands:
-        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
-
-        if demand_id is None or demand_id in selected_ids:
-            continue
-
-        assignments.append(_conflict_assignment(
-            demand,
-            unassignable_reasons.get(demand_id) or [
-                _reason("solver_unassigned", "No conflict-free candidate was selected for this Scheduling Demand."),
-            ],
-        ))
+    if status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
+        assignments = [
+            _conflict_assignment(demand, [_reason("solver_infeasible", "CP-SAT found no assignment satisfying every hard constraint.")])
+            for demand in demands
+        ]
+        selected = []
 
     assigned_count = len(selected)
     unassigned_count = max(0, len(demands) - assigned_count)
-    solver_status = _status_name(status, assigned_count, unassigned_count, len(demands))
+    solver_status = _status_name(status)
     objective_score = int(solver.objective_value) if status in {cp_model.OPTIMAL, cp_model.FEASIBLE} else None
 
     return _result(
@@ -171,6 +278,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             if assignment["assignment_status"] == "conflict"
             for item in assignment["violations"]
         ],
+        objective_details=_objective_details(selected, weights, snapshot),
     )
 
 
@@ -184,6 +292,7 @@ def _result(
     started_at: float,
     warnings: list[dict[str, str]],
     infeasible_reasons: list[dict[str, str]],
+    objective_details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
     warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
@@ -204,6 +313,7 @@ def _result(
         "warnings": warnings,
         "runtime_seconds": round(perf_counter() - started_at, 6),
         "objective_score": objective_score,
+        "objective_details": objective_details or _empty_objective_details(snapshot),
         "solver_version": SOLVER_VERSION,
         "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -316,8 +426,21 @@ def _room_ids(demand: dict[str, Any], rooms: dict[int, dict[str, Any]]) -> list[
 def _room_suits_demand(demand: dict[str, Any], room: dict[str, Any]) -> bool:
     room_type = demand.get("room_type_requirement")
     expected_count = _int_or_none(demand.get("expected_count")) or 0
+    required_features = {
+        str(feature).strip().upper()
+        for feature in demand.get("required_room_feature_keys", [])
+        if str(feature).strip()
+    }
+    room_features = {
+        str(feature).strip().upper()
+        for feature in room.get("feature_keys", [])
+        if str(feature).strip()
+    }
 
     if room_type not in {None, ""} and room.get("room_type") != room_type:
+        return False
+
+    if not required_features.issubset(room_features):
         return False
 
     return (_int_or_none(room.get("capacity")) or 0) >= expected_count
@@ -380,6 +503,7 @@ def _candidate(
     faculty_id: int,
     room_id: int | None,
     slot: dict[str, Any],
+    room: dict[str, Any],
 ) -> Candidate | None:
     starts_minute = _time_to_minutes(slot.get("starts_at"))
     day = _int_or_none(slot.get("day_of_week"))
@@ -410,6 +534,8 @@ def _candidate(
         meeting_sequence=1,
         priority=_faculty_priority(demand, faculty_id),
         duration_minutes=duration,
+        load_units_scaled=_decimal_scaled(demand.get("load_units")),
+        room_capacity=_int_or_none(room.get("capacity")) or 0,
     )
 
 
@@ -482,6 +608,97 @@ def _add_same_faculty_constraints(
                     ]
 
                     model.add(sum(left_terms) == sum(right_terms))
+
+
+def _add_faculty_load_constraints(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    snapshot: dict[str, Any],
+) -> dict[int, cp_model.IntVar]:
+    max_units = {
+        int(row["faculty_id"]): _decimal_scaled(row.get("max_allowed_units"))
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
+    }
+    grouped: dict[tuple[int, int, int], list[int]] = {}
+
+    for index, candidate in enumerate(candidates):
+        grouped.setdefault(
+            (candidate.faculty_id, candidate.term_offering_id, candidate.section_delivery_group_id),
+            [],
+        ).append(index)
+
+    load_terms: dict[int, list[tuple[cp_model.IntVar, int]]] = {}
+    for (faculty_id, offering_id, group_id), indexes in grouped.items():
+        group_selected = model.new_bool_var(f"load_group_{faculty_id}_{offering_id}_{group_id}")
+        for index in indexes:
+            model.add(variables[index] <= group_selected)
+        model.add(group_selected <= sum(variables[index] for index in indexes))
+        units = max(candidates[index].load_units_scaled for index in indexes)
+        load_terms.setdefault(faculty_id, []).append((group_selected, units))
+
+    load_variables: dict[int, cp_model.IntVar] = {}
+    for faculty_id, terms in load_terms.items():
+        upper_bound = sum(units for _, units in terms)
+        load = model.new_int_var(0, upper_bound, f"faculty_load_{faculty_id}")
+        model.add(load == sum(variable * units for variable, units in terms))
+        model.add(load <= max_units[faculty_id])
+        load_variables[faculty_id] = load
+
+    for faculty_id in max_units:
+        if faculty_id not in load_variables:
+            load_variables[faculty_id] = model.new_constant(0)
+
+    return load_variables
+
+
+def _idle_gap_objective_terms(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    weight: int,
+) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+
+    for left_index, left in enumerate(candidates):
+        for right_index in range(left_index + 1, len(candidates)):
+            right = candidates[right_index]
+            if (
+                left.scheduling_demand_id == right.scheduling_demand_id
+                or left.faculty_id != right.faculty_id
+                or left.day_of_week != right.day_of_week
+                or _overlaps(left, right)
+            ):
+                continue
+
+            gap = max(0, min(240, max(left.starts_minute, right.starts_minute) - min(left.ends_minute, right.ends_minute)))
+            if gap == 0:
+                continue
+            both = model.new_bool_var(f"idle_pair_{left_index}_{right_index}")
+            model.add(both <= variables[left_index])
+            model.add(both <= variables[right_index])
+            model.add(both >= variables[left_index] + variables[right_index] - 1)
+            terms.append(-weight * gap * both)
+
+    return terms
+
+
+def _load_balance_objective_terms(
+    model: cp_model.CpModel,
+    loads: dict[int, cp_model.IntVar],
+    weight: int,
+) -> list[cp_model.LinearExpr]:
+    faculty_ids = sorted(loads)
+    terms: list[cp_model.LinearExpr] = []
+
+    for left_index, left_id in enumerate(faculty_ids):
+        for right_id in faculty_ids[left_index + 1:]:
+            difference = model.new_int_var(0, 100_000, f"load_difference_{left_id}_{right_id}")
+            model.add_abs_equality(difference, loads[left_id] - loads[right_id])
+            terms.append(-weight * difference)
+
+    return terms
 
 
 def _assignment(candidate: Candidate) -> dict[str, Any]:
@@ -693,6 +910,94 @@ def _candidate_weight(candidate: Candidate) -> int:
     )
 
 
+def _earlier_candidate_score(candidate: Candidate) -> int:
+    return max(0, 10_000 - ((candidate.day_of_week * 1_000) + candidate.starts_minute))
+
+
+def _room_efficiency_score(candidate: Candidate) -> int:
+    if candidate.room_id is None or candidate.room_capacity <= 0:
+        return 100
+
+    return max(0, 1_000 - candidate.room_capacity)
+
+
+def _objective_details(
+    selected: list[Candidate],
+    weights: dict[str, int],
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    faculty_days: dict[tuple[int, int], list[Candidate]] = {}
+    faculty_loads: dict[int, dict[tuple[int, int], int]] = {}
+
+    for candidate in selected:
+        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(candidate)
+        faculty_loads.setdefault(candidate.faculty_id, {})[
+            (candidate.term_offering_id, candidate.section_delivery_group_id)
+        ] = candidate.load_units_scaled
+
+    idle_gap_minutes = 0
+    for rows in faculty_days.values():
+        for left_index, left in enumerate(rows):
+            for right in rows[left_index + 1:]:
+                if _overlaps(left, right):
+                    continue
+                idle_gap_minutes += max(
+                    0,
+                    min(240, max(left.starts_minute, right.starts_minute) - min(left.ends_minute, right.ends_minute)),
+                )
+
+    faculty_ids = {
+        int(row["faculty_id"])
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
+    }
+    loads = [sum(faculty_loads.get(faculty_id, {}).values()) for faculty_id in sorted(faculty_ids)]
+    load_imbalance = sum(
+        abs(left - right)
+        for left_index, left in enumerate(loads)
+        for right in loads[left_index + 1:]
+    )
+    terms = {
+        "prefer_earlier_time_blocks": {
+            "raw": sum(_earlier_candidate_score(candidate) for candidate in selected),
+            "weight": weights["prefer_earlier_time_blocks"],
+        },
+        "reduce_faculty_idle_gaps": {
+            "raw": -idle_gap_minutes,
+            "weight": weights["reduce_faculty_idle_gaps"],
+        },
+        "balance_faculty_load": {
+            "raw": -load_imbalance,
+            "weight": weights["balance_faculty_load"],
+        },
+        "use_rooms_efficiently": {
+            "raw": sum(_room_efficiency_score(candidate) for candidate in selected),
+            "weight": weights["use_rooms_efficiently"],
+        },
+    }
+
+    for term in terms.values():
+        term["weighted"] = term["raw"] * term["weight"]
+
+    return {
+        "profile_key": "balanced_v1",
+        "profile_version": 1,
+        "terms": terms,
+        "total": sum(term["weighted"] for term in terms.values()),
+    }
+
+
+def _empty_objective_details(snapshot: dict[str, Any]) -> dict[str, Any]:
+    profile = snapshot.get("constraint_profile") if isinstance(snapshot.get("constraint_profile"), dict) else {}
+    weights = profile.get("soft_weights") if isinstance(profile.get("soft_weights"), dict) else {}
+
+    return {
+        "profile_key": profile.get("key"),
+        "profile_version": profile.get("version"),
+        "terms": {term: {"raw": None, "weight": int(weights.get(term, 1))} for term in SOFT_TERMS},
+    }
+
+
 def _candidate_sort_key(candidate: Candidate) -> tuple[int, int]:
     return candidate.scheduling_demand_id, candidate.meeting_sequence
 
@@ -711,16 +1016,7 @@ def _earlier_time_score(assignments: list[dict[str, Any]]) -> int:
     return score
 
 
-def _status_name(status: int, assigned_count: int, unassigned_count: int, demand_count: int) -> str:
-    if demand_count == 0:
-        return "optimal"
-
-    if assigned_count == 0 and unassigned_count > 0:
-        return "infeasible"
-
-    if unassigned_count > 0:
-        return "partial"
-
+def _status_name(status: int) -> str:
     if status == cp_model.OPTIMAL:
         return "optimal"
 
@@ -730,7 +1026,24 @@ def _status_name(status: int, assigned_count: int, unassigned_count: int, demand
     if status == cp_model.INFEASIBLE:
         return "infeasible"
 
-    return "partial"
+    if status == cp_model.MODEL_INVALID:
+        return "model_invalid"
+
+    return "unknown"
+
+
+def _decimal_scaled(value: Any) -> int:
+    try:
+        return max(0, int(round(float(value) * 100)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _decimal_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _solver_run_id(snapshot: dict[str, Any]) -> int | None:

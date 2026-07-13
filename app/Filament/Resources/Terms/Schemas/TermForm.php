@@ -4,9 +4,11 @@ namespace App\Filament\Resources\Terms\Schemas;
 
 use App\Models\AcademicYear;
 use App\Models\Term;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -55,6 +57,31 @@ class TermForm
                         ->minValue(15)
                         ->maxValue(120)
                         ->default(30)
+                        ->required(),
+                    CheckboxList::make('scheduling_days')
+                        ->label('Scheduling Days')
+                        ->options([
+                            1 => 'Monday',
+                            2 => 'Tuesday',
+                            3 => 'Wednesday',
+                            4 => 'Thursday',
+                            5 => 'Friday',
+                            6 => 'Saturday',
+                            7 => 'Sunday',
+                        ])
+                        ->default([1, 2, 3, 4, 5, 6])
+                        ->columns(4)
+                        ->required(),
+                    TimePicker::make('scheduling_day_starts_at')
+                        ->label('Scheduling Day Starts At')
+                        ->seconds(false)
+                        ->default('07:00')
+                        ->required(),
+                    TimePicker::make('scheduling_day_ends_at')
+                        ->label('Scheduling Day Ends At')
+                        ->seconds(false)
+                        ->default('20:00')
+                        ->after('scheduling_day_starts_at')
                         ->required(),
                     TextInput::make('default_max_units')
                         ->label('Default Faculty Max Units')

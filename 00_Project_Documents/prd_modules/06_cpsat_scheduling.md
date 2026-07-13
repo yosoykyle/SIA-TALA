@@ -221,7 +221,7 @@ Every solver input must use stable TALA IDs:
 12. faculty_id
 13. time_slot_id
 14. cohort_or_student_group_id
-15. constraint_set_id
+15. constraint_profile_key and version
 
 The solver uses official TALA IDs supplied in the input package.
 
@@ -346,7 +346,7 @@ Rules:
 
 | Information or action | Required interaction form |
 | --- | --- |
-| Scheduling run scope and settings | Record Form selecting Term, included demands, constraint profile, and solver settings |
+| Scheduling run scope and settings | Record Form selecting Term, included demands, and bounded solver settings; the approved code-defined constraint profile is shown read-only |
 | Calendar grid and Institutional Break Blocks | Calendar / Date-Range Input sourced from Module 4 and shown in readiness validation |
 | Scheduling Demand review | Editable Table of generated demands; course-owned values are read-only and only approved offering overrides, including same-faculty requirement, are editable |
 | Faculty and room constraints | Read-only consolidated validation table linked to the authoritative forms in Module 5 |
@@ -374,9 +374,9 @@ This map identifies how scheduling is surfaced for v1. It is not a visual design
 | Term Offering builder | Registrar | Generated Editable Table | Create Regular offerings from Curriculum Entries and add approved offering-owned values. |
 | Section delivery groups | Registrar | Editable Table | Define schedulable cohort or section groups and expected counts. |
 | Scheduling Demand review | Registrar | Generated Review Table | Show the demand rows that CP-SAT will schedule, with source links and validation status. |
-| Constraint profile | System Super Admin or authorized staff | Editable Table / Record Form | Maintain the fixed hard-constraint profile, policy constraints, and default soft-priority preset. |
+| Constraint profile | System Super Admin or authorized staff | Generated Read-Only View | Inspect the versioned code-defined profile. Hard constraints are immutable and the approved `balanced_v1` soft-priority weights are not user-editable in v1. |
 | Readiness check | Registrar | Generated Read-Only validation table | Show missing inputs, invalid source records, and constraints that must be corrected before a solver run. |
-| Solver run setup | Registrar | Record Form plus confirmation | Select term, included demands, constraint profile, and solver settings. |
+| Solver run setup | Registrar | Record Form plus confirmation | Select term and included demands, inspect the captured profile version, and confirm bounded solver settings. |
 | Candidate schedule review | Registrar and Academic Head where required | Benchmark-selected accessible review presentation with a canonical Review Table | Understand and compare candidate assignments, constraint results, quality measures, warnings, and publication impact without predetermining a visualization or interaction pattern. |
 | Manual Schedule Override | Registrar with required authority | Focused Record Form | Record a validated replacement assignment, authority, reason, affected rows, and validation result. |
 | Master Schedule publication | Registrar / Academic Head where required | Confirmation with conflict summary | Publish validated candidate rows into official section meetings. |

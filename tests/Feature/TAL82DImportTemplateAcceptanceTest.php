@@ -64,6 +64,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
         $this->assertSame('template_version', CourseSpecificationImportTemplate::headers()[0]);
         $this->assertSame('template_version', CurriculumImportTemplate::headers()[0]);
         $this->assertContains('component_type', CourseSpecificationImportTemplate::headers());
+        $this->assertContains('required_room_feature_keys', CourseSpecificationImportTemplate::headers());
         $this->assertContains('course_revision_code', CurriculumImportTemplate::headers());
         $this->assertContains('course_title', CurriculumImportTemplate::headers());
         $this->assertContains('course_units', CurriculumImportTemplate::headers());
@@ -117,6 +118,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
                 'component_type' => CourseComponent::TypeLaboratory,
                 'weekly_contact_hours' => '1.00',
                 'room_type_default' => CourseComponent::RoomTypeComputerLaboratory,
+                'required_room_feature_keys' => 'COMPUTER_UNITS|PROJECTOR',
                 'component_sequence' => '2',
                 'prerequisite_course_codes' => 'IT100',
             ]),
@@ -139,6 +141,10 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
 
         $this->assertSame(CourseSpecification::StateDraft, $specification->state);
         $this->assertSame(2, $specification->components()->count());
+        $this->assertSame(
+            ['COMPUTER_UNITS', 'PROJECTOR'],
+            $specification->components()->where('component_type', CourseComponent::TypeLaboratory)->sole()->required_room_feature_keys,
+        );
         $this->assertSame(1, $specification->requirements()->count());
 
         $activeCourse = Course::factory()->create(['code' => 'IT102']);
@@ -559,6 +565,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => '3.00',
             'room_type_default' => CourseComponent::RoomTypeLectureRoom,
+            'required_room_feature_keys' => [],
             'requires_consecutive_block' => false,
             'same_faculty' => true,
             'sequence' => 1,
@@ -804,6 +811,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => '3.00',
             'room_type_default' => CourseComponent::RoomTypeLectureRoom,
+            'required_room_feature_keys' => '',
             'modality_restriction' => '',
             'requires_consecutive_block' => 'no',
             'same_faculty' => 'yes',

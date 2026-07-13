@@ -23,6 +23,7 @@ class CourseComponentFactory extends Factory
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => 3.00,
             'room_type_default' => 'LECTURE_ROOM',
+            'required_room_feature_keys' => [],
             'modality_restriction' => null,
             'requires_consecutive_block' => false,
             'same_faculty' => true,

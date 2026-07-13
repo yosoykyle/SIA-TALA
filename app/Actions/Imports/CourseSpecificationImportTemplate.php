@@ -4,7 +4,7 @@ namespace App\Actions\Imports;
 
 class CourseSpecificationImportTemplate
 {
-    public const Version = 'course-specification-v1';
+    public const Version = 'course-specification-v2';
 
     /**
      * @return list<string>
@@ -29,6 +29,7 @@ class CourseSpecificationImportTemplate
             'component_type',
             'weekly_contact_hours',
             'room_type_default',
+            'required_room_feature_keys',
             'modality_restriction',
             'requires_consecutive_block',
             'same_faculty',
@@ -60,6 +61,7 @@ class CourseSpecificationImportTemplate
                 'LECTURE',
                 '3.00',
                 'LECTURE_ROOM',
+                '',
                 '',
                 'no',
                 'yes',

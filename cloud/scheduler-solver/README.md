@@ -7,7 +7,7 @@ It is a deterministic Google OR-Tools CP-SAT service. It is not ML and does not 
 ## Runtime Contract
 
 - `GET /health`: health probe.
-- `POST /solve`: accepts the Laravel `tal61-demand-v1` solver snapshot JSON and returns solver result JSON.
+- `POST /solve`: accepts the Laravel `tal94-demand-v2` solver snapshot JSON and returns solver result JSON.
 - Solver input uses `scheduling_demands` as the schedulable unit.
 - Solver output uses `assignments` keyed by `scheduling_demand_id` for TAL-62 candidate ingestion.
 - The container listens on the `PORT` environment variable, as required by Cloud Run.
@@ -71,6 +71,12 @@ Expected sample result:
 - `assigned_count`: `2`
 - `unassigned_count`: `0`
 - `assignments`: 2 rows with `assignment_status = ok` and `scheduling_demand_id`
+
+### Local Demo Boundary
+
+The Docker image is a usable local CP-SAT HTTP service, not only a build check. While the container is running, any valid `tal94-demand-v2` snapshot can be submitted directly to `POST http://127.0.0.1:8080/solve`. Use `GET /health` for readiness; the root path `/` is not an application page.
+
+This does not yet make the Laravel scheduling workflow use Docker. Laravel currently selects either the in-process `local_stub` driver or the IAM-authenticated `cloud_run` driver. An explicit unauthenticated local HTTP transport must be evaluated and, if retained for development or demonstrations, added under TAL-94E together with the production Cloud Run transport checks. Do not point the existing `cloud_run` driver at localhost or weaken its IAM behavior.
 
 ## Google Cloud Deploy Path
 
@@ -221,6 +227,6 @@ Do not switch Laravel from `local_stub` to `cloud_run` until the local Docker te
 
 - This POC schedules each `Scheduling Demand` as one contiguous block using `required_duration_minutes`, with `source_snapshot.weekly_contact_hours` only as a fallback.
 - It does not yet split lectures or laboratories across multiple weekly meetings.
-- It uses the TAL-61 `rooms` payload with `room_type_requirement`, expected count, and fixed room IDs for room-required demands.
-- It emits unassigned Scheduling Demand rows as `conflict` assignments so Laravel can store/review them safely.
+- It enforces room type, required feature keys, capacity, fixed room IDs, faculty load, exact demand coverage, and the other V2 hard constraints.
+- It returns only native outcome states (`optimal`, `feasible`, `infeasible`, `model_invalid`, or `unknown`); infeasible runs include conflict rows for diagnostics and are never reported as partial success.
 - Laravel remains the final validator, review surface, commit authority, and publish authority.

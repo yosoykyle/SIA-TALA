@@ -42,6 +42,9 @@ class Term extends Model
         'ends_on',
         'state',
         'scheduling_slot_minutes',
+        'scheduling_days',
+        'scheduling_day_starts_at',
+        'scheduling_day_ends_at',
         'default_max_units',
     ];
 
@@ -53,6 +56,7 @@ class Term extends Model
         return [
             'starts_on' => 'date',
             'ends_on' => 'date',
+            'scheduling_days' => 'array',
             'default_max_units' => 'decimal:2',
         ];
     }

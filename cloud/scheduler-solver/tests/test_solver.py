@@ -10,7 +10,7 @@ from tala_solver.solver import solve_snapshot
 
 
 class SolveSnapshotTest(unittest.TestCase):
-    def test_accepts_tal61_demands_and_emits_laravel_assignment_contract(self) -> None:
+    def test_accepts_v2_demands_and_emits_laravel_assignment_contract(self) -> None:
         snapshot = self.snapshot()
         demand_count = len(snapshot["scheduling_demands"])
 
@@ -35,7 +35,7 @@ class SolveSnapshotTest(unittest.TestCase):
 
         self.assertEqual([], self.hard_constraint_violations(assignments))
 
-    def test_unassignable_tal61_demand_returns_conflict_assignment_with_demand_id(self) -> None:
+    def test_unassignable_v2_demand_returns_conflict_assignment_with_demand_id(self) -> None:
         snapshot = self.snapshot()
 
         for demand in snapshot["scheduling_demands"]:
@@ -145,6 +145,103 @@ class SolveSnapshotTest(unittest.TestCase):
 
         self.assertEqual("conflict", assignment["assignment_status"])
         self.assertEqual("solver_unassigned", assignment["violations"][0]["type"])
+
+    def test_v2_profile_reports_all_balanced_objective_terms(self) -> None:
+        result = solve_snapshot(self.snapshot(), timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        details = result["objective_details"]
+        self.assertEqual("balanced_v1", details["profile_key"])
+        self.assertEqual(
+            {
+                "prefer_earlier_time_blocks",
+                "reduce_faculty_idle_gaps",
+                "balance_faculty_load",
+                "use_rooms_efficiently",
+            },
+            set(details["terms"]),
+        )
+        self.assertEqual(result["objective_score"], details["total"])
+
+    def test_exact_coverage_makes_conflicting_fixed_demands_infeasible(self) -> None:
+        snapshot = self.snapshot()
+
+        for demand in snapshot["scheduling_demands"]:
+            demand["eligible_faculty_user_ids"] = [200]
+            demand["fixed_faculty_user_id"] = 200
+            demand["fixed_room_id"] = 301
+            demand["fixed_day_of_week"] = 1
+            demand["fixed_start_time"] = "08:00:00"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+        self.assertEqual(0, result["assigned_count"])
+        self.assertEqual(2, result["unassigned_count"])
+
+    def test_required_room_features_are_hard_constraints(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["scheduling_demands"][0]["required_room_feature_keys"] = ["PROJECTOR"]
+        snapshot["rooms"][0]["feature_keys"] = []
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+        self.assertEqual("missing_room", result["assignments"][0]["violations"][0]["type"])
+
+    def test_faculty_load_counts_each_offering_group_once(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["faculty"] = [{"faculty_id": 200, "max_allowed_units": "3.00"}]
+
+        for demand in snapshot["scheduling_demands"]:
+            demand["eligible_faculty_user_ids"] = [200]
+            demand["faculty_load_options"] = [{"faculty_user_id": 200, "max_allowed_units": "3.00"}]
+            demand["load_units"] = "3.00"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+
+    def test_linked_components_do_not_double_count_faculty_load(self) -> None:
+        snapshot = self.snapshot()
+        first = snapshot["scheduling_demands"][0]
+
+        snapshot["faculty"] = [{"faculty_id": 200, "max_allowed_units": "3.00"}]
+        for demand in snapshot["scheduling_demands"]:
+            demand["term_offering_id"] = first["term_offering_id"]
+            demand["section_delivery_group_id"] = first["section_delivery_group_id"]
+            demand["eligible_faculty_user_ids"] = [200]
+            demand["faculty_load_options"] = [{"faculty_user_id": 200, "max_allowed_units": "3.00"}]
+            demand["load_units"] = "3.00"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["assigned_count"])
+
+    def test_unsupported_meeting_count_is_model_invalid(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["scheduling_demands"][0]["meeting_count"] = 2
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("model_invalid", result["solver_status"])
+
+    def test_unsupported_contract_is_model_invalid(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["contract_version"] = "unknown"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("model_invalid", result["solver_status"])
+
+    def test_tampered_profile_is_model_invalid(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["constraint_profile"]["soft_weights"]["balance_faculty_load"] = 99
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("model_invalid", result["solver_status"])
 
     def snapshot(self) -> dict[str, Any]:
         path = Path(__file__).resolve().parents[1] / "samples" / "minimal_snapshot.json"

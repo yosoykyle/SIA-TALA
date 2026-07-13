@@ -91,6 +91,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J3b | Done locally; pending explicit Linear sync | Capstone capability-depth and deferral-routing authority correction |
 | TAL-93J3b1 | Done locally; pending explicit Linear sync | Scheduler authority and independent benchmark reconciliation |
 | TAL-93J3c | Done locally; pending explicit Linear sync | Seven-role pre-integration regression and rendered acceptance gate |
+| TAL-94A | Done locally; pending explicit Linear sync | Solver Contract and Hard Constraints |
 
 ## Compact Synced History
 

@@ -22,6 +22,7 @@ use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\Program;
 use App\Models\Room;
+use App\Models\RoomFeature;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
@@ -111,7 +112,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $snapshot = $client->snapshots[0];
         $demandIds = SchedulingDemand::query()->orderBy('id')->pluck('id')->all();
 
-        $this->assertSame('tal61-demand-v1', $snapshot['contract_version']);
+        $this->assertSame('tal94-demand-v2', $snapshot['contract_version']);
         $this->assertArrayHasKey('scheduling_demands', $snapshot);
         $this->assertArrayNotHasKey('curriculum_subject_demand', $snapshot);
         $this->assertSame($demandIds, collect($snapshot['scheduling_demands'])->pluck('scheduling_demand_id')->sort()->values()->all());
@@ -122,7 +123,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $run->refresh();
 
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
-        $this->assertSame('local-stub-tal61-demand-v1', $run->solver_version);
+        $this->assertSame('local-stub-tal94-demand-v2', $run->solver_version);
         $this->assertSame(2, CandidateScheduleRow::query()->where('schedule_run_id', $run->id)->count());
         $this->assertSame(
             $demandIds,
@@ -149,6 +150,45 @@ final class TAL62SolverRunDispatchTest extends TestCase
             $this->assertSame(0, ScheduleGenerationRun::query()->count());
             $this->assertSame([SchedulingDemand::ValidationActionRequired], SchedulingDemand::query()->pluck('validation_state')->unique()->values()->all());
         }
+    }
+
+    public function test_v2_snapshot_captures_profile_operating_grid_room_features_and_credit_load(): void
+    {
+        $source = $this->schedulingSource(withSecondComponent: false);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $source['term']->update([
+            'scheduling_days' => [1, 2, 4, 6],
+            'scheduling_day_starts_at' => '08:00:00',
+            'scheduling_day_ends_at' => '18:00:00',
+        ]);
+        $source['lecture']->update([
+            'required_room_feature_keys' => ['PROJECTOR'],
+        ]);
+
+        $room = Room::query()->where('room_type', Room::TypeLectureRoom)->firstOrFail();
+        RoomFeature::factory()->for($room)->create(['feature_key' => 'PROJECTOR']);
+
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+        $run = $this->runService->generate($source['term'], $registrar);
+        $snapshot = $this->arrayAttribute($run, 'input_snapshot');
+
+        $this->assertSame('tal94-demand-v2', $snapshot['contract_version']);
+        $this->assertSame('balanced_v1', $snapshot['constraint_profile']['key']);
+        $this->assertSame(1, $snapshot['constraint_profile']['version']);
+        $this->assertEquals([
+            'prefer_earlier_time_blocks' => 1,
+            'reduce_faculty_idle_gaps' => 1,
+            'balance_faculty_load' => 1,
+            'use_rooms_efficiently' => 1,
+        ], $snapshot['constraint_profile']['soft_weights']);
+        $this->assertSame([1, 2, 4, 6], $snapshot['term']['scheduling_days']);
+        $this->assertSame('08:00:00', $snapshot['term']['scheduling_day_starts_at']);
+        $this->assertSame('18:00:00', $snapshot['term']['scheduling_day_ends_at']);
+        $this->assertSame([1, 2, 4, 6], collect($snapshot['time_slots'])->pluck('day_of_week')->unique()->values()->all());
+        $this->assertSame(['PROJECTOR'], $snapshot['scheduling_demands'][0]['required_room_feature_keys']);
+        $this->assertSame('3.00', $snapshot['scheduling_demands'][0]['load_units']);
+        $this->assertContains('PROJECTOR', collect($snapshot['rooms'])->firstWhere('room_id', $room->id)['feature_keys']);
     }
 
     public function test_snapshot_emits_only_deterministic_recurring_calendar_blocks(): void
@@ -359,7 +399,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
             'runtime_seconds' => 0.21,
             'objective_score' => 1,
             'solver_version' => 'cloud-run-tal63',
-            'model_version' => 'tal61-demand-v1',
+            'model_version' => 'tal94-demand-v2',
             'generated_at' => now()->toIso8601String(),
         ]);
 

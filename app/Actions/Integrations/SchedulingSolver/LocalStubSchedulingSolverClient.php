@@ -30,7 +30,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
 
         return [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
-            'solver_status' => $conflictCount > 0 ? 'partial' : 'optimal',
+            'solver_status' => $conflictCount > 0 ? 'infeasible' : 'optimal',
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
             'assignments' => $assignments,
             'hard_constraint_violations' => $conflictCount,
@@ -42,8 +42,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'warnings' => [],
             'runtime_seconds' => 0.0,
             'objective_score' => max(0, count($assignments) - $conflictCount),
-            'solver_version' => 'local-stub-tal61-demand-v1',
-            'model_version' => 'tal61-demand-v1',
+            'solver_version' => 'local-stub-tal94-demand-v2',
+            'model_version' => 'tal94-demand-v2',
             'generated_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
             'assigned_count' => count($assignments) - $conflictCount,
             'unassigned_count' => $conflictCount,
@@ -151,19 +151,22 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
      */
     private function roomId(array $snapshot, array $demand): ?int
     {
-        if (($demand['fixed_room_id'] ?? null) !== null) {
-            return (int) $demand['fixed_room_id'];
-        }
-
         if (($demand['room_required'] ?? false) !== true) {
             return null;
         }
 
+        $fixedRoomId = ($demand['fixed_room_id'] ?? null) !== null ? (int) $demand['fixed_room_id'] : null;
         $roomType = $demand['room_type_requirement'] ?? null;
         $expectedCount = (int) ($demand['expected_count'] ?? 0);
+        $requiredFeatures = collect($demand['required_room_feature_keys'] ?? [])
+            ->map(fn (mixed $key): string => strtoupper((string) $key));
 
         foreach (($snapshot['rooms'] ?? []) as $room) {
             if (! is_array($room)) {
+                continue;
+            }
+
+            if ($fixedRoomId !== null && (int) $room['room_id'] !== $fixedRoomId) {
                 continue;
             }
 
@@ -172,6 +175,13 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             }
 
             if ((int) ($room['capacity'] ?? 0) < $expectedCount) {
+                continue;
+            }
+
+            $roomFeatures = collect($room['feature_keys'] ?? [])
+                ->map(fn (mixed $key): string => strtoupper((string) $key));
+
+            if ($requiredFeatures->diff($roomFeatures)->isNotEmpty()) {
                 continue;
             }
 
@@ -189,6 +199,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
      */
     private function time(array $snapshot, array $demand, ?int $facultyId, ?int $roomId, array $used): ?array
     {
+        $dayEndsAt = (string) ($snapshot['term']['scheduling_day_ends_at'] ?? '20:00:00');
+
         if (($demand['fixed_day_of_week'] ?? null) !== null && ($demand['fixed_start_time'] ?? null) !== null) {
             $startsAt = (string) $demand['fixed_start_time'];
             $endsAt = $this->addMinutes($startsAt, (int) $demand['required_duration_minutes']);
@@ -210,7 +222,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             $startsAt = (string) $slot['starts_at'];
             $endsAt = $this->addMinutes($startsAt, (int) $demand['required_duration_minutes']);
 
-            if ($endsAt > '20:00:00') {
+            if ($endsAt > $dayEndsAt) {
                 continue;
             }
 

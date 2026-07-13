@@ -10,6 +10,7 @@ use App\Models\Term;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -101,6 +102,9 @@ class CourseSpecificationForm
                                 ->options(CourseComponent::roomTypeOptions())
                                 ->searchable()
                                 ->nullable(),
+                            TagsInput::make('required_room_feature_keys')
+                                ->label('Required Room Features')
+                                ->helperText('Use the same uppercase feature keys maintained on Room records.'),
                             Select::make('modality_restriction')
                                 ->options(CourseSpecification::modalityOptions())
                                 ->nullable(),

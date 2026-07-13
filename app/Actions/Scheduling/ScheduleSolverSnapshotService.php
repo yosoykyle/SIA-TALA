@@ -20,11 +20,11 @@ use Illuminate\Validation\ValidationException;
 
 class ScheduleSolverSnapshotService
 {
-    private const ContractVersion = 'tal61-demand-v1';
+    private const ContractVersion = 'tal94-demand-v2';
 
-    private const DayStartsAt = '07:00:00';
+    private const DefaultDayStartsAt = '07:00:00';
 
-    private const DayEndsAt = '20:00:00';
+    private const DefaultDayEndsAt = '20:00:00';
 
     /**
      * @return array<string, mixed>
@@ -137,6 +137,9 @@ class ScheduleSolverSnapshotService
                 'starts_on' => $this->dateString($term->getAttribute('starts_on')),
                 'ends_on' => $this->dateString($term->getAttribute('ends_on')),
                 'scheduling_slot_minutes' => (int) $term->scheduling_slot_minutes,
+                'scheduling_days' => $this->schedulingDays($term),
+                'scheduling_day_starts_at' => $this->timeString($term->scheduling_day_starts_at) ?? self::DefaultDayStartsAt,
+                'scheduling_day_ends_at' => $this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt,
                 'default_max_units' => $term->default_max_units,
             ],
             'time_slots' => $timeSlots,
@@ -153,6 +156,12 @@ class ScheduleSolverSnapshotService
             'calendar_blocks' => $this->calendarBlocksPayload($term),
             'hard_constraints' => $this->hardConstraints(),
             'soft_constraints' => $this->softConstraints(),
+            'constraint_profile' => [
+                'key' => 'balanced_v1',
+                'version' => 1,
+                'hard_constraints' => $this->hardConstraints(),
+                'soft_weights' => array_fill_keys($this->softConstraints(), 1),
+            ],
             'fixed_assignments' => $this->fixedAssignmentsPayload($demandPayload),
             'optimization_settings' => [
                 'slot_granularity_minutes' => (int) $term->scheduling_slot_minutes,
@@ -168,12 +177,12 @@ class ScheduleSolverSnapshotService
     private function timeSlots(Term $term): array
     {
         $slotMinutes = max(1, (int) $term->scheduling_slot_minutes);
-        $dayStart = $this->minutes(self::DayStartsAt);
-        $dayEnd = $this->minutes(self::DayEndsAt);
+        $dayStart = $this->minutes($this->timeString($term->scheduling_day_starts_at) ?? self::DefaultDayStartsAt);
+        $dayEnd = $this->minutes($this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt);
         $slots = [];
         $id = 1;
 
-        for ($day = 1; $day <= 6; $day++) {
+        foreach ($this->schedulingDays($term) as $day) {
             for ($startsAt = $dayStart; $startsAt + $slotMinutes <= $dayEnd; $startsAt += $slotMinutes) {
                 $endsAt = $startsAt + $slotMinutes;
 
@@ -231,6 +240,14 @@ class ScheduleSolverSnapshotService
                     'expected_count' => (int) ($source['expected_count'] ?? $group->expected_count ?? 0),
                     'section_capacity' => (int) ($source['section_capacity'] ?? $section->capacity ?? 0),
                     'room_type_requirement' => $source['room_type_requirement'] ?? null,
+                    'required_room_feature_keys' => collect($component->required_room_feature_keys ?? [])
+                        ->map(fn (mixed $key): string => strtoupper(trim((string) $key)))
+                        ->filter()
+                        ->unique()
+                        ->sort()
+                        ->values()
+                        ->all(),
+                    'load_units' => $specification?->credit_units,
                     'room_required' => $demand->modality === TermOffering::ModalityFaceToFace,
                     'same_faculty_required' => (bool) ($source['same_faculty_required'] ?? false),
                     'requires_consecutive_block' => (bool) ($component->requires_consecutive_block ?? false),
@@ -309,6 +326,7 @@ class ScheduleSolverSnapshotService
     private function roomsPayload(): array
     {
         return Room::query()
+            ->with('features')
             ->where('is_active', true)
             ->orderBy('id')
             ->get()
@@ -318,6 +336,13 @@ class ScheduleSolverSnapshotService
                 'name' => $room->name,
                 'room_type' => $room->room_type,
                 'capacity' => (int) $room->capacity,
+                'feature_keys' => $room->features
+                    ->pluck('feature_key')
+                    ->map(fn (mixed $key): string => strtoupper(trim((string) $key)))
+                    ->unique()
+                    ->sort()
+                    ->values()
+                    ->all(),
             ])
             ->values()
             ->all();
@@ -437,7 +462,7 @@ class ScheduleSolverSnapshotService
             'section_delivery_group_no_overlap',
             'respect_fixed_assignments',
             'respect_calendar_blocks',
-            'respect_room_capacity_and_type',
+            'respect_room_capacity_type_and_features',
             'respect_faculty_qualification_and_load',
         ];
     }
@@ -480,6 +505,22 @@ class ScheduleSolverSnapshotService
     private function nullableInt(mixed $value): ?int
     {
         return $value === null || $value === '' ? null : (int) $value;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function schedulingDays(Term $term): array
+    {
+        $days = collect($term->scheduling_days ?? [1, 2, 3, 4, 5, 6])
+            ->map(fn (mixed $day): int => (int) $day)
+            ->filter(fn (int $day): bool => $day >= 1 && $day <= 7)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        return $days !== [] ? $days : [1, 2, 3, 4, 5, 6];
     }
 
     /**

@@ -416,7 +416,7 @@ TALA must support retention categories and disposal controls.
 | Simple configuration record | Record Form with typed values, effective dates, status, and audit metadata |
 | Repeated configuration such as fees, holds, requirements, policies, or authorities | Editable Table opening a Record Form per row; active historical values are preserved |
 | Date-based policy windows | Calendar / Date-Range Input linked to the relevant Term or policy scope |
-| Scheduling policy and Institutional Break Blocks | Editable Table for constraint profile values plus Calendar / Date-Range Input for break blocks and blocked periods |
+| Scheduling policy and Institutional Break Blocks | Generated Read-Only View for the versioned code-defined constraint profile plus Calendar / Date-Range Input for break blocks and blocked periods |
 | Grade Outcome policy | Editable Table defining allowed mark, category, finality, prerequisite effect, GWA effect, student-facing label, active status, formula/version reference, numeric conversion range, passing threshold, submission authority, INC deadline rule, and lapsed-INC behavior |
 | Late grade authorization authority | Editable Table or Record Form defining authorized approvers, scope, deadline rule, and audit requirement |
 | Student Unit Load Exception policy | Editable Table defining normal max units, excess-unit cap, allowed standing/scope, authority, and active status |
