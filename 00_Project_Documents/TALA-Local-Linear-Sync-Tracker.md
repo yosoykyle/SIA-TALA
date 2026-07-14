@@ -100,6 +100,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94E1 | Done locally; pending explicit Linear sync | Solver Transport and Cloud Artifact Hardening |
 | TAL-94E2a | Done locally; pending explicit Linear sync | Queue Reliability and Solver Operations |
 | TAL-94E2b | Done locally; pending explicit Linear sync | Schedule Released Email Evidence |
+| TAL-94E3a | Done locally; pending explicit Linear sync | Private Revision Deployment and IAM Proof |
 
 ## Compact Synced History
 
