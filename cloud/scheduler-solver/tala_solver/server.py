@@ -1,70 +1,97 @@
 from __future__ import annotations
 
-import json
 import os
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
 
-from tala_solver.solver import solve_snapshot
+from flask import Flask, Response, jsonify, request
+from werkzeug.exceptions import BadRequest, HTTPException
+
+from tala_solver.solver import CONTRACT_VERSION, SOLVER_VERSION, solve_snapshot
 
 
-class SolverRequestHandler(BaseHTTPRequestHandler):
-    server_version = "TALASchedulerSolver/0.1"
+def create_app() -> Flask:
+    app = Flask(__name__)
 
-    def do_GET(self) -> None:
-        if self.path not in {"/", "/health"}:
-            self._json_response(404, {"status": "not_found"})
-            return
+    @app.get("/health")
+    def health() -> Response:
+        return jsonify(
+            status="ok",
+            service="tala-scheduler-solver",
+            contract_version=CONTRACT_VERSION,
+            solver_version=SOLVER_VERSION,
+        )
 
-        self._json_response(200, {"status": "ok", "service": "tala-scheduler-solver"})
-
-    def do_POST(self) -> None:
-        if self.path != "/solve":
-            self._json_response(404, {"status": "not_found"})
-            return
+    @app.post("/solve")
+    def solve() -> tuple[Response, int] | Response:
+        if not request.is_json:
+            return _error(
+                400,
+                "bad_request",
+                "json_required",
+                "Request body must be a JSON object.",
+            )
 
         try:
-            snapshot = self._json_body()
-        except ValueError as exception:
-            self._json_response(400, {"status": "bad_request", "message": str(exception)})
-            return
+            snapshot = request.get_json()
+        except BadRequest:
+            return _error(
+                400,
+                "bad_request",
+                "invalid_json",
+                "Request body must contain valid JSON.",
+            )
 
         if not isinstance(snapshot, dict):
-            self._json_response(400, {"status": "bad_request", "message": "Snapshot payload must be a JSON object."})
-            return
-
-        timeout = int(os.environ.get("SOLVER_TIMEOUT_SECONDS", "300"))
-        result = solve_snapshot(snapshot, timeout_seconds=timeout)
-        self._json_response(200, result)
-
-    def log_message(self, format: str, *args: Any) -> None:
-        return
-
-    def _json_body(self) -> Any:
-        content_length = int(self.headers.get("Content-Length") or 0)
-
-        if content_length <= 0:
-            raise ValueError("Request body is required.")
+            return _error(
+                400,
+                "bad_request",
+                "object_required",
+                "Snapshot payload must be a JSON object.",
+            )
 
         try:
-            return json.loads(self.rfile.read(content_length).decode("utf-8"))
-        except json.JSONDecodeError as exception:
-            raise ValueError("Request body must be valid JSON.") from exception
+            result = solve_snapshot(snapshot, timeout_seconds=_solver_timeout_seconds())
+        except Exception:
+            app.logger.exception("Scheduling solver request failed.")
 
-    def _json_response(self, status: int, payload: dict[str, Any]) -> None:
-        encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(encoded)))
-        self.end_headers()
-        self.wfile.write(encoded)
+            return _error(
+                500,
+                "error",
+                "internal_error",
+                "The scheduling solver could not process the request.",
+            )
+
+        return jsonify(result)
+
+    @app.errorhandler(404)
+    def not_found(_: HTTPException) -> tuple[Response, int]:
+        return _error(404, "error", "not_found", "The requested endpoint does not exist.")
+
+    @app.errorhandler(405)
+    def method_not_allowed(_: HTTPException) -> tuple[Response, int]:
+        return _error(405, "error", "method_not_allowed", "The HTTP method is not allowed for this endpoint.")
+
+    return app
+
+
+def _solver_timeout_seconds() -> int:
+    try:
+        configured = int(os.environ.get("SOLVER_TIMEOUT_SECONDS", "300"))
+    except ValueError:
+        configured = 300
+
+    return max(1, min(configured, 300))
+
+
+def _error(status_code: int, status: str, code: str, message: str) -> tuple[Response, int]:
+    return jsonify(status=status, code=code, message=message), status_code
+
+
+app = create_app()
 
 
 def main() -> None:
     port = int(os.environ.get("PORT", "8080"))
-    server = ThreadingHTTPServer(("0.0.0.0", port), SolverRequestHandler)
-    print(f"TALA scheduler solver listening on 0.0.0.0:{port}", flush=True)
-    server.serve_forever()
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 
 if __name__ == "__main__":

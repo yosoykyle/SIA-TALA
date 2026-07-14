@@ -47,11 +47,9 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
      */
     public function probe(): array
     {
-        $baseUrl = $this->baseUrl();
-
         try {
             $response = $this->authorizedRequest()
-                ->get($baseUrl)
+                ->get($this->endpoint('/health'))
                 ->throw();
         } catch (Throwable $exception) {
             throw new RuntimeException('Scheduling solver probe failed.', 0, $exception);

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Mail\TestConnectionMail;
 use App\Models\OperationalEvent;
 use App\Models\User;
@@ -57,7 +58,7 @@ class IntegrationStatus extends Page
     }
 
     /**
-     * @return list<array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>}>
+     * @return list<array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label?: string}>
      */
     public function getIntegrationsProperty(): array
     {
@@ -173,23 +174,81 @@ class IntegrationStatus extends Page
         ];
     }
 
-    /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>} */
+    /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label: string} */
     private function schedulerStatus(): array
     {
         $driver = (string) config('tala_integrations.scheduling_solver.driver');
-        $isLive = $driver !== 'local_stub';
+        $url = config('tala_integrations.scheduling_solver.url') !== null
+            ? (string) config('tala_integrations.scheduling_solver.url')
+            : null;
+        $audience = config('tala_integrations.scheduling_solver.audience') !== null
+            ? (string) config('tala_integrations.scheduling_solver.audience')
+            : null;
+        $credentialsPath = config('tala_integrations.scheduling_solver.credentials_path') !== null
+            ? (string) config('tala_integrations.scheduling_solver.credentials_path')
+            : null;
+
+        $configured = match ($driver) {
+            'local_stub' => true,
+            'local_http' => LocalHttpSchedulingSolverClient::supportsEnvironment(app()->environment())
+                && LocalHttpSchedulingSolverClient::supportsBaseUrl($url),
+            'cloud_run' => $this->isHttpsBaseUrl($url)
+                && $this->isHttpsBaseUrl($audience)
+                && filled($credentialsPath)
+                && is_readable((string) $credentialsPath),
+            default => false,
+        };
+
+        $modeLabel = match ($driver) {
+            'local_stub' => 'Stub',
+            'local_http' => 'Local CP-SAT',
+            'cloud_run' => 'Private Cloud Run',
+            default => 'Unsupported',
+        };
+
+        $reference = match ($driver) {
+            'local_stub' => [
+                'Transport' => 'In-process deterministic test double',
+                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
+            ],
+            'local_http' => [
+                'URL' => (string) $url,
+                'Health endpoint' => rtrim((string) $url, '/').'/health',
+                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
+            ],
+            'cloud_run' => [
+                'URL' => (string) $url,
+                'Audience' => (string) $audience,
+                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
+            ],
+            default => [
+                'Transport' => 'Unsupported driver configuration',
+            ],
+        };
 
         return [
             'name' => 'Scheduler (CP-SAT solver)',
             'driver' => $driver,
-            'live_mode' => $isLive,
-            'configured' => ! $isLive || (filled(config('tala_integrations.scheduling_solver.url')) && filled(config('tala_integrations.scheduling_solver.audience'))),
-            'reference' => [
-                'URL' => (string) config('tala_integrations.scheduling_solver.url'),
-                'Audience' => (string) config('tala_integrations.scheduling_solver.audience'),
-                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
-            ],
+            'live_mode' => $driver === 'cloud_run',
+            'configured' => $configured,
+            'mode_label' => $modeLabel,
+            'reference' => $reference,
         ];
+    }
+
+    private function isHttpsBaseUrl(?string $url): bool
+    {
+        $parts = parse_url(trim((string) $url));
+        $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
+
+        return is_array($parts)
+            && ($parts['scheme'] ?? null) === 'https'
+            && filled($parts['host'] ?? null)
+            && ! array_key_exists('user', $parts)
+            && ! array_key_exists('pass', $parts)
+            && ! array_key_exists('query', $parts)
+            && ! array_key_exists('fragment', $parts)
+            && in_array($path, ['', '/'], true);
     }
 
     private function actor(): User

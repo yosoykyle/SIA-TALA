@@ -3,7 +3,6 @@
 return [
     'scheduling_solver' => [
         'driver' => env('TALA_SCHEDULING_SOLVER_DRIVER', 'local_stub'),
-        'auth' => env('TALA_SCHEDULING_SOLVER_AUTH', 'iam_private'),
         'url' => env('TALA_SCHEDULING_SOLVER_URL'),
         'audience' => env('TALA_SCHEDULING_SOLVER_AUDIENCE'),
         'credentials_path' => env('TALA_SCHEDULING_SOLVER_CREDENTIALS'),

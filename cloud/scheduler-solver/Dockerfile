@@ -12,5 +12,10 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 COPY tala_solver ./tala_solver
 
+RUN groupadd --gid 10001 tala \
+    && useradd --uid 10001 --gid tala --no-log-init --create-home tala
+
+USER tala
+
 EXPOSE 8080
-CMD ["python", "-m", "tala_solver.server"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT} --workers 1 --threads 2 --timeout 330 --access-logfile - --error-logfile - tala_solver.server:app"]

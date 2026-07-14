@@ -97,6 +97,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94D3a | Done locally; pending explicit Linear sync | Revision Action and History UX |
 | TAL-94D3b | Done locally; pending explicit Linear sync | Affected-User Email and Delivery Evidence |
 | TAL-94D3c | Done locally; pending explicit Linear sync | Schedule Projections and Cross-Role Acceptance |
+| TAL-94E1 | Done locally; pending explicit Linear sync | Solver Transport and Cloud Artifact Hardening |
 
 ## Compact Synced History
 

@@ -224,7 +224,7 @@
     "section_delivery_group_no_overlap",
     "respect_fixed_assignments",
     "respect_calendar_blocks",
-    "respect_room_capacity_and_type",
+    "respect_room_capacity_type_and_features",
     "respect_faculty_qualification_and_load"
   ],
   "soft_constraints": [

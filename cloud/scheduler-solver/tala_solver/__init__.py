@@ -1,1 +1,1 @@
-"""TALA Cloud Run OR-Tools solver POC."""
+"""TALA Cloud Run OR-Tools solver service."""

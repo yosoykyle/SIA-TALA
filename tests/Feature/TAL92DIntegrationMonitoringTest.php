@@ -170,6 +170,58 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     }
 
     #[Test]
+    public function scheduler_status_distinguishes_stub_local_and_private_cloud_run_modes(): void
+    {
+        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($superAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Config::set('tala_integrations.scheduling_solver.driver', 'local_stub');
+        Config::set('tala_integrations.scheduling_solver.url', null);
+        $stubHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $this->assertStringContainsString('Stub', $stubHtml);
+        $this->assertStringContainsString('Configured ✓', $stubHtml);
+
+        Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
+        Config::set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
+        Config::set('tala_integrations.scheduling_solver.audience', null);
+        Config::set('tala_integrations.scheduling_solver.credentials_path', null);
+        $localHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $this->assertStringContainsString('Local CP-SAT', $localHtml);
+        $this->assertStringContainsString('http://127.0.0.1:8080', $localHtml);
+        $this->assertStringContainsString('Configured ✓', $localHtml);
+
+        Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
+        Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
+        Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
+        Config::set('tala_integrations.scheduling_solver.credentials_path', __FILE__);
+        $cloudHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $this->assertStringContainsString('Private Cloud Run', $cloudHtml);
+        $this->assertStringContainsString('Configured ✓', $cloudHtml);
+        $this->assertStringNotContainsString(__FILE__, $cloudHtml);
+    }
+
+    #[Test]
+    public function scheduler_status_rejects_remote_local_http_and_incomplete_cloud_run_configuration(): void
+    {
+        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($superAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
+        Config::set('tala_integrations.scheduling_solver.url', 'http://192.168.1.10:8080');
+        $remoteLocalHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $this->assertStringContainsString('Not configured ✗', $remoteLocalHtml);
+
+        Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
+        Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
+        Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
+        Config::set('tala_integrations.scheduling_solver.credentials_path', null);
+        $missingCredentialsHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $this->assertStringContainsString('Not configured ✗', $missingCredentialsHtml);
+    }
+
+    #[Test]
     public function send_test_email_action_targets_only_the_acting_admin_and_logs_one_operational_event(): void
     {
         Mail::fake();

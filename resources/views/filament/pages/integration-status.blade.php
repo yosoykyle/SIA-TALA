@@ -12,7 +12,7 @@
                     </x-filament::badge>
 
                     <x-filament::badge :color="$integration['live_mode'] ? 'warning' : 'gray'">
-                        {{ $integration['live_mode'] ? 'Live mode' : 'Practice / mock mode' }}
+                        {{ $integration['mode_label'] ?? ($integration['live_mode'] ? 'Live mode' : 'Practice / mock mode') }}
                     </x-filament::badge>
 
                     <x-filament::badge :color="$integration['configured'] ? 'success' : 'danger'">

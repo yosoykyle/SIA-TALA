@@ -8,6 +8,7 @@ use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
+use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Listeners\LogAuthenticationActivity;
@@ -112,9 +113,21 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(LocalHttpSchedulingSolverClient::class, function ($app): LocalHttpSchedulingSolverClient {
+            return new LocalHttpSchedulingSolverClient(
+                baseUrl: config('tala_integrations.scheduling_solver.url') !== null
+                    ? (string) config('tala_integrations.scheduling_solver.url')
+                    : null,
+                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 300),
+                connectTimeoutSeconds: (int) config('tala_integrations.scheduling_solver.connect_timeout_seconds', 10),
+                environment: $app->environment(),
+            );
+        });
+
         $this->app->singleton(SchedulingSolverClient::class, function ($app): SchedulingSolverClient {
             return match (config('tala_integrations.scheduling_solver.driver', 'local_stub')) {
                 'local_stub' => new LocalStubSchedulingSolverClient,
+                'local_http' => $app->make(LocalHttpSchedulingSolverClient::class),
                 'cloud_run' => $app->make(CloudRunSchedulingSolverClient::class),
                 default => throw new InvalidArgumentException('Unsupported TALA scheduling solver driver configured.'),
             };
