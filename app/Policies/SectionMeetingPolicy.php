@@ -12,7 +12,6 @@ class SectionMeetingPolicy
         return $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ]);
     }
 

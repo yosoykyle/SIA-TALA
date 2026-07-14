@@ -99,6 +99,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94D2 | Done locally; pending explicit Linear sync | Controlled Live Revision Domain |
 | TAL-94D3a | Done locally; pending explicit Linear sync | Revision Action and History UX |
 | TAL-94D3b | Done locally; pending explicit Linear sync | Affected-User Email and Delivery Evidence |
+| TAL-94D3c | Done locally; pending explicit Linear sync | Schedule Projections and Cross-Role Acceptance |
 
 ## Compact Synced History
 

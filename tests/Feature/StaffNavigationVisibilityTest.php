@@ -137,7 +137,7 @@ class StaffNavigationVisibilityTest extends TestCase
             'accounting has no registrar or system admin navigation' => [
                 'role' => User::StaffRoleAccounting,
                 'forbiddenGroups' => ['Registrar', 'System Administration', 'Faculty', 'Academic Head'],
-                'forbiddenLabels' => ['COR Controls', 'Applicant Review', 'Document Review', 'Schedule Drafts', 'Audit Logs'],
+                'forbiddenLabels' => ['COR Controls', 'Applicant Review', 'Document Review', 'Schedule Drafts', 'Assigned Schedule', 'Audit Logs'],
             ],
             'faculty has no registrar accounting or system admin navigation' => [
                 'role' => User::StaffRoleFaculty,
@@ -147,17 +147,17 @@ class StaffNavigationVisibilityTest extends TestCase
             'academic head has no registrar accounting or system admin navigation groups' => [
                 'role' => User::StaffRoleAcademicHead,
                 'forbiddenGroups' => ['Registrar', 'Accounting', 'System Administration', 'Faculty'],
-                'forbiddenLabels' => ['Applicant Review', 'Document Review', 'COR Controls', 'Accounting Adjustments', 'Payment Queue', 'Confirmed Payments'],
+                'forbiddenLabels' => ['Applicant Review', 'Document Review', 'COR Controls', 'Accounting Adjustments', 'Payment Queue', 'Confirmed Payments', 'Assigned Schedule'],
             ],
             'system super admin has no operational workspace navigation' => [
                 'role' => User::StaffRoleSystemSuperAdmin,
                 'forbiddenGroups' => ['Registrar', 'Accounting', 'Faculty', 'Academic Head'],
-                'forbiddenLabels' => ['COR Controls', 'Faculty Subject Eligibility', 'Schedule Drafts', 'Enrollments', 'Payment Queue'],
+                'forbiddenLabels' => ['COR Controls', 'Faculty Subject Eligibility', 'Schedule Drafts', 'Assigned Schedule', 'Enrollments', 'Payment Queue'],
             ],
             'registrar has no accounting faculty or system admin navigation' => [
                 'role' => User::StaffRoleRegistrar,
                 'forbiddenGroups' => ['Accounting', 'Faculty', 'System Administration', 'Academic Head'],
-                'forbiddenLabels' => ['Payment Queue', 'Confirmed Payments', 'Users', 'Audit Logs'],
+                'forbiddenLabels' => ['Payment Queue', 'Confirmed Payments', 'Assigned Schedule', 'Users', 'Audit Logs'],
             ],
         ];
     }

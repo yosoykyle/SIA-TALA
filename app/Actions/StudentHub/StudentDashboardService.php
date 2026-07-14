@@ -3,14 +3,12 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\StudentLifecycle\HoldEvaluationService;
-use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
@@ -148,19 +146,8 @@ class StudentDashboardService
                 'sectionMeeting.faculty',
                 'sectionMeeting.room',
             ])
-            ->where('is_active', true)
-            ->whereHas('courseEnrollment', function ($query) use ($enrollment): void {
-                $query
-                    ->where('enrollment_id', $enrollment->id)
-                    ->where('status', CourseEnrollment::StatusActive);
-            })
-            ->whereHas('sectionMeeting', function ($query): void {
-                $query
-                    ->where('state', SectionMeeting::StateActive)
-                    ->whereHas('scheduleRun', function ($query): void {
-                        $query->where('status', ScheduleGenerationRun::StatusPublished);
-                    });
-            })
+            ->activeOfficial()
+            ->forEnrollment($enrollment)
             ->get()
             ->filter(fn (StudentScheduleBinding $binding): bool => $binding->sectionMeeting instanceof SectionMeeting)
             ->sortBy(fn (StudentScheduleBinding $binding): string => sprintf(

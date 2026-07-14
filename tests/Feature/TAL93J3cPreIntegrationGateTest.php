@@ -123,7 +123,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
                 'CalendarEventResource', 'Dashboard', 'FacultyGradeRoster', 'FacultyQualificationResource',
-                'GradeRosterResource',
+                'FacultySchedule', 'GradeRosterResource',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicYearResource', 'CalendarEventResource', 'CourseResource',
@@ -137,8 +137,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'ActivityResource', 'Dashboard', 'DisposalReviewResource', 'EnrollmentResource', 'FaqEntryResource',
                 'GraduationReviewBatchResource', 'IntegrationStatus', 'OperationalEventResource', 'ReportsAudit',
                 'RoleResource', 'ScheduleGenerationRunResource', 'SchedulingDemandResource',
-                'SectionMeetingResource', 'StudentLifecycleChangeResource', 'StudentProfileResource',
-                'SystemSettingResource', 'TermOfferingResource', 'UserResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'SystemSettingResource',
+                'TermOfferingResource', 'UserResource',
             ]],
         ];
     }
@@ -156,7 +156,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'EnrollmentResource',
                 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource',
-                'SectionMeetingResource',
                 'TermOfferingResource',
             ],
         ));
@@ -188,7 +187,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     /** @return list<string> */
     private static function registeredPages(): array
     {
-        return ['Dashboard', 'FacultyGradeRoster', 'ReportsAudit', 'IntegrationStatus'];
+        return ['Dashboard', 'FacultyGradeRoster', 'FacultySchedule', 'ReportsAudit', 'IntegrationStatus'];
     }
 
     /**

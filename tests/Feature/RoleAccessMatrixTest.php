@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\FacultySchedule;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\Payments\PaymentResource;
+use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
@@ -145,6 +147,9 @@ class RoleAccessMatrixTest extends TestCase
             'registrar reaches section placement' => [
                 'role' => 'registrar', 'resource' => SectionResource::class, 'expected' => true,
             ],
+            'registrar reaches official schedules' => [
+                'role' => 'registrar', 'resource' => SectionMeetingResource::class, 'expected' => true,
+            ],
             'registrar reaches applicant review' => [
                 'role' => 'registrar', 'resource' => ApplicantIntakeResource::class, 'expected' => true,
             ],
@@ -160,6 +165,12 @@ class RoleAccessMatrixTest extends TestCase
             'faculty reaches assigned class lists' => [
                 'role' => 'faculty', 'resource' => FacultyGradeRoster::class, 'expected' => true,
             ],
+            'faculty reaches assigned schedules' => [
+                'role' => 'faculty', 'resource' => FacultySchedule::class, 'expected' => true,
+            ],
+            'faculty cannot reach official schedules' => [
+                'role' => 'faculty', 'resource' => SectionMeetingResource::class, 'expected' => false,
+            ],
             'faculty cannot reach section placement' => [
                 'role' => 'faculty', 'resource' => SectionResource::class, 'expected' => false,
             ],
@@ -168,6 +179,9 @@ class RoleAccessMatrixTest extends TestCase
             ],
             'academic head reaches curriculum version' => [
                 'role' => 'academic-head', 'resource' => CurriculumVersionResource::class, 'expected' => true,
+            ],
+            'academic head reaches official schedules' => [
+                'role' => 'academic-head', 'resource' => SectionMeetingResource::class, 'expected' => true,
             ],
             'academic head cannot reach section placement' => [
                 'role' => 'academic-head', 'resource' => SectionResource::class, 'expected' => false,
@@ -180,6 +194,12 @@ class RoleAccessMatrixTest extends TestCase
             ],
             'system super admin cannot reach section placement' => [
                 'role' => 'system-super-admin', 'resource' => SectionResource::class, 'expected' => false,
+            ],
+            'system super admin cannot reach official schedules' => [
+                'role' => 'system-super-admin', 'resource' => SectionMeetingResource::class, 'expected' => false,
+            ],
+            'accounting cannot reach official schedules' => [
+                'role' => 'accounting', 'resource' => SectionMeetingResource::class, 'expected' => false,
             ],
         ];
     }

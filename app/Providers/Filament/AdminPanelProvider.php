@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
@@ -137,6 +138,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 FacultyGradeRoster::class,
+                FacultySchedule::class,
                 ReportsAudit::class,
                 IntegrationStatus::class,
             ])
