@@ -11,7 +11,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 
-class ScheduleRevisionMail extends Mailable implements ShouldQueue
+class ScheduleReleasedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -21,34 +21,28 @@ class ScheduleRevisionMail extends Mailable implements ShouldQueue
 
     public bool $failOnTimeout = true;
 
-    public string $operationalEventType = OperationalEvent::TypeScheduleRevisionEmail;
+    public string $operationalEventType = OperationalEvent::TypeScheduleReleasedEmail;
 
-    /** @var list<array<string, mixed>> */
-    public array $scheduleChanges;
-
-    /**
-     * @param  array<string, mixed>  $revisionPayload
-     */
     public function __construct(
         public int $operationalEventId,
         public string $recipientName,
-        array $revisionPayload,
+        public string $termLabel,
+        public string $scheduleUrl,
     ) {
-        $this->scheduleChanges = $revisionPayload['changes'] ?? [];
         $this->afterCommit();
     }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your published class schedule was updated',
+            subject: 'Your class schedule is available',
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            markdown: 'mail.schedule-revision',
+            markdown: 'mail.schedule-released',
         );
     }
 

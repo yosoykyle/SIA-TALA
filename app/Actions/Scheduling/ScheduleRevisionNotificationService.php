@@ -61,21 +61,21 @@ final class ScheduleRevisionNotificationService
             $externalId = "schedule-revision:{$eventSetHash}:user:{$recipient->id}";
             $deliveryEvent = OperationalEvent::query()->firstOrCreate(
                 [
-                    'event_domain' => 'notifications',
+                    'event_domain' => OperationalEvent::DomainNotifications,
                     'external_id' => $externalId,
                 ],
                 [
-                    'integration' => 'mail',
-                    'channel' => 'email',
-                    'direction' => 'OUTBOUND',
-                    'event_type' => 'schedule_revision_email',
+                    'integration' => OperationalEvent::IntegrationMail,
+                    'channel' => OperationalEvent::ChannelEmail,
+                    'direction' => OperationalEvent::DirectionOutbound,
+                    'event_type' => OperationalEvent::TypeScheduleRevisionEmail,
                     'event_version' => '1',
                     'user_id' => $recipient->id,
                     'recipient_snapshot' => [
                         'user_id' => (int) $recipient->id,
                         'email' => (string) $recipient->email,
                     ],
-                    'status' => 'PENDING',
+                    'status' => OperationalEvent::StatusPending,
                     'occurred_at' => now(),
                     'processed_at' => null,
                     'sent_at' => null,

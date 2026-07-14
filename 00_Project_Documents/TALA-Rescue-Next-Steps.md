@@ -10,16 +10,16 @@ Remaining dependency chain: complete the human-gated CP-SAT and PayMongo integra
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-94 | Split approved; TAL-94A-E2a done locally, TAL-94E2b-E3 pending | CP-SAT Scheduling End-to-End Hardening. Preserve aligned work and do not treat the deployed solver as current until TAL-94E3 proves it. |
+| TAL-94 | Split approved; TAL-94A-E2b done locally, TAL-94E3 pending | CP-SAT Scheduling End-to-End Hardening. Preserve aligned work and do not treat the deployed solver as current until TAL-94E3 proves it. |
 | TAL-94A | Done locally | Solver Contract and Hard Constraints |
 | TAL-94B | Done locally via TAL-94B1/B2 | Solver Result Validation, Diagnostics, and Controlled Revalidation |
 | TAL-94C | Done locally | Candidate Review and Controlled Correction UX |
 | TAL-94D | Done locally via TAL-94D1-D3c | Approval, Publication, Live Revision, Notifications, and Schedule Projections |
-| TAL-94E | Split approved; TAL-94E1/E2a done locally, TAL-94E2b-E3 pending | Solver Transport, Operations, Deployment, and End-to-End Acceptance |
+| TAL-94E | Split approved; TAL-94E1/E2 done locally, TAL-94E3 pending | Solver Transport, Operations, Deployment, and End-to-End Acceptance |
 | TAL-94E1 | Done locally | Solver Transport and Cloud Artifact Hardening |
-| TAL-94E2 | Split approved; TAL-94E2a done locally, TAL-94E2b planned | Queue Reliability, Operations, and Schedule Release |
+| TAL-94E2 | Done locally via TAL-94E2a/E2b | Queue Reliability, Operations, and Schedule Release |
 | TAL-94E2a | Done locally | Queue Reliability and Solver Operations |
-| TAL-94E2b | Planned | Schedule Released Email Evidence: notify assigned faculty after publication and students after official enrollment, with idempotent queued delivery and operational-event evidence. |
+| TAL-94E2b | Done locally | Schedule Released Email Evidence |
 | TAL-94E3 | Planned; human-gated deployment | Private Cloud Run Deployment and End-to-End Acceptance: deploy only after explicit authorization, prove IAM and the V2 revision, then verify dispatch through publication, projections, notification, failure evidence, and rollback. |
 | TAL-95 | Planned; human-gated | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
 | TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
@@ -40,4 +40,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-94E2b**. Re-run the Ground-Truth, Slice Clarity, Benchmark, Qualified-Reference, notification, queue, and affected-user checks before planning Schedule Released email evidence.
+Next primary boundary: **Plan TAL-94E3**. Re-run the Ground-Truth Gate before planning the human-gated private Cloud Run deployment and end-to-end acceptance; do not deploy, push, or call Linear without the corresponding explicit command.

@@ -95,7 +95,7 @@ Notification scope rules:
 5. Grade-release notifications are sent only to the affected student.
 6. V1 notification delivery uses direct email to affected users.
 
-> **V1 implementation note (recorded 2026-07-08, reconciled during TAL-93J3b):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 disposition #17) are routed to post-MVP TAL-100 and are not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps) is captured by the `operational_events` monitoring surface delivered under TAL-92D. (The student-facing Student Hub priority notices delivered under TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production Payment Received and Schedule Released triggers remain routed to TAL-95 and TAL-94 respectively, each subject to its integration Ground-Truth Gate.
+> **V1 implementation note (recorded 2026-07-08, reconciled during TAL-93J3b and TAL-94E2b):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 disposition #17) are routed to post-MVP TAL-100 and are not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps, and transport message ID for accepted sends) is captured by the `operational_events` monitoring surface delivered under TAL-92D. (The student-facing Student Hub priority notices delivered under TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production Payment Received and Schedule Released triggers remain routed to TAL-95 and TAL-94 respectively, each subject to its integration Ground-Truth Gate.
 
 ---
 
@@ -303,16 +303,16 @@ Settings:
 1. Mail transport and credential reference.
 2. Verified sender email address.
 3. Active / inactive status.
-4. Daily/monthly email send usage counter.
+4. Delivery status and accepted transport metadata through Operational Events.
 5. Exception event logging (failed delivery attempts).
 
 Rules:
 
 1. Email templates must be rendered with minimal necessary personal data.
 2. Email delivery failures must be logged in TALA’s integration logs.
-3. Successful email delivery metadata (message ID, recipient, timestamp) must be recorded in notification history.
+3. Successful email transport-acceptance metadata (message ID, recipient, timestamp) must be recorded in `operational_events`.
 
-> **Implementation note (recorded 2026-07-08, reconciled during TAL-93J3b):** integration/email settings (mail transport, PayMongo keys, and scheduler credentials) are environment-managed — driver selection and secrets live in `.env`/`config/`, never in the database or rendered in the UI. TALA exposes a restricted read-only status view (`App\Filament\Pages\IntegrationStatus`) showing current driver/mode, configured-or-not (derived from whether a required secret/key is non-empty, never its value), and non-secret reference fields, plus a safe "Send test email" action that always targets only the acting admin's own address. The Operational Events monitor (§13.8 "Integration events and failures" row) reviews integration outcomes read-only in V1 via `OperationalEventResource`. Safe/idempotent retry execution remains routed to TAL-95 and TAL-94 and may be added only after each integration Ground-Truth Gate proves the corresponding live handler. The daily/monthly email send-usage counter and successful-delivery notification-history metadata are not planned MVP work; a future approved requirement must receive its own Next Steps issue.
+> **Implementation note (recorded 2026-07-08, reconciled during TAL-93J3b and TAL-94E2b):** integration/email settings (mail transport, PayMongo keys, and scheduler credentials) are environment-managed — driver selection and secrets live in `.env`/`config/`, never in the database or rendered in the UI. TALA exposes a restricted read-only status view (`App\Filament\Pages\IntegrationStatus`) showing current driver/mode, configured-or-not (derived from whether a required secret/key is non-empty, never its value), and non-secret reference fields, plus a safe "Send test email" action that always targets only the acting admin's own address. The Operational Events monitor (§13.8 "Integration events and failures" row) reviews integration outcomes read-only in V1 via `OperationalEventResource`. Safe/idempotent retry execution remains routed to TAL-95 and TAL-94 and may be added only after each integration Ground-Truth Gate proves the corresponding live handler. V1 stores accepted and failed delivery evidence in `operational_events`; it does not require a separate notification-history table. A daily/monthly email send-usage counter is not planned MVP work and requires a future approved Next Steps issue if later requested.
 
 ---
 

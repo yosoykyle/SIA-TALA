@@ -155,7 +155,7 @@ Staff dashboards show a small number of actionable counts and links. The operati
 | Student Hub and Applicant Workspace pages | Use native Filament pages | Student and applicant surfaces are task-focused panels, not generic CRUD portals. Filament pages composed from forms, tables, infolists, and actions keep authorization server-side. | Low to medium, depending on source-record readiness. | Future learner-facing slices should build read-mostly pages after the owning staff source records exist. |
 | Calendar-like scheduling views | Not planned for MVP | MVP scheduling review is table-first; date/time inputs and validation tables are sufficient. | Low; avoiding an unproven plugin preserves the validated table path. | No active Next Steps issue. A future approved visualization must receive a new bounded issue and may supplement, never replace, the canonical table and validation path. |
 | TallStackUI | Keep available outside the public landing replacement | TallStackUI remains installed for non-Filament Blade/Livewire surfaces that prove a need. The current public landing page is implemented with isolated Bootstrap assets instead. | Low if it stays out of Filament panel implementation decisions and Bootstrap remains landing-only. | Use TallStackUI only for non-Filament Blade/Livewire surfaces with a documented need. |
-| Activity Log plugin | Use existing plugin | The existing Activity Resource gives System Super Admin audit visibility aligned with Module 13. | Low if activity tables remain migrated and authorization is retained. | Official-record slices should write audit events and expose them through the accepted audit surface. |
+| Activity Log surface | Use the hand-built resource | The registered read-only `ActivityResource` gives System Super Admin audit visibility aligned with Module 13. | Low if activity tables remain migrated and authorization is retained. | Official-record slices should write audit events and expose them through the accepted audit surface. |
 | Additional UI/plugins | Not planned | No current PRD requirement proves a need for saved-filter, import, calendar, dashboard, permissions, or custom UI plugins beyond accepted native Filament surfaces. | Low; rejecting speculative dependencies preserves dependency discipline. | No active Next Steps issue. A future proposal requires a proven capability gap and a new approved bounded issue. |
 
 ## TAL-71 Finance Output and Student Hub Decisions
@@ -232,7 +232,7 @@ Approved baseline:
 1. Core Filament v5 for authenticated UI.
 2. Existing Auth Designer integration for Filament panel authentication screens, preserving the custom Applicant registration page.
 3. Isolated Bootstrap v5.3.3 public assets for the public landing page; existing TallStackUI components remain available for other non-Filament Blade/Livewire surfaces with a documented need.
-4. Existing `pxlrbt/filament-activity-log` integration for authorized audit visibility when it satisfies Module 13.
+4. Hand-built read-only `ActivityResource` for authorized audit visibility under Module 13.
 5. Native CSV import/export handling for fixed templates; no spreadsheet package is required.
 
 Do not add a calendar, saved-filter, dashboard, permissions, import, or custom UI plugin until a vertical slice documents a required capability gap, compatibility check, maintenance cost, and focused test plan.

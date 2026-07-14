@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property array<string, mixed>|null $diagnostics
+ * @property array<string, mixed>|null $payload
+ * @property array<string, mixed>|null $recipient_snapshot
+ */
 class OperationalEvent extends Model
 {
     /** @use HasFactory<OperationalEventFactory> */
@@ -16,9 +21,21 @@ class OperationalEvent extends Model
 
     public const DomainIntegration = 'INTEGRATION';
 
+    public const DomainNotifications = 'notifications';
+
     public const IntegrationSchedulingSolver = 'SCHEDULING_SOLVER';
 
+    public const IntegrationMail = 'mail';
+
+    public const ChannelEmail = 'email';
+
+    public const DirectionOutbound = 'OUTBOUND';
+
     public const TypeSolverDispatchAttempt = 'solver_dispatch_attempt';
+
+    public const TypeScheduleRevisionEmail = 'schedule_revision_email';
+
+    public const TypeScheduleReleasedEmail = 'schedule_released_email';
 
     public const StatusPending = 'PENDING';
 

@@ -19,6 +19,7 @@ class SchedulePublishService
     public function __construct(
         private readonly ScheduleAssignmentRevalidationService $revalidator,
         private readonly SchedulePublicationImpactService $impactService,
+        private readonly ScheduleReleaseNotificationService $releaseNotifications,
     ) {}
 
     public function publish(
@@ -161,7 +162,10 @@ class SchedulePublishService
             ]);
         }
 
-        return $outcome['run'];
+        $publishedRun = $outcome['run'];
+        $this->releaseNotifications->recordPublishedRun($publishedRun);
+
+        return $publishedRun;
     }
 
     /**

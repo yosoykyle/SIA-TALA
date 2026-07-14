@@ -2,6 +2,7 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentGateResult;
@@ -18,6 +19,7 @@ class FinalizeOfficialEnrollment
 {
     public function __construct(
         private readonly EnrollmentGateEvaluator $gateEvaluator,
+        private readonly ScheduleReleaseNotificationService $releaseNotifications,
     ) {}
 
     /**
@@ -39,7 +41,7 @@ class FinalizeOfficialEnrollment
         // PRD 7.3 step 12: recheck every enrollment gate before the official transition.
         $this->gateEvaluator->persist($enrollment, $recordedAt);
 
-        return DB::transaction(function () use ($enrollment, $actor, $remark, $recordedAt): Enrollment {
+        $officialEnrollment = DB::transaction(function () use ($enrollment, $actor, $remark, $recordedAt): Enrollment {
             $lockedEnrollment = Enrollment::query()
                 ->with(['studentProfile.user', 'term'])
                 ->lockForUpdate()
@@ -77,6 +79,10 @@ class FinalizeOfficialEnrollment
                 'courseEnrollments.scheduleBindings',
             ]);
         }, attempts: 3);
+
+        $this->releaseNotifications->recordOfficialEnrollment($officialEnrollment);
+
+        return $officialEnrollment;
     }
 
     /**
