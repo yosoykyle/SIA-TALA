@@ -338,6 +338,71 @@ TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS=10
 
 TAL-94E3a stops with the validated candidate at zero default traffic. Do not point persistent Laravel configuration at the tag URL and do not promote the candidate. TAL-94E3b owns the queued Laravel end-to-end acceptance, controlled traffic promotion, and rollback exercise.
 
+### Run the TAL-94E3b1 tagged Laravel acceptance
+
+This opt-in test is the only E3b1 path that calls the private Cloud Run service. It uses `test_tala_db`, a real database queue worker, the staged tag URL, and the canonical service URL as the ID-token audience. It never changes `.env`, Cloud Run traffic, IAM, or service configuration.
+
+Confirm the tagged revision is still private and receives zero default traffic, then set process-only values in the same PowerShell session:
+
+```powershell
+$project = 'tala-dev-ocr-3s'
+$region = 'asia-southeast1'
+$service = 'tala-scheduler-solver'
+$tag = 'e3a-4d17a03ccf1c'
+$state = gcloud run services describe $service --region $region --project $project --format=json | ConvertFrom-Json
+$candidate = $state.status.traffic | Where-Object { $_.tag -eq $tag }
+
+if (-not $candidate.url -or [int] $candidate.percent -ne 0) {
+    throw 'The approved zero-traffic candidate is not available.'
+}
+
+$env:APP_ENV = 'testing'
+$env:DB_CONNECTION = 'mysql'
+$env:DB_DATABASE = 'test_tala_db'
+$env:TALA_E3B1_ACCEPTANCE = '1'
+$env:TALA_E3B1_TAG_URL = $candidate.url
+$env:TALA_E3B1_CANONICAL_URL = $state.status.url
+$env:TALA_E3B1_CREDENTIALS = 'C:\path\outside\git\scheduler-invoker.json'
+```
+
+Reset only the automatic-test database, run the stateful acceptance, and leave its deterministic fixture in place briefly for the rendered browser checks:
+
+```powershell
+php artisan config:clear
+php artisan migrate:fresh --seed --force
+php artisan test --compact tests/Feature/TAL94E3b1TaggedRealServiceAcceptanceTest.php
+```
+
+The test proves that `ScheduleGenerationService` commits one `scheduling` queue job, one bounded database worker calls the tagged V2 service, Laravel accepts exactly two assignments with zero unassigned demands and zero hard violations, publication creates two official meetings, Registrar placement creates two active student bindings, and release-mail intent is recorded without sending email. It also makes one rejected-audience call against the same tag and requires a permanent, redacted failure with no candidate or publication records.
+
+The test fixture provides these temporary accounts, all with password `password`:
+
+| Surface | Account | Expected evidence |
+| --- | --- | --- |
+| Integration Status | `e3b1.admin@example.test` | Scheduler is configured and the private endpoint is reachable. |
+| Schedule Generation Run and Section Meetings | `e3b1.registrar@example.test` | Published V2 run and two active official meetings render without raw diagnostics or errors. |
+| Faculty Schedule | `e3b1.faculty@example.test` | Only the two assigned official meetings render. |
+| Student Schedule | `e3b1.student@example.test` | Only the two active Registrar-placement bindings render. |
+
+Use `/admin/login` for the three staff accounts and `/student/login` for the student account. Sign out between roles. Review recent browser console and server logs across all four surfaces before classifying any finding. A production defect outside the approved E3b1 test and README boundary requires a revised plan; do not patch it opportunistically.
+
+Immediately after the browser checks, or after any interruption, remove all synthetic records and queued/failed jobs by resetting only `test_tala_db`:
+
+```powershell
+$env:APP_ENV = 'testing'
+$env:DB_CONNECTION = 'mysql'
+$env:DB_DATABASE = 'test_tala_db'
+php artisan migrate:fresh --force
+
+Remove-Item Env:TALA_E3B1_ACCEPTANCE -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_TAG_URL -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_CANONICAL_URL -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_CREDENTIALS -ErrorAction SilentlyContinue
+php artisan config:clear
+```
+
+Re-prove that `schedule_runs`, `jobs`, and `failed_jobs` are empty before ending E3b1. TAL-94E3b2, not this acceptance, owns persistent canonical-URL reconciliation, controlled traffic promotion, and the rollback exercise.
+
 ## Current V2 Limitations
 
 - The V2 solver schedules each `Scheduling Demand` as one contiguous block using `required_duration_minutes`, with `source_snapshot.weekly_contact_hours` only as a fallback.
