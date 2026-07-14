@@ -4,17 +4,14 @@
 
 This is the local staging area for completed issues awaiting explicit, user-authorized Linear sync, plus a compact reference for issues already synced. Planning stays in `TALA-Rescue-Next-Steps.md`; only completed local work belongs here. The protocol owns the acceptance and sync rules.
 
-- Record accepted work under Active Syncs as `Done locally; pending explicit Linear sync`, with its bounded local commit.
+- Add accepted work to Active Syncs only after its bounded local commit exists. Keep only the issue ID, `Done locally; pending explicit Linear sync`, and concise title/domain; the commit carries delivery detail and evidence.
 - Never touch Linear from this file. Create, update, comment on, or sync a Linear issue only when the user explicitly says `Sync TAL-XX to Linear`; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the row pending.
 - After an explicit sync, move the row to Compact Synced History with only its ID, Linear status, and title.
-
-## Current Linear Snapshot
 
 ## Active Syncs
 
 | Issue | Local Status | Title / Domain |
 | --- | --- | --- |
-| TAL-79 | Protocol amendment pending explicit Linear sync | Explicit local-commit and Linear-authorization boundary |
 | TAL-80 | Done locally; pending explicit Linear sync | Foundation Acceptance Map and Slice Sequencing |
 | TAL-81 | Done locally; pending explicit Linear sync | Identity, Access, Workspace, and Admin Baseline Acceptance |
 | TAL-82A | Done locally; pending explicit Linear sync | Academic Setup Core Surfaces Acceptance |
@@ -51,31 +48,31 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-89C | Done locally; pending explicit Linear sync | INC Completion/Removal and Posted Correction Acceptance |
 | TAL-89D | Done locally; pending explicit Linear sync | Student Released-Grade Visibility and Cross-Role Grade Regression |
 | TAL-90A | Done locally; pending explicit Linear sync | Progression and Standing Acceptance |
-| TAL-90B | Done locally; pending explicit Linear sync | Graduation Batch and Snapshot Acceptance (incl. PRD §11.3.1 rules 5-7 clarification) |
-| TAL-90C | Done locally; pending explicit Linear sync | Staff Visibility and Student-Safe Completion Regression (incl. PRD §11.3.1 rule 9 inactive-membership retraction) |
-| TAL-91A | Done locally; pending explicit Linear sync | Student Hub Dashboard Priority-Notice Acceptance (PRD §12.2 tiers 1/2/3/5/11; native `databaseNotifications()` + notifications table added) |
-| TAL-91B | Done locally; pending explicit Linear sync | Student-safe Finance Projection and Official-Output Access Logging Acceptance (PRD §12.1 item 14 accommodation staff-field hiding, page-level own-records isolation, §12.2 rule 9 payment/ledger/OR-mapping state distinction; test-only, no production leak found) |
+| TAL-90B | Done locally; pending explicit Linear sync | Graduation Batch and Snapshot Acceptance |
+| TAL-90C | Done locally; pending explicit Linear sync | Staff Visibility and Student-Safe Completion Regression |
+| TAL-91A | Done locally; pending explicit Linear sync | Student Hub Dashboard Priority-Notice Acceptance |
+| TAL-91B | Done locally; pending explicit Linear sync | Student-Safe Finance Projection and Official-Output Access Logging Acceptance |
 | TAL-91C | Done locally; pending explicit Linear sync | Academic Outputs Projection Acceptance |
-| TAL-91D | Done locally; pending explicit Linear sync | Academic Status Student-Safe Regression (final TAL-91 sub-slice) |
+| TAL-91D | Done locally; pending explicit Linear sync | Academic Status Student-Safe Regression |
 | TAL-91E | Done locally; pending explicit Linear sync | Student Hub Display Priority Completion |
 | TAL-92A | Done locally; pending explicit Linear sync | Fixed Reports & Export Audit Acceptance |
 | TAL-92B | Done locally; pending explicit Linear sync | Audit Trail Coverage Acceptance |
 | TAL-92C | Done locally; pending explicit Linear sync | Guarded Imports Acceptance |
 | TAL-92D | Done locally; pending explicit Linear sync | Integration Status & Operational Monitoring |
 | TAL-92E | Done locally; pending explicit Linear sync | Retention Categories & Disposal Review |
-| TAL-92F | Done locally; pending explicit Linear sync | Remaining System Configuration & Notification Acceptance (parent TAL-92 closure) |
+| TAL-92F | Done locally; pending explicit Linear sync | Remaining System Configuration and Notification Acceptance |
 | TAL-93A | Done locally; pending explicit Linear sync | Foundation Housekeeping (dependency removal) |
 | TAL-93B | Done locally; pending explicit Linear sync | Test-Isolation Repair |
-| TAL-93C | Done locally; pending explicit Linear sync | Retire legacy PersonalDataCorrectionRequest + align to PRD §3.5 |
+| TAL-93C | Done locally; pending explicit Linear sync | Retire Legacy Personal Data Correction Request and Align Profile Updates |
 | TAL-93D | Done locally; pending explicit Linear sync | Verified-User 403 Authorization Regression Fix |
 | TAL-93E | Done locally; pending explicit Linear sync | Static-Analysis (Larastan) Baseline |
 | TAL-93F1 | Done locally; pending explicit Linear sync | RETIRE - orphaned admissions-offering consumer surfaces |
 | TAL-93F2 | Done locally; pending explicit Linear sync | RETIRE - unwire tableless admission-capacity path from finance clearance |
-| TAL-93F3 | Done locally; pending explicit Linear sync | RETIRE - stale admission-requirement-policy admin UI + last superseded models (parent TAL-93F complete) |
+| TAL-93F3 | Done locally; pending explicit Linear sync | Retire Stale Admission-Requirement Policy UI and Superseded Models |
 | TAL-93G | Done locally; pending explicit Linear sync | Canonical Permission Seeding & Role-Access Enforcement |
 | TAL-93H1 | Done locally; pending explicit Linear sync | RETIRE - dead manual section-meeting assignment path |
 | TAL-93H2 | Done locally; pending explicit Linear sync | RETIRE - phantom Curriculum/CurriculumSubject cluster |
-| TAL-93H3 | Done locally; pending explicit Linear sync | RETIRE - phantom DeliveryPattern cluster (parent TAL-93H complete) |
+| TAL-93H3 | Done locally; pending explicit Linear sync | Retire Phantom Delivery Pattern Cluster |
 | TAL-93I | Done locally; pending explicit Linear sync | Admission Requirement Policy Configuration surface |
 | TAL-93J1 | Done locally; pending explicit Linear sync | Gate Environment and Dependency Preparation |
 | TAL-93J2 | Done locally; pending explicit Linear sync | Whole-Repository Ground-Truth & Static-Analysis Audit |
@@ -87,7 +84,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-93J2f | Done locally; pending explicit Linear sync | Retire standalone PromissoryNote island |
 | TAL-93J2g | Done locally; pending explicit Linear sync | Retire deferred CorVerification token/lifecycle/resource island while preserving authenticated COR output |
 | TAL-93J2h | Done locally; pending explicit Linear sync | Complete FinancialAccommodation controlled lifecycle transitions |
-| TAL-93J3a | Done locally; pending explicit Linear sync | Prune vestigial `manage-curricula` permission; curriculum capability preserved by role-gated policies |
+| TAL-93J3a | Done locally; pending explicit Linear sync | Curriculum Permission and Role-Gated Policy Reconciliation |
 | TAL-93J3b | Done locally; pending explicit Linear sync | Capstone capability-depth and deferral-routing authority correction |
 | TAL-93J3b1 | Done locally; pending explicit Linear sync | Scheduler authority and independent benchmark reconciliation |
 | TAL-93J3c | Done locally; pending explicit Linear sync | Seven-role pre-integration regression and rendered acceptance gate |

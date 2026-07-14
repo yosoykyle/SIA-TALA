@@ -2,49 +2,36 @@
 
 ## Purpose
 
-This is the active planning surface: it controls issue order, scope, and the one active approved plan contract, not product behavior. It is read after `AGENTS.md` and `TALA-Orchestrator-Protocol.md` in the intake chain. The roadmap table stays compact; the active contract temporarily carries the accepted execution detail until Cleanup. The protocol owns the workflow rules, so do not restate them here.
-
-- **Issue numbering:** the next issue continues from the last ID in `TALA-Local-Linear-Sync-Tracker.md` (or Linear).
-- **Sub-slice maps:** when a parent issue is split, the primary records the map here on plan acceptance (ID, one-line purpose, status, and next boundary per sub-slice) and keeps the parent here until every sub-slice is complete. A finished sub-slice is trimmed to a one-line status stub — its delivered detail lives in the git commit message, not here — and the parent is removed once every sub-slice is complete.
-- **Active contract:** after plan approval, keep exactly one complete active contract below the roadmap. Replace it only after an approved revision; after successful worker launch mark it and its row `In progress` and set the next boundary to `Verify TAL-XX`; remove it during Cleanup.
-- **Resume:** after compaction, interruption, rejected worker output, or stale state, load the accepted plan from the active contract and run the resume checkpoint from the protocol before continuing.
+This is the active planning surface for issue order, compact parent/sub-slice maps, routed deferrals, and the one active approved plan contract. Product behavior and workflow rules remain in their owning authorities. Allocate a new top-level issue after the highest numeric ID already reserved here, in `TALA-Local-Linear-Sync-Tracker.md`, or in Linear; confirm live Linear before creating it.
 
 ## Active and Upcoming Issues
 
-Dependency lock:
-
-1. Identity, roles, panels, and base administration come first.
-2. Academic setup and calendar come before admissions handover because handover assigns Program and Curriculum.
-3. Holds and lifecycle foundation come before enrollment because gates and COR visibility depend on student state.
-4. Term offerings, resources, and a published Master Schedule come before enrollment binding.
-5. Finance core comes before official enrollment because assessment, ledger, downpayment, accommodation, and Finance Gate affect enrollment.
-6. Student Hub comes after source records exist; it is a projection, not a source module.
-7. A pre-integration regression gate (TAL-93) must pass before integration hardening begins, proving the SIS foundation is clean.
-8. CP-SAT and PayMongo end-to-end hardening (TAL-94/95) start only after the pre-integration gate passes; they are human-gated and require credentials/deployment steps.
-9. A post-integration regression gate (TAL-96) runs after both integrations are wired in, catching regressions introduced by external service handlers before demo preparation.
-10. Demo and rehearsal support (TAL-97) builds only on a fully verified and integration-tested system.
+Remaining dependency chain: complete the human-gated CP-SAT and PayMongo integrations (TAL-94/95), run the post-integration regression gate (TAL-96), then prepare the verified demo and rehearsal environment (TAL-97). Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-91 | Done locally; pending explicit Linear sync | Student Hub Projection Acceptance: validate student-safe views for enrollment, schedule, finance, COR/output, grades, holds, lifecycle, completion, and notices. Split into TAL-91A-D, all complete; see Local Linear Sync Tracker. |
-| TAL-92 | Done locally; pending explicit Linear sync | Reports, Audit, Imports, Retention, and Remaining Admin Acceptance: validate fixed reports/exports, audit evidence, guarded imports, retention categories, integration settings, operational monitoring, and remaining system configuration. Owning contract PRD `13_system_admin_reports_audit.md`. Split into TAL-92A–F, all six complete; see Local Linear Sync Tracker. |
 | TAL-94 | Split approved; TAL-94A-D done locally, TAL-94E pending | CP-SAT Scheduling End-to-End Hardening. Preserve aligned work and do not treat `cloud/` as verified deployment truth. Deferred items from TAL-92A/B/F remain owned by TAL-94E. |
-| TAL-94A | Done locally; pending explicit Linear sync | Solver Contract and Hard Constraints |
-| TAL-94B1 | Done locally; pending explicit Linear sync | Solver Result Validation and Diagnostics |
-| TAL-94B2 | Done locally; pending explicit Linear sync | Controlled Revalidation Boundaries |
-| TAL-94C | Done locally; pending explicit Linear sync | Candidate Review and Controlled Correction UX |
-| TAL-94E | Planned; human-gated | Solver Transport, Cloud Run, and End-to-End Acceptance: evaluate a bounded unauthenticated local HTTP driver for development/demo use without weakening the IAM-authenticated production client; verify the actual Cloud Run container, IAM/credentials, queue execution, retry/timeout behavior, operational evidence, Solver Run History, solver-run audit logging, Schedule Released notification, and the complete validated-foundation-to-authorized-publication path. Treat deployment claims and `cloud/` artifacts as unverified until this slice proves them. |
-| TAL-95 | Planned | Build-state UNVERIFIED — do NOT assume "hardening" means it works: this slice MUST start with (1) a Ground-Truth Gate on the integration (live payment code EXISTS — PaymentConfirmationService/PayMongoWebhookProcessor — but real gateway wiring / webhook verification / idempotent posting are unverified: real gateway vs stub? passing tests? credentialed?) classifying each surface aligned/gap/phantom, and (2) the MANDATORY Benchmark Gate (mature e-payment/gateway+ledger practice + Academico reference + RA 10173 + BSP/e-payment regs) to validate the PRD design is realistic; if the PRD design is wrong, correct it via the Authority Document Correction rule and scope the fix to patch/simplify/bounded-rebuild-of-that-surface only (never a system restart), deferring disproportionate richer behavior to a post-MVP issue. Payment Gateway End-to-End Hardening: prove payment attempt, gateway evidence, webhook verification, idempotent ledger posting, Finance Gate, and Accounting/Student visibility. Human-gated; requires API keys, webhook endpoints, and test-mode payment verification. Deferred items routed here: from TAL-92B — add audit logging (`activity_log`) for PayMongo checkout-attempt creation (PRD §13.6 scope 5's PayMongo half) once the live gateway is wired in; from TAL-92A — PayMongo Webhook Event Log report (PRD §13.3.4 admin/audit report #7); from TAL-92F: wire the Payment Received production notification trigger once the live gateway is wired in. |
-| TAL-96 | Planned | Cross-Role Regression and Integration Coherence (Post-Integration Gate): verify the full system remains correct after CP-SAT and PayMongo integrations are wired in; catch regressions introduced by external service handlers, solver publication effects, and payment posting side-effects. |
-| TAL-97 | Planned | Demo and Rehearsal Support from Verified MVP: rebuild only the realistic demonstration support needed for accepted flows, on top of a fully verified and integration-tested system. |
-| TAL-98 | Planned (future enhancement, post-MVP) | Archival & Offline-Storage Management: optional archive-management interface (browse/restore archived and exported records), automated offline/cold-storage export, and on-premise HDD/SSD backup/replication target. Deferred from the TAL-92E retention clarification (PRD §13.7.5 point 7): V1 keeps all records in the operational database via soft-archive (hidden-but-queryable), so this is not required for the capstone MVP. Also the natural home for automated disposal jobs (PRD §13.7.4 rule 10) if the institution later explicitly requires them. Not a dependency for any MVP slice. |
-| TAL-99 | Planned (future enhancement, post-MVP) | Data-Subject Privacy Request Handling & Log (RA 10173 §16): intake, DPO triage/fulfilment, and logging of data-subject requests (access, rectification, erasure/blocking, object, data portability, complaint). Deferred from TAL-92F: PRD §13.3.4 admin/audit report #10 (Privacy Request Log) has no source record, and RA 10173 with its IRR mandate no specific in-system request-log UI — data-subject-request handling is a DPO-owned manual/hybrid process. No MVP slice depends on it; access-request evidence is already partly served by `activity_log` + `output_access_logs`, and the erasure/blocking right routes through the TAL-92E hold-aware disposal-review ledger + the TAL-98 archival scope. Not a dependency for any MVP slice. |
-| TAL-100 | Planned (future enhancement, post-MVP) | Configurable Notification Templates: admin-editable, database-backed email/notification templates (subject + body per notification type), replacing code-defined content. Routed from PRD §13.1.1 disposition #17. V1 defines notification content in code (Laravel Mailable classes + Blade views); DB-editable templates are a post-MVP administration convenience, not an MVP dependency. |
-| TAL-101 | Planned (future enhancement, post-MVP) | Database-Level Audit Tamper-Evidence Hardening: append-only / write-once protection for the `activity_log` table (e.g., MySQL triggers blocking UPDATE/DELETE, or hash-chaining for cryptographic verifiability). Deferred from TAL-93A (PRD 13.6 note). V1 enforces audit immutability at the application layer only (read-only `ActivityPolicy`, `canCreate()=false`), which the TAL-93A benchmark found proportionate for the capstone MVP; DB-level tamper-evidence is a post-MVP hardening enhancement. Not a dependency for any MVP slice. |
+| TAL-94A | Done locally | Solver Contract and Hard Constraints |
+| TAL-94B | Done locally via TAL-94B1/B2 | Solver Result Validation, Diagnostics, and Controlled Revalidation |
+| TAL-94C | Done locally | Candidate Review and Controlled Correction UX |
+| TAL-94D | Done locally via TAL-94D1-D3c | Approval, Publication, Live Revision, Notifications, and Schedule Projections |
+| TAL-94E | Planned; human-gated | Solver Transport and End-to-End Acceptance: validate local/demo and Cloud Run transport, IAM/credentials, queued execution and failure handling, operational/run-history evidence, release notification, and the dispatch-to-publication path. Treat deployment and `cloud/` artifacts as unverified until proven. |
+| TAL-95 | Planned; human-gated | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
+| TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
+| TAL-97 | Planned | Demo and Rehearsal Support built only from the verified MVP. |
 
-### Conditional Proposals Without Active Tasks
+## Post-MVP Deferrals
 
-The following are not approved work and must not be inferred as upcoming slices: program-specific or graduate-school calendar variants; component types beyond Lecture/Laboratory; saved-filter plugins; advanced interactive scheduling or drag-and-drop editing; production-scale scenario tooling; retained server-generated PDFs; public QR/artifact verification; and Redis/Horizon deployment scaling. The TAL-94C compatibility spike rejected `guava/calendar` for the MVP candidate-review boundary; installing it, replacing the canonical table, or using visual movement as scheduling authority remains unapproved. Every other future institutional requirement or UI plugin must pass the protocol gates and receive a new approved Next Steps issue before implementation.
+| Issue | Status | Goal |
+| --- | --- | --- |
+| TAL-98 | Future; nonblocking | Archival, offline-storage management, and disposal automation deferred from TAL-92E and PRD §13.7. |
+| TAL-99 | Future; nonblocking | DPO-owned privacy-request intake and logging deferred from TAL-92F and PRD §13.3.4. |
+| TAL-100 | Future; nonblocking | Database-backed configurable notification templates deferred from TAL-92F and PRD §13.1.1. |
+| TAL-101 | Future; nonblocking | Database-level audit tamper-evidence hardening deferred from TAL-93A and PRD §13.6. |
+
+### Unapproved Proposals
+
+No work outside the listed issues is approved or implied. Any additional institutional feature, UI plugin, or infrastructure enhancement must pass the protocol gates and receive an explicit Next Steps issue before implementation.
 
 ### Next Boundary
 
