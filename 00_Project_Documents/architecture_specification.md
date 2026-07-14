@@ -1,5 +1,67 @@
 # TALA System Architecture Specification
 
+## Table of Contents
+
+1. [Purpose, Scope, and Evidence Basis](#1-purpose-scope-and-evidence-basis)
+    - [Evidence Language](#11-evidence-language)
+2. [System Responsibility and Institutional Boundary](#2-system-responsibility-and-institutional-boundary)
+3. [Architectural Classification](#3-architectural-classification)
+    - [Application Architecture: Domain-Organized Layered Monolith](#31-application-architecture-domain-organized-layered-monolith)
+    - [System Topology: Hybrid Service-Integrated System](#32-system-topology-hybrid-service-integrated-system)
+    - [Integration Style: Request/Response with Asynchronous Supporting Workflows](#33-integration-style-requestresponse-with-asynchronous-supporting-workflows)
+    - [Data Architecture: Centralized Relational System of Record](#34-data-architecture-centralized-relational-system-of-record)
+    - [Why This Shape Was Selected](#35-why-this-shape-was-selected)
+    - [Why Microservices Were Not Selected](#36-why-microservices-were-not-selected)
+4. [Logical Domain Structure](#4-logical-domain-structure)
+5. [Runtime Component Architecture](#5-runtime-component-architecture)
+    - [Primary Request Flow](#51-primary-request-flow)
+    - [Queue Operations](#52-queue-operations)
+    - [Academic Timetabling Is Not Laravel Task Scheduling](#53-academic-timetabling-is-not-laravel-task-scheduling)
+6. [Data Architecture and Integrity](#6-data-architecture-and-integrity)
+    - [Why MySQL Fits the Domain](#61-why-mysql-fits-the-domain)
+    - [Transaction and Concurrency Rules](#62-transaction-and-concurrency-rules)
+    - [Auditability](#63-auditability)
+7. [User Interface Architecture](#7-user-interface-architecture)
+    - [Why Filament and Livewire Were Selected](#71-why-filament-and-livewire-were-selected)
+    - [Why a Separate SPA Was Not Selected](#72-why-a-separate-spa-was-not-selected)
+    - [Authorization Rule](#73-authorization-rule)
+8. [Security and Trust Boundaries](#8-security-and-trust-boundaries)
+9. [External Integrations](#9-external-integrations)
+    - [CP-SAT Scheduling Service](#91-cp-sat-scheduling-service)
+    - [PayMongo](#92-paymongo)
+    - [Transactional Email](#93-transactional-email)
+10. [Automatic Scheduling: Research and Product Justification](#10-automatic-scheduling-research-and-product-justification)
+    - [Comparison with Existing Approaches](#101-comparison-with-existing-approaches)
+    - [Why OR-Tools CP-SAT Was Selected](#102-why-or-tools-cp-sat-was-selected)
+11. [Dependency Architecture](#11-dependency-architecture)
+    - [Active PHP Runtime](#111-active-php-runtime)
+    - [Declared Packages Requiring Deliberate Disposition](#112-declared-packages-requiring-deliberate-disposition)
+    - [Frontend Runtime](#113-frontend-runtime)
+    - [Solver and Engineering Tooling](#114-solver-and-engineering-tooling)
+    - [Compatibility and Minimum Requirements](#115-compatibility-and-minimum-requirements)
+12. [Deployment and Operational Architecture](#12-deployment-and-operational-architecture)
+    - [Degraded and Failure Behavior](#121-degraded-and-failure-behavior)
+13. [Estimated Operating Costs in Philippine Peso](#13-estimated-operating-costs-in-philippine-peso)
+    - [Pricing Basis and Assumptions](#131-pricing-basis-and-assumptions)
+    - [Lean Fixed-Cost Baseline](#132-lean-fixed-cost-baseline)
+    - [Operating Scenarios](#133-operating-scenarios)
+    - [Variable and Conditional Charges](#134-variable-and-conditional-charges)
+14. [Traditional and Commercial SIS Cost Comparison](#14-traditional-and-commercial-sis-cost-comparison)
+15. [How the Client Saves Money: The Value Proposition](#15-how-the-client-saves-money-the-value-proposition)
+    - [How Savings Must Be Measured](#151-how-savings-must-be-measured)
+16. [SDLC and Architecture Governance](#16-sdlc-and-architecture-governance)
+    - [Refined SDLC Classification](#161-refined-sdlc-classification)
+    - [Evidence and Academic Integrity](#162-evidence-and-academic-integrity)
+17. [Risks and Decision Summary](#17-risks-and-decision-summary)
+    - [Principal Risks](#171-principal-risks)
+    - [Final Architecture Decisions](#172-final-architecture-decisions)
+18. [Sources and References](#18-sources-and-references)
+    - [Internal System Evidence](#181-internal-system-evidence)
+    - [Framework, Data, and Architecture Sources](#182-framework-data-and-architecture-sources)
+    - [Timetabling and Solver Sources](#183-timetabling-and-solver-sources)
+    - [Cost and Local-Market Sources](#184-cost-and-local-market-sources)
+    - [SDLC Sources](#185-sdlc-sources)
+
 ## 1. Purpose, Scope, and Evidence Basis
 
 **T.A.L.A.** (Technology for Administrative Ledger and Academic Management) is a college-focused student information and academic operations system designed for Servitech Institute Asia (SIA). It provides one governed digital record across applicant intake, student handover, academic setup, scheduling, enrollment, assessment and payment evidence, official outputs, grades, learner self-service, reporting, and audit.
@@ -434,6 +496,93 @@ The scheduling container uses Python 3.12 slim, Google OR-Tools 9.15.6755, Flask
 
 These are engineering controls, not user-facing production modules.
 
+### 11.5 Compatibility and Minimum Requirements
+
+The minimum requirements for TALA are not determined by Laravel alone. They are derived in the following order:
+
+1. the product requirement identifies which users, workflows, devices, and institutional conditions must be served;
+2. the strictest active client or server dependency establishes a theoretical technical floor;
+3. application code and enabled framework features may raise that floor; and
+4. TALA-specific browser, device, and load tests determine what the project may honestly claim as supported.
+
+A dependency floor means that older software is outside the supported design. It does not prove that every TALA workflow works on every device above that floor. Conversely, a selected deployment size is an initial operating baseline, not a guaranteed minimum capacity. These distinctions prevent framework documentation, project policy, and measured system evidence from being presented as if they were interchangeable.
+
+#### Browser compatibility basis
+
+Tailwind CSS 4 is the controlling general browser dependency for TALA's authenticated workspaces. Its core requires Chrome 111, Safari 16.4, or Firefox 128. Vite 7's default production targets are lower than those limits, while the isolated Bootstrap landing page supports a broader range. The system-wide floor therefore follows Tailwind rather than allowing a user to reach the public page and then encounter an unsupported authenticated workspace.
+
+| Browser family | Technical floor or TALA qualification baseline | Status and rationale |
+| --- | ---: | --- |
+| Google Chrome | 111 or later | Dependency-derived floor from Tailwind CSS 4 |
+| Microsoft Edge | 111 or later | TALA qualification baseline aligned with Chromium 111; direct TALA testing is still required because Tailwind names Chrome rather than Edge |
+| Mozilla Firefox | 128 or later | Dependency-derived floor from Tailwind CSS 4 |
+| Apple Safari | 16.4 or later | Dependency-derived floor from Tailwind CSS 4 |
+| Internet Explorer | Not supported | Does not satisfy the active frontend dependency floor |
+| Other browsers, embedded webviews, and proxy or mini browsers | Not claimed | May work, but require explicit qualification before being described as supported |
+
+For operational support, TALA should qualify the current stable and immediately preceding major releases of Chrome, Edge, Firefox, and Safari available on vendor-supported operating systems, never below the technical floors above. Browser security updates remain the responsibility of the institution and user; a browser meeting only the historical floor but no longer receiving vendor security support is not an acceptable managed-client baseline.
+
+On phones and tablets, compatibility follows the browser engine rather than a separately invented device specification: Android access requires a qualifying Chrome release, while iPhone and iPad access requires a qualifying Safari release on a vendor-supported operating system. Embedded in-app browsers and unmanaged webviews remain outside the support claim until tested.
+
+As of **Tuesday, July 14, 2026, Philippine Time**, targeted source inspection found no active `wire:transition`, Livewire scoped component styles, service worker, or web-app manifest that raises the current floor or establishes offline capability. Introducing any of those features, or upgrading Tailwind, Vite, Filament, Livewire, Alpine.js, or Bootstrap, requires this matrix to be reassessed.
+
+#### End-user device and browser requirements
+
+| Requirement | Minimum supported condition | Basis |
+| --- | --- | --- |
+| Browser execution | A qualified browser above with JavaScript enabled | Filament, Livewire, Alpine.js, and interactive validation/actions require client-side JavaScript |
+| Session capability | First-party cookies enabled | Laravel session authentication and CSRF protection depend on the browser returning the session cookie |
+| Network | Stable HTTPS connectivity while using TALA | TALA is centralized and not offline-first; no arbitrary Mbps claim is made without measured payload and latency tests |
+| Files | Browser file selection, upload, and download support where the user's workflow requires documents | Applicant, records, and output workflows exchange files through authenticated server requests |
+| Printing | Browser print and save-as-PDF capability | COR, SOA, billing slip, and payment acknowledgement use authenticated HTML/CSS print views in the MVP |
+| Device hardware | Any device capable of running a qualified browser and the required workflow | A fixed end-user CPU or RAM value is not justified by the framework and must not be invented without device testing |
+
+Responsive support is role- and workflow-specific. The following dimensions are **qualification targets**, not yet proof that every screen has passed compatibility review:
+
+| User surface | Required qualification viewport | Intended use |
+| --- | ---: | --- |
+| Public, applicant, and student-facing workflows | 360 × 800 CSS pixels or larger | Modern phone access, including mobile display of the digital billing slip |
+| Learner-facing and selected review workflows | 768 × 1024 CSS pixels or larger | Tablet access and intermediate responsive layout |
+| Registrar, finance, administrator, reporting, and timetabling workspaces | 1366 × 768 CSS pixels or larger | Desktop operational baseline for dense forms, tables, comparisons, and scheduling controls |
+
+Mobile-responsive styling does not by itself prove mobile usability. Before publication or production acceptance, representative users must complete the relevant workflows at the target sizes without hidden actions, inaccessible controls, unreadable tables, or dependence on hover-only behavior. A learner-facing mobile commitment does not automatically make every staff administration surface a phone-supported workflow.
+
+#### Production runtime and capacity baseline
+
+| Layer | Required runtime or selected baseline | Evidence classification |
+| --- | --- | --- |
+| PHP application | PHP 8.2 or later with Ctype, cURL, DOM, Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session, Tokenizer, and XML extensions | Laravel 12 framework minimum |
+| Operating system and web server | Supported 64-bit Linux environment with Nginx and PHP-FPM, or a documented equivalent; only the Laravel `public/` directory is web-accessible | TALA deployment design and Laravel security requirement |
+| Database | MySQL 8.4 baseline with InnoDB, transactional storage, and tested migrations | Project-selected and documented database baseline, not merely Laravel's lowest theoretical database version |
+| Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories | Current application configuration and Laravel runtime requirement |
+| Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | Current asynchronous execution contract |
+| Initial web host | 1 vCPU, 2 GiB RAM, 50 GiB SSD, and 2,000 GiB transfer | Selected DigitalOcean starting topology; not a load-tested universal minimum |
+| Scheduling service | Python 3.12 container, 1 vCPU, 1 GiB RAM, and 300-second Cloud Run request timeout | Current solver container and deployment contract |
+| Network and trust | Valid TLS, DNS, firewall controls, private credentials, and outbound HTTPS/SMTP access for approved integrations | Security and integration requirement |
+
+The 2 GiB web host co-locates Nginx, PHP-FPM, Laravel, MySQL, and an initial queue worker. It is therefore the lowest selected production scenario in this specification, but its sufficiency must be established against expected concurrent users, database size, document-upload volume, queue depth, response-time objectives, and backup activity. Sustained memory pressure, swapping, disk pressure, slow database queries, queue delay, or missed response objectives must trigger resizing or separation of the database and workers. Node.js and Python are not required on the web host when frontend assets are prebuilt and the solver remains externally deployed.
+
+#### Development and build requirements
+
+| Tool or service | Minimum or project baseline | Why it is required |
+| --- | --- | --- |
+| PHP | 8.2 or later | Matches Laravel 12 and the Composer platform contract |
+| Composer | Current supported Composer 2 release | Installs and validates PHP dependencies |
+| Node.js | `^20.19.0` or `>=22.12.0` | Exact installed Vite 7 engine requirement; this excludes Node 21 and Node 22.0–22.11 rather than implying that every intermediate release is compatible |
+| npm | A release supported by the selected Node.js version | Installs and builds the locked frontend dependency graph |
+| MySQL | 8.4 project baseline | Matches the documented data-platform target for migrations and tests |
+| Python | 3.12 with the pinned solver requirements | Required only when developing or testing the external scheduling service locally |
+| Supported browsers | The qualification matrix above | Required for visual, interaction, print, upload, and responsive verification |
+| Docker or Laravel Sail | Optional | Reproducible local environment option, not a mandatory production dependency |
+
+The development operating system is not fixed by the architecture. Windows and supported Linux environments are acceptable when they can run the required versions and reproduce the same application, database, asset-build, test, and solver contracts.
+
+#### Compatibility and capacity verification rule
+
+The browser support statement must be backed by recorded manual or automated real-browser evidence for critical flows, including public navigation, authentication and session behavior, applicant document handling, student finance and printable outputs, Filament tables/forms/modals, staff authorization failures, and scheduling submission and result review. PHPUnit component and feature tests remain necessary but do not prove browser layout, JavaScript interaction, printing, or viewport usability. Any automated browser-test dependency requires its own approved dependency change; until then, a dated manual compatibility matrix is acceptable evidence.
+
+Production sizing must similarly be qualified with realistic data and concurrency rather than inferred from a successful local run. The institution must record the tested dataset, concurrent-user model, request mix, queue workload, solver invocation pattern, response-time objective, error rate, and resource measurements. Compatibility and sizing evidence must be refreshed before production acceptance and after a material dependency, topology, or workload change.
+
 ---
 
 ## 12. Deployment and Operational Architecture
@@ -740,8 +889,9 @@ Sources were checked for this revision on **July 14, 2026**, unless a separate p
 
 ### 18.2 Framework, Data, and Architecture Sources
 
-- Laravel 12 documentation: [authentication](https://laravel.com/docs/12.x/authentication), [authorization](https://laravel.com/docs/12.x/authorization), [queues](https://laravel.com/docs/12.x/queues), [events](https://laravel.com/docs/12.x/events), [task scheduling](https://laravel.com/docs/12.x/scheduling), and [Fortify](https://laravel.com/docs/12.x/fortify).
-- [Filament 5 security guidance](https://github.com/filamentphp/filament/blob/5.x/docs/09-advanced/06-security.md) and [Livewire 4 documentation](https://livewire.laravel.com/docs/4.x/quickstart).
+- Laravel 12 documentation: [deployment and server requirements](https://laravel.com/docs/12.x/deployment), [authentication](https://laravel.com/docs/12.x/authentication), [authorization](https://laravel.com/docs/12.x/authorization), [queues](https://laravel.com/docs/12.x/queues), [events](https://laravel.com/docs/12.x/events), [task scheduling](https://laravel.com/docs/12.x/scheduling), and [Fortify](https://laravel.com/docs/12.x/fortify).
+- [Filament 5 security guidance](https://github.com/filamentphp/filament/blob/5.x/docs/09-advanced/06-security.md), [Livewire 4 documentation](https://livewire.laravel.com/docs/4.x/quickstart), and [Livewire browser-testing guidance](https://livewire.laravel.com/docs/4.x/testing#browser-testing).
+- Frontend compatibility sources: [Tailwind CSS 4 compatibility](https://tailwindcss.com/docs/compatibility), [Vite 7 production browser targets](https://v7.vite.dev/guide/build#browser-compatibility), [Vite 7 Node.js requirements](https://v7.vite.dev/guide/migration#node-js-support), and [Bootstrap 5.3 browser and device support](https://getbootstrap.com/docs/5.3/getting-started/browsers-devices/).
 - MySQL 8.4 Reference Manual: [InnoDB transaction model](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html).
 - MongoDB Manual: [transactions](https://www.mongodb.com/docs/manual/core/transactions/) — evidence for the correction that MongoDB does support transactions, subject to deployment and modeling considerations.
 - The Open Group: [TOGAF Standard, 10th Edition](https://www.opengroup.org/togaf) — architecture-development and governance context, not the asserted SDLC.
