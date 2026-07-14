@@ -3,8 +3,12 @@
 namespace App\Filament\Resources\OperationalEvents\Schemas;
 
 use App\Filament\Resources\OperationalEvents\Tables\OperationalEventsTable;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
+use App\Models\OperationalEvent;
+use App\Models\ScheduleGenerationRun;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Gate;
 
 class OperationalEventInfolist
 {
@@ -49,6 +53,11 @@ class OperationalEventInfolist
                 TextEntry::make('related_record_id')
                     ->label('Related record ID')
                     ->placeholder('-'),
+                TextEntry::make('source_run')
+                    ->label('Source')
+                    ->state(fn (OperationalEvent $record): ?string => self::sourceRunLabel($record))
+                    ->url(fn (OperationalEvent $record): ?string => self::sourceRunUrl($record))
+                    ->visible(fn (OperationalEvent $record): bool => self::sourceRun($record) instanceof ScheduleGenerationRun),
                 TextEntry::make('occurred_at')
                     ->dateTime(),
                 TextEntry::make('processed_at')
@@ -73,6 +82,36 @@ class OperationalEventInfolist
                     ->formatStateUsing(fn (mixed $state): string => self::formatJsonColumn($state))
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function sourceRunLabel(OperationalEvent $event): ?string
+    {
+        $run = self::sourceRun($event);
+
+        return $run instanceof ScheduleGenerationRun ? 'Schedule Run #'.$run->id : null;
+    }
+
+    private static function sourceRunUrl(OperationalEvent $event): ?string
+    {
+        $run = self::sourceRun($event);
+
+        return $run instanceof ScheduleGenerationRun
+            ? ScheduleGenerationRunResource::getUrl('view', ['record' => $run])
+            : null;
+    }
+
+    private static function sourceRun(OperationalEvent $event): ?ScheduleGenerationRun
+    {
+        if ($event->related_record_type !== ScheduleGenerationRun::class
+            || $event->integration !== OperationalEvent::IntegrationSchedulingSolver) {
+            return null;
+        }
+
+        $run = $event->scheduleGenerationRun;
+
+        return $run instanceof ScheduleGenerationRun && Gate::allows('view', $run)
+            ? $run
+            : null;
     }
 
     private static function formatJsonColumn(mixed $state): string

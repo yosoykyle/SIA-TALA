@@ -7,6 +7,8 @@ interface SchedulingSolverClient
     /**
      * @param  array<string, mixed>  $snapshot
      * @return array<string, mixed>
+     *
+     * @throws SchedulingSolverTransportException
      */
     public function solve(array $snapshot): array;
 

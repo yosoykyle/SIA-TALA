@@ -150,6 +150,55 @@ class ScheduleGenerationRun extends Model
         return $this->status === self::StatusPublished;
     }
 
+    public function dispatchCycle(): int
+    {
+        return max(1, (int) ($this->dispatchDiagnostics()['dispatch_cycle'] ?? 1));
+    }
+
+    public function solverAttemptCount(): int
+    {
+        if ($this->relationLoaded('solverAttemptEvents')) {
+            return $this->solverAttemptEvents->count();
+        }
+
+        return $this->solverAttemptEvents()->count();
+    }
+
+    public function latestSolverAttempt(): ?OperationalEvent
+    {
+        if ($this->relationLoaded('solverAttemptEvents')) {
+            return $this->solverAttemptEvents
+                ->sortByDesc(fn (OperationalEvent $event): int => (int) $event->id)
+                ->first();
+        }
+
+        return $this->solverAttemptEvents()
+            ->latest('occurred_at')
+            ->latest('id')
+            ->first();
+    }
+
+    public function canRetrySolver(): bool
+    {
+        $failure = $this->finalSolverFailure();
+
+        return $this->status === self::StatusFailed
+            && ($failure['retryable'] ?? false) === true
+            && ($failure['final'] ?? false) === true
+            && blank($this->candidate_key)
+            && $this->published_at === null
+            && ! $this->candidateRows()->exists()
+            && ! $this->sectionMeetings()->exists();
+    }
+
+    /** @return array<string, mixed> */
+    public function finalSolverFailure(): array
+    {
+        $failure = $this->dispatchDiagnostics()['failure'] ?? null;
+
+        return is_array($failure) ? $failure : [];
+    }
+
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
@@ -192,5 +241,30 @@ class ScheduleGenerationRun extends Model
             'schedule_run_id',
             'section_meeting_id',
         );
+    }
+
+    /** @return HasMany<OperationalEvent, $this> */
+    public function operationalEvents(): HasMany
+    {
+        return $this->hasMany(OperationalEvent::class, 'related_record_id')
+            ->where('related_record_type', self::class);
+    }
+
+    /** @return HasMany<OperationalEvent, $this> */
+    public function solverAttemptEvents(): HasMany
+    {
+        return $this->operationalEvents()
+            ->where('event_domain', OperationalEvent::DomainIntegration)
+            ->where('integration', OperationalEvent::IntegrationSchedulingSolver)
+            ->where('event_type', OperationalEvent::TypeSolverDispatchAttempt);
+    }
+
+    /** @return array<string, mixed> */
+    private function dispatchDiagnostics(): array
+    {
+        $diagnostics = $this->getAttribute('diagnostics');
+        $dispatch = is_array($diagnostics) ? ($diagnostics['solver_dispatch'] ?? null) : null;
+
+        return is_array($dispatch) ? $dispatch : [];
     }
 }

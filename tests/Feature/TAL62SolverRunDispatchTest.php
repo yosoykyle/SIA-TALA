@@ -20,6 +20,7 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
+use App\Models\OperationalEvent;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\RoomFeature;
@@ -138,6 +139,17 @@ final class TAL62SolverRunDispatchTest extends TestCase
             [CandidateScheduleRow::StatusOk, CandidateScheduleRow::StatusOk],
             CandidateScheduleRow::query()->where('schedule_run_id', $run->id)->orderBy('id')->pluck('status')->all(),
         );
+
+        $attemptEvent = OperationalEvent::query()
+            ->where('related_record_type', ScheduleGenerationRun::class)
+            ->where('related_record_id', $run->id)
+            ->sole();
+
+        $this->assertSame(OperationalEvent::DomainIntegration, $attemptEvent->event_domain);
+        $this->assertSame(OperationalEvent::IntegrationSchedulingSolver, $attemptEvent->integration);
+        $this->assertSame(OperationalEvent::StatusProcessed, $attemptEvent->status);
+        $this->assertSame(1, data_get($attemptEvent->diagnostics, 'cycle'));
+        $this->assertSame(1, data_get($attemptEvent->diagnostics, 'attempt'));
     }
 
     public function test_dispatch_blocks_when_any_term_demand_is_not_ready_for_review(): void

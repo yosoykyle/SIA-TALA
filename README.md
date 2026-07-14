@@ -84,7 +84,7 @@ composer dev
 
 The `composer dev` command launches:
 *   **Laravel Server:** Runs at `http://127.0.0.1:8000`
-*   **Queue Worker:** Processes background OCR files and webhooks
+*   **Queue Worker:** Runs `php artisan queue:listen --queue=scheduling,default --timeout=360` so solver dispatches and default background work are both processed. The database queue's `retry_after` must remain greater than the solver job timeout.
 *   **Vite Server:** Handles hot module reloading (HMR) for frontend styles
 *   **Laravel Pail:** Streams backend logs directly to your terminal screen
 

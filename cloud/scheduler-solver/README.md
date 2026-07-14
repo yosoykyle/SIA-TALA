@@ -101,9 +101,11 @@ Then clear cached configuration and run the normal Laravel web and queue process
 ```powershell
 php artisan config:clear
 php artisan serve
-php artisan queue:listen --tries=1 --timeout=0
+php artisan queue:listen --queue=scheduling,default --timeout=360
 npm run dev
 ```
+
+Keep `DB_QUEUE_RETRY_AFTER=420` so the database queue does not make a solver job available again before its 360-second timeout. Do not set a worker-level `--tries` override; the solver dispatch job owns its three-attempt policy and 60/300-second backoff.
 
 The System Super Admin Integration Status page should show `Local CP-SAT` and `Configured`. `local_http` rejects non-loopback hosts and is unavailable outside Laravel's `local` and `testing` environments. It sends no IAM token. Never point the `cloud_run` driver at localhost or weaken its IAM behavior.
 

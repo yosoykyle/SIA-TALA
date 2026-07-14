@@ -51,6 +51,14 @@ class ScheduleGenerationRunPolicy
         ]);
     }
 
+    public function retry(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ]) && $scheduleGenerationRun->canRetrySolver();
+    }
+
     /**
      * Determine whether the user can update the model.
      */

@@ -6,10 +6,13 @@ use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Resources\OperationalEvents\OperationalEventResource;
 use App\Filament\Resources\OperationalEvents\Pages\ListOperationalEvents;
 use App\Filament\Resources\OperationalEvents\Pages\ViewOperationalEvent;
+use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SystemSettings\Pages\ListSystemSettings;
 use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Models\OperationalEvent;
+use App\Models\ScheduleGenerationRun;
 use App\Models\SystemSetting;
+use App\Models\Term;
 use App\Models\User;
 use App\Policies\SystemSettingPolicy;
 use Filament\Facades\Filament;
@@ -18,6 +21,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -323,6 +327,52 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
             ->filterTable('status', 'FAILED')
             ->assertCanSeeTableRecords([$failed])
             ->assertCanNotSeeTableRecords([$processed]);
+    }
+
+    #[Test]
+    public function scheduling_solver_events_can_be_filtered_and_link_back_to_the_source_run(): void
+    {
+        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $term = Term::factory()->create();
+        $run = ScheduleGenerationRun::query()->create([
+            'term_id' => $term->id,
+            'status' => ScheduleGenerationRun::StatusFailed,
+            'requested_by' => $superAdmin->id,
+            'input_snapshot' => ['contract_version' => 'tal94-demand-v2'],
+            'input_hash' => hash('sha256', (string) Str::uuid()),
+            'solver_version' => 'test-solver',
+            'diagnostics' => [],
+        ]);
+        $solverEvent = OperationalEvent::factory()->failed()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationSchedulingSolver,
+            'event_type' => OperationalEvent::TypeSolverDispatchAttempt,
+            'related_record_type' => ScheduleGenerationRun::class,
+            'related_record_id' => $run->id,
+        ]);
+        $mailEvent = OperationalEvent::factory()->create([
+            'event_domain' => 'notifications',
+            'integration' => 'mail',
+        ]);
+
+        $this->actingAs($superAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ListOperationalEvents::class)
+            ->assertOk()
+            ->filterTable('integration', OperationalEvent::IntegrationSchedulingSolver)
+            ->assertCanSeeTableRecords([$solverEvent])
+            ->assertCanNotSeeTableRecords([$mailEvent]);
+
+        $html = Livewire::test(ViewOperationalEvent::class, ['record' => $solverEvent->getRouteKey()])
+            ->assertOk()
+            ->html();
+
+        $this->assertStringContainsString('Schedule Run #'.$run->id, $html);
+        $this->assertStringContainsString(
+            ScheduleGenerationRunResource::getUrl('view', ['record' => $run]),
+            $html,
+        );
     }
 
     #[Test]

@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ScheduleGenerationService
 {
@@ -20,6 +21,23 @@ class ScheduleGenerationService
         Gate::forUser($registrar)->authorize('create', ScheduleGenerationRun::class);
 
         return DB::transaction(function () use ($term, $registrar): ScheduleGenerationRun {
+            /** @var Term $lockedTerm */
+            $lockedTerm = Term::query()->lockForUpdate()->findOrFail($term->id);
+
+            $anotherActiveRunExists = ScheduleGenerationRun::query()
+                ->where('term_id', $lockedTerm->id)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                ])
+                ->exists();
+
+            if ($anotherActiveRunExists) {
+                throw ValidationException::withMessages([
+                    'term_id' => 'Another queued or dispatching solver run already exists for this term.',
+                ]);
+            }
+
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $placeholder = [
                 'contract_version' => 'pending-capture',
@@ -28,7 +46,7 @@ class ScheduleGenerationService
             ];
 
             $run = ScheduleGenerationRun::query()->create([
-                'term_id' => $term->id,
+                'term_id' => $lockedTerm->id,
                 'status' => ScheduleGenerationRun::StatusQueued,
                 'requested_by' => $registrar->id,
                 'input_snapshot' => $placeholder,
@@ -37,6 +55,9 @@ class ScheduleGenerationService
                 'diagnostics' => [
                     'solver_dispatch' => [
                         'status' => 'queued',
+                        'dispatch_cycle' => 1,
+                        'last_attempt' => 0,
+                        'latest_outcome' => 'queued',
                         'queued_at' => $timestamp->toIso8601String(),
                         'driver' => config('tala_integrations.scheduling_solver.driver', 'local_stub'),
                     ],

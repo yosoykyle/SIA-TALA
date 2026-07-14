@@ -57,6 +57,48 @@ class ScheduleGenerationRunInfolist
                             ->placeholder('-'),
                     ])
                     ->columns(2),
+                Section::make('Operations')
+                    ->schema([
+                        TextEntry::make('dispatch_cycle')
+                            ->label('Dispatch Cycle')
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->dispatchCycle())
+                            ->numeric(),
+                        TextEntry::make('solver_attempt_count')
+                            ->label('Attempt Count')
+                            ->state(fn (ScheduleGenerationRun $record): int => $record->solverAttemptCount())
+                            ->numeric(),
+                        TextEntry::make('latest_solver_outcome')
+                            ->label('Latest Outcome')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::latestSolverOutcome($record))
+                            ->badge()
+                            ->color(fn (string $state): string => match ($state) {
+                                'Processed' => 'success',
+                                'Failed' => 'danger',
+                                'Pending' => 'warning',
+                                default => 'gray',
+                            }),
+                        TextEntry::make('solver_retryable')
+                            ->label('Retryable')
+                            ->state(fn (ScheduleGenerationRun $record): string => ($record->finalSolverFailure()['retryable'] ?? false) ? 'Yes' : 'No')
+                            ->badge()
+                            ->color(fn (string $state): string => $state === 'Yes' ? 'warning' : 'gray'),
+                        TextEntry::make('solver_failure_classification')
+                            ->label('Failure Classification')
+                            ->state(fn (ScheduleGenerationRun $record): string => Str::headline(
+                                (string) ($record->finalSolverFailure()['classification'] ?? '-'),
+                            ))
+                            ->visible(fn (ScheduleGenerationRun $record): bool => $record->finalSolverFailure() !== []),
+                        TextEntry::make('solver_failure_message')
+                            ->label('Final Failure')
+                            ->state(fn (ScheduleGenerationRun $record): string => (string) ($record->finalSolverFailure()['message'] ?? '-'))
+                            ->visible(fn (ScheduleGenerationRun $record): bool => $record->finalSolverFailure() !== [])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                        'xl' => 4,
+                    ]),
                 Section::make('Candidate Review')
                     ->schema([
                         TextEntry::make('candidate_row_total')
@@ -205,6 +247,15 @@ class ScheduleGenerationRunInfolist
                     ])
                     ->columns(1),
             ]);
+    }
+
+    private static function latestSolverOutcome(ScheduleGenerationRun $record): string
+    {
+        $latestAttempt = $record->latestSolverAttempt();
+
+        return $latestAttempt === null
+            ? 'No Attempts'
+            : Str::headline(strtolower($latestAttempt->status));
     }
 
     /**

@@ -3,12 +3,14 @@
 namespace App\Jobs;
 
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
+use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
-use App\Models\ScheduleGenerationRun;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\TimeoutExceededException;
+use RuntimeException;
 use Throwable;
 
 class ScheduleSolverDispatchJob implements ShouldQueue
@@ -35,72 +37,96 @@ class ScheduleSolverDispatchJob implements ShouldQueue
      */
     public function backoff(): array
     {
-        return [60, 300, 900];
+        return [60, 300];
     }
 
     public function handle(
         ScheduleSolverSnapshotService $snapshotService,
         SchedulingSolverClient $solverClient,
         ScheduleCloudResultIngestor $resultIngestor,
+        ?ScheduleSolverDispatchLifecycleService $lifecycleService = null,
     ): void {
-        $run = ScheduleGenerationRun::query()->findOrFail($this->scheduleGenerationRunId);
-        $snapshot = $snapshotService->captureForRun($run);
+        $lifecycleService ??= app(ScheduleSolverDispatchLifecycleService::class);
+        $attempt = max(1, $this->attempts());
+        $context = $lifecycleService->claim($this->scheduleGenerationRunId, $attempt);
 
-        $run->forceFill([
-            'status' => ScheduleGenerationRun::StatusDispatching,
-        ])->save();
-
-        try {
-            $solverResult = $solverClient->solve($snapshot);
-        } catch (Throwable $exception) {
-            $this->recordDispatchSummary($run, [
-                'status' => 'failed',
-                'failed_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
-                'driver' => config('tala_integrations.scheduling_solver.driver', 'local_stub'),
-                'exception' => $exception::class,
-                'message' => $exception->getMessage(),
-            ]);
-
-            $run->forceFill([
-                'status' => ScheduleGenerationRun::StatusFailed,
-            ])->save();
-
-            throw $exception;
+        if ($context === null) {
+            return;
         }
 
-        $ingestionSummary = $resultIngestor->ingest($run, $solverResult);
+        $startedAt = hrtime(true);
 
-        $this->recordDispatchSummary($run, [
-            'status' => 'completed',
-            'completed_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
-            'driver' => config('tala_integrations.scheduling_solver.driver', 'local_stub'),
-            'result_summary' => $this->resultSummary($solverResult),
-            'ingestion_summary' => [
-                'status' => $ingestionSummary['status'],
-                'candidate_row_count' => $ingestionSummary['candidate_row_count'],
-                'ok_count' => $ingestionSummary['ok_count'],
-                'warning_count' => $ingestionSummary['warning_count'],
-                'conflict_count' => $ingestionSummary['conflict_count'],
-                'rejected_count' => $ingestionSummary['rejected_count'],
-            ],
-        ]);
+        try {
+            $snapshot = $snapshotService->captureForRun($context['run']);
+            $solverResult = $solverClient->solve($snapshot);
+            $ingestionSummary = $resultIngestor->ingest($context['run'], $solverResult);
+
+            $lifecycleService->markProcessed(
+                $context['run'],
+                $context['event'],
+                $this->elapsedMilliseconds($startedAt),
+                $this->resultSummary($solverResult),
+                $this->ingestionSummary($ingestionSummary),
+            );
+        } catch (Throwable $exception) {
+            $transportException = $exception instanceof SchedulingSolverTransportException
+                ? $exception
+                : SchedulingSolverTransportException::unexpected($exception);
+            $final = ! $transportException->isRetryable() || $attempt >= $this->tries;
+
+            $lifecycleService->markFailed(
+                $context['run'],
+                $context['event'],
+                $transportException,
+                $this->elapsedMilliseconds($startedAt),
+                $final,
+            );
+
+            if ($final) {
+                $this->fail($transportException);
+
+                return;
+            }
+
+            throw $transportException;
+        }
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $transportException = match (true) {
+            $exception instanceof SchedulingSolverTransportException => $exception,
+            $exception instanceof TimeoutExceededException => SchedulingSolverTransportException::retryable(
+                SchedulingSolverTransportException::ClassificationTimeout,
+                'Scheduling solver attempt timed out.',
+                previous: $exception,
+            ),
+            default => SchedulingSolverTransportException::unexpected(
+                $exception ?? new RuntimeException('Scheduling solver dispatch failed.'),
+            ),
+        };
+
+        app(ScheduleSolverDispatchLifecycleService::class)->finalizeUnhandledFailure(
+            $this->scheduleGenerationRunId,
+            max(1, $this->attempts()),
+            $transportException,
+        );
     }
 
     /**
-     * @param  array<string, mixed>  $summary
+     * @param  array<string, mixed>  $ingestionSummary
+     * @return array<string, mixed>
      */
-    private function recordDispatchSummary(ScheduleGenerationRun $run, array $summary): void
+    private function ingestionSummary(array $ingestionSummary): array
     {
-        $run->refresh();
-        $diagnostics = $this->arrayValue($run->getAttribute('diagnostics'));
-        $diagnostics['solver_dispatch'] = [
-            ...($diagnostics['solver_dispatch'] ?? []),
-            ...$summary,
+        return [
+            'status' => $ingestionSummary['status'] ?? null,
+            'candidate_row_count' => $ingestionSummary['candidate_row_count'] ?? null,
+            'ok_count' => $ingestionSummary['ok_count'] ?? null,
+            'warning_count' => $ingestionSummary['warning_count'] ?? null,
+            'conflict_count' => $ingestionSummary['conflict_count'] ?? null,
+            'rejected_count' => $ingestionSummary['rejected_count'] ?? null,
         ];
-
-        $run->forceFill([
-            'diagnostics' => $diagnostics,
-        ])->save();
     }
 
     /**
@@ -135,11 +161,8 @@ class ScheduleSolverDispatchJob implements ShouldQueue
             : null;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function arrayValue(mixed $value): array
+    private function elapsedMilliseconds(int $startedAt): int
     {
-        return is_array($value) ? $value : [];
+        return max(0, (int) round((hrtime(true) - $startedAt) / 1_000_000));
     }
 }

@@ -4,7 +4,6 @@ namespace App\Actions\Integrations\SchedulingSolver;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 use Throwable;
 
 class CloudRunSchedulingSolverClient implements SchedulingSolverClient
@@ -23,20 +22,26 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
      */
     public function solve(array $snapshot): array
     {
-        $endpoint = $this->endpoint('/solve');
-
         try {
             $response = $this->authorizedRequest()
-                ->post($endpoint, $snapshot)
+                ->post($this->endpoint('/solve'), $snapshot)
                 ->throw();
+        } catch (SchedulingSolverTransportException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
-            throw new RuntimeException('Scheduling solver request failed.', 0, $exception);
+            throw SchedulingSolverTransportException::fromHttpFailure(
+                $exception,
+                'Scheduling solver request failed.',
+            );
         }
 
         $payload = $response->json();
 
         if (! is_array($payload)) {
-            throw new RuntimeException('Scheduling solver did not return a JSON object.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationMalformedResponse,
+                'Scheduling solver did not return a JSON object.',
+            );
         }
 
         return $payload;
@@ -51,8 +56,13 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
             $response = $this->authorizedRequest()
                 ->get($this->endpoint('/health'))
                 ->throw();
+        } catch (SchedulingSolverTransportException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
-            throw new RuntimeException('Scheduling solver probe failed.', 0, $exception);
+            throw SchedulingSolverTransportException::fromHttpFailure(
+                $exception,
+                'Scheduling solver probe failed.',
+            );
         }
 
         return [
@@ -63,7 +73,19 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
 
     private function authorizedRequest(): PendingRequest
     {
-        return Http::withToken($this->idTokenProvider->tokenFor($this->audience()))
+        $audience = $this->audience();
+
+        try {
+            $token = $this->idTokenProvider->tokenFor($audience);
+        } catch (Throwable $exception) {
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationCredential,
+                'Scheduling solver authentication failed.',
+                previous: $exception,
+            );
+        }
+
+        return Http::withToken($token)
             ->acceptJson()
             ->asJson()
             ->timeout($this->timeoutSeconds())
@@ -80,7 +102,10 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
         $baseUrl = trim((string) $this->baseUrl);
 
         if ($baseUrl === '') {
-            throw new RuntimeException('Scheduling solver URL is not configured.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationConfiguration,
+                'Scheduling solver URL is not configured.',
+            );
         }
 
         return $baseUrl;
@@ -91,7 +116,10 @@ class CloudRunSchedulingSolverClient implements SchedulingSolverClient
         $audience = trim((string) $this->audience);
 
         if ($audience === '') {
-            throw new RuntimeException('Scheduling solver audience is not configured.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationConfiguration,
+                'Scheduling solver audience is not configured.',
+            );
         }
 
         return $audience;

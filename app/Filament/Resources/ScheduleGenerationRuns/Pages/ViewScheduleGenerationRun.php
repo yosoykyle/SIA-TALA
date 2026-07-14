@@ -6,6 +6,7 @@ use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
@@ -35,10 +36,59 @@ class ViewScheduleGenerationRun extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->retrySolverRunAction(),
             $this->revisePublishedScheduleAction(),
             $this->manualScheduleOverrideAction(),
             $this->publishScheduleAction(),
         ];
+    }
+
+    public function retrySolverRunAction(): Action
+    {
+        return Action::make('retrySolverRun')
+            ->label('Retry Solver Run')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalHeading('Retry Solver Run')
+            ->modalDescription('Requeue this same immutable run. Prior solver attempts remain available in Operational Events.')
+            ->modalSubmitActionLabel('Retry Solver Run')
+            ->visible(fn (): bool => $this->canRetrySolver())
+            ->action(function (): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    abort(403);
+                }
+
+                $run = $this->run();
+
+                try {
+                    $this->record = app(ScheduleSolverRetryService::class)->retry($run, $actor);
+
+                    Notification::make()
+                        ->title('Solver run requeued')
+                        ->success()
+                        ->send();
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Solver retry blocked')
+                        ->body($this->validationMessage($exception))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    throw $exception;
+                } finally {
+                    $fresh = $run->fresh();
+
+                    if ($fresh instanceof ScheduleGenerationRun) {
+                        $this->record = $fresh;
+                    }
+
+                    $this->dispatch('schedule-run-updated');
+                }
+            });
     }
 
     public function revisePublishedScheduleAction(): Action
@@ -262,6 +312,14 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run instanceof ScheduleGenerationRun
             && Gate::forUser($publisher)->allows('publish', $run)
             && $run->canBePublished();
+    }
+
+    private function canRetrySolver(): bool
+    {
+        $actor = auth()->user();
+
+        return $actor instanceof User
+            && Gate::forUser($actor)->allows('retry', $this->run());
     }
 
     private function canRevisePublishedSchedule(): bool

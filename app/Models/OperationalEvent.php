@@ -14,6 +14,18 @@ class OperationalEvent extends Model
 
     public $timestamps = false;
 
+    public const DomainIntegration = 'INTEGRATION';
+
+    public const IntegrationSchedulingSolver = 'SCHEDULING_SOLVER';
+
+    public const TypeSolverDispatchAttempt = 'solver_dispatch_attempt';
+
+    public const StatusPending = 'PENDING';
+
+    public const StatusProcessed = 'PROCESSED';
+
+    public const StatusFailed = 'FAILED';
+
     /** @var list<string> */
     protected $guarded = ['id'];
 
@@ -35,5 +47,11 @@ class OperationalEvent extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<ScheduleGenerationRun, $this> */
+    public function scheduleGenerationRun(): BelongsTo
+    {
+        return $this->belongsTo(ScheduleGenerationRun::class, 'related_record_id');
     }
 }

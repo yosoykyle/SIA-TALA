@@ -6,6 +6,7 @@ use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -81,8 +82,10 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         try {
             $client->probe();
             $this->fail('An endpoint outside the local HTTP boundary was accepted.');
-        } catch (RuntimeException $exception) {
+        } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame('Local scheduling solver URL must use HTTP on an exact loopback host with no path, credentials, query, or fragment.', $exception->getMessage());
+            $this->assertSame(SchedulingSolverTransportException::ClassificationConfiguration, $exception->classification());
+            $this->assertFalse($exception->isRetryable());
         }
 
         Http::assertNothingSent();
@@ -102,8 +105,10 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         try {
             $client->probe();
             $this->fail('The local HTTP transport was accepted in production.');
-        } catch (RuntimeException $exception) {
+        } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame('Local scheduling solver transport is available only in local or testing environments.', $exception->getMessage());
+            $this->assertSame(SchedulingSolverTransportException::ClassificationConfiguration, $exception->classification());
+            $this->assertFalse($exception->isRetryable());
         }
 
         Http::assertNothingSent();
@@ -119,11 +124,100 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         try {
             $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
             $this->fail('A failed solver response did not throw.');
-        } catch (RuntimeException $exception) {
+        } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame('Local scheduling solver request failed.', $exception->getMessage());
+            $this->assertSame(SchedulingSolverTransportException::ClassificationServerError, $exception->classification());
+            $this->assertSame(500, $exception->statusCode());
+            $this->assertTrue($exception->isRetryable());
         }
 
         Http::assertSentCount(1);
+    }
+
+    #[DataProvider('httpFailureCases')]
+    public function test_local_http_classifies_retryable_and_permanent_http_failures(
+        int $status,
+        string $classification,
+        bool $retryable,
+    ): void {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://127.0.0.1:8080/solve' => Http::response(['secret' => 'must-not-leak'], $status),
+        ]);
+
+        try {
+            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->fail("HTTP {$status} did not throw a typed solver transport exception.");
+        } catch (SchedulingSolverTransportException $exception) {
+            $this->assertSame($classification, $exception->classification());
+            $this->assertSame($status, $exception->statusCode());
+            $this->assertSame($retryable, $exception->isRetryable());
+            $this->assertStringNotContainsString('must-not-leak', $exception->getMessage());
+        }
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_local_http_connection_and_malformed_response_failures_are_classified_without_nested_retries(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://127.0.0.1:8080/solve' => Http::sequence()
+                ->pushFailedConnection('connection refused at private endpoint')
+                ->push('not-json', 200, ['Content-Type' => 'text/plain']),
+        ]);
+
+        try {
+            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->fail('A connection failure did not throw.');
+        } catch (SchedulingSolverTransportException $exception) {
+            $this->assertSame(SchedulingSolverTransportException::ClassificationConnection, $exception->classification());
+            $this->assertTrue($exception->isRetryable());
+            $this->assertNull($exception->statusCode());
+        }
+
+        Http::assertSentCount(1);
+
+        try {
+            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->fail('A malformed solver response did not throw.');
+        } catch (SchedulingSolverTransportException $exception) {
+            $this->assertSame(SchedulingSolverTransportException::ClassificationMalformedResponse, $exception->classification());
+            $this->assertFalse($exception->isRetryable());
+        }
+
+        Http::assertSentCount(2);
+    }
+
+    public function test_cloud_run_credential_failure_is_permanent_and_redacted(): void
+    {
+        $tokenProvider = new class implements CloudRunIdTokenProvider
+        {
+            public function tokenFor(string $audience): string
+            {
+                throw new RuntimeException('C:\\private\\scheduler-invoker.json contains invalid credentials');
+            }
+        };
+
+        Http::preventStrayRequests();
+        $client = new CloudRunSchedulingSolverClient(
+            idTokenProvider: $tokenProvider,
+            baseUrl: 'https://solver.example.test',
+            audience: 'https://solver.example.test',
+            timeoutSeconds: 30,
+            connectTimeoutSeconds: 2,
+        );
+
+        try {
+            $client->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->fail('A credential failure did not throw.');
+        } catch (SchedulingSolverTransportException $exception) {
+            $this->assertSame(SchedulingSolverTransportException::ClassificationCredential, $exception->classification());
+            $this->assertFalse($exception->isRetryable());
+            $this->assertStringNotContainsString('scheduler-invoker.json', $exception->getMessage());
+        }
+
+        Http::assertNothingSent();
     }
 
     public function test_cloud_run_probe_uses_health_endpoint_and_id_token(): void
@@ -176,6 +270,21 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
             'path-bearing URL' => ['http://127.0.0.1:8080/api'],
             'query-bearing URL' => ['http://127.0.0.1:8080?debug=1'],
             'fragment-bearing URL' => ['http://127.0.0.1:8080#debug'],
+        ];
+    }
+
+    /**
+     * @return array<string, array{int, string, bool}>
+     */
+    public static function httpFailureCases(): array
+    {
+        return [
+            'request timeout' => [408, SchedulingSolverTransportException::ClassificationTimeout, true],
+            'rate limited' => [429, SchedulingSolverTransportException::ClassificationRateLimited, true],
+            'service unavailable' => [503, SchedulingSolverTransportException::ClassificationServerError, true],
+            'bad request' => [400, SchedulingSolverTransportException::ClassificationClientError, false],
+            'unauthorized' => [401, SchedulingSolverTransportException::ClassificationClientError, false],
+            'unprocessable response' => [422, SchedulingSolverTransportException::ClassificationClientError, false],
         ];
     }
 

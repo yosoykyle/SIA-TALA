@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OperationalEvents\Tables;
 
+use App\Models\OperationalEvent;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\TextColumn;
@@ -103,6 +104,7 @@ class OperationalEventsTable
         return [
             'mail' => 'Mail',
             'PAYMONGO' => 'PayMongo',
+            OperationalEvent::IntegrationSchedulingSolver => 'Scheduling Solver',
         ];
     }
 }

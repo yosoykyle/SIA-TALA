@@ -4,7 +4,6 @@ namespace App\Actions\Integrations\SchedulingSolver;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 use Throwable;
 
 class LocalHttpSchedulingSolverClient implements SchedulingSolverClient
@@ -45,20 +44,26 @@ class LocalHttpSchedulingSolverClient implements SchedulingSolverClient
      */
     public function solve(array $snapshot): array
     {
-        $endpoint = $this->endpoint('/solve');
-
         try {
             $response = $this->request()
-                ->post($endpoint, $snapshot)
+                ->post($this->endpoint('/solve'), $snapshot)
                 ->throw();
+        } catch (SchedulingSolverTransportException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
-            throw new RuntimeException('Local scheduling solver request failed.', 0, $exception);
+            throw SchedulingSolverTransportException::fromHttpFailure(
+                $exception,
+                'Local scheduling solver request failed.',
+            );
         }
 
         $payload = $response->json();
 
         if (! is_array($payload)) {
-            throw new RuntimeException('Local scheduling solver did not return a JSON object.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationMalformedResponse,
+                'Local scheduling solver did not return a JSON object.',
+            );
         }
 
         return $payload;
@@ -69,14 +74,17 @@ class LocalHttpSchedulingSolverClient implements SchedulingSolverClient
      */
     public function probe(): array
     {
-        $endpoint = $this->endpoint('/health');
-
         try {
             $response = $this->request()
-                ->get($endpoint)
+                ->get($this->endpoint('/health'))
                 ->throw();
+        } catch (SchedulingSolverTransportException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
-            throw new RuntimeException('Local scheduling solver probe failed.', 0, $exception);
+            throw SchedulingSolverTransportException::fromHttpFailure(
+                $exception,
+                'Local scheduling solver probe failed.',
+            );
         }
 
         return [
@@ -101,13 +109,19 @@ class LocalHttpSchedulingSolverClient implements SchedulingSolverClient
     private function validatedBaseUrl(): string
     {
         if (! self::supportsEnvironment($this->environment)) {
-            throw new RuntimeException('Local scheduling solver transport is available only in local or testing environments.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationConfiguration,
+                'Local scheduling solver transport is available only in local or testing environments.',
+            );
         }
 
         $baseUrl = trim((string) $this->baseUrl);
 
         if (! self::supportsBaseUrl($baseUrl)) {
-            throw new RuntimeException('Local scheduling solver URL must use HTTP on an exact loopback host with no path, credentials, query, or fragment.');
+            throw SchedulingSolverTransportException::permanent(
+                SchedulingSolverTransportException::ClassificationConfiguration,
+                'Local scheduling solver URL must use HTTP on an exact loopback host with no path, credentials, query, or fragment.',
+            );
         }
 
         return rtrim($baseUrl, '/');
