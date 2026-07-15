@@ -12,6 +12,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Throwable;
 use UnitEnum;
 
@@ -157,21 +158,59 @@ class IntegrationStatus extends Page
     {
         $driver = (string) config('tala_integrations.payments.driver');
         $isPaymongo = $driver === 'paymongo';
+        $hasApiKeys = filled(config('tala_integrations.payments.paymongo.secret_key'))
+            && filled(config('tala_integrations.payments.paymongo.public_key'));
+        $hasWebhookSecret = filled(config('tala_integrations.payments.paymongo.webhook_signature'));
+        $hasWebhookRoute = Route::has('webhooks.paymongo');
+        $localReady = $isPaymongo && $hasApiKeys && $hasWebhookSecret && $hasWebhookRoute;
+
+        $webhookEvents = OperationalEvent::query()
+            ->where('event_domain', OperationalEvent::DomainIntegration)
+            ->where('integration', OperationalEvent::IntegrationPayMongo)
+            ->where('channel', OperationalEvent::ChannelWebhook)
+            ->where('direction', OperationalEvent::DirectionInbound);
+        $lastProcessed = (clone $webhookEvents)
+            ->where('status', OperationalEvent::StatusProcessed)
+            ->latest('processed_at')
+            ->first(['processed_at']);
+        $lastFailed = (clone $webhookEvents)
+            ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
+            ->latest('occurred_at')
+            ->first(['occurred_at', 'failed_at']);
+        $openExceptions = (clone $webhookEvents)
+            ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
+            ->count();
 
         return [
             'name' => 'Payments (PayMongo)',
             'driver' => $driver,
             'live_mode' => $isPaymongo && (bool) config('tala_integrations.payments.paymongo.livemode'),
             'configured' => $isPaymongo
-                ? filled(config('tala_integrations.payments.paymongo.secret_key')) && filled(config('tala_integrations.payments.paymongo.public_key'))
+                ? $localReady
                 : filled(config('tala_integrations.payments.mock.provider')),
             'reference' => $isPaymongo ? [
+                'Mode' => (bool) config('tala_integrations.payments.paymongo.livemode') ? 'Live' : 'Test',
                 'Base URL' => (string) config('tala_integrations.payments.paymongo.base_url'),
                 'Payment method types' => implode(', ', (array) config('tala_integrations.payments.paymongo.payment_method_types')),
+                'API key references' => $hasApiKeys ? 'Configured' : 'Missing',
+                'Webhook signing secret' => $hasWebhookSecret ? 'Configured' : 'Missing',
+                'Local webhook route' => $hasWebhookRoute ? 'Registered' : 'Missing',
+                'Local webhook readiness' => $localReady ? 'Ready' : 'Incomplete',
+                'Last processed webhook' => $this->eventTimestamp($lastProcessed?->processed_at),
+                'Last failed/review webhook' => $this->eventTimestamp($lastFailed->failed_at ?? $lastFailed->occurred_at ?? null),
+                'Open exceptions' => (string) $openExceptions,
+                'Provider endpoint status' => 'Not verified locally',
             ] : [
                 'Mock checkout URL' => (string) config('tala_integrations.payments.mock.checkout_base_url'),
             ],
         ];
+    }
+
+    private function eventTimestamp(mixed $timestamp): string
+    {
+        return $timestamp === null
+            ? 'None observed'
+            : $timestamp->timezone(config('app.timezone'))->format('Y-m-d H:i');
     }
 
     /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label: string} */

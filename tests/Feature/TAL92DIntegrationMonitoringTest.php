@@ -136,6 +136,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.payments.driver', 'paymongo');
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_ABSOLUTELY_SECRET_VALUE');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_PUBLIC_BUT_NOT_RENDERED');
+        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_ABSOLUTELY_SECRET_VALUE');
         Config::set('tala_integrations.payments.paymongo.livemode', false);
         Config::set('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com');
         Config::set('tala_integrations.payments.paymongo.payment_method_types', ['gcash', 'card']);
@@ -148,7 +149,52 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $this->assertStringNotContainsString('sk_test_ABSOLUTELY_SECRET_VALUE', $html);
         $this->assertStringNotContainsString('pk_test_PUBLIC_BUT_NOT_RENDERED', $html);
+        $this->assertStringNotContainsString('whsec_ABSOLUTELY_SECRET_VALUE', $html);
         $this->assertStringContainsString('Configured ✓', $html);
+    }
+
+    #[Test]
+    public function paymongo_status_reports_local_readiness_and_observed_webhook_health_without_claiming_provider_status(): void
+    {
+        Config::set('tala_integrations.payments.driver', 'paymongo');
+        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
+        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
+        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_present');
+        Config::set('tala_integrations.payments.paymongo.livemode', false);
+
+        OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationPayMongo,
+            'channel' => OperationalEvent::ChannelWebhook,
+            'direction' => OperationalEvent::DirectionInbound,
+            'event_type' => 'checkout_session.payment.paid',
+            'status' => OperationalEvent::StatusProcessed,
+            'processed_at' => now()->subMinute(),
+        ]);
+        OperationalEvent::factory()->failed()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationPayMongo,
+            'channel' => OperationalEvent::ChannelWebhook,
+            'direction' => OperationalEvent::DirectionInbound,
+            'event_type' => 'checkout_session.payment.paid',
+            'status' => OperationalEvent::StatusReviewRequired,
+            'failed_at' => now(),
+            'diagnostics' => ['reason' => 'must-not-render'],
+        ]);
+
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $html = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+
+        $this->assertStringContainsString('Local webhook readiness', $html);
+        $this->assertStringContainsString('Ready', $html);
+        $this->assertStringContainsString('Open exceptions', $html);
+        $this->assertStringContainsString('1', $html);
+        $this->assertStringContainsString('Provider endpoint status', $html);
+        $this->assertStringContainsString('Not verified locally', $html);
+        $this->assertStringNotContainsString('must-not-render', $html);
+        $this->assertStringNotContainsString('Enabled in PayMongo', $html);
     }
 
     #[Test]
@@ -161,12 +207,14 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.payments.driver', 'paymongo');
         Config::set('tala_integrations.payments.paymongo.secret_key', null);
         Config::set('tala_integrations.payments.paymongo.public_key', null);
+        Config::set('tala_integrations.payments.paymongo.webhook_signature', null);
 
         $unconfiguredHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
         $this->assertStringContainsString('Not configured ✗', $unconfiguredHtml);
 
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
+        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_present');
 
         $configuredHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
         $this->assertStringContainsString('Configured ✓', $configuredHtml);

@@ -17,6 +17,7 @@ class RecordOperationalMailSent
             || ! in_array($operationalEventType, [
                 OperationalEvent::TypeScheduleRevisionEmail,
                 OperationalEvent::TypeScheduleReleasedEmail,
+                OperationalEvent::TypePaymentPostedEmail,
             ], true)) {
             return;
         }

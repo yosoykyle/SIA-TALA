@@ -17,6 +17,7 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -80,7 +81,7 @@ class TAL75ReportsAuditTest extends TestCase
         $this->assertCount(6, $reports->optionsFor($this->user(User::StaffRoleRegistrar)));
         $this->assertCount(5, $reports->optionsFor($this->user(User::StaffRoleAccounting)));
         $this->assertCount(11, $reports->optionsFor($this->user(User::StaffRoleAcademicHead)));
-        $this->assertCount(5, $reports->optionsFor($this->user(User::StaffRoleSystemSuperAdmin)));
+        $this->assertCount(6, $reports->optionsFor($this->user(User::StaffRoleSystemSuperAdmin)));
         $this->assertSame([], $reports->optionsFor($this->user('student')));
         $this->assertSame([], $reports->optionsFor($this->user('applicant')));
     }
@@ -396,6 +397,70 @@ class TAL75ReportsAuditTest extends TestCase
 
         $this->assertStringNotContainsString('RAW-WEBHOOK-SECRET', $integrationCsv);
         $this->assertStringNotContainsString('INTERNAL-DIAGNOSTIC', $integrationCsv);
+    }
+
+    #[Test]
+    public function paymongo_webhook_report_is_super_admin_only_scoped_filterable_and_allowlisted(): void
+    {
+        $superAdmin = $this->user(User::StaffRoleSystemSuperAdmin);
+        $accounting = $this->user(User::StaffRoleAccounting);
+        $included = OperationalEvent::factory()->failed()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationPayMongo,
+            'channel' => OperationalEvent::ChannelWebhook,
+            'direction' => OperationalEvent::DirectionInbound,
+            'event_type' => 'checkout_session.payment.paid',
+            'external_id' => 'evt-c2-included',
+            'status' => OperationalEvent::StatusReviewRequired,
+            'payload' => ['signature' => 'must-not-render'],
+            'diagnostics' => ['reason' => 'must-not-render'],
+        ]);
+        $excluded = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainNotifications,
+            'integration' => OperationalEvent::IntegrationMail,
+            'channel' => OperationalEvent::ChannelEmail,
+            'direction' => OperationalEvent::DirectionOutbound,
+        ]);
+        $reports = app(OperationalReportService::class);
+
+        $this->assertArrayHasKey(OperationalReportService::PayMongoWebhookEvent, $reports->optionsFor($superAdmin));
+        $this->assertArrayNotHasKey(OperationalReportService::PayMongoWebhookEvent, $reports->optionsFor($accounting));
+
+        $filtered = $reports->applyFilters(
+            OperationalReportService::PayMongoWebhookEvent,
+            $reports->query(OperationalReportService::PayMongoWebhookEvent, $superAdmin),
+            ['status' => OperationalEvent::StatusReviewRequired, 'event_type' => 'checkout_session.payment.paid'],
+        )->get();
+
+        $this->assertSame([$included->id], $filtered->pluck('id')->all());
+        $this->assertFalse($filtered->contains($excluded));
+        $this->assertArrayNotHasKey('payload', $filtered->first()->getAttributes());
+        $this->assertArrayNotHasKey('diagnostics', $filtered->first()->getAttributes());
+        $columnKeys = array_column($reports->columns(OperationalReportService::PayMongoWebhookEvent), 'key');
+        $this->assertSame([
+            'occurred_at',
+            'event_type',
+            'external_id',
+            'related_record',
+            'status',
+            'processed_at',
+        ], $columnKeys);
+        $this->assertNotContains('payload', $columnKeys);
+        $this->assertNotContains('diagnostics', $columnKeys);
+
+        $this->actingAs($superAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(ReportsAudit::class)
+            ->callAction(TestAction::make('selectReport'), [
+                'report_key' => OperationalReportService::PayMongoWebhookEvent,
+            ])
+            ->assertCanSeeTableRecords([$included])
+            ->assertCanNotSeeTableRecords([$excluded])
+            ->assertSee('evt-c2-included')
+            ->assertDontSee('must-not-render');
+
+        $this->expectException(AuthorizationException::class);
+        $reports->query(OperationalReportService::PayMongoWebhookEvent, $accounting);
     }
 
     #[Test]

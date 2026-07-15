@@ -6,6 +6,7 @@ use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Jobs\ProcessPayMongoWebhookCall;
+use App\Mail\PaymentPostedMail;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -22,6 +23,7 @@ use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -109,6 +111,8 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
 
     public function test_accounting_can_confirm_bounded_amount_ambiguity_exactly_once(): void
     {
+        Mail::fake();
+
         $accounting = $this->staff(User::StaffRoleAccounting);
         $assessment = $this->activeAssessment($accounting);
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_c1_confirm');
@@ -134,6 +138,7 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
         $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(1, DB::table('activity_log')->where('event', 'paymongo_payment_confirmed')->count());
+        Mail::assertQueued(PaymentPostedMail::class, 1);
     }
 
     public function test_reject_is_terminal_idempotent_and_never_posts_the_ledger(): void

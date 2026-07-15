@@ -19,6 +19,7 @@ final class PayMongoPaymentPostingService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+        private readonly PaymentPostedNotificationService $paymentPostedNotificationService,
     ) {}
 
     /**
@@ -120,6 +121,10 @@ final class PayMongoPaymentPostingService
             actor: $actor,
             timestamp: $timestamp,
         );
+
+        if ($ledgerEntry->wasRecentlyCreated) {
+            $this->paymentPostedNotificationService->record($payment);
+        }
 
         return [
             'status' => $wasPosted ? 'duplicate' : 'posted',

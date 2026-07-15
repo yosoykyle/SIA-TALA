@@ -76,13 +76,19 @@ final readonly class PayMongoWebhookEvent
 
     public function isSupported(): bool
     {
-        return in_array($this->eventType, [
+        return in_array($this->eventType, self::supportedEventTypes(), true);
+    }
+
+    /** @return list<string> */
+    public static function supportedEventTypes(): array
+    {
+        return [
             'checkout_session.payment.paid',
             'payment.paid',
             'payment.failed',
             'payment.refunded',
             'payment.refund.updated',
-        ], true);
+        ];
     }
 
     /**

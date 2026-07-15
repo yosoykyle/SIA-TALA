@@ -10,7 +10,7 @@ Remaining dependency chain: complete the human-gated PayMongo integration (TAL-9
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-95 | In progress; TAL-95A-B and TAL-95C1 done locally; next TAL-95C2; human-gated final acceptance | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
+| TAL-95 | In progress; TAL-95A-C done locally; next TAL-95D planning; human-gated final acceptance | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
 | TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
 | TAL-97 | Planned | Demo and Rehearsal Support built only from the verified MVP. |
 
@@ -22,10 +22,14 @@ Cross-slice acceptance rule: TAL-95 is end-to-end across A-D. Treat every existi
 | --- | --- | --- | --- |
 | TAL-95A | Done locally; pending explicit Linear sync | Authorized, idempotent, recoverable Student Checkout and active Payment Attempt lifecycle. | Completed |
 | TAL-95B | Done locally; pending explicit Linear sync | Secure PayMongo webhook processing, exact financial validation, and Accounting review routing. | Completed |
-| TAL-95C | TAL-95C1 done locally; TAL-95C2 pending | Complete Accounting reconciliation first, then PayMongo observability and student-facing delivery. | Plan TAL-95C2 |
+| TAL-95C | Done locally; pending explicit Linear sync | Complete Accounting reconciliation first, then PayMongo observability and student-facing delivery. | Completed |
 | TAL-95C1 | Done locally; pending explicit Linear sync | Add source-linked Accounting reconciliation with authorized, reasoned confirm/reject decisions and safe reprocessing of persisted PayMongo webhook evidence. | Completed |
-| TAL-95C2 | Approved boundary; ready to plan | Deliver sanitized PayMongo reporting and integration status, explicit Student Finance evidence states, and deduplicated payment-posted email delivery. | Plan TAL-95C2 |
-| TAL-95D | Approved boundary; blocked by TAL-95C2; human-gated | Prove the complete PayMongo test-mode lifecycle through a public HTTPS webhook endpoint against `test_tala_db`, including successful and failed checkout, signed delivery, duplicate handling, ledger/Finance Gate outcomes, role surfaces, report evidence, and notification delivery; exclude live keys and real money. | Plan after TAL-95C2 Cleanup |
+| TAL-95C2 | Done locally; pending explicit Linear sync | Deliver sanitized PayMongo reporting and integration status, explicit Student Finance evidence states, and deduplicated payment-posted email delivery. | Completed |
+| TAL-95D | Approved boundary; ready for planning; human-gated | Prove the complete PayMongo test-mode lifecycle through a public HTTPS webhook endpoint against `test_tala_db`, including successful and failed checkout, signed delivery, duplicate handling, ledger/Finance Gate outcomes, role surfaces, report evidence, and notification delivery; exclude live keys and real money. | Plan TAL-95D |
+
+## Active Approved Plan Contract
+
+No active approved plan contract. The next boundary must be planned and approved before implementation or orchestration.
 
 ## Post-MVP Deferrals
 
@@ -42,4 +46,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-95C2**. Re-run the Ground-Truth Gate before planning sanitized PayMongo reporting, Student Finance evidence states, and payment-posted email delivery; preserve TAL-95D as the separate human-gated provider acceptance.
+Next primary boundary: **Plan TAL-95D**. Re-run the Ground-Truth Gate and define the human-gated provider-acceptance procedure before any PayMongo dashboard, credential, public-endpoint, or test-mode action.

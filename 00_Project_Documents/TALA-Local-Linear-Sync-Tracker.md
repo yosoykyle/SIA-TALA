@@ -106,6 +106,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-95A | Done locally; pending explicit Linear sync | Authorized, Idempotent, Recoverable Student Checkout |
 | TAL-95B | Done locally; pending explicit Linear sync | Secure PayMongo Webhook Processing and Financial Evidence |
 | TAL-95C1 | Done locally; pending explicit Linear sync | Accounting PayMongo Reconciliation |
+| TAL-95C2 | Done locally; pending explicit Linear sync | PayMongo Observability and Student Delivery |
 
 ## Compact Synced History
 

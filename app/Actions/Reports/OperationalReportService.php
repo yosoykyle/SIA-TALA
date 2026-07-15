@@ -2,6 +2,7 @@
 
 namespace App\Actions\Reports;
 
+use App\Actions\Integrations\Payments\PayMongoWebhookEvent;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
@@ -97,6 +98,8 @@ class OperationalReportService
 
     public const IntegrationEvent = 'audit.integration-event';
 
+    public const PayMongoWebhookEvent = 'audit.paymongo-webhook-event';
+
     public function __construct(private readonly OperationalReportPolicy $policy) {}
 
     /** @return array<string, string> */
@@ -176,6 +179,13 @@ class OperationalReportService
                 'BLOCKED_CURRENT_ENROLLMENT' => 'Blocked: Current Enrollment Not Finalized',
             ],
             self::PendingOrMapping => ['verified' => 'Verified'],
+            self::PayMongoWebhookEvent => [
+                OperationalEvent::StatusPending => 'Pending',
+                OperationalEvent::StatusProcessed => 'Processed',
+                OperationalEvent::StatusFailed => 'Failed',
+                OperationalEvent::StatusReviewRequired => 'Review Required',
+                OperationalEvent::StatusIgnored => 'Ignored',
+            ],
             self::FinancialAccommodation => [
                 'PENDING' => 'Pending', 'ACTIVE' => 'Active', 'FULFILLED' => 'Fulfilled',
                 'DEFAULTED' => 'Defaulted', 'EXPIRED' => 'Expired', 'CANCELLED' => 'Cancelled',
@@ -204,6 +214,18 @@ class OperationalReportService
             ],
             default => [],
         };
+    }
+
+    /** @return array<string, string> */
+    public function eventTypeOptions(string $reportKey): array
+    {
+        if ($reportKey !== self::PayMongoWebhookEvent) {
+            return [];
+        }
+
+        return collect(PayMongoWebhookEvent::supportedEventTypes())
+            ->mapWithKeys(fn (string $eventType): array => [$eventType => str($eventType)->replace(['.', '_'], ' ')->headline()->toString()])
+            ->all();
     }
 
     /**
@@ -417,6 +439,14 @@ class OperationalReportService
                 $this->column('status', 'Status', 'status', badge: true),
                 $this->column('processed_at', 'Processed At', 'processed_at', 'datetime'),
             ],
+            self::PayMongoWebhookEvent => [
+                $this->column('occurred_at', 'Occurred At', 'occurred_at', 'datetime'),
+                $this->column('event_type', 'Event Type', 'event_type'),
+                $this->column('external_id', 'External ID', 'external_id'),
+                $this->column('related_record', 'Related Record', resolver: 'related_record'),
+                $this->column('status', 'Status', 'status', badge: true),
+                $this->column('processed_at', 'Processed At', 'processed_at', 'datetime'),
+            ],
             default => throw new \InvalidArgumentException("Unknown report [{$reportKey}]."),
         };
     }
@@ -542,6 +572,22 @@ class OperationalReportService
                 ->where('action', 'EXPORT')
                 ->latest('occurred_at'),
             self::IntegrationEvent => OperationalEvent::query()->with('user')->latest('occurred_at'),
+            self::PayMongoWebhookEvent => OperationalEvent::query()
+                ->select([
+                    'id',
+                    'occurred_at',
+                    'event_type',
+                    'external_id',
+                    'related_record_type',
+                    'related_record_id',
+                    'status',
+                    'processed_at',
+                ])
+                ->where('event_domain', OperationalEvent::DomainIntegration)
+                ->where('integration', OperationalEvent::IntegrationPayMongo)
+                ->where('channel', OperationalEvent::ChannelWebhook)
+                ->where('direction', OperationalEvent::DirectionInbound)
+                ->latest('occurred_at'),
             default => throw new \InvalidArgumentException("Unknown report [{$reportKey}]."),
         };
     }
@@ -610,6 +656,16 @@ class OperationalReportService
             $query->when($filters['output_type'] ?? null, fn (Builder $builder, mixed $type) => $builder->where('output_type', $type));
             $query->when($filters['sensitivity'] ?? null, fn (Builder $builder, mixed $sensitivity) => $builder->where('sensitivity', $sensitivity));
             $query->when($filters['source_record_id'] ?? null, fn (Builder $builder, mixed $sourceId) => $builder->where('source_record_id', (int) $sourceId));
+        }
+
+        if ($reportKey === self::PayMongoWebhookEvent && filled($filters['event_type'] ?? null)) {
+            $eventType = (string) $filters['event_type'];
+
+            if (in_array($eventType, PayMongoWebhookEvent::supportedEventTypes(), true)) {
+                $query->where('event_type', $eventType);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         return $query;
@@ -682,6 +738,7 @@ class OperationalReportService
             self::GeneratedOutput => $this->definitionRow('Generated Output Access Audit', 'Official output view, print, download, and export evidence.', self::SensitivitySensitive, ['date_from', 'date_until', 'actor_id', 'output_type', 'sensitivity', 'source_record_id']),
             self::ReportExport => $this->definitionRow('Report Export Audit', 'REPORT / EXPORT evidence recorded by this fixed report catalog.', self::SensitivitySensitive, ['date_from', 'date_until', 'actor_id', 'sensitivity', 'source_record_id']),
             self::IntegrationEvent => $this->definitionRow('Integration Event Log', 'Typed integration outcomes without raw payloads, secrets, or internal diagnostics.', self::SensitivitySensitive, ['date_from', 'date_until', 'actor_id']),
+            self::PayMongoWebhookEvent => $this->definitionRow('PayMongo Webhook Event Log', 'Observed PayMongo webhook outcomes with allowlisted operational fields only.', self::SensitivitySensitive, ['date_from', 'date_until', 'status', 'event_type']),
         ];
     }
 
@@ -830,6 +887,7 @@ class OperationalReportService
             self::ProgressionException => 'state', self::PendingGrade => 'current_outcome_category',
             self::IncCompletion => 'current_outcome_category', self::LateGradeAuthorization => 'state',
             self::UnitLoadException => 'state', self::UserRole => 'status',
+            self::PayMongoWebhookEvent => 'status',
             self::AcademicCurriculumVersion => 'state',
         ];
     }
@@ -849,6 +907,7 @@ class OperationalReportService
             self::LateGradeAuthorization => 'opens_at', self::UnitLoadException => 'approved_at',
             self::UserRole => 'created_at', self::ActivityLog => 'created_at', self::GeneratedOutput => 'occurred_at',
             self::ReportExport => 'occurred_at', self::IntegrationEvent => 'occurred_at',
+            self::PayMongoWebhookEvent => 'occurred_at',
             self::AcademicCurriculumVersion => 'approved_at',
         ];
     }

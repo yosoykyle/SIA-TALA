@@ -43,6 +43,8 @@ class OperationalEvent extends Model
 
     public const TypeScheduleReleasedEmail = 'schedule_released_email';
 
+    public const TypePaymentPostedEmail = 'payment_posted_email';
+
     public const StatusPending = 'PENDING';
 
     public const StatusProcessed = 'PROCESSED';

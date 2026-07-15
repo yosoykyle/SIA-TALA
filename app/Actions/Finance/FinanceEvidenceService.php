@@ -41,6 +41,7 @@ class FinanceEvidenceService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly PaymentStatusResolver $paymentStatusResolver,
+        private readonly StudentPaymentEvidencePresenter $paymentEvidencePresenter,
     ) {}
 
     /**
@@ -163,6 +164,11 @@ class FinanceEvidenceService
                 'schedule_rows' => $this->scheduleRows($assessment->paymentScheduleRows),
                 'attempt_rows' => $this->attemptRows($paymentAttempts),
                 'acknowledgement_rows' => $this->acknowledgementRows($availableAcknowledgements),
+                'payment_evidence' => $this->paymentEvidencePresenter->present(
+                    $paymentAttempts,
+                    $payments,
+                    $availableAcknowledgements,
+                ),
                 'accommodation_summary' => $this->accommodationSummary($accommodation),
             ],
         ];
@@ -671,6 +677,7 @@ class FinanceEvidenceService
                 'schedule_rows' => [],
                 'attempt_rows' => [],
                 'acknowledgement_rows' => [],
+                'payment_evidence' => $this->paymentEvidencePresenter->present(collect(), collect(), collect()),
                 'accommodation_summary' => [
                     'status' => 'No active Financial Accommodation',
                     'basis' => '-',

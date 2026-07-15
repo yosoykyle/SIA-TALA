@@ -200,6 +200,13 @@ class ReportsAudit extends Page implements HasTable
             $fields[] = Select::make('status')->label('Status')->options(fn (): array => $this->reports()->statusOptions($this->currentReportKey()))->native(false);
         }
 
+        if (in_array('event_type', $supported, true)) {
+            $fields[] = Select::make('event_type')
+                ->label('Event type')
+                ->options(fn (): array => $this->reports()->eventTypeOptions($this->currentReportKey()))
+                ->native(false);
+        }
+
         if (in_array('actor_id', $supported, true)) {
             $fields[] = Select::make('actor_id')->label('Actor')->options(fn () => User::query()->whereHas('roles')->orderBy('name')->pluck('name', 'id')->all())->searchable();
         }

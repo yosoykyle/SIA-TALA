@@ -193,6 +193,11 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         // (d) OR mapping pending vs mapped: the posted payment has no or_number, so mapping is pending.
         $this->assertSame('Pending OR Mapping', $finance['summary']['or_mapping_state']);
+        $this->assertSame('Payment Posted', $finance['state']['payment_evidence']['headline']);
+        $this->assertSame('Posted', $finance['state']['payment_evidence']['ledger_state']);
+        $this->assertSame('Pending OR Mapping', $finance['state']['payment_evidence']['or_mapping_state']);
+        $this->assertSame('Accounting', $finance['state']['payment_evidence']['responsible_office']);
+        $this->assertStringContainsString('OR mapping', $finance['state']['payment_evidence']['required_action']);
 
         // Confirm all four states are rendered as distinct, separately-labeled values on the page itself
         // while OR mapping is still pending.
@@ -201,13 +206,16 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             ->assertSee('Payment Under Review')
             ->assertSee('Pending')
             ->assertSee('Payment')
-            ->assertSee('Pending OR Mapping');
+            ->assertSee('Pending OR Mapping')
+            ->assertSee('Required Action')
+            ->assertSee('Responsible Office');
 
         // Now map the OR number and confirm the mapped state becomes distinct from the pending state,
         // both in the service projection and in the rendered page.
         $postedUnmappedPayment->update(['or_number' => 'OR-2026-000123']);
         $mappedFinance = app(FinanceEvidenceService::class)->studentFinance($fixture['student']);
         $this->assertSame('Mapped OR OR-2026-000123', $mappedFinance['summary']['or_mapping_state']);
+        $this->assertSame('Mapped OR OR-2026-000123', $mappedFinance['state']['payment_evidence']['or_mapping_state']);
         $this->assertNotSame($finance['summary']['or_mapping_state'], $mappedFinance['summary']['or_mapping_state']);
 
         Livewire::actingAs($fixture['student'])

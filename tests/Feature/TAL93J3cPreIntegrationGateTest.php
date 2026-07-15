@@ -119,7 +119,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'AccountingAdjustmentResource', 'AssessmentResource', 'Dashboard', 'EnrollmentResource',
                 'FeeRuleResource', 'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource',
-                'PaymentResource', 'ReportsAudit', 'StudentLifecycleChangeResource', 'StudentProfileResource',
+                'PaymentResource', 'PayMongoReconciliation', 'ReportsAudit', 'StudentLifecycleChangeResource',
+                'StudentProfileResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
                 'CalendarEventResource', 'Dashboard', 'FacultyGradeRoster', 'FacultyQualificationResource',
@@ -187,7 +188,14 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     /** @return list<string> */
     private static function registeredPages(): array
     {
-        return ['Dashboard', 'FacultyGradeRoster', 'FacultySchedule', 'ReportsAudit', 'IntegrationStatus'];
+        return [
+            'Dashboard',
+            'FacultyGradeRoster',
+            'FacultySchedule',
+            'ReportsAudit',
+            'IntegrationStatus',
+            'PayMongoReconciliation',
+        ];
     }
 
     /**

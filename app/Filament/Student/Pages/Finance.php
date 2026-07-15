@@ -71,6 +71,22 @@ class Finance extends Page
                         TextEntry::make('or_mapping_state')->label('OR Mapping State'),
                     ])
                     ->columns(4),
+                Section::make('Payment Evidence')
+                    ->schema([
+                        TextEntry::make('payment_evidence.headline')
+                            ->label('Evidence State')
+                            ->badge(),
+                        TextEntry::make('payment_evidence.ledger_state')->label('Ledger Posting'),
+                        TextEntry::make('payment_evidence.or_mapping_state')->label('OR Mapping'),
+                        TextEntry::make('payment_evidence.responsible_office')->label('Responsible Office'),
+                        TextEntry::make('payment_evidence.explanation')
+                            ->label('What This Means')
+                            ->columnSpanFull(),
+                        TextEntry::make('payment_evidence.required_action')
+                            ->label('Required Action')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(4),
                 Section::make('Charge Lines')
                     ->schema([
                         RepeatableEntry::make('charge_lines')

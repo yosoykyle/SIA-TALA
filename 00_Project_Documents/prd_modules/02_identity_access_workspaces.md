@@ -224,7 +224,7 @@ Allowed:
 4. Configure integration settings.
 5. View system audit reports.
 6. Manage user accounts.
-7. Configure email templates.
+7. View restricted integration and email-delivery status.
 8. Configure retention categories.
 
 Rules:
