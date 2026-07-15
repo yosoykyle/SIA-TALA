@@ -6,25 +6,10 @@ This is the active planning surface for issue order, compact parent/sub-slice ma
 
 ## Active and Upcoming Issues
 
-Remaining dependency chain: complete the human-gated CP-SAT and PayMongo integrations (TAL-94/95), run the post-integration regression gate (TAL-96), then prepare the verified demo and rehearsal environment (TAL-97). Post-MVP deferrals are nonblocking.
+Remaining dependency chain: complete the human-gated PayMongo integration (TAL-95), run the post-integration regression gate (TAL-96), then prepare the verified demo and rehearsal environment (TAL-97). Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-94 | Split approved; TAL-94A-E3b1 done locally, TAL-94E3b2 pending | CP-SAT Scheduling End-to-End Hardening. Preserve aligned work and do not treat the deployed solver as current until TAL-94E3 proves it. |
-| TAL-94A | Done locally | Solver Contract and Hard Constraints |
-| TAL-94B | Done locally via TAL-94B1/B2 | Solver Result Validation, Diagnostics, and Controlled Revalidation |
-| TAL-94C | Done locally | Candidate Review and Controlled Correction UX |
-| TAL-94D | Done locally via TAL-94D1-D3c | Approval, Publication, Live Revision, Notifications, and Schedule Projections |
-| TAL-94E | Split approved; TAL-94E1-E3b1 done locally, TAL-94E3b2 pending | Solver Transport, Operations, Deployment, and End-to-End Acceptance |
-| TAL-94E1 | Done locally | Solver Transport and Cloud Artifact Hardening |
-| TAL-94E2 | Done locally via TAL-94E2a/E2b | Queue Reliability, Operations, and Schedule Release |
-| TAL-94E2a | Done locally | Queue Reliability and Solver Operations |
-| TAL-94E2b | Done locally | Schedule Released Email Evidence |
-| TAL-94E3 | Split approved; TAL-94E3a/E3b1 done locally, TAL-94E3b2 pending | Private Cloud Run Deployment and End-to-End Acceptance |
-| TAL-94E3a | Done locally | Private Revision Deployment and IAM Proof |
-| TAL-94E3b | Split approved; TAL-94E3b1 done locally, TAL-94E3b2 pending | Laravel End-to-End Acceptance and Controlled Cutover |
-| TAL-94E3b1 | Done locally | Tagged Real-Service End-to-End Acceptance |
-| TAL-94E3b2 | Planned | Controlled Cutover and Rollback |
 | TAL-95 | Planned; human-gated | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
 | TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
 | TAL-97 | Planned | Demo and Rehearsal Support built only from the verified MVP. |
@@ -44,4 +29,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-94E3b2**. Re-run the Ground-Truth Gate before planning the controlled cutover and rollback boundary. Do not assume traffic, persistent solver configuration, or Linear state changed during TAL-94E3b1.
+Next primary boundary: **Plan TAL-95**. Run the Ground-Truth, Slice Clarity, Benchmark, and Qualified-Reference gates before proposing the human-gated PayMongo integration plan; do not assume the current payment wiring or external configuration is accepted.

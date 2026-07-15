@@ -102,6 +102,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94E2b | Done locally; pending explicit Linear sync | Schedule Released Email Evidence |
 | TAL-94E3a | Done locally; pending explicit Linear sync | Private Revision Deployment and IAM Proof |
 | TAL-94E3b1 | Done locally; pending explicit Linear sync | Tagged Real-Service End-to-End Acceptance |
+| TAL-94E3b2 | Done locally; pending explicit Linear sync | Controlled V2 Cutover and Recovery Validation |
 
 ## Compact Synced History
 

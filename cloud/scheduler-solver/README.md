@@ -154,7 +154,7 @@ Before mutation, confirm all of the following:
 - the active account is the intended operator account;
 - the project, region, service, repository, and runtime identity match the references above;
 - Cloud Run, Artifact Registry, and Cloud Build are enabled and billing is active;
-- the current traffic allocation and serving revision are understood and retained as the rollback target;
+- the current traffic allocation and serving revision are understood and recorded before mutation; treat a prior revision as a rollback target only after proving that it accepts the current application contract;
 - neither `allUsers` nor `allAuthenticatedUsers` has `roles/run.invoker`;
 - the dedicated caller has service-level `roles/run.invoker` and no unexplained broader project role.
 
@@ -336,7 +336,7 @@ TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS=300
 TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS=10
 ```
 
-TAL-94E3a stops with the validated candidate at zero default traffic. Do not point persistent Laravel configuration at the tag URL and do not promote the candidate. TAL-94E3b owns the queued Laravel end-to-end acceptance, controlled traffic promotion, and rollback exercise.
+TAL-94E3a stops with the validated candidate at zero default traffic. Do not point persistent Laravel configuration at the tag URL and do not promote the candidate. TAL-94E3b owns the queued Laravel end-to-end acceptance, controlled traffic promotion, and recovery validation.
 
 ### Run the TAL-94E3b1 tagged Laravel acceptance
 
@@ -401,7 +401,212 @@ Remove-Item Env:TALA_E3B1_CREDENTIALS -ErrorAction SilentlyContinue
 php artisan config:clear
 ```
 
-Re-prove that `schedule_runs`, `jobs`, and `failed_jobs` are empty before ending E3b1. TAL-94E3b2, not this acceptance, owns persistent canonical-URL reconciliation, controlled traffic promotion, and the rollback exercise.
+Re-prove that `schedule_runs`, `jobs`, and `failed_jobs` are empty before ending E3b1. TAL-94E3b2, not this acceptance, owns canonical-URL confirmation, controlled traffic promotion, and recovery validation.
+
+### Run the TAL-94E3b2 canonical V2 cutover
+
+TAL-94E3b2 moves the already accepted V2 revision onto the normal canonical service URL. The prior V1 revision returns the obsolete `tal61-demand-v1` contract, so it is not an application-compatible fallback. Do not use mixed traffic and do not route traffic back to V1. If V2 cannot be accepted, keep automated generation paused; already published schedules remain authoritative and authorized staff use the documented controlled manual-scheduling continuity until V2 is restored.
+
+`Primary proceed TAL-94E3b2` permits the read-only checks and runbook preparation below. Do not pause the queue or change Cloud Run traffic until the user explicitly says `Cutover TAL-94E3b2`.
+
+#### Reconfirm the immutable cutover inputs
+
+Run from the repository root. Do not continue if any asserted value differs.
+
+```powershell
+$project = 'tala-dev-ocr-3s'
+$region = 'asia-southeast1'
+$service = 'tala-scheduler-solver'
+$v1Revision = 'tala-scheduler-solver-00006-sfk'
+$v2Revision = 'tala-scheduler-solver-e3a-4d17a03ccf1c'
+$v2Tag = 'e3a-4d17a03ccf1c'
+$v2Digest = 'sha256:73a7fe91448460da7d704f9275d7d86cacdf2e9e4524b551664080d52cd5952e'
+
+$account = (gcloud auth list --filter=status:ACTIVE --format='value(account)').Trim()
+$configuredProject = (gcloud config get-value project 2>$null).Trim()
+$configuredRegion = (gcloud config get-value run/region 2>$null).Trim()
+if (-not $account) { throw 'No active Google Cloud operator account.' }
+if ($configuredProject -ne $project -or $configuredRegion -ne $region) {
+    throw "Wrong Google Cloud target: project=$configuredProject region=$configuredRegion"
+}
+
+$state = gcloud run services describe $service --region $region --project $project --format=json | ConvertFrom-Json
+$v1Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v1Revision }
+$v2Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v2Revision }
+$v1Percent = if ($null -eq $v1Traffic.percent) { 0 } else { [int] $v1Traffic.percent }
+$v2Percent = if ($null -eq $v2Traffic.percent) { 0 } else { [int] $v2Traffic.percent }
+if ($v1Percent -ne 100 -or $v2Percent -ne 0 -or $v2Traffic.tag -ne $v2Tag) {
+    throw "Unexpected starting traffic: V1=$v1Percent V2=$v2Percent tag=$($v2Traffic.tag)"
+}
+
+$v2 = gcloud run revisions describe $v2Revision --region $region --project $project --format=json | ConvertFrom-Json
+if (($v2.status.imageDigest -notlike "*$v2Digest") -or
+    (@($v2.status.conditions | Where-Object { $_.type -eq 'Ready' })[0].status -ne 'True')) {
+    throw 'The accepted V2 revision or image digest changed.'
+}
+
+$iam = gcloud run services get-iam-policy $service --region $region --project $project --format=json | ConvertFrom-Json
+$iamText = $iam | ConvertTo-Json -Depth 10
+if ($iamText -match 'allUsers|allAuthenticatedUsers') { throw 'Public Cloud Run invocation detected.' }
+$expectedInvoker = 'serviceAccount:tala-scheduler-invoker@tala-dev-ocr-3s.iam.gserviceaccount.com'
+$invokerBinding = $iam.bindings | Where-Object { $_.role -eq 'roles/run.invoker' }
+$invokerMembers = @($invokerBinding.members)
+if ($invokerMembers.Count -ne 1 -or $invokerMembers[0] -ne $expectedInvoker) {
+    throw 'The dedicated private invoker binding is missing.'
+}
+
+$projectNumber = (gcloud projects describe $project --format='value(projectNumber)').Trim()
+$laravelCanonicalUrl = "https://$service-$projectNumber.$region.run.app"
+Write-Output "operator=$account"
+Write-Output "canonical=$laravelCanonicalUrl"
+Write-Output "V1=$v1Percent% V2=$v2Percent%"
+```
+
+Confirm Laravel is already using that stable canonical URL and audience. This proof intentionally does not print the credential path.
+
+```powershell
+$env:TALA_E3B2_CANONICAL_URL = $laravelCanonicalUrl
+php artisan tinker --execute 'dump([
+    "env" => app()->environment(),
+    "database" => DB::connection()->getDatabaseName(),
+    "driver" => config("tala_integrations.scheduling_solver.driver"),
+    "canonical_url_matches" => config("tala_integrations.scheduling_solver.url") === getenv("TALA_E3B2_CANONICAL_URL"),
+    "audience_matches" => config("tala_integrations.scheduling_solver.audience") === getenv("TALA_E3B2_CANONICAL_URL"),
+    "credentials_readable" => is_readable((string) config("tala_integrations.scheduling_solver.credentials_path")),
+    "timeouts" => [config("tala_integrations.scheduling_solver.timeout_seconds"), 360, config("queue.connections.database.retry_after")],
+    "queue" => config("queue.default"),
+    "cache" => config("cache.default"),
+    "pausable" => Illuminate\Queue\Worker::$pausable,
+]);'
+Remove-Item Env:TALA_E3B2_CANONICAL_URL -ErrorAction SilentlyContinue
+```
+
+Require `local`, `tala_db`, `cloud_run`, both URL checks `true`, readable credentials, `300/360/420`, database queue/cache, and `pausable = true`. No persistent `.env` change or queue-worker restart is needed when these values already match.
+
+#### Human-gated atomic cutover
+
+Run this block only after the explicit command `Cutover TAL-94E3b2`.
+
+```powershell
+php artisan queue:pause database:scheduling --no-interaction
+
+php artisan tinker --execute 'dump([
+    "active_runs" => App\Models\ScheduleGenerationRun::query()->whereIn("status", [
+        App\Models\ScheduleGenerationRun::StatusQueued,
+        App\Models\ScheduleGenerationRun::StatusDispatching,
+    ])->count(),
+    "scheduling_jobs" => DB::table("jobs")->where("queue", "scheduling")->count(),
+    "failed_scheduling_jobs" => DB::table("failed_jobs")->where("payload", "like", "%ScheduleSolverDispatchJob%")->count(),
+]);'
+```
+
+All three counts must be zero. `queue:pause` prevents a worker from taking another scheduling job but allows an in-flight job to finish, so wait and recheck rather than changing traffic around active work.
+
+```powershell
+gcloud run services update-traffic $service `
+    --to-revisions "$v2Revision=100" `
+    --region $region `
+    --project $project
+
+$deadline = (Get-Date).AddMinutes(5)
+do {
+    $state = gcloud run services describe $service --region $region --project $project --format=json | ConvertFrom-Json
+    $v1Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v1Revision }
+    $v2Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v2Revision }
+    $v1Percent = if ($null -eq $v1Traffic.percent) { 0 } else { [int] $v1Traffic.percent }
+    $v2Percent = if ($null -eq $v2Traffic.percent) { 0 } else { [int] $v2Traffic.percent }
+    if ($v1Percent -eq 0 -and $v2Percent -eq 100) { break }
+    Start-Sleep -Seconds 5
+} while ((Get-Date) -lt $deadline)
+
+if ($v1Percent -ne 0 -or $v2Percent -ne 100) {
+    throw "Traffic did not settle: V1=$v1Percent V2=$v2Percent"
+}
+```
+
+Do not resume scheduling yet. Prove privacy and the canonical V2 contract first:
+
+```powershell
+$anonymousHealth = Invoke-WebRequest -Uri "$laravelCanonicalUrl/health" -SkipHttpErrorCheck
+if ($anonymousHealth.StatusCode -ne 403) { throw "Expected anonymous HTTP 403, got $($anonymousHealth.StatusCode)." }
+
+php artisan tinker --execute '$probe = app(App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient::class)->probe(); $body = json_decode($probe["body"], true, 512, JSON_THROW_ON_ERROR); dump(["status" => $probe["status"], "contract_version" => $body["contract_version"] ?? null, "solver_version" => $body["solver_version"] ?? null]);'
+php artisan tinker --execute '$snapshot = json_decode(file_get_contents(base_path("cloud/scheduler-solver/samples/minimal_snapshot.json")), true, 512, JSON_THROW_ON_ERROR); $result = app(App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient::class)->solve($snapshot); dump(["solver_status" => $result["solver_status"] ?? null, "solver_version" => $result["solver_version"] ?? null, "assigned_count" => $result["assigned_count"] ?? null, "unassigned_count" => $result["unassigned_count"] ?? null, "hard_violation_count" => $result["hard_violation_count"] ?? null]);'
+```
+
+Require authenticated health `tal94-demand-v2` / `cloud-cp-sat-tal94-demand-v2`, an `optimal` or `feasible` solve, two assignments, zero unassigned demands, and zero hard violations.
+
+#### Canonical queued Laravel acceptance
+
+Reuse the accepted E3b1 harness with its request URL set to the canonical URL. The variable retains its E3b1 name because the test is reused unchanged; it no longer points to the tag during this step.
+
+```powershell
+$env:APP_ENV = 'testing'
+$env:DB_CONNECTION = 'mysql'
+$env:DB_DATABASE = 'test_tala_db'
+$env:TALA_E3B1_ACCEPTANCE = '1'
+$env:TALA_E3B1_TAG_URL = $laravelCanonicalUrl
+$env:TALA_E3B1_CANONICAL_URL = $laravelCanonicalUrl
+$env:TALA_E3B1_CREDENTIALS = 'C:\path\outside\git\scheduler-invoker.json'
+
+php artisan migrate:fresh --seed --force
+php artisan test --compact tests/Feature/TAL94E3b1TaggedRealServiceAcceptanceTest.php
+```
+
+The test must prove the queued V2 workflow, exact candidate coverage, publication, projections, release-mail intent, rendered role surfaces, rejected-audience handling, and secret redaction. Then remove its synthetic records and process-only settings before the local regression suite:
+
+```powershell
+php artisan migrate:fresh --force
+Remove-Item Env:TALA_E3B1_ACCEPTANCE -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_TAG_URL -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_CANONICAL_URL -ErrorAction SilentlyContinue
+Remove-Item Env:TALA_E3B1_CREDENTIALS -ErrorAction SilentlyContinue
+
+php artisan test --compact tests/Unit/TAL65CloudRunSchedulingSolverClientTest.php
+php artisan test --compact tests/Unit/TAL94E1SchedulingSolverTransportTest.php
+php artisan test --compact tests/Feature/TAL94E2aSolverQueueOperationsTest.php
+php artisan test --compact tests/Feature/TAL92DIntegrationMonitoringTest.php
+php artisan test --compact
+```
+
+Finish by re-proving the cloud and database state, then resume scheduling:
+
+```powershell
+$state = gcloud run services describe $service --region $region --project $project --format=json | ConvertFrom-Json
+$v1Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v1Revision }
+$v2Traffic = $state.status.traffic | Where-Object { $_.revisionName -eq $v2Revision }
+$v1Percent = if ($null -eq $v1Traffic.percent) { 0 } else { [int] $v1Traffic.percent }
+$v2Percent = if ($null -eq $v2Traffic.percent) { 0 } else { [int] $v2Traffic.percent }
+if ($v1Percent -ne 0 -or $v2Percent -ne 100) { throw "Final traffic drift: V1=$v1Percent V2=$v2Percent" }
+
+$iam = gcloud run services get-iam-policy $service --region $region --project $project --format=json | ConvertFrom-Json
+$iamText = $iam | ConvertTo-Json -Depth 10
+if ($iamText -match 'allUsers|allAuthenticatedUsers') { throw 'Public Cloud Run invocation detected.' }
+$invokerBinding = $iam.bindings | Where-Object { $_.role -eq 'roles/run.invoker' }
+$invokerMembers = @($invokerBinding.members)
+if ($invokerMembers.Count -ne 1 -or $invokerMembers[0] -ne $expectedInvoker) { throw 'Private invoker IAM drift detected.' }
+
+$logs = gcloud run services logs read $service --region $region --project $project --limit=50
+if (($logs -join "`n") -match 'BEGIN PRIVATE KEY|private_key_id|scheduler-invoker\.json') {
+    throw 'Possible credential material detected in Cloud Run logs.'
+}
+$logs
+
+$env:APP_ENV = 'testing'
+$env:DB_CONNECTION = 'mysql'
+$env:DB_DATABASE = 'test_tala_db'
+php artisan migrate:fresh --force
+php artisan tinker --execute 'dump(["database" => DB::connection()->getDatabaseName(), "schedule_runs" => DB::table("schedule_runs")->count(), "scheduling_jobs" => DB::table("jobs")->where("queue", "scheduling")->count(), "failed_scheduling_jobs" => DB::table("failed_jobs")->where("payload", "like", "%ScheduleSolverDispatchJob%")->count()]);'
+Remove-Item -Path Env:APP_ENV, Env:DB_CONNECTION, Env:DB_DATABASE -ErrorAction SilentlyContinue
+
+php artisan queue:resume database:scheduling --no-interaction
+```
+
+The final state is V2 at 100%, V1 at 0%, private IAM unchanged, clean test records and queues, and scheduling resumed. Retain V1 at 0% temporarily; do not delete it in TAL-94E3b2.
+
+#### Recovery without V1 traffic
+
+If any canonical V2 or queued-acceptance check fails, leave `database:scheduling` paused and do not route traffic to V1. Re-assert V2 at 100% if traffic is unsettled, inspect the revision and Cloud Run logs, and correct or redeploy V2 only through a separately approved plan. Published schedules remain available because Laravel owns official records. Resume scheduling only after the canonical V2 health, solve, queued acceptance, private IAM, and cleanup checks all pass.
 
 ## Current V2 Limitations
 
