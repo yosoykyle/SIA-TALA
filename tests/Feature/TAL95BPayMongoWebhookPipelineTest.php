@@ -6,6 +6,8 @@ use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Filament\Resources\OperationalEvents\Tables\OperationalEventsTable;
 use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Models\OperationalEvent;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -19,6 +21,10 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
     private const WebhookSecret = 'whsec_tal95b_not_real';
 
+    private int $baselineWebhookCallId;
+
+    private int $baselineOperationalEventId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,6 +33,9 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+
+        $this->baselineWebhookCallId = (int) (DB::table('webhook_calls')->max('id') ?? 0);
+        $this->baselineOperationalEventId = (int) (OperationalEvent::query()->max('id') ?? 0);
 
         config()->set('tala_integrations.payments.driver', 'paymongo');
         config()->set('tala_integrations.payments.paymongo.webhook_signature', self::WebhookSecret);
@@ -43,8 +52,8 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
         $this->postWebhook($this->eventPayload())->assertUnauthorized();
 
-        $this->assertSame(0, DB::table('webhook_calls')->count());
-        $this->assertSame(0, OperationalEvent::query()->count());
+        $this->assertSame(0, $this->newWebhookCalls()->count());
+        $this->assertSame(0, $this->newOperationalEvents()->count());
         Queue::assertNothingPushed();
     }
 
@@ -55,7 +64,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
         $this->postRaw($body, $this->signature($body, 'li'))->assertUnauthorized();
 
-        $this->assertSame(0, DB::table('webhook_calls')->count());
+        $this->assertSame(0, $this->newWebhookCalls()->count());
         Queue::assertNothingPushed();
     }
 
@@ -69,9 +78,9 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
             'HTTP_COOKIE' => 'session=must-not-be-stored',
         ])->assertAccepted()->assertJsonPath('status', 'ignored');
 
-        $call = DB::table('webhook_calls')->sole();
+        $call = $this->newWebhookCalls()->sole();
         $headers = json_decode((string) $call->headers, true, flags: JSON_THROW_ON_ERROR);
-        $event = OperationalEvent::query()->sole();
+        $event = $this->newOperationalEvents()->sole();
 
         $this->assertSame(['[REDACTED]'], $headers['paymongo-signature']);
         $this->assertSame(['[REDACTED]'], $headers['authorization']);
@@ -89,7 +98,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
             ->assertAccepted()
             ->assertJsonPath('status', 'accepted');
 
-        $event = OperationalEvent::query()->sole();
+        $event = $this->newOperationalEvents()->sole();
 
         $this->assertSame('PENDING', $event->status);
         $this->assertSame('PAYMONGO', $event->integration);
@@ -97,7 +106,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $this->assertSame('INBOUND', $event->direction);
         $this->assertSame(64, strlen((string) data_get($event->diagnostics, 'payload_sha256')));
         Queue::assertPushed(ProcessPayMongoWebhookCall::class, function (ProcessPayMongoWebhookCall $job) use ($event): bool {
-            return $job->webhookCallId === DB::table('webhook_calls')->sole()->id
+            return $job->webhookCallId === $this->newWebhookCalls()->sole()->id
                 && $job->operationalEventId === $event->id
                 && $job->afterCommit === true;
         });
@@ -111,7 +120,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
         $this->postWebhook($payload)->assertStatus(413);
 
-        $this->assertSame(0, DB::table('webhook_calls')->count());
+        $this->assertSame(0, $this->newWebhookCalls()->count());
         Queue::assertNothingPushed();
     }
 
@@ -123,12 +132,12 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
             ->assertAccepted()
             ->assertJsonPath('status', 'rejected');
 
-        $this->assertSame(1, DB::table('webhook_calls')->count());
+        $this->assertSame(1, $this->newWebhookCalls()->count());
         $this->assertStringContainsString(
             'invalid_event_envelope',
-            (string) DB::table('webhook_calls')->value('exception'),
+            (string) $this->newWebhookCalls()->value('exception'),
         );
-        $this->assertSame(0, OperationalEvent::query()->count());
+        $this->assertSame(0, $this->newOperationalEvents()->count());
         Queue::assertNothingPushed();
     }
 
@@ -139,8 +148,8 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $this->postWebhook($payload)->assertAccepted()->assertJsonPath('status', 'accepted');
         $this->postWebhook($payload)->assertAccepted()->assertJsonPath('status', 'duplicate');
 
-        $this->assertSame(2, DB::table('webhook_calls')->count());
-        $this->assertSame(1, OperationalEvent::query()->count());
+        $this->assertSame(2, $this->newWebhookCalls()->count());
+        $this->assertSame(1, $this->newOperationalEvents()->count());
         Queue::assertPushed(ProcessPayMongoWebhookCall::class, 1);
     }
 
@@ -153,7 +162,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $this->postWebhook($first)->assertAccepted();
         $this->postWebhook($conflict)->assertAccepted()->assertJsonPath('status', 'review_required');
 
-        $event = OperationalEvent::query()->sole();
+        $event = $this->newOperationalEvents()->sole();
         $this->assertSame('REVIEW_REQUIRED', $event->status);
         $this->assertSame('event_id_payload_conflict', data_get($event->diagnostics, 'reason'));
         Queue::assertPushed(ProcessPayMongoWebhookCall::class, 1);
@@ -202,10 +211,10 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $job = $queue->pushed(ProcessPayMongoWebhookCall::class)->sole();
         $job->handle(app(PayMongoWebhookProcessor::class));
 
-        $event = OperationalEvent::query()->sole();
+        $event = $this->newOperationalEvents()->sole();
         $this->assertSame('REVIEW_REQUIRED', $event->status);
         $this->assertSame('unknown_reference', data_get($event->diagnostics, 'reason'));
-        $this->assertNotNull(DB::table('webhook_calls')->sole()->processed_at);
+        $this->assertNotNull($this->newWebhookCalls()->sole()->processed_at);
     }
 
     public function test_valid_delivery_and_canonical_event_roll_back_together_when_acceptance_persistence_fails(): void
@@ -224,8 +233,8 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
             OperationalEvent::setEventDispatcher($originalDispatcher);
         }
 
-        $this->assertSame(0, DB::table('webhook_calls')->count());
-        $this->assertSame(0, OperationalEvent::query()->count());
+        $this->assertSame(0, $this->newWebhookCalls()->count());
+        $this->assertSame(0, $this->newOperationalEvents()->count());
         Queue::assertNothingPushed();
     }
 
@@ -286,6 +295,17 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
     private function encode(array $value): string
     {
         return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function newWebhookCalls(): QueryBuilder
+    {
+        return DB::table('webhook_calls')->where('id', '>', $this->baselineWebhookCallId);
+    }
+
+    /** @return EloquentBuilder<OperationalEvent> */
+    private function newOperationalEvents(): EloquentBuilder
+    {
+        return OperationalEvent::query()->where('id', '>', $this->baselineOperationalEventId);
     }
 
     /** @param array<string, mixed> $payload */

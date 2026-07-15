@@ -12,6 +12,7 @@ use App\Actions\Integrations\Payments\PayMongoWebhookEvent;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Actions\Integrations\Payments\PayMongoWebhookSignatureVerifier;
 use App\Jobs\ProcessPayMongoWebhookCall;
+use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -44,6 +45,8 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
 
     private const WebhookSecret = 'whsec_tal95d1_not_real';
 
+    private int $baselineOperationalEventId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -52,6 +55,8 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+
+        $this->baselineOperationalEventId = (int) (OperationalEvent::query()->max('id') ?? 0);
 
         config()->set('tala_integrations.payments.driver', 'paymongo');
         config()->set('tala_integrations.payments.paymongo.webhook_signature', self::WebhookSecret);
@@ -122,7 +127,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
 
         $this->assertTrue($verifier->isValid($this->signedRequest($body, $now)));
         $this->assertFalse($verifier->isValid($this->signedRequest($body, $now - 301)));
-        $this->assertFalse($verifier->isValid($this->signedRequest($body, $now + 1)));
+        $this->assertFalse($verifier->isValid($this->signedRequest($body, $now + 301)));
         $this->assertFalse($verifier->isValid($this->signedRequest($body, $now, 'li')));
         $this->assertFalse($verifier->isValid(Request::create('/api/webhooks/paymongo', 'POST', content: $body)));
         $this->assertFalse($verifier->isValid(Request::create('/api/webhooks/paymongo', 'POST', server: [
@@ -187,7 +192,9 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->postSignedPayload($reordered)->assertAccepted()->assertJsonPath('status', 'duplicate');
         $this->postSignedPayload($conflict)->assertAccepted()->assertJsonPath('status', 'review_required');
 
-        $event = OperationalEvent::query()->sole();
+        $event = OperationalEvent::query()
+            ->where('id', '>', $this->baselineOperationalEventId)
+            ->sole();
         $this->assertSame('v2', $event->event_version);
         $this->assertSame('event_id_payload_conflict', data_get($event->diagnostics, 'reason'));
         $this->assertSame(3, data_get($event->diagnostics, 'delivery_count'));
@@ -219,7 +226,10 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame('ambiguous_paid_payments', $result['reason']);
         $this->assertSame(0, Payment::query()->count());
         $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(OperationalEvent::StatusReviewRequired, OperationalEvent::query()->sole()->status);
+        $this->assertSame(
+            OperationalEvent::StatusReviewRequired,
+            OperationalEvent::query()->findOrFail($job->operationalEventId)->status,
+        );
     }
 
     public function test_retryable_decline_remains_pending_and_a_later_v2_payment_posts_once(): void
@@ -312,7 +322,9 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $secondCreate = Artisan::call('integrations:paymongo-sandbox-checkout', [
             '--assessment-id' => $fixture['assessment']->id,
         ]);
-        $attempt = PaymentAttempt::query()->sole();
+        $attempt = PaymentAttempt::query()
+            ->where('assessment_id', $fixture['assessment']->id)
+            ->sole();
 
         $this->assertSame(Command::SUCCESS, $firstCreate);
         $this->assertSame(Command::SUCCESS, $secondCreate);
@@ -331,7 +343,10 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame(Command::SUCCESS, $secondExpire);
         $this->assertSame(1, $gateway->expireCalls);
         $this->assertSame('expired', $attempt->fresh()->status);
-        $this->assertSame(1, PaymentAttempt::query()->count());
+        $this->assertSame(
+            1,
+            PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count(),
+        );
     }
 
     public function test_sandbox_expiry_keeps_the_attempt_pending_when_the_provider_does_not_confirm_expiry(): void
@@ -344,7 +359,9 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         Artisan::call('integrations:paymongo-sandbox-checkout', [
             '--assessment-id' => $fixture['assessment']->id,
         ]);
-        $attempt = PaymentAttempt::query()->sole();
+        $attempt = PaymentAttempt::query()
+            ->where('assessment_id', $fixture['assessment']->id)
+            ->sole();
 
         $exitCode = Artisan::call('integrations:paymongo-sandbox-expire', [
             '--attempt-id' => $attempt->id,
@@ -468,7 +485,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         ]);
         $program = Program::factory()->create();
         $profile = StudentProfile::factory()->for($student)->for($program)->create();
-        $term = Term::factory()->create();
+        $term = $this->termFixture();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
@@ -523,7 +540,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $student->assignRole('student');
         $program = Program::factory()->create();
         $profile = StudentProfile::factory()->for($student)->for($program)->create();
-        $term = Term::factory()->create();
+        $term = $this->termFixture();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
@@ -562,6 +579,15 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         ]);
 
         return compact('student', 'assessment');
+    }
+
+    private function termFixture(): Term
+    {
+        $academicYear = AcademicYear::factory()->create([
+            'label' => 'TAL-95D1-'.Str::upper((string) Str::uuid()),
+        ]);
+
+        return Term::factory()->for($academicYear)->create();
     }
 
     private function configureSafeSandbox(): void

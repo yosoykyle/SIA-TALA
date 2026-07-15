@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use JsonException;
 
@@ -25,7 +26,11 @@ class PayMongoWebhookController extends Controller
             return response()->json(['message' => 'PayMongo webhook payload is too large.'], 413);
         }
 
-        if (! $signatureVerifier->isValid($request)) {
+        $signatureVerification = $signatureVerifier->verify($request);
+
+        if (! $signatureVerification->isValid()) {
+            Log::warning('PayMongo webhook signature rejected.', $signatureVerification->safeLogContext());
+
             return response()->json(['message' => 'Invalid PayMongo webhook signature.'], 401);
         }
 

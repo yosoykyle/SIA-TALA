@@ -9,47 +9,107 @@ class PayMongoWebhookSignatureVerifier
 {
     public function isValid(Request $request): bool
     {
+        return $this->verify($request)->isValid();
+    }
+
+    public function verify(Request $request): PayMongoWebhookSignatureVerification
+    {
+        $expectedMode = $this->expectedMode();
         $secret = $this->webhookSecret();
 
         if ($secret === null || $secret === '') {
-            return false;
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::MissingSecret,
+                $expectedMode,
+            );
         }
 
-        $headerPayload = $this->headerPayload($request);
+        $header = $this->signatureHeader($request);
+
+        if ($header === null || trim($header) === '') {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::MissingHeader,
+                $expectedMode,
+            );
+        }
+
+        $headerPayload = $this->headerPayload($header);
         $timestamp = $headerPayload['t'] ?? null;
-        $providedSignature = $this->providedSignature($headerPayload);
 
-        if (
-            $timestamp === null || ! ctype_digit($timestamp) || (int) $timestamp <= 0
-            || $providedSignature === null || preg_match('/^[a-f0-9]{64}$/i', $providedSignature) !== 1
-        ) {
-            return false;
+        if ($timestamp === null || ! ctype_digit($timestamp) || (int) $timestamp <= 0) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::MalformedTimestamp,
+                $expectedMode,
+            );
         }
 
-        $maxAgeSeconds = (int) config('tala_integrations.payments.paymongo.signature_max_age_seconds', 300);
+        $providedSignature = $this->providedSignature($headerPayload);
         $ageSeconds = CarbonImmutable::now(config('app.timezone'))->getTimestamp() - (int) $timestamp;
 
-        if ($maxAgeSeconds <= 0 || $ageSeconds < 0 || $ageSeconds > $maxAgeSeconds) {
-            return false;
+        if ($providedSignature === null || $providedSignature === '') {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::MissingModeSignature,
+                $expectedMode,
+                $ageSeconds,
+            );
+        }
+
+        if (preg_match('/^[a-f0-9]{64}$/i', $providedSignature) !== 1) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::MalformedSignature,
+                $expectedMode,
+                $ageSeconds,
+            );
         }
 
         $expectedSignature = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
 
-        return hash_equals($expectedSignature, $providedSignature);
+        if (! hash_equals($expectedSignature, $providedSignature)) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::SignatureMismatch,
+                $expectedMode,
+                $ageSeconds,
+            );
+        }
+
+        $maxAgeSeconds = (int) config('tala_integrations.payments.paymongo.signature_max_age_seconds', 300);
+
+        if ($maxAgeSeconds <= 0) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::InvalidFreshnessPolicy,
+                $expectedMode,
+                $ageSeconds,
+            );
+        }
+
+        if ($ageSeconds < -$maxAgeSeconds) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::FutureTimestamp,
+                $expectedMode,
+                $ageSeconds,
+            );
+        }
+
+        if ($ageSeconds > $maxAgeSeconds) {
+            return new PayMongoWebhookSignatureVerification(
+                PayMongoWebhookSignatureVerification::StaleTimestamp,
+                $expectedMode,
+                $ageSeconds,
+            );
+        }
+
+        return new PayMongoWebhookSignatureVerification(
+            PayMongoWebhookSignatureVerification::Valid,
+            $expectedMode,
+            $ageSeconds,
+        );
     }
 
     /**
      * @return array<string, string>
      */
-    private function headerPayload(Request $request): array
+    private function headerPayload(string $header): array
     {
-        $headerName = (string) config('tala_integrations.payments.paymongo.signature_header_name', 'paymongo-signature');
-        $header = $request->header($headerName);
-
-        if ($header === null || trim($header) === '') {
-            return [];
-        }
-
         $payload = [];
 
         foreach (explode(',', $header) as $part) {
@@ -63,14 +123,29 @@ class PayMongoWebhookSignatureVerifier
         return $payload;
     }
 
+    private function signatureHeader(Request $request): ?string
+    {
+        $headerName = (string) config('tala_integrations.payments.paymongo.signature_header_name', 'paymongo-signature');
+
+        return $request->header($headerName);
+    }
+
     /**
      * @param  array<string, string>  $headerPayload
      */
     private function providedSignature(array $headerPayload): ?string
     {
-        $livemodeKey = config('tala_integrations.payments.paymongo.livemode') ? 'li' : 'te';
+        return $headerPayload[$this->expectedModeKey()] ?? null;
+    }
 
-        return $headerPayload[$livemodeKey] ?? null;
+    private function expectedMode(): string
+    {
+        return config('tala_integrations.payments.paymongo.livemode') ? 'live' : 'test';
+    }
+
+    private function expectedModeKey(): string
+    {
+        return config('tala_integrations.payments.paymongo.livemode') ? 'li' : 'te';
     }
 
     private function webhookSecret(): ?string
