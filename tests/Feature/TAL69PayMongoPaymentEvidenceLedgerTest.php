@@ -118,9 +118,10 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
     public function test_currency_and_reference_mismatches_stay_under_review_without_posting_ledger(): void
     {
-        $assessment = $this->activeAssessment();
-        $currencyAttempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_currency_review');
-        $referenceAttempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_reference_review');
+        $currencyAssessment = $this->activeAssessment();
+        $referenceAssessment = $this->activeAssessment();
+        $currencyAttempt = $this->paymentAttempt($currencyAssessment, '1000.00', 'cs_tal69_currency_review');
+        $referenceAttempt = $this->paymentAttempt($referenceAssessment, '1000.00', 'cs_tal69_reference_review');
         $processor = app(PayMongoWebhookProcessor::class);
 
         $currencyResult = $processor->process($this->webhookCall(

@@ -32,7 +32,7 @@ class PayMongoWebhookSignatureVerifier
      */
     private function headerPayload(Request $request): array
     {
-        $headerName = (string) config('paymongo.signature_header_name', 'paymongo-signature');
+        $headerName = (string) config('tala_integrations.payments.paymongo.signature_header_name', 'paymongo-signature');
         $header = $request->header($headerName);
 
         if ($header === null || trim($header) === '') {
@@ -57,7 +57,7 @@ class PayMongoWebhookSignatureVerifier
      */
     private function providedSignature(array $headerPayload): ?string
     {
-        $livemodeKey = config('paymongo.livemode') ? 'li' : 'te';
+        $livemodeKey = config('tala_integrations.payments.paymongo.livemode') ? 'li' : 'te';
 
         return $headerPayload[$livemodeKey]
             ?? $headerPayload['v1']
@@ -68,8 +68,7 @@ class PayMongoWebhookSignatureVerifier
 
     private function webhookSecret(): ?string
     {
-        $configuredSecret = config('paymongo.webhook_signature')
-            ?? config('tala_integrations.payments.paymongo.webhook_signature');
+        $configuredSecret = config('tala_integrations.payments.paymongo.webhook_signature');
 
         if ($configuredSecret === null) {
             return null;

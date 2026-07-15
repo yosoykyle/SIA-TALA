@@ -22,7 +22,7 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
 
     public function handle(DecimalMoney $money, PayMongoWebhookProcessor $processor): int
     {
-        if ((bool) config('paymongo.livemode')) {
+        if ((bool) config('tala_integrations.payments.paymongo.livemode')) {
             $this->error('Refusing to run sandbox smoke verification while PAYMONGO_LIVEMODE=true.');
 
             return self::FAILURE;

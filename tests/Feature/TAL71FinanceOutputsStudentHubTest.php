@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
-use App\Actions\Integrations\Payments\PaymentCheckoutRequest;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -185,35 +184,31 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
     public function test_checkout_uses_current_due_amount_and_reuses_matching_pending_attempt(): void
     {
-        $fixture = $this->financeFixture();
+        $fixture = $this->financeFixture(['include_review_attempt' => false]);
         $creator = app(CreatePaymentCheckoutSession::class);
 
-        $first = $creator->create(new PaymentCheckoutRequest(
-            studentProfileId: $fixture['profile']->id,
-            amount: '2000.00',
-            description: 'Current amount due',
+        $first = $creator->create(
+            actor: $fixture['student'],
             assessmentId: $fixture['assessment']->id,
-        ));
+            description: 'Current amount due',
+        );
 
-        $second = $creator->create(new PaymentCheckoutRequest(
-            studentProfileId: $fixture['profile']->id,
-            amount: '2000.00',
-            description: 'Current amount due',
+        $second = $creator->create(
+            actor: $fixture['student'],
             assessmentId: $fixture['assessment']->id,
-        ));
+            description: 'Current amount due',
+        );
 
         $this->assertSame($first['payment_attempt_id'], $second['payment_attempt_id']);
         $this->assertSame(1, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->where('status', 'pending')->count());
         $this->assertStringStartsWith('https://mock-payments.test/checkout/', $first['checkout_url']);
 
-        $this->expectExceptionMessage('Payment checkout assessment does not belong to the selected student.');
+        $otherStudent = $this->studentUser();
+        StudentProfile::factory()->for($otherStudent)->create();
 
-        $creator->create(new PaymentCheckoutRequest(
-            studentProfileId: StudentProfile::factory()->create()->id,
-            amount: '2000.00',
-            description: 'Invalid owner',
-            assessmentId: $fixture['assessment']->id,
-        ));
+        $this->expectExceptionMessage('No active assessment is available for finance viewing.');
+
+        $creator->create(actor: $otherStudent, assessmentId: $fixture['assessment']->id);
     }
 
     public function test_student_hub_replaces_old_finance_placeholder_routes(): void
@@ -233,7 +228,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
     }
 
     /**
-     * @param  array<string, string>  $overrides
+     * @param  array<string, mixed>  $overrides
      * @return array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,assessment:Assessment,schedule:PaymentScheduleRow,payment:Payment}
      */
     private function financeFixture(array $overrides = []): array
@@ -327,17 +322,19 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'posted_at' => now()->subMinutes(10),
             'state' => 'posted',
         ]);
-        PaymentAttempt::query()->create([
-            'assessment_id' => $assessment->id,
-            'student_profile_id' => $profile->id,
-            'channel' => 'paymongo',
-            'provider' => 'mock',
-            'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
-            'amount' => '2000.00',
-            'currency' => 'PHP',
-            'status' => 'under_review',
-            'metadata' => ['note' => 'Fixture review state'],
-        ]);
+        if (($overrides['include_review_attempt'] ?? true) === true) {
+            PaymentAttempt::query()->create([
+                'assessment_id' => $assessment->id,
+                'student_profile_id' => $profile->id,
+                'channel' => 'paymongo',
+                'provider' => 'mock',
+                'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
+                'amount' => '2000.00',
+                'currency' => 'PHP',
+                'status' => 'under_review',
+                'metadata' => ['note' => 'Fixture review state'],
+            ]);
+        }
         FinancialAccommodation::query()->create([
             'student_profile_id' => $profile->id,
             'term_id' => $term->id,

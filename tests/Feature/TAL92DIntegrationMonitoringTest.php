@@ -137,7 +137,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_ABSOLUTELY_SECRET_VALUE');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_PUBLIC_BUT_NOT_RENDERED');
         Config::set('tala_integrations.payments.paymongo.livemode', false);
-        Config::set('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com/v1');
+        Config::set('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com');
         Config::set('tala_integrations.payments.paymongo.payment_method_types', ['gcash', 'card']);
 
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);

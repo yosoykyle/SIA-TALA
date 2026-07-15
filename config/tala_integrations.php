@@ -17,10 +17,11 @@ return [
             'checkout_base_url' => env('TALA_PAYMENT_MOCK_CHECKOUT_URL', 'https://mock-payments.test/checkout'),
         ],
         'paymongo' => [
-            'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),
+            'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com'),
             'public_key' => env('PAYMONGO_PUBLIC_KEY'),
             'secret_key' => env('PAYMONGO_SECRET_KEY'),
             'webhook_signature' => env('PAYMONGO_WEBHOOK_SIG'),
+            'signature_header_name' => env('PAYMONGO_SIG_HEADER', 'paymongo-signature'),
             'livemode' => env('PAYMONGO_LIVEMODE', false),
             'payment_method_types' => array_values(array_filter(array_map(
                 'trim',

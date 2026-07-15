@@ -11,7 +11,7 @@ final readonly class PaymentCheckoutSession
         public string $provider,
         public string $checkoutSessionId,
         public string $checkoutUrl,
-        public string $status = 'pending',
+        public string $status = 'active',
         public array $metadata = [],
     ) {}
 }

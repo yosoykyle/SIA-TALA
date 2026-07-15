@@ -100,4 +100,4 @@ php artisan test --compact
 ```
 
 *   **Filament Admin Dashboard:** Navigate to `http://127.0.0.1:8000/admin` (create a user via `php artisan make:filament-user`).
-*   **Student Hub:** Navigate to `http://127.0.0.1:8000` to verify the Livewire/TallStackUI frontend and PWA service workers.
+*   **Student Hub:** Navigate to `http://127.0.0.1:8000/student` to verify the Livewire/TallStackUI frontend and PWA service workers.

@@ -45,6 +45,10 @@ class PaymentAttemptInfolist
                 TextEntry::make('paid_at')
                     ->dateTime()
                     ->placeholder('-'),
+                TextEntry::make('expires_at')
+                    ->label('Provider Expiry')
+                    ->dateTime()
+                    ->placeholder('-'),
                 TextEntry::make('created_at')
                     ->dateTime()
                     ->placeholder('-'),

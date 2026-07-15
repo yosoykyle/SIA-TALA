@@ -4,7 +4,7 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
-use App\Actions\Integrations\Payments\PaymentCheckoutRequest;
+use App\Actions\Integrations\Payments\PaymentCheckoutException;
 use App\Support\DecimalMoney;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -14,7 +14,8 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Http\RedirectResponse;
-use RuntimeException;
+use Livewire\Features\SupportRedirects\Redirector;
+use Throwable;
 
 class Finance extends Page
 {
@@ -114,7 +115,15 @@ class Finance extends Page
                             ->schema([
                                 TextEntry::make('reference')->label('Reference'),
                                 TextEntry::make('provider')->label('Provider'),
-                                TextEntry::make('status')->label('Status'),
+                                TextEntry::make('status')
+                                    ->label('Status')
+                                    ->badge()
+                                    ->color(fn (string $state): string => match (strtolower($state)) {
+                                        'paid' => 'success',
+                                        'failed', 'expired' => 'danger',
+                                        'under review' => 'warning',
+                                        default => 'info',
+                                    }),
                                 TextEntry::make('amount')->label('Amount'),
                             ])
                             ->columns(4)
@@ -164,33 +173,38 @@ class Finance extends Page
             Action::make('checkout')
                 ->label('Pay Current Due')
                 ->icon('heroicon-o-credit-card')
-                ->action(fn (): ?RedirectResponse => $this->startCheckout())
-                ->disabled(fn (): bool => ($this->finance['available'] ?? false) !== true),
+                ->action(fn (): RedirectResponse|Redirector|null => $this->startCheckout())
+                ->disabled(fn (): bool => ($this->finance['available'] ?? false) !== true
+                    || ! app(DecimalMoney::class)->greaterThanZero($this->finance['current_due_amount'] ?? '0.00')),
         ];
     }
 
-    public function startCheckout(): ?RedirectResponse
+    public function startCheckout(): RedirectResponse|Redirector|null
     {
-        if (($this->finance['available'] ?? false) !== true) {
+        $actor = auth()->user();
+
+        if ($actor === null || ($this->finance['available'] ?? false) !== true) {
             return null;
         }
 
-        $amount = (string) ($this->finance['current_due_amount'] ?? '0.00');
-
         try {
-            $session = app(CreatePaymentCheckoutSession::class)->create(new PaymentCheckoutRequest(
-                studentProfileId: (int) $this->finance['student_profile']->id,
-                amount: $amount,
-                description: 'TALA current finance amount due',
-                assessmentId: (int) $this->finance['assessment']->id,
-                channel: 'paymongo',
-                successUrl: route('finance.statement', $this->finance['assessment']),
-                cancelUrl: route('finance.billing-slip', $this->finance['assessment']),
+            $session = app(CreatePaymentCheckoutSession::class)->create(
+                actor: $actor,
+                successUrl: route('filament.student.pages.finance', ['checkout' => 'success']),
+                cancelUrl: route('filament.student.pages.finance', ['checkout' => 'cancelled']),
                 metadata: ['source' => 'student_hub_finance'],
-            ));
-        } catch (RuntimeException $exception) {
+            );
+        } catch (PaymentCheckoutException $exception) {
+            $this->finance = app(FinanceEvidenceService::class)->studentFinance($actor);
             Notification::make()
                 ->title($exception->getMessage())
+                ->danger()
+                ->send();
+
+            return null;
+        } catch (Throwable) {
+            Notification::make()
+                ->title('Payment checkout is temporarily unavailable.')
                 ->danger()
                 ->send();
 

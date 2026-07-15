@@ -136,7 +136,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PayMongoPaymentGateway::class, function ($app): PayMongoPaymentGateway {
             return new PayMongoPaymentGateway(
                 money: $app->make(DecimalMoney::class),
-                baseUrl: (string) config('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com/v1'),
+                baseUrl: (string) config('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com'),
                 secretKey: config('tala_integrations.payments.paymongo.secret_key') !== null
                     ? (string) config('tala_integrations.payments.paymongo.secret_key')
                     : null,
@@ -147,7 +147,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PaymentGateway::class, function ($app): PaymentGateway {
             return match (config('tala_integrations.payments.driver', 'mock')) {
                 'mock' => new MockPaymentGateway(
-                    provider: (string) config('tala_integrations.payments.mock.provider', 'mock'),
+                    providerName: (string) config('tala_integrations.payments.mock.provider', 'mock'),
                     checkoutBaseUrl: (string) config('tala_integrations.payments.mock.checkout_base_url', 'https://mock-payments.test/checkout'),
                 ),
                 'paymongo' => $app->make(PayMongoPaymentGateway::class),

@@ -16,11 +16,9 @@
         "laravel/mcp": "^0.8.2",
         "laravel/tinker": "^2.10.1",
         "livewire/livewire": "^4.0",
-        "luigel/laravel-paymongo": "^2.6",
         "spatie/laravel-activitylog": "^4.8",
         "spatie/laravel-model-states": "^2.8",
         "spatie/laravel-permission": "^6.24",
-        "spatie/laravel-webhook-client": "^3.5",
         "tallstackui/tallstackui": "3.0.0"
     },
     "require-dev": {

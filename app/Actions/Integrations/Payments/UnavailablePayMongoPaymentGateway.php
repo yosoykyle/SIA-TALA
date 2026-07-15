@@ -2,12 +2,35 @@
 
 namespace App\Actions\Integrations\Payments;
 
-use RuntimeException;
-
 class UnavailablePayMongoPaymentGateway implements PaymentGateway
 {
-    public function createCheckoutSession(PaymentCheckoutRequest $request): PaymentCheckoutSession
+    public function provider(): string
     {
-        throw new RuntimeException('PayMongo checkout is intentionally disabled in this phase. Use TALA_PAYMENT_GATEWAY_DRIVER=mock until live checkout payloads, webhook signatures, idempotency, and retry tests are implemented.');
+        return 'paymongo';
+    }
+
+    public function createCheckoutSession(PaymentCheckoutRequest $request, string $idempotencyKey): PaymentCheckoutSession
+    {
+        throw $this->unavailable();
+    }
+
+    public function retrieveCheckoutSession(string $checkoutSessionId): PaymentCheckoutSession
+    {
+        throw $this->unavailable();
+    }
+
+    public function expireCheckoutSession(string $checkoutSessionId): PaymentCheckoutSession
+    {
+        throw $this->unavailable();
+    }
+
+    private function unavailable(): PaymentGatewayException
+    {
+        return new PaymentGatewayException(
+            message: 'Payment checkout is temporarily unavailable.',
+            errorCode: 'gateway_disabled',
+            retryable: false,
+            indeterminate: false,
+        );
     }
 }

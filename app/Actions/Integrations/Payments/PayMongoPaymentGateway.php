@@ -3,10 +3,11 @@
 namespace App\Actions\Integrations\Payments;
 
 use App\Support\DecimalMoney;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use RuntimeException;
-use Throwable;
 
 class PayMongoPaymentGateway implements PaymentGateway
 {
@@ -20,58 +21,54 @@ class PayMongoPaymentGateway implements PaymentGateway
         private readonly array $paymentMethodTypes,
     ) {}
 
-    public function createCheckoutSession(PaymentCheckoutRequest $request): PaymentCheckoutSession
+    public function provider(): string
     {
-        $secretKey = $this->secretKey();
-        $payload = $this->payload($request);
+        return 'paymongo';
+    }
 
-        try {
-            $response = Http::withBasicAuth($secretKey, '')
-                ->acceptJson()
-                ->asJson()
-                ->timeout(15)
-                ->retry(3, 250)
-                ->post($this->checkoutSessionUrl(), $payload)
-                ->throw();
-        } catch (Throwable $exception) {
-            throw new RuntimeException('PayMongo checkout session could not be created.', 0, $exception);
-        }
-
-        $responsePayload = $response->json();
-        $checkoutSessionId = $this->requiredString($responsePayload, 'data.id', 'PayMongo did not return a checkout session ID.');
-        $checkoutUrl = $this->requiredString(
-            $responsePayload,
-            'data.attributes.checkout_url',
-            'PayMongo did not return a checkout URL.',
-            'data.attributes.url',
+    public function createCheckoutSession(PaymentCheckoutRequest $request, string $idempotencyKey): PaymentCheckoutSession
+    {
+        $payload = $this->send(
+            method: 'POST',
+            url: $this->apiUrl('/v2/checkout_sessions'),
+            payload: $this->payload($request, $idempotencyKey),
+            idempotencyKey: $idempotencyKey,
         );
 
-        return new PaymentCheckoutSession(
-            provider: 'paymongo',
-            checkoutSessionId: $checkoutSessionId,
-            checkoutUrl: $checkoutUrl,
-            status: 'pending',
-            metadata: [
-                'driver' => 'paymongo',
-                'provider_status' => data_get($responsePayload, 'data.attributes.status'),
-                'livemode' => data_get($responsePayload, 'data.attributes.livemode'),
-                'payment_intent_id' => data_get($responsePayload, 'data.attributes.payment_intent.id')
-                    ?? data_get($responsePayload, 'data.attributes.payment_intent_id'),
-                'amount_centavos' => $this->money->toCents($request->amount),
-            ],
+        return $this->checkoutSession($payload, 'create');
+    }
+
+    public function retrieveCheckoutSession(string $checkoutSessionId): PaymentCheckoutSession
+    {
+        $payload = $this->send(
+            method: 'GET',
+            url: $this->apiUrl('/v1/checkout_sessions/'.rawurlencode($checkoutSessionId)),
         );
+
+        return $this->checkoutSession($payload, 'retrieve');
+    }
+
+    public function expireCheckoutSession(string $checkoutSessionId): PaymentCheckoutSession
+    {
+        $payload = $this->send(
+            method: 'POST',
+            url: $this->apiUrl('/v1/checkout_sessions/'.rawurlencode($checkoutSessionId).'/expire'),
+        );
+
+        return $this->checkoutSession($payload, 'expire');
     }
 
     /**
      * @return array{data:array{attributes:array<string, mixed>}}
      */
-    private function payload(PaymentCheckoutRequest $request): array
+    private function payload(PaymentCheckoutRequest $request, string $idempotencyKey): array
     {
         $attributes = [
             'send_email_receipt' => false,
             'show_description' => true,
             'show_line_items' => true,
             'description' => $request->description,
+            'reference_number' => (string) ($request->metadata['tala_reference'] ?? $idempotencyKey),
             'line_items' => [
                 [
                     'currency' => 'PHP',
@@ -81,22 +78,146 @@ class PayMongoPaymentGateway implements PaymentGateway
                 ],
             ],
             'payment_method_types' => $this->configuredPaymentMethods(),
-            'metadata' => array_filter([
-                'tala_reference' => $request->metadata['tala_reference'] ?? null,
-                'assessment_id' => $request->metadata['assessment_id'] ?? null,
-                'enrollment_id' => $request->metadata['enrollment_id'] ?? null,
-            ], static fn (mixed $value): bool => $value !== null && $value !== ''),
+            'metadata' => array_map(
+                static fn (mixed $value): string => (string) $value,
+                array_filter([
+                    'tala_reference' => $request->metadata['tala_reference'] ?? null,
+                    'assessment_id' => $request->metadata['assessment_id'] ?? null,
+                    'enrollment_id' => $request->metadata['enrollment_id'] ?? null,
+                ], static fn (mixed $value): bool => $value !== null && $value !== ''),
+            ),
         ];
 
-        if ($request->successUrl !== null && trim($request->successUrl) !== '') {
+        if (filled($request->successUrl)) {
             $attributes['success_url'] = $request->successUrl;
         }
 
-        if ($request->cancelUrl !== null && trim($request->cancelUrl) !== '') {
+        if (filled($request->cancelUrl)) {
             $attributes['cancel_url'] = $request->cancelUrl;
         }
 
         return ['data' => ['attributes' => $attributes]];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function checkoutSession(array $payload, string $operation): PaymentCheckoutSession
+    {
+        $checkoutSessionId = $this->requiredString($payload, 'data.id', 'checkout_session_id_missing', $operation);
+        $checkoutUrl = $this->requiredString($payload, 'data.attributes.checkout_url', 'checkout_url_missing', $operation);
+        $status = strtolower((string) data_get($payload, 'data.attributes.status', 'active'));
+
+        return new PaymentCheckoutSession(
+            provider: 'paymongo',
+            checkoutSessionId: $checkoutSessionId,
+            checkoutUrl: $checkoutUrl,
+            status: $status,
+            metadata: [
+                'driver' => 'paymongo',
+                'provider_status' => $status,
+                'livemode' => data_get($payload, 'data.attributes.livemode'),
+                'payment_intent_id' => data_get($payload, 'data.attributes.payment_intent.id')
+                    ?? data_get($payload, 'data.attributes.payment_intent_id'),
+                'expires_at' => data_get($payload, 'data.attributes.expires_at'),
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function send(string $method, string $url, array $payload = [], ?string $idempotencyKey = null): array
+    {
+        $response = null;
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $response = $this->request($idempotencyKey)->send($method, $url, $payload === [] ? [] : ['json' => $payload]);
+            } catch (ConnectionException $exception) {
+                if ($attempt < 3) {
+                    usleep(200_000 * $attempt);
+
+                    continue;
+                }
+
+                throw new PaymentGatewayException(
+                    message: 'Payment provider connection failed.',
+                    errorCode: 'connection_failed',
+                    retryable: true,
+                    indeterminate: true,
+                    previous: $exception,
+                );
+            }
+
+            if ($this->shouldRetry($response) && $attempt < 3) {
+                usleep(200_000 * $attempt);
+
+                continue;
+            }
+
+            break;
+        }
+
+        if (! $response instanceof Response) {
+            throw new PaymentGatewayException('Payment provider returned no response.', 'missing_response', true, true);
+        }
+
+        if ($response->failed()) {
+            throw $this->responseException($response);
+        }
+
+        $responsePayload = $response->json();
+
+        if (! is_array($responsePayload)) {
+            throw new PaymentGatewayException(
+                message: 'Payment provider returned an invalid response.',
+                errorCode: 'malformed_response',
+                retryable: false,
+                indeterminate: true,
+                httpStatus: $response->status(),
+            );
+        }
+
+        return $responsePayload;
+    }
+
+    private function request(?string $idempotencyKey): PendingRequest
+    {
+        $request = Http::withBasicAuth($this->secretKey(), '')
+            ->acceptJson()
+            ->asJson()
+            ->connectTimeout(5)
+            ->timeout(20);
+
+        return filled($idempotencyKey)
+            ? $request->withHeader('Idempotency-Key', (string) $idempotencyKey)
+            : $request;
+    }
+
+    private function responseException(Response $response): PaymentGatewayException
+    {
+        $status = $response->status();
+        $errorCode = (string) (
+            data_get($response->json(), 'errors.0.code')
+            ?? data_get($response->json(), 'errors.0.attributes.code')
+            ?? 'http_'.$status
+        );
+        $retryable = $status === 408 || $status === 429 || $status >= 500;
+
+        return new PaymentGatewayException(
+            message: 'Payment provider rejected the request.',
+            errorCode: Str::limit($errorCode, 100, ''),
+            retryable: $retryable,
+            indeterminate: $retryable,
+            httpStatus: $status,
+        );
+    }
+
+    private function shouldRetry(Response $response): bool
+    {
+        return $response->status() === 408 || $response->status() === 429 || $response->serverError();
     }
 
     private function secretKey(): string
@@ -104,20 +225,25 @@ class PayMongoPaymentGateway implements PaymentGateway
         $secretKey = trim((string) $this->secretKey);
 
         if ($secretKey === '') {
-            throw new RuntimeException('PayMongo secret key is not configured.');
+            throw new PaymentGatewayException(
+                message: 'Payment provider is not configured.',
+                errorCode: 'secret_key_missing',
+                retryable: false,
+                indeterminate: false,
+            );
         }
 
         return $secretKey;
     }
 
-    private function checkoutSessionUrl(): string
+    private function apiUrl(string $path): string
     {
-        return rtrim($this->baseUrl, '/').'/checkout_sessions';
+        $baseUrl = preg_replace('#/(?:v1|v2)/?$#', '', rtrim($this->baseUrl, '/'));
+
+        return rtrim((string) $baseUrl, '/').$path;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function configuredPaymentMethods(): array
     {
         $methods = array_values(array_filter(
@@ -135,24 +261,21 @@ class PayMongoPaymentGateway implements PaymentGateway
     {
         $name = trim($description);
 
-        return $name !== ''
-            ? Str::limit($name, 120, '')
-            : 'TALA Payment';
+        return $name !== '' ? Str::limit($name, 120, '') : 'TALA Payment';
     }
 
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function requiredString(array $payload, string $primaryKey, string $message, ?string $fallbackKey = null): string
+    /** @param array<string, mixed> $payload */
+    private function requiredString(array $payload, string $key, string $errorCode, string $operation): string
     {
-        $value = data_get($payload, $primaryKey);
+        $value = data_get($payload, $key);
 
-        if (($value === null || trim((string) $value) === '') && $fallbackKey !== null) {
-            $value = data_get($payload, $fallbackKey);
-        }
-
-        if ($value === null || trim((string) $value) === '') {
-            throw new RuntimeException($message);
+        if (! filled($value)) {
+            throw new PaymentGatewayException(
+                message: 'Payment provider returned an incomplete '.$operation.' response.',
+                errorCode: $errorCode,
+                retryable: false,
+                indeterminate: true,
+            );
         }
 
         return (string) $value;

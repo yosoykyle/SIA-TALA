@@ -63,6 +63,11 @@ class PaymentAttemptsTable
                     ->label('Paid')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('expires_at')
+                    ->label('Provider Expiry')
+                    ->dateTime()
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -76,6 +81,7 @@ class PaymentAttemptsTable
                 SelectFilter::make('status')
                     ->options([
                         'pending' => 'Pending',
+                        'under_review' => 'Under Review',
                         'paid' => 'Paid',
                         'failed' => 'Failed',
                         'expired' => 'Expired',
