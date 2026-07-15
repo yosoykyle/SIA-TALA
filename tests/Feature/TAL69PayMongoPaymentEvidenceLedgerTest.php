@@ -328,7 +328,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         );
     }
 
-    public function test_delivered_failure_changes_only_a_pending_attempt(): void
+    public function test_delivered_failure_keeps_the_attempt_pending_for_retry(): void
     {
         $assessment = $this->activeAssessment();
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_pending_failure');
@@ -338,8 +338,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $result = app(PayMongoWebhookProcessor::class)->process($this->webhookCall($failure));
 
-        $this->assertSame('failed', $result['status']);
-        $this->assertSame('failed', $attempt->fresh()->status);
+        $this->assertSame('retryable', $result['status']);
+        $this->assertSame('pending', $attempt->fresh()->status);
         $this->assertSame(0, Payment::query()->count());
         $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(OperationalEvent::StatusProcessed, OperationalEvent::query()->sole()->status);

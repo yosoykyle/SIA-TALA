@@ -2,13 +2,19 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Integrations\Payments\PayMongoSandboxEnvironmentGuard;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
+use App\Models\Assessment;
+use App\Models\LedgerEntry;
+use App\Models\OperationalEvent;
+use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use stdClass;
+use RuntimeException;
 
 class VerifyPayMongoSandboxWebhookSmoke extends Command
 {
@@ -18,19 +24,24 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
         {--process-pending : Process matching stored webhook calls before verifying evidence}
         {--recent-minutes=1440 : Only auto-select attempts created within this many minutes}';
 
-    protected $description = 'Verify live PayMongo sandbox webhook evidence posted exactly one payment and ledger entry.';
+    protected $description = 'Verify PayMongo test-mode webhook evidence posted exactly one payment and ledger entry.';
 
-    public function handle(DecimalMoney $money, PayMongoWebhookProcessor $processor): int
-    {
-        if ((bool) config('tala_integrations.payments.paymongo.livemode')) {
-            $this->error('Refusing to run sandbox smoke verification while PAYMONGO_LIVEMODE=true.');
+    public function handle(
+        DecimalMoney $money,
+        PayMongoWebhookProcessor $processor,
+        PayMongoSandboxEnvironmentGuard $environmentGuard,
+    ): int {
+        try {
+            $environmentGuard->assertSafe(['secret_key', 'webhook_signature']);
+        } catch (RuntimeException $exception) {
+            $this->error($exception->getMessage());
 
             return self::FAILURE;
         }
 
         $attempt = $this->paymentAttempt();
 
-        if (! $attempt instanceof stdClass) {
+        if (! $attempt instanceof PaymentAttempt) {
             $this->error('No PayMongo sandbox payment attempt matched the selector.');
             $this->line('Run integrations:paymongo-sandbox-checkout first, complete the checkout URL, then rerun this command with --attempt-id or --checkout-session-id.');
 
@@ -39,41 +50,55 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
 
         if ((bool) $this->option('process-pending')) {
             $this->processPendingWebhooks($attempt, $processor);
-            $attempt = DB::table('payment_attempts')->where('id', $attempt->id)->first();
+            $attempt->refresh();
         }
 
-        if (! $attempt instanceof stdClass) {
-            $this->error('Payment attempt disappeared while verifying smoke evidence.');
-
-            return self::FAILURE;
-        }
-
-        $payment = DB::table('payments')
+        $payment = Payment::query()
             ->where('payment_attempt_id', $attempt->id)
             ->where('channel', 'paymongo')
-            ->where('status', 'confirmed')
+            ->where('evidence_status', 'verified')
             ->first();
-
-        $ledgerEntry = $payment instanceof stdClass
-            ? DB::table('ledger_entries')->where('id', $payment->ledger_entry_id)->first()
+        $ledgerEntry = $payment instanceof Payment
+            ? LedgerEntry::query()
+                ->where('payment_id', $payment->id)
+                ->where('direction', LedgerEntry::DirectionPayment)
+                ->where('source_type', Payment::class)
+                ->where('source_id', $payment->id)
+                ->first()
             : null;
-
-        $providerReference = $attempt->provider_checkout_session_id ?: $attempt->provider_payment_id;
-        $webhookCalls = $this->webhookCallCount($attempt, $payment);
-        $expectedLedgerAmount = $money->subtract('0.00', $money->normalize((string) $attempt->amount));
+        $providerEvent = $payment instanceof Payment
+            ? $this->processedProviderEvent($payment)
+            : null;
+        $notificationEvent = $payment instanceof Payment
+            ? OperationalEvent::query()
+                ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+                ->where('related_record_type', Payment::class)
+                ->where('related_record_id', $payment->id)
+                ->first()
+            : null;
+        $assessment = Assessment::query()->with('enrollment')->find($attempt->assessment_id);
+        $webhookCalls = $this->webhookCallCount($attempt, $providerEvent);
+        $attemptAmount = $money->normalize((string) $attempt->amount);
 
         $checks = [
             'attempt_paid' => $attempt->status === 'paid',
-            'provider_event_recorded' => filled($attempt->provider_event_id),
-            'provider_reference_recorded' => filled($providerReference),
+            'provider_checkout_recorded' => filled($attempt->provider_checkout_id),
+            'provider_reference_recorded' => $payment instanceof Payment
+                && str_starts_with((string) $payment->provider_reference, 'paymongo:'),
             'webhook_call_stored' => $webhookCalls >= 1,
-            'single_confirmed_payment' => $this->confirmedPaymentCount($attempt) === 1,
-            'ledger_entry_linked' => $ledgerEntry instanceof stdClass,
-            'ledger_is_payment_credit' => $ledgerEntry instanceof stdClass
-                && $ledgerEntry->entry_type === 'payment'
-                && $ledgerEntry->reference_type === 'payment'
-                && (int) $ledgerEntry->reference_id === (int) $payment->id
-                && $money->normalize((string) $ledgerEntry->amount) === $expectedLedgerAmount,
+            'single_verified_payment' => Payment::query()
+                ->where('payment_attempt_id', $attempt->id)
+                ->where('channel', 'paymongo')
+                ->where('evidence_status', 'verified')
+                ->count() === 1,
+            'ledger_entry_linked' => $ledgerEntry instanceof LedgerEntry,
+            'ledger_is_payment_posting' => $ledgerEntry instanceof LedgerEntry
+                && $ledgerEntry->state === 'posted'
+                && $money->greaterThanZero((string) $ledgerEntry->amount)
+                && $money->normalize((string) $ledgerEntry->amount) === $attemptAmount,
+            'processed_provider_event' => $providerEvent instanceof OperationalEvent,
+            'finance_gate_effect' => in_array($assessment?->enrollment?->status, ['pre_enrolled', 'officially_enrolled'], true),
+            'notification_evidence' => $notificationEvent instanceof OperationalEvent,
         ];
 
         foreach ($checks as $check => $passed) {
@@ -89,43 +114,43 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
 
         $this->info('PayMongo sandbox webhook smoke evidence verified.');
         $this->line('payment_attempt_id='.$attempt->id);
-        $this->line('provider_event_id='.$attempt->provider_event_id);
-        $this->line('provider_reference='.$providerReference);
+        $this->line('provider_checkout_session_id='.$attempt->provider_checkout_id);
+        $this->line('provider_reference='.$payment->provider_reference);
+        $this->line('operational_event_id='.$providerEvent->id);
         $this->line('payment_id='.$payment->id);
         $this->line('ledger_entry_id='.$ledgerEntry->id);
-        $this->line('amount='.$money->normalize((string) $attempt->amount));
+        $this->line('amount='.$attemptAmount);
         $this->line('ledger_amount='.$money->normalize((string) $ledgerEntry->amount));
         $this->line('webhook_calls='.$webhookCalls);
 
         return self::SUCCESS;
     }
 
-    private function paymentAttempt(): ?stdClass
+    private function paymentAttempt(): ?PaymentAttempt
     {
-        $query = DB::table('payment_attempts')
+        $query = PaymentAttempt::query()
             ->where('channel', 'paymongo')
             ->where('provider', 'paymongo');
+        $attemptId = trim((string) $this->option('attempt-id'));
+        $checkoutSessionId = trim((string) $this->option('checkout-session-id'));
 
-        $attemptId = $this->option('attempt-id');
-        $checkoutSessionId = $this->option('checkout-session-id');
-
-        if (filled($attemptId)) {
-            return $query->where('id', (int) $attemptId)->first();
+        if ($attemptId !== '') {
+            return $query->find((int) $attemptId);
         }
 
-        if (filled($checkoutSessionId)) {
-            return $query->where('provider_checkout_session_id', trim((string) $checkoutSessionId))->first();
+        if ($checkoutSessionId !== '') {
+            return $query->where('provider_checkout_id', $checkoutSessionId)->first();
         }
 
         $recentMinutes = max(1, (int) $this->option('recent-minutes'));
 
         return $query
-            ->where('created_at', '>=', CarbonImmutable::now(config('app.timezone'))->subMinutes($recentMinutes)->toDateTimeString())
+            ->where('created_at', '>=', CarbonImmutable::now(config('app.timezone'))->subMinutes($recentMinutes))
             ->latest('id')
             ->first();
     }
 
-    private function processPendingWebhooks(stdClass $attempt, PayMongoWebhookProcessor $processor): void
+    private function processPendingWebhooks(PaymentAttempt $attempt, PayMongoWebhookProcessor $processor): void
     {
         $webhookCalls = $this->matchingWebhookCalls($attempt)
             ->whereNull('processed_at')
@@ -137,16 +162,15 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
         }
     }
 
-    private function matchingWebhookCalls(stdClass $attempt): Builder
+    private function matchingWebhookCalls(PaymentAttempt $attempt): Builder
     {
         $query = DB::table('webhook_calls')->where('name', 'paymongo');
-
-        $providerReference = $attempt->provider_checkout_session_id ?: $attempt->provider_payment_id;
+        $providerReference = $attempt->provider_checkout_id
+            ?? $attempt->provider_intent_id
+            ?? $attempt->internal_reference;
 
         if (filled($providerReference)) {
             $this->wherePayloadContains($query, (string) $providerReference);
-        } elseif (filled($attempt->provider_event_id)) {
-            $this->wherePayloadContains($query, (string) $attempt->provider_event_id);
         } else {
             $query->whereRaw('1 = 0');
         }
@@ -154,24 +178,34 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
         return $query;
     }
 
-    private function confirmedPaymentCount(stdClass $attempt): int
+    private function processedProviderEvent(Payment $payment): ?OperationalEvent
     {
-        return DB::table('payments')
-            ->where('payment_attempt_id', $attempt->id)
-            ->where('channel', 'paymongo')
-            ->where('status', 'confirmed')
-            ->count();
+        return OperationalEvent::query()
+            ->where('event_domain', OperationalEvent::DomainIntegration)
+            ->where('integration', OperationalEvent::IntegrationPayMongo)
+            ->where('channel', OperationalEvent::ChannelWebhook)
+            ->where('status', OperationalEvent::StatusProcessed)
+            ->where('related_record_type', Payment::class)
+            ->where('related_record_id', $payment->id)
+            ->latest('id')
+            ->first();
     }
 
-    private function webhookCallCount(stdClass $attempt, ?stdClass $payment): int
+    private function webhookCallCount(PaymentAttempt $attempt, ?OperationalEvent $providerEvent): int
     {
-        if ($payment instanceof stdClass && filled($payment->meta)) {
-            $meta = json_decode((string) $payment->meta, true);
+        if ($providerEvent instanceof OperationalEvent) {
+            $webhookCallIds = collect([
+                data_get($providerEvent->diagnostics, 'webhook_call_id'),
+                data_get($providerEvent->diagnostics, 'latest_webhook_call_id'),
+            ])
+                ->filter(fn (mixed $id): bool => is_int($id) || (is_string($id) && ctype_digit($id)))
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique();
 
-            if (is_array($meta) && filled($meta['webhook_call_id'] ?? null)) {
+            if ($webhookCallIds->isNotEmpty()) {
                 return DB::table('webhook_calls')
                     ->where('name', 'paymongo')
-                    ->where('id', (int) $meta['webhook_call_id'])
+                    ->whereIn('id', $webhookCallIds)
                     ->count();
             }
         }
@@ -181,10 +215,6 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
 
     private function wherePayloadContains(Builder $query, string $value): void
     {
-        $castType = DB::connection()->getDriverName() === 'sqlite' ? 'TEXT' : 'CHAR';
-
-        $query->whereRaw("CAST(payload AS {$castType}) LIKE ?", [
-            '%'.$value.'%',
-        ]);
+        $query->whereRaw('CAST(payload AS CHAR) LIKE ?', ['%'.$value.'%']);
     }
 }

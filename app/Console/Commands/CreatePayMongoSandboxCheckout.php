@@ -2,14 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
 use App\Actions\Integrations\Payments\PaymentCheckoutException;
-use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
+use App\Actions\Integrations\Payments\PayMongoSandboxEnvironmentGuard;
 use App\Models\Assessment;
 use App\Models\User;
-use App\Support\DecimalMoney;
 use Illuminate\Console\Command;
+use RuntimeException;
 
 class CreatePayMongoSandboxCheckout extends Command
 {
@@ -22,12 +21,13 @@ class CreatePayMongoSandboxCheckout extends Command
     protected $description = 'Create a PayMongo test checkout for an existing active student assessment.';
 
     public function handle(
-        DecimalMoney $money,
-        FinanceEvidenceService $financeEvidence,
-        PayMongoPaymentGateway $gateway,
+        CreatePaymentCheckoutSession $checkoutCreator,
+        PayMongoSandboxEnvironmentGuard $environmentGuard,
     ): int {
-        if ((bool) config('tala_integrations.payments.paymongo.livemode')) {
-            $this->error('Refusing to create a sandbox checkout while PAYMONGO_LIVEMODE=true.');
+        try {
+            $environmentGuard->assertSafe(['secret_key']);
+        } catch (RuntimeException $exception) {
+            $this->error($exception->getMessage());
 
             return self::FAILURE;
         }
@@ -50,8 +50,6 @@ class CreatePayMongoSandboxCheckout extends Command
 
             return self::FAILURE;
         }
-
-        $checkoutCreator = new CreatePaymentCheckoutSession($gateway, $money, $financeEvidence);
 
         try {
             $session = $checkoutCreator->create(

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Integrations\Payments;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
 class PayMongoWebhookSignatureVerifier
@@ -22,6 +23,13 @@ class PayMongoWebhookSignatureVerifier
             $timestamp === null || ! ctype_digit($timestamp) || (int) $timestamp <= 0
             || $providedSignature === null || preg_match('/^[a-f0-9]{64}$/i', $providedSignature) !== 1
         ) {
+            return false;
+        }
+
+        $maxAgeSeconds = (int) config('tala_integrations.payments.paymongo.signature_max_age_seconds', 300);
+        $ageSeconds = CarbonImmutable::now(config('app.timezone'))->getTimestamp() - (int) $timestamp;
+
+        if ($maxAgeSeconds <= 0 || $ageSeconds < 0 || $ageSeconds > $maxAgeSeconds) {
             return false;
         }
 

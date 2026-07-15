@@ -10,7 +10,9 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 
 ## Active Syncs
 
-No completed local issues are awaiting explicit Linear sync.
+| Local Issue | Status | Title / Domain |
+| --- | --- | --- |
+| TAL-95D1 | Done locally; pending explicit Linear sync | PayMongo Hosted Checkout V2 Provider Contract Hardening |
 
 ## Compact Synced History
 

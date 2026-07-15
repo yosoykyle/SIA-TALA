@@ -194,10 +194,12 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
     public function test_queued_processor_uses_the_canonical_event_and_routes_unknown_source_to_review(): void
     {
+        $queue = Queue::fake();
+
         $this->postWebhook($this->eventPayload(eventId: 'evt_tal95b_queued_review'))->assertAccepted();
 
         /** @var ProcessPayMongoWebhookCall $job */
-        $job = Queue::pushed(ProcessPayMongoWebhookCall::class)->sole();
+        $job = $queue->pushed(ProcessPayMongoWebhookCall::class)->sole();
         $job->handle(app(PayMongoWebhookProcessor::class));
 
         $event = OperationalEvent::query()->sole();
@@ -275,7 +277,7 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
 
     private function signature(string $body, string $modeKey = 'te'): string
     {
-        $timestamp = '1784073600';
+        $timestamp = (string) now()->getTimestamp();
 
         return 't='.$timestamp.','.$modeKey.'='.hash_hmac('sha256', $timestamp.'.'.$body, self::WebhookSecret);
     }

@@ -101,3 +101,38 @@ php artisan test --compact
 
 *   **Filament Admin Dashboard:** Navigate to `http://127.0.0.1:8000/admin` (create a user via `php artisan make:filament-user`).
 *   **Student Hub:** Navigate to `http://127.0.0.1:8000/student` to verify the Livewire/TallStackUI frontend and PWA service workers.
+
+---
+
+## 6. PayMongo Test-Mode Rehearsal
+
+The PayMongo sandbox commands fail closed unless the runtime is `testing`, the database is MySQL `test_tala_db`, the payment driver is `paymongo`, live mode is disabled, and the required test-mode configuration is present. Store test keys and the webhook signing secret only in an untracked local environment; never commit credentials, dashboard identifiers, or temporary public endpoint URLs.
+
+Before the human-gated rehearsal, set these placeholders locally:
+
+```env
+TALA_PAYMENT_GATEWAY_DRIVER=paymongo
+PAYMONGO_BASE_URL=https://api.paymongo.com
+PAYMONGO_PUBLIC_KEY=<test-mode-public-key>
+PAYMONGO_SECRET_KEY=<test-mode-secret-key>
+PAYMONGO_WEBHOOK_SIG=<test-mode-webhook-signing-secret>
+PAYMONGO_LIVEMODE=false
+PAYMONGO_WEBHOOK_MAX_AGE_SECONDS=300
+```
+
+In PowerShell, prove and retain the isolated test runtime for the command sequence:
+
+```powershell
+$env:APP_ENV="testing"
+$env:DB_CONNECTION="mysql"
+$env:DB_DATABASE="test_tala_db"
+
+php artisan config:clear
+php artisan integrations:paymongo-sandbox-checkout --assessment-id=<active-assessment-id>
+php artisan integrations:paymongo-sandbox-webhook-smoke --attempt-id=<payment-attempt-id> --process-pending
+php artisan integrations:paymongo-sandbox-expire --attempt-id=<pending-payment-attempt-id>
+```
+
+The checkout command creates or reuses one active attempt. After a successful test payment and signed webhook delivery, the smoke command verifies the Payment, payment-sourced ledger entry, processed integration event, Finance Gate effect, and notification evidence. Use the expiry command only for a still-pending declined or cancelled test attempt; it records local expiry only after PayMongo confirms the Checkout Session is expired.
+
+Creating a public HTTPS endpoint, registering it in the PayMongo dashboard, entering credentials, completing the hosted checkout, and tearing down the endpoint are human-only rehearsal steps. They are intentionally outside automated tests and must target test mode and `test_tala_db` only.

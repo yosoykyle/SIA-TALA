@@ -271,6 +271,11 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
 
     public function test_sandbox_command_requires_an_existing_active_assessment_before_any_provider_call(): void
     {
+        config()->set('tala_integrations.payments.driver', 'paymongo');
+        config()->set('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com');
+        config()->set('tala_integrations.payments.paymongo.secret_key', 'sk_test_tal95a_not_real');
+        config()->set('tala_integrations.payments.paymongo.livemode', false);
+
         $exitCode = Artisan::call('integrations:paymongo-sandbox-checkout');
 
         $this->assertSame(Command::FAILURE, $exitCode);

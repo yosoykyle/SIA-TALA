@@ -72,6 +72,12 @@ class PayMongoWebhookProcessor
                 return $this->routeRefundToReview($context, $webhookCallId, $operationalEvent);
             }
 
+            if ($context['evidence_reason'] !== null) {
+                $this->markReviewRequired($webhookCallId, $operationalEvent, $context['evidence_reason']);
+
+                return ['status' => 'review_required', 'reason' => $context['evidence_reason']];
+            }
+
             if ($context['provider_reference'] === null) {
                 $this->markReviewRequired($webhookCallId, $operationalEvent, 'missing_provider_reference');
 
@@ -319,15 +325,15 @@ class PayMongoWebhookProcessor
         }
 
         $attempt->forceFill([
-            'status' => 'failed',
+            'status' => 'pending',
             'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
             'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
-            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'failed'),
+            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'retryable'),
         ])->save();
 
         $this->markProcessed($webhookCallId, $operationalEvent, PaymentAttempt::class, $attempt->id);
 
-        return ['status' => 'failed'];
+        return ['status' => 'retryable'];
     }
 
     /** @param array<string, mixed> $context */
@@ -497,6 +503,7 @@ class PayMongoWebhookProcessor
             'provider_reference' => $context['provider_reference'],
             'payment_id' => $context['payment_id'],
             'status' => $status,
+            'provider_status' => $context['status'],
         ];
 
         return $metadata;
@@ -535,12 +542,13 @@ class PayMongoWebhookProcessor
             'channel' => OperationalEvent::ChannelWebhook,
             'direction' => OperationalEvent::DirectionInbound,
             'event_type' => $event->eventType,
-            'event_version' => 'v1',
+            'event_version' => $event->envelopeVersion,
             'external_id' => $event->eventId,
             'status' => OperationalEvent::StatusPending,
             'occurred_at' => CarbonImmutable::now(config('app.timezone')),
             'diagnostics' => [
                 'payload_sha256' => $event->payloadSha256,
+                'semantic_fingerprint' => $event->semanticFingerprint(),
                 'webhook_call_id' => $webhookCallId,
                 'delivery_count' => 1,
             ],
