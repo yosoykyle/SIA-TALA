@@ -458,10 +458,10 @@ Laravel, Filament, and Livewire are selected together because TALA is a form-, t
 | Laravel Tinker | 2.11.1 | Developer diagnostic utility, not a production subsystem. |
 | chillerlan/php-qrcode | 5.0.5 | Declared, but no active application reference establishes a current production responsibility. |
 | Spatie Model States | 2.12.1 | Declared, but no active application reference establishes state-machine ownership. |
-| Luigel PayMongo | 2.6 | Declared, while TALA's active payment transport uses its own HTTP integration and webhook contract. |
-| Spatie Webhook Client | 3.6.3 | Declared, while the active PayMongo webhook pipeline is application-owned. |
 
 These packages must be either connected to an approved responsibility or considered for removal in a separate dependency review. Keeping unused runtime packages increases upgrade work and supply-chain exposure. Removal is intentionally not performed as part of this architecture document.
+
+The PayMongo transport and signed webhook pipeline are application-owned. Previously declared Luigel PayMongo and Spatie Webhook Client dependencies were removed after live-reference and dependency audits proved that neither package owned an active runtime responsibility.
 
 ### 11.3 Frontend Runtime
 

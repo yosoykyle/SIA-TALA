@@ -25,11 +25,17 @@ class OperationalEvent extends Model
 
     public const IntegrationSchedulingSolver = 'SCHEDULING_SOLVER';
 
+    public const IntegrationPayMongo = 'PAYMONGO';
+
     public const IntegrationMail = 'mail';
 
     public const ChannelEmail = 'email';
 
+    public const ChannelWebhook = 'webhook';
+
     public const DirectionOutbound = 'OUTBOUND';
+
+    public const DirectionInbound = 'INBOUND';
 
     public const TypeSolverDispatchAttempt = 'solver_dispatch_attempt';
 
@@ -42,6 +48,10 @@ class OperationalEvent extends Model
     public const StatusProcessed = 'PROCESSED';
 
     public const StatusFailed = 'FAILED';
+
+    public const StatusReviewRequired = 'REVIEW_REQUIRED';
+
+    public const StatusIgnored = 'IGNORED';
 
     /** @var list<string> */
     protected $guarded = ['id'];

@@ -14,22 +14,27 @@ use Illuminate\Support\Carbon;
 
 class OperationalEventsTable
 {
-    /**
-     * Status vocabulary source: `TAL75ReportsAuditTest.php` (`'status' =>
-     * 'PROCESSED'`), the only existing writer of `OperationalEvent::status`
-     * before this slice, plus the model's own `failed_at` column. Coloring
-     * follows the same keyword convention already used by
-     * `App\Filament\Pages\ReportsAudit::badgeColor()` for other status-like
-     * columns in this codebase.
-     *
-     * @return array<string, string>
-     */
+    /** @return array<string, string> */
     public static function statusColors(): array
     {
         return [
-            'PROCESSED' => 'success',
-            'FAILED' => 'danger',
-            'PENDING' => 'warning',
+            OperationalEvent::StatusPending => 'warning',
+            OperationalEvent::StatusProcessed => 'success',
+            OperationalEvent::StatusFailed => 'danger',
+            OperationalEvent::StatusReviewRequired => 'warning',
+            OperationalEvent::StatusIgnored => 'gray',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function statusOptions(): array
+    {
+        return [
+            OperationalEvent::StatusPending => 'Pending',
+            OperationalEvent::StatusProcessed => 'Processed',
+            OperationalEvent::StatusFailed => 'Failed',
+            OperationalEvent::StatusReviewRequired => 'Review required',
+            OperationalEvent::StatusIgnored => 'Ignored',
         ];
     }
 
@@ -68,7 +73,7 @@ class OperationalEventsTable
                 SelectFilter::make('event_domain')
                     ->options(fn (): array => self::eventDomainOptions()),
                 SelectFilter::make('status')
-                    ->options(self::statusColors()),
+                    ->options(self::statusOptions()),
                 SelectFilter::make('integration')
                     ->options(fn (): array => self::integrationOptions()),
                 Filter::make('occurred_at')
@@ -94,7 +99,7 @@ class OperationalEventsTable
     {
         return [
             'notifications' => 'Notifications',
-            'INTEGRATION' => 'Integration',
+            OperationalEvent::DomainIntegration => 'Integration',
         ];
     }
 
@@ -103,7 +108,7 @@ class OperationalEventsTable
     {
         return [
             'mail' => 'Mail',
-            'PAYMONGO' => 'PayMongo',
+            OperationalEvent::IntegrationPayMongo => 'PayMongo',
             OperationalEvent::IntegrationSchedulingSolver => 'Scheduling Solver',
         ];
     }

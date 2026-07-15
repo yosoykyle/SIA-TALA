@@ -11,14 +11,17 @@ class PayMongoWebhookSignatureVerifier
         $secret = $this->webhookSecret();
 
         if ($secret === null || $secret === '') {
-            return config('tala_integrations.payments.driver', 'mock') === 'mock';
+            return false;
         }
 
         $headerPayload = $this->headerPayload($request);
         $timestamp = $headerPayload['t'] ?? null;
         $providedSignature = $this->providedSignature($headerPayload);
 
-        if ($timestamp === null || $providedSignature === null) {
+        if (
+            $timestamp === null || ! ctype_digit($timestamp) || (int) $timestamp <= 0
+            || $providedSignature === null || preg_match('/^[a-f0-9]{64}$/i', $providedSignature) !== 1
+        ) {
             return false;
         }
 
@@ -59,11 +62,7 @@ class PayMongoWebhookSignatureVerifier
     {
         $livemodeKey = config('tala_integrations.payments.paymongo.livemode') ? 'li' : 'te';
 
-        return $headerPayload[$livemodeKey]
-            ?? $headerPayload['v1']
-            ?? $headerPayload['te']
-            ?? $headerPayload['li']
-            ?? null;
+        return $headerPayload[$livemodeKey] ?? null;
     }
 
     private function webhookSecret(): ?string

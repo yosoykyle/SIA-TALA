@@ -10,7 +10,7 @@ Remaining dependency chain: complete the human-gated PayMongo integration (TAL-9
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-95 | In progress; TAL-95A done locally; next TAL-95B; human-gated final acceptance | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
+| TAL-95 | In progress; TAL-95A-B done locally; next TAL-95C; human-gated final acceptance | Payment Gateway End-to-End Hardening: validate real payment attempts, verified webhooks, idempotent ledger posting, Finance Gate, Accounting/Student evidence, checkout audit, webhook reporting, and payment notification. Treat current gateway wiring as unverified until proven. |
 | TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
 | TAL-97 | Planned | Demo and Rehearsal Support built only from the verified MVP. |
 
@@ -20,9 +20,9 @@ Cross-slice acceptance rule: TAL-95 is end-to-end across A-D. Treat every existi
 
 | Slice | Status | Purpose | Next boundary |
 | --- | --- | --- | --- |
-| TAL-95A | Done locally; pending explicit Linear sync | Authorized, idempotent, recoverable Student Checkout and active Payment Attempt lifecycle. | Plan TAL-95B |
-| TAL-95B | Approved boundary; ready to plan | Secure and structure PayMongo webhook ingress, queued processing, exact evidence validation, duplicate-safe Payment/Ledger posting, Finance Gate effects, and Accounting review routing for failed, mismatched, refund, or reversal events. | Plan TAL-95B |
-| TAL-95C | Approved boundary; blocked by TAL-95B | Complete source-linked Accounting review/retry operations, sanitized PayMongo webhook reporting and integration status, Student Finance evidence, and deduplicated payment-posted email delivery. | Plan after TAL-95B Cleanup |
+| TAL-95A | Done locally; pending explicit Linear sync | Authorized, idempotent, recoverable Student Checkout and active Payment Attempt lifecycle. | Completed |
+| TAL-95B | Done locally; pending explicit Linear sync | Secure PayMongo webhook processing, exact financial validation, and Accounting review routing. | Plan TAL-95C |
+| TAL-95C | Approved boundary; ready to plan | Complete source-linked Accounting review/retry operations, sanitized PayMongo webhook reporting and integration status, Student Finance evidence, and deduplicated payment-posted email delivery. | Plan TAL-95C |
 | TAL-95D | Approved boundary; blocked by TAL-95C; human-gated | Prove the complete PayMongo test-mode lifecycle through a public HTTPS webhook endpoint against `test_tala_db`, including successful and failed checkout, signed delivery, duplicate handling, ledger/Finance Gate outcomes, role surfaces, report evidence, and notification delivery; exclude live keys and real money. | Plan after TAL-95C Cleanup |
 
 ## Post-MVP Deferrals
@@ -40,4 +40,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-95B**. Re-run the Ground-Truth Gate against the approved TAL-95B boundary before drafting its implementation plan; treat the existing webhook, ledger-posting, Finance Gate, and Accounting-review paths as unverified salvage until proven.
+Next primary boundary: **Plan TAL-95C**. Re-run the Ground-Truth Gate against the approved TAL-95C boundary before drafting its implementation plan; preserve TAL-95D as the separate human-gated provider acceptance.

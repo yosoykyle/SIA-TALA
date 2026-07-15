@@ -23,6 +23,7 @@ return [
             'webhook_signature' => env('PAYMONGO_WEBHOOK_SIG'),
             'signature_header_name' => env('PAYMONGO_SIG_HEADER', 'paymongo-signature'),
             'livemode' => env('PAYMONGO_LIVEMODE', false),
+            'max_payload_bytes' => env('PAYMONGO_WEBHOOK_MAX_BYTES', 1_048_576),
             'payment_method_types' => array_values(array_filter(array_map(
                 'trim',
                 explode(',', env('PAYMONGO_PAYMENT_METHOD_TYPES', 'gcash,card')),

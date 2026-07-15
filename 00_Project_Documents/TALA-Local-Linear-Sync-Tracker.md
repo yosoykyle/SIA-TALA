@@ -104,6 +104,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-94E3b1 | Done locally; pending explicit Linear sync | Tagged Real-Service End-to-End Acceptance |
 | TAL-94E3b2 | Done locally; pending explicit Linear sync | Controlled V2 Cutover and Recovery Validation |
 | TAL-95A | Done locally; pending explicit Linear sync | Authorized, Idempotent, Recoverable Student Checkout |
+| TAL-95B | Done locally; pending explicit Linear sync | Secure PayMongo Webhook Processing and Financial Evidence |
 
 ## Compact Synced History
 
