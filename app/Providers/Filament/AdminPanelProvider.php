@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
+use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
@@ -141,6 +142,7 @@ class AdminPanelProvider extends PanelProvider
                 FacultySchedule::class,
                 ReportsAudit::class,
                 IntegrationStatus::class,
+                PayMongoReconciliation::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

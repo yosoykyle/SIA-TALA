@@ -85,6 +85,47 @@ final readonly class PayMongoWebhookEvent
         ], true);
     }
 
+    /**
+     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool}
+     */
+    public function paymentContext(): array
+    {
+        $metadata = $this->resourceAttributes['metadata'] ?? null;
+        $metadata = is_array($metadata) ? $metadata : [];
+        $checkoutSessionId = $this->resourceType === 'checkout_session'
+            ? $this->resourceId
+            : $this->stringValue($this->resourceAttributes['checkout_session_id'] ?? null);
+        $paymentId = $this->resourceType === 'payment'
+            ? $this->resourceId
+            : $this->stringValue($this->resourceAttributes['payment_id'] ?? null);
+        $paymentIntentId = $this->stringValue($this->resourceAttributes['payment_intent_id'] ?? null);
+        $amount = $this->resourceType === 'checkout_session'
+            ? ($this->resourceAttributes['amount_paid'] ?? null)
+            : ($this->resourceAttributes['amount'] ?? null);
+        $currency = $this->stringValue($this->resourceAttributes['currency'] ?? null);
+        $talaReference = $this->stringValue($metadata['tala_reference'] ?? null);
+        $providerReference = in_array($this->eventType, ['payment.refunded', 'payment.refund.updated'], true)
+            ? $paymentId
+            : ($checkoutSessionId ?? $paymentId ?? $paymentIntentId);
+
+        return [
+            'event_id' => $this->eventId,
+            'event_type' => $this->eventType,
+            'livemode' => $this->livemode,
+            'checkout_session_id' => $checkoutSessionId,
+            'payment_id' => $paymentId,
+            'payment_intent_id' => $paymentIntentId,
+            'provider_reference' => $providerReference,
+            'amount_centavos' => is_int($amount) && $amount >= 0 ? $amount : null,
+            'currency' => $currency !== null ? strtoupper($currency) : null,
+            'tala_reference' => $talaReference,
+            'status' => $this->stringValue($this->resourceAttributes['status'] ?? null),
+            'is_disputed' => ($this->resourceAttributes['disputed'] ?? false) === true,
+            'has_refunds' => is_array($this->resourceAttributes['refunds'] ?? null)
+                && $this->resourceAttributes['refunds'] !== [],
+        ];
+    }
+
     /** @return array<string, mixed> */
     public function summary(): array
     {
@@ -95,5 +136,16 @@ final readonly class PayMongoWebhookEvent
             'resource_type' => $this->resourceType,
             'resource_id' => $this->resourceId,
         ];
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value !== '' ? $value : null;
     }
 }
