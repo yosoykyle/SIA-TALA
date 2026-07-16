@@ -549,6 +549,7 @@ class PayMongoWebhookProcessor
             'diagnostics' => [
                 'payload_sha256' => $event->payloadSha256,
                 'semantic_fingerprint' => $event->semanticFingerprint(),
+                'normalization_version' => PayMongoWebhookEvent::NormalizationVersion,
                 'webhook_call_id' => $webhookCallId,
                 'delivery_count' => 1,
             ],

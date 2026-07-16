@@ -7,6 +7,8 @@ use JsonException;
 
 final readonly class PayMongoWebhookEvent
 {
+    public const NormalizationVersion = 2;
+
     /** @param array<string, mixed> $resourceAttributes */
     private function __construct(
         public string $eventId,
@@ -58,9 +60,30 @@ final readonly class PayMongoWebhookEvent
      */
     public function paymentContext(): array
     {
-        return $this->envelopeVersion === 'v2'
-            ? $this->v2PaymentContext()
-            : $this->legacyPaymentContext();
+        if ($this->resourceType === 'payment') {
+            return $this->paymentResourceContext();
+        }
+
+        if ($this->resourceType === 'checkout_session') {
+            if ($this->envelopeVersion === 'v1' && ! array_key_exists('payments', $this->resourceAttributes)) {
+                return $this->legacyCheckoutSessionContext();
+            }
+
+            return $this->checkoutSessionContext();
+        }
+
+        return $this->context(
+            checkoutSessionId: null,
+            paymentId: null,
+            paymentIntentId: null,
+            providerReference: null,
+            amount: null,
+            currency: null,
+            talaReference: self::metadataReference($this->resourceAttributes),
+            status: null,
+            paymentAttributes: [],
+            evidenceReason: 'incompatible_payment_resource',
+        );
     }
 
     public function semanticFingerprint(): string
@@ -196,32 +219,22 @@ final readonly class PayMongoWebhookEvent
     /**
      * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
      */
-    private function legacyPaymentContext(): array
+    private function legacyCheckoutSessionContext(): array
     {
         $metadata = $this->resourceAttributes['metadata'] ?? null;
         $metadata = is_array($metadata) ? $metadata : [];
-        $checkoutSessionId = $this->resourceType === 'checkout_session'
-            ? $this->resourceId
-            : self::optionalString($this->resourceAttributes['checkout_session_id'] ?? null);
-        $paymentId = $this->resourceType === 'payment'
-            ? $this->resourceId
-            : self::optionalString($this->resourceAttributes['payment_id'] ?? null);
+        $checkoutSessionId = $this->resourceId;
+        $paymentId = self::optionalString($this->resourceAttributes['payment_id'] ?? null);
         $paymentIntentId = self::optionalString($this->resourceAttributes['payment_intent_id'] ?? null);
-        $amount = $this->resourceType === 'checkout_session'
-            ? ($this->resourceAttributes['amount_paid'] ?? null)
-            : ($this->resourceAttributes['amount'] ?? null);
         $currency = self::optionalString($this->resourceAttributes['currency'] ?? null);
         $talaReference = self::optionalString($metadata['tala_reference'] ?? null);
-        $providerReference = in_array($this->eventType, ['payment.refunded', 'payment.refund.updated'], true)
-            ? $paymentId
-            : ($checkoutSessionId ?? $paymentId ?? $paymentIntentId);
 
         return $this->context(
             checkoutSessionId: $checkoutSessionId,
             paymentId: $paymentId,
             paymentIntentId: $paymentIntentId,
-            providerReference: $providerReference,
-            amount: $amount,
+            providerReference: $checkoutSessionId,
+            amount: $this->resourceAttributes['amount_paid'] ?? null,
             currency: $currency,
             talaReference: $talaReference,
             status: self::optionalString($this->resourceAttributes['status'] ?? null),
@@ -233,48 +246,78 @@ final readonly class PayMongoWebhookEvent
     /**
      * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
      */
-    private function v2PaymentContext(): array
+    private function paymentResourceContext(): array
     {
-        if ($this->resourceType === 'payment') {
-            $paymentId = $this->resourceId;
+        $paymentId = $this->resourceId;
 
-            return $this->context(
-                checkoutSessionId: self::optionalString($this->resourceAttributes['checkout_session_id'] ?? null),
-                paymentId: $paymentId,
-                paymentIntentId: self::optionalString($this->resourceAttributes['payment_intent_id'] ?? null),
-                providerReference: $paymentId,
-                amount: $this->resourceAttributes['amount'] ?? null,
-                currency: self::optionalString($this->resourceAttributes['currency'] ?? null),
-                talaReference: self::metadataReference($this->resourceAttributes),
-                status: self::optionalString($this->resourceAttributes['status'] ?? null),
-                paymentAttributes: $this->resourceAttributes,
-                evidenceReason: null,
-            );
-        }
+        return $this->context(
+            checkoutSessionId: self::optionalString($this->resourceAttributes['checkout_session_id'] ?? null),
+            paymentId: $paymentId,
+            paymentIntentId: self::optionalString($this->resourceAttributes['payment_intent_id'] ?? null),
+            providerReference: $paymentId,
+            amount: $this->resourceAttributes['amount'] ?? null,
+            currency: self::optionalString($this->resourceAttributes['currency'] ?? null),
+            talaReference: self::metadataReference($this->resourceAttributes),
+            status: self::optionalString($this->resourceAttributes['status'] ?? null),
+            paymentAttributes: $this->resourceAttributes,
+            evidenceReason: null,
+        );
+    }
 
+    /**
+     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     */
+    private function checkoutSessionContext(): array
+    {
         $metadataReference = self::metadataReference($this->resourceAttributes);
         $referenceNumber = self::optionalString($this->resourceAttributes['reference_number'] ?? null);
         $evidenceReason = $metadataReference !== null && $referenceNumber !== null && $metadataReference !== $referenceNumber
             ? 'reference_metadata_conflict'
             : null;
+        $hasPayments = array_key_exists('payments', $this->resourceAttributes);
         $payments = $this->resourceAttributes['payments'] ?? null;
         $paidPayments = [];
+        $hasIncompatiblePayment = false;
+        $hasMalformedPayment = false;
 
         if (is_array($payments)) {
             foreach ($payments as $payment) {
                 if (! is_array($payment)) {
+                    $hasMalformedPayment = true;
+
                     continue;
                 }
 
                 $attributes = $payment['attributes'] ?? null;
+                $paymentType = self::optionalString($payment['type'] ?? null);
 
-                if (is_array($attributes) && strtolower((string) ($attributes['status'] ?? '')) === 'paid') {
+                if ($paymentType === null || ! is_array($attributes)) {
+                    $hasMalformedPayment = true;
+
+                    continue;
+                }
+
+                if ($paymentType !== 'payment') {
+                    $hasIncompatiblePayment = true;
+
+                    continue;
+                }
+
+                if (strtolower((string) ($attributes['status'] ?? '')) === 'paid') {
                     $paidPayments[] = $payment;
                 }
             }
         }
 
-        if ($paidPayments === []) {
+        if (! $hasPayments) {
+            $evidenceReason ??= 'missing_paid_payment';
+        } elseif (! is_array($payments)) {
+            $evidenceReason ??= 'malformed_payments';
+        } elseif ($hasMalformedPayment) {
+            $evidenceReason ??= 'malformed_payment_resource';
+        } elseif ($hasIncompatiblePayment) {
+            $evidenceReason ??= 'incompatible_payment_resource';
+        } elseif ($paidPayments === []) {
             $evidenceReason ??= 'missing_paid_payment';
         } elseif (count($paidPayments) > 1) {
             $evidenceReason ??= 'ambiguous_paid_payments';
@@ -288,11 +331,21 @@ final readonly class PayMongoWebhookEvent
             $evidenceReason ??= 'missing_payment_id';
         }
 
+        $paymentIntentIds = array_values(array_unique(array_filter([
+            self::optionalString(data_get($this->resourceAttributes, 'payment_intent.id')),
+            self::optionalString($paymentAttributes['payment_intent_id'] ?? null),
+            self::optionalString($this->resourceAttributes['payment_intent_id'] ?? null),
+        ], static fn (?string $paymentIntentId): bool => $paymentIntentId !== null)));
+        $paymentIntentId = count($paymentIntentIds) === 1 ? $paymentIntentIds[0] : null;
+
+        if (count($paymentIntentIds) > 1) {
+            $evidenceReason ??= 'payment_intent_conflict';
+        }
+
         return $this->context(
             checkoutSessionId: $this->resourceType === 'checkout_session' ? $this->resourceId : null,
             paymentId: $paymentId,
-            paymentIntentId: self::optionalString(data_get($this->resourceAttributes, 'payment_intent.id'))
-                ?? self::optionalString($this->resourceAttributes['payment_intent_id'] ?? null),
+            paymentIntentId: $paymentIntentId,
             providerReference: $paymentId,
             amount: $paymentAttributes['amount'] ?? null,
             currency: self::optionalString($paymentAttributes['currency'] ?? null),

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Integrations\Payments\PayMongoWebhookEvent;
+use App\Actions\Integrations\Payments\PayMongoWebhookNormalizationRecovery;
 use App\Actions\Integrations\Payments\PayMongoWebhookSignatureVerifier;
 use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Models\OperationalEvent;
@@ -17,8 +18,11 @@ use JsonException;
 
 class PayMongoWebhookController extends Controller
 {
-    public function __invoke(Request $request, PayMongoWebhookSignatureVerifier $signatureVerifier): JsonResponse
-    {
+    public function __invoke(
+        Request $request,
+        PayMongoWebhookSignatureVerifier $signatureVerifier,
+        PayMongoWebhookNormalizationRecovery $normalizationRecovery,
+    ): JsonResponse {
         $rawBody = $request->getContent();
         $maxPayloadBytes = (int) config('tala_integrations.payments.paymongo.max_payload_bytes', 1_048_576);
 
@@ -58,109 +62,123 @@ class PayMongoWebhookController extends Controller
         }
 
         $acceptance = Cache::lock('paymongo-webhook:event:'.hash('sha256', $event->eventId), 30)
-            ->block(5, fn (): array => DB::transaction(function () use ($request, $rawBody, $event, $now): array {
-                $webhookCallId = $this->persistWebhookCall($request, $rawBody, $now);
-                $existing = OperationalEvent::query()
-                    ->where('event_domain', OperationalEvent::DomainIntegration)
-                    ->where('external_id', $event->eventId)
-                    ->lockForUpdate()
-                    ->first();
+            ->block(5, function () use ($request, $rawBody, $event, $now, $normalizationRecovery): array {
+                $acceptance = DB::transaction(function () use ($request, $rawBody, $event, $now, $normalizationRecovery): array {
+                    $webhookCallId = $this->persistWebhookCall($request, $rawBody, $now);
+                    $existing = OperationalEvent::query()
+                        ->where('event_domain', OperationalEvent::DomainIntegration)
+                        ->where('external_id', $event->eventId)
+                        ->lockForUpdate()
+                        ->first();
 
-                if ($existing === null) {
-                    $status = $event->isSupported()
-                        ? OperationalEvent::StatusPending
-                        : OperationalEvent::StatusIgnored;
+                    if ($existing === null) {
+                        $status = $event->isSupported()
+                            ? OperationalEvent::StatusPending
+                            : OperationalEvent::StatusIgnored;
 
-                    $operationalEvent = OperationalEvent::query()->create([
-                        'event_domain' => OperationalEvent::DomainIntegration,
-                        'integration' => OperationalEvent::IntegrationPayMongo,
-                        'channel' => OperationalEvent::ChannelWebhook,
-                        'direction' => OperationalEvent::DirectionInbound,
-                        'event_type' => $event->eventType,
-                        'event_version' => $event->envelopeVersion,
-                        'external_id' => $event->eventId,
-                        'status' => $status,
-                        'occurred_at' => $now,
-                        'processed_at' => $status === OperationalEvent::StatusIgnored ? $now : null,
-                        'diagnostics' => [
-                            'payload_sha256' => $event->payloadSha256,
-                            'semantic_fingerprint' => $event->semanticFingerprint(),
+                        $operationalEvent = OperationalEvent::query()->create([
+                            'event_domain' => OperationalEvent::DomainIntegration,
+                            'integration' => OperationalEvent::IntegrationPayMongo,
+                            'channel' => OperationalEvent::ChannelWebhook,
+                            'direction' => OperationalEvent::DirectionInbound,
+                            'event_type' => $event->eventType,
+                            'event_version' => $event->envelopeVersion,
+                            'external_id' => $event->eventId,
+                            'status' => $status,
+                            'occurred_at' => $now,
+                            'processed_at' => $status === OperationalEvent::StatusIgnored ? $now : null,
+                            'diagnostics' => [
+                                'payload_sha256' => $event->payloadSha256,
+                                'semantic_fingerprint' => $event->semanticFingerprint(),
+                                'normalization_version' => PayMongoWebhookEvent::NormalizationVersion,
+                                'webhook_call_id' => $webhookCallId,
+                                'latest_webhook_call_id' => $webhookCallId,
+                                'delivery_count' => 1,
+                            ],
+                            'payload' => $event->summary(),
+                        ]);
+
+                        return [
                             'webhook_call_id' => $webhookCallId,
-                            'latest_webhook_call_id' => $webhookCallId,
-                            'delivery_count' => 1,
-                        ],
-                        'payload' => $event->summary(),
-                    ]);
+                            'event_id' => $operationalEvent->id,
+                            'status' => $event->isSupported() ? 'accepted' : 'ignored',
+                            'dispatch' => $event->isSupported(),
+                        ];
+                    }
 
-                    return [
-                        'webhook_call_id' => $webhookCallId,
-                        'event_id' => $operationalEvent->id,
-                        'status' => $event->isSupported() ? 'accepted' : 'ignored',
-                        'dispatch' => $event->isSupported(),
-                    ];
-                }
+                    $diagnostics = $existing->diagnostics ?? [];
+                    $deliveryCount = (int) ($diagnostics['delivery_count'] ?? 1) + 1;
+                    $storedSemanticFingerprint = $this->storedSemanticFingerprint($existing);
 
-                $diagnostics = $existing->diagnostics ?? [];
-                $deliveryCount = (int) ($diagnostics['delivery_count'] ?? 1) + 1;
-                $storedSemanticFingerprint = $this->storedSemanticFingerprint($existing);
+                    if ($normalizationRecovery->recover($existing, $event, $webhookCallId, $deliveryCount, $now)) {
+                        return [
+                            'webhook_call_id' => $webhookCallId,
+                            'event_id' => $existing->id,
+                            'status' => 'accepted',
+                            'dispatch' => true,
+                        ];
+                    }
 
-                if ($storedSemanticFingerprint !== null && $storedSemanticFingerprint !== $event->semanticFingerprint()) {
+                    if ($storedSemanticFingerprint !== null && $storedSemanticFingerprint !== $event->semanticFingerprint()) {
+                        $existing->forceFill([
+                            'status' => OperationalEvent::StatusReviewRequired,
+                            'processed_at' => $now,
+                            'failed_at' => null,
+                            'diagnostics' => [
+                                ...$diagnostics,
+                                'reason' => 'event_id_payload_conflict',
+                                'conflicting_payload_sha256' => $event->payloadSha256,
+                                'conflicting_semantic_fingerprint' => $event->semanticFingerprint(),
+                                'latest_webhook_call_id' => $webhookCallId,
+                                'delivery_count' => $deliveryCount,
+                            ],
+                        ])->save();
+
+                        DB::table('webhook_calls')->where('id', $webhookCallId)->update([
+                            'exception' => 'review_required:event_id_payload_conflict',
+                            'processed_at' => $now->toDateTimeString(),
+                            'updated_at' => $now->toDateTimeString(),
+                        ]);
+
+                        return [
+                            'webhook_call_id' => $webhookCallId,
+                            'event_id' => $existing->id,
+                            'status' => 'review_required',
+                            'dispatch' => false,
+                        ];
+                    }
+
+                    $shouldRetry = $existing->status === OperationalEvent::StatusFailed && $event->isSupported();
+                    $needsInitialDispatch = $existing->status === OperationalEvent::StatusPending
+                        && ($diagnostics['dispatch_queued_at'] ?? null) === null;
                     $existing->forceFill([
-                        'status' => OperationalEvent::StatusReviewRequired,
-                        'processed_at' => $now,
-                        'failed_at' => null,
+                        'status' => $shouldRetry ? OperationalEvent::StatusPending : $existing->status,
+                        'processed_at' => $shouldRetry ? null : $existing->processed_at,
+                        'failed_at' => $shouldRetry ? null : $existing->failed_at,
                         'diagnostics' => [
                             ...$diagnostics,
-                            'reason' => 'event_id_payload_conflict',
-                            'conflicting_payload_sha256' => $event->payloadSha256,
-                            'conflicting_semantic_fingerprint' => $event->semanticFingerprint(),
+                            'semantic_fingerprint' => $storedSemanticFingerprint ?? $event->semanticFingerprint(),
+                            'latest_payload_sha256' => $event->payloadSha256,
                             'latest_webhook_call_id' => $webhookCallId,
                             'delivery_count' => $deliveryCount,
                         ],
                     ])->save();
 
-                    DB::table('webhook_calls')->where('id', $webhookCallId)->update([
-                        'exception' => 'review_required:event_id_payload_conflict',
-                        'processed_at' => $now->toDateTimeString(),
-                        'updated_at' => $now->toDateTimeString(),
-                    ]);
-
                     return [
                         'webhook_call_id' => $webhookCallId,
                         'event_id' => $existing->id,
-                        'status' => 'review_required',
-                        'dispatch' => false,
+                        'status' => $shouldRetry ? 'accepted' : 'duplicate',
+                        'dispatch' => $shouldRetry || $needsInitialDispatch,
                     ];
+                }, 3);
+
+                if ($acceptance['dispatch']) {
+                    ProcessPayMongoWebhookCall::dispatch($acceptance['webhook_call_id'], $acceptance['event_id'])->afterCommit();
+                    $this->markDispatchQueued($acceptance['event_id'], $acceptance['webhook_call_id'], $now);
                 }
 
-                $shouldRetry = $existing->status === OperationalEvent::StatusFailed && $event->isSupported();
-                $needsInitialDispatch = $existing->status === OperationalEvent::StatusPending
-                    && ($diagnostics['dispatch_queued_at'] ?? null) === null;
-                $existing->forceFill([
-                    'status' => $shouldRetry ? OperationalEvent::StatusPending : $existing->status,
-                    'processed_at' => $shouldRetry ? null : $existing->processed_at,
-                    'failed_at' => $shouldRetry ? null : $existing->failed_at,
-                    'diagnostics' => [
-                        ...$diagnostics,
-                        'semantic_fingerprint' => $storedSemanticFingerprint ?? $event->semanticFingerprint(),
-                        'latest_payload_sha256' => $event->payloadSha256,
-                        'latest_webhook_call_id' => $webhookCallId,
-                        'delivery_count' => $deliveryCount,
-                    ],
-                ])->save();
-
-                return [
-                    'webhook_call_id' => $webhookCallId,
-                    'event_id' => $existing->id,
-                    'status' => $shouldRetry ? 'accepted' : 'duplicate',
-                    'dispatch' => $shouldRetry || $needsInitialDispatch,
-                ];
-            }, 3));
-
-        if ($acceptance['dispatch']) {
-            ProcessPayMongoWebhookCall::dispatch($acceptance['webhook_call_id'], $acceptance['event_id'])->afterCommit();
-            $this->markDispatchQueued($acceptance['event_id'], $acceptance['webhook_call_id'], $now);
-        }
+                return $acceptance;
+            });
 
         return response()->json([
             'status' => $acceptance['status'],

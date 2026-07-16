@@ -75,7 +75,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
     public function test_current_v2_and_legacy_envelopes_normalize_to_the_same_financial_context(): void
     {
         $v2 = PayMongoWebhookEvent::fromRawBody($this->encode($this->v2PaidPayload()));
-        $legacy = PayMongoWebhookEvent::fromRawBody($this->encode($this->legacyPaidPayload()));
+        $legacy = PayMongoWebhookEvent::fromRawBody($this->encode($this->providerFaithfulV1PaidPayload()));
 
         $this->assertSame('v2', $v2->envelopeVersion);
         $this->assertSame('v1', $legacy->envelopeVersion);
@@ -91,10 +91,186 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'tala_reference' => 'TALA-PAY-TAL95D1',
             'status' => 'paid',
         ], $this->financialContext($v2));
+        $this->assertSame($this->financialContext($v2), $this->financialContext($legacy));
+    }
+
+    public function test_genuine_v1_top_level_checkout_compatibility_remains_available_when_payments_are_absent(): void
+    {
+        $legacy = PayMongoWebhookEvent::fromRawBody($this->encode($this->legacyTopLevelPaidPayload()));
+
         $this->assertSame([
-            ...$this->financialContext($v2),
+            'checkout_session_id' => 'cs_tal95d1',
+            'payment_id' => 'pay_tal95d1',
+            'payment_intent_id' => 'pi_tal95d1',
             'provider_reference' => 'cs_tal95d1',
+            'amount_centavos' => 200000,
+            'currency' => 'PHP',
+            'tala_reference' => 'TALA-PAY-TAL95D1',
+            'status' => 'paid',
         ], $this->financialContext($legacy));
+    }
+
+    public function test_payment_resources_normalize_from_payment_fields_regardless_of_envelope(): void
+    {
+        $resource = [
+            'id' => 'pay_tal95d1_resource',
+            'type' => 'payment',
+            'attributes' => [
+                'amount' => 200000,
+                'currency' => 'PHP',
+                'status' => 'paid',
+                'payment_intent_id' => 'pi_tal95d1_resource',
+                'checkout_session_id' => 'cs_tal95d1_resource',
+                'metadata' => ['tala_reference' => 'TALA-PAY-TAL95D1-RESOURCE'],
+            ],
+        ];
+        $v1 = PayMongoWebhookEvent::fromRawBody($this->encode([
+            'data' => [
+                'id' => 'evt_tal95d1_payment_v1',
+                'type' => 'event',
+                'attributes' => [
+                    'type' => 'payment.paid',
+                    'livemode' => false,
+                    'data' => $resource,
+                ],
+            ],
+        ]));
+        $v2 = PayMongoWebhookEvent::fromRawBody($this->encode([
+            'event_type' => 'send.webhook',
+            'data' => [
+                'id' => 'evt_tal95d1_payment_v2',
+                'type' => 'payment.paid',
+                'livemode' => false,
+                'data' => $resource,
+            ],
+        ]));
+
+        $this->assertSame($this->financialContext($v1), $this->financialContext($v2));
+        $this->assertSame('pay_tal95d1_resource', $v1->paymentContext()['provider_reference']);
+    }
+
+    public function test_checkout_session_nested_payment_evidence_fails_closed_for_every_invalid_shape(): void
+    {
+        $missing = $this->v2PaidPayload();
+        data_forget($missing, 'data.data.attributes.payments');
+        $malformed = $this->v2PaidPayload();
+        data_set($malformed, 'data.data.attributes.payments', 'invalid');
+        $malformedResource = $this->v2PaidPayload();
+        data_set($malformedResource, 'data.data.attributes.payments', [null]);
+        $ambiguous = $this->v2PaidPayload();
+        data_set($ambiguous, 'data.data.attributes.payments.1', data_get($ambiguous, 'data.data.attributes.payments.0'));
+        $identifierFree = $this->v2PaidPayload();
+        data_forget($identifierFree, 'data.data.attributes.payments.0.id');
+        $incompatible = $this->v2PaidPayload();
+        data_set($incompatible, 'data.data.attributes.payments.0.type', 'checkout_session');
+        $referenceConflict = $this->v2PaidPayload();
+        data_set($referenceConflict, 'data.data.attributes.metadata.tala_reference', 'TALA-PAY-CONFLICT');
+
+        $this->assertSame('missing_paid_payment', PayMongoWebhookEvent::fromRawBody($this->encode($missing))->paymentContext()['evidence_reason']);
+        $this->assertSame('malformed_payments', PayMongoWebhookEvent::fromRawBody($this->encode($malformed))->paymentContext()['evidence_reason']);
+        $this->assertSame('malformed_payment_resource', PayMongoWebhookEvent::fromRawBody($this->encode($malformedResource))->paymentContext()['evidence_reason']);
+        $this->assertSame('ambiguous_paid_payments', PayMongoWebhookEvent::fromRawBody($this->encode($ambiguous))->paymentContext()['evidence_reason']);
+        $this->assertSame('missing_payment_id', PayMongoWebhookEvent::fromRawBody($this->encode($identifierFree))->paymentContext()['evidence_reason']);
+        $this->assertSame('incompatible_payment_resource', PayMongoWebhookEvent::fromRawBody($this->encode($incompatible))->paymentContext()['evidence_reason']);
+        $this->assertSame('reference_metadata_conflict', PayMongoWebhookEvent::fromRawBody($this->encode($referenceConflict))->paymentContext()['evidence_reason']);
+    }
+
+    public function test_checkout_session_payment_intent_evidence_must_agree_across_provider_locations(): void
+    {
+        $matching = PayMongoWebhookEvent::fromRawBody($this->encode($this->v2PaidPayload()))->paymentContext();
+        $nestedOnlyPayload = $this->v2PaidPayload();
+        data_forget($nestedOnlyPayload, 'data.data.attributes.payment_intent');
+        $nestedOnly = PayMongoWebhookEvent::fromRawBody($this->encode($nestedOnlyPayload))->paymentContext();
+        $conflictingPayload = $this->v2PaidPayload();
+        data_set($conflictingPayload, 'data.data.attributes.payments.0.attributes.payment_intent_id', 'pi_tal95d1_conflict');
+        $conflicting = PayMongoWebhookEvent::fromRawBody($this->encode($conflictingPayload))->paymentContext();
+
+        $this->assertSame('pi_tal95d1', $matching['payment_intent_id']);
+        $this->assertNull($matching['evidence_reason']);
+        $this->assertSame('pi_tal95d1', $nestedOnly['payment_intent_id']);
+        $this->assertNull($nestedOnly['evidence_reason']);
+        $this->assertNull($conflicting['payment_intent_id']);
+        $this->assertSame('payment_intent_conflict', $conflicting['evidence_reason']);
+    }
+
+    public function test_disputed_and_refunded_nested_payment_evidence_is_exposed_for_review_routing(): void
+    {
+        $payload = $this->v2PaidPayload();
+        data_set($payload, 'data.data.attributes.payments.0.attributes.disputed', true);
+        data_set($payload, 'data.data.attributes.payments.0.attributes.refunds', [['id' => 'ref_tal95d1']]);
+
+        $context = PayMongoWebhookEvent::fromRawBody($this->encode($payload))->paymentContext();
+
+        $this->assertTrue($context['is_disputed']);
+        $this->assertTrue($context['has_refunds']);
+    }
+
+    public function test_every_invalid_nested_payment_branch_routes_to_review_without_a_payment_ledger_posting(): void
+    {
+        $cases = [
+            'missing paid payment' => ['missing_paid_payment', fn (array &$payload) => data_forget($payload, 'data.data.attributes.payments')],
+            'malformed payments' => ['malformed_payments', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments', 'invalid')],
+            'malformed payment resource' => ['malformed_payment_resource', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments', [null])],
+            'ambiguous paid payments' => ['ambiguous_paid_payments', function (array &$payload): void {
+                data_set($payload, 'data.data.attributes.payments.1', data_get($payload, 'data.data.attributes.payments.0'));
+            }],
+            'identifier free payment' => ['missing_payment_id', fn (array &$payload) => data_forget($payload, 'data.data.attributes.payments.0.id')],
+            'incompatible payment' => ['incompatible_payment_resource', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments.0.type', 'checkout_session')],
+            'conflicting reference' => ['reference_metadata_conflict', fn (array &$payload) => data_set($payload, 'data.data.attributes.metadata.tala_reference', 'TALA-PAY-CONFLICT')],
+            'conflicting payment intent' => ['payment_intent_conflict', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments.0.attributes.payment_intent_id', 'pi_tal95d1_conflict')],
+            'disputed payment' => ['payment_disputed', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments.0.attributes.disputed', true)],
+            'refunded payment' => ['refund_present', fn (array &$payload) => data_set($payload, 'data.data.attributes.payments.0.attributes.refunds', [['id' => 'ref_tal95d1']])],
+        ];
+
+        foreach ($cases as $label => [$expectedReason, $mutate]) {
+            $attempt = $this->paymentAttemptFixture();
+            $payload = $this->v2PaidPayload(
+                checkoutSessionId: (string) $attempt->provider_checkout_id,
+                paymentId: 'pay_'.Str::lower(Str::random(12)),
+                amountCentavos: 100000,
+                reference: (string) $attempt->internal_reference,
+            );
+            $paymentIntentId = 'pi_'.Str::lower(Str::random(12));
+            data_set($payload, 'data.data.attributes.payment_intent.id', $paymentIntentId);
+            data_set($payload, 'data.data.attributes.payments.0.attributes.payment_intent_id', $paymentIntentId);
+            $mutate($payload);
+
+            $result = app(PayMongoWebhookProcessor::class)->process($this->storeWebhookCall($payload));
+            $paymentIds = Payment::query()
+                ->where('payment_attempt_id', $attempt->id)
+                ->pluck('id');
+
+            $this->assertSame('review_required', $result['status'], $label);
+            $this->assertSame($expectedReason, $result['reason'], $label);
+            $this->assertSame(0, LedgerEntry::query()
+                ->where('source_type', Payment::class)
+                ->whereIn('source_id', $paymentIds)
+                ->where('direction', LedgerEntry::DirectionPayment)
+                ->count(), $label);
+        }
+    }
+
+    public function test_processor_fallback_event_records_the_current_normalization_version(): void
+    {
+        $attempt = $this->paymentAttemptFixture();
+        $payload = $this->v2PaidPayload(
+            checkoutSessionId: (string) $attempt->provider_checkout_id,
+            paymentId: 'pay_tal95d1_fallback_version',
+            amountCentavos: 100000,
+            reference: (string) $attempt->internal_reference,
+        );
+        $parsedEvent = PayMongoWebhookEvent::fromRawBody($this->encode($payload));
+
+        app(PayMongoWebhookProcessor::class)->process($this->storeWebhookCall($payload));
+
+        $operationalEvent = OperationalEvent::query()
+            ->where('event_domain', OperationalEvent::DomainIntegration)
+            ->where('external_id', $parsedEvent->eventId)
+            ->sole();
+        $this->assertSame(
+            PayMongoWebhookEvent::NormalizationVersion,
+            data_get($operationalEvent->diagnostics, 'normalization_version'),
+        );
     }
 
     public function test_v2_without_a_provider_event_id_has_stable_semantic_identity_and_fingerprint(): void
@@ -206,9 +382,14 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
     public function test_ambiguous_v2_paid_evidence_routes_to_review_without_financial_mutation(): void
     {
         $queue = Queue::fake();
+        $baselinePaymentCount = Payment::query()->count();
+        $baselinePaymentLedgerCount = LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count();
         $payload = $this->v2PaidPayload();
         data_set($payload, 'data.data.attributes.payments.1', [
             'id' => 'pay_tal95d1_second',
+            'type' => 'payment',
             'attributes' => [
                 'amount' => 200000,
                 'currency' => 'PHP',
@@ -224,8 +405,11 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('ambiguous_paid_payments', $result['reason']);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame($baselinePaymentCount, Payment::query()->count());
+        $this->assertSame(
+            $baselinePaymentLedgerCount,
+            LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count(),
+        );
         $this->assertSame(
             OperationalEvent::StatusReviewRequired,
             OperationalEvent::query()->findOrFail($job->operationalEventId)->status,
@@ -241,8 +425,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame('retryable', $decline['status']);
         $this->assertSame('pending', $attempt->fresh()->status);
         $this->assertSame('failed', data_get($attempt->fresh()->metadata, 'last_webhook.provider_status'));
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
 
         $paidPayload = $this->v2PaidPayload(
             checkoutSessionId: (string) $attempt->provider_checkout_id,
@@ -256,9 +439,14 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame('posted', $paid['status']);
         $this->assertSame('duplicate', $duplicate['status']);
         $this->assertSame('paid', $attempt->fresh()->status);
-        $this->assertSame('paymongo:pay_tal95d1_retry', Payment::query()->sole()->provider_reference);
-        $this->assertSame(1, Payment::query()->count());
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $payment = Payment::query()->where('payment_attempt_id', $attempt->id)->sole();
+        $this->assertSame('paymongo:pay_tal95d1_retry', $payment->provider_reference);
+        $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
+        $this->assertSame(1, LedgerEntry::query()
+            ->where('source_type', Payment::class)
+            ->where('source_id', $payment->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     public function test_repaired_smoke_command_proves_current_payment_ledger_and_delivery_evidence(): void
@@ -390,16 +578,19 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
                     'id' => $checkoutSessionId,
                     'type' => 'checkout_session',
                     'attributes' => [
+                        'status' => 'active',
                         'reference_number' => $reference,
                         'metadata' => ['tala_reference' => $reference],
                         'payment_intent' => ['id' => 'pi_tal95d1'],
                         'payments' => [
                             [
                                 'id' => $paymentId,
+                                'type' => 'payment',
                                 'attributes' => [
                                     'amount' => $amountCentavos,
                                     'currency' => 'PHP',
                                     'status' => 'paid',
+                                    'payment_intent_id' => 'pi_tal95d1',
                                 ],
                             ],
                         ],
@@ -410,7 +601,25 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function legacyPaidPayload(): array
+    private function providerFaithfulV1PaidPayload(): array
+    {
+        $resource = data_get($this->v2PaidPayload(), 'data.data');
+
+        return [
+            'data' => [
+                'id' => 'evt_tal95d1_provider_faithful_v1',
+                'type' => 'event',
+                'attributes' => [
+                    'type' => 'checkout_session.payment.paid',
+                    'livemode' => false,
+                    'data' => $resource,
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function legacyTopLevelPaidPayload(): array
     {
         return [
             'data' => [
@@ -521,7 +730,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
-            'provider_checkout_id' => 'cs_tal95d1_retry',
+            'provider_checkout_id' => 'cs_tal95d1_'.Str::lower(Str::random(12)),
             'amount' => '1000.00',
             'currency' => 'PHP',
             'status' => 'pending',
