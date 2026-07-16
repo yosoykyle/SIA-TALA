@@ -803,23 +803,27 @@ The strongest defensible proposition is therefore: **TALA provides a lower-licen
 
 ### 16.1 Refined SDLC Classification
 
-TALA uses **RAD-informed evolutionary prototyping followed by iterative and incremental vertical-slice engineering**.
+TALA follows **Iterative and Incremental Development (IID), tailored to use Incremental Development–Single Delivery**. IID is the recognized lifecycle model; “tailored” describes how that model was applied to this capstone project rather than naming a separate or newly invented model.
 
-The project's historical execution record describes an early emphasis on navigable prototypes built in the intended Laravel and Filament stack so that stakeholders could inspect role workspaces and academic flows before every backend rule was finalized. That aligns with Rapid Application Development's prototyping, user involvement, and iterative construction. The completed system, however, cannot be justified by prototype activity alone. Once a workflow is accepted for construction, its database contract, business rules, authorization, integration behavior, and tests are developed together as a usable end-to-end slice.
+The classification is supported by the project's repeated requirements, architecture, and implementation revisions and by its construction of separately identifiable vertical capabilities. Significant Functional and Technical Specification work occurred before the later construction waves, but that does not make the process Waterfall: the specifications, architecture, and system were revised after construction began, including a major rebaseline from optical character recognition to OR-Tools CP-SAT scheduling and a later decomposition into bounded Product Requirements Document modules. Up-front specification can coexist with IID when the work is subsequently refined rather than executed as a single-pass sequence.
 
-The resulting lifecycle is:
+The lifecycle is aligned as follows:
 
-1. **Requirements planning:** define the institutional problem, users, authoritative rules, information, constraints, acceptance measures, and exclusions.
-2. **User design and evolutionary prototyping:** make workflows visible through role-aware screens and review them with representative users; revise the requirement and prototype together.
-3. **Incremental construction:** implement a bounded vertical capability through schema, model, policy, service/action, interface, integration boundary, and tests.
-4. **Verification and refinement:** test happy paths, denials, edge cases, concurrency, integration failure, and user acceptance; feed evidence back into design.
-5. **Transition and operation:** migrate validated data, train users, configure production services, prove backup/restore and contingency behavior, cut over, measure outcomes, and maintain the system.
+1. **Requirements and problem discovery:** identify the institutional problem, users, workflows, constraints, intended records, and research basis.
+2. **Requirements and specification iteration:** refine the Functional and Technical Specifications, user flows, diagrams, data design, and evaluation method.
+3. **Initial implementation baseline:** establish the database, access, administrative, service, and integration foundations.
+4. **Requirements and architecture rebaseline:** replace or reduce ambiguous scope and reorganize the retained system around the modular PRD and CP-SAT scheduling direction.
+5. **Vertical incremental construction:** implement admissions, student records, enrollment, curriculum, finance, grades, Student Hub, reporting, scheduling, and payment capabilities as bounded end-to-end increments.
+6. **System integration and developer verification:** combine the increments and verify authorization, rules, failure handling, outputs, and external-service behavior through developer-led checks.
+7. **Stakeholder validation and single integrated delivery:** conduct the planned cross-role regression, demonstration rehearsal, and client/panel review before the integrated system is described as validated or delivered.
 
-This is more accurate than calling TALA pure Waterfall. The architecture and requirements evolved through feedback rather than being frozen once and implemented in one sequential pass. It is also more accurate than calling the work formally Scrum merely because it used iterations or a backlog. The Scrum Guide defines specific accountabilities, events, artifacts, commitments, and a usable Increment meeting a Definition of Done; those controls require evidence before the Scrum label is academically defensible.
+The record does not establish recurring client acceptance of each increment. Developer testing is therefore classified as **verification**, while the planned client and panel review remains **stakeholder validation pending**. Because the separately constructed increments accumulate into one integrated system for a later stakeholder-facing release, the delivery strategy is Incremental Development–Single Delivery rather than incremental delivery.
 
-TOGAF's Architecture Development Method may inform architecture views, baseline-to-target analysis, tradeoffs, and governance, but TOGAF is an enterprise-architecture method rather than TALA's software-delivery lifecycle. ISO/IEC/IEEE 12207:2026 is likewise used as a reference vocabulary for lifecycle processes, not as a claim of certification or full conformance.
+This is not classified as Rapid Application Development because the project record does not show sustained short prototype cycles with representative users repeatedly evaluating working increments. It is not presented as Scrum or a fully Agile process because the evidence does not establish Scrum accountabilities, prescribed events, or frequent stakeholder delivery. It is not Rational Unified Process because the project was not governed through its formal Inception, Elaboration, Construction, and Transition phases. It is not Waterfall because requirements, design, construction, and verification overlapped and were rebaselined after implementation had begun.
 
-Method sources: [Digital Policy Office RAD guidance](https://www.digitalpolicy.gov.hk/en/our_work/digital_infrastructure/methodology/system_development/past_documents/rad/procedures_guide.html), [The Scrum Guide](https://scrumguides.org/scrum-guide.html), [The Open Group TOGAF overview](https://www.opengroup.org/togaf), and [ISO/IEC/IEEE 12207:2026](https://www.iso.org/standard/90219.html).
+TOGAF's Architecture Development Method is retained strictly as guidance for architecture views, baseline-to-target analysis, tradeoffs, and governance. It is not TALA's software-delivery lifecycle. ISO/IEC/IEEE 12207:2026 is likewise used as lifecycle-process vocabulary rather than as a claim of certification or full conformance.
+
+Method sources: [Larman and Basili's history of IID](https://www.cs.umd.edu/~basili/publications/journals/J90.pdf), [NASA Incremental Development–Single Delivery guidance](https://standards.nasa.gov/sites/default/files/standards/NASA/Baseline/0/nasa-gb-871913.pdf), [ISO/IEC/IEEE 12207:2026](https://www.iso.org/standard/90219.html), [IBM's definition of RAD](https://www.ibm.com/think/topics/rapid-application-development), [Agile Manifesto principles](https://agilemanifesto.org/principles.html), [IBM's RUP phase definition](https://www.ibm.com/docs/en/rational-clearquest/10.0.9?topic=settings-project-planning), and [The Open Group TOGAF overview](https://www.opengroup.org/togaf).
 
 ### 16.2 Evidence and Academic Integrity
 
