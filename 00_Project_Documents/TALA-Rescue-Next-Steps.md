@@ -6,12 +6,16 @@ This is the active planning surface for issue order, compact parent/sub-slice ma
 
 ## Active and Upcoming Issues
 
-Remaining dependency chain: run the post-integration regression gate (TAL-96), then prepare the verified demo and rehearsal environment (TAL-97). Post-MVP deferrals are nonblocking.
+Remaining dependency chain: produce the standalone implemented CP-SAT formulation and Laravel validation-pipeline handoff (TAL-96A), prepare the scheduling and PayMongo consultation demo (TAL-96B), run formal cross-role regression and UAT (TAL-96C), audit role journeys and UI/UX refinement needs (TAL-96D), then prepare the formal client and panel presentation (TAL-97). Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-96 | Planned | Post-Integration Cross-Role Regression: verify system coherence after CP-SAT and PayMongo are wired in. |
-| TAL-97 | Planned | Demo and Rehearsal Support built only from the verified MVP. |
+| TAL-96 | Planned parent | Post-Integration Research, Demo, UAT, and UX Readiness. |
+| TAL-96A | Done | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline handoff for the project manager. |
+| TAL-96B | Planned | Scheduling and PayMongo Consultation Demo Readiness with deterministic synthetic data and a verified walkthrough. |
+| TAL-96C | Planned | Cross-Role Regression and Formal UAT, preserving the original TAL-96 coherence gate. |
+| TAL-96D | Planned | Role/Journey UI/UX Audit and prioritized refinement roadmap, including the Applicant Workspace. |
+| TAL-97 | Planned | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96 outputs. |
 
 ## Active Approved Plan Contract
 
@@ -32,4 +36,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-96**. No TAL-96 implementation, Linear sync, push, PR, or deployment is authorized.
+Next primary boundary: **Plan TAL-96B**. Do not begin TAL-96B implementation, sync Linear, push, open a PR, or deploy without the corresponding explicit command.
