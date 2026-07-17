@@ -69,6 +69,10 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $context['run']->fresh()->status);
         $this->assertSame($context['demands'][0]->id, $candidate->scheduling_demand_id);
         $this->assertSame(CandidateScheduleRow::StatusOk, $candidate->status);
+        $this->assertEquals(
+            $result['solver_statistics'],
+            data_get($context['run']->fresh()->diagnostics, 'solver_result.solver_statistics'),
+        );
     }
 
     public function test_warning_only_result_is_accepted_without_becoming_a_hard_violation(): void
@@ -183,6 +187,48 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             $this->assertFalse($validation->passes(), $expectedCode);
             $this->assertContains($expectedCode, collect($validation->findings())->pluck('code')->all());
         }
+    }
+
+    public function test_solver_statistics_must_be_present_typed_and_allowlisted(): void
+    {
+        $context = $this->context();
+        $valid = $this->validResult($context);
+        $cases = [
+            'missing' => function (array $result): array {
+                unset($result['solver_statistics']);
+
+                return $result;
+            },
+            'unknown_field' => function (array $result): array {
+                $result['solver_statistics']['raw_solver_log'] = 'must not be persisted';
+
+                return $result;
+            },
+            'malformed_field' => function (array $result): array {
+                $result['solver_statistics']['candidate_count'] = 'many';
+
+                return $result;
+            },
+        ];
+
+        foreach ($cases as $name => $mutate) {
+            $validation = app(ScheduleAssignmentValidationService::class)
+                ->validate($context['run'], $mutate($valid));
+
+            $this->assertFalse($validation->passes(), $name);
+            $this->assertContains('invalid_response_field', collect($validation->findings())->pluck('code')->all());
+        }
+
+        $tampered = $cases['unknown_field']($valid);
+        $summary = app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $tampered);
+        $diagnostics = $context['run']->fresh()->diagnostics;
+
+        $this->assertSame('blocked', $summary['status']);
+        $this->assertNull(data_get($diagnostics, 'solver_result.solver_statistics'));
+        $this->assertStringNotContainsString(
+            'must not be persisted',
+            json_encode($diagnostics, JSON_THROW_ON_ERROR),
+        );
     }
 
     public function test_exact_coverage_and_assignment_hard_constraints_are_enforced(): void
@@ -648,6 +694,26 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                     'use_rooms_efficiently' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
                 ],
                 'total' => 4,
+            ],
+            'solver_statistics' => [
+                'ortools_version' => '9.15.6755',
+                'input_demand_count' => count($assignments),
+                'input_faculty_count' => 1,
+                'input_room_count' => 1,
+                'input_time_slot_count' => count($context['snapshot']['time_slots']),
+                'candidate_count' => count($assignments),
+                'model_variable_count' => count($assignments),
+                'model_constraint_count' => count($assignments),
+                'no_overlap_constraint_count' => 0,
+                'best_objective_bound' => 4.0,
+                'relative_optimality_gap' => 0.0,
+                'boolean_variable_count' => count($assignments),
+                'branch_count' => 0,
+                'conflict_count' => 0,
+                'deterministic_time_seconds' => 0.01,
+                'wall_time_seconds' => 0.02,
+                'worker_count' => 1,
+                'random_seed' => 20260718,
             ],
             'solver_version' => 'cloud-cp-sat-tal94-demand-v2',
             'model_version' => 'tal94-demand-v2',

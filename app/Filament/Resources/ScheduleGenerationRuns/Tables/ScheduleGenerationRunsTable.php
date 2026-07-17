@@ -13,6 +13,7 @@ class ScheduleGenerationRunsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->poll('5s')
             ->modifyQueryUsing(fn ($query) => $query->with(['term', 'requester'])->withCount('candidateRows'))
             ->columns([
                 TextColumn::make('term.label')

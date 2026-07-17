@@ -33,6 +33,7 @@ final class ScheduleAssignmentValidationService
         'runtime_seconds',
         'objective_score',
         'objective_details',
+        'solver_statistics',
         'solver_version',
         'model_version',
         'generated_at',
@@ -40,6 +41,28 @@ final class ScheduleAssignmentValidationService
         'unassigned_count',
         'warning_count',
         'timeout',
+    ];
+
+    /** @var list<string> */
+    private const SolverStatisticsKeys = [
+        'ortools_version',
+        'input_demand_count',
+        'input_faculty_count',
+        'input_room_count',
+        'input_time_slot_count',
+        'candidate_count',
+        'model_variable_count',
+        'model_constraint_count',
+        'no_overlap_constraint_count',
+        'best_objective_bound',
+        'relative_optimality_gap',
+        'boolean_variable_count',
+        'branch_count',
+        'conflict_count',
+        'deterministic_time_seconds',
+        'wall_time_seconds',
+        'worker_count',
+        'random_seed',
     ];
 
     /** @var list<string> */
@@ -99,9 +122,10 @@ final class ScheduleAssignmentValidationService
             );
         }
 
-        $findings = [...$findings, ...$this->shapeFindings($run, $solverResult)];
+        $shapeFindings = $this->shapeFindings($run, $solverResult);
+        $findings = [...$findings, ...$shapeFindings];
         $assignments = $this->listValue($solverResult['assignments'] ?? null);
-        $metadata = $this->metadata($solverResult);
+        $metadata = $this->metadata($solverResult, $shapeFindings === []);
 
         if ($this->hasBlockingFindings($findings)) {
             return $this->result([], $findings, $metadata, $solverResult, $assignments);
@@ -244,6 +268,29 @@ final class ScheduleAssignmentValidationService
             'response.runtime_seconds' => ['required', 'numeric', 'min:0'],
             'response.objective_score' => ['present', 'nullable', 'numeric'],
             'response.objective_details' => ['required', 'array'],
+            'response.solver_statistics' => [
+                'required',
+                'array:'.implode(',', self::SolverStatisticsKeys),
+                'required_array_keys:'.implode(',', self::SolverStatisticsKeys),
+            ],
+            'response.solver_statistics.ortools_version' => ['required', 'string', 'max:50'],
+            'response.solver_statistics.input_demand_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.input_faculty_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.input_room_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.input_time_slot_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.candidate_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.model_variable_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.model_constraint_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.no_overlap_constraint_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.best_objective_bound' => ['present', 'nullable', 'numeric'],
+            'response.solver_statistics.relative_optimality_gap' => ['present', 'nullable', 'numeric', 'min:0'],
+            'response.solver_statistics.boolean_variable_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.branch_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.conflict_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.deterministic_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
+            'response.solver_statistics.wall_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
+            'response.solver_statistics.worker_count' => ['required', 'integer', Rule::in([1])],
+            'response.solver_statistics.random_seed' => ['required', 'integer', Rule::in([20260718])],
             'response.solver_version' => ['required', 'string', 'max:255'],
             'response.model_version' => ['required', 'string', 'max:255'],
             'response.generated_at' => ['required', 'date'],
@@ -1275,7 +1322,7 @@ final class ScheduleAssignmentValidationService
      * @param  array<string, mixed>  $solverResult
      * @return array<string, mixed>
      */
-    private function metadata(array $solverResult): array
+    private function metadata(array $solverResult, bool $shapeIsValid): array
     {
         return [
             'solver_status' => $solverResult['solver_status'] ?? null,
@@ -1287,6 +1334,9 @@ final class ScheduleAssignmentValidationService
                 : null,
             'objective_score' => $solverResult['objective_score'] ?? null,
             'generated_at' => $solverResult['generated_at'] ?? null,
+            'solver_statistics' => $shapeIsValid
+                ? $this->arrayValue($solverResult['solver_statistics'] ?? null)
+                : null,
         ];
     }
 

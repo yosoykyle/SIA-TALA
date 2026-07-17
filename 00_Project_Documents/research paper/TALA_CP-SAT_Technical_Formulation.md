@@ -4,7 +4,7 @@
 
 **System scope:** CP-SAT candidate timetable generation with Laravel-controlled validation, human review, and publication
 
-**Technical baseline date:** 17 July 2026
+**Technical baseline date:** 18 July 2026
 
 **Presentation revision date:** 18 July 2026 — constraint-equation organization only; the technical baseline is unchanged
 
@@ -20,8 +20,9 @@
 8. [Laravel validation and human authority](#8-laravel-validation-and-human-authority)
 9. [MVP justification and current gaps](#9-mvp-justification-and-current-gaps)
 10. [Worked example from the implemented fixture](#10-worked-example-from-the-implemented-fixture)
-11. [Equation-to-implementation traceability](#11-equation-to-implementation-traceability)
-12. [References](#12-references)
+11. [Representative experimental evidence](#11-representative-experimental-evidence)
+12. [Equation-to-implementation traceability](#12-equation-to-implementation-traceability)
+13. [References](#13-references)
 
 ## 1. Technical summary
 
@@ -114,11 +115,22 @@ The solver response repeats the model identity and provides its native status, c
     "profile_key": "balanced_v1",
     "profile_version": 1,
     "total": 18900
+  },
+  "solver_statistics": {
+    "ortools_version": "9.15.6755",
+    "candidate_count": 6,
+    "model_variable_count": 31,
+    "model_constraint_count": 59,
+    "no_overlap_constraint_count": 4,
+    "best_objective_bound": 18900.0,
+    "relative_optimality_gap": 0.0,
+    "worker_count": 1,
+    "random_seed": 20260718
   }
 }
 ```
 
-The returned model identity binds the result to the submitted contract. The profile identity and objective total provide an auditable connection between the selected assignments and the fixed ranking policy. Laravel accepts the response only after validating these values and independently rechecking the assignment set. The complete representation is defined in Section 4, while Section 11 maps the formulation to its implementation and tests.
+The returned model identity binds the result to the submitted contract. The profile identity and objective total provide an auditable connection between the selected assignments and the fixed ranking policy. The abbreviated statistics above show the categories returned by the implementation; the complete allowlist additionally records input counts, presolved Boolean variables, branches, conflicts, deterministic time, wall time, and other typed search evidence. Laravel rejects missing, malformed, or unknown statistics fields and never persists raw solver logs. It accepts the response only after validating these values and independently rechecking the assignment set. The complete representation is defined in Section 4, while Section 12 maps the formulation to its implementation and tests.
 
 ## 2. Scope and delimitations
 
@@ -682,6 +694,7 @@ Laravel rechecks, rather than assumes, the following result properties:
 - accepted solver status (`optimal` or `feasible` for candidate ingestion);
 - assigned, unassigned, warning, and violation counters;
 - objective-detail arithmetic;
+- the exact typed `solver_statistics` allowlist, including the one-worker and fixed-seed settings;
 - one assignment for every snapshot demand and no duplicates;
 - returned faculty, room, day, time, duration, fixed assignment, and source relationships;
 - faculty, room, and delivery-group conflicts;
@@ -779,7 +792,31 @@ $$
 
 The returned `objective_score` and `objective_details.total` are both `18900`. The exact selection between the two symmetric subject-to-time assignments is not institutionally significant; exact coverage, non-overlap, and the reconciled total are the material properties.
 
-## 11. Equation-to-implementation traceability
+## 11. Representative experimental evidence
+
+The accepted TAL-96B1 client-aligned synthetic baseline was solved three times through the real local HTTP boundary using the same immutable snapshot, OR-Tools 9.15.6755, a 30-second solver limit, one worker, and fixed random seed `20260718`. The snapshot contained 54 ready Scheduling Demands, 12 faculty members, 6 rooms, and 156 half-hour time slots. Candidate generation produced 10,356 admissible candidates; the built model contained 31,488 variables, 63,120 constraints, and 426 `NoOverlap` groups.
+
+| Run | Status | Coverage | Hard violations | Objective | Best bound | Relative gap | CP-SAT wall time |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | `feasible` | 54/54 | 0 | 420,560 | 465,618 | 10.7138102% | 30.0351426 s |
+| 2 | `feasible` | 54/54 | 0 | 420,560 | 465,618 | 10.7138102% | 30.0331555 s |
+| 3 | `feasible` | 54/54 | 0 | 421,020 | 465,084 | 10.4660111% | 30.0257759 s |
+
+Every response passed Laravel's independent validation. The guarded acceptance path created 54 candidate rows, published 54 active official meetings, and rendered the selected Faculty user's assigned meetings. These results establish complete constraint-satisfying acceptance for this disclosed representative fixture; they do not prove a universal minimum, maximum capacity, or optimal timetable.
+
+Two distinct valid candidate solutions occurred across the three runs. The single worker and fixed seed control the principal CP-SAT search settings, but the 30-second wall-clock stop can end search at slightly different points under normal operating-system timing. Reproducibility therefore means preserving and disclosing the exact input, source, dependency, configuration, and validation evidence—not claiming byte-identical assignments from every time-bounded feasible run.
+
+The reported relative optimality gap is
+
+$$
+\operatorname{gap}
+=
+\frac{|Z-B|}{\max(1,|Z|)},
+$$
+
+where $Z$ is the incumbent objective and $B$ is CP-SAT's best objective bound. It is a solution-quality bound, not an accuracy percentage. Scheduling is not a prediction task; the defensible acceptance measures are 100% demand coverage, zero hard violations, a usable solver status, the objective/bound/gap evidence, and successful Laravel publication and projection. The full configuration, model/search metrics, limitations, and TAL-96C handoff are recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](../TAL-96B2-Representative-Solver-Evidence.md).
+
+## 12. Equation-to-implementation traceability
 
 | Formulation or pipeline claim | Product/architecture authority | Current implementation evidence | Focused test evidence |
 | --- | --- | --- | --- |
@@ -793,12 +830,13 @@ The returned `objective_score` and `objective_details.total` are both `18900`. T
 | H10a-H10d — deduplicated load and maximum $L_f\le M_f$ | PRD faculty load rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_faculty_load_constraints`; Laravel validator | Faculty-load and linked-component load tests |
 | S2 — faculty/day internal idle-gap term $I=-\sum G_{f,\delta}$ | PRD faculty idle-gap preference; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_idle_gap_objective_terms`, `_objective_details`; Laravel objective reconciliation | `test_faculty_idle_gap_counts_only_time_between_adjacent_meetings`; objective-details validation tests |
 | S1-S4 and O1 — four-term fixed objective and reconciliation | PRD soft-preference rules; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): objective builders and `_objective_details`; Laravel assignment validator | Objective-details solver test; TAL-94B1 validation tests |
+| Typed experimental statistics and fixed search configuration | Approved TAL-96B2 contract | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_solver_statistics`; Laravel strict response validation and allowlisted diagnostics persistence | `test_solver_statistics_are_typed_allowlisted_and_reproducible`; TAL-94B1 statistics rejection cases; guarded TAL-96B2 real-service acceptance |
 | Solver statuses are distinct from queue, transport, and container-runtime failure | Architecture queue and external solver boundary | `ScheduleSolverDispatchJob`, `ScheduleSolverDispatchLifecycleService`, `ScheduleCloudResultIngestor`, [`server.py`](../../cloud/scheduler-solver/tala_solver/server.py) | [`test_server.py`](../../cloud/scheduler-solver/tests/test_server.py); TAL-94E2a queue operations tests |
 | Immutable input, after-commit dispatch, independent ingestion | Architecture transaction and source-of-truth boundary | `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleSolverDispatchJob`, `ScheduleCloudResultIngestor` | TAL-62 dispatch and TAL-94 queue/validation tests |
 | Registrar correction, revalidation, and publication authority | PRD manual override/publication rules; UI blueprint | `CandidateScheduleRowReviewService`, `ScheduleAssignmentRevalidationService`, `ScheduleGenerationRunPolicy`, `SchedulePublishService` | Candidate-review, assignment-validation, and TAL-94D1 publication tests |
 | Worked example and 18,900 objective | Existing deterministic fixture | [`minimal_snapshot.json`](../../cloud/scheduler-solver/samples/minimal_snapshot.json), [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py) | All Python solver tests; direct fixture execution with pinned requirements |
 
-## 12. References
+## 13. References
 
 ### Internal authorities, implementation, and presentation references
 
@@ -820,4 +858,4 @@ The returned `objective_score` and `objective_details.total` are both `18900`. T
 
 ---
 
-**Version applicability.** This formulation applies to the implemented and verified `tal94-demand-v2` contract and `balanced_v1` version-1 profile as of 17 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change this formulation. Any approved change to the data contract, optimization profile, hard-constraint semantics, or objective semantics requires a corresponding revision of the formulation and traceability evidence.
+**Version applicability.** This formulation applies to the implemented and locally verified `tal94-demand-v2` contract and `balanced_v1` version-1 profile as of 18 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change this formulation. Any approved change to the data contract, optimization profile, hard-constraint semantics, or objective semantics requires a corresponding revision of the formulation and traceability evidence.

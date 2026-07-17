@@ -31,6 +31,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -116,7 +117,11 @@ final class TAL62SolverRunDispatchTest extends TestCase
         );
 
         $snapshot = $client->snapshots[0];
-        $demandIds = SchedulingDemand::query()->orderBy('id')->pluck('id')->all();
+        $demandIds = SchedulingDemand::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $source['term']->id))
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
 
         $this->assertSame('tal94-demand-v2', $snapshot['contract_version']);
         $this->assertArrayHasKey('scheduling_demands', $snapshot);
@@ -164,8 +169,16 @@ final class TAL62SolverRunDispatchTest extends TestCase
         try {
             $this->runService->generate($source['term'], $registrar);
         } finally {
-            $this->assertSame(0, ScheduleGenerationRun::query()->count());
-            $this->assertSame([SchedulingDemand::ValidationActionRequired], SchedulingDemand::query()->pluck('validation_state')->unique()->values()->all());
+            $this->assertSame(0, ScheduleGenerationRun::query()->whereBelongsTo($source['term'])->count());
+            $this->assertSame(
+                [SchedulingDemand::ValidationActionRequired],
+                SchedulingDemand::query()
+                    ->whereHas('termOffering', fn ($query) => $query->where('term_id', $source['term']->id))
+                    ->pluck('validation_state')
+                    ->unique()
+                    ->values()
+                    ->all(),
+            );
         }
     }
 
@@ -215,7 +228,9 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $this->demandGenerator->forTerm($registrar, $source['term']);
 
-        $demand = SchedulingDemand::query()->sole();
+        $demand = SchedulingDemand::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $source['term']->id))
+            ->sole();
         $sourceSnapshot = $this->arrayAttribute($demand, 'source_snapshot');
 
         $facultyLoadOptions = $sourceSnapshot['faculty_load_options'] ?? null;
@@ -437,6 +452,26 @@ final class TAL62SolverRunDispatchTest extends TestCase
                 ],
                 'total' => 0,
             ],
+            'solver_statistics' => [
+                'ortools_version' => '9.15.6755',
+                'input_demand_count' => 1,
+                'input_faculty_count' => count($snapshot['faculty']),
+                'input_room_count' => count($snapshot['rooms']),
+                'input_time_slot_count' => count($snapshot['time_slots']),
+                'candidate_count' => 1,
+                'model_variable_count' => 1,
+                'model_constraint_count' => 1,
+                'no_overlap_constraint_count' => 0,
+                'best_objective_bound' => 0.0,
+                'relative_optimality_gap' => 0.0,
+                'boolean_variable_count' => 1,
+                'branch_count' => 0,
+                'conflict_count' => 0,
+                'deterministic_time_seconds' => 0.01,
+                'wall_time_seconds' => 0.02,
+                'worker_count' => 1,
+                'random_seed' => 20260718,
+            ],
             'solver_version' => 'cloud-run-tal63',
             'model_version' => 'tal94-demand-v2',
             'generated_at' => now()->toIso8601String(),
@@ -491,6 +526,32 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $this->actingAs($faculty)
             ->get(ScheduleGenerationRunResource::getUrl())
             ->assertForbidden();
+    }
+
+    public function test_solver_run_list_polls_and_explains_queued_progress(): void
+    {
+        $source = $this->schedulingSource();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $this->demandGenerator->forTerm($registrar, $source['term']);
+
+        $component = Livewire::actingAs($registrar)
+            ->test(ListScheduleGenerationRuns::class);
+
+        $page = $component->instance();
+        $this->assertInstanceOf(ListScheduleGenerationRuns::class, $page);
+        $this->assertSame('5s', $page->getTable()->getPollingInterval());
+
+        $component->callAction('dispatchSolverRun', data: ['term_id' => $source['term']->id]);
+
+        $run = ScheduleGenerationRun::query()->whereBelongsTo($source['term'])->sole();
+
+        $component->assertNotified(
+            Notification::make()
+                ->title('Solver run queued')
+                ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch. Status refreshes automatically every five seconds.")
+                ->success(),
+        );
     }
 
     /**

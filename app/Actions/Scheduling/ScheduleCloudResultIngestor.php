@@ -99,6 +99,7 @@ final class ScheduleCloudResultIngestor
             'solver_status' => $metadata['solver_status'],
             'candidate_schedule_id' => $metadata['candidate_schedule_id'],
             'generated_at' => $metadata['generated_at'],
+            'solver_statistics' => $metadata['solver_statistics'],
             'summary' => $summary,
             'findings' => $validation->findings(),
             'warnings' => $solverResult['warnings'] ?? [],

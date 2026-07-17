@@ -56,7 +56,7 @@ class ListScheduleGenerationRuns extends ListRecords
 
                         Notification::make()
                             ->title('Solver run queued')
-                            ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch.")
+                            ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch. Status refreshes automatically every five seconds.")
                             ->success()
                             ->send();
                     } catch (Throwable $exception) {

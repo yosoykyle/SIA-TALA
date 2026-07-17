@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 
+from ortools import __version__ as ORTOOLS_VERSION
 from ortools.sat.python import cp_model
 
 
@@ -27,6 +28,8 @@ HARD_CONSTRAINTS = (
     "respect_faculty_qualification_and_load",
 )
 BALANCED_V1_WEIGHTS = {term: 1 for term in SOFT_TERMS}
+SOLVER_WORKER_COUNT = 1
+SOLVER_RANDOM_SEED = 20_260_718
 
 
 @dataclass(frozen=True)
@@ -241,7 +244,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(timeout_seconds)
-    solver.parameters.num_search_workers = 4
+    solver.parameters.num_search_workers = SOLVER_WORKER_COUNT
+    solver.parameters.random_seed = SOLVER_RANDOM_SEED
 
     status = solver.solve(model)
     selected = [
@@ -279,6 +283,14 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             for item in assignment["violations"]
         ],
         objective_details=_objective_details(selected, weights, snapshot),
+        solver_statistics=_solver_statistics(
+            snapshot=snapshot,
+            candidates=candidates,
+            model=model,
+            solver=solver,
+            solver_status=status,
+            objective_score=objective_score,
+        ),
     )
 
 
@@ -293,6 +305,7 @@ def _result(
     warnings: list[dict[str, str]],
     infeasible_reasons: list[dict[str, str]],
     objective_details: dict[str, Any] | None = None,
+    solver_statistics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
     warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
@@ -314,6 +327,7 @@ def _result(
         "runtime_seconds": round(perf_counter() - started_at, 6),
         "objective_score": objective_score,
         "objective_details": objective_details or _empty_objective_details(snapshot),
+        "solver_statistics": solver_statistics or _empty_solver_statistics(snapshot),
         "solver_version": SOLVER_VERSION,
         "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -322,6 +336,105 @@ def _result(
         "warning_count": warning_count,
         "timeout": timeout,
     }
+
+
+def _empty_solver_statistics(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ortools_version": ORTOOLS_VERSION,
+        "input_demand_count": _list_count(snapshot.get("scheduling_demands")),
+        "input_faculty_count": _list_count(snapshot.get("faculty")),
+        "input_room_count": _list_count(snapshot.get("rooms")),
+        "input_time_slot_count": _list_count(snapshot.get("time_slots")),
+        "candidate_count": 0,
+        "model_variable_count": 0,
+        "model_constraint_count": 0,
+        "no_overlap_constraint_count": 0,
+        "best_objective_bound": None,
+        "relative_optimality_gap": None,
+        "boolean_variable_count": None,
+        "branch_count": None,
+        "conflict_count": None,
+        "deterministic_time_seconds": None,
+        "wall_time_seconds": None,
+        "worker_count": SOLVER_WORKER_COUNT,
+        "random_seed": SOLVER_RANDOM_SEED,
+    }
+
+
+def _solver_statistics(
+    snapshot: dict[str, Any],
+    candidates: list[Candidate],
+    model: cp_model.CpModel,
+    solver: cp_model.CpSolver,
+    solver_status: int,
+    objective_score: int | None,
+) -> dict[str, Any]:
+    statistics = _empty_solver_statistics(snapshot)
+    model_proto = model.proto
+    best_objective_bound = _float_metric(solver, "best_objective_bound")
+    relative_optimality_gap = None
+
+    if (
+        solver_status in {cp_model.OPTIMAL, cp_model.FEASIBLE}
+        and objective_score is not None
+        and best_objective_bound is not None
+    ):
+        relative_optimality_gap = abs(float(objective_score) - best_objective_bound) / max(
+            1.0,
+            abs(float(objective_score)),
+        )
+
+    statistics.update({
+        "candidate_count": len(candidates),
+        "model_variable_count": len(model_proto.variables),
+        "model_constraint_count": len(model_proto.constraints),
+        "no_overlap_constraint_count": sum(
+            1
+            for constraint in model_proto.constraints
+            if constraint.has_no_overlap()
+        ),
+        "best_objective_bound": best_objective_bound,
+        "relative_optimality_gap": _rounded_float(relative_optimality_gap),
+        "boolean_variable_count": _int_metric(solver, "num_booleans"),
+        "branch_count": _int_metric(solver, "num_branches"),
+        "conflict_count": _int_metric(solver, "num_conflicts"),
+        "deterministic_time_seconds": _float_metric(solver, "deterministic_time"),
+        "wall_time_seconds": _float_metric(solver, "wall_time"),
+    })
+
+    return statistics
+
+
+def _metric(solver: cp_model.CpSolver, attribute: str) -> Any:
+    try:
+        value = getattr(solver, attribute)
+    except RuntimeError:
+        return None
+
+    try:
+        return value() if callable(value) else value
+    except RuntimeError:
+        return None
+
+
+def _int_metric(solver: cp_model.CpSolver, attribute: str) -> int | None:
+    value = _metric(solver, attribute)
+
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def _float_metric(solver: cp_model.CpSolver, attribute: str) -> float | None:
+    value = _metric(solver, attribute)
+
+    return _rounded_float(float(value)) if isinstance(value, (int, float)) else None
+
+
+def _rounded_float(value: float | None) -> float | None:
+    return round(value, 9) if value is not None else None
+
+
+def _list_count(value: Any) -> int:
+    return len(value) if isinstance(value, list) else 0
 
 
 def _demands(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -544,19 +657,34 @@ def _add_no_overlap_constraints(
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
 ) -> None:
-    for left_index, left in enumerate(candidates):
-        for right_index in range(left_index + 1, len(candidates)):
-            right = candidates[right_index]
+    intervals = [
+        model.new_optional_fixed_size_interval_var(
+            candidate.starts_minute,
+            candidate.duration_minutes,
+            variables[index],
+            f"candidate_interval_{index}",
+        )
+        for index, candidate in enumerate(candidates)
+    ]
+    delivery_group_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
+    faculty_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
+    room_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
 
-            if not _overlaps(left, right):
-                continue
+    for index, candidate in enumerate(candidates):
+        interval = intervals[index]
+        delivery_group_days.setdefault(
+            (candidate.section_delivery_group_id, candidate.day_of_week),
+            [],
+        ).append(interval)
+        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(interval)
 
-            same_delivery_group = left.section_delivery_group_id == right.section_delivery_group_id
-            same_faculty = left.faculty_id == right.faculty_id
-            same_room = left.room_id is not None and left.room_id == right.room_id
+        if candidate.room_id is not None:
+            room_days.setdefault((candidate.room_id, candidate.day_of_week), []).append(interval)
 
-            if same_delivery_group or same_faculty or same_room:
-                model.add(variables[left_index] + variables[right_index] <= 1)
+    for grouped_intervals in (delivery_group_days, faculty_days, room_days):
+        for resource_intervals in grouped_intervals.values():
+            if len(resource_intervals) > 1:
+                model.add_no_overlap(resource_intervals)
 
 
 def _add_same_faculty_constraints(
@@ -660,26 +788,66 @@ def _idle_gap_objective_terms(
     weight: int,
 ) -> list[cp_model.LinearExpr]:
     terms: list[cp_model.LinearExpr] = []
+    faculty_days: dict[tuple[int, int], list[int]] = {}
 
-    for left_index, left in enumerate(candidates):
-        for right_index in range(left_index + 1, len(candidates)):
-            right = candidates[right_index]
-            if (
-                left.scheduling_demand_id == right.scheduling_demand_id
-                or left.faculty_id != right.faculty_id
-                or left.day_of_week != right.day_of_week
-                or _overlaps(left, right)
-            ):
-                continue
+    for index, candidate in enumerate(candidates):
+        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(index)
 
-            gap = max(0, min(240, max(left.starts_minute, right.starts_minute) - min(left.ends_minute, right.ends_minute)))
-            if gap == 0:
-                continue
-            both = model.new_bool_var(f"idle_pair_{left_index}_{right_index}")
-            model.add(both <= variables[left_index])
-            model.add(both <= variables[right_index])
-            model.add(both >= variables[left_index] + variables[right_index] - 1)
-            terms.append(-weight * gap * both)
+    for (faculty_id, day_of_week), indexes in faculty_days.items():
+        if len(indexes) < 2:
+            continue
+
+        horizon_start = min(candidates[index].starts_minute for index in indexes)
+        horizon_end = max(candidates[index].ends_minute for index in indexes)
+        active = model.new_bool_var(f"faculty_day_active_{faculty_id}_{day_of_week}")
+        model.add_max_equality(active, [variables[index] for index in indexes])
+        effective_starts: list[cp_model.IntVar] = []
+        effective_ends: list[cp_model.IntVar] = []
+
+        for index in indexes:
+            candidate = candidates[index]
+            effective_start = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"faculty_day_start_{faculty_id}_{day_of_week}_{index}",
+            )
+            effective_end = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"faculty_day_end_{faculty_id}_{day_of_week}_{index}",
+            )
+            model.add(effective_start == candidate.starts_minute).only_enforce_if(variables[index])
+            model.add(effective_start == horizon_end).only_enforce_if(variables[index].Not())
+            model.add(effective_end == candidate.ends_minute).only_enforce_if(variables[index])
+            model.add(effective_end == horizon_start).only_enforce_if(variables[index].Not())
+            effective_starts.append(effective_start)
+            effective_ends.append(effective_end)
+
+        first_start = model.new_int_var(
+            horizon_start,
+            horizon_end,
+            f"faculty_day_first_start_{faculty_id}_{day_of_week}",
+        )
+        last_end = model.new_int_var(
+            horizon_start,
+            horizon_end,
+            f"faculty_day_last_end_{faculty_id}_{day_of_week}",
+        )
+        idle_gap = model.new_int_var(
+            0,
+            horizon_end - horizon_start,
+            f"faculty_day_idle_gap_{faculty_id}_{day_of_week}",
+        )
+        selected_duration = sum(
+            candidates[index].duration_minutes * variables[index]
+            for index in indexes
+        )
+
+        model.add_min_equality(first_start, effective_starts)
+        model.add_max_equality(last_end, effective_ends)
+        model.add(idle_gap == last_end - first_start - selected_duration).only_enforce_if(active)
+        model.add(idle_gap == 0).only_enforce_if(active.Not())
+        terms.append(-weight * idle_gap)
 
     return terms
 
@@ -937,14 +1105,15 @@ def _objective_details(
 
     idle_gap_minutes = 0
     for rows in faculty_days.values():
-        for left_index, left in enumerate(rows):
-            for right in rows[left_index + 1:]:
-                if _overlaps(left, right):
-                    continue
-                idle_gap_minutes += max(
-                    0,
-                    min(240, max(left.starts_minute, right.starts_minute) - min(left.ends_minute, right.ends_minute)),
-                )
+        ordered = sorted(rows, key=lambda candidate: (candidate.starts_minute, candidate.ends_minute))
+
+        if ordered:
+            idle_gap_minutes += max(
+                0,
+                max(candidate.ends_minute for candidate in ordered)
+                - min(candidate.starts_minute for candidate in ordered)
+                - sum(candidate.duration_minutes for candidate in ordered),
+            )
 
     faculty_ids = {
         int(row["faculty_id"])

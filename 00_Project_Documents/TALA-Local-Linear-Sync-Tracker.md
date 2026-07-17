@@ -18,6 +18,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-95D2B2 | Done locally; pending explicit Linear sync | Official PayMongo Resend Acceptance |
 | TAL-96A | Done locally; pending explicit Linear sync | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline |
 | TAL-96B1 | Done locally; pending explicit Linear sync | Guarded Client-Aligned Deterministic Acceptance Baseline |
+| TAL-96B2 | Done locally; pending explicit Linear sync | Representative CP-SAT Recovery and Capacity-Benchmark Handoff |
 
 ## Compact Synced History
 
