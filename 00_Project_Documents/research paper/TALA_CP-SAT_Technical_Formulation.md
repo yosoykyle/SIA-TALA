@@ -184,7 +184,7 @@ This scaling avoids using floating-point variables in the optimization model. Th
 
 ### 4.3 Candidate-based formulation
 
-Laravel sends the immutable requirements; Python enumerates only combinations that satisfy deterministic single-candidate rules. This means room suitability, fixed values, faculty availability, recurring blocks, and the time grid narrow the candidate set before Boolean selection begins. Pairwise and aggregate relationships—such as overlaps, linked-component faculty, and faculty load—are then enforced inside CP-SAT.
+Laravel sends the immutable requirements; Python enumerates only combinations that satisfy deterministic single-candidate rules. This means room suitability, fixed values, faculty availability, recurring blocks, and the time grid narrow the candidate set before Boolean selection begins. CP-SAT then represents every candidate as a Boolean selection decision and a corresponding optional fixed-size interval. Resource/day `NoOverlap` constraints enforce faculty, room, and delivery-group exclusivity over the selected intervals, while aggregate constraints enforce linked-component faculty and faculty load.
 
 ## 5. Mathematical formulation
 
@@ -247,7 +247,21 @@ $$
 
 The implementation creates each $x_c$ with OR-Tools [`new_bool_var`](https://or-tools.github.io/docs/python/classortools_1_1sat_1_1python_1_1cp__model_1_1CpModel.html), whose domain is $\{0,1\}$.
 
-For faculty load, define $y_{f,o,g} \in \{0,1\}$ to indicate whether faculty member $f$ is selected for at least one component in offering $o$ and delivery group $g$. Let $L_f$ be the resulting scaled load. For objective linearization, $b_{cc'}$ indicates that a same-faculty, same-day candidate pair is jointly selected, and $\Delta_{ff'}$ represents an absolute load difference.
+Each candidate also has an optional fixed-size interval $\mathcal{I}_c$ whose presence is controlled by $x_c$:
+
+$$
+\operatorname{present}(\mathcal{I}_c) \iff x_c=1,
+\qquad
+\operatorname{start}(\mathcal{I}_c)=s_c,
+\qquad
+\operatorname{size}(\mathcal{I}_c)=p_{d(c)},
+\qquad
+\operatorname{end}(\mathcal{I}_c)=e_c.
+$$
+
+The implementation creates this interval with OR-Tools [`new_optional_fixed_size_interval_var`](https://or-tools.github.io/docs/python/classortools_1_1sat_1_1python_1_1cp__model_1_1CpModel.html). An unselected candidate remains absent from interval constraints.
+
+For faculty load, define $y_{f,o,g} \in \{0,1\}$ to indicate whether faculty member $f$ is selected for at least one component in offering $o$ and delivery group $g$. Let $L_f$ be the resulting scaled load. For the objective, $\Delta_{ff'}$ represents an absolute load difference, while the faculty/day compactness variables are defined in Section 6.2.
 
 ### 5.4 Exact demand coverage
 
@@ -276,7 +290,7 @@ s_c \in \mathcal{S}_{\delta_c},
 e_c \leq E_{\delta_c}.
 $$
 
-Because the current contract requires `meeting_count = 1`, a six-hour laboratory demand is modeled as one six-hour candidate interval, not twelve independently selectable half-hour decisions. All overlap rules apply to that complete interval. Thus the implementation satisfies the MVP's single-day consecutive-block requirement without introducing interval variables for each sub-slot.
+Because the current contract requires `meeting_count = 1`, a six-hour laboratory demand is modeled as one six-hour candidate interval, not twelve independently selectable half-hour decisions. All overlap rules apply to that complete interval. Thus the implementation satisfies the MVP's single-day consecutive-block requirement with one optional interval per candidate rather than separate decision variables for each sub-slot.
 
 ### 5.6 Fixed assignments and admissibility
 
@@ -324,23 +338,51 @@ The expected regular cohort must also fit its section capacity, but Laravel enfo
 
 ### 5.8 Faculty, room, and delivery-group non-overlap
 
-For every overlapping pair $c,c' \in C$ representing different assignment choices, the implementation adds
+Partition the candidate intervals into resource/day buckets:
 
 $$
-x_c + x_{c'} \leq 1
+C^F_{f,\delta}
+=
+\{c\in C : f(c)=f \land \delta_c=\delta\},
 $$
 
-whenever at least one shared-resource condition is true:
-
 $$
-f(c)=f(c'),
-\quad
-r(c)=r(c')\neq\varnothing,
-\quad\text{or}\quad
-g(c)=g(c').
+C^R_{r,\delta}
+=
+\{c\in C : r(c)=r \land \delta_c=\delta\},
 $$
 
-The same inequality therefore protects a faculty member, a physical room, and a regular section/cohort delivery group from simultaneous meetings.
+and
+
+$$
+C^G_{g,\delta}
+=
+\{c\in C : g(c)=g \land \delta_c=\delta\}.
+$$
+
+The implemented disjunctive constraints are
+
+$$
+\operatorname{NoOverlap}
+\left(\{\mathcal{I}_c : c\in C^F_{f,\delta}\}\right)
+\qquad \forall f\in F,\ \forall \delta,
+$$
+
+$$
+\operatorname{NoOverlap}
+\left(\{\mathcal{I}_c : c\in C^R_{r,\delta}\}\right)
+\qquad \forall r\in R,\ \forall \delta,
+$$
+
+and
+
+$$
+\operatorname{NoOverlap}
+\left(\{\mathcal{I}_c : c\in C^G_{g,\delta}\}\right)
+\qquad \forall g\in G,\ \forall \delta.
+$$
+
+OR-Tools considers only present intervals in each `NoOverlap` constraint. Therefore two selected candidates cannot overlap when they share a faculty member, physical room, or regular delivery group. This is semantically equivalent to excluding every conflicting selected pair, but it avoids materializing a separate linear inequality for every candidate pair.
 
 ### 5.9 Same-faculty rule for linked components
 
@@ -420,31 +462,72 @@ This favors earlier days and start times among otherwise feasible choices. Late/
 
 ### 6.2 Faculty idle-gap penalty
 
-For each non-overlapping candidate pair for different demands assigned to the same faculty member on the same day, define the capped gap
+For every faculty/day bucket $C^F_{f,\delta}$, define the activity indicator
 
 $$
-\gamma_{cc'} =
-\min\left(240,
-\max\left(0,
-\max(s_c,s_{c'})-\min(e_c,e_{c'})
-\right)\right).
+z_{f,\delta}
+=
+\max_{c\in C^F_{f,\delta}} x_c.
 $$
 
-The auxiliary Boolean is linearized by
+Let $H^{\min}_{f,\delta}$ and $H^{\max}_{f,\delta}$ be the earliest candidate start and latest candidate end in the bucket. For each candidate, define effective endpoints
 
 $$
-b_{cc'} \leq x_c,\qquad
-b_{cc'} \leq x_{c'},\qquad
-b_{cc'} \geq x_c+x_{c'}-1.
+\widetilde{s}_c =
+\begin{cases}
+s_c, & x_c=1,\\
+H^{\max}_{f,\delta}, & x_c=0,
+\end{cases}
+\qquad
+\widetilde{e}_c =
+\begin{cases}
+e_c, & x_c=1,\\
+H^{\min}_{f,\delta}, & x_c=0.
+\end{cases}
 $$
 
-The implemented raw term is
+The first selected start, last selected end, and total selected teaching duration are
 
 $$
-I = -\sum_{(c,c')\in P_I} \gamma_{cc'}b_{cc'}.
+S^{\mathrm{first}}_{f,\delta}
+=
+\min_{c\in C^F_{f,\delta}} \widetilde{s}_c,
 $$
 
-It is a pairwise, capped penalty over jointly selected assignments. It is not a claim to compute only consecutive gaps in a faculty member's final chronological sequence.
+$$
+E^{\mathrm{last}}_{f,\delta}
+=
+\max_{c\in C^F_{f,\delta}} \widetilde{e}_c,
+$$
+
+and
+
+$$
+P_{f,\delta}
+=
+\sum_{c\in C^F_{f,\delta}} p_{d(c)}x_c.
+$$
+
+The internal idle gap is
+
+$$
+G_{f,\delta}
+=
+\begin{cases}
+E^{\mathrm{last}}_{f,\delta}
+-S^{\mathrm{first}}_{f,\delta}
+-P_{f,\delta}, & z_{f,\delta}=1,\\
+0, & z_{f,\delta}=0.
+\end{cases}
+$$
+
+The implemented raw objective term is
+
+$$
+I = -\sum_{f\in F}\sum_{\delta} G_{f,\delta}.
+$$
+
+Because the selected intervals for a faculty/day bucket cannot overlap, $G_{f,\delta}$ equals the sum of the gaps between consecutive selected meetings. A single meeting contributes zero; an inactive bucket is explicitly forced to zero. The term is neither pairwise nor capped.
 
 ### 6.3 Faculty-load balance penalty
 
@@ -504,7 +587,7 @@ and that the returned `objective_score` matches the reconciled total. A solver l
 | `model_invalid` | The model/contract is invalid or unsupported, including a changed profile, unsupported contract, unsupported meeting count, or non-numeric load. |
 | `unknown` | No conclusive feasible/infeasible result was obtained, including a bounded search that ends without a solution; the service also marks the timeout flag when CP-SAT returns this status. |
 
-These outcomes differ from **operational failures**. Network errors, authentication failures, invalid HTTP payloads, service unavailability, and queue timeouts occur outside the mathematical model. Laravel classifies those transport failures, records operational evidence, retries only bounded retryable failures, and ultimately marks the run `failed` when processing cannot complete. A structurally or mathematically unacceptable returned result becomes `blocked` during ingestion. Only an independently valid usable result becomes `under_review`.
+These outcomes differ from **operational failures**. Network errors, authentication failures, invalid HTTP payloads, service unavailability, queue timeouts, and container termination after exceeding a runtime memory limit occur outside the mathematical model. A terminated container may return no CP-SAT status at all and must not be interpreted as mathematical infeasibility. Laravel classifies transport and runtime failures, records operational evidence, retries only bounded retryable failures, and ultimately marks the run `failed` when processing cannot complete. A structurally or mathematically unacceptable returned result becomes `blocked` during ingestion. Only an independently valid usable result becomes `under_review`.
 
 ## 8. Laravel validation and human authority
 
@@ -630,11 +713,12 @@ The returned `objective_score` and `objective_details.total` are both `18900`. T
 | Exact coverage $\sum_{c\in C_d}x_c=1$ | PRD assignment coverage | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): Boolean variables and equality per demand | `test_accepts_v2_demands...`, conflicting fixed-demand test |
 | Candidate admissibility, fixed values, duration/grid, recurring blocks | PRD fixed assignment, calendar, and consecutive-block rules | `ScheduleSolverSnapshotService`; [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_faculty_ids`, `_room_ids`, `_slots_for_demand`, availability/commitment/calendar filters | Fixed assignment and recurring calendar-block solver tests; snapshot feature tests |
 | Room capacity, type, and features | PRD room suitability and capacity rules | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_room_suits_demand`; Laravel independent validator | Required-features and no-suitable-room solver tests; assignment-validation feature tests |
-| Faculty/room/delivery-group non-overlap | PRD hard constraint source map | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_no_overlap_constraints`; Laravel validation/revalidation services | Same-group-and-room solver test; assignment-validation feature tests |
+| Faculty/room/delivery-group non-overlap through selected optional intervals | PRD hard constraint source map | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_no_overlap_constraints`; Laravel validation/revalidation services | `test_model_growth_uses_resource_no_overlap_instead_of_candidate_pair_constraints`; same-group-and-room solver test; assignment-validation feature tests |
 | Same-faculty equality | PRD linked-component rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_same_faculty_constraints`; Laravel validator | Linked-component and validation cases |
 | Deduplicated load and maximum $L_f\le M_f$ | PRD faculty load rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_faculty_load_constraints`; Laravel validator | Faculty-load and linked-component load tests |
+| Faculty/day internal idle-gap term $I=-\sum G_{f,\delta}$ | PRD faculty idle-gap preference; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_idle_gap_objective_terms`, `_objective_details`; Laravel objective reconciliation | `test_faculty_idle_gap_counts_only_time_between_adjacent_meetings`; objective-details validation tests |
 | Four-term fixed objective and reconciliation | PRD soft-preference rules; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): objective builders and `_objective_details`; Laravel assignment validator | Objective-details solver test; TAL-94B1 validation tests |
-| Solver statuses are distinct from queue/transport failure | Architecture queue and external solver boundary | `ScheduleSolverDispatchJob`, `ScheduleSolverDispatchLifecycleService`, `ScheduleCloudResultIngestor`, [`server.py`](../../cloud/scheduler-solver/tala_solver/server.py) | [`test_server.py`](../../cloud/scheduler-solver/tests/test_server.py); TAL-94E2a queue operations tests |
+| Solver statuses are distinct from queue, transport, and container-runtime failure | Architecture queue and external solver boundary | `ScheduleSolverDispatchJob`, `ScheduleSolverDispatchLifecycleService`, `ScheduleCloudResultIngestor`, [`server.py`](../../cloud/scheduler-solver/tala_solver/server.py) | [`test_server.py`](../../cloud/scheduler-solver/tests/test_server.py); TAL-94E2a queue operations tests |
 | Immutable input, after-commit dispatch, independent ingestion | Architecture transaction and source-of-truth boundary | `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleSolverDispatchJob`, `ScheduleCloudResultIngestor` | TAL-62 dispatch and TAL-94 queue/validation tests |
 | Registrar correction, revalidation, and publication authority | PRD manual override/publication rules; UI blueprint | `CandidateScheduleRowReviewService`, `ScheduleAssignmentRevalidationService`, `ScheduleGenerationRunPolicy`, `SchedulePublishService` | Candidate-review, assignment-validation, and TAL-94D1 publication tests |
 | Worked example and 18,900 objective | Existing deterministic fixture | [`minimal_snapshot.json`](../../cloud/scheduler-solver/samples/minimal_snapshot.json), [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py) | All Python solver tests; direct fixture execution with pinned requirements |
@@ -652,12 +736,12 @@ The returned `objective_score` and `objective_details.total` are both `18900`. T
 ### Official external sources
 
 6. Google for Developers. [CP-SAT Solver](https://developers.google.com/optimization/cp/cp_solver). Official integer-model and solver-status semantics.
-7. Google OR-Tools. [Python `CpModel` API](https://or-tools.github.io/docs/python/classortools_1_1sat_1_1python_1_1cp__model_1_1CpModel.html). Official Boolean-variable, exactly-one/at-most-one, absolute-equality, and maximization APIs.
-8. Google for Developers. [The Job Shop Problem](https://developers.google.com/optimization/scheduling/job_shop). General official scheduling-model context; TALA's implemented baseline uses enumerated Boolean candidates rather than copying the example's interval-variable model.
+7. Google OR-Tools. [Python `CpModel` API](https://or-tools.github.io/docs/python/classortools_1_1sat_1_1python_1_1cp__model_1_1CpModel.html). Official Boolean-variable, optional fixed-size interval, `NoOverlap`, absolute-equality, and maximization APIs.
+8. Google for Developers. [The Job Shop Problem](https://developers.google.com/optimization/scheduling/job_shop). Official interval and disjunctive-resource scheduling context. TALA applies the same `NoOverlap` principle to fixed-time optional candidate intervals rather than using variable-start tasks from the example.
 9. Laravel. [Database Transactions](https://laravel.com/docs/12.x/database#database-transactions). Transaction commit, rollback, and deadlock-retry semantics.
 10. Laravel. [Queues and Jobs](https://laravel.com/docs/12.x/queues). After-commit dispatch and the timeout/`retry_after` relationship.
 11. Laravel. [Authorization](https://laravel.com/docs/12.x/authorization). Gate and policy semantics used to enforce action authority.
 
 ---
 
-**Version applicability.** This formulation applies to the implemented and verified `tal94-demand-v2` contract and `balanced_v1` version-1 profile as of 17 July 2026. Any approved change to the contract, optimization profile, or solver model requires a corresponding revision of the formulation and traceability evidence.
+**Version applicability.** This formulation applies to the implemented and verified `tal94-demand-v2` contract and `balanced_v1` version-1 profile as of 17 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change this formulation. Any approved change to the data contract, optimization profile, hard-constraint semantics, or objective semantics requires a corresponding revision of the formulation and traceability evidence.

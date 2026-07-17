@@ -39,4 +39,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-96B2**. Do not begin TAL-96B2 implementation, sync Linear, push, open a PR, or deploy without the corresponding explicit command.
+Next primary boundary: **Plan revised TAL-96B2** to reconcile the measured Cloud Run memory requirement and recovery strategy before another deployment or promotion attempt. Do not begin TAL-96B2 implementation, sync Linear, push, open a PR, or deploy without the corresponding explicit command.
