@@ -6,16 +6,19 @@ This is the active planning surface for issue order, compact parent/sub-slice ma
 
 ## Active and Upcoming Issues
 
-Remaining dependency chain: produce the standalone implemented CP-SAT formulation and Laravel validation-pipeline handoff (TAL-96A), prepare the scheduling and PayMongo consultation demo (TAL-96B), run formal cross-role regression and UAT (TAL-96C), audit role journeys and UI/UX refinement needs (TAL-96D), then prepare the formal client and panel presentation (TAL-97). Post-MVP deferrals are nonblocking.
+Remaining dependency chain: retain the completed standalone CP-SAT formulation handoff (TAL-96A), establish the guarded client-aligned acceptance baseline (TAL-96B1), prove CP-SAT scheduling demo readiness (TAL-96B2), prove PayMongo test-mode demo readiness (TAL-96B3), complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (TAL-96C), benchmark CP-SAT capacity and performance with generated growth and stress tiers (TAL-96D), then rehearse and prepare the formal client and panel presentation (TAL-97). Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
-| TAL-96 | Planned parent | Post-Integration Research, Demo, UAT, and UX Readiness. |
+| TAL-96 | Planned parent | Final MVP operational-data, integration-demo, system-acceptance, UX-polish, documentation, and capacity-readiness gate. |
 | TAL-96A | Done | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline handoff for the project manager. |
-| TAL-96B | Planned | Scheduling and PayMongo Consultation Demo Readiness with deterministic synthetic data and a verified walkthrough. |
-| TAL-96C | Planned | Cross-Role Regression and Formal UAT, preserving the original TAL-96 coherence gate. |
-| TAL-96D | Planned | Role/Journey UI/UX Audit and prioritized refinement roadmap, including the Applicant Workspace. |
-| TAL-97 | Planned | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96 outputs. |
+| TAL-96B | Revised split approved | Client-Aligned Operational Baseline and Scheduling/PayMongo Integration Demo Readiness through TAL-96B1, TAL-96B2, and TAL-96B3. |
+| TAL-96B1 | Done locally | Guarded Client-Aligned Deterministic Acceptance Baseline. |
+| TAL-96B2 | Planned; depends on TAL-96B1 | CP-SAT Scheduling Demo Readiness using the real loopback HTTP solver and the accepted baseline. |
+| TAL-96B3 | Planned; depends on TAL-96B1 and TAL-96B2 | PayMongo Test-Mode Demo Readiness using the accepted baseline and human-gated dashboard, checkout, and webhook actions. |
+| TAL-96C | Planned | Cross-Role UAT, Regression, Evidence-Based UI/UX Correction, and Final Markdown User Manual. |
+| TAL-96D | Planned | CP-SAT Capacity and Performance Benchmark using one parameterized growth/stress dataset family. |
+| TAL-97 | Planned | Rehearsal and Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96 outputs. |
 
 ## Active Approved Plan Contract
 
@@ -36,4 +39,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-96B**. Do not begin TAL-96B implementation, sync Linear, push, open a PR, or deploy without the corresponding explicit command.
+Next primary boundary: **Plan TAL-96B2**. Do not begin TAL-96B2 implementation, sync Linear, push, open a PR, or deploy without the corresponding explicit command.
