@@ -112,6 +112,52 @@ class SolveSnapshotTest(unittest.TestCase):
         )
         self.assertEqual([], self.hard_constraint_violations(rows))
 
+    def test_shared_cohort_identity_prevents_overlap_across_course_specific_delivery_groups(self) -> None:
+        snapshot = self.snapshot()
+        first_demand, second_demand = snapshot["scheduling_demands"]
+
+        first_demand.update({
+            "cohort_or_student_group_id": 110,
+            "fixed_faculty_user_id": 200,
+            "fixed_room_id": 301,
+            "fixed_day_of_week": 1,
+            "fixed_start_time": "08:00:00",
+        })
+        second_demand.update({
+            "section_delivery_group_id": 111,
+            "cohort_or_student_group_id": 110,
+            "fixed_faculty_user_id": 201,
+            "fixed_room_id": 302,
+            "fixed_day_of_week": 1,
+            "fixed_start_time": "08:00:00",
+        })
+        snapshot["rooms"].append({
+            "room_id": 302,
+            "code": "R-102",
+            "name": "Room 102",
+            "room_type": "LECTURE_ROOM",
+            "capacity": 40,
+            "feature_keys": [],
+        })
+        snapshot["student_cohort_groups"] = [
+            {
+                "cohort_or_student_group_id": 110,
+                "section_delivery_group_id": 110,
+                "expected_count": 30,
+            },
+            {
+                "cohort_or_student_group_id": 110,
+                "section_delivery_group_id": 111,
+                "expected_count": 30,
+            },
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+        self.assertEqual(0, result["assigned_count"])
+        self.assertEqual(2, result["unassigned_count"])
+
     def test_recurring_calendar_block_excludes_overlapping_fixed_assignment(self) -> None:
         snapshot = self.snapshot()
         demand = snapshot["scheduling_demands"][0]
@@ -279,6 +325,7 @@ class SolveSnapshotTest(unittest.TestCase):
                 "term_offering_id": 7000 + index,
                 "section_id": 8000 + index,
                 "section_delivery_group_id": 9000 + index,
+                "cohort_or_student_group_id": 9000 + index,
                 "course_id": 1000 + index,
                 "course_component_id": 2000 + index,
                 "load_units": "1.00",
@@ -297,6 +344,14 @@ class SolveSnapshotTest(unittest.TestCase):
             demands.append(demand)
 
         snapshot["scheduling_demands"] = demands
+        snapshot["student_cohort_groups"] = [
+            {
+                "cohort_or_student_group_id": demand["cohort_or_student_group_id"],
+                "section_delivery_group_id": demand["section_delivery_group_id"],
+                "expected_count": demand["expected_count"],
+            }
+            for demand in demands
+        ]
         snapshot["faculty"] = [{"faculty_id": 200, "max_allowed_units": "100.00"}]
 
         result = solve_snapshot(snapshot, timeout_seconds=10)
@@ -371,6 +426,19 @@ class SolveSnapshotTest(unittest.TestCase):
 
         self.assertEqual("model_invalid", result["solver_status"])
 
+    def test_inconsistent_shared_cohort_mapping_is_model_invalid(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["scheduling_demands"][0]["cohort_or_student_group_id"] = 110
+        snapshot["student_cohort_groups"][0]["cohort_or_student_group_id"] = 999
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("model_invalid", result["solver_status"])
+        self.assertEqual(
+            "invalid_student_cohort_mapping",
+            result["infeasible_reasons"][0]["type"],
+        )
+
     def test_unsupported_contract_is_model_invalid(self) -> None:
         snapshot = self.snapshot()
         snapshot["contract_version"] = "unknown"
@@ -405,6 +473,7 @@ class SolveSnapshotTest(unittest.TestCase):
                 "term_offering_id": 20_000 + index,
                 "section_id": 30_000 + index,
                 "section_delivery_group_id": 40_000 + index,
+                "cohort_or_student_group_id": 40_000 + index,
                 "course_id": 50_000 + index,
                 "course_component_id": 60_000 + index,
                 "required_duration_minutes": 30,
@@ -420,6 +489,14 @@ class SolveSnapshotTest(unittest.TestCase):
             demands.append(demand)
 
         snapshot["scheduling_demands"] = demands
+        snapshot["student_cohort_groups"] = [
+            {
+                "cohort_or_student_group_id": demand["cohort_or_student_group_id"],
+                "section_delivery_group_id": demand["section_delivery_group_id"],
+                "expected_count": demand["expected_count"],
+            }
+            for demand in demands
+        ]
         snapshot["faculty"] = [{"faculty_id": 200, "max_allowed_units": "100.00"}]
         snapshot["time_slots"] = [
             {
@@ -444,6 +521,7 @@ class SolveSnapshotTest(unittest.TestCase):
             "term_offering_id",
             "section_id",
             "section_delivery_group_id",
+            "cohort_or_student_group_id",
             "subject_id",
             "course_component_id",
             "faculty_id",
@@ -484,8 +562,8 @@ class SolveSnapshotTest(unittest.TestCase):
                 if not self.overlaps(left, right):
                     continue
 
-                if left["section_delivery_group_id"] == right["section_delivery_group_id"]:
-                    violations.append(f"rows {left_index} and {right_index} overlap for one delivery group")
+                if left["cohort_or_student_group_id"] == right["cohort_or_student_group_id"]:
+                    violations.append(f"rows {left_index} and {right_index} overlap for one cohort")
 
                 if left["faculty_id"] == right["faculty_id"]:
                     violations.append(f"rows {left_index} and {right_index} overlap for one faculty")

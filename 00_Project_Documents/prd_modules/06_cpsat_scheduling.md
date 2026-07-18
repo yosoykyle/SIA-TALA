@@ -1,4 +1,4 @@
-## 6. CP-SAT Scheduling Subsystem
+## 6. Constraint Programming–Satisfiability (CP-SAT) Scheduling Subsystem
 
 ---
 
@@ -7,6 +7,14 @@
 Scheduling is a core subsystem.
 
 TALA uses the Google Cloud Run CP-SAT service for scheduling computation. TALA remains the source of truth for official scheduling records.
+
+Plain-language terms used in this module:
+
+- **CP-SAT** is the OR-Tools Constraint Programming–Satisfiability solver that searches for assignments satisfying mandatory scheduling rules.
+- A **Scheduling Demand** is one required course component for one term offering and one regular cohort or delivery group; it is the item the solver assigns.
+- A **candidate schedule** is a proposal awaiting Laravel validation and authorized review. It is not an official schedule.
+- A **hard constraint** is mandatory. A **soft preference** ranks only schedules that already satisfy every hard constraint.
+- `feasible` means all hard constraints pass but the solver has not proved the proposal is the best-ranked possible result. `optimal` means it has also proved that no better objective value exists for the tested input.
 
 Scheduling flow:
 
@@ -29,6 +37,8 @@ Scheduling Demand:
 11. A new solver run is considered only when the Master Schedule itself must change, such as opening or cancelling a section or materially changing room, time, or faculty assignments.
 12. Linked lecture/laboratory Scheduling Demands must remain tied to one Term Offering, one section delivery group, one student enrollment line, and one released grade unless the institution defines separate subject codes or separate released grades.
 13. Linked Lecture and Laboratory Scheduling Demands may use different qualified faculty unless the Course Specification Revision or Term Offering marks same faculty required.
+
+For conflict enforcement, a course-specific section delivery group remains the traceable source record for one offering, while `cohort_or_student_group_id` identifies the logical students shared across subjects. All course-specific groups for the same term, program, curriculum year level, and exact cohort code must share that conflict identity. The solver and TALA validation use it to enforce the existing section/cohort no-overlap requirement; it does not create a new academic entity or database relationship.
 
 TALA owns:
 
@@ -241,6 +251,8 @@ Expected output:
 10. objective_score, if available
 11. solver_version or model_version
 12. generated_at
+
+Output interpretation: `objective_score` is a weighted ranking value, not a percentage or accuracy score. The current response also carries typed model/search statistics, including the best objective bound and relative optimality gap. The **bound** limits how good an undiscovered solution could still be; the **relative gap** is the normalized distance between the returned feasible objective and that bound. Laravel uses these values as review evidence and still revalidates every assignment independently.
 
 #### 6.2.4 Assignment Output
 

@@ -371,6 +371,45 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         $this->assertContains('faculty_load_exceeded', collect($loadValidation->findings())->pluck('code')->all());
     }
 
+    public function test_shared_cohort_overlap_is_rejected_across_course_specific_delivery_groups(): void
+    {
+        $context = $this->context(demandCount: 2);
+        $snapshot = $context['snapshot'];
+        $sharedCohortId = $snapshot['scheduling_demands'][0]['section_delivery_group_id'];
+        $snapshot['scheduling_demands'][0]['cohort_or_student_group_id'] = $sharedCohortId;
+        $snapshot['scheduling_demands'][1]['section_delivery_group_id'] += 1000;
+        $snapshot['scheduling_demands'][1]['cohort_or_student_group_id'] = $sharedCohortId;
+        $snapshot['student_cohort_groups'] = collect($snapshot['scheduling_demands'])
+            ->map(fn (array $demand): array => [
+                'cohort_or_student_group_id' => $sharedCohortId,
+                'section_delivery_group_id' => $demand['section_delivery_group_id'],
+                'expected_count' => $demand['expected_count'],
+            ])
+            ->all();
+        $context['snapshot'] = $snapshot;
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+
+        $result = $this->validResult($context);
+        $result['assignments'][1]['day'] = 1;
+        $result['assignments'][1]['day_of_week'] = 1;
+        $result['assignments'][1]['start_time'] = '08:00:00';
+        $result['assignments'][1]['starts_at'] = '08:00:00';
+        $result['assignments'][1]['end_time'] = '10:00:00';
+        $result['assignments'][1]['ends_at'] = '10:00:00';
+        $result['assignments'][1]['time_slot_id'] = 1;
+        $result['assignments'][1]['time_block_reference'] = 'D1-0800';
+        $result['assignments'][1]['time_block_key'] = 'D1-0800';
+
+        foreach ($result['assignments'] as $index => $assignment) {
+            $result['assignments'][$index]['cohort_or_student_group_id'] = $sharedCohortId;
+        }
+
+        $validation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run']->fresh(), $result);
+
+        $this->assertContains('cohort_overlap', collect($validation->findings())->pluck('code')->all());
+    }
+
     public function test_native_non_solution_statuses_are_blocking_without_candidate_writes(): void
     {
         $context = $this->context();

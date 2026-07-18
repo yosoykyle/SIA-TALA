@@ -48,8 +48,13 @@ final class ScheduleAssignmentRevalidationService
         array $excludedMeetingIds = [],
         array $excludedDemandIds = [],
     ): ScheduleValidationResult {
-        $validation = $this->validateCandidateSet($run, $assignments, $excludedDemandIds);
-        $liveFindings = $this->liveConflictFindings($run, $assignments, $excludedMeetingIds);
+        $snapshot = $this->snapshotService->currentForRun($run, $excludedDemandIds);
+        $validation = $this->assignmentValidator->validateCandidateAssignments(
+            $run,
+            $snapshot,
+            $this->solverAssignments($snapshot, $assignments),
+        );
+        $liveFindings = $this->liveConflictFindings($run, $assignments, $excludedMeetingIds, $snapshot);
 
         return $this->withAdditionalFindings($validation, $liveFindings);
     }
@@ -158,6 +163,7 @@ final class ScheduleAssignmentRevalidationService
                     'term_offering_id' => $demand['term_offering_id'] ?? null,
                     'section_id' => $demand['section_id'] ?? null,
                     'section_delivery_group_id' => $demand['section_delivery_group_id'] ?? null,
+                    'cohort_or_student_group_id' => $demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id'] ?? null,
                     'subject_id' => $demand['course_id'] ?? null,
                     'course_component_id' => $demand['course_component_id'] ?? null,
                     'faculty_user_id' => $facultyId,
@@ -185,12 +191,14 @@ final class ScheduleAssignmentRevalidationService
     /**
      * @param  list<array<string, mixed>>  $assignments
      * @param  list<int>  $excludedMeetingIds
+     * @param  array<string, mixed>  $snapshot
      * @return list<array<string, mixed>>
      */
     private function liveConflictFindings(
         ScheduleGenerationRun $run,
         array $assignments,
         array $excludedMeetingIds,
+        array $snapshot,
     ): array {
         $excludedMeetingIds = collect($excludedMeetingIds)
             ->map(fn (mixed $id): int => (int) $id)
@@ -204,6 +212,13 @@ final class ScheduleAssignmentRevalidationService
             ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $run->term_id))
             ->when($excludedMeetingIds !== [], fn ($query) => $query->whereNotIn('id', $excludedMeetingIds))
             ->get();
+        $cohortIdsByDemand = collect($snapshot['scheduling_demands'] ?? [])
+            ->filter(fn (mixed $demand): bool => is_array($demand))
+            ->mapWithKeys(fn (array $demand): array => [
+                (int) ($demand['scheduling_demand_id'] ?? 0) => $this->integerValue(
+                    $demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id'] ?? null,
+                ),
+            ]);
         $findings = [];
 
         foreach ($assignments as $assignment) {
@@ -231,16 +246,25 @@ final class ScheduleAssignmentRevalidationService
                     $findings[] = $this->finding($run, $assignment, $code, $constraint, $field, $meeting);
                 }
 
-                $groupId = $this->integerValue($assignment['section_delivery_group_id'] ?? null);
-                $meetingGroupId = $meeting->schedulingDemand?->section_delivery_group_id;
+                $assignmentDemandId = $this->integerValue($assignment['scheduling_demand_id'] ?? null);
+                $meetingDemandId = $meeting->schedulingDemand?->id;
+                $cohortId = $this->integerValue(
+                    $assignment['cohort_or_student_group_id']
+                        ?? ($assignmentDemandId !== null ? $cohortIdsByDemand->get($assignmentDemandId) : null)
+                        ?? $assignment['section_delivery_group_id']
+                        ?? null,
+                );
+                $meetingCohortId = $this->integerValue(
+                    $meetingDemandId !== null ? $cohortIdsByDemand->get((int) $meetingDemandId) : null,
+                ) ?? $meeting->schedulingDemand?->section_delivery_group_id;
 
-                if ($groupId !== null && $groupId === (int) $meetingGroupId) {
+                if ($cohortId !== null && $cohortId === (int) $meetingCohortId) {
                     $findings[] = $this->finding(
                         $run,
                         $assignment,
-                        'live_delivery_group_overlap',
+                        'live_cohort_overlap',
                         'section_delivery_group_no_overlap',
-                        'section_delivery_group_id',
+                        'cohort_or_student_group_id',
                         $meeting,
                     );
                 }

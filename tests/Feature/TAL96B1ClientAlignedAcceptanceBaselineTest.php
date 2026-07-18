@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\AcceptanceBaselineEnvironmentGuard;
 use App\Models\AcademicYear;
@@ -29,6 +30,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -173,6 +175,41 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('outcome=already_present', $output);
         $this->assertSame($before, $this->baselineCounts());
         $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
+    }
+
+    public function test_solver_snapshot_maps_course_specific_delivery_groups_to_six_shared_cohorts(): void
+    {
+        Queue::fake();
+
+        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
+
+        $term = Term::query()->where('type', Term::TypeSecondSemester)->sole();
+        $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
+        $run = app(ScheduleGenerationService::class)->generate($term, $registrar);
+        $snapshot = $run->getAttribute('input_snapshot');
+        $this->assertIsArray($snapshot);
+        $demands = collect($snapshot['scheduling_demands']);
+        $cohortMappings = collect($snapshot['student_cohort_groups']);
+        $groupNames = SectionDeliveryGroup::query()
+            ->whereKey($demands->pluck('section_delivery_group_id')->all())
+            ->pluck('name', 'id');
+
+        $this->assertCount(54, $demands);
+        $this->assertCount(54, $cohortMappings);
+        $this->assertSame(6, $demands->pluck('cohort_or_student_group_id')->unique()->count());
+        $this->assertSame(6, $groupNames->unique()->count());
+
+        foreach ($groupNames->unique()->values() as $groupName) {
+            $deliveryGroupIds = $groupNames
+                ->filter(fn (string $name): bool => $name === $groupName)
+                ->keys();
+            $sharedCohortIds = $demands
+                ->whereIn('section_delivery_group_id', $deliveryGroupIds)
+                ->pluck('cohort_or_student_group_id')
+                ->unique();
+
+            $this->assertCount(1, $sharedCohortIds, (string) $groupName);
+        }
     }
 
     public function test_complete_baseline_with_extra_master_data_fails_closed_without_writes(): void

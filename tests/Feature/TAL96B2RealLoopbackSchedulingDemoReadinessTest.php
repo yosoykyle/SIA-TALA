@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Scheduling\ScheduleAssignmentValidationService;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
@@ -9,22 +10,29 @@ use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\FacultySchedule;
+use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
+use App\Filament\Student\Pages\ScheduleView;
 use App\Jobs\ScheduleSolverDispatchJob;
 use App\Models\CandidateScheduleRow;
+use App\Models\CourseComponent;
+use App\Models\Enrollment;
 use App\Models\OperationalEvent;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
+use App\Models\Section;
 use App\Models\SectionMeeting;
+use App\Models\StudentProfile;
+use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
-use Mockery;
 use Tests\TestCase;
 
 final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
@@ -35,7 +43,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
 
     private const SolverVersion = 'cloud-cp-sat-tal94-demand-v2';
 
-    public function test_b1_baseline_completes_the_real_solver_publication_and_faculty_projection(): void
+    public function test_client_baseline_completes_the_real_solver_publication_and_cross_role_projections(): void
     {
         $mode = trim((string) getenv('TALA_96B2_ACCEPTANCE_MODE'));
 
@@ -55,6 +63,9 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             : null;
         $credentialsPath = $mode === 'cloud_run'
             ? $this->requiredSetting('TALA_96B2_SOLVER_CREDENTIALS')
+            : null;
+        $cloudRevision = $mode === 'cloud_run'
+            ? $this->requiredSetting('TALA_96B2_CLOUD_REVISION')
             : null;
         $acceptanceRepetitions = $this->boundedIntegerSetting(
             'TALA_96B2_ACCEPTANCE_REPETITIONS',
@@ -118,7 +129,8 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $this->assertSame(ScheduleGenerationRun::StatusQueued, $run->status);
         Queue::assertPushed(ScheduleSolverDispatchJob::class);
 
-        $snapshot = $run->input_snapshot;
+        $snapshot = $run->getAttribute('input_snapshot');
+        $this->assertIsArray($snapshot);
         $encodedSnapshot = json_encode(
             $snapshot,
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION,
@@ -153,17 +165,34 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             ->unique()
             ->values();
 
-        $dispatchClient = Mockery::mock(SchedulingSolverClient::class);
-        $dispatchClient->shouldReceive('solve')
-            ->once()
-            ->withArgs(fn (array $dispatchedSnapshot): bool => $dispatchedSnapshot === $snapshot)
-            ->andReturn($results[0]);
+        $dispatchClient = new class($results[0]) implements SchedulingSolverClient
+        {
+            /** @var list<array<string, mixed>> */
+            public array $receivedSnapshots = [];
+
+            /** @param array<string, mixed> $result */
+            public function __construct(private readonly array $result) {}
+
+            /** @param array<string, mixed> $snapshot */
+            public function solve(array $snapshot): array
+            {
+                $this->receivedSnapshots[] = $snapshot;
+
+                return $this->result;
+            }
+
+            public function probe(): array
+            {
+                return ['status' => 200, 'body' => 'acceptance-test'];
+            }
+        };
 
         (new ScheduleSolverDispatchJob((int) $run->id))->handle(
             app(ScheduleSolverSnapshotService::class),
             $dispatchClient,
             app(ScheduleCloudResultIngestor::class),
         );
+        $this->assertSame([$snapshot], $dispatchClient->receivedSnapshots);
 
         $run->refresh();
         $candidates = $run->candidateRows()
@@ -205,7 +234,16 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $registrar,
             $summary['warnings'] > 0 ? 'TAL-96B2 verified real-loopback acceptance.' : null,
         );
-        $meetings = $published->sectionMeetings()->orderBy('id')->get();
+        $meetings = $published->sectionMeetings()
+            ->with([
+                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
+                'schedulingDemand.courseComponent',
+                'schedulingDemand.sectionDeliveryGroup.section',
+                'faculty',
+                'room',
+            ])
+            ->orderBy('id')
+            ->get();
 
         $this->assertSame(ScheduleGenerationRun::StatusPublished, $published->status);
         $this->assertCount(count($expectedCoverage), $meetings);
@@ -213,18 +251,125 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             fn (SectionMeeting $meeting): bool => $meeting->state === SectionMeeting::StateActive,
         ));
 
-        $faculty = User::query()->findOrFail($meetings->firstOrFail()->faculty_user_id);
-        $facultyMeetings = $meetings->where('faculty_user_id', $faculty->id);
+        $expectedCohortCounts = [
+            'DTBM-1A' => 10,
+            'DTBM-2A' => 9,
+            'DIT-1A' => 8,
+            'DIT-2A' => 8,
+            'DTHM-1A' => 10,
+            'DTHM-2A' => 9,
+        ];
+        $meetingsByCohort = $meetings->groupBy(
+            fn (SectionMeeting $meeting): string => $this->cohortCode($meeting),
+        );
+        $actualCohortCounts = collect($expectedCohortCounts)
+            ->mapWithKeys(fn (int $expected, string $cohort): array => [
+                $cohort => $meetingsByCohort->get($cohort, collect())->count(),
+            ])
+            ->all();
 
-        $facultySchedule = Livewire::actingAs($faculty)
-            ->test(FacultySchedule::class);
+        $this->assertSame($expectedCohortCounts, $actualCohortCounts);
 
-        $facultySchedule->assertOk();
-        $facultySchedule->assertCanSeeTableRecords($facultyMeetings);
+        $registrarSchedule = Livewire::actingAs($registrar)
+            ->test(ListSectionMeetings::class);
+        $registrarSchedule->assertOk();
+        $registrarSchedule->assertCountTableRecords(54);
+
+        $facultyProjectionCounts = [];
+
+        foreach ($meetings->groupBy('faculty_user_id') as $facultyUserId => $facultyMeetings) {
+            $faculty = User::query()->findOrFail((int) $facultyUserId);
+            $facultySchedule = Livewire::actingAs($faculty)
+                ->test(FacultySchedule::class);
+
+            $facultySchedule->assertOk();
+            $facultySchedule->assertCountTableRecords($facultyMeetings->count());
+            $facultySchedule->assertCanSeeTableRecords($facultyMeetings);
+            $facultyProjectionCounts[] = [
+                'faculty' => $faculty->name,
+                'meeting_count' => $facultyMeetings->count(),
+            ];
+        }
+
+        $this->assertCount(12, $facultyProjectionCounts);
+        $this->assertSame(54, collect($facultyProjectionCounts)->sum('meeting_count'));
+
+        $firstYearCohortCounts = [
+            'DTBM-1A' => 10,
+            'DIT-1A' => 8,
+            'DTHM-1A' => 10,
+        ];
+        $studentProjectionCounts = [];
+
+        foreach ($firstYearCohortCounts as $cohortCode => $expectedMeetingCount) {
+            $profile = StudentProfile::query()
+                ->with('user')
+                ->where('student_number', 'like', $cohortCode.'-%')
+                ->orderBy('student_number')
+                ->firstOrFail();
+            $student = $profile->user;
+            $this->assertInstanceOf(User::class, $student);
+            $this->assertNotNull($student->email_verified_at);
+
+            $enrollment = Enrollment::factory()
+                ->for($profile, 'studentProfile')
+                ->for($term)
+                ->create([
+                    'status' => 'capacity_pending',
+                    'student_type' => 'new',
+                ]);
+            $sections = $meetingsByCohort->get($cohortCode, collect())
+                ->map(fn (SectionMeeting $meeting): Section => $meeting->schedulingDemand->sectionDeliveryGroup->section)
+                ->filter(fn (?Section $section): bool => $section instanceof Section)
+                ->unique('id')
+                ->sortBy('code')
+                ->values();
+
+            $this->assertCount($expectedMeetingCount, $sections);
+
+            foreach ($sections as $section) {
+                app(EnrollmentPlacementService::class)->confirm($enrollment, $section->id, $registrar);
+            }
+
+            $bindings = StudentScheduleBinding::query()
+                ->whereHas('courseEnrollment', fn ($query) => $query->where('enrollment_id', $enrollment->id))
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->get();
+
+            $this->assertCount($expectedMeetingCount, $bindings);
+
+            $studentSchedule = Livewire::actingAs($student)
+                ->test(ScheduleView::class);
+            $studentSchedule->assertOk();
+            $studentSchedule->assertCountTableRecords($expectedMeetingCount);
+            $studentSchedule->assertCanSeeTableRecords($bindings);
+            $studentProjectionCounts[] = [
+                'cohort' => $cohortCode,
+                'student_number' => $profile->student_number,
+                'meeting_count' => $bindings->count(),
+            ];
+        }
+
+        $firstYearTimetables = collect(array_keys($firstYearCohortCounts))
+            ->mapWithKeys(fn (string $cohortCode): array => [
+                $cohortCode => $this->timetableRows($meetingsByCohort->get($cohortCode, collect())),
+            ])
+            ->all();
 
         if ((string) getenv('TALA_96B2_REPORT_EVIDENCE') === '1') {
             fwrite(STDOUT, PHP_EOL.'TAL96B2_EVIDENCE='.json_encode([
                 'execution_mode' => $mode,
+                'observed_at' => now()->toIso8601String(),
+                'cloud_revision' => $cloudRevision,
+                'cloud_profile' => $mode === 'cloud_run' ? [
+                    'name' => 'B',
+                    'vcpu' => 2,
+                    'memory_gib' => 4,
+                    'solver_workers' => $expectedWorkerCount,
+                    'concurrency' => 1,
+                    'search_limit_seconds' => 30,
+                ] : null,
                 'snapshot_sha256' => $snapshotHash,
                 'solution_sha256_values' => $solutionHashes->all(),
                 'unique_solution_count' => $solutionHashes->count(),
@@ -245,10 +390,58 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
                 'publication' => [
                     'candidate_count' => $candidates->count(),
                     'published_meeting_count' => $meetings->count(),
-                    'faculty_projection_count' => $facultyMeetings->count(),
+                    'cohort_meeting_counts' => $actualCohortCounts,
+                ],
+                'first_year_timetables' => $firstYearTimetables,
+                'role_projections' => [
+                    'registrar_official_meeting_count' => $meetings->count(),
+                    'faculty_account_count' => count($facultyProjectionCounts),
+                    'faculty_meeting_total' => collect($facultyProjectionCounts)->sum('meeting_count'),
+                    'faculty_assignments' => $facultyProjectionCounts,
+                    'student_schedules' => $studentProjectionCounts,
                 ],
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES).PHP_EOL);
         }
+    }
+
+    private function cohortCode(SectionMeeting $meeting): string
+    {
+        $cohortCode = $meeting->schedulingDemand->sectionDeliveryGroup->name;
+        $this->assertNotSame('', $cohortCode);
+
+        return $cohortCode;
+    }
+
+    /**
+     * @param  Collection<int, SectionMeeting>  $meetings
+     * @return list<array{course:string,description:string,component:string,faculty:string,day:string,time:string,room:string,modality:string}>
+     */
+    private function timetableRows(Collection $meetings): array
+    {
+        return $meetings
+            ->sortBy(fn (SectionMeeting $meeting): string => sprintf(
+                '%02d-%s-%s',
+                $meeting->day_of_week,
+                $meeting->starts_at,
+                $meeting->schedulingDemand->termOffering->curriculumEntry->courseSpecification->course->code,
+            ))
+            ->map(function (SectionMeeting $meeting): array {
+                $componentType = $meeting->schedulingDemand->courseComponent->component_type;
+                $modality = $meeting->modality;
+
+                return [
+                    'course' => $meeting->schedulingDemand->termOffering->curriculumEntry->courseSpecification->course->code,
+                    'description' => $meeting->schedulingDemand->termOffering->curriculumEntry->courseSpecification->title,
+                    'component' => CourseComponent::typeOptions()[$componentType] ?? str((string) $componentType)->headline()->toString(),
+                    'faculty' => $meeting->faculty->name,
+                    'day' => SectionMeeting::dayOptions()[$meeting->day_of_week] ?? 'Unscheduled',
+                    'time' => substr((string) $meeting->starts_at, 0, 5).'-'.substr((string) $meeting->ends_at, 0, 5),
+                    'room' => $meeting->room_id !== null ? $meeting->room->code : 'Not required',
+                    'modality' => SectionMeeting::modalityOptions()[$modality] ?? str((string) $modality)->headline()->toString(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function requiredSetting(string $key): string

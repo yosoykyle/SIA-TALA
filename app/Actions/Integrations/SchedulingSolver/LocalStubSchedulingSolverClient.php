@@ -136,6 +136,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'term_offering_id' => (int) $demand['term_offering_id'],
             'section_id' => (int) $demand['section_id'],
             'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+            'cohort_or_student_group_id' => (int) ($demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id']),
             'subject_id' => $demand['course_id'] !== null ? (int) $demand['course_id'] : null,
             'course_component_id' => (int) $demand['course_component_id'],
             'faculty_id' => $facultyId,
@@ -306,6 +307,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
 
             $candidate = [
                 'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+                'cohort_or_student_group_id' => (int) ($demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id']),
                 'faculty_id' => $facultyId,
                 'room_id' => $roomId,
                 'day_of_week' => (int) $slot['day_of_week'],
@@ -345,7 +347,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 continue;
             }
 
-            if ((int) ($assignment['section_delivery_group_id'] ?? 0) === (int) $candidate['section_delivery_group_id']) {
+            if ((int) ($assignment['cohort_or_student_group_id'] ?? 0) === (int) $candidate['cohort_or_student_group_id']) {
                 return true;
             }
 

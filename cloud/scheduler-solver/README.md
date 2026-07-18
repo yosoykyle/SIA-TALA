@@ -1,6 +1,6 @@
 # TALA Scheduler Solver
 
-This directory contains TALA's private Python scheduling service. It uses Google OR-Tools CP-SAT to produce candidate schedules from Laravel's versioned `tal94-demand-v2` snapshot. It is deterministic constraint optimization, not machine learning, and it never publishes an official schedule.
+This directory contains TALA's private Python scheduling service. It uses Google OR-Tools Constraint Programming–Satisfiability (CP-SAT) to produce candidate schedules from Laravel's versioned `tal94-demand-v2` snapshot. It is deterministic constraint optimization, not machine learning, and it never publishes an official schedule.
 
 Laravel remains authoritative: it captures the immutable input snapshot, queues dispatch, treats the response as untrusted integration output, revalidates every assignment, stores candidate rows, and requires Registrar review and publication before creating official `section_meetings`.
 
@@ -8,14 +8,14 @@ Laravel remains authoritative: it captures the immutable input snapshot, queues 
 
 - Runtime image: Python 3.12 slim, Flask, Gunicorn, and OR-Tools 9.15.6755.
 - `GET /health`: returns service, contract, and solver-version metadata.
-- `POST /solve`: accepts one `tal94-demand-v2` JSON snapshot and returns structured solver results.
+- `POST /solve`: accepts one `tal94-demand-v2` JavaScript Object Notation (JSON) snapshot and returns structured solver results.
 - Input unit: `scheduling_demands`.
 - Output unit: `assignments` keyed by `scheduling_demand_id`.
 - Container port: the Cloud Run `PORT` environment variable; local default `8080`.
 - Solver budget: `SOLVER_TIMEOUT_SECONDS`, clamped to 1-300 seconds by the service.
-- HTTP request limit: 300 seconds in the approved Cloud Run and Laravel transport contract.
-- Recommended B1 solver budget: 30 seconds, leaving response and network headroom inside the 300-second HTTP limit.
-- Search configuration: one CP-SAT worker and fixed random seed `20260718`.
+- Hypertext Transfer Protocol (HTTP) request limit: 300 seconds in the approved Cloud Run and Laravel transport contract.
+- Current production solver budget: 30 seconds, leaving response and network headroom inside the 300-second HTTP limit.
+- Search configuration: fixed random seed `20260718`; the code default and historical TAL-96B2 local experiment use one CP-SAT worker, while the current Cloud Run profile B explicitly uses two workers.
 - Response evidence: one strict `solver_statistics` object containing allowlisted input/model/search counts, best bound, relative gap, deterministic time, wall time, worker count, and seed. Raw solver logs are never part of the response contract.
 
 The solver may return `optimal`, `feasible`, `infeasible`, `model_invalid`, or `unknown`. A feasible result is a valid candidate, not proof of mathematical optimality and not an instruction to publish.
@@ -26,9 +26,11 @@ Each feasible demand/faculty/room/time combination has a Boolean selection varia
 
 Hard overlap rules use CP-SAT `NoOverlap` groups by day for:
 
-- section delivery group;
+- shared logical cohort, mapped from course-specific delivery groups;
 - faculty; and
 - physical room.
+
+Every assignment retains its course-specific `section_delivery_group_id` for reconciliation and also carries `cohort_or_student_group_id`. The solver rejects an inconsistent `student_cohort_groups` mapping. Different subjects attended by the same cohort therefore enter one cohort/day `NoOverlap` bucket even though their delivery-group source records differ.
 
 This replaces candidate-pair conflict construction. Model growth is therefore bounded by candidate choices and resource/day groups instead of growing quadratically with every candidate pair.
 
@@ -177,21 +179,25 @@ This identifier changes when a pinned dependency or executable Python source fil
 
 Deployment and post-promotion verification on July 18, 2026 confirmed this live state. Reconfirm it before every mutation because Cloud state can change independently of Git.
 
+Operational terms: a **CP-SAT worker** is one solver search thread inside a request; **Cloud Run concurrency** is the number of HTTP requests one instance may process simultaneously. They are independent settings. **vCPU** is allocated virtual processor capacity, **GiB** is gibibytes of memory, **traffic** is the share of service requests routed to a revision, and a **zero-traffic revision** is retained without receiving normal requests. **IAM** means Identity and Access Management; the dedicated invoker may call the private service while no public invoker is allowed.
+
 - Project: `tala-dev-ocr-3s`
 - Region: `asia-southeast1`
 - Service: `tala-scheduler-solver`
-- Serving revision: `tala-scheduler-solver-b3b-e427393e2d06`
-- Serving image digest: `sha256:beedcfb41067aa028b4c793ab6c9dc2283b7f4adb082124530b41afa4d1cebb0`
+- Serving revision: `tala-scheduler-solver-b4f-ad9177e472f8`
+- Serving image digest: `sha256:3b46df2a712949bba3caf99bcc4c3dc75a3e474959b0586ad079b85b4e7e4612`
 - Traffic: 100% to the serving revision
 - Runtime identity: `tala-scheduler-runtime@tala-dev-ocr-3s.iam.gserviceaccount.com`
 - Dedicated invoker: `tala-scheduler-invoker@tala-dev-ocr-3s.iam.gserviceaccount.com`
 - Public invoker: none
 - Resources: 2 CPU, 4 GiB memory, concurrency 1, request timeout 300 seconds, solver budget 30 seconds, two CP-SAT workers
 - Scaling: minimum instances 0, maximum instances 3
-- Zero-traffic service template: `tala-scheduler-solver-b3base2-e427393e2d06`, matching the serving digest and exact profile-B configuration so future service updates do not inherit an experimental 240-second profile
+- Immediate rollback revision: `tala-scheduler-solver-b3b-e427393e2d06` at zero traffic
 - Artifact Registry repository: `tala-containers`
 
-The previous serving revision `tala-scheduler-solver-e3a-4d17a03ccf1c` is retained at zero traffic as the immediate rollback target. The prior 1 GiB TAL-96B2 candidate is historical recovery evidence; its obsolete zero-traffic revision was removed during TAL-96B3 cleanup:
+### Historical TAL-96B2 recovery evidence
+
+The older revision `tala-scheduler-solver-e3a-4d17a03ccf1c` remains historical recovery evidence. The immediate rollback target is now the previous Profile B revision `tala-scheduler-solver-b3b-e427393e2d06`. The prior 1 GiB TAL-96B2 candidate is historical evidence, not the current baseline; its obsolete zero-traffic revision was removed during TAL-96B3 cleanup:
 
 - Build: `d55537e6-a64a-453f-b1bf-f3c451af1e93` (`SUCCESS`)
 - Candidate revision: `tala-scheduler-solver-b2-38cad156ab94`
@@ -205,15 +211,17 @@ One GiB is not an accepted production baseline: the July 17 promotion gate showe
 
 The July 17, 2026 promotion gate did not pass. Canonical B1 acceptance caused Cloud Run to terminate the 1 GiB candidate at 1,045 MiB; the restored 1 GiB revision later terminated at 1,154 MiB under the same acceptance. This is retained to explain why TAL-96B3 evaluated larger private profiles.
 
-TAL-96B3 compared three profiles from the same immutable image:
+### TAL-96B4 corrected production selection and capacity evidence
+
+TAL-96B4 reran the approved profile comparison after correcting shared-cohort conflict identity. All results used the same corrected immutable image:
 
 - profile A: 1 CPU, 2 GiB, one worker;
 - selected profile B: 2 CPU, 4 GiB, two workers; and
 - research profile C: 4 CPU, 8 GiB, four workers.
 
-All profiles passed 10/10 client-representative runs with complete coverage, zero hard violations, and complete telemetry. Profile B had the smallest median and p95 relative gap and the fastest median and p95 runtime, so it was selected before cost. Proportional 2× was accepted 3/3 on B and 3/3 on C with a 120-second research limit. Proportional 4× produced two feasible observations on C at 240 seconds, but the third run used 8,197 MiB and was terminated; it is an observed resource boundary rather than a supported maximum. Full methods and measurements are in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](../../00_Project_Documents/TAL-96B3-Cloud-Run-Capacity-Benchmark.md).
+Profile A accepted 4/10 client-representative runs; profiles B and C accepted 10/10 with full coverage, zero hard violations, and complete telemetry. **Telemetry** is the typed model, search, and runtime evidence collected for a run. **p95** is a 95th-percentile tail indicator. **Relative gap** measures the remaining distance between the best valid solution found and CP-SAT's bound; it is not accuracy. B had the stronger p95 gap and faster median/p95 runtime than C while using half its CPU and memory, so B remained the production choice. At proportional 2× and 120 seconds, B accepted 2/3 before one 4-GiB OOM/503, while C accepted 3/3. All three proportional 4× attempts on C at 240 seconds exceeded 8 GiB and were terminated; this is an observed resource boundary rather than a supported maximum. Full methods and measurements are in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](../../00_Project_Documents/TAL-96B3-Cloud-Run-Capacity-Benchmark.md).
 
-Profile B passed two authenticated post-promotion representative solves plus Laravel validation, ingestion, publication, and Faculty projection. It now receives 100% canonical traffic. Private IAM is unchanged, the queue is resumed, and no benchmark scheduling record or queued job survived.
+The corrected Profile B revision passed tagged acceptance and two authenticated post-promotion representative solves plus Laravel validation, ingestion, publication, and Registrar, Faculty, and Student projections. It now receives 100% canonical traffic. Private IAM is unchanged, the queue is resumed, and no benchmark scheduling record or queued job survived.
 
 ## Explicit Cloud Gates
 
@@ -222,6 +230,7 @@ Cloud mutations are never implied by local implementation, cleanup, or verificat
 - `Primary proceed TAL-96B3 remediation`: completed the guarded harness correction.
 - `Deploy TAL-96B3 remediation`: completed the immutable private profile experiment.
 - `Promote TAL-96B3`: moved selected profile B to canonical traffic and passed post-promotion acceptance.
+- `Approve revised TAL-96 split adding TAL-96B4 ... Proceed, Deploy, Promote, Verify, and Cleanup TAL-96B4`: authorized the corrected shared-cohort implementation, replacement benchmark, controlled promotion, verification, and one bounded cleanup commit.
 
 There is no unattended Cloud Build trigger. “Automatic deployment” means the agent can execute this documented workflow after the user gives the exact gate command.
 
@@ -341,7 +350,7 @@ Tagged acceptance must pass with the old revision still at 100%. Inspect candida
 
 ## Promotion Record: Controlled 100% Traffic
 
-This records the completed TAL-96B3 promotion pattern; it is not authorization to rerun it. The selected candidate was profile B revision `tala-scheduler-solver-b3b-e427393e2d06`. Its exact digest, zero-traffic state, private IAM, resources, and clean workload state were re-proved immediately before promotion.
+This records the completed promotion pattern; it is not authorization to rerun it. The current selected candidate was Profile B revision `tala-scheduler-solver-b4f-ad9177e472f8`. Its exact digest, zero-traffic state, private IAM, resources, shared-cohort acceptance, and clean workload state were re-proved immediately before promotion.
 
 ```powershell
 php artisan queue:pause database:scheduling --no-interaction

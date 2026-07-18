@@ -1,138 +1,130 @@
-# TAL-96B3 Cloud Run CP-SAT Capacity and Solution-Quality Benchmark
+# TALA Cloud Run CP-SAT Capacity and Solution-Quality Benchmark
 
-- **Experiment date:** 18 July 2026 (Philippine Time)
-- **Contract and profile:** `tal94-demand-v2`; `balanced_v1`, version 1
-- **Solver:** OR-Tools 9.15.6755; fixed seed `20260718`
-- **Immutable image:** `sha256:beedcfb41067aa028b4c793ab6c9dc2283b7f4adb082124530b41afa4d1cebb0`
-- **Cloud Run region:** Singapore (`asia-southeast1`)
+**Evidence revision:** 18 July 2026
+**Replacement reason:** TAL-96B4 corrected shared-cohort conflict identity. Every result below was regenerated with that correction; no pre-correction measurement is mixed into this report.
 
-## Purpose and claim boundary
+## Purpose and limits
 
-This experiment determines which private Cloud Run profile should operate TALA's current client workload, measures a bounded larger-workload envelope, and records solution quality, runtime, model growth, resource use, and approximate request-based compute cost. TALA schedules cohort meeting demands; it does not perform whole-university individual student sectioning and is not positioned as a direct replacement for enterprise timetabling suites.
+This benchmark evaluates the implemented TALA scheduling pipeline. It answers three questions:
 
-The experiment does not compare optimization algorithms, calculate predictive accuracy, prove a universal minimum or maximum, or change any hard constraint, soft objective, weight, data-contract field, or Laravel publication rule. All benchmark snapshots were captured from `test_tala_db` inside rolled-back transactions. No benchmark schedule run, candidate row, official meeting, or queued job survived.
+1. Can the client-aligned 54-demand workload produce a complete, valid timetable?
+2. Which approved Cloud Run profile is the most defensible production default for that workload?
+3. What larger synthetic workload can the tested deployment accept before a compute, model, or memory boundary appears?
 
-## Institutional and research basis
+The benchmark does not claim a universal minimum or maximum school size. TALA schedules course-delivery demands for cohorts, not individual students as independent optimization decisions. The client population of 47 students supplies six real program-year cohort sizes and room-capacity context; synthetic faculty, rooms, qualifications, and availability complete the controlled test input.
 
-The client reports 47 students across BM, IT, and THM: 35 first-year and 12 second-year students. Its current arrangement has one section for each program-year combination, or six cohorts. The accepted synthetic operational baseline converts the disclosed curricula and resources into 54 Scheduling Demands, 12 faculty records, 6 rooms, and 156 half-hour calendar slots. Student population explains the business setting, but Scheduling Demands, candidate assignments, resources, and slots drive CP-SAT model size because TALA schedules cohort meetings rather than individual students.
+## Corrected model boundary
 
-Published university-timetabling benchmarks are used only to calibrate terminology and caution against universal claims. ITC 2019 reports instances ranging from roughly 500 classes for a school or faculty to thousands of classes for broad university scope. UniTime separately models rooms, instructors, classes, students, and group constraints. Those problem units and constraints are not equivalent to one TALA Scheduling Demand, so their counts are not copied into the experiment or treated as a performance target.
+The client baseline has six logical cohorts but 54 course-specific delivery-group records. Each demand retains its course-specific delivery-group identifier for traceability and also carries a shared cohort identifier. All demands attended by the same program-year cohort use the same shared identifier. CP-SAT and Laravel both enforce no-overlap using that shared identity, so two subjects for the same students cannot be scheduled at the same time even when their course-specific delivery-group records differ.
 
-The disclosed test tiers are therefore controlled transformations of TALA's accepted baseline:
+The correction did not change the mathematical meaning of the cohort non-overlap rule, the objective, or the database schema. It corrected the request mapping and both Python and Laravel enforcement.
 
-| Tier | Demands | Faculty | Rooms | Slots | Experimental purpose |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Reduced technical | 27 | 6 | 3 | 156 | Harness and monotonic-growth check; not an institutional minimum |
-| Client-representative | 54 | 12 | 6 | 156 | Current client-scale operational baseline derived from 47 students and six cohorts |
-| Proportional 2× | 108 | 24 | 12 | 156 | Doubles schedulable work and resources while preserving their ratio |
-| Contention 2× | 108 | 12 | 6 | 156 | Doubles work without adding faculty or rooms to expose resource pressure |
-| Proportional 4× | 216 | 48 | 24 | 156 | Exploratory upper tier for model growth and resource-boundary observation |
+## Immutable deployment evidence
 
-These tiers describe computational scale, not institution categories. “Client-representative” does not mean an extracted production timetable, while “proportional 4×” does not mean a supported maximum.
+| Item | Verified value |
+| --- | --- |
+| Google Cloud project / region | `tala-dev-ocr-3s` / `asia-southeast1` |
+| Cloud Build | `c4d41f0f-a638-4179-a5ad-0c3fa460298c` — `SUCCESS` |
+| Artifact image | `tala-scheduler-solver:tal96b4-ad9177e472f8` |
+| Image digest | `sha256:3b46df2a712949bba3caf99bcc4c3dc75a3e474959b0586ad079b85b4e7e4612` |
+| Serving revision | `tala-scheduler-solver-b4f-ad9177e472f8` |
+| Traffic | 100% to the serving revision |
+| Runtime identity | `tala-scheduler-runtime@tala-dev-ocr-3s.iam.gserviceaccount.com` |
+| Invoker boundary | One dedicated scheduler invoker; no public invoker |
+| Production resources | Profile B: 2 vCPU, 4 GiB, 2 CP-SAT workers, concurrency 1 |
+| Limits | 30-second CP-SAT search; 300-second HTTP request |
+| Deterministic control | OR-Tools 9.15.6755; seed `20260718` |
 
-## Method and infrastructure profiles
+A **CP-SAT worker** is one solver search thread inside a request. **Cloud Run concurrency 1** permits one request at a time on each service instance. They are different settings. The 30-second limit bounds mathematical search; the 300-second limit bounds the complete authenticated HTTP request.
 
-Every revision used the same image, contract, profile, random seed, request payload rules, concurrency of one, minimum instances of zero, maximum instances of three, and 300-second HTTP request timeout. Python tests ran in Cloud Build; the laptop did not execute CP-SAT stress tests. Laravel locally enforced the guarded environment, snapshot, typed response, validation, sanitization, and zero-persistence rules.
+## Workload design
 
-| Profile | vCPU | Memory | CP-SAT workers | 30-second role | Longer-window role |
-| --- | ---: | ---: | ---: | --- | --- |
-| A | 1 | 2 GiB | 1 | Smallest comparison profile | Not used for larger tiers |
-| B | 2 | 4 GiB | 2 | Client-production candidate | Proportional 2× at 120 seconds |
-| C | 4 | 8 GiB | 4 | Upper comparison profile | Research-only 120/240-second boundary testing |
+| Tier | Logical cohorts | Course-specific delivery groups | Demands | Faculty | Rooms | Purpose |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Client-representative | 6 | 54 | 54 | 12 | 6 | Production-profile selection and full timetable acceptance |
+| Proportional 2x | 12 | 108 | 108 | 24 | Doubles both work and scheduling resources |
+| Contention 2x | 12 | 108 | 108 | 12 | Doubles work while retaining baseline faculty and rooms |
+| Proportional 4x | 24 | 216 | 216 | 48 | Explores an upper computational boundary |
 
-The representative comparison used ten sequential runs per profile. Higher tiers used bounded screening followed by confirmation only when a shorter solver window reached a clean compute boundary. The experiment used 80 solve requests in total, exactly the approved ceiling: 15 retained pilot requests, 63 final experiment requests, and 2 post-promotion canonical acceptance requests.
+The multiplier copies and identifier-remaps the complete 54-demand scheduling structure. It does not assert that the client has twice or four times its reported student population. The contention tier is intentionally restrictive and is diagnostic rather than a supported-capacity candidate.
 
-## Measures and interpretation of quality
+## Acceptance and quality measures
 
-A run is accepted only when it returns `optimal` or `feasible`, assigns every demand, reports zero solver hard violations, passes Laravel's independent hard-constraint validation, supplies complete typed telemetry, and has no authentication, transport, or container failure.
+A run is accepted only when it returns `optimal` or `feasible`, assigns every demand, reports zero hard violations, passes Laravel's independent validation, contains the required telemetry, and has no authentication, transport, or container failure.
 
-For maximizing objective value $Z_i$, CP-SAT best bound $B_i$, and same-tier best observed objective $Z^*$:
+- **Coverage** is assigned demands divided by required demands.
+- **Relative optimality gap** is the normalized distance between the best valid objective found and CP-SAT's bound. Smaller is stronger; it is not predictive accuracy.
+- **Relative percentage deviation (RPD)** compares one objective with the best objective observed in the same tier. It describes repeat-run dispersion, not correctness.
+- **Unknown** means no accepted incumbent was returned within the test boundary. It is inconclusive, not infeasible.
+- **Infeasible** means CP-SAT proved that the exact input cannot satisfy every hard rule.
+- **Infrastructure failure** means the request failed outside solver-status semantics, such as a Cloud Run memory termination.
 
-$$
-\operatorname{gap}_i = \frac{|Z_i-B_i|}{\max(1,|Z_i|)},
-$$
+## Stage 1: 54-demand production-profile comparison
 
-$$
-\operatorname{RPD}_i = \frac{|Z^*-Z_i|}{\max(1,|Z^*|)}\times 100.
-$$
+All profiles used a 30-second search limit and ten sequential repetitions.
 
-The relative optimality gap measures the remaining distance between the incumbent and CP-SAT's current bound. Same-tier RPD describes dispersion from the best objective observed in that tier. Neither is predictive accuracy. For TALA, correctness is established by complete coverage and zero hard violations; optimization quality is described by status, objective, best bound, gap, RPD, and runtime.
-
-## Client-representative profile comparison
-
-All 30 comparison runs accepted all 54 demands with zero solver and Laravel hard violations and complete telemetry.
-
-| Measure | Profile A | Profile B | Profile C |
+| Measure | Profile A: 1 vCPU / 2 GiB / 1 worker | Profile B: 2 vCPU / 4 GiB / 2 workers | Profile C: 4 vCPU / 8 GiB / 4 workers |
 | --- | ---: | ---: | ---: |
-| Accepted runs | 10/10 | 10/10 | 10/10 |
-| Coverage | 100% each run | 100% each run | 100% each run |
-| Objective range | 411,830–411,890 | 428,590–454,120 | 427,640–445,900 |
-| Median relative gap | 12.9945% | **4.4632%** | 7.4411% |
-| p95 relative gap | 13.0110% | **8.5408%** | 8.7747% |
-| Maximum same-tier RPD | 0.0146% | 5.6219% | 4.0951% |
-| Median runtime | 31.359 s | **31.017 s** | 31.402 s |
-| p95 runtime | 31.879 s | **31.380 s** | 31.866 s |
-| Revision-scoped maximum minute p99 CPU | 91.98% | 77.98% | 64.98% |
-| Revision-scoped maximum minute p99 memory | 59.98% | 39.98% | 25.99% |
+| Accepted runs | 4/10 | **10/10** | **10/10** |
+| Result | Compute boundary in 6 runs | Accepted | Accepted |
+| Accepted objective range | 393,460 | 388,620–406,570 | 385,300–404,140 |
+| Median relative gap | 14.8274% | 14.1544% | **13.3831%** |
+| p95 relative gap | 14.8274% | **15.8039%** | 17.3505% |
+| Median runtime | 31.182 s | **31.152 s** | 31.439 s |
+| p95 runtime | 31.471 s | **31.380 s** | 31.849 s |
 
-Profile B was selected for the client production workload. Validity was equal across profiles, but the approved selection rule compares solution quality before cost: B produced the smallest median and p95 gap and the fastest median and p95 runtime. It also retained substantial measured memory headroom. Profile C used twice B's CPU and memory without improving the client-scale distribution, while profile A's smaller size produced materially weaker bound evidence. Cost is therefore secondary rather than the reason for preferring A.
+Profile A is not production-acceptable because six requests did not return an accepted schedule. Profiles B and C both passed validity. C had a slightly lower median gap, but B had the stronger p95 gap and faster median and p95 runtime while using half of C's CPU and memory. Profile B is therefore the justified production default for the actual client-aligned workload.
 
-## Larger-workload results
+## Stage 2: doubled workload
 
-At 30 seconds, profiles B and C each returned `unknown` without an incumbent for proportional 2×. Candidate and model telemetry completed, and there was no OOM, transport, authentication, or contract failure. The result was a time/compute boundary, so the next approved window was 120 seconds.
+At 30 seconds, both B and C reached a clean compute boundary on proportional 2x: model telemetry was returned, but no accepted incumbent existed. The 120-second confirmation produced the following results.
 
-| Tier and profile | Accepted | Result | Objective range | Gap range | Runtime | Model scale |
-| --- | ---: | --- | ---: | ---: | ---: | --- |
-| Proportional 2×, B, 120 s | 3/3 | `feasible` | 822,960–830,890 | 10.8929%–11.9615% | median 123.947 s | 35,712 candidates; 108,120 variables; 216,384 constraints |
-| Proportional 2×, C, 120 s | 3/3 | `feasible` | 839,090–849,900 | 8.4125%–9.8023% | median 124.893 s | same model scale |
-| Contention 2×, C, 120 s | 0/1 | diagnostic `infeasible` | — | — | 58.131 s | 20,712 candidates; 62,610 variables; 125,688 constraints |
-| Proportional 4×, C, 120 s | 0/1 | `unknown`; compute boundary | — | — | 140.689 s | 131,424 candidates; 396,816 variables; 793,344 constraints |
-| Proportional 4×, C, 240 s | 2/3 | 2 `feasible`; 1 infrastructure failure | 1,400,730–1,703,280 | 5.2694%–29.6280% | 258.508–260.196 s for accepted runs | same 4× model scale |
+| Profile and window | Accepted | Result | Accepted gap range | Accepted runtime | Infrastructure evidence |
+| --- | ---: | --- | ---: | ---: | --- |
+| B, 120 s | 2/3 | Two `feasible`; one infrastructure failure | 12.5155%–12.5212% | 124.745–124.965 s | One request exceeded 4 GiB and returned HTTP 503 |
+| C, 120 s | **3/3** | Three `feasible` | 6.8713%–9.7205% | median 125.651 s | No failure |
 
-The contention result is diagnostic for the synthetic resource-closed transformation only; it is not a conclusion that an actual 108-demand institution is infeasible. Proportional 2× is the largest repeatably accepted tier, provided the research profile and 120-second solver limit are used. Proportional 4× is the largest tier at which a feasible solution was observed, but it is not a supported envelope: one of three runs exceeded the maximum approved 8 GiB allocation. Cloud Run logged 8,197 MiB used, terminated the instance, and returned HTTP 503. The C240 revision's measured memory utilization consequently reached 100%.
+Every accepted run assigned 108/108 demands and passed zero-hard-violation validation. Profile C is the only repeatably accepted 2x configuration in the corrected experiment. This is expansion evidence, not a reason to charge the current client workload for Profile C by default.
 
-This distinction is deliberate:
+## Stage 3: contention and 4x boundary
 
-- **repeatably accepted capacity evidence:** proportional 2×, 3/3 on B and 3/3 on C at 120 seconds;
-- **largest accepted observation:** proportional 4×, 2/3 on C at 240 seconds; and
-- **observed resource boundary:** proportional 4× can exhaust 8 GiB, so it requires future optimization or a separately approved resource/architecture study before it can be promised operationally.
+| Tier / Profile / window | Accepted | Outcome | Runtime / failure |
+| --- | ---: | --- | --- |
+| Contention 2x / C / 120 s | 0/1 | Diagnostic `infeasible` | Proof completed in 63.227 s |
+| Proportional 4x / C / 120 s | 0/1 | `unknown`; compute boundary | 146.428 s end-to-end |
+| Proportional 4x / C / 240 s | 0/3 | Infrastructure failure | All three instances exceeded 8 GiB and returned HTTP 503 |
 
-## Production promotion and Laravel acceptance
+The contention result proves only that the disclosed intentionally restrictive transformation is infeasible. The 4x result is the largest attempted tier and an observed memory boundary; it is not a supported maximum. All three 240-second requests were terminated after using approximately the full 8 GiB allocation.
 
-Profile B revision `tala-scheduler-solver-b3b-e427393e2d06` was promoted to 100% canonical traffic after the scheduling queue was paused and the database proved zero active runs, scheduling jobs, and related failures. The service remained private; only `tala-scheduler-invoker@tala-dev-ocr-3s.iam.gserviceaccount.com` retained `roles/run.invoker`.
+## Model scale after shared-cohort correction
 
-Post-promotion acceptance used two real authenticated client-representative solves to remain within the 80-request ceiling. Both returned `feasible`, assigned 54/54 demands, reported zero hard violations, used two workers and seed `20260718`, and passed Laravel validation. Laravel then exercised candidate ingestion, Registrar publication of 54 meetings, and the Faculty schedule projection inside a database transaction. After rollback, `test_tala_db` again contained zero schedule runs, candidate rows, official meetings, and queued jobs; the scheduling queue was resumed.
+| Tier | Candidate assignments | Model variables | Model constraints | `NoOverlap` groups |
+| --- | ---: | ---: | ---: | ---: |
+| Client-representative | 10,356 | 31,488 | 62,832 | 138 |
+| Proportional 2x | 35,712 | 108,120 | 215,808 | 276 |
+| Contention 2x | 20,712 | 62,610 | 125,112 | 174 |
+| Proportional 4x | 131,424 | 396,816 | 792,192 | 552 |
 
-Cleanup removed the malformed, pilot, A, longer-window B, and C zero-traffic revisions after their evidence was retained. The selected B revision and immediately previous serving revision remain. A zero-traffic service-template revision, `tala-scheduler-solver-b3base2-e427393e2d06`, mirrors the exact B digest and configuration so a future service update cannot silently inherit the experimental 240-second C profile.
+`NoOverlap` groups are organized by day for faculty, physical rooms, and shared logical cohorts. The count is lower than the superseded evidence because 54 course-specific delivery groups now map to six actual attendance cohorts.
 
-## Cost estimate
+## Production promotion and end-to-end acceptance
 
-For request-based execution, the experiment uses
+The final Profile B revision was first tested through its zero-traffic tagged URL. It returned a complete 54-demand candidate, passed Laravel validation, produced 54 candidate rows and 54 official meetings inside a rolled-back transaction, and populated all six cohort projections.
 
-$$
-C = T\left(vr_{cpu}+mr_{mem}\right)+N_r r_{req},
-$$
+After the scheduling queue was paused and MySQL `test_tala_db` proved zero runs, candidates, meetings, jobs, and failed jobs, the revision received 100% canonical traffic. Two post-promotion authenticated solves both returned `feasible`, assigned 54/54 demands, reported zero hard violations, used two workers and seed `20260718`, passed Laravel validation, and exercised Registrar publication plus Faculty and Student projections. The queue was then resumed. The database again contained zero temporary scheduling records.
 
-where $T$ is observed client elapsed time used as a billable-time proxy, $v$ is vCPU, $m$ is GiB, and $N_r$ is request count. The 18 July 2026 Singapore request-based list rates used were US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests. Recalculated across all 80 requests, the bounded estimate is approximately **US$0.214198** before free-tier credits.
+The first-year Student projections contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`. Across all six cohorts, the published counts were 10, 9, 8, 8, 10, and 9, totaling 54.
 
-This is an experimental request-cost estimate, not an invoice or monthly forecast. It excludes rounding differences between client time and Cloud Run billable instance time, network and registry charges, build charges, taxes, discounts, free-tier eligibility, and unrelated project usage. Cloud Run bills measured use rather than reserving the configured maximum continuously because minimum instances remain zero.
+## Cost interpretation
 
-## Safety, reproducibility, and limitations
+The retained corrected experiment contains 59 authenticated solve requests, including tagged and post-promotion acceptance. Using observed request duration as a billable-time proxy and the dated Singapore request-based rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests, the estimate is US$0.196810 before free-tier credits.
 
-- Cloud Build `50f5fcd2-0009-431c-801e-7fa0920f1034` succeeded and ran all 26 Python tests.
-- Every tested profile used the exact accepted image digest and private IAM.
-- Concurrency remained one because each CP-SAT request is independently CPU- and memory-intensive.
-- Fixed seed and fixed configuration reduce search variation, but wall-clock limits and multi-worker scheduling do not guarantee byte-identical incumbents.
-- `feasible` proves a valid incumbent, not optimality; `unknown` does not prove infeasibility.
-- Published schedules remain authoritative if the solver is unavailable, and Laravel retains validation, review, revalidation, publication, and controlled manual-continuity authority.
-- The benchmark supports the disclosed TALA model and tiers only. A material change to demand composition, constraints, objective semantics, solver version, Cloud profile, or institutional workload requires renewed evidence.
+This is an experiment estimate, not a monthly forecast or invoice. It excludes billing rounding, networking, registry and build charges, taxes, discounts, invalid deployment attempts, and unrelated project usage. Cloud Run charges depend on allocated resources and billable duration; a larger profile therefore costs more per active second even when minimum instances remain zero.
 
-## External references
+## Final conclusion
 
-- [Real-world university course timetabling at ITC 2019](https://link.springer.com/article/10.1007/s10951-023-00801-w)
-- [UniTime University Course Timetabling benchmark datasets](https://www.unitime.org/uct_datasets.php)
-- [UniTime University Course Timetabling data format](https://www.unitime.org/uct_dataformat_v24.php)
-- [PyJobShop: Solving scheduling problems with constraint programming in Python](https://arxiv.org/abs/2502.13483)
-- [OR-Tools CP-SAT solver guide](https://developers.google.com/optimization/cp/cp_solver)
-- [Cloud Run CPU configuration](https://docs.cloud.google.com/run/docs/configuring/services/cpu)
-- [Cloud Run pricing](https://cloud.google.com/run/pricing)
+- The corrected client-representative pipeline is operationally accepted at 54 demands and six shared cohorts.
+- Profile B remains the production default because it is valid in 10/10 comparison runs and two canonical post-promotion runs, provides stronger tail evidence than C, is slightly faster, and uses half of C's resources.
+- Profile C at 120 seconds is the only repeatably accepted configuration for the 108-demand proportional experiment.
+- Contention 2x is diagnostically infeasible; proportional 4x is an observed 8-GiB memory boundary.
+- These measurements do not change the CP-SAT equations. They delimit the tested implementation and deployment.

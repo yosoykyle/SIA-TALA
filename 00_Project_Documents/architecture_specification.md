@@ -27,7 +27,7 @@
     - [Authorization Rule](#73-authorization-rule)
 8. [Security and Trust Boundaries](#8-security-and-trust-boundaries)
 9. [External Integrations](#9-external-integrations)
-    - [CP-SAT Scheduling Service](#91-cp-sat-scheduling-service)
+    - [Constraint Programming–Satisfiability (CP-SAT) Scheduling Service](#91-cp-sat-scheduling-service)
     - [PayMongo](#92-paymongo)
     - [Transactional Email](#93-transactional-email)
 10. [Automatic Scheduling: Research and Product Justification](#10-automatic-scheduling-research-and-product-justification)
@@ -333,6 +333,8 @@ TALA supports institutional compliance work through access control, audit, reten
 
 The scheduling service is a Python 3.12 container running Flask behind Gunicorn and Google OR-Tools CP-SAT. The private Cloud Run deployment accepts a versioned JSON snapshot and returns structured solver results.
 
+In this boundary, a **Scheduling Demand** is one required course component for one cohort, the **snapshot** is the immutable request captured by Laravel, and a **candidate schedule** is an untrusted proposal awaiting Laravel validation and human review. `feasible` means every hard scheduling rule passes but optimality was not proved within the search limit; `optimal` additionally proves that no better objective value exists for the tested model. The objective and relative optimality gap are solution-quality evidence, not an accuracy score.
+
 #### Controlled Scheduling Flow
 
 1. TALA assembles an immutable snapshot from approved terms, offerings, generated scheduling demands, eligible faculty, rooms, availability, existing commitments, calendar blocks, and constraint profile.
@@ -349,7 +351,7 @@ The scheduling service is a Python 3.12 container running Flask behind Gunicorn 
 - assign every ready scheduling demand exactly once;
 - prevent faculty overlap;
 - prevent room overlap;
-- prevent section-delivery-group overlap;
+- prevent logical-cohort overlap across course-specific delivery-group records;
 - respect fixed assignments;
 - respect calendar blocks;
 - respect room capacity, type, and required features; and
@@ -557,8 +559,10 @@ Mobile-responsive styling does not by itself prove mobile usability. Before publ
 | Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories | Current application configuration and Laravel runtime requirement |
 | Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | Current asynchronous execution contract |
 | Initial web host | 1 vCPU, 2 GiB RAM, 50 GiB SSD, and 2,000 GiB transfer | Selected DigitalOcean starting topology; not a load-tested universal minimum |
-| Scheduling service | Python 3.12 container. Current serving revision: 2 vCPU, 4 GiB, concurrency 1, two solver workers, 300-second request timeout, and 30-second client-production solver limit | TAL-96B3 live Cloud Run state and dated empirical evidence: 10/10 client-scale comparison runs plus post-promotion Laravel acceptance; larger research workloads require separately disclosed 120/240-second profiles |
+| Scheduling service | Python 3.12 container. Current serving revision: 2 vCPU, 4 GiB, concurrency 1, two solver workers, 300-second request timeout, and 30-second client-production solver limit | TAL-96B4 corrected live Cloud Run state and dated empirical evidence: 10/10 Profile B client-scale comparison runs plus tagged and post-promotion Laravel acceptance; larger research workloads require separately disclosed 120/240-second profiles |
 | Network and trust | Valid TLS, DNS, firewall controls, private credentials, and outbound HTTPS/SMTP access for approved integrations | Security and integration requirement |
+
+For the scheduling row, a **solver worker** is one CP-SAT search thread inside a request, while **concurrency 1** means one HTTP solver request at a time per Cloud Run instance. The two settings are not interchangeable. The 300-second value is the complete HTTP request limit; the 30-second value is the current production search budget. vCPU is virtual processor allocation and GiB is memory allocation in gibibytes.
 
 The 2 GiB web host co-locates Nginx, PHP-FPM, Laravel, MySQL, and an initial queue worker. It is therefore the lowest selected production scenario in this specification, but its sufficiency must be established against expected concurrent users, database size, document-upload volume, queue depth, response-time objectives, and backup activity. Sustained memory pressure, swapping, disk pressure, slow database queries, queue delay, or missed response objectives must trigger resizing or separation of the database and workers. Node.js and Python are not required on the web host when frontend assets are prebuilt and the solver remains externally deployed.
 
@@ -695,7 +699,7 @@ Estimated solver request cost =
     + request count × regional request rate
 ```
 
-The TAL-96B3 experiment used the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests. Recalculated across all 80 bounded requests using client elapsed time as the billable-time proxy, the estimate was approximately US$0.214198 before free-tier credits and excluding billing-rounding differences, networking, image storage, build charges, taxes, discounts, and unrelated project use. Profile B (`2 vCPU / 4 GiB / 2 workers`) was promoted for the 54-demand client baseline. Proportional 2× was repeatably accepted only with a 120-second research window; proportional 4× produced two feasible observations but also exhausted the approved 8 GiB limit and is not a supported capacity promise. Detailed reproducibility evidence is retained in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md); the standalone research narrative is consolidated in [`TALA_CP-SAT_Technical_Formulation.md`](research%20paper/TALA_CP-SAT_Technical_Formulation.md).
+The corrected TAL-96B4 replacement experiment used the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests. Across 59 retained corrected requests, using client elapsed time as the billable-time proxy, the estimate was approximately US$0.196810 before free-tier credits and excluding billing-rounding differences, networking, image storage, build charges, taxes, discounts, invalid deployment attempts, and unrelated project use. Profile B (`2 vCPU / 4 GiB / 2 workers`) was promoted for the 54-demand client baseline. Proportional 2× was repeatably accepted on Profile C with a 120-second research window; Profile B accepted two of three before one 4-GiB memory termination. All three proportional 4× confirmations exhausted the approved 8 GiB limit and are not a supported capacity promise. Detailed reproducibility evidence is retained in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md); the standalone research narrative is consolidated in [`TALA_CP-SAT_Technical_Formulation.md`](research%20paper/TALA_CP-SAT_Technical_Formulation.md).
 
 An illustrative payment-fee estimate must use the actual channel mix:
 

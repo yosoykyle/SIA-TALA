@@ -51,6 +51,7 @@ class CourseComponent extends Model
         ];
     }
 
+    /** @return BelongsTo<CourseSpecification, $this> */
     public function courseSpecification(): BelongsTo
     {
         return $this->belongsTo(CourseSpecification::class);

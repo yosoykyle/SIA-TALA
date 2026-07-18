@@ -94,6 +94,11 @@ final class ScheduleAssignmentValidationService
         'soft_constraint_scores',
     ];
 
+    /** @var list<string> */
+    private const OptionalAssignmentKeys = [
+        'cohort_or_student_group_id',
+    ];
+
     /**
      * @param  array<string, mixed>  $solverResult
      */
@@ -232,13 +237,14 @@ final class ScheduleAssignmentValidationService
             'response.candidate_schedule_id' => ['required', 'string', 'max:255'],
             'response.assignments' => ['present', 'array', 'list'],
             'response.assignments.*' => [
-                'array:'.implode(',', self::AssignmentKeys),
+                'array:'.implode(',', [...self::AssignmentKeys, ...self::OptionalAssignmentKeys]),
                 'required_array_keys:'.implode(',', self::AssignmentKeys),
             ],
             'response.assignments.*.scheduling_demand_id' => ['nullable', 'integer'],
             'response.assignments.*.term_offering_id' => ['nullable', 'integer'],
             'response.assignments.*.section_id' => ['nullable', 'integer'],
             'response.assignments.*.section_delivery_group_id' => ['nullable', 'integer'],
+            'response.assignments.*.cohort_or_student_group_id' => ['nullable', 'integer'],
             'response.assignments.*.subject_id' => ['nullable', 'integer'],
             'response.assignments.*.course_component_id' => ['nullable', 'integer'],
             'response.assignments.*.faculty_id' => ['nullable', 'integer'],
@@ -679,6 +685,26 @@ final class ScheduleAssignmentValidationService
             );
         }
 
+        $demandCohortId = $this->integerValue(
+            $demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id'] ?? null,
+        );
+        $assignmentCohortId = $this->integerValue($assignment['cohort_or_student_group_id'] ?? null);
+
+        if (array_key_exists('cohort_or_student_group_id', $assignment)
+            && $assignmentCohortId !== $demandCohortId) {
+            $findings[] = $this->finding(
+                run: $run,
+                code: 'cohort_or_student_group_id_mismatch',
+                constraint: 'assignment_identity',
+                message: 'The assignment shared cohort identity does not match its captured demand.',
+                demandId: $demandId,
+                meetingSequence: $sequence,
+                sourceType: 'scheduling_demand',
+                sourceId: $demandId,
+                sourceField: 'cohort_or_student_group_id',
+            );
+        }
+
         if (($demand['validation_state'] ?? SchedulingDemand::ValidationReadyForReview) !== SchedulingDemand::ValidationReadyForReview) {
             $findings[] = $this->finding(
                 run: $run,
@@ -765,6 +791,7 @@ final class ScheduleAssignmentValidationService
             'meeting_sequence' => $sequence,
             'term_offering_id' => $this->integerValue($assignment['term_offering_id'] ?? null),
             'section_delivery_group_id' => $this->integerValue($assignment['section_delivery_group_id'] ?? null),
+            'cohort_or_student_group_id' => $demandCohortId,
             'faculty_user_id' => $facultyId,
             'room_id' => $roomId,
             'day_of_week' => $day,
@@ -1101,6 +1128,7 @@ final class ScheduleAssignmentValidationService
                 $checks = [
                     'faculty_overlap' => ['faculty_user_id', 'faculty_no_overlap'],
                     'room_overlap' => ['room_id', 'room_no_overlap'],
+                    'cohort_overlap' => ['cohort_or_student_group_id', 'section_delivery_group_no_overlap'],
                     'delivery_group_overlap' => ['section_delivery_group_id', 'section_delivery_group_no_overlap'],
                 ];
 

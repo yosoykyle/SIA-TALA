@@ -6,6 +6,8 @@ use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
@@ -109,6 +111,7 @@ class ScheduleSolverSnapshotService
         }
 
         $demands = $this->demandsForTerm($term, $demandIds);
+        $cohortIdsByDeliveryGroup = $this->cohortIdsByDeliveryGroup($demands);
         $demands = $demands->reject(
             fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
         );
@@ -119,7 +122,13 @@ class ScheduleSolverSnapshotService
             ]);
         }
 
-        return $this->buildSnapshot($run, $term, $demands, useCurrentSources: true);
+        return $this->buildSnapshot(
+            $run,
+            $term,
+            $demands,
+            useCurrentSources: true,
+            cohortIdsByDeliveryGroup: $cohortIdsByDeliveryGroup,
+        );
     }
 
     private function assertDemandReadiness(Term $term): void
@@ -156,6 +165,7 @@ class ScheduleSolverSnapshotService
                 'fixedFaculty',
                 'fixedRoom',
                 'sectionDeliveryGroup.section',
+                'termOffering.curriculumEntry.curriculumVersion',
                 'termOffering.curriculumEntry.courseSpecification.course',
             ])
             ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
@@ -205,9 +215,15 @@ class ScheduleSolverSnapshotService
         Term $term,
         EloquentCollection $demands,
         bool $useCurrentSources = false,
+        ?array $cohortIdsByDeliveryGroup = null,
     ): array {
         $timeSlots = $this->timeSlots($term);
-        $demandPayload = $this->schedulingDemandsPayload($demands, $term, $useCurrentSources);
+        $demandPayload = $this->schedulingDemandsPayload(
+            $demands,
+            $term,
+            $useCurrentSources,
+            $cohortIdsByDeliveryGroup ?? $this->cohortIdsByDeliveryGroup($demands),
+        );
 
         return [
             'contract_version' => self::ContractVersion,
@@ -297,9 +313,10 @@ class ScheduleSolverSnapshotService
         EloquentCollection $demands,
         Term $term,
         bool $useCurrentSources,
+        array $cohortIdsByDeliveryGroup,
     ): array {
         return $demands
-            ->map(function ($demand) use ($term, $useCurrentSources): array {
+            ->map(function ($demand) use ($term, $useCurrentSources, $cohortIdsByDeliveryGroup): array {
                 $group = $demand->getRelationValue('sectionDeliveryGroup');
                 $group = $group instanceof SectionDeliveryGroup ? $group : null;
                 $section = $group?->getRelationValue('section');
@@ -329,6 +346,7 @@ class ScheduleSolverSnapshotService
                     'term_offering_id' => (int) $demand->term_offering_id,
                     'section_id' => $section?->id !== null ? (int) $section->id : (int) ($source['section_id'] ?? 0),
                     'section_delivery_group_id' => (int) $demand->section_delivery_group_id,
+                    'cohort_or_student_group_id' => $cohortIdsByDeliveryGroup[(int) $demand->section_delivery_group_id],
                     'course_id' => $course?->id !== null ? (int) $course->id : $this->nullableInt($source['course_id'] ?? null),
                     'course_code' => $course->code ?? ($source['course_code'] ?? null),
                     'course_component_id' => (int) $demand->course_component_id,
@@ -590,12 +608,59 @@ class ScheduleSolverSnapshotService
         return collect($demands)
             ->unique('section_delivery_group_id')
             ->map(fn (array $demand): array => [
-                'cohort_or_student_group_id' => (int) $demand['section_delivery_group_id'],
+                'cohort_or_student_group_id' => (int) $demand['cohort_or_student_group_id'],
                 'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
                 'expected_count' => (int) $demand['expected_count'],
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Build one stable term-scoped cohort identity for every course-specific
+     * delivery group that represents the same program, year level, and cohort code.
+     *
+     * @param  EloquentCollection<int, SchedulingDemand>  $demands
+     * @return array<int, int>
+     */
+    private function cohortIdsByDeliveryGroup(EloquentCollection $demands): array
+    {
+        $identities = $demands->map(function (SchedulingDemand $demand): array {
+            $group = $demand->getRelationValue('sectionDeliveryGroup');
+            $offering = $demand->getRelationValue('termOffering');
+            $entry = $offering instanceof TermOffering
+                ? $offering->getRelationValue('curriculumEntry')
+                : null;
+            $curriculum = $entry instanceof CurriculumEntry
+                ? $entry->getRelationValue('curriculumVersion')
+                : null;
+            $groupName = $group instanceof SectionDeliveryGroup ? trim((string) $group->name) : '';
+            $yearLevel = $entry instanceof CurriculumEntry ? trim((string) $entry->year_level) : '';
+            $programId = $curriculum instanceof CurriculumVersion ? (int) $curriculum->program_id : 0;
+
+            if ($groupName === '' || $yearLevel === '' || $programId <= 0) {
+                throw ValidationException::withMessages([
+                    'student_cohort_groups' => 'Every scheduling demand requires an exact delivery-group cohort code, curriculum year level, and program before solver dispatch.',
+                ]);
+            }
+
+            return [
+                'section_delivery_group_id' => (int) $demand->section_delivery_group_id,
+                'identity' => $programId.'|'.$yearLevel.'|'.$groupName,
+            ];
+        });
+
+        return $identities
+            ->groupBy('identity')
+            ->reduce(function (array $cohortIds, Collection $rows): array {
+                $cohortId = (int) $rows->min('section_delivery_group_id');
+
+                foreach ($rows as $row) {
+                    $cohortIds[(int) $row['section_delivery_group_id']] = $cohortId;
+                }
+
+                return $cohortIds;
+            }, []);
     }
 
     /**

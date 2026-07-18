@@ -41,6 +41,7 @@ class Candidate:
     term_offering_id: int
     section_id: int
     section_delivery_group_id: int
+    cohort_or_student_group_id: int
     subject_id: int | None
     course_component_id: int | None
     faculty_id: int
@@ -121,8 +122,32 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             runtime_configuration=runtime_configuration,
         )
 
+    demands = _demands(snapshot)
+    cohort_ids_by_delivery_group = _cohort_ids_by_delivery_group(snapshot, demands)
+
+    if cohort_ids_by_delivery_group is None:
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("invalid_student_cohort_mapping", "Every demand requires one consistent shared cohort mapping.")],
+            infeasible_reasons=[_reason("invalid_student_cohort_mapping", "Every demand requires one consistent shared cohort mapping.")],
+            runtime_configuration=runtime_configuration,
+        )
+
+    demands = [
+        {
+            **demand,
+            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])],
+        }
+        for demand in demands
+    ]
     unsupported_demands = [
-        demand for demand in _demands(snapshot)
+        demand for demand in demands
         if _int_or_none(demand.get("meeting_count")) != 1
     ]
     if unsupported_demands:
@@ -139,7 +164,6 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             runtime_configuration=runtime_configuration,
         )
 
-    demands = _demands(snapshot)
     if any(_decimal_or_none(demand.get("load_units")) is None for demand in demands) or any(
         _decimal_or_none(row.get("max_allowed_units")) is None
         for row in snapshot.get("faculty", [])
@@ -504,6 +528,58 @@ def _demands(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _cohort_ids_by_delivery_group(
+    snapshot: dict[str, Any],
+    demands: list[dict[str, Any]],
+) -> dict[int, int] | None:
+    declared: dict[int, int] = {}
+
+    for row in snapshot.get("student_cohort_groups", []):
+        if not isinstance(row, dict):
+            return None
+
+        delivery_group_id = _int_or_none(row.get("section_delivery_group_id"))
+        cohort_id = _int_or_none(row.get("cohort_or_student_group_id"))
+
+        if delivery_group_id is None or cohort_id is None:
+            return None
+
+        if delivery_group_id in declared and declared[delivery_group_id] != cohort_id:
+            return None
+
+        declared[delivery_group_id] = cohort_id
+
+    resolved: dict[int, int] = {}
+
+    for demand in demands:
+        delivery_group_id = _int_or_none(demand.get("section_delivery_group_id"))
+        explicit_cohort_id = _int_or_none(demand.get("cohort_or_student_group_id"))
+
+        if delivery_group_id is None:
+            return None
+
+        declared_cohort_id = declared.get(delivery_group_id)
+
+        if (
+            explicit_cohort_id is not None
+            and declared_cohort_id is not None
+            and explicit_cohort_id != declared_cohort_id
+        ):
+            return None
+
+        cohort_id = explicit_cohort_id or declared_cohort_id
+
+        if cohort_id is None:
+            return None
+
+        if delivery_group_id in resolved and resolved[delivery_group_id] != cohort_id:
+            return None
+
+        resolved[delivery_group_id] = cohort_id
+
+    return resolved
+
+
 def _rooms(snapshot: dict[str, Any]) -> dict[int, dict[str, Any]]:
     return {
         int(room["room_id"]): room
@@ -692,6 +768,7 @@ def _candidate(
         term_offering_id=_int_or_none(demand.get("term_offering_id")) or 0,
         section_id=_int_or_none(demand.get("section_id")) or 0,
         section_delivery_group_id=_int_or_none(demand.get("section_delivery_group_id")) or 0,
+        cohort_or_student_group_id=_int_or_none(demand.get("cohort_or_student_group_id")) or 0,
         subject_id=_int_or_none(demand.get("course_id") or demand.get("subject_id")),
         course_component_id=_int_or_none(demand.get("course_component_id")),
         faculty_id=faculty_id,
@@ -725,14 +802,14 @@ def _add_no_overlap_constraints(
         )
         for index, candidate in enumerate(candidates)
     ]
-    delivery_group_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
+    cohort_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
     faculty_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
     room_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
 
     for index, candidate in enumerate(candidates):
         interval = intervals[index]
-        delivery_group_days.setdefault(
-            (candidate.section_delivery_group_id, candidate.day_of_week),
+        cohort_days.setdefault(
+            (candidate.cohort_or_student_group_id, candidate.day_of_week),
             [],
         ).append(interval)
         faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(interval)
@@ -740,7 +817,7 @@ def _add_no_overlap_constraints(
         if candidate.room_id is not None:
             room_days.setdefault((candidate.room_id, candidate.day_of_week), []).append(interval)
 
-    for grouped_intervals in (delivery_group_days, faculty_days, room_days):
+    for grouped_intervals in (cohort_days, faculty_days, room_days):
         for resource_intervals in grouped_intervals.values():
             if len(resource_intervals) > 1:
                 model.add_no_overlap(resource_intervals)
@@ -940,6 +1017,7 @@ def _assignment(candidate: Candidate) -> dict[str, Any]:
         "term_offering_id": candidate.term_offering_id,
         "section_id": candidate.section_id,
         "section_delivery_group_id": candidate.section_delivery_group_id,
+        "cohort_or_student_group_id": candidate.cohort_or_student_group_id,
         "subject_id": candidate.subject_id,
         "course_component_id": candidate.course_component_id,
         "faculty_id": candidate.faculty_id,
@@ -970,6 +1048,7 @@ def _conflict_assignment(demand: dict[str, Any], violations: list[dict[str, str]
         "term_offering_id": _int_or_none(demand.get("term_offering_id")),
         "section_id": _int_or_none(demand.get("section_id")),
         "section_delivery_group_id": _int_or_none(demand.get("section_delivery_group_id")),
+        "cohort_or_student_group_id": _int_or_none(demand.get("cohort_or_student_group_id")),
         "subject_id": _int_or_none(demand.get("course_id") or demand.get("subject_id")),
         "course_component_id": _int_or_none(demand.get("course_component_id")),
         "faculty_id": _int_or_none(demand.get("fixed_faculty_user_id")),

@@ -348,6 +348,43 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         $this->assertSame('room_id', $roomFinding['source_field']);
     }
 
+    public function test_live_assignment_entry_point_rejects_shared_cohort_overlap_across_delivery_groups(): void
+    {
+        $context = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusPublished);
+        $firstEntry = $context['offerings'][0]->curriculumEntry;
+        $secondEntry = $context['offerings'][1]->curriculumEntry;
+        $firstGroup = $context['demands'][0]->sectionDeliveryGroup;
+        $secondGroup = $context['demands'][1]->sectionDeliveryGroup;
+
+        $secondEntry->curriculumVersion()->update([
+            'program_id' => $firstEntry->curriculumVersion->program_id,
+        ]);
+        $secondGroup->update(['name' => $firstGroup->name]);
+
+        $this->officialMeeting(
+            $context['run'],
+            $context['demands'][1],
+            $context['faculty'],
+            $context['room'],
+            '10:00:00',
+            '13:00:00',
+        );
+
+        $validation = app(ScheduleAssignmentRevalidationService::class)->validateLiveAssignments(
+            $context['run'],
+            [
+                $this->assignment($context, 0, startsAt: '10:00:00', endsAt: '13:00:00'),
+                $this->assignment($context, 1, startsAt: '14:00:00', endsAt: '17:00:00'),
+            ],
+        );
+
+        $this->assertFalse($validation->passes());
+        $this->assertContains(
+            'live_cohort_overlap',
+            collect($validation->findings())->pluck('code')->all(),
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */

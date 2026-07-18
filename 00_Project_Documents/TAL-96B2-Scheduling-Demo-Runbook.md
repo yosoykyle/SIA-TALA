@@ -8,14 +8,16 @@ The audience should see one complete, explainable path:
 
 1. The Registrar confirms that all 54 scheduling demands are ready.
 2. Laravel captures an immutable demand snapshot and queues a solver run.
-3. The CP-SAT service returns a complete candidate schedule.
+3. The Constraint Programming–Satisfiability (CP-SAT) service returns a complete candidate schedule.
 4. Laravel records and revalidates every candidate row before publication.
 5. The Registrar publishes the accepted schedule.
 6. The Faculty user sees only their official assigned meetings.
 
 The solver proposes assignments; Laravel remains the authority that validates, records, publishes, and exposes them to users.
 
-The detailed local 54-demand experiment is recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](TAL-96B2-Representative-Solver-Evidence.md). The private Cloud Run profile comparison, proportional-growth boundary, resource use, and cost evidence are recorded in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Do not describe either synthetic fixture as the client's actual population, a universal maximum, or an accuracy benchmark.
+For the presentation, a **Scheduling Demand** is one course component that must be assigned; a **snapshot** is the unchanged copy of all inputs sent for one run; a **candidate schedule** is the solver's proposal; and an **official schedule** is the version Laravel publishes only after validation and Registrar approval. `feasible` means the proposal satisfies every hard rule but the 30-second search did not prove it was the best-ranked possible result. `optimal` means CP-SAT also proved that no better objective value exists for that tested input.
+
+The corrected 54-demand Cloud acceptance is recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](TAL-96B2-Representative-Solver-Evidence.md). The replacement Cloud Run profile comparison, proportional-growth boundary, resource use, and cost evidence are recorded in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Do not describe the synthetic scheduling resources as the client's actual personnel or facilities, a universal maximum, or an accuracy benchmark.
 
 ## Test accounts
 
@@ -28,7 +30,7 @@ All accounts use the password `password` and are test-only.
 | Academic Head | `academic-head.demo@example.test` | Read-only review of scheduling evidence |
 | System Super Admin | `system-admin.demo@example.test` | Optional integration-status and operational-event inspection |
 
-The seeded term is **AY 2025-2026 / Second Semester**. The baseline contains 54 ready scheduling demands and 47 students.
+The seeded term is **AY 2025-2026 / Second Semester**. The baseline contains 54 ready scheduling demands and 47 students in six logical program-year cohorts. Although each course has its own traceable delivery-group record, all courses attended by one cohort share a conflict identity, so the solver and Laravel prevent cross-course timetable overlap for those students.
 
 ## One-time guarded setup
 
@@ -55,6 +57,8 @@ php artisan acceptance:seed-client-baseline --no-interaction
 ```
 
 The credential path must resolve to the existing dedicated scheduler-invoker key. Do not replace it with the OCR credential, print its contents, or copy it into documentation or source control.
+
+The environment block has four purposes: it proves the isolated testing database; configures database-backed cache, queue, and safe array mail; selects the private Cloud Run scheduling driver and service URL; and supplies the dedicated identity and request timeouts. The 300-second request timeout is the Laravel-to-Cloud transport limit, while the production CP-SAT search budget is 30 seconds. Cloud Run **concurrency one** means an instance handles one solver request at a time; the current production request itself uses two CP-SAT workers on profile B (2 virtual CPUs, abbreviated vCPUs, and 4 gibibytes, abbreviated GiB).
 
 Expected result:
 
