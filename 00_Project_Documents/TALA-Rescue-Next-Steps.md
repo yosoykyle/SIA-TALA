@@ -6,7 +6,7 @@ This is the active planning surface for issue order, compact parent/sub-slice ma
 
 ## Active and Upcoming Issues
 
-Remaining dependency chain: prove PayMongo test-mode demo readiness (revised TAL-96C), complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (revised TAL-96D), and prepare the formal client and panel presentation (TAL-97). The completed scheduling formulation and TAL-96B client-baseline, recovery, capacity, and shared-cohort work are retained in their bounded commits and pending-sync tracker rows. Post-MVP deferrals are nonblocking.
+Remaining dependency chain: prove PayMongo test-mode demo readiness (revised TAL-96C), complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (revised TAL-96D), and prepare the formal client and panel presentation (TAL-97). The completed scheduling formulation, consistency gate, and TAL-96B client-baseline, recovery, capacity, and shared-cohort work are retained in their bounded commits and pending-sync tracker rows. Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Remaining dependency chain: prove PayMongo test-mode demo readiness (revised TAL
 
 ## Active Approved Plan Contract
 
-No active approved plan contract. TAL-96B4 is complete locally; its delivered detail and verification evidence belong in the bounded cleanup commit. The next plan boundary is TAL-96C.
+No active approved plan. The next planning boundary is `Plan TAL-96C`.
 
 ## Post-MVP Deferrals
 
@@ -35,4 +35,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **Plan TAL-96C — PayMongo Test-Mode Demo Readiness**. Linear sync, push, PR creation, public IAM, Cloud resource changes, and TAL-96C implementation remain unauthorized.
+Next primary boundary: **`Plan TAL-96C`**. Linear sync, implementation, push, PR creation, Cloud mutation, and external-service changes remain unauthorized until their corresponding explicit commands.

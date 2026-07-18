@@ -2,6 +2,7 @@
 
 **Evidence revision:** 18 July 2026
 **Replacement reason:** TAL-96B4 corrected shared-cohort conflict identity. Every result below was regenerated with that correction; no pre-correction measurement is mixed into this report.
+**Documentation clarification:** 19 July 2026 — profile-selection rationale and role-specific timetable interpretation clarified without changing the measurements or solver equations.
 
 ## Purpose and limits
 
@@ -36,6 +37,12 @@ The correction did not change the mathematical meaning of the cohort non-overlap
 | Deterministic control | OR-Tools 9.15.6755; seed `20260718` |
 
 A **CP-SAT worker** is one solver search thread inside a request. **Cloud Run concurrency 1** permits one request at a time on each service instance. They are different settings. The 30-second limit bounds mathematical search; the 300-second limit bounds the complete authenticated HTTP request.
+
+## Why the experiment used profiles A, B, and C
+
+The profile letters are project experiment labels rather than Cloud Run product tiers. A prior 1-vCPU, 1-GiB, one-worker candidate was rejected after the representative acceptance path terminated the instance at approximately 1,045 MiB and again at 1,154 MiB. The corrected comparison therefore began with Profile A at the same vCPU and worker count but 2 GiB of memory. Profile B doubled A to 2 vCPU, 4 GiB, and two workers. Profile C doubled B to 4 vCPU, 8 GiB, and four workers. All three kept Cloud Run concurrency at one so each instance processed only one CPU- and memory-intensive solve at a time.
+
+This ordered doubling ladder was intentionally bounded. It supplied a post-failure lower point, a middle production candidate, and an upper research comparison while holding the solver image, client workload, seed, and search limit constant. Profiles D, E, and F were not unreported tests: they were outside the approved matrix. Once B and C both accepted every client-scale repetition, B could be selected on validity, solution-quality distribution, runtime, resource proportionality, and cost. Profile C then provided the larger-workload comparison and exposed an 8-GiB boundary at proportional 4x. A still-larger profile would answer a separate expansion-capacity and cost question rather than improve the evidence for the current client's production default.
 
 ## Workload design
 
@@ -113,7 +120,7 @@ The final Profile B revision was first tested through its zero-traffic tagged UR
 
 After the scheduling queue was paused and MySQL `test_tala_db` proved zero runs, candidates, meetings, jobs, and failed jobs, the revision received 100% canonical traffic. Two post-promotion authenticated solves both returned `feasible`, assigned 54/54 demands, reported zero hard violations, used two workers and seed `20260718`, passed Laravel validation, and exercised Registrar publication plus Faculty and Student projections. The queue was then resumed. The database again contained zero temporary scheduling records.
 
-The first-year Student projections contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`. Across all six cohorts, the published counts were 10, 9, 8, 8, 10, and 9, totaling 54.
+The first-year Student projections contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`. Across all six cohorts, the published counts were 10, 9, 8, 8, 10, and 9, totaling 54. These projections are role-specific: the Registrar view contains the institutional master schedule, each Faculty view contains only that faculty member's assignments, and each Student view contains only active official meetings bound to that student's enrollments. Modality belongs to the offering or delivery group rather than to a personal student preference, so a Student view presents the student's complete bound schedule with online and face-to-face rows labelled separately.
 
 ## Cost interpretation
 

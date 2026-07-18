@@ -8,6 +8,8 @@
 
 **Empirical revision date:** 18 July 2026 — Cloud Run profile selection, capacity evidence, deployment outcome, and cost basis; solver equations are unchanged
 
+**Consistency revision date:** 19 July 2026 — shared-cohort terminology, benchmark-profile rationale, and role-specific timetable interpretation aligned with the promoted TAL-96B4 implementation; solver equations remain unchanged
+
 ## Contents
 
 1. [Technical summary](#1-technical-summary)
@@ -225,7 +227,7 @@ The implemented baseline schedules regular section delivery groups by assigning 
 - one institutional day and start time; and
 - one uninterrupted block whose duration comes from the demand.
 
-It enforces exact assignment coverage, faculty/room/delivery-group non-overlap, fixed assignments, recurring calendar restrictions, room capacity/type/features, faculty qualification/load, and configured same-faculty links. It ranks valid solutions using earlier placement, faculty idle-gap reduction, faculty-load balance, and efficient use of already-suitable rooms.
+It enforces exact assignment coverage, faculty/room/logical-cohort non-overlap, fixed assignments, recurring calendar restrictions, room capacity/type/features, faculty qualification/load, and configured same-faculty links. Course-specific delivery-group identifiers remain attached to assignments for traceability, while the shared logical-cohort identity prevents subjects attended by the same students from overlapping. It ranks valid solutions using earlier placement, faculty idle-gap reduction, faculty-load balance, and efficient use of already-suitable rooms.
 
 ### 2.2 Delimitations
 
@@ -291,6 +293,8 @@ Consider a cohort that must attend a one-hour IT101 lecture. Laravel represents 
 The symbols in Sections 5–6 describe this process compactly. For example, $d$ means a demand, $c$ means one candidate assignment for that demand, and $x_c=1$ means that candidate is selected. The complete two-demand numerical example appears in Section 10.
 
 ## 5. Mathematical formulation
+
+The presentation follows the reporting convention used by the scheduling references in Section 13: define the problem notation and decision variables first, state each hard and soft rule as an individually identified equation, and then explain its operational meaning. The equations below are derived from TALA's implemented candidate model. They are not copied from PyJobShop's job-shop formulation or Han and Wang's genetic-algorithm and dynamic-programming model, because those systems optimize different scheduling structures.
 
 ### Constraint taxonomy and implemented family index
 
@@ -641,7 +645,7 @@ Hard constraints first define the valid region. The four implemented soft terms 
 | S1 | `prefer_earlier_time_blocks` | Linear selected-candidate reward $E=\sum a_cx_c$ | Earlier institutional day/time placement | Returned raw value, fixed weight, weighted value, and total reconciliation |
 | S2 | `reduce_faculty_idle_gaps` | Auxiliary faculty/day span and duration variables produce $I=-\sum G_{f,\delta}$ | Less internal idle time between a faculty member's meetings | Returned raw value, fixed weight, weighted value, and total reconciliation |
 | S3 | `balance_faculty_load` | Absolute-equality variables produce $B=-\sum\Delta_{ff'}$ | Smaller pairwise differences in deduplicated faculty load | Returned raw value, fixed weight, weighted value, and total reconciliation |
-| S4 | `use_rooms_efficiently` | Linear selected-candidate reward $R=\sum h_cx_c$ | Preference for a smaller room after suitability already passes | Returned raw value, fixed weight, weighted value, and total reconciliation |
+| S4 | `use_rooms_efficiently` | Linear selected-candidate reward $R=\sum \rho_cx_c$ | Preference for a smaller room after suitability already passes | Returned raw value, fixed weight, weighted value, and total reconciliation |
 
 Laravel does not reinterpret these preferences as hard constraints. It verifies the captured profile identity, the expected term set and weights, each weighted calculation, the returned total, and equality between that total and `objective_score`.
 
@@ -798,24 +802,24 @@ The term compares all faculty rows in the snapshot, including a faculty member w
 Candidate filtering already guarantees capacity, type, and feature suitability. The ranking term then uses the coarse score
 
 $$
-h_c =
+\rho_c =
 \begin{cases}
 100, & r(c)=\varnothing \text{ or the recorded capacity is non-positive},\\
 \max(0,1000-\kappa_{r(c)}), & \text{otherwise},
 \end{cases}
 $$
 
-**Interpretation.** $h_c$ is candidate $c$'s room-efficiency reward. A no-room candidate or nonpositive recorded capacity receives 100; otherwise a smaller suitable room receives a larger value through $1000-\kappa_{r(c)}$, never below zero. Suitability is already mandatory, so this equation only ranks rooms that have passed the hard checks.
+**Interpretation.** $\rho_c$ is candidate $c$'s room-efficiency reward. The Greek letter $\rho$ is used here to avoid confusing this reward with $h(c)$, which denotes candidate $c$'s logical cohort. A no-room candidate or nonpositive recorded capacity receives 100; otherwise a smaller suitable room receives a larger value through $1000-\kappa_{r(c)}$, never below zero. Suitability is already mandatory, so this equation only ranks rooms that have passed the hard checks.
 
 and
 
 **S4 — Efficient suitable-room score**
 
 $$
-R = \sum_{c\in C} h_c x_c.
+R = \sum_{c\in C} \rho_c x_c.
 $$
 
-**Interpretation.** $R$ adds the room reward $h_c$ for selected candidates. This gives the objective a simple preference for using smaller suitable rooms rather than occupying unnecessarily large rooms.
+**Interpretation.** $R$ adds the room reward $\rho_c$ for selected candidates. This gives the objective a simple preference for using smaller suitable rooms rather than occupying unnecessarily large rooms.
 
 Among suitable physical rooms, this prefers a smaller room over a larger room. It is intentionally a simple MVP proxy; it is not an occupancy percentage or a direct seat-slack equation.
 
@@ -867,7 +871,7 @@ Laravel rechecks, rather than assumes, the following result properties:
 - the exact typed `solver_statistics` allowlist, including the worker count approved for that invocation and the fixed seed;
 - one assignment for every snapshot demand and no duplicates;
 - returned faculty, room, day, time, duration, fixed assignment, and source relationships;
-- faculty, room, and delivery-group conflicts;
+- faculty, room, and logical-cohort conflicts, while preserving each assignment's course-specific delivery-group source;
 - qualifications, room suitability, recurring blocks, same-faculty links, and deduplicated faculty load; and
 - persistence-ready candidate fields.
 
@@ -887,7 +891,7 @@ The solver never grants publication authority. Only the authorized publication s
 
 ### 9.1 MVP scheduling sufficiency
 
-Usability depends first on correctness: every ready demand must receive one valid block without violating faculty, room, delivery-group, calendar, qualification, capacity, fixed-assignment, load, or linked-faculty rules. Those rules are hard constraints or deterministic admissibility checks. Therefore a returned `optimal` or `feasible` candidate that also passes Laravel's independent validation is operationally usable for human review and publication.
+Usability depends first on correctness: every ready demand must receive one valid block without violating faculty, room, logical-cohort, calendar, qualification, capacity, fixed-assignment, load, or linked-faculty rules. Those rules are hard constraints or deterministic admissibility checks. Therefore a returned `optimal` or `feasible` candidate that also passes Laravel's independent validation is operationally usable for human review and publication.
 
 The four fixed soft terms are appropriate for the MVP because they are measurable from the immutable snapshot, repeatable across runs, explainable to the Registrar, and reconcilable by Laravel:
 
@@ -903,7 +907,7 @@ Equal weights remove arbitrary user tuning from the first approved baseline. Hum
 The broader PRD lists seven desired preferences. The current solver implements four as explicit objective terms: earlier blocks, reduced faculty idle gaps, balanced faculty load, and efficient room use. It does **not** claim seven independently implemented objectives.
 
 - **Reduce late/weekend scheduling:** handled through the allowed operating grid, recurring unavailability/break blocks, and the earlier-day/time score; it is not a separately reported objective term.
-- **Compact student/section schedules:** regular delivery-group overlap is a hard constraint, but generalized compactness is not independently optimized.
+- **Compact student/section schedules:** overlap within a shared logical cohort is a hard constraint, but generalized compactness is not independently optimized.
 - **Minimize change from a previous published version:** not independently optimized in this baseline. Publication impact checks and controlled revisions protect live operations, but they are not a CP-SAT similarity term.
 - **Faculty requested-time preference:** explicitly outside approved scope; mandatory unavailable blocks are enforced instead.
 
@@ -913,14 +917,14 @@ These are refinement boundaries, not evidence that the completed baseline failed
 
 The repository's deterministic `minimal_snapshot.json` contains two one-hour lecture demands:
 
-In this example, a **demand** is one required lecture. An **offering** is the record saying that a course is available in the selected term. A **delivery group** is the student cohort that attends the meeting together; using the same group identifier means the two demands must not overlap for those students. **Eligible faculty** identifies the qualified person the solver is allowed to assign. **Candidate starts** are the possible start times remaining after time-grid and other single-candidate checks. The numbers are stable internal identifiers, not headcounts or scores.
+In this example, a **demand** is one required lecture. An **offering** is the record saying that a course is available in the selected term. A **delivery group** is the course-specific source record that connects one offering to its section, while a **logical cohort** identifies the students who attend subjects together. This reduced fixture uses delivery-group identifier `110` for both demands and maps it to logical cohort `110`; the identical numbers are a fixture simplification rather than a rule that delivery groups and cohorts must always be the same record. **Eligible faculty** identifies the qualified person the solver is allowed to assign. **Candidate starts** are the possible start times remaining after time-grid and other single-candidate checks. The numbers are stable internal identifiers, not headcounts or scores.
 
-| Required meeting (demand) | Course-in-term record (offering) | Cohort attending together (delivery group) | Faculty allowed to teach | Suitable room | Possible start times |
+| Required meeting (demand) | Course-in-term record (offering) | Delivery group / logical cohort | Faculty allowed to teach | Suitable room | Possible start times |
 | --- | ---: | ---: | ---: | --- | --- |
 | `5001`: IT101 lecture | `300`: IT101 offered in the test term | `110`: the shared test cohort | `200`: one qualified faculty record | R-101, capacity 40 | Monday 08:00, 08:30, 09:00, 09:30 |
 | `5002`: IT102 lecture | `301`: IT102 offered in the test term | `110`: the same test cohort | `201`: another qualified faculty record | R-101, capacity 40 | Monday 08:00, 08:30, 09:00, 09:30 |
 
-Both demands use the same room and delivery group, so overlapping one-hour candidates cannot both be selected. Running the implemented fixture with OR-Tools 9.15.6755 produces an `optimal` result:
+Both demands use the same physical room and the same logical cohort, so overlapping one-hour candidates cannot both be selected. Their shared delivery-group identifier also remains available as the source record for this reduced fixture. Running the implemented fixture with OR-Tools 9.15.6755 produces an `optimal` result:
 
 | Demand | Faculty | Room | Day | Time |
 | --- | ---: | --- | ---: | --- |
@@ -1018,7 +1022,7 @@ The corrected post-promotion acceptance published 54 official meetings inside a 
 | `DTHM-2A` | Tourism and Hospitality Management, second year | 9 |
 | **Total** | **Six logical cohorts** | **54** |
 
-The next three tables show one complete first-year timetable produced by the promoted solver revision. “Not required” means the online meeting does not consume a physical room. Every row is one official meeting after Laravel validation; no two rows within the same cohort overlap.
+The next three tables show one complete first-year timetable produced by the promoted solver revision. They are research-paper renderings of validated official meeting records, not screenshots of one universal application table. The three first-year cohorts are shown in full so the reader can inspect the resulting day, time, faculty, room, and modality pattern; the three second-year cohorts were also validated and are summarized by count above. “Not required” means the online meeting does not consume a physical room. Every row is one official meeting after Laravel validation; no two rows within the same cohort overlap.
 
 **Business Management — `DTBM-1A`**
 
@@ -1063,7 +1067,9 @@ The next three tables show one complete first-year timetable produced by the pro
 | HSKPNCII — Housekeeping NC II | Laboratory | Faculty 10 | Wednesday | 07:00–11:00 | LAB-101 | Face-to-Face |
 | HPC07 — Front Office Services NC II | Laboratory | Faculty 12 | Saturday | 16:00–20:00 | LAB-101 | Face-to-Face |
 
-The Registrar projection contained all 54 published meetings. The 12 Faculty projections collectively contained those same 54 assignments. Representative Student projections contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`. These cross-role counts verify that the candidate was not only mathematically valid but also consumable by the existing application views.
+The Registrar projection contained all 54 published meetings because the Registrar reviews the institutional master schedule. Each Faculty projection contained only the meetings assigned to that authenticated faculty account; the 12 Faculty projections collectively contained the same 54 assignments. Each Student projection contained only active official meetings bound to that authenticated student's enrollments. Representative Student projections therefore contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`, rather than all 54 meetings or the other cohorts' tables. These cross-role counts verify that the candidate was not only mathematically valid but also consumable by the existing role-specific application views.
+
+Delivery modality is an academic property of the applicable term offering or delivery group in the current TALA contract; it is not an individual student's solver preference. The Student schedule consequently shows the student's complete set of bound meetings and labels each row's modality. An online meeting still displays its subject, faculty, day, and time but does not consume a physical room. A face-to-face meeting displays its assigned room. A student whose bound offerings are all online naturally sees an all-online schedule, but the current system does not let one student convert an otherwise mixed cohort schedule into a personal online-only timetable.
 
 The 156 slots are derived from the configured six-day grid: Monday through Saturday provides 6 days; each day spans 07:00–20:00, or 13 hours; and two 30-minute grid units fit in each hour. Therefore $6\times13\times2=156$ permitted half-hour start-grid units. “Slot” describes the time grid, not a room, class, or independently split meeting.
 
@@ -1112,6 +1118,10 @@ The **random seed** is an integer that initializes CP-SAT's randomized search ch
 | A | 1 | 2 GiB | 1 | Smallest client-scale comparison |
 | B | 2 | 4 GiB | 2 | Client-production selection candidate and 2× comparison |
 | C | 4 | 8 GiB | 4 | Upper research profile for 2× and 4× boundaries |
+
+The profile letters are labels for this experiment, not Cloud Run product tiers. The earlier TAL-96B2 candidate used 1 vCPU, 1 GiB, one CP-SAT worker, and concurrency one. It was rejected as a production baseline after the representative acceptance path terminated the instance at approximately 1,045 MiB and again at 1,154 MiB. Profile A therefore retained one vCPU and one worker while doubling memory to 2 GiB, making it the smallest post-failure client-scale comparison. Profile B doubled A to 2 vCPU, 4 GiB, and two workers. Profile C doubled B to 4 vCPU, 8 GiB, and four workers. Keeping concurrency at one isolated one memory- and CPU-intensive solve per instance, while the ordered doubling ladder provided a simple comparison of progressively larger resources using the same solver image, workload, seed, and search window.
+
+Profiles D, E, and F were not omitted measurements. The bounded experiment required only three resource points to identify an unreliable lower profile, compare two fully accepted client-scale profiles, and examine a larger-workload boundary. After Profile B satisfied the client workload and Profile C supplied the upper research comparison, another profile would have addressed a different question: how much additional resource and cost should be approved for workloads beyond the tested production requirement. The proportional 4× attempts already showed an 8-GiB memory boundary on Profile C. Testing larger combinations therefore belongs to a future model-optimization or expansion-capacity study and is not necessary to justify the current Profile B production selection.
 
 For incumbent objective $Z_i$, CP-SAT bound $B_i$, and same-tier best observed objective $Z^*$,
 
