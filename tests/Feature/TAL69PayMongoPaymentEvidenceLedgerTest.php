@@ -96,7 +96,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
-    public function test_payment_paid_envelope_uses_exact_checkout_ownership_without_fallback_fields(): void
+    public function test_payment_paid_envelope_uses_checkout_for_ownership_and_payment_id_for_evidence(): void
     {
         $assessment = $this->activeAssessment();
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_payment_paid');
@@ -109,10 +109,14 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         data_forget($payload, 'data.attributes.data.attributes.amount_paid');
 
         $result = app(PayMongoWebhookProcessor::class)->process($this->webhookCall($payload));
+        $attempt->refresh();
+        $payment = Payment::query()->sole();
 
         $this->assertSame('posted', $result['status']);
-        $this->assertSame('paid', $attempt->fresh()->status);
-        $this->assertSame('paymongo:cs_tal69_payment_paid', Payment::query()->sole()->provider_reference);
+        $this->assertSame('paid', $attempt->status);
+        $this->assertSame('cs_tal69_payment_paid', $attempt->provider_checkout_id);
+        $this->assertSame('pay_tal69_payment_paid', data_get($attempt->metadata, 'last_webhook.payment_id'));
+        $this->assertSame('paymongo:pay_tal69_payment_paid', $payment->provider_reference);
         $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
