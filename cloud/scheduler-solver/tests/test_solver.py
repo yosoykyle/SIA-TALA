@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import unittest
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 from ortools.sat.python import cp_model
 
-from tala_solver.solver import solve_snapshot
+from tala_solver.solver import solve_snapshot, solver_runtime_configuration
 
 
 class SolveSnapshotTest(unittest.TestCase):
@@ -213,6 +214,34 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertIsInstance(statistics["wall_time_seconds"], float)
         self.assertEqual(1, statistics["worker_count"])
         self.assertEqual(20_260_718, statistics["random_seed"])
+
+    def test_solver_runtime_configuration_accepts_the_approved_worker_profiles(self) -> None:
+        for worker_count in (1, 2, 4):
+            with self.subTest(worker_count=worker_count), patch.dict(
+                os.environ,
+                {
+                    "SOLVER_WORKER_COUNT": str(worker_count),
+                    "SOLVER_RANDOM_SEED": "20260718",
+                },
+            ):
+                configuration = solver_runtime_configuration()
+                result = solve_snapshot(self.snapshot(), timeout_seconds=10)
+
+            self.assertEqual(worker_count, configuration.worker_count)
+            self.assertEqual(worker_count, result["solver_statistics"]["worker_count"])
+            self.assertEqual(20_260_718, result["solver_statistics"]["random_seed"])
+
+    def test_solver_runtime_configuration_rejects_unapproved_values(self) -> None:
+        cases = [
+            ({"SOLVER_WORKER_COUNT": "3"}, "SOLVER_WORKER_COUNT"),
+            ({"SOLVER_RANDOM_SEED": "17"}, "SOLVER_RANDOM_SEED"),
+            ({"SOLVER_WORKER_COUNT": "not-an-integer"}, "SOLVER_WORKER_COUNT"),
+        ]
+
+        for environment, expected_message in cases:
+            with self.subTest(environment=environment), patch.dict(os.environ, environment):
+                with self.assertRaisesRegex(RuntimeError, expected_message):
+                    solver_runtime_configuration()
 
     def test_model_growth_uses_resource_no_overlap_instead_of_candidate_pair_constraints(self) -> None:
         snapshot = self.scaled_snapshot(demand_count=6, slot_count=20)

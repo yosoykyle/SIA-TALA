@@ -19,6 +19,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96A | Done locally; pending explicit Linear sync | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline |
 | TAL-96B1 | Done locally; pending explicit Linear sync | Guarded Client-Aligned Deterministic Acceptance Baseline |
 | TAL-96B2 | Done locally; pending explicit Linear sync | Representative CP-SAT Recovery and Capacity-Benchmark Handoff |
+| TAL-96B3 | Done locally; pending explicit Linear sync | Cloud Run CP-SAT Capacity, Solution-Quality, and Production-Profile Finalization |
 
 ## Compact Synced History
 

@@ -1,12 +1,12 @@
-# TALA CP-SAT Technical Formulation and Laravel Validation Pipeline
+# TALA Scheduling Optimization: CP-SAT Formulation, Laravel Validation, and Empirical Capacity
 
-**Document type:** Standalone technical specification
+**Document type:** Standalone technical and empirical specification
 
 **System scope:** CP-SAT candidate timetable generation with Laravel-controlled validation, human review, and publication
 
 **Technical baseline date:** 18 July 2026
 
-**Presentation revision date:** 18 July 2026 — constraint-equation organization only; the technical baseline is unchanged
+**Empirical revision date:** 18 July 2026 — Cloud Run profile selection, capacity evidence, deployment outcome, and cost basis; solver equations are unchanged
 
 ## Contents
 
@@ -20,7 +20,7 @@
 8. [Laravel validation and human authority](#8-laravel-validation-and-human-authority)
 9. [MVP justification and current gaps](#9-mvp-justification-and-current-gaps)
 10. [Worked example from the implemented fixture](#10-worked-example-from-the-implemented-fixture)
-11. [Representative experimental evidence](#11-representative-experimental-evidence)
+11. [Experimental evaluation and operating envelope](#11-experimental-evaluation-and-operating-envelope)
 12. [Equation-to-implementation traceability](#12-equation-to-implementation-traceability)
 13. [References](#13-references)
 
@@ -792,29 +792,84 @@ $$
 
 The returned `objective_score` and `objective_details.total` are both `18900`. The exact selection between the two symmetric subject-to-time assignments is not institutionally significant; exact coverage, non-overlap, and the reconciled total are the material properties.
 
-## 11. Representative experimental evidence
+## 11. Experimental evaluation and operating envelope
 
-The accepted TAL-96B1 client-aligned synthetic baseline was solved three times through the real local HTTP boundary using the same immutable snapshot, OR-Tools 9.15.6755, a 30-second solver limit, one worker, and fixed random seed `20260718`. The snapshot contained 54 ready Scheduling Demands, 12 faculty members, 6 rooms, and 156 half-hour time slots. Candidate generation produced 10,356 admissible candidates; the built model contained 31,488 variables, 63,120 constraints, and 426 `NoOverlap` groups.
+### 11.1 Evaluation purpose and scale basis
 
-| Run | Status | Coverage | Hard violations | Objective | Best bound | Relative gap | CP-SAT wall time |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | `feasible` | 54/54 | 0 | 420,560 | 465,618 | 10.7138102% | 30.0351426 s |
-| 2 | `feasible` | 54/54 | 0 | 420,560 | 465,618 | 10.7138102% | 30.0331555 s |
-| 3 | `feasible` | 54/54 | 0 | 421,020 | 465,084 | 10.4660111% | 30.0257759 s |
+The evaluation answers three bounded questions: whether the implemented TALA pipeline produces valid client-scale schedules; which Cloud Run profile gives the strongest client-scale solution quality without unnecessary resources; and what larger synthetic workload is repeatably accepted before a time, model, or memory boundary is observed. It does not position TALA as a direct replacement for enterprise whole-university timetabling and does not treat optimization as predictive classification.
 
-Every response passed Laravel's independent validation. The guarded acceptance path created 54 candidate rows, published 54 active official meetings, and rendered the selected Faculty user's assigned meetings. These results establish complete constraint-satisfying acceptance for this disclosed representative fixture; they do not prove a universal minimum, maximum capacity, or optimal timetable.
+The client reports 47 students across BM, IT, and THM: 35 first-year and 12 second-year students. One section is currently accommodated for each program-year combination, producing six cohorts. The accepted operational fixture converts the disclosed curricula and resources into 54 Scheduling Demands, 12 faculty records, 6 rooms, and 156 half-hour slots. Scheduling Demand count, candidate count, resources, and slots—not raw student headcount—govern this CP-SAT model because TALA schedules cohort meetings rather than individual students.
 
-Two distinct valid candidate solutions occurred across the three runs. The single worker and fixed seed control the principal CP-SAT search settings, but the 30-second wall-clock stop can end search at slightly different points under normal operating-system timing. Reproducibility therefore means preserving and disclosing the exact input, source, dependency, configuration, and validation evidence—not claiming byte-identical assignments from every time-bounded feasible run.
+Published university-timetabling studies provide context rather than equivalent datasets. ITC 2019 includes problems from roughly 500 classes at school or faculty scope to thousands of classes across broad university scope, while UniTime models classes, students, rooms, instructors, and group constraints under a different formulation. TALA therefore derives its experimental tiers from its own accepted workload instead of copying external headcounts:
 
-The reported relative optimality gap is
+| Tier | Demands | Faculty | Rooms | Slots | Meaning |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Reduced technical | 27 | 6 | 3 | 156 | Harness and monotonic-growth check; not an institutional minimum |
+| Client-representative | 54 | 12 | 6 | 156 | Current client-scale baseline associated with 47 students and six cohorts |
+| Proportional 2× | 108 | 24 | 12 | 156 | Doubled work and resources with the original ratio retained |
+| Contention 2× | 108 | 12 | 6 | 156 | Doubled work without additional faculty or rooms |
+| Proportional 4× | 216 | 48 | 24 | 156 | Exploratory upper model-growth tier; not a promised maximum |
+
+### 11.2 Experimental controls and measures
+
+All Cloud Run profiles used the same immutable solver image, OR-Tools 9.15.6755, `tal94-demand-v2`, `balanced_v1`, random seed `20260718`, concurrency one, minimum instances zero, maximum instances three, and a 300-second HTTP timeout. The representative tier was executed ten times on each profile. Larger tiers used bounded 30-, 120-, and 240-second solver windows. Python verification ran in Cloud Build; Laravel performed environment guards, snapshot capture, authenticated dispatch, typed-response validation, independent assignment validation, publication, and rollback checks.
+
+| Profile | vCPU | Memory | Workers | Experimental role |
+| --- | ---: | ---: | ---: | --- |
+| A | 1 | 2 GiB | 1 | Smallest client-scale comparison |
+| B | 2 | 4 GiB | 2 | Client-production selection candidate and 2× comparison |
+| C | 4 | 8 GiB | 4 | Upper research profile for 2× and 4× boundaries |
+
+For incumbent objective $Z_i$, CP-SAT bound $B_i$, and same-tier best observed objective $Z^*$,
 
 $$
-\operatorname{gap}
-=
-\frac{|Z-B|}{\max(1,|Z|)},
+\operatorname{gap}_i = \frac{|Z_i-B_i|}{\max(1,|Z_i|)},
 $$
 
-where $Z$ is the incumbent objective and $B$ is CP-SAT's best objective bound. It is a solution-quality bound, not an accuracy percentage. Scheduling is not a prediction task; the defensible acceptance measures are 100% demand coverage, zero hard violations, a usable solver status, the objective/bound/gap evidence, and successful Laravel publication and projection. The full configuration, model/search metrics, limitations, and TAL-96C handoff are recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](../TAL-96B2-Representative-Solver-Evidence.md).
+$$
+\operatorname{RPD}_i = \frac{|Z^*-Z_i|}{\max(1,|Z^*|)}\times 100.
+$$
+
+A run is accepted only when its status is `optimal` or `feasible`, all demands are assigned, solver and Laravel hard-violation counts are zero, typed telemetry is complete, and no authentication, transport, or container failure occurs. The relative gap and same-tier RPD describe optimization evidence; neither is an accuracy score. Complete coverage and zero independently validated hard violations establish correctness, while objective, bound, gap, RPD, and runtime describe solution quality.
+
+### 11.3 Client-production profile selection
+
+All 30 client-representative comparison runs assigned 54 of 54 demands with zero solver and Laravel hard violations.
+
+| Measure | Profile A | Profile B | Profile C |
+| --- | ---: | ---: | ---: |
+| Accepted runs | 10/10 | 10/10 | 10/10 |
+| Objective range | 411,830–411,890 | 428,590–454,120 | 427,640–445,900 |
+| Median relative gap | 12.9945% | **4.4632%** | 7.4411% |
+| p95 relative gap | 13.0110% | **8.5408%** | 8.7747% |
+| Median runtime | 31.359 s | **31.017 s** | 31.402 s |
+| p95 runtime | 31.879 s | **31.380 s** | 31.866 s |
+| Maximum minute p99 CPU | 91.98% | 77.98% | 64.98% |
+| Maximum minute p99 memory | 59.98% | 39.98% | 25.99% |
+
+Profile B was selected because validity was equal but its median and p95 gaps were smallest and its median and p95 runtimes were fastest. It retained substantial memory headroom, while profile C doubled B's resources without improving the representative distribution. Profile A was cheaper and smaller but produced materially weaker bound evidence. This selection follows the approved order of validity, solution quality, performance, resource headroom, and then cost.
+
+### 11.4 Larger-workload evidence and observed boundary
+
+At the 30-second window, profiles B and C returned `unknown` without an incumbent for proportional 2×, with complete model telemetry and no infrastructure failure. The next approved window therefore increased search time rather than changing the mathematical model.
+
+| Tier and profile | Accepted | Result | Gap range | Runtime | Model scale |
+| --- | ---: | --- | ---: | ---: | --- |
+| Proportional 2×, B, 120 s | 3/3 | `feasible` | 10.8929%–11.9615% | median 123.947 s | 35,712 candidates; 108,120 variables; 216,384 constraints |
+| Proportional 2×, C, 120 s | 3/3 | `feasible` | 8.4125%–9.8023% | median 124.893 s | same model scale |
+| Contention 2×, C, 120 s | 0/1 | diagnostic `infeasible` | — | 58.131 s | 20,712 candidates; 62,610 variables; 125,688 constraints |
+| Proportional 4×, C, 120 s | 0/1 | `unknown`; compute boundary | — | 140.689 s | 131,424 candidates; 396,816 variables; 793,344 constraints |
+| Proportional 4×, C, 240 s | 2/3 | two `feasible`; one OOM/503 | 5.2694%–29.6280% | 258.508–260.196 s for accepted runs | same 4× model scale |
+
+Proportional 2× is the largest **repeatably accepted** tier under the tested controls. Proportional 4× is only the largest tier with an accepted observation: one confirmation consumed 8,197 MiB, exceeded the approved 8 GiB Cloud Run limit, and caused instance termination and HTTP 503. It is therefore an observed resource boundary, not a supported maximum. The contention result applies only to the disclosed synthetic transformation and does not prove that every real 108-demand workload is infeasible.
+
+### 11.5 Production acceptance, cost, and applicability
+
+Profile B was promoted to 100% canonical traffic with private IAM and concurrency one. Two post-promotion authenticated solves each assigned 54 of 54 demands with zero hard violations. Laravel independently validated the responses, ingested 54 candidate rows, exercised Registrar publication of 54 official meetings, and rendered the affected Faculty schedule inside a rolled-back database transaction. No schedule run, candidate row, official meeting, or queued job survived, and the scheduling queue was resumed.
+
+Using observed elapsed time as a billable-time proxy and the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests, the 80-request experiment is estimated at US$0.214198 before free-tier credits. This is a bounded experiment estimate rather than a monthly forecast or invoice; it excludes billing-rounding differences, networking, registry and build charges, taxes, discounts, and unrelated project usage.
+
+The empirical findings do not alter any equation in Sections 5 and 6. They establish that the current formulation and Laravel validation pipeline are operationally accepted at the disclosed client scale; identify profile B as the production baseline; establish proportional 2× at 120 seconds as repeatable larger-workload evidence; and disclose 4×/8 GiB as an observed limit requiring future optimization or a separately approved resource study before any operational promise.
 
 ## 12. Equation-to-implementation traceability
 
@@ -855,7 +910,13 @@ where $Z$ is the incumbent objective and $B$ is CP-SAT's best objective bound. I
 10. Laravel. [Database Transactions](https://laravel.com/docs/12.x/database#database-transactions). Transaction commit, rollback, and deadlock-retry semantics.
 11. Laravel. [Queues and Jobs](https://laravel.com/docs/12.x/queues). After-commit dispatch and the timeout/`retry_after` relationship.
 12. Laravel. [Authorization](https://laravel.com/docs/12.x/authorization). Gate and policy semantics used to enforce action authority.
+13. Müller, T.; Rudová, H.; Müllerová, Z. (2024). [Real-world university course timetabling at the International Timetabling Competition 2019](https://link.springer.com/article/10.1007/s10951-023-00801-w). *Journal of Scheduling*, 27, 1–24. External problem-scale context; its class and student counts are not treated as equivalent TALA demands.
+14. UniTime. [University Course Timetabling Benchmark Datasets](https://www.unitime.org/uct_datasets.php) and [Data Format v2.4](https://www.unitime.org/uct_dataformat_v24.php). External instance-composition context for rooms, instructors, classes, students, and group constraints.
+15. Lan, L.; Berkhout, J.; De Causmaecker, P.; Vansteenwegen, P. (2025). [PyJobShop: Solving scheduling problems with constraint programming in Python](https://arxiv.org/abs/2502.13483). Constraint-programming modeling and reproducible scheduling-software context; its job-shop models are not TALA's university-timetabling model.
+16. Google Cloud. [Cloud Run pricing](https://cloud.google.com/run/pricing). Dated request-based CPU, memory, request, free-tier, and billable-time basis.
+17. Google Cloud. [Configure CPU limits for services](https://docs.cloud.google.com/run/docs/configuring/services/cpu). CPU, memory, threading, and concurrency sizing considerations.
+18. Google Cloud. [Cloud Run monitoring](https://docs.cloud.google.com/run/docs/monitoring). Revision-scoped CPU and memory evidence.
 
 ---
 
-**Version applicability.** This formulation applies to the implemented and locally verified `tal94-demand-v2` contract and `balanced_v1` version-1 profile as of 18 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change this formulation. Any approved change to the data contract, optimization profile, hard-constraint semantics, or objective semantics requires a corresponding revision of the formulation and traceability evidence.
+**Version applicability.** This formulation applies to the implemented and verified `tal94-demand-v2` contract, `balanced_v1` version-1 profile, and dated Cloud Run experiment as of 18 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change the equations. Any approved change to the data contract, optimization profile, hard-constraint semantics, objective semantics, or material workload requires corresponding formulation or empirical-evidence revision.

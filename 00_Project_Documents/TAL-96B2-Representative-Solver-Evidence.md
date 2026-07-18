@@ -95,14 +95,10 @@ Scheduling is constraint optimization, not prediction, so a classification-style
 
 The objective value is a weighted ranking score under `balanced_v1`, not a percentage and not an accuracy measure. A smaller nonnegative optimality gap indicates that the incumbent objective is closer to CP-SAT's current bound. A zero gap with `optimal` status would prove optimality for that model and input.
 
-## TAL-96C capacity handoff
+## TAL-96B3 Cloud Run capacity result
 
-TAL-96C must retain the exact metric names and disclose every dataset, source ID, dependency version, seed, worker count, time limit, execution mode, CPU, memory, concurrency, and request timeout. It must add generated proportional-growth and contention tiers rather than relabeling this representative fixture as “minimum” or “maximum.” At each tier it must report:
+TAL-96B3 preserved these metric names and ran ten client-representative repetitions on each private profile: A (`1 vCPU / 2 GiB / 1 worker`), B (`2 vCPU / 4 GiB / 2 workers`), and C (`4 vCPU / 8 GiB / 4 workers`). Every run achieved 100% coverage, zero solver and Laravel hard violations, and complete telemetry. Profile B was selected because its median relative gap was 4.4632%, compared with 12.9945% on A and 7.4411% on C, while its median runtime of 31.017 seconds was also fastest and its measured memory utilization retained substantial headroom.
 
-1. input, candidate, model-variable, model-constraint, and `NoOverlap` counts;
-2. status, coverage, hard-constraint validation, objective, best bound, and relative gap;
-3. Boolean variables, branches, conflicts, deterministic time, wall time, transport time, and memory;
-4. repeated-run variation and the reason for stopping a tier; and
-5. whether the result is locally valid, Cloud-deployable, or merely an exploratory stress result.
+The earlier 27-demand tier is now correctly described as the **reduced technical tier**, not an institutional minimum. At 30 seconds, the 108-demand proportional tier reached a clean compute boundary on B and C. At 120 seconds it was accepted 3/3 on each profile, making proportional 2× the largest repeatably accepted tier. The 216-demand proportional 4× tier produced two feasible observations on C at 240 seconds, but a third attempt exceeded 8 GiB and Cloud Run terminated the instance. It is therefore an observed upper resource boundary, not a supported maximum.
 
-The current private Cloud Run service remains on its documented 1 GiB baseline after the prior 1,045 MiB and 1,154 MiB terminations. A 2 GiB, concurrency-1 candidate is only an approved recovery hypothesis for the separate `Deploy TAL-96B2` gate. This local experiment does not authorize deployment or establish final Cloud Run capacity.
+Profile B is now the private canonical Cloud Run revision at 100% traffic. Two post-promotion authenticated solves each returned 54/54 assignments and zero hard violations, after which Laravel exercised validation, ingestion, Registrar publication, and Faculty projection inside a rolled-back transaction. The complete internal instance table, measurements, cost estimate, and limitations are recorded in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md); the standalone research narrative is consolidated in [`TALA_CP-SAT_Technical_Formulation.md`](research%20paper/TALA_CP-SAT_Technical_Formulation.md).

@@ -557,7 +557,7 @@ Mobile-responsive styling does not by itself prove mobile usability. Before publ
 | Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories | Current application configuration and Laravel runtime requirement |
 | Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | Current asynchronous execution contract |
 | Initial web host | 1 vCPU, 2 GiB RAM, 50 GiB SSD, and 2,000 GiB transfer | Selected DigitalOcean starting topology; not a load-tested universal minimum |
-| Scheduling service | Python 3.12 container, 1 vCPU, 1 GiB RAM, and 300-second Cloud Run request timeout | Current solver container and deployment contract |
+| Scheduling service | Python 3.12 container. Current serving revision: 2 vCPU, 4 GiB, concurrency 1, two solver workers, 300-second request timeout, and 30-second client-production solver limit | TAL-96B3 live Cloud Run state and dated empirical evidence: 10/10 client-scale comparison runs plus post-promotion Laravel acceptance; larger research workloads require separately disclosed 120/240-second profiles |
 | Network and trust | Valid TLS, DNS, firewall controls, private credentials, and outbound HTTPS/SMTP access for approved integrations | Security and integration requirement |
 
 The 2 GiB web host co-locates Nginx, PHP-FPM, Laravel, MySQL, and an initial queue worker. It is therefore the lowest selected production scenario in this specification, but its sufficiency must be established against expected concurrent users, database size, document-upload volume, queue depth, response-time objectives, and backup activity. Sustained memory pressure, swapping, disk pressure, slow database queries, queue delay, or missed response objectives must trigger resizing or separation of the database and workers. Node.js and Python are not required on the web host when frontend assets are prebuilt and the solver remains externally deployed.
@@ -685,6 +685,17 @@ Scenario sources: [DigitalOcean managed database pricing](https://www.digitaloce
 | DigitalOcean Spaces overage | US$0.02 per additional GiB-month beyond included storage | Variable; monitor stored backups and retention |
 
 Variable-price sources: [Google Cloud Run](https://cloud.google.com/run/pricing), [Brevo](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans), [PayMongo](https://www.paymongo.com/pricing), and [DigitalOcean Spaces](https://docs.digitalocean.com/products/spaces/details/pricing/).
+
+For request-based Cloud Run solver execution, the bounded compute estimate is
+
+```text
+Estimated solver request cost =
+    billable instance seconds × ((configured vCPU × regional CPU rate)
+    + (configured GiB × regional memory rate))
+    + request count × regional request rate
+```
+
+The TAL-96B3 experiment used the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests. Recalculated across all 80 bounded requests using client elapsed time as the billable-time proxy, the estimate was approximately US$0.214198 before free-tier credits and excluding billing-rounding differences, networking, image storage, build charges, taxes, discounts, and unrelated project use. Profile B (`2 vCPU / 4 GiB / 2 workers`) was promoted for the 54-demand client baseline. Proportional 2× was repeatably accepted only with a 120-second research window; proportional 4× produced two feasible observations but also exhausted the approved 8 GiB limit and is not a supported capacity promise. Detailed reproducibility evidence is retained in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md); the standalone research narrative is consolidated in [`TALA_CP-SAT_Technical_Formulation.md`](research%20paper/TALA_CP-SAT_Technical_Formulation.md).
 
 An illustrative payment-fee estimate must use the actual channel mix:
 

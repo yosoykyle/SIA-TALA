@@ -8,6 +8,20 @@ return [
         'credentials_path' => env('TALA_SCHEDULING_SOLVER_CREDENTIALS'),
         'timeout_seconds' => env('TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS', 300),
         'connect_timeout_seconds' => env('TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS', 10),
+        'benchmark' => [
+            'revision' => env('TALA_SCHEDULING_BENCHMARK_REVISION'),
+            'image_digest' => env('TALA_SCHEDULING_BENCHMARK_IMAGE_DIGEST'),
+            'profile' => env('TALA_SCHEDULING_BENCHMARK_PROFILE'),
+            'cpu' => env('TALA_SCHEDULING_BENCHMARK_CPU'),
+            'memory' => env('TALA_SCHEDULING_BENCHMARK_MEMORY'),
+            'concurrency' => env('TALA_SCHEDULING_BENCHMARK_CONCURRENCY'),
+            'request_timeout_seconds' => env('TALA_SCHEDULING_BENCHMARK_REQUEST_TIMEOUT_SECONDS'),
+            'solver_limit_seconds' => env('TALA_SCHEDULING_BENCHMARK_SOLVER_LIMIT_SECONDS'),
+            'worker_count' => env('TALA_SCHEDULING_BENCHMARK_WORKER_COUNT'),
+            'random_seed' => env('TALA_SCHEDULING_BENCHMARK_RANDOM_SEED'),
+            'min_instances' => env('TALA_SCHEDULING_BENCHMARK_MIN_INSTANCES'),
+            'max_instances' => env('TALA_SCHEDULING_BENCHMARK_MAX_INSTANCES'),
+        ],
     ],
 
     'payments' => [

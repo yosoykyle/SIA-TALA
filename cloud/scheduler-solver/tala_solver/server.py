@@ -5,10 +5,16 @@ import os
 from flask import Flask, Response, jsonify, request
 from werkzeug.exceptions import BadRequest, HTTPException
 
-from tala_solver.solver import CONTRACT_VERSION, SOLVER_VERSION, solve_snapshot
+from tala_solver.solver import (
+    CONTRACT_VERSION,
+    SOLVER_VERSION,
+    solve_snapshot,
+    solver_runtime_configuration,
+)
 
 
 def create_app() -> Flask:
+    solver_runtime_configuration()
     app = Flask(__name__)
 
     @app.get("/health")

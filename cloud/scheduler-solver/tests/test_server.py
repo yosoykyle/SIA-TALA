@@ -55,6 +55,11 @@ class SolverServerTest(unittest.TestCase):
             timeout_seconds=45,
         )
 
+    def test_app_startup_rejects_an_invalid_solver_runtime_configuration(self) -> None:
+        with patch.dict(os.environ, {"SOLVER_WORKER_COUNT": "3"}):
+            with self.assertRaisesRegex(RuntimeError, "SOLVER_WORKER_COUNT"):
+                create_app()
+
     def test_missing_or_malformed_json_returns_structured_bad_request(self) -> None:
         cases = [
             self.client.post("/solve"),

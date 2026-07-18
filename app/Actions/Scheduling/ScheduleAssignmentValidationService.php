@@ -289,7 +289,7 @@ final class ScheduleAssignmentValidationService
             'response.solver_statistics.conflict_count' => ['present', 'nullable', 'integer', 'min:0'],
             'response.solver_statistics.deterministic_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
             'response.solver_statistics.wall_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
-            'response.solver_statistics.worker_count' => ['required', 'integer', Rule::in([1])],
+            'response.solver_statistics.worker_count' => ['required', 'integer', Rule::in([1, 2, 4])],
             'response.solver_statistics.random_seed' => ['required', 'integer', Rule::in([20260718])],
             'response.solver_version' => ['required', 'string', 'max:255'],
             'response.model_version' => ['required', 'string', 'max:255'],

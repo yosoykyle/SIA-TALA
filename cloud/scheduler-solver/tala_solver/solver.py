@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
@@ -28,8 +29,9 @@ HARD_CONSTRAINTS = (
     "respect_faculty_qualification_and_load",
 )
 BALANCED_V1_WEIGHTS = {term: 1 for term in SOFT_TERMS}
-SOLVER_WORKER_COUNT = 1
-SOLVER_RANDOM_SEED = 20_260_718
+DEFAULT_SOLVER_WORKER_COUNT = 1
+DEFAULT_SOLVER_RANDOM_SEED = 20_260_718
+APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4)
 
 
 @dataclass(frozen=True)
@@ -57,10 +59,32 @@ class Candidate:
     room_capacity: int
 
 
+@dataclass(frozen=True)
+class SolverRuntimeConfiguration:
+    worker_count: int
+    random_seed: int
+
+
+def solver_runtime_configuration() -> SolverRuntimeConfiguration:
+    return SolverRuntimeConfiguration(
+        worker_count=_approved_environment_integer(
+            "SOLVER_WORKER_COUNT",
+            DEFAULT_SOLVER_WORKER_COUNT,
+            APPROVED_SOLVER_WORKER_COUNTS,
+        ),
+        random_seed=_approved_environment_integer(
+            "SOLVER_RANDOM_SEED",
+            DEFAULT_SOLVER_RANDOM_SEED,
+            (DEFAULT_SOLVER_RANDOM_SEED,),
+        ),
+    )
+
+
 def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict[str, Any]:
     started_at = perf_counter()
     timeout_seconds = max(1, min(int(timeout_seconds), 300))
     solver_run_id = _solver_run_id(snapshot)
+    runtime_configuration = solver_runtime_configuration()
 
     if snapshot.get("contract_version") != CONTRACT_VERSION:
         return _result(
@@ -73,6 +97,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             started_at=started_at,
             warnings=[_reason("unsupported_contract_version", f"Solver requires {CONTRACT_VERSION} snapshots.")],
             infeasible_reasons=[_reason("unsupported_contract_version", f"Solver requires {CONTRACT_VERSION} snapshots.")],
+            runtime_configuration=runtime_configuration,
         )
 
     profile = snapshot.get("constraint_profile")
@@ -93,6 +118,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             started_at=started_at,
             warnings=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
             infeasible_reasons=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
+            runtime_configuration=runtime_configuration,
         )
 
     unsupported_demands = [
@@ -110,6 +136,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             started_at=started_at,
             warnings=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
             infeasible_reasons=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
+            runtime_configuration=runtime_configuration,
         )
 
     demands = _demands(snapshot)
@@ -128,6 +155,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             started_at=started_at,
             warnings=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
             infeasible_reasons=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
+            runtime_configuration=runtime_configuration,
         )
     rooms = _rooms(snapshot)
     time_slots = _time_slots(snapshot)
@@ -208,6 +236,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             started_at=started_at,
             warnings=[],
             infeasible_reasons=[item for items in unassignable_reasons.values() for item in items],
+            runtime_configuration=runtime_configuration,
         )
 
     model = cp_model.CpModel()
@@ -244,8 +273,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(timeout_seconds)
-    solver.parameters.num_search_workers = SOLVER_WORKER_COUNT
-    solver.parameters.random_seed = SOLVER_RANDOM_SEED
+    solver.parameters.num_workers = runtime_configuration.worker_count
+    solver.parameters.random_seed = runtime_configuration.random_seed
 
     status = solver.solve(model)
     selected = [
@@ -290,7 +319,9 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             solver=solver,
             solver_status=status,
             objective_score=objective_score,
+            runtime_configuration=runtime_configuration,
         ),
+        runtime_configuration=runtime_configuration,
     )
 
 
@@ -306,7 +337,9 @@ def _result(
     infeasible_reasons: list[dict[str, str]],
     objective_details: dict[str, Any] | None = None,
     solver_statistics: dict[str, Any] | None = None,
+    runtime_configuration: SolverRuntimeConfiguration | None = None,
 ) -> dict[str, Any]:
+    runtime_configuration = runtime_configuration or solver_runtime_configuration()
     conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
     warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
 
@@ -327,7 +360,7 @@ def _result(
         "runtime_seconds": round(perf_counter() - started_at, 6),
         "objective_score": objective_score,
         "objective_details": objective_details or _empty_objective_details(snapshot),
-        "solver_statistics": solver_statistics or _empty_solver_statistics(snapshot),
+        "solver_statistics": solver_statistics or _empty_solver_statistics(snapshot, runtime_configuration),
         "solver_version": SOLVER_VERSION,
         "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -338,7 +371,10 @@ def _result(
     }
 
 
-def _empty_solver_statistics(snapshot: dict[str, Any]) -> dict[str, Any]:
+def _empty_solver_statistics(
+    snapshot: dict[str, Any],
+    runtime_configuration: SolverRuntimeConfiguration,
+) -> dict[str, Any]:
     return {
         "ortools_version": ORTOOLS_VERSION,
         "input_demand_count": _list_count(snapshot.get("scheduling_demands")),
@@ -356,8 +392,8 @@ def _empty_solver_statistics(snapshot: dict[str, Any]) -> dict[str, Any]:
         "conflict_count": None,
         "deterministic_time_seconds": None,
         "wall_time_seconds": None,
-        "worker_count": SOLVER_WORKER_COUNT,
-        "random_seed": SOLVER_RANDOM_SEED,
+        "worker_count": runtime_configuration.worker_count,
+        "random_seed": runtime_configuration.random_seed,
     }
 
 
@@ -368,8 +404,9 @@ def _solver_statistics(
     solver: cp_model.CpSolver,
     solver_status: int,
     objective_score: int | None,
+    runtime_configuration: SolverRuntimeConfiguration,
 ) -> dict[str, Any]:
-    statistics = _empty_solver_statistics(snapshot)
+    statistics = _empty_solver_statistics(snapshot, runtime_configuration)
     model_proto = model.proto
     best_objective_bound = _float_metric(solver, "best_objective_bound")
     relative_optimality_gap = None
@@ -431,6 +468,28 @@ def _float_metric(solver: cp_model.CpSolver, attribute: str) -> float | None:
 
 def _rounded_float(value: float | None) -> float | None:
     return round(value, 9) if value is not None else None
+
+
+def _approved_environment_integer(
+    name: str,
+    default: int,
+    approved_values: tuple[int, ...],
+) -> int:
+    raw_value = os.environ.get(name)
+
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as exception:
+        raise RuntimeError(f"{name} must be an approved integer value.") from exception
+
+    if value not in approved_values:
+        approved = ", ".join(str(item) for item in approved_values)
+        raise RuntimeError(f"{name} must be one of: {approved}.")
+
+    return value
 
 
 def _list_count(value: Any) -> int:

@@ -15,7 +15,7 @@ The audience should see one complete, explainable path:
 
 The solver proposes assignments; Laravel remains the authority that validates, records, publishes, and exposes them to users.
 
-The detailed 54-demand experiment, model/search counts, solution-quality bounds, limitations, and TAL-96C handoff are recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](TAL-96B2-Representative-Solver-Evidence.md). Do not describe this fixture as a minimum, actual production load, maximum, or accuracy benchmark.
+The detailed local 54-demand experiment is recorded in [`TAL-96B2-Representative-Solver-Evidence.md`](TAL-96B2-Representative-Solver-Evidence.md). The private Cloud Run profile comparison, proportional-growth boundary, resource use, and cost evidence are recorded in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Do not describe either synthetic fixture as the client's actual population, a universal maximum, or an accuracy benchmark.
 
 ## Test accounts
 
@@ -43,14 +43,18 @@ $env:CACHE_STORE = 'database'
 $env:QUEUE_CONNECTION = 'database'
 $env:DB_QUEUE_RETRY_AFTER = '420'
 $env:MAIL_MAILER = 'array'
-$env:TALA_SCHEDULING_SOLVER_DRIVER = 'local_http'
-$env:TALA_SCHEDULING_SOLVER_URL = 'http://127.0.0.1:8080'
+$env:TALA_SCHEDULING_SOLVER_DRIVER = 'cloud_run'
+$env:TALA_SCHEDULING_SOLVER_URL = 'https://tala-scheduler-solver-5ylv3rnyfq-as.a.run.app'
+$env:TALA_SCHEDULING_SOLVER_AUDIENCE = $env:TALA_SCHEDULING_SOLVER_URL
+$env:TALA_SCHEDULING_SOLVER_CREDENTIALS = (Resolve-Path -LiteralPath '.\storage\app\private\credentials\tala-dev-ocr-3s-aba571363fdf.json').Path
 $env:TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS = '300'
 $env:TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS = '10'
 
 php artisan config:clear
 php artisan acceptance:seed-client-baseline --no-interaction
 ```
+
+The credential path must resolve to the existing dedicated scheduler-invoker key. Do not replace it with the OCR credential, print its contents, or copy it into documentation or source control.
 
 Expected result:
 
@@ -66,20 +70,9 @@ If the command reports `already_present`, continue. If it reports partial or con
 
 ## Start the demo services
 
-Use four PowerShell terminals.
+Use three PowerShell terminals. The private CP-SAT service already runs on Cloud Run; do not start Docker or a local Python solver for this demo.
 
-### Terminal 1 — CP-SAT service
-
-```powershell
-$env:SOLVER_TIMEOUT_SECONDS = '30'
-$env:PORT = '8080'
-Set-Location -LiteralPath '.\cloud\scheduler-solver'
-& "$env:TEMP\tala-scheduler-solver-venv\Scripts\python.exe" -m tala_solver.server
-```
-
-Expected result: the service listens on `http://127.0.0.1:8080`. A 30-second solver budget leaves response headroom inside Laravel's 300-second HTTP timeout.
-
-### Terminal 2 — Laravel application
+### Terminal 1 — Laravel application
 
 Load the guarded environment block above, then run:
 
@@ -87,7 +80,7 @@ Load the guarded environment block above, then run:
 php artisan serve --host=127.0.0.1 --port=8001 --no-reload
 ```
 
-### Terminal 3 — scheduling queue worker
+### Terminal 2 — scheduling queue worker
 
 Load the guarded environment block above, then run:
 
@@ -97,13 +90,13 @@ php artisan queue:work database --queue=scheduling,default --timeout=360 --sleep
 
 Keep this terminal visible during dispatch. It should show `ScheduleSolverDispatchJob` running and then completing.
 
-### Terminal 4 — frontend assets
+### Terminal 3 — frontend assets
 
 ```powershell
 npm run dev
 ```
 
-Open `http://127.0.0.1:8001/admin/login` only after all four terminals are ready.
+Open `http://127.0.0.1:8001/admin/login` only after all three terminals are ready.
 
 ## Presenter walkthrough
 
@@ -140,7 +133,7 @@ If the row remains `PROCESSING` beyond 90 seconds, use the recovery section rath
 
 Open the newest solver run.
 
-1. Review its status, contract/model version, solver version, runtime, validation diagnostics, and candidate-row count. Use the linked representative-evidence document—not an invented UI accuracy score—for the typed model/search statistics and optimality gap.
+1. Review its status, contract/model version, solver version, runtime, validation diagnostics, and candidate-row count. Use the linked TAL-96B2 and TAL-96B3 evidence—not an invented UI accuracy score—for typed model/search statistics, optimality gap, tested capacity boundary, and resource interpretation.
 2. Open **Candidate Rows** and show the course, section, component, faculty, day/time, room, modality, and row status.
 3. Confirm there are no hard conflicts or violations. Advisory warnings, if any, must be explained before publication.
 
@@ -180,7 +173,7 @@ For a technical audience, sign in as `system-admin.demo@example.test` / `passwor
 | Symptom | Check | Action |
 | --- | --- | --- |
 | Run stays `QUEUED` | Queue terminal has no scheduling job | Confirm the worker uses `test_tala_db` and `--queue=scheduling,default`, then restart that worker. |
-| Run stays `PROCESSING` beyond 90 seconds | Solver terminal or `http://127.0.0.1:8080/health` is unavailable | Restart only the local solver, then use **Retry Solver Run** on the existing run. Do not create another run. |
+| Run stays `PROCESSING` beyond 90 seconds | Run diagnostics, Operational Events, queue output, and private Cloud Run revision logs | Confirm the dedicated credential and canonical solver URL, correct the recorded dependency, then use **Retry Solver Run** on the existing run. Do not create another run. |
 | Run becomes `FAILED` or `BLOCKED` | Run diagnostics and Operational Events | Explain the recorded failure, correct the demonstrated dependency, then use **Retry Solver Run**. |
 | Dispatch is blocked | Some demands are not ready | Return to **Scheduling Demands** and correct the identified rows; the system is intentionally preventing an incomplete snapshot. |
 | Publish is blocked | Candidate warnings/conflicts or active-binding protection | Follow the message shown by Laravel. Do not bypass hard constraints or replace an active official schedule during the demo. |
@@ -188,10 +181,10 @@ For a technical audience, sign in as `system-admin.demo@example.test` / `passwor
 
 ## Shutdown and cleanup
 
-Stop the app, queue, asset, and solver terminals with `Ctrl+C`. Then clear only the current PowerShell process variables if they were set there:
+Stop the app, queue, and asset terminals with `Ctrl+C`. The Cloud Run service remains deployed. Then clear only the current PowerShell process variables if they were set there:
 
 ```powershell
-Remove-Item Env:APP_ENV, Env:APP_DEBUG, Env:DB_CONNECTION, Env:DB_DATABASE, Env:CACHE_STORE, Env:QUEUE_CONNECTION, Env:DB_QUEUE_RETRY_AFTER, Env:MAIL_MAILER, Env:TALA_SCHEDULING_SOLVER_DRIVER, Env:TALA_SCHEDULING_SOLVER_URL, Env:TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS, Env:TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS -ErrorAction SilentlyContinue
+Remove-Item Env:APP_ENV, Env:APP_DEBUG, Env:DB_CONNECTION, Env:DB_DATABASE, Env:CACHE_STORE, Env:QUEUE_CONNECTION, Env:DB_QUEUE_RETRY_AFTER, Env:MAIL_MAILER, Env:TALA_SCHEDULING_SOLVER_DRIVER, Env:TALA_SCHEDULING_SOLVER_URL, Env:TALA_SCHEDULING_SOLVER_AUDIENCE, Env:TALA_SCHEDULING_SOLVER_CREDENTIALS, Env:TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS, Env:TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS -ErrorAction SilentlyContinue
 ```
 
 The seeded records are synthetic and restricted to `test_tala_db`. Do not copy them into a production database.

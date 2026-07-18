@@ -175,49 +175,59 @@ This identifier changes when a pinned dependency or executable Python source fil
 
 ## Current Cloud Baseline
 
-Deployment verification on July 17, 2026 confirmed this staged state. Reconfirm it before every mutation because Cloud state can change independently of Git.
+Deployment and post-promotion verification on July 18, 2026 confirmed this live state. Reconfirm it before every mutation because Cloud state can change independently of Git.
 
 - Project: `tala-dev-ocr-3s`
 - Region: `asia-southeast1`
 - Service: `tala-scheduler-solver`
-- Serving revision: `tala-scheduler-solver-e3a-4d17a03ccf1c`
-- Serving image digest: `sha256:73a7fe91448460da7d704f9275d7d86cacdf2e9e4524b551664080d52cd5952e`
+- Serving revision: `tala-scheduler-solver-b3b-e427393e2d06`
+- Serving image digest: `sha256:beedcfb41067aa028b4c793ab6c9dc2283b7f4adb082124530b41afa4d1cebb0`
 - Traffic: 100% to the serving revision
 - Runtime identity: `tala-scheduler-runtime@tala-dev-ocr-3s.iam.gserviceaccount.com`
 - Dedicated invoker: `tala-scheduler-invoker@tala-dev-ocr-3s.iam.gserviceaccount.com`
 - Public invoker: none
-- Resources: 1 CPU, 1 GiB memory, concurrency 80, request timeout 300 seconds
+- Resources: 2 CPU, 4 GiB memory, concurrency 1, request timeout 300 seconds, solver budget 30 seconds, two CP-SAT workers
+- Scaling: minimum instances 0, maximum instances 3
+- Zero-traffic service template: `tala-scheduler-solver-b3base2-e427393e2d06`, matching the serving digest and exact profile-B configuration so future service updates do not inherit an experimental 240-second profile
 - Artifact Registry repository: `tala-containers`
 
-The prior 1 GiB TAL-96B2 candidate remains recorded as zero-traffic recovery evidence:
+The previous serving revision `tala-scheduler-solver-e3a-4d17a03ccf1c` is retained at zero traffic as the immediate rollback target. The prior 1 GiB TAL-96B2 candidate is historical recovery evidence; its obsolete zero-traffic revision was removed during TAL-96B3 cleanup:
 
 - Build: `d55537e6-a64a-453f-b1bf-f3c451af1e93` (`SUCCESS`)
 - Candidate revision: `tala-scheduler-solver-b2-38cad156ab94`
 - Candidate image digest: `sha256:126b214c95b6e552088a4caeb766d140e17ed85e84c56713b0188fbb167de774`
 - Candidate tag: `b2-38cad156ab94`
-- Candidate traffic: 0%
+- Cleanup disposition: deleted after its evidence was retained
 - Candidate resources: 1 CPU, 1 GiB memory, concurrency 1, request timeout 300 seconds, solver budget 30 seconds
 - Tagged B1 acceptance: passed with the original serving revision unchanged at 100%
 
-One GiB is the current serving deployment baseline, not a universal capacity claim. Concurrency on the prior candidate was staged at one because a solver request is independently resource-intensive.
+One GiB is not an accepted production baseline: the July 17 promotion gate showed memory termination at both 1,045 MiB and 1,154 MiB. The scheduling queue was recovered and later resumed after the TAL-96B3 promotion passed.
 
-The July 17, 2026 promotion gate did not pass. Canonical B1 acceptance caused Cloud Run to terminate the 1 GiB candidate at 1,045 MiB. Recovery traffic was restored to `tala-scheduler-solver-e3a-4d17a03ccf1c`, but the same acceptance terminated that 1 GiB revision at 1,154 MiB. The restored revision remains at 100 percent, the candidate remains at zero percent, private IAM is unchanged, and the scheduling queue remains paused.
+The July 17, 2026 promotion gate did not pass. Canonical B1 acceptance caused Cloud Run to terminate the 1 GiB candidate at 1,045 MiB; the restored 1 GiB revision later terminated at 1,154 MiB under the same acceptance. This is retained to explain why TAL-96B3 evaluated larger private profiles.
 
-The approved next recovery hypothesis is one private zero-traffic candidate at 1 CPU, **2 GiB**, concurrency 1, 300-second request timeout, 30-second solver budget, and one solver worker. Two GiB is not a final capacity recommendation. It may be created only after the explicit `Deploy TAL-96B2` command and must stop on failed acceptance, memory above the approved safety ceiling, public IAM, or any other contract drift.
+TAL-96B3 compared three profiles from the same immutable image:
+
+- profile A: 1 CPU, 2 GiB, one worker;
+- selected profile B: 2 CPU, 4 GiB, two workers; and
+- research profile C: 4 CPU, 8 GiB, four workers.
+
+All profiles passed 10/10 client-representative runs with complete coverage, zero hard violations, and complete telemetry. Profile B had the smallest median and p95 relative gap and the fastest median and p95 runtime, so it was selected before cost. Proportional 2× was accepted 3/3 on B and 3/3 on C with a 120-second research limit. Proportional 4× produced two feasible observations on C at 240 seconds, but the third run used 8,197 MiB and was terminated; it is an observed resource boundary rather than a supported maximum. Full methods and measurements are in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](../../00_Project_Documents/TAL-96B3-Cloud-Run-Capacity-Benchmark.md).
+
+Profile B passed two authenticated post-promotion representative solves plus Laravel validation, ingestion, publication, and Faculty projection. It now receives 100% canonical traffic. Private IAM is unchanged, the queue is resumed, and no benchmark scheduling record or queued job survived.
 
 ## Explicit Cloud Gates
 
 Cloud mutations are never implied by local implementation, cleanup, or verification.
 
-- `Primary proceed TAL-96B2`: local code, tests, and documentation only.
-- `Deploy TAL-96B2`: read-only preflight, Cloud Build, Artifact Registry image creation, and one private tagged zero-traffic revision.
-- `Promote TAL-96B2`: pause scheduling, prove no active work, move the accepted revision to 100%, run canonical acceptance, check logs/privacy, and resume scheduling.
+- `Primary proceed TAL-96B3 remediation`: completed the guarded harness correction.
+- `Deploy TAL-96B3 remediation`: completed the immutable private profile experiment.
+- `Promote TAL-96B3`: moved selected profile B to canonical traffic and passed post-promotion acceptance.
 
 There is no unattended Cloud Build trigger. “Automatic deployment” means the agent can execute this documented workflow after the user gives the exact gate command.
 
-## Deploy Gate: Build and Zero-Traffic Stage
+## Immutable Build and Zero-Traffic Staging Reference
 
-Run this section only after the explicit command `Deploy TAL-96B2`.
+This section records the guarded build-and-stage pattern used by the completed TAL-96B3 deploy gate. It is not authorization to rerun the build, create another candidate, or change traffic.
 
 ### 1. Reconfirm target, traffic, image, and IAM
 
@@ -329,9 +339,9 @@ php artisan test --compact tests/Feature/TAL94E2aSolverQueueOperationsTest.php
 
 Tagged acceptance must pass with the old revision still at 100%. Inspect candidate readiness, image digest, IAM, and recent logs. Stop before promotion on any timeout, memory termination, hard violation, missing assignment, public access, identity drift, or secret-like log content.
 
-## Promote Gate: Controlled 100% Traffic
+## Promotion Record: Controlled 100% Traffic
 
-Run this section only after tagged acceptance passes and the user explicitly says `Promote TAL-96B2`.
+This records the completed TAL-96B3 promotion pattern; it is not authorization to rerun it. The selected candidate was profile B revision `tala-scheduler-solver-b3b-e427393e2d06`. Its exact digest, zero-traffic state, private IAM, resources, and clean workload state were re-proved immediately before promotion.
 
 ```powershell
 php artisan queue:pause database:scheduling --no-interaction
@@ -361,6 +371,10 @@ if ([int](($state.status.traffic | Where-Object revisionName -eq $candidate.revi
 
 $env:TALA_96B2_SOLVER_URL = $state.status.url
 $env:TALA_96B2_SOLVER_AUDIENCE = $state.status.url
+$env:TALA_96B2_ACCEPTANCE_MODE = 'cloud_run'
+$env:TALA_96B2_SOLVER_CREDENTIALS = '<existing dedicated scheduler-invoker credential path>'
+$env:TALA_96B2_ACCEPTANCE_REPETITIONS = '2'
+$env:TALA_96B2_EXPECTED_WORKER_COUNT = '2'
 php artisan test --compact tests/Feature/TAL96B2RealLoopbackSchedulingDemoReadinessTest.php
 ```
 

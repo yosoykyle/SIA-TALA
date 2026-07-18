@@ -56,6 +56,18 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $credentialsPath = $mode === 'cloud_run'
             ? $this->requiredSetting('TALA_96B2_SOLVER_CREDENTIALS')
             : null;
+        $acceptanceRepetitions = $this->boundedIntegerSetting(
+            'TALA_96B2_ACCEPTANCE_REPETITIONS',
+            default: 3,
+            minimum: 1,
+            maximum: 3,
+        );
+        $expectedWorkerCount = $this->boundedIntegerSetting(
+            'TALA_96B2_EXPECTED_WORKER_COUNT',
+            default: 1,
+            minimum: 1,
+            maximum: 4,
+        );
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
@@ -114,13 +126,13 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $snapshotHash = hash('sha256', $encodedSnapshot);
         $results = [];
 
-        foreach (range(1, 3) as $iteration) {
+        foreach (range(1, $acceptanceRepetitions) as $iteration) {
             $result = $solverClient->solve($snapshot);
             $this->assertContains($result['solver_status'], ['optimal', 'feasible'], "Representative run {$iteration} was not usable.");
             $this->assertSame(54, $result['assigned_count']);
             $this->assertSame(0, $result['unassigned_count']);
             $this->assertSame(0, $result['hard_violation_count']);
-            $this->assertSame(1, data_get($result, 'solver_statistics.worker_count'));
+            $this->assertSame($expectedWorkerCount, data_get($result, 'solver_statistics.worker_count'));
             $this->assertSame(20260718, data_get($result, 'solver_statistics.random_seed'));
             $this->assertSame(54, data_get($result, 'solver_statistics.input_demand_count'));
             $validation = app(ScheduleAssignmentValidationService::class)->validate($run, $result);
@@ -243,6 +255,18 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
     {
         $value = trim((string) getenv($key));
         $this->assertNotSame('', $value, "{$key} is required for TAL-96B2 cloud acceptance.");
+
+        return $value;
+    }
+
+    private function boundedIntegerSetting(string $key, int $default, int $minimum, int $maximum): int
+    {
+        $rawValue = trim((string) getenv($key));
+        $value = $rawValue === '' ? $default : filter_var($rawValue, FILTER_VALIDATE_INT);
+
+        $this->assertIsInt($value, "{$key} must be an integer.");
+        $this->assertGreaterThanOrEqual($minimum, $value, "{$key} is below the supported minimum.");
+        $this->assertLessThanOrEqual($maximum, $value, "{$key} exceeds the supported maximum.");
 
         return $value;
     }
