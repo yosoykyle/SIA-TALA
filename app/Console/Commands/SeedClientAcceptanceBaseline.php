@@ -11,9 +11,10 @@ use Throwable;
 
 final class SeedClientAcceptanceBaseline extends Command
 {
-    protected $signature = 'acceptance:seed-client-baseline';
+    protected $signature = 'acceptance:seed-client-baseline
+        {--check : Inspect the baseline state and readiness without writing}';
 
-    protected $description = 'Seed the guarded, deterministic TAL-96B1 client acceptance baseline.';
+    protected $description = 'Inspect or seed the guarded, deterministic client acceptance baseline.';
 
     public function handle(
         AcceptanceBaselineEnvironmentGuard $environmentGuard,
@@ -22,6 +23,41 @@ final class SeedClientAcceptanceBaseline extends Command
         try {
             $environmentGuard->assertSafe();
             $state = $seeder->state();
+
+            if ($this->option('check')) {
+                $readiness = $state === ClientAlignedAcceptanceBaselineSeeder::StateComplete
+                    && $seeder->readinessPasses()
+                        ? 'PASS'
+                        : 'NOT_READY';
+                $report = $seeder->inspectionReport();
+
+                $this->info('TAL-96D1 client acceptance baseline inspection complete.');
+                $this->line('outcome=inspection_only');
+                $this->line('database='.$report['database']);
+                $this->line('baseline_state='.$state);
+                $this->line('readiness='.$readiness);
+                $this->line('students='.$report['students']);
+                $this->line('cohorts='.$report['cohorts']);
+                $this->line('scheduling_demands='.$report['scheduling_demands']);
+                $this->line('ready_scheduling_demands='.$report['ready_scheduling_demands']);
+
+                foreach ($report['standings'] as $standing => $count) {
+                    $this->line('standing_'.str($standing)->snake()->toString().'='.$count);
+                }
+
+                $this->line(sprintf(
+                    'scenario_anchors=%d/%d',
+                    $report['scenario_anchors']['matched'],
+                    $report['scenario_anchors']['expected'],
+                ));
+                $this->line('downstream_state='.$report['downstream_state']);
+
+                foreach ($report['downstream'] as $recordType => $count) {
+                    $this->line('downstream_'.$recordType.'='.$count);
+                }
+
+                return $readiness === 'PASS' ? self::SUCCESS : self::FAILURE;
+            }
 
             if ($state === ClientAlignedAcceptanceBaselineSeeder::StateConflict) {
                 throw new RuntimeException(

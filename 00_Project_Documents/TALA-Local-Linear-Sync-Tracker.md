@@ -22,6 +22,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96B3 | Done locally; pending explicit Linear sync | Cloud Run CP-SAT Capacity, Solution-Quality, and Production-Profile Finalization |
 | TAL-96B4 | Done locally; pending explicit Linear sync | Shared-Cohort Conflict Correctness and Representative Timetable Evidence |
 | TAL-96C | Done locally; pending explicit Linear sync | Client-Baseline PayMongo Demo Readiness and Student Finance Checkout Acceptance |
+| TAL-96D1 | Done locally; pending explicit Linear sync | Client-Corrected Capacity Authority and Defense-Readiness Baseline |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

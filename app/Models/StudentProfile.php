@@ -18,8 +18,6 @@ class StudentProfile extends Model
 
     public const LifecycleArchived = 'ARCHIVED';
 
-    public const StandingGood = 'GOOD_STANDING';
-
     public const StandingRegular = 'Regular';
 
     public const StandingIrregular = 'Irregular';

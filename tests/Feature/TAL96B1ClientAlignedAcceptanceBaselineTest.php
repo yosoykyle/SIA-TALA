@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Enrollment\AcademicProgressionService;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\AcceptanceBaselineEnvironmentGuard;
@@ -71,6 +72,59 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(3, StudentProfile::query()->where('student_number', 'like', 'DIT-2A-%')->count());
         $this->assertSame(15, StudentProfile::query()->where('student_number', 'like', 'DTHM-1A-%')->count());
         $this->assertSame(7, StudentProfile::query()->where('student_number', 'like', 'DTHM-2A-%')->count());
+        $this->assertSame([
+            StudentProfile::StandingBlockedByPrerequisite => 1,
+            StudentProfile::StandingCompletionCandidate => 1,
+            StudentProfile::StandingDeficient => 1,
+            StudentProfile::StandingGraduationCandidate => 1,
+            StudentProfile::StandingIrregular => 2,
+            StudentProfile::StandingMustRepeatYear => 1,
+            StudentProfile::StandingNotYetEvaluated => 1,
+            StudentProfile::StandingProbationary => 1,
+            StudentProfile::StandingRegular => 38,
+        ], StudentProfile::query()
+            ->selectRaw('academic_standing, COUNT(*) as aggregate')
+            ->groupBy('academic_standing')
+            ->orderBy('academic_standing')
+            ->pluck('aggregate', 'academic_standing')
+            ->map(fn (int|string $count): int => (int) $count)
+            ->all());
+        $this->assertEqualsCanonicalizing(
+            AcademicProgressionService::standingValues(),
+            StudentProfile::query()->distinct()->pluck('academic_standing')->all(),
+        );
+        $this->assertSame(0, StudentProfile::query()
+            ->whereNull('user_id')
+            ->orWhereNull('program_id')
+            ->orWhereNull('curriculum_version_id')
+            ->count());
+        $this->assertSame([
+            'DIT-1A-001' => StudentProfile::StandingProbationary,
+            'DIT-1A-002' => StudentProfile::StandingDeficient,
+            'DIT-2A-001' => StudentProfile::StandingBlockedByPrerequisite,
+            'DTBM-1A-001' => StudentProfile::StandingRegular,
+            'DTBM-1A-002' => StudentProfile::StandingIrregular,
+            'DTBM-2A-001' => StudentProfile::StandingIrregular,
+            'DTHM-1A-001' => StudentProfile::StandingMustRepeatYear,
+            'DTHM-1A-002' => StudentProfile::StandingCompletionCandidate,
+            'DTHM-2A-001' => StudentProfile::StandingGraduationCandidate,
+            'DTHM-2A-002' => StudentProfile::StandingNotYetEvaluated,
+        ], StudentProfile::query()
+            ->whereIn('student_number', [
+                'DIT-1A-001',
+                'DIT-1A-002',
+                'DIT-2A-001',
+                'DTBM-1A-001',
+                'DTBM-1A-002',
+                'DTBM-2A-001',
+                'DTHM-1A-001',
+                'DTHM-1A-002',
+                'DTHM-2A-001',
+                'DTHM-2A-002',
+            ])
+            ->orderBy('student_number')
+            ->pluck('academic_standing', 'student_number')
+            ->all());
 
         $this->assertSame(40, Course::query()->count());
         $this->assertSame(41, CourseSpecification::query()->count());
@@ -346,6 +400,22 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame($before, $this->baselineCounts());
     }
 
+    public function test_complete_baseline_with_changed_academic_standing_fails_closed_without_writes(): void
+    {
+        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
+        $student = StudentProfile::query()->where('student_number', 'DTBM-1A-002')->sole();
+        $student->update(['academic_standing' => StudentProfile::StandingRegular]);
+        $before = $this->baselineCounts();
+
+        $exitCode = Artisan::call('acceptance:seed-client-baseline');
+        $output = Artisan::output();
+
+        $this->assertSame(Command::FAILURE, $exitCode);
+        $this->assertStringContainsString('partial or conflicting operational data', $output);
+        $this->assertSame(StudentProfile::StandingRegular, $student->fresh()?->academic_standing);
+        $this->assertSame($before, $this->baselineCounts());
+    }
+
     public function test_complete_baseline_with_changed_staff_role_set_fails_closed_without_writes(): void
     {
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
@@ -384,6 +454,88 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(0, User::query()->count());
     }
 
+    public function test_read_only_inspection_reports_empty_state_without_writes(): void
+    {
+        $before = $this->baselineCounts();
+
+        $exitCode = Artisan::call('acceptance:seed-client-baseline', ['--check' => true]);
+        $output = Artisan::output();
+
+        $this->assertSame(Command::FAILURE, $exitCode, $output);
+        $this->assertStringContainsString('outcome=inspection_only', $output);
+        $this->assertStringContainsString('database=test_tala_db', $output);
+        $this->assertStringContainsString('baseline_state=empty', $output);
+        $this->assertStringContainsString('readiness=NOT_READY', $output);
+        $this->assertStringContainsString('students=0', $output);
+        $this->assertStringContainsString('cohorts=0', $output);
+        $this->assertStringContainsString('scheduling_demands=0', $output);
+        $this->assertStringContainsString('ready_scheduling_demands=0', $output);
+        $this->assertStringContainsString('scenario_anchors=0/10', $output);
+        $this->assertStringContainsString('downstream_state=EMPTY', $output);
+        $this->assertSame($before, $this->baselineCounts());
+    }
+
+    public function test_read_only_inspection_reports_complete_state_as_ready_without_writes(): void
+    {
+        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
+        $before = $this->baselineCounts();
+        $latestUpdate = DB::table('scheduling_demands')->max('updated_at');
+
+        $exitCode = Artisan::call('acceptance:seed-client-baseline', ['--check' => true]);
+        $output = Artisan::output();
+
+        $this->assertSame(Command::SUCCESS, $exitCode, $output);
+        $this->assertStringContainsString('outcome=inspection_only', $output);
+        $this->assertStringContainsString('database=test_tala_db', $output);
+        $this->assertStringContainsString('baseline_state=complete', $output);
+        $this->assertStringContainsString('readiness=PASS', $output);
+        $this->assertStringContainsString('students=47', $output);
+        $this->assertStringContainsString('cohorts=6', $output);
+        $this->assertStringContainsString('scheduling_demands=54', $output);
+        $this->assertStringContainsString('ready_scheduling_demands=54', $output);
+        $this->assertStringContainsString('standing_regular=38', $output);
+        $this->assertStringContainsString('standing_irregular=2', $output);
+        $this->assertStringContainsString('standing_probationary=1', $output);
+        $this->assertStringContainsString('standing_deficient=1', $output);
+        $this->assertStringContainsString('standing_blocked_by_prerequisite=1', $output);
+        $this->assertStringContainsString('standing_must_repeat_year_level=1', $output);
+        $this->assertStringContainsString('standing_completion_candidate=1', $output);
+        $this->assertStringContainsString('standing_graduation_candidate=1', $output);
+        $this->assertStringContainsString('standing_not_yet_evaluated=1', $output);
+        $this->assertStringContainsString('scenario_anchors=10/10', $output);
+        $this->assertStringContainsString('downstream_state=EMPTY', $output);
+        $this->assertStringContainsString('downstream_schedule_runs=0', $output);
+        $this->assertStringContainsString('downstream_section_meetings=0', $output);
+        $this->assertStringContainsString('downstream_enrollments=0', $output);
+        $this->assertStringContainsString('downstream_assessments=0', $output);
+        $this->assertStringContainsString('downstream_ledger_entries=0', $output);
+        $this->assertStringContainsString('downstream_payments=0', $output);
+        $this->assertStringContainsString('downstream_payment_attempts=0', $output);
+        $this->assertStringContainsString('downstream_webhook_calls=0', $output);
+        $this->assertSame($before, $this->baselineCounts());
+        $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
+    }
+
+    public function test_read_only_inspection_reports_conflict_without_writes(): void
+    {
+        Program::query()->create([
+            'code' => 'OTHER',
+            'name' => 'Existing Unrelated Program',
+            'duration_years' => 4,
+            'is_active' => true,
+        ]);
+        $before = $this->baselineCounts();
+
+        $exitCode = Artisan::call('acceptance:seed-client-baseline', ['--check' => true]);
+        $output = Artisan::output();
+
+        $this->assertSame(Command::FAILURE, $exitCode, $output);
+        $this->assertStringContainsString('outcome=inspection_only', $output);
+        $this->assertStringContainsString('baseline_state=conflict', $output);
+        $this->assertStringContainsString('readiness=NOT_READY', $output);
+        $this->assertSame($before, $this->baselineCounts());
+    }
+
     public function test_environment_guard_fails_closed_outside_testing(): void
     {
         $guard = app(AcceptanceBaselineEnvironmentGuard::class);
@@ -407,6 +559,24 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(0, Course::query()->count());
         $this->assertSame(0, StudentProfile::query()->count());
         $this->assertSame(0, SchedulingDemand::query()->count());
+    }
+
+    public function test_capacity_authority_rejects_a_universal_student_ceiling(): void
+    {
+        $prd = file_get_contents(base_path('00_Project_Documents/prd_modules/05_term_offerings_resources.md'));
+        $guide = file_get_contents(base_path('00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md'));
+
+        $this->assertIsString($prd);
+        $this->assertIsString($guide);
+        $this->assertStringNotContainsString('Campus active-student ceiling defaults to 100', $prd);
+        $this->assertStringContainsString(
+            'TALA does not assume or enforce a universal institution-wide student ceiling.',
+            $prd,
+        );
+        $this->assertStringContainsString(
+            'The current population of 47 is evidence of client scale, not a coded maximum.',
+            $guide,
+        );
     }
 
     /** @return array<string, string> */

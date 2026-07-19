@@ -13,12 +13,15 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96 | Planned parent | Final MVP operational-data, integration-demo, system-acceptance, UX-polish, documentation, and capacity-readiness gate. |
 | TAL-96A | Done locally | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline handoff for the project manager. |
 | TAL-96C | Done locally | Client-baseline PayMongo demo readiness and Student Finance checkout acceptance. |
-| TAL-96D | Revised planned; depends on TAL-96C | Cross-Role UAT, Regression, Evidence-Based UI/UX Correction, and Final Markdown User Manual. |
-| TAL-97 | Planned | Rehearsal and Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96 outputs. |
+| TAL-96D | Approved revised split; depends on TAL-96C | Production-Level MVP Defense Readiness parent covering vertical prerequisite and state hardening, adversarial cross-role UAT, evidence-based UI/UX remediation, deployment-readiness review, and one consolidated operations, acceptance, and defense guide. |
+| TAL-96D1 | Done locally | Client-Corrected Capacity Authority, Representative Scenario Catalogue, Operating-Order Map, Implementation-Validity Audit, Baseline Correction, and Required-Gap Routing. |
+| TAL-96D2 | Planned; depends on TAL-96D1 | Identity, Admissions, Academic Setup, and Offering-State Hardening. |
+| TAL-96D3 | Planned; depends on TAL-96D2 | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening. |
+| TAL-96D4 | Planned; depends on TAL-96D3 | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
+| TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, Deployment-Readiness Gate, and Consolidated System Operations and Defense Guide. |
+| TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
 
-## Active Approved Plan Contract
-
-No active approved plan. The next planning boundary is `Plan TAL-96D`.
+Approved TAL-96D order: `TAL-96D1 -> TAL-96D2 -> TAL-96D3 -> TAL-96D4 -> TAL-96D5 -> TAL-97`. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment and cutover remain outside this split.
 
 ## Post-MVP Deferrals
 
@@ -35,4 +38,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96D`**. Linear sync, push, PR creation, deployment, and external-service changes remain unauthorized until their corresponding explicit commands.
+Next primary boundary: **`Plan TAL-96D2`**. TAL-96D2 remains unapproved until its detailed plan is presented and accepted. Linear sync, push, PR creation, deployment, subagent use, and external-service changes remain unauthorized until their corresponding explicit commands.

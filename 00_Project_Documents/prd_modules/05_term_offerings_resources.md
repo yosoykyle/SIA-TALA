@@ -57,7 +57,7 @@ Rules:
 
 1. Only approved curriculum versions can generate term offerings.
 2. Section capacity is configurable.
-3. Campus active-student ceiling defaults to 100 unless configured differently.
+3. TALA does not assume or enforce a universal institution-wide student ceiling. Enrollment capacity is governed through configurable sections, physical-room limits where applicable, published offerings, and Registrar-confirmed seat reservations. An institution-wide ceiling must not be introduced unless separately supported by approved institutional policy.
 4. Inquiry, application, draft subject choices, or payment initiation do not secure a slot. Only a Registrar-confirmed Enrollment Seat Reservation or official enrollment consumes capacity.
 5. A Registrar-confirmed Enrollment Seat Reservation consumes available capacity while enrollment is pending. Official enrollment converts that reservation without consuming capacity a second time.
 6. `Irregular` describes a student's Academic Standing and individual-subject enrollment path; it is not a Term Offering category. Irregular students may enroll in compatible Regular or Special offerings.

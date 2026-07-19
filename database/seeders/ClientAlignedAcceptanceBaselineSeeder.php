@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Enrollment\AcademicProgressionService;
 use App\Actions\Registrar\BuildTermOfferings;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
@@ -118,6 +119,66 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             : null;
 
         return $term instanceof Term && $this->readinessPassesForTerm($term);
+    }
+
+    /**
+     * @return array{
+     *     database:string,
+     *     students:int,
+     *     cohorts:int,
+     *     scheduling_demands:int,
+     *     ready_scheduling_demands:int,
+     *     standings:array<string,int>,
+     *     scenario_anchors:array{matched:int,expected:int},
+     *     downstream_state:'EMPTY'|'PRESENT',
+     *     downstream:array<string,int>
+     * }
+     */
+    public function inspectionReport(): array
+    {
+        $standings = collect(AcademicProgressionService::standingValues())
+            ->mapWithKeys(fn (string $standing): array => [
+                $standing => StudentProfile::query()->where('academic_standing', $standing)->count(),
+            ])
+            ->all();
+        $cohorts = collect(array_keys($this->cohorts()))
+            ->filter(fn (string $cohortCode): bool => StudentProfile::query()
+                ->where('student_number', 'like', $cohortCode.'-%')
+                ->exists())
+            ->count();
+        $matchedAnchors = collect($this->scenarioAnchorDefinitions())
+            ->filter(fn (array $definition, string $studentNumber): bool => StudentProfile::query()
+                ->where('student_number', $studentNumber)
+                ->where('academic_standing', $definition['academic_standing'])
+                ->exists())
+            ->count();
+        $downstream = [
+            'schedule_runs' => ScheduleGenerationRun::query()->count(),
+            'section_meetings' => SectionMeeting::query()->count(),
+            'enrollments' => Enrollment::query()->count(),
+            'assessments' => Assessment::query()->count(),
+            'ledger_entries' => LedgerEntry::query()->count(),
+            'payments' => Payment::query()->count(),
+            'payment_attempts' => PaymentAttempt::query()->count(),
+            'webhook_calls' => DB::table('webhook_calls')->count(),
+        ];
+
+        return [
+            'database' => (string) DB::connection()->getDatabaseName(),
+            'students' => StudentProfile::query()->count(),
+            'cohorts' => $cohorts,
+            'scheduling_demands' => SchedulingDemand::query()->count(),
+            'ready_scheduling_demands' => SchedulingDemand::query()
+                ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
+                ->count(),
+            'standings' => $standings,
+            'scenario_anchors' => [
+                'matched' => $matchedAnchors,
+                'expected' => count($this->scenarioAnchorDefinitions()),
+            ],
+            'downstream_state' => collect($downstream)->sum() === 0 ? 'EMPTY' : 'PRESENT',
+            'downstream' => $downstream,
+        ];
     }
 
     /** @return array{Term, User, list<User>} */
@@ -310,9 +371,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 $lastName = sprintf('Student %03d', $globalNumber);
                 $user = $this->createUser($firstName, $lastName, $email, 'student');
 
+                $studentNumber = sprintf('%s-%03d', $cohortCode, $number);
+
                 StudentProfile::query()->create([
                     'user_id' => $user->id,
-                    'student_number' => sprintf('%s-%03d', $cohortCode, $number),
+                    'student_number' => $studentNumber,
                     'first_name' => $firstName,
                     'middle_name' => null,
                     'last_name' => $lastName,
@@ -320,7 +383,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     'program_id' => $programs[$cohort['program']]->id,
                     'curriculum_version_id' => $curricula[$cohort['program']]->id,
                     'lifecycle_status' => StudentProfile::LifecycleActive,
-                    'academic_standing' => StudentProfile::StandingGood,
+                    'academic_standing' => $this->expectedAcademicStanding($studentNumber),
                     'email' => $email,
                     'phone' => null,
                     'address' => 'Synthetic acceptance address',
@@ -888,7 +951,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                         ->where('last_name', $lastName)
                         ->where('birth_date', sprintf('2005-%02d-%02d', (($globalNumber - 1) % 12) + 1, (($globalNumber - 1) % 27) + 1))
                         ->where('lifecycle_status', StudentProfile::LifecycleActive)
-                        ->where('academic_standing', StudentProfile::StandingGood)
+                        ->where('academic_standing', $this->expectedAcademicStanding(sprintf('%s-%03d', $cohortCode, $number)))
                         ->where('email', $email)
                         ->where('address', 'Synthetic acceptance address')
                         ->where('emergency_contact_name', 'Synthetic Contact')
@@ -1004,6 +1067,64 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && ! PaymentAttempt::query()->exists()
             && ! Payment::query()->exists()
             && ! DB::table('webhook_calls')->exists();
+    }
+
+    private function expectedAcademicStanding(string $studentNumber): string
+    {
+        return $this->scenarioAnchorDefinitions()[$studentNumber]['academic_standing']
+            ?? StudentProfile::StandingRegular;
+    }
+
+    /**
+     * These records are starting-state personas for later vertical acceptance
+     * journeys. They do not fabricate enrollments, balances, holds, or schedules.
+     *
+     * @return array<string, array{academic_standing:string,purpose:string}>
+     */
+    private function scenarioAnchorDefinitions(): array
+    {
+        return [
+            'DTBM-1A-001' => [
+                'academic_standing' => StudentProfile::StandingRegular,
+                'purpose' => 'Regular progression and representative Student Hub account.',
+            ],
+            'DTBM-1A-002' => [
+                'academic_standing' => StudentProfile::StandingIrregular,
+                'purpose' => 'First-year irregular subject-selection journey.',
+            ],
+            'DTBM-2A-001' => [
+                'academic_standing' => StudentProfile::StandingIrregular,
+                'purpose' => 'Continuing irregular subject-selection journey.',
+            ],
+            'DIT-1A-001' => [
+                'academic_standing' => StudentProfile::StandingProbationary,
+                'purpose' => 'Probationary academic-status explanation and staff review.',
+            ],
+            'DIT-1A-002' => [
+                'academic_standing' => StudentProfile::StandingDeficient,
+                'purpose' => 'Academic-deficiency guidance and hold interaction.',
+            ],
+            'DIT-2A-001' => [
+                'academic_standing' => StudentProfile::StandingBlockedByPrerequisite,
+                'purpose' => 'Failed prerequisite and scoped-exception journey.',
+            ],
+            'DTHM-1A-001' => [
+                'academic_standing' => StudentProfile::StandingMustRepeatYear,
+                'purpose' => 'Repeat-year progression review.',
+            ],
+            'DTHM-1A-002' => [
+                'academic_standing' => StudentProfile::StandingCompletionCandidate,
+                'purpose' => 'Completion review journey.',
+            ],
+            'DTHM-2A-001' => [
+                'academic_standing' => StudentProfile::StandingGraduationCandidate,
+                'purpose' => 'Graduation review journey.',
+            ],
+            'DTHM-2A-002' => [
+                'academic_standing' => StudentProfile::StandingNotYetEvaluated,
+                'purpose' => 'Missing progression-baseline journey.',
+            ],
+        ];
     }
 
     /** @return array<string, float> */
