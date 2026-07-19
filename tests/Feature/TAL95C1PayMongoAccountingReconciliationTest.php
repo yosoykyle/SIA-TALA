@@ -106,7 +106,10 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
 
         $this->assertSame('review_required', $processed['status']);
         $this->assertSame('missing_tala_reference', $processed['reason']);
-        $this->assertSame($attempt->id, Payment::query()->sole()->payment_attempt_id);
+        $this->assertSame(
+            $attempt->id,
+            Payment::query()->where('payment_attempt_id', $attempt->id)->sole()->payment_attempt_id,
+        );
     }
 
     public function test_accounting_can_confirm_bounded_amount_ambiguity_exactly_once(): void
@@ -125,7 +128,9 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $service = app(PayMongoReconciliationService::class);
         $first = $service->confirm($event->id, 'Provider evidence confirms the actual paid amount.', $accounting);
         $second = $service->confirm($event->id, 'Repeated confirmation remains idempotent.', $accounting);
-        $payment = Payment::query()->sole();
+        $payment = Payment::query()
+            ->where('payment_attempt_id', $attempt->id)
+            ->sole();
 
         $this->assertSame('confirmed', $first['status']);
         $this->assertSame('duplicate', $second['status']);
@@ -136,7 +141,10 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $this->assertSame('paid', $attempt->fresh()->status);
         $this->assertSame('pending_payment', $assessment->enrollment->fresh()->status);
         $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(1, LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->where('payment_id', $payment->id)
+            ->count());
         $this->assertSame(1, DB::table('activity_log')->where('event', 'paymongo_payment_confirmed')->count());
         Mail::assertQueued(PaymentPostedMail::class, 1);
     }
@@ -155,10 +163,17 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
 
         $this->assertSame('rejected', $first['status']);
         $this->assertSame('duplicate', $second['status']);
-        $this->assertSame('rejected', Payment::query()->sole()->evidence_status);
-        $this->assertNull(Payment::query()->sole()->verified_by);
+        $payment = Payment::query()
+            ->where('payment_attempt_id', $attempt->id)
+            ->sole();
+
+        $this->assertSame('rejected', $payment->evidence_status);
+        $this->assertNull($payment->verified_by);
         $this->assertSame('failed', $attempt->fresh()->status);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->where('payment_id', $payment->id)
+            ->count());
         $this->assertSame(1, DB::table('activity_log')->where('event', 'paymongo_evidence_rejected')->count());
     }
 

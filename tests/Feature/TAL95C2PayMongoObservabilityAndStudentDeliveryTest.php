@@ -69,8 +69,14 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
 
         $this->assertSame('posted', $first['status']);
         $this->assertSame('duplicate', $second['status']);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypePaymentPostedEmail)->count());
+        $this->assertSame(1, LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->where('payment_id', $first['payment']->id)
+            ->count());
+        $this->assertSame(1, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+            ->where('related_record_id', $first['payment']->id)
+            ->count());
         Mail::assertQueuedCount(1);
         Mail::assertQueued(PaymentPostedMail::class, function (PaymentPostedMail $mail) use ($fixture): bool {
             $this->assertTrue($mail->hasTo($fixture['student']->email));
@@ -80,7 +86,10 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             return true;
         });
 
-        $event = OperationalEvent::query()->where('event_type', OperationalEvent::TypePaymentPostedEmail)->sole();
+        $event = OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+            ->where('related_record_id', $first['payment']->id)
+            ->sole();
         $this->assertSame($fixture['student']->id, $event->user_id);
         $this->assertSame(Payment::class, $event->related_record_type);
         $this->assertSame($first['payment']->id, $event->related_record_id);
@@ -106,7 +115,13 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
 
         $this->assertSame('posted', $result['status']);
         $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $payment = Payment::query()
+            ->where('payment_attempt_id', $fixture['attempt']->id)
+            ->sole();
+        $this->assertSame(1, LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->where('payment_id', $payment->id)
+            ->count());
         Mail::assertQueued(PaymentPostedMail::class, 1);
     }
 
@@ -124,7 +139,10 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             description: 'Accounting-confirmed PayMongo payment',
         );
 
-        $event = OperationalEvent::query()->where('event_type', OperationalEvent::TypePaymentPostedEmail)->sole();
+        $event = OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+            ->where('related_record_id', $result['payment']->id)
+            ->sole();
         $this->assertSame(OperationalEvent::StatusFailed, $event->status);
         $this->assertSame('Recipient email is missing or invalid.', data_get($event->diagnostics, 'reason'));
         $this->assertDatabaseHas('payments', ['id' => $result['payment']->id, 'evidence_status' => 'verified']);
@@ -147,7 +165,10 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
 
             return true;
         });
-        $this->assertInstanceOf(PaymentPostedMail::class, $queuedMail);
+        if (! $queuedMail instanceof PaymentPostedMail) {
+            $this->fail('The payment-posted mail should have been queued.');
+        }
+
         $queuedMail->failed(new RuntimeException('Sensitive transport details'));
 
         $failedEvent = OperationalEvent::query()->findOrFail($queuedMail->operationalEventId);
@@ -201,6 +222,14 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             }
         });
 
+        $paymentCount = Payment::query()->count();
+        $paymentLedgerEntryCount = LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count();
+        $notificationEventCount = OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+            ->count();
+
         try {
             DB::transaction(fn (): array => app(PayMongoPaymentPostingService::class)->post(
                 attempt: $fixture['attempt'],
@@ -217,9 +246,13 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             Event::forget($eventName);
         }
 
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(0, OperationalEvent::query()->where('event_type', OperationalEvent::TypePaymentPostedEmail)->count());
+        $this->assertSame($paymentCount, Payment::query()->count());
+        $this->assertSame($paymentLedgerEntryCount, LedgerEntry::query()
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
+        $this->assertSame($notificationEventCount, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypePaymentPostedEmail)
+            ->count());
         Mail::assertNothingQueued();
     }
 

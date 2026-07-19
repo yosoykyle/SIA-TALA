@@ -6,19 +6,19 @@ This is the active planning surface for issue order, compact parent/sub-slice ma
 
 ## Active and Upcoming Issues
 
-Remaining dependency chain: prove PayMongo test-mode demo readiness (revised TAL-96C), complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (revised TAL-96D), and prepare the formal client and panel presentation (TAL-97). The completed scheduling formulation, consistency gate, and TAL-96B client-baseline, recovery, capacity, and shared-cohort work are retained in their bounded commits and pending-sync tracker rows. Post-MVP deferrals are nonblocking.
+Remaining dependency chain: complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (revised TAL-96D), then prepare the formal client and panel presentation (TAL-97). The completed scheduling and PayMongo readiness work is retained in bounded commits and pending-sync tracker rows. Post-MVP deferrals are nonblocking.
 
 | Issue | Status | Goal |
 | --- | --- | --- |
 | TAL-96 | Planned parent | Final MVP operational-data, integration-demo, system-acceptance, UX-polish, documentation, and capacity-readiness gate. |
 | TAL-96A | Done locally | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline handoff for the project manager. |
-| TAL-96C | Revised planned; next boundary | PayMongo Test-Mode Demo Readiness using the accepted baseline and human-gated dashboard, checkout, and webhook actions. |
+| TAL-96C | Done locally | Client-baseline PayMongo demo readiness and Student Finance checkout acceptance. |
 | TAL-96D | Revised planned; depends on TAL-96C | Cross-Role UAT, Regression, Evidence-Based UI/UX Correction, and Final Markdown User Manual. |
 | TAL-97 | Planned | Rehearsal and Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96 outputs. |
 
 ## Active Approved Plan Contract
 
-No active approved plan. The next planning boundary is `Plan TAL-96C`.
+No active approved plan. The next planning boundary is `Plan TAL-96D`.
 
 ## Post-MVP Deferrals
 
@@ -35,4 +35,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96C`**. Linear sync, implementation, push, PR creation, Cloud mutation, and external-service changes remain unauthorized until their corresponding explicit commands.
+Next primary boundary: **`Plan TAL-96D`**. Linear sync, push, PR creation, deployment, and external-service changes remain unauthorized until their corresponding explicit commands.
