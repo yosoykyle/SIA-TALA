@@ -36,7 +36,7 @@
         <section class="hero-section d-flex flex-column justify-content-between" id="top" data-navbar-theme="dark">
             <div class="container text-center flex-grow-1 d-flex flex-column justify-content-center">
                 <h1 class="display-headline mt-5">
-                    Technology for Administrative Ledger and Academic Management
+                    Tertiary Academic Lifecycle Administration
                 </h1>
                 <p class="mx-auto text-white-50 fs-5 hero-lead">
                     Apply online, sign in to your assigned workspace, and follow school guidance for admissions, enrollment, finance evidence, records, and academic access.
@@ -333,7 +333,7 @@
                         <img src="{{ asset('landing/images/talalogo.png') }}" alt="TALA" class="footer-logo">
                         <span>TALA</span>
                     </a>
-                    <p class="footer-desc mb-4">Technology for Administrative Ledger and Academic Management for Servitech Institute Asia.</p>
+                    <p class="footer-desc mb-4">Tertiary Academic Lifecycle Administration for Servitech Institute Asia.</p>
                 </div>
                 <div class="col-lg-5">
                     <div class="d-flex flex-wrap justify-content-lg-end gap-3">

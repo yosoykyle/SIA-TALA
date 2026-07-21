@@ -4,11 +4,13 @@
 
 ### 1.1. Product Name
 
-**T.A.L.A. — Technology for Administrative Ledger and Academic Management**
+**T.A.L.A. — Tertiary Academic Lifecycle Administration**
 
 Full capstone title:
 
-**T.A.L.A.: A Technology for Administrative Ledger and Academic Management System with Constraint-Based Academic Scheduling Using Google OR-Tools**
+**T.A.L.A.: A Tertiary Academic Lifecycle Administration System with Constraint-Based Academic Scheduling Using Google OR-Tools**
+
+The name also draws on the Filipino *tala/talâ*, meaning both "star" and "a record or register," reflecting the system's role as the institution's single trusted academic record.
 
 TALA is a College-focused companion and integration platform for managing approved in-scope official academic lifecycle records at Servitech Institute Asia. Its central technical contribution is timetable-integrated, constraint-based CP-SAT academic scheduling connected to curriculum, term offerings, faculty availability, room assignment, enrollment, COR generation, and Student Hub visibility.
 

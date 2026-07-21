@@ -1,8 +1,10 @@
-# T.A.L.A. (Total Academic Lifecycle Automation) System
+# T.A.L.A. (Tertiary Academic Lifecycle Administration) System
 
 ![TALA Hero Banner](.github/assets/tala_hero_banner.jpg)
 
-Total Academic Lifecycle Automation (T.A.L.A.) is the unified academic, financial, and administrative management platform for **Servitech Institute Asia (SIA)**.
+Tertiary Academic Lifecycle Administration (T.A.L.A.) is the unified academic, financial, and administrative management platform for **Servitech Institute Asia (SIA)**.
+
+> The name also draws on the Filipino *tala/talâ*, meaning both "star" and "a record or register," reflecting the system's role as the institution's single trusted academic record.
 
 ---
 

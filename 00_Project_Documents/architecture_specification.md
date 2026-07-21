@@ -64,7 +64,7 @@
 
 ## 1. Purpose, Scope, and Evidence Basis
 
-**T.A.L.A.** (Technology for Administrative Ledger and Academic Management) is a college-focused student information and academic operations system designed for Servitech Institute Asia (SIA). It provides one governed digital record across applicant intake, student handover, academic setup, scheduling, enrollment, assessment and payment evidence, official outputs, grades, learner self-service, reporting, and audit.
+**T.A.L.A.** (Tertiary Academic Lifecycle Administration) is a college-focused student information and academic operations system designed for Servitech Institute Asia (SIA). It provides one governed digital record across applicant intake, student handover, academic setup, scheduling, enrollment, assessment and payment evidence, official outputs, grades, learner self-service, reporting, and audit.
 
 This specification describes TALA as an operationally complete system. It explains:
 
