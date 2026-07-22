@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ApplicantIntakes\Schemas;
 
 use App\Models\ApplicantIntake;
+use Carbon\CarbonImmutable;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -15,10 +16,43 @@ class ApplicantIntakeInfolist
             ->components([
                 Section::make('Applicant')
                     ->schema([
-                        TextEntry::make('user.name')->label('Applicant Name'),
-                        TextEntry::make('user.email')->label('Email'),
-                        TextEntry::make('birth_date')->date(),
-                        TextEntry::make('phone')->placeholder('Not provided'),
+                        TextEntry::make('applicant_name')
+                            ->label('Applicant Name')
+                            ->state(fn (ApplicantIntake $record): string => collect([
+                                $record->first_name,
+                                $record->middle_name,
+                                $record->last_name,
+                                $record->extension_name,
+                            ])->filter()->implode(' ')),
+                        TextEntry::make('email'),
+                        TextEntry::make('birth_date')->label('Date of Birth')->date(),
+                        TextEntry::make('age')
+                            ->state(fn (ApplicantIntake $record): string => filled($record->birth_date)
+                                ? (string) CarbonImmutable::parse((string) $record->birth_date)->age
+                                : 'Not available'),
+                        TextEntry::make('birth_place')->label('Place of Birth')->placeholder('Not provided'),
+                        TextEntry::make('gender')
+                            ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->title()->toString())
+                            ->placeholder('Not provided'),
+                        TextEntry::make('civil_status')
+                            ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->title()->toString())
+                            ->placeholder('Not provided'),
+                        TextEntry::make('phone')->label('Contact Number')->placeholder('Not provided'),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
+                Section::make('Application')
+                    ->schema([
+                        TextEntry::make('term.label')->label('Admission Term'),
+                        TextEntry::make('program.name')->label('Preferred Program'),
+                        TextEntry::make('modality_preference')
+                            ->label('Modality Preference')
+                            ->badge()
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                ApplicantIntake::ModalityPreferenceFaceToFace => 'Face-to-Face',
+                                ApplicantIntake::ModalityPreferenceOnline => 'Online',
+                                default => 'Not provided',
+                            }),
                         TextEntry::make('admission_category')
                             ->label('Admission Category')
                             ->badge()
@@ -27,32 +61,45 @@ class ApplicantIntakeInfolist
                             ->label('Credential Basis')
                             ->badge()
                             ->formatStateUsing(fn (?string $state): string => self::credentialBasisLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString()),
-                    ])
-                    ->columns(2)
-                    ->columnSpanFull(),
-                Section::make('Application')
-                    ->schema([
-                        TextEntry::make('term.term_name')->label('Admission Term'),
-                        TextEntry::make('program.name')->label('Preferred Program'),
-                        TextEntry::make('prior_school')->placeholder('Not provided'),
+                        TextEntry::make('prior_school')->label('Prior School')->placeholder('Not provided'),
                         TextEntry::make('status')
                             ->badge()
                             ->color(fn (string $state): string => match ($state) {
                                 ApplicantIntake::StatusApproved => 'success',
                                 ApplicantIntake::StatusActionRequired => 'danger',
                                 ApplicantIntake::StatusForEvaluation => 'info',
-                                ApplicantIntake::StatusDraft => 'gray',
+                                ApplicantIntake::StatusDraft, ApplicantIntake::StatusWithdrawn => 'gray',
                                 default => 'warning',
                             })
                             ->formatStateUsing(fn (?string $state): string => self::statusLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString()),
-                        TextEntry::make('submitted_at')->dateTime(),
+                        TextEntry::make('submitted_at')->dateTime()->placeholder('Draft not submitted'),
+                        TextEntry::make('reviewed_at')->label('Last Registrar Review')->dateTime()->placeholder('Not reviewed'),
+                        TextEntry::make('approved_at')->label('Approved At')->dateTime()->placeholder('Not approved'),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
-                Section::make('Identity Evidence')
+                Section::make('Address and Guardian')
+                    ->schema([
+                        TextEntry::make('address')
+                            ->state(fn (ApplicantIntake $record): string => collect([
+                                $record->address_street,
+                                $record->address_barangay,
+                                $record->address_city,
+                                $record->address_district,
+                                $record->address_province,
+                            ])->filter()->implode(', '))
+                            ->placeholder('Not provided'),
+                        TextEntry::make('guardian_name')->label('Parent / Guardian')->placeholder('Not provided'),
+                        TextEntry::make('guardian_phone')->label('Guardian Contact')->placeholder('Not provided'),
+                        TextEntry::make('guardian_address')->label('Guardian Address')->placeholder('Not provided'),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
+                Section::make('Digital Evidence')
+                    ->description('Open and decide each digital requirement individually in the checklist below.')
                     ->schema([
                         TextEntry::make('identity_evidence_reference')
-                            ->label('Private Identity Document')
+                            ->label('Identity Document Reference')
                             ->formatStateUsing(fn (?string $state): string => filled($state)
                                 ? basename($state)
                                 : 'Not uploaded'),
@@ -90,6 +137,7 @@ class ApplicantIntakeInfolist
             ApplicantIntake::StatusActionRequired => 'Action Required',
             ApplicantIntake::StatusForEvaluation => 'For Evaluation',
             ApplicantIntake::StatusApproved => 'Approved for Handover',
+            ApplicantIntake::StatusWithdrawn => 'Withdrawn',
         ];
     }
 }

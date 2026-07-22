@@ -8,8 +8,9 @@ The admission model uses a simplified flat checklist approach to track document 
 
 1. **Flat Checklist Items:** The system tracks individual document requirements (e.g., Birth Certificate, Form 137, Transcript of Records) mapped directly to the Applicant or Student record.
 2. **Checklist Item States:** Each required document has a status of `Pending`, `Received Physical`, `Received Digital`, `Accepted`, `Rejected`, `Waived`, or `Undertaking Approved`.
-3. **Upfront Digital Upload:** Applicant Workspace captures basic profile data and exactly one required digital upload: `identity_document_url` (verified by the Registrar).
-4. **Physical Tracking & Verification:** The Registrar updates individual checklist item states as physical documents are received. Handover is blocked if any requirement marked as "Blocks Handover" remains unresolved.
+3. **Policy-Driven Upfront Digital Upload:** Applicant Workspace resolves the effective admission requirement policies for the selected admission category and credential basis. Each applicable requirement whose evidence method is `DIGITAL_UPLOAD` receives its own private upload field, including the identity document when required. A draft may contain partial uploads, but final submission requires every blocking digital-upload requirement. Each submitted file becomes separate document evidence linked to its matching checklist item for individual Registrar review.
+4. **Physical and Metadata Tracking:** Requirements configured as `PHYSICAL_COPY` or `METADATA_ONLY` are not uploaded during applicant intake. The Registrar records and verifies those checklist items through the staff workflow. Handover is blocked if any requirement marked as "Blocks Handover" remains unresolved.
+5. **Correction and Versioning:** Rejected digital evidence places the application in `Action Required`. The applicant replaces the rejected item from the Requirements page; the system retains the evidence-version link, checksum, private-storage controls, and audit history.
 
 Document compliance is represented as direct checklist items on the applicant or student record. 
 
@@ -162,9 +163,9 @@ Rules:
 
 | Information or action | Required interaction form |
 | --- | --- |
-| Applicant personal, contact, prior-school, and program-choice information | Multi-section Record Form saved as a draft before final submission |
+| Applicant personal, contact, guardian, prior-school, program-choice, and informational modality-preference data | Three-step Wizard saved as a draft before final submission: Personal Information, Required Documents, and Review and Submit |
 | Admission requirements | Checklist of configured Admission Checklist Items; each item exposes only its allowed evidence method |
-| Digital evidence | File Upload with file-type/size validation, preview, and replace/resubmit action |
+| Digital evidence | One private File Upload per applicable `DIGITAL_UPLOAD` policy, with file-type/size validation, preview, and per-item replace/resubmit action |
 | Physical-copy or metadata-only evidence | Staff Record Form capturing received/verified status, date, recorder, and reference; no artificial upload requirement |
 | Applicant review | Operational Queue / Review Table with filters and a focused decision form |
 | Handover | Read-only comparison/preview of applicant and proposed student records, followed by an explicit confirmation action |

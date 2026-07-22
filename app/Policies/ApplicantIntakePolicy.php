@@ -39,6 +39,28 @@ class ApplicantIntakePolicy
             && $applicantIntake->handed_over_at === null;
     }
 
+    public function review(User $user, ApplicantIntake $applicantIntake): bool
+    {
+        return $this->view($user, $applicantIntake)
+            && $user->hasRole(User::StaffRoleRegistrar)
+            && $user->can('approve-documents')
+            && $applicantIntake->handed_over_at === null
+            && in_array($applicantIntake->status, [
+                ApplicantIntake::StatusPending,
+                ApplicantIntake::StatusActionRequired,
+                ApplicantIntake::StatusForEvaluation,
+            ], true);
+    }
+
+    public function downloadEvidence(User $user, ApplicantIntake $applicantIntake): bool
+    {
+        return $this->view($user, $applicantIntake)
+            && $user->hasRole(User::StaffRoleRegistrar)
+            && $user->can('approve-documents')
+            && $applicantIntake->handed_over_at === null
+            && $applicantIntake->status !== ApplicantIntake::StatusWithdrawn;
+    }
+
     public function delete(User $user, ApplicantIntake $applicantIntake): bool
     {
         return false;

@@ -28,7 +28,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
         $labels = $this->navigationLabelsForPanel($applicant, 'applicant');
 
-        $this->assertSame(['My Application', 'Dashboard'], $labels);
+        $this->assertSame(['My Application', 'Dashboard', 'Requirements'], $labels);
         $this->assertNoStaffOnlyNavigationLabels($labels);
     }
 

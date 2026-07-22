@@ -74,6 +74,7 @@ class AdmissionRequirementPolicy extends Model
             'FORM_137' => 'Form 137',
             'TRANSCRIPT_OF_RECORDS' => 'Transcript of Records',
             'GOOD_MORAL' => 'Good Moral Certificate',
+            'PRIOR_STUDENT_RECORD' => 'Prior Student Record',
         ];
     }
 

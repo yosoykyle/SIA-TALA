@@ -25,6 +25,8 @@ class ApplicantIntake extends Model
 
     public const StatusApproved = 'approved';
 
+    public const StatusWithdrawn = 'withdrawn';
+
     public const DuplicateStatusClear = 'clear';
 
     public const DuplicateStatusBlocked = 'blocked';
@@ -41,6 +43,10 @@ class ApplicantIntake extends Model
 
     public const CredentialBasisPriorStudentRecord = 'PRIOR_STUDENT_RECORD';
 
+    public const ModalityPreferenceFaceToFace = 'FACE_TO_FACE';
+
+    public const ModalityPreferenceOnline = 'ONLINE';
+
     /**
      * @var list<string>
      */
@@ -50,14 +56,28 @@ class ApplicantIntake extends Model
         'program_id',
         'admission_category',
         'credential_basis',
+        'modality_preference',
         'first_name',
         'middle_name',
         'last_name',
+        'extension_name',
         'birth_date',
+        'gender',
+        'civil_status',
+        'birth_place',
         'email',
         'phone',
+        'address_barangay',
+        'address_street',
+        'address_city',
+        'address_district',
+        'address_province',
         'prior_school',
+        'guardian_name',
+        'guardian_phone',
+        'guardian_address',
         'identity_evidence_reference',
+        'draft_document_references',
         'status',
         'submitted_at',
         'reviewed_at',
@@ -83,6 +103,7 @@ class ApplicantIntake extends Model
     {
         return [
             'birth_date' => 'date',
+            'draft_document_references' => 'array',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',

@@ -16,11 +16,19 @@ class AdmissionRequirementResolver
      */
     public function resolve(ApplicantIntake $intake): Collection
     {
+        return $this->resolveFor($intake->admission_category, $intake->credential_basis);
+    }
+
+    /**
+     * @return Collection<int, AdmissionRequirementPolicy>
+     */
+    public function resolveFor(string $admissionCategory, string $credentialBasis, bool $failWhenEmpty = true): Collection
+    {
         $effectiveOn = CarbonImmutable::now(config('app.timezone'))->toDateString();
 
         $policies = AdmissionRequirementPolicy::query()
-            ->where('admission_category', $intake->admission_category)
-            ->where('credential_basis', $intake->credential_basis)
+            ->where('admission_category', $admissionCategory)
+            ->where('credential_basis', $credentialBasis)
             ->where('state', AdmissionRequirementPolicy::StateActive)
             ->whereDate('effective_from', '<=', $effectiveOn)
             ->where(function (Builder $query) use ($effectiveOn): void {
@@ -31,7 +39,7 @@ class AdmissionRequirementResolver
             ->orderBy('id')
             ->get();
 
-        if ($policies->isEmpty()) {
+        if ($failWhenEmpty && $policies->isEmpty()) {
             throw ValidationException::withMessages([
                 'admission_requirement_policy' => 'No effective admission requirement policy matches this intake.',
             ]);

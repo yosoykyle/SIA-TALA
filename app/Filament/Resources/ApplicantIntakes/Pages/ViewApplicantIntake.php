@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\ApplicantIntakes\Pages;
 
+use App\Actions\Applicants\ApplicantEvidenceService;
+use App\Actions\Applicants\ApplicantReviewService;
 use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
@@ -9,11 +11,13 @@ use App\Models\ApplicantIntake;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -24,16 +28,47 @@ class ViewApplicantIntake extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('markForEvaluation')
+                ->label('Mark for Evaluation')
+                ->icon('heroicon-o-magnifying-glass')
+                ->color('info')
+                ->requiresConfirmation()
+                ->modalDescription('Confirms that submitted digital evidence is present and moves the application into formal Registrar evaluation.')
+                ->visible(fn (): bool => $this->currentUserCanReview()
+                    && in_array($this->applicantIntake()->status, [ApplicantIntake::StatusPending, ApplicantIntake::StatusActionRequired], true))
+                ->action(fn (): mixed => $this->runReviewAction(
+                    fn (User $actor): ApplicantIntake => app(ApplicantReviewService::class)
+                        ->markForEvaluation($this->applicantIntake(), $actor),
+                    'Application marked for evaluation',
+                )),
+            Action::make('approveApplication')
+                ->label('Approve Application')
+                ->icon('heroicon-o-check-badge')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalDescription('Approval is allowed only after every handover-blocking requirement is resolved. Handover remains a separate explicit action.')
+                ->visible(fn (): bool => $this->currentUserCanReview()
+                    && $this->applicantIntake()->status === ApplicantIntake::StatusForEvaluation)
+                ->action(fn (): mixed => $this->runReviewAction(
+                    fn (User $actor): ApplicantIntake => app(ApplicantReviewService::class)
+                        ->approve($this->applicantIntake(), $actor),
+                    'Application approved for handover',
+                )),
             Action::make('handOverToStudent')
                 ->label('Hand Over to Student')
                 ->icon('heroicon-o-academic-cap')
                 ->color('success')
                 ->requiresConfirmation()
-                ->modalHeading('Hand over approved applicant to Student Hub')
-                ->modalDescription('This creates the official student profile, carries forward eligible checklist items, and activates Student Hub access for the applicant account.')
-                ->modalSubmitActionLabel('Hand Over to Student')
+                ->modalHeading('Confirm applicant-to-student handover')
+                ->modalDescription('Review the applicant, target program, active curriculum rule, and any returning-student profile match before creating or reusing the official student record.')
+                ->modalContent(fn () => view('filament.admin.applicant-intakes.handover-preview', [
+                    'intake' => $this->applicantIntake()->load(['program', 'term', 'checklistItems']),
+                    'candidates' => $this->existingProfileOptions(),
+                ]))
+                ->schema(fn (): array => $this->handoverSchema())
+                ->modalSubmitActionLabel('Confirm Hand Over')
                 ->visible(fn (): bool => $this->currentUserCanHandOver())
-                ->action(function (): void {
+                ->action(function (array $data): void {
                     $record = $this->applicantIntake();
                     $actor = auth()->user();
 
@@ -43,10 +78,13 @@ class ViewApplicantIntake extends ViewRecord
                         }
 
                         Gate::authorize('handOver', $record);
-
+                        $existingProfile = ($data['profile_resolution'] ?? null) === 'existing'
+                            ? StudentProfile::query()->findOrFail((int) $data['existing_profile_id'])
+                            : null;
                         $studentProfile = app(HandOverApprovedApplicant::class)->execute(
                             $record,
                             $actor,
+                            $existingProfile,
                         );
 
                         $this->sendHandoverSuccessNotification($studentProfile);
@@ -59,10 +97,27 @@ class ViewApplicantIntake extends ViewRecord
             Action::make('downloadIdentityDocument')
                 ->label('Download Identity Document')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->visible(fn (): bool => filled($this->applicantIntake()->identity_evidence_reference))
-                ->action(fn (): StreamedResponse => Storage::disk('local')->download(
-                    $this->applicantIntake()->identity_evidence_reference,
-                )),
+                ->visible(fn (): bool => filled($this->applicantIntake()->identity_evidence_reference)
+                    && $this->currentUserCanDownloadEvidence())
+                ->action(function (): ?StreamedResponse {
+                    $actor = auth()->user();
+                    abort_unless($actor instanceof User, 403);
+
+                    try {
+                        Gate::authorize('downloadEvidence', $this->applicantIntake());
+
+                        return app(ApplicantEvidenceService::class)
+                            ->downloadIdentityEvidence($this->applicantIntake(), $actor);
+                    } catch (ValidationException $exception) {
+                        Notification::make()
+                            ->title('Identity document unavailable')
+                            ->body($exception->validator->errors()->first())
+                            ->danger()
+                            ->send();
+
+                        return null;
+                    }
+                }),
         ];
     }
 
@@ -79,6 +134,98 @@ class ViewApplicantIntake extends ViewRecord
         $user = auth()->user();
 
         return $user instanceof User && $user->can('handOver', $this->applicantIntake());
+    }
+
+    private function currentUserCanReview(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && $user->can('review', $this->applicantIntake());
+    }
+
+    private function currentUserCanDownloadEvidence(): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User && $user->can('downloadEvidence', $this->applicantIntake());
+    }
+
+    /** @return list<Radio|Select> */
+    private function handoverSchema(): array
+    {
+        if ($this->applicantIntake()->admission_category !== ApplicantIntake::AdmissionCategoryReturning) {
+            return [];
+        }
+
+        return [
+            Radio::make('profile_resolution')
+                ->label('Returning Student Profile Decision')
+                ->options([
+                    'new' => 'Create a new student profile',
+                    'existing' => 'Reuse the confirmed matching student profile',
+                ])
+                ->descriptions([
+                    'new' => 'Use only when the Registrar confirms that no existing official record should be reused.',
+                    'existing' => 'Select an active, unmerged profile with the same name and birth date.',
+                ])
+                ->default($this->existingProfileOptions() === [] ? 'new' : 'existing')
+                ->required()
+                ->live(),
+            Select::make('existing_profile_id')
+                ->label('Confirmed Existing Profile')
+                ->options($this->existingProfileOptions())
+                ->searchable()
+                ->native(false)
+                ->visible(fn (Get $get): bool => $get('profile_resolution') === 'existing')
+                ->required(fn (Get $get): bool => $get('profile_resolution') === 'existing'),
+        ];
+    }
+
+    /** @return array<int, string> */
+    private function existingProfileOptions(): array
+    {
+        $intake = $this->applicantIntake();
+
+        if ($intake->admission_category !== ApplicantIntake::AdmissionCategoryReturning || $intake->birth_date === null) {
+            return [];
+        }
+
+        return StudentProfile::query()
+            ->whereNull('archived_at')
+            ->whereNull('merged_into_id')
+            ->whereRaw('LOWER(first_name) = ?', [mb_strtolower($intake->first_name)])
+            ->whereRaw('LOWER(last_name) = ?', [mb_strtolower($intake->last_name)])
+            ->whereDate('birth_date', $intake->birth_date)
+            ->orderBy('student_number')
+            ->get()
+            ->mapWithKeys(fn (StudentProfile $profile): array => [
+                $profile->id => "{$profile->student_number} — {$profile->first_name} {$profile->last_name}",
+            ])
+            ->all();
+    }
+
+    /** @param callable(User): ApplicantIntake $operation */
+    private function runReviewAction(callable $operation, string $successTitle): mixed
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        try {
+            Gate::authorize('review', $this->applicantIntake());
+            $operation($actor);
+            Notification::make()->title($successTitle)->success()->send();
+            $this->refreshFormData(['status', 'reviewed_at', 'approved_at']);
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Registrar action blocked')
+                ->body($exception->validator->errors()->first())
+                ->danger()
+                ->send();
+        } catch (AuthorizationException $exception) {
+            Notification::make()->title('Registrar action blocked')->body($exception->getMessage())->danger()->send();
+        }
+
+        return null;
     }
 
     private function sendHandoverSuccessNotification(StudentProfile $studentProfile): void

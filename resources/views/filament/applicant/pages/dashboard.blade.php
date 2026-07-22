@@ -50,6 +50,7 @@
                                     \App\Models\ApplicantIntake::StatusActionRequired => 'danger',
                                     \App\Models\ApplicantIntake::StatusForEvaluation => 'info',
                                     \App\Models\ApplicantIntake::StatusApproved => 'success',
+                                    \App\Models\ApplicantIntake::StatusWithdrawn => 'gray',
                                     default => 'gray',
                                 };
                                 $statusLabel = match ($intake->status) {
@@ -58,6 +59,7 @@
                                     \App\Models\ApplicantIntake::StatusActionRequired => 'Action Required',
                                     \App\Models\ApplicantIntake::StatusForEvaluation => 'Awaiting Evaluation',
                                     \App\Models\ApplicantIntake::StatusApproved => 'Approved for Handover',
+                                    \App\Models\ApplicantIntake::StatusWithdrawn => 'Withdrawn',
                                     default => ucfirst($intake->status),
                                 };
                             @endphp
@@ -126,6 +128,15 @@
                             <x-filament::callout type="danger" icon="heroicon-m-exclamation-triangle">
                                 The Registrar has requested corrections on your submitted documents. Please check the checklist items table below and re-upload the corrected versions of the rejected files.
                             </x-filament::callout>
+                            <div class="mt-4">
+                                <x-filament::button
+                                    :href="\App\Filament\Applicant\Pages\Requirements::getUrl()"
+                                    tag="a"
+                                    icon="heroicon-m-arrow-up-tray"
+                                >
+                                    Correct Rejected Evidence
+                                </x-filament::button>
+                            </div>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusForEvaluation)
                             <x-filament::callout type="info" icon="heroicon-m-magnifying-glass">
                                 All required digital document uploads have been received. The Registrar is currently evaluating your credentials for official student handover.
@@ -133,6 +144,10 @@
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusApproved)
                             <x-filament::callout type="success" icon="heroicon-m-check-circle">
                                 Congratulations! Your admission application has been approved. The system will activate your Student Hub access once the student handover processes are complete.
+                            </x-filament::callout>
+                        @elseif ($intake->status === \App\Models\ApplicantIntake::StatusWithdrawn)
+                            <x-filament::callout type="gray" icon="heroicon-m-archive-box-x-mark">
+                                You withdrew this application. It remains recorded for audit purposes and cannot continue through online review. Contact the Registrar if you need assistance.
                             </x-filament::callout>
                         @endif
                     </div>

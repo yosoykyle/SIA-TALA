@@ -7,10 +7,12 @@ use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
@@ -84,6 +86,9 @@ class StudentHandoverChecklistHoldTest extends TestCase
             'program_id' => $program->id,
             'curriculum_version_id' => $curriculum->id,
             'student_number' => 'SIA-2025-0012',
+            'first_name' => $intake->first_name,
+            'last_name' => $intake->last_name,
+            'birth_date' => $intake->birth_date,
         ]);
 
         $result = app(HandOverApprovedApplicant::class)->execute($intake, $registrar, $existing);
@@ -92,6 +97,31 @@ class StudentHandoverChecklistHoldTest extends TestCase
         $this->assertSame('SIA-2025-0012', $result->student_number);
         $this->assertSame($intake->program_id, $result->program_id);
         $this->assertSame($intake->fresh()->handed_over_by, $registrar->id);
+        $this->assertDatabaseHas('enrollments', [
+            'student_profile_id' => $result->id,
+            'term_id' => $intake->term_id,
+            'student_type' => 'returnee',
+            'status' => 'pending_review',
+        ]);
+    }
+
+    public function test_transfer_handover_creates_a_new_profile_and_transferee_enrollment(): void
+    {
+        [$intake, $registrar] = $this->approvedIntake(
+            category: ApplicantIntake::AdmissionCategoryTransfer,
+            credentialBasis: ApplicantIntake::CredentialBasisTransferCredentials,
+        );
+
+        $profile = app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
+
+        $this->assertSame($intake->id, $profile->applicant_intake_id);
+        $this->assertDatabaseHas('enrollments', [
+            'student_profile_id' => $profile->id,
+            'term_id' => $intake->term_id,
+            'student_type' => 'transferee',
+            'status' => 'pending_review',
+        ]);
+        $this->assertSame(1, Enrollment::query()->where('student_profile_id', $profile->id)->count());
     }
 
     public function test_checklist_blocking_during_finance_cleared_handover(): void
@@ -143,6 +173,44 @@ class StudentHandoverChecklistHoldTest extends TestCase
 
         $this->assertTrue($first->is($second));
         $this->assertSame(1, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
+    }
+
+    public function test_inactive_registrar_cannot_handover_an_approved_applicant(): void
+    {
+        [$intake, $registrar] = $this->approvedIntake();
+        $registrar->forceFill(['status' => User::StatusInactive])->save();
+
+        $this->expectException(AuthorizationException::class);
+        app(HandOverApprovedApplicant::class)->execute($intake, $registrar->fresh());
+    }
+
+    public function test_returning_profile_reuse_requires_a_complete_identity_match(): void
+    {
+        [$intake, $registrar, $program, $curriculum] = $this->approvedIntake(
+            category: ApplicantIntake::AdmissionCategoryReturning,
+            credentialBasis: ApplicantIntake::CredentialBasisPriorStudentRecord,
+        );
+        $intake->forceFill(['birth_date' => now(config('app.timezone'))->toDateString()])->save();
+        $existingUser = User::factory()->create();
+        $existingUser->assignRole('student');
+        $existing = StudentProfile::factory()->create([
+            'user_id' => $existingUser->id,
+            'program_id' => $program->id,
+            'curriculum_version_id' => $curriculum->id,
+            'first_name' => $intake->first_name,
+            'last_name' => $intake->last_name,
+            'birth_date' => null,
+        ]);
+
+        try {
+            app(HandOverApprovedApplicant::class)->execute($intake->fresh(), $registrar, $existing);
+            $this->fail('Expected an incomplete identity match to block existing-profile reuse.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('student_profile', $exception->errors());
+        }
+
+        $this->assertNull($intake->fresh()->handed_over_at);
+        $this->assertNull($existing->fresh()->applicant_intake_id);
     }
 
     /** @return array{ApplicantIntake, User, Program, CurriculumVersion} */

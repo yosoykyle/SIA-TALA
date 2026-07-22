@@ -16,19 +16,19 @@ use Tests\TestCase;
  * admissions. The seeder intentionally no-ops under the testing environment (so the
  * suite's "no active policy" expectations stay deterministic), so its baseline is
  * exercised here via seedBaseline() directly. Authority: PRD §13.1.1 rule 6, §3.1;
- * behaviour anchor: AdmissionRequirementResolver + ApplicantIntakeService::recordIdentityEvidence.
+ * behaviour anchor: AdmissionRequirementResolver + policy-keyed digital evidence submission.
  */
 final class TAL93IAdmissionRequirementPolicySeederTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
     /**
-     * @var list<array{0: string, 1: string}>
+     * @var list<array{0: string, 1: string, 2: int}>
      */
     private const NaturalPairs = [
-        [ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool],
-        [ApplicantIntake::AdmissionCategoryTransfer, ApplicantIntake::CredentialBasisTransferCredentials],
-        [ApplicantIntake::AdmissionCategoryReturning, ApplicantIntake::CredentialBasisPriorStudentRecord],
+        [ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, 4],
+        [ApplicantIntake::AdmissionCategoryTransfer, ApplicantIntake::CredentialBasisTransferCredentials, 4],
+        [ApplicantIntake::AdmissionCategoryReturning, ApplicantIntake::CredentialBasisPriorStudentRecord, 2],
     ];
 
     protected function setUp(): void
@@ -66,16 +66,16 @@ final class TAL93IAdmissionRequirementPolicySeederTest extends TestCase
         $seeder->seedBaseline();
 
         $this->assertSame(
-            count(self::NaturalPairs) * 2,
+            array_sum(array_column(self::NaturalPairs, 2)),
             AdmissionRequirementPolicy::query()->count(),
-            'The baseline must create exactly two requirements per natural pair, with no duplicates on re-run.',
+            'The baseline must create the exact mixed-evidence matrix, with no duplicates on re-run.',
         );
 
         $resolver = app(AdmissionRequirementResolver::class);
 
-        foreach (self::NaturalPairs as [$category, $credential]) {
+        foreach (self::NaturalPairs as [$category, $credential, $requirementCount]) {
             // Every seeded pair must carry an ACTIVE digital-upload identity requirement,
-            // which ApplicantIntakeService::recordIdentityEvidence() depends on.
+            // which the policy-keyed evidence submission path preserves for compatibility.
             $this->assertDatabaseHas('admission_requirement_policies', [
                 'admission_category' => $category,
                 'credential_basis' => $credential,
@@ -93,6 +93,8 @@ final class TAL93IAdmissionRequirementPolicySeederTest extends TestCase
             ]);
 
             $resolved = $resolver->resolve($intake);
+
+            $this->assertCount($requirementCount, $resolved);
 
             $this->assertTrue(
                 $resolved->contains(fn (AdmissionRequirementPolicy $policy): bool => $policy->requirement_type === 'IDENTITY_DOCUMENT'

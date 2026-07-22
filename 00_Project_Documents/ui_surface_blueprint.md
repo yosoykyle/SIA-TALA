@@ -21,7 +21,7 @@ TALA uses the current three-panel baseline:
 | Route | Product surface | Users | MVP use |
 | --- | --- | --- | --- |
 | `/` | Public Landing Page | Public visitors | Institutional information, admission guidance, notices, FAQ, Apply Online, and Sign In entry points |
-| `/applicant` | Applicant Workspace | Applicants before handover | Account registration, application draft/submission, checklist, one required identity upload, status, and correction responses |
+| `/applicant` | Applicant Workspace | Applicants before handover | Account registration, three-step application draft/submission, policy-driven private digital uploads, checklist, status, and correction responses |
 | `/student` | Student Hub | Active students after handover | Current profile, enrollment status, holds, schedule, COR, SOA, payments, released grades, and permitted student actions |
 | `/admin` | Staff Workspace | Registrar, Accounting, Faculty, Academic Head, System Super Admin | Role-scoped operational queues, setup, review, approvals, reports, integrations, and audit |
 
@@ -108,7 +108,7 @@ Keep navigation task-based and small:
 | Navigation item | Surface | Primary component |
 | --- | --- | --- |
 | Dashboard | Current application state and next action | Custom Filament Page with compact status sections |
-| Application | Draft, validate, and submit application | Custom Filament Page with multi-section Form |
+| Application | Draft, validate, and submit personal data and all applicable digital requirements | Custom Filament Page with native three-step Wizard: Personal Information, Required Documents, and Review and Submit |
 | Requirements | Checklist and allowed upload/reupload actions | Read-only Table plus private FileUpload action |
 | Account | Profile, password, and verification | Filament auth/profile surfaces |
 

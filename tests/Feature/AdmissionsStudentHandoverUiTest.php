@@ -123,11 +123,16 @@ class AdmissionsStudentHandoverUiTest extends TestCase
 
         $this->actingAs($registrar);
 
-        // Verify the document
-        Livewire::test(ChecklistItemsRelationManager::class, [
+        $verifyComponent = Livewire::test(ChecklistItemsRelationManager::class, [
             'ownerRecord' => $studentProfile,
             'pageClass' => ViewStudentProfile::class,
-        ])
+        ]);
+        $verifyComponent
+            ->callTableAction('recordPhysicalReceipt', $item, [
+                'receipt_reference' => 'PHYSICAL-VERIFY-001',
+            ])
+            ->assertHasNoTableActionErrors();
+        $verifyComponent
             ->callTableAction('verifyDocument', $item)
             ->assertHasNoTableActionErrors();
 
@@ -142,11 +147,16 @@ class AdmissionsStudentHandoverUiTest extends TestCase
             'verification_status' => ChecklistItem::VerificationNotReviewed,
         ]);
 
-        // Reject the document
-        Livewire::test(ChecklistItemsRelationManager::class, [
+        $rejectComponent = Livewire::test(ChecklistItemsRelationManager::class, [
             'ownerRecord' => $studentProfile,
             'pageClass' => ViewStudentProfile::class,
-        ])
+        ]);
+        $rejectComponent
+            ->callTableAction('recordPhysicalReceipt', $item, [
+                'receipt_reference' => 'PHYSICAL-REJECT-001',
+            ])
+            ->assertHasNoTableActionErrors();
+        $rejectComponent
             ->callTableAction('rejectDocument', $item, [
                 'notes' => 'Invalid birth certificate copy',
             ])

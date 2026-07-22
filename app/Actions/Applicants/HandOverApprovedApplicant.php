@@ -25,7 +25,7 @@ class HandOverApprovedApplicant
         User $actor,
         ?StudentProfile $confirmedExistingProfile = null,
     ): StudentProfile {
-        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+        if (! $actor->hasRole(User::StaffRoleRegistrar) || ! $actor->canAuthenticate()) {
             throw new AuthorizationException('Only Registrar staff may hand over an approved applicant.');
         }
 
@@ -136,9 +136,28 @@ class HandOverApprovedApplicant
     ): StudentProfile {
         $lockedProfile = StudentProfile::query()->lockForUpdate()->findOrFail($profile->id);
 
+        if ($intake->admission_category !== ApplicantIntake::AdmissionCategoryReturning) {
+            throw ValidationException::withMessages([
+                'student_profile' => 'Existing-profile reuse is available only for a returning applicant.',
+            ]);
+        }
+
         if ($lockedProfile->archived_at !== null || $lockedProfile->merged_into_id !== null) {
             throw ValidationException::withMessages([
                 'student_profile' => 'The confirmed existing profile must be active and unmerged.',
+            ]);
+        }
+
+        $sameIdentity = mb_strtolower($lockedProfile->first_name) === mb_strtolower($intake->first_name)
+            && mb_strtolower($lockedProfile->last_name) === mb_strtolower($intake->last_name)
+            && $lockedProfile->birth_date !== null
+            && $intake->birth_date !== null
+            && CarbonImmutable::parse($lockedProfile->birth_date)
+                ->isSameDay(CarbonImmutable::parse($intake->birth_date));
+
+        if (! $sameIdentity) {
+            throw ValidationException::withMessages([
+                'student_profile' => 'The selected existing profile does not match the returning applicant identity.',
             ]);
         }
 
@@ -156,6 +175,14 @@ class HandOverApprovedApplicant
     /** @return array<string, mixed> */
     private function profileAttributes(ApplicantIntake $intake, CurriculumVersion $curriculumVersion): array
     {
+        $address = collect([
+            $intake->address_street,
+            $intake->address_barangay,
+            $intake->address_city,
+            $intake->address_district,
+            $intake->address_province,
+        ])->filter()->implode(', ');
+
         return [
             'first_name' => $intake->first_name,
             'middle_name' => $intake->middle_name,
@@ -165,6 +192,9 @@ class HandOverApprovedApplicant
             'curriculum_version_id' => $curriculumVersion->id,
             'email' => $intake->email,
             'phone' => $intake->phone,
+            'address' => filled($address) ? $address : null,
+            'emergency_contact_name' => $intake->guardian_name,
+            'emergency_contact_phone' => $intake->guardian_phone,
         ];
     }
 

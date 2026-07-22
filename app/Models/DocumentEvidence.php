@@ -12,6 +12,12 @@ class DocumentEvidence extends Model
     /** @use HasFactory<DocumentEvidenceFactory> */
     use HasFactory;
 
+    public const StatusSubmitted = 'SUBMITTED';
+
+    public const StatusAccepted = 'ACCEPTED';
+
+    public const StatusRejected = 'REJECTED';
+
     /** @var list<string> */
     protected $fillable = [
         'checklist_item_id',

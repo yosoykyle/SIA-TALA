@@ -38,6 +38,13 @@ return [
             'report' => false,
         ],
 
+        'tmp-for-tests' => [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/disks/tmp-for-tests'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

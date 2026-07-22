@@ -34,6 +34,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 
     public const StatusApplicantApproved = 'approved';
 
+    public const StatusApplicantWithdrawn = 'withdrawn';
+
     public const StaffRoleRegistrar = 'registrar';
 
     public const StaffRoleAccounting = 'accounting';
@@ -215,6 +217,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             self::StatusApplicantActionRequired => 'Action Required',
             self::StatusApplicantForEvaluation => 'For Evaluation',
             self::StatusApplicantApproved => 'Approved',
+            self::StatusApplicantWithdrawn => 'Withdrawn',
         ];
     }
 

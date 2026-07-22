@@ -17,12 +17,10 @@ class AdmissionRequirementPolicySeeder extends Seeder
     private const EffectiveFrom = '2024-01-01';
 
     /**
-     * Seed a minimal ACTIVE baseline so a fresh install lets applicants submit.
-     * Every admission_category + credential_basis pair receives a DIGITAL_UPLOAD
-     * identity requirement (required by ApplicantIntakeService::recordIdentityEvidence)
-     * plus one physical document requirement. This is intentionally minimal and is
-     * NOT the full institutional matrix, which the Registrar configures through the
-     * Admission Requirements surface.
+     * Seed an ACTIVE mixed-evidence baseline so every supported applicant category
+     * can exercise policy-driven digital uploads and Registrar-tracked requirements.
+     * This remains a configurable starting point rather than the institution's final
+     * admissions policy.
      *
      * Skipped under the testing environment: the feature/regression suite seeds
      * DatabaseSeeder and asserts resolver behaviour against factory-built policies
@@ -68,31 +66,53 @@ class AdmissionRequirementPolicySeeder extends Seeder
      */
     private function baselinePolicies(): array
     {
-        $pairs = [
-            [ApplicantIntake::AdmissionCategoryFirstTimeCollege, ApplicantIntake::CredentialBasisSeniorHighSchool, 'FORM_137'],
-            [ApplicantIntake::AdmissionCategoryTransfer, ApplicantIntake::CredentialBasisTransferCredentials, 'TRANSCRIPT_OF_RECORDS'],
-            [ApplicantIntake::AdmissionCategoryReturning, ApplicantIntake::CredentialBasisPriorStudentRecord, 'TRANSCRIPT_OF_RECORDS'],
+        return [
+            ...$this->policiesFor(
+                ApplicantIntake::AdmissionCategoryFirstTimeCollege,
+                ApplicantIntake::CredentialBasisSeniorHighSchool,
+                [
+                    ['IDENTITY_DOCUMENT', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingHandover],
+                    ['BIRTH_CERTIFICATE', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingHandover],
+                    ['GOOD_MORAL', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingEnrollment],
+                    ['FORM_137', ChecklistItem::EvidenceMethodPhysicalCopy, ChecklistItem::BlockingEnrollment],
+                ],
+            ),
+            ...$this->policiesFor(
+                ApplicantIntake::AdmissionCategoryTransfer,
+                ApplicantIntake::CredentialBasisTransferCredentials,
+                [
+                    ['IDENTITY_DOCUMENT', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingHandover],
+                    ['BIRTH_CERTIFICATE', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingHandover],
+                    ['TRANSCRIPT_OF_RECORDS', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingEnrollment],
+                    ['GOOD_MORAL', ChecklistItem::EvidenceMethodPhysicalCopy, ChecklistItem::BlockingEnrollment],
+                ],
+            ),
+            ...$this->policiesFor(
+                ApplicantIntake::AdmissionCategoryReturning,
+                ApplicantIntake::CredentialBasisPriorStudentRecord,
+                [
+                    ['IDENTITY_DOCUMENT', ChecklistItem::EvidenceMethodDigitalUpload, ChecklistItem::BlockingHandover],
+                    ['PRIOR_STUDENT_RECORD', ChecklistItem::EvidenceMethodMetadataOnly, ChecklistItem::BlockingHandover],
+                ],
+            ),
         ];
+    }
 
-        $policies = [];
-
-        foreach ($pairs as [$category, $credential, $physicalDocument]) {
-            $policies[] = [
+    /**
+     * @param  list<array{string, string, string}>  $requirements
+     * @return list<array{admission_category: string, credential_basis: string, requirement_type: string, evidence_method: string, blocking_level: string}>
+     */
+    private function policiesFor(string $category, string $credential, array $requirements): array
+    {
+        return array_map(
+            fn (array $requirement): array => [
                 'admission_category' => $category,
                 'credential_basis' => $credential,
-                'requirement_type' => 'IDENTITY_DOCUMENT',
-                'evidence_method' => ChecklistItem::EvidenceMethodDigitalUpload,
-                'blocking_level' => ChecklistItem::BlockingHandover,
-            ];
-            $policies[] = [
-                'admission_category' => $category,
-                'credential_basis' => $credential,
-                'requirement_type' => $physicalDocument,
-                'evidence_method' => ChecklistItem::EvidenceMethodPhysicalCopy,
-                'blocking_level' => ChecklistItem::BlockingEnrollment,
-            ];
-        }
-
-        return $policies;
+                'requirement_type' => $requirement[0],
+                'evidence_method' => $requirement[1],
+                'blocking_level' => $requirement[2],
+            ],
+            $requirements,
+        );
     }
 }
