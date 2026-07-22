@@ -35,9 +35,12 @@ dont access
 /.kiro/
 /.junie/
 /.claude/
+/.cursor/
 /app/BoostAgents/
 CLAUDE.md
 .mcp.json
+/opencode.json
+/.github/skills/mcp-development/
 
 # Local Dev Outputs & Helper Scripts
 /outputs/
