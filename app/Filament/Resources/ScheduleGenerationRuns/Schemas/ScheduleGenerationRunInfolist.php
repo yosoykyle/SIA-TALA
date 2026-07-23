@@ -176,6 +176,56 @@ class ScheduleGenerationRunInfolist
                         'xl' => 4,
                     ])
                     ->visible(fn (ScheduleGenerationRun $record): bool => self::currentRevalidation($record) !== []),
+                Section::make('Solution Quality')
+                    ->description('These are optimization-quality measures for the generated timetable, not predictive accuracy or an accuracy score.')
+                    ->schema([
+                        TextEntry::make('solution_quality_status')
+                            ->label('Solver Status')
+                            ->state(fn (ScheduleGenerationRun $record): string => Str::headline(
+                                (string) (self::solverResult($record)['solver_status'] ?? 'unknown'),
+                            ))
+                            ->badge()
+                            ->color(fn (string $state): string => in_array($state, ['Optimal', 'Feasible'], true) ? 'success' : 'warning'),
+                        TextEntry::make('solution_quality_meaning')
+                            ->label('What This Status Means')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::solverStatusMeaning($record))
+                            ->columnSpanFull(),
+                        TextEntry::make('solution_quality_coverage')
+                            ->label('Demand Coverage')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::demandCoverage($record)),
+                        TextEntry::make('solution_quality_hard_conflicts')
+                            ->label('Hard Conflicts')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['hard_violation_count'] ?? 0))
+                            ->badge()
+                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'success'),
+                        TextEntry::make('solution_quality_warnings')
+                            ->label('Warnings')
+                            ->state(fn (ScheduleGenerationRun $record): int => (int) (self::solverSummary($record)['warning_count'] ?? 0))
+                            ->badge()
+                            ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
+                        TextEntry::make('solution_quality_objective')
+                            ->label('Objective Value')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::qualityNumber(
+                                self::solverStatistics($record)['objective_value'] ?? $record->objective_value,
+                            )),
+                        TextEntry::make('solution_quality_bound')
+                            ->label('Best Bound')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::qualityNumber(
+                                self::solverStatistics($record)['best_objective_bound'] ?? null,
+                            )),
+                        TextEntry::make('solution_quality_gap')
+                            ->label('Relative Gap')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::relativeGap($record)),
+                        TextEntry::make('solution_quality_runtime')
+                            ->label('Runtime')
+                            ->state(fn (ScheduleGenerationRun $record): string => self::runtime($record)),
+                    ])
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                        'xl' => 4,
+                    ])
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::solverResult($record) !== []),
                 Section::make('Original Solver Result')
                     ->schema([
                         TextEntry::make('solver_result_status')
@@ -277,6 +327,58 @@ class ScheduleGenerationRunInfolist
         $summary = self::solverResult($record)['summary'] ?? null;
 
         return is_array($summary) ? $summary : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function solverStatistics(ScheduleGenerationRun $record): array
+    {
+        $statistics = self::solverResult($record)['solver_statistics'] ?? null;
+
+        return is_array($statistics) ? $statistics : [];
+    }
+
+    private static function solverStatusMeaning(ScheduleGenerationRun $record): string
+    {
+        return match (strtolower((string) (self::solverResult($record)['solver_status'] ?? 'unknown'))) {
+            'optimal' => 'The schedule satisfies the validated hard constraints, and the solver proved it was the best result for the tested model and objective.',
+            'feasible' => 'The schedule satisfies the validated hard constraints, but the solver did not prove it was the best possible result within the time limit.',
+            'infeasible' => 'The solver proved that no schedule satisfies all modeled hard constraints for this input.',
+            default => 'The solver did not return enough evidence to classify the result as optimal, feasible, or infeasible.',
+        };
+    }
+
+    private static function demandCoverage(ScheduleGenerationRun $record): string
+    {
+        $summary = self::solverSummary($record);
+        $assigned = (int) ($summary['assigned_count'] ?? 0);
+        $total = $assigned + (int) ($summary['unassigned_count'] ?? 0);
+
+        return "{$assigned} of {$total} demands assigned";
+    }
+
+    private static function qualityNumber(mixed $value): string
+    {
+        return is_numeric($value) ? number_format((float) $value, 2) : 'Not reported';
+    }
+
+    private static function relativeGap(ScheduleGenerationRun $record): string
+    {
+        $gap = self::solverStatistics($record)['relative_optimality_gap'] ?? null;
+
+        return is_numeric($gap) ? number_format((float) $gap * 100, 2).'%' : 'Not reported';
+    }
+
+    private static function runtime(ScheduleGenerationRun $record): string
+    {
+        $seconds = self::solverStatistics($record)['wall_time_seconds'] ?? null;
+
+        if (! is_numeric($seconds) && is_numeric($record->runtime_ms)) {
+            $seconds = (float) $record->runtime_ms / 1000;
+        }
+
+        return is_numeric($seconds) ? number_format((float) $seconds, 2).' seconds' : 'Not reported';
     }
 
     /**

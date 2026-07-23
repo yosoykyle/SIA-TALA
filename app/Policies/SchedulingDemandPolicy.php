@@ -15,7 +15,6 @@ class SchedulingDemandPolicy
         return $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ]);
     }
 
@@ -32,10 +31,7 @@ class SchedulingDemandPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     /**

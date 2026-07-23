@@ -14,11 +14,16 @@ class RecordStudentScheduleAccess
 
     public const ActionView = 'VIEW';
 
+    public const ActionPrint = 'PRINT';
+
     public const CopyStudent = 'STUDENT_COPY';
 
-    public function execute(User $student, ?Request $request = null): void
-    {
-        if (! $student->hasRole('student')) {
+    public function execute(
+        User $student,
+        ?Request $request = null,
+        string $action = self::ActionView,
+    ): void {
+        if (! $student->hasRole('student') || ! in_array($action, [self::ActionView, self::ActionPrint], true)) {
             return;
         }
 
@@ -62,11 +67,13 @@ class RecordStudentScheduleAccess
             'student_profile_id' => $enrollment->student_profile_id,
             'actor_user_id' => $student->id,
             'actor_role' => $student->getRoleNames()->first(),
-            'action' => self::ActionView,
+            'action' => $action,
             'copy_context' => self::CopyStudent,
             'schedule_version' => $versions->count() === 1 ? $versions->first() : null,
             'row_count' => $bindings->count(),
-            'purpose' => 'Student viewed the current published class schedule.',
+            'purpose' => $action === self::ActionPrint
+                ? 'Student opened the current published class schedule for printing or saving as PDF.'
+                : 'Student viewed the current published class schedule.',
             'sensitivity' => 'student_record',
             'request_context' => json_encode([
                 'ip' => $request?->ip(),

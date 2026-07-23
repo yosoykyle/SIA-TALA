@@ -15,6 +15,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class SchedulingDemandsTable
@@ -136,11 +137,23 @@ class SchedulingDemandsTable
                         ->body("{$summary['total']} demand rows checked; {$summary['ready']} ready, {$summary['action_required']} need source review.")
                         ->success()
                         ->send();
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+
+                    Notification::make()
+                        ->title('Scheduling demand generation blocked')
+                        ->body(is_string($message) ? $message : 'Review the scheduling source data and try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
                 } catch (Throwable $exception) {
+                    report($exception);
+
                     Notification::make()
                         ->title('Scheduling demand generation failed')
-                        ->body($exception->getMessage())
+                        ->body('TALA could not generate scheduling demand. Try again or ask the System Administrator to review the application log.')
                         ->danger()
+                        ->persistent()
                         ->send();
                 }
             });

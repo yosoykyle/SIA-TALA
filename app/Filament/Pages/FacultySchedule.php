@@ -7,6 +7,7 @@ use App\Models\SectionMeeting;
 use App\Models\User;
 use BackedEnum;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -34,6 +35,20 @@ class FacultySchedule extends Page implements HasTable
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole(User::StaffRoleFaculty) ?? false;
+    }
+
+    /**
+     * @return list<Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('printSchedule')
+                ->label('Print / Save as PDF')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->url(route('faculty.schedule.print'))
+                ->openUrlInNewTab(),
+        ];
     }
 
     public function table(Table $table): Table

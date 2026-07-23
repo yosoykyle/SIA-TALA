@@ -1,6 +1,6 @@
 # TALA System Operations and Defense Guide
 
-**Document status:** TAL-96D2B programmatic acceptance complete; user-led manual acceptance pending, dated 2026-07-23
+**Document status:** TAL-96D3A verification remediation checks complete; independent reverification and user-led manual acceptance pending, dated 2026-07-23
 **Purpose:** One consolidated guide for operating, auditing, demonstrating, and defending the TALA production-level MVP. Later TAL-96D slices will expand this same file rather than create competing manuals.
 
 ## 1. Scope and Evidence Language
@@ -425,6 +425,78 @@ Neither command truncates, switches, or repairs an occupied database automatical
 | Are MIN, MIDDLE, and MAX actual client distributions? | MIN uses the current client-reported cohort counts. MIDDLE is a representative synthetic operating load. MAX uses the client-reported historical total and faculty count but a transparent deterministic cohort distribution. |
 | Why not keep all three scenarios in one database? | They are alternative starting states. Combining them would inflate counts and make acceptance results ambiguous. Guarded replacement keeps each run reproducible. |
 | Can the system exceed 600 students? | The schema has no universal institution ceiling. Six hundred is an evidence-based evaluation tier, not a coded maximum. Actual capacity depends on offerings, sections, rooms, faculty, time, and later measured solver behavior. |
+
+### 5.5 TAL-96D3A Master Schedule Functional Hardening
+
+#### 5.5.1 Intended operating order and ownership
+
+1. The Registrar corrects academic source records until Scheduling Demands are ready.
+2. The Registrar generates the immutable demand snapshot and queues one solver run.
+3. The configured solver returns a candidate. Laravel independently validates the returned assignments before review.
+4. The Registrar reviews warnings, corrects or replaces a complete candidate when warranted, and publishes only a valid candidate.
+5. Academic Heads may inspect demand and run evidence but cannot mutate the schedule.
+6. System Super Admins monitor integration and application logs; they do not generate demand, dispatch or retry runs, correct candidates, publish, or revise schedules.
+7. Faculty and Students see only active meetings from the current published official schedule. Their print/save-as-PDF output uses that same owner-scoped source and records official-output access evidence.
+
+Publication does not make solver output authoritative by itself. The candidate becomes official only after Laravel validation and Registrar publication. A later change uses the controlled revision workflow so the prior publication and revision history remain traceable.
+
+#### 5.5.2 Solution Quality in plain language
+
+The Schedule Run screen separates solver evidence from Laravel's current validation result:
+
+| Measure | Meaning |
+|---|---|
+| `Optimal` | The assignment passed validated hard constraints and the solver proved it was the best result for the tested model and objective. |
+| `Feasible` | The assignment passed validated hard constraints, but the solver did not prove it was the best possible result within the time limit. |
+| Demand coverage | Assigned demands divided by all assigned plus unassigned demands. It shows completeness, not prediction accuracy. |
+| Hard conflicts | Violations of mandatory rules. A publishable result must not retain a blocking hard conflict. |
+| Warnings | Advisory quality findings that may require Registrar explanation but are not automatically hard-rule failures. |
+| Objective value | The solver's weighted soft-quality score. It is meaningful only under the same model, weights, and input. |
+| Best bound | The solver's mathematical bound on a potentially better objective value. |
+| Relative gap | The distance between the returned objective and best bound. Zero indicates a proven optimum; a nonzero gap indicates remaining proof uncertainty. |
+| Runtime | Time reported for the solve. It measures duration, not schedule correctness. |
+
+These are optimization-quality measures. TALA does not present a machine-learning-style “accuracy score,” because timetable generation does not predict a known correct label. Correctness is established by hard-constraint validation; completeness, objective, bound, gap, warnings, and duration describe solution quality and performance.
+
+#### 5.5.3 Change-control classification
+
+| Finding | Classification | Disposition |
+|---|---|---|
+| Staged demand, run, candidate, Laravel validation, publication, revision, and official-projection architecture | Aligned | Preserved without solver, schema, or dependency changes. |
+| System Super Admin could view and perform academic schedule mutations | Defect / real gap | Schedule Demand and Run authority is now Registrar-owned; Academic Head remains read-only; System Super Admin retains integration/log operations outside these academic resources. |
+| Demand-generation and dispatch actions exposed raw unexpected exception messages | Defect / real gap | Expected validation remains actionable. Unexpected failures are internally reported and shown as safe recovery guidance without paths, endpoints, or secret-bearing exception text. |
+| Solver telemetry existed but lacked one plain-language interpretation block | Defect / real gap | Added the Solution Quality summary above existing detailed evidence; no equation, solver, or result contract changed. |
+| Faculty and Student schedule tables had no authenticated print output | Defect / real gap | Added browser print/save-as-PDF outputs using active official records, owner scoping, and output-access logging; no PDF dependency was introduced. |
+
+#### 5.5.4 User-led manual acceptance table
+
+| ID | Role and credential | Prerequisite | Steps and input | Expected visible result | Expected record or state change | Invalid or edge check | Pass / Fail | Observation |
+|---|---|---|---|---|---|---|---|---|
+| D3A-M01 | Registrar — `registrar.demo@example.test` | Selected scenario has complete readiness inputs | Open Scheduling Demands, generate for the Term, then open Schedule Generation Runs and dispatch. | Success notices distinguish demand readiness from queued solving; an expected validation block names the source correction needed. | Demand rows refresh; one immutable queued run is created only after readiness passes. | Repeat dispatch while another run is queued/dispatching; it must block without creating a duplicate. |  |  |
+| D3A-M02 | Academic Head — `academic-head.demo@example.test` | Existing demands and a run | Open Scheduling Demands and the Schedule Run. | Evidence is readable, including Solution Quality and validation findings; generation, dispatch, retry, correction, publish, and revision actions are absent. | None. | Attempt direct action URLs or Livewire requests; authorization must deny mutation. |  |  |
+| D3A-M03 | System Super Admin — `system-admin.demo@example.test` | Existing scheduling records and integration events | Use Integration Status and operational logs; attempt to open academic Scheduling Demand/Run resources. | Integration/log visibility remains available; academic schedule resources and mutations are denied. | None. | Confirm no schedule action can be performed through a crafted request. |  |  |
+| D3A-M04 | Registrar — same account | A returned candidate with recorded telemetry | Open the Schedule Run and inspect Solution Quality, current validation, and detailed findings. | Status meaning, assigned/total coverage, hard conflicts, warnings, objective, best bound, relative gap, and runtime are understandable; the screen states these are not predictive accuracy. | None during inspection. | A `Feasible` result must not be described as proven best; a result with blocking conflicts must not be publishable. |  |  |
+| D3A-M05 | Faculty — `faculty.demo@example.test` | At least one active meeting in a published run assigned to this Faculty | Open Assigned Schedule, select **Print / Save as PDF**, and use the browser print dialog. | Only the Faculty member's current official assignments appear with Term, course, section, day/time, room, and modality. | One `FACULTY_SCHEDULE` `PRINT` access log is recorded when rows exist. | Another Faculty member's assignment, candidate row, or cancelled meeting must not appear. |  |  |
+| D3A-M06 | Student — one seeded verified Student account | Active schedule bindings to a published run | Open Class Schedule, select **Print / Save as PDF**, and use the browser print dialog. | Only the signed-in Student's current official classes appear with Faculty, section, day/time, room, and modality. | Existing page view evidence remains; one `STUDENT_SCHEDULE` `PRINT` access log is recorded when rows exist. | A different Student's rows, candidate rows, cancelled meetings, and inactive bindings must not appear. An empty schedule clearly says no current published schedule is available. |  |  |
+
+#### 5.5.5 Primary implementation evidence
+
+- The named `TAL96D3AMasterScheduleFunctionalHardeningTest` proves the Registrar/Academic Head/System Admin authority matrix, safe unexpected-failure notifications, plain-language Solution Quality interpretation, Faculty and Student owner-scoped print outputs, clear empty outputs without misleading access logs, unauthorized-route denial, and `PRINT` access logging.
+- Ten affected scheduling regression files covering demand readiness, dispatch, publication, candidate review, retry operations, impact-safe publication, controlled revision, revision UI/notifications, and cross-role projections passed with the new test: 70 tests and 1,001 assertions.
+- Four additional staff-access, navigation, assignment-validation, and controlled-revalidation regression files passed: 41 tests and 315 assertions.
+- Laravel Pint passed, scoped PHPStan/Larastan reported no errors, both authenticated schedule-output routes were registered, and `git diff --check` passed.
+- No solver, Cloud Run, schema, dependency, persistent scenario, deployment, or external-service change was made. Independent `Verify TAL-96D3A` and the user-led visual table remain separate acceptance gates.
+
+#### 5.5.6 Likely panel questions
+
+| Question | Defensible answer |
+|---|---|
+| Does the solver publish schedules automatically? | No. It returns a candidate. Laravel validates the candidate, then the Registrar reviews and publishes it. |
+| Why can the Academic Head not publish? | The approved responsibility split gives the Academic Head read-only academic oversight and the Registrar operational ownership of the official timetable. |
+| Why can the System Super Admin not retry a failed run? | Retry is an academic operation on an immutable timetable request, not merely infrastructure administration. System Admin investigates integration/log evidence; the Registrar decides whether the same academic request should be retried. |
+| What is the schedule's accuracy? | Timetabling is not a prediction task. TALA reports hard-constraint validity, demand coverage, objective, bound, relative gap, warnings, and runtime instead of an invented accuracy percentage. |
+| Does `Feasible` mean incorrect? | No. It means all validated hard constraints pass, but the solver did not prove that no better objective value exists within the time limit. |
+| Do printed schedules come from a separate file? | No. The browser-ready output is built from the same active official records as the on-screen Faculty or Student schedule and is owner-scoped and audited. |
 
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 

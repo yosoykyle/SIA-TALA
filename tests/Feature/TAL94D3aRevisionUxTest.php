@@ -69,19 +69,21 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->assertOk()
             ->assertActionVisible('revisePublishedSchedule');
 
-        foreach ([$academicHead, $superAdmin] as $reviewer) {
-            Livewire::actingAs($reviewer)
-                ->test(ViewScheduleGenerationRun::class, ['record' => $published['run']->getRouteKey()])
-                ->assertOk()
-                ->assertActionHidden('revisePublishedSchedule');
+        Livewire::actingAs($academicHead)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $published['run']->getRouteKey()])
+            ->assertOk()
+            ->assertActionHidden('revisePublishedSchedule');
 
-            Livewire::actingAs($reviewer)
-                ->test(RevisionEventsRelationManager::class, [
-                    'ownerRecord' => $published['run'],
-                    'pageClass' => ViewScheduleGenerationRun::class,
-                ])
-                ->assertOk();
-        }
+        Livewire::actingAs($academicHead)
+            ->test(RevisionEventsRelationManager::class, [
+                'ownerRecord' => $published['run'],
+                'pageClass' => ViewScheduleGenerationRun::class,
+            ])
+            ->assertOk();
+
+        Livewire::actingAs($superAdmin)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $published['run']->getRouteKey()])
+            ->assertForbidden();
 
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $draft['run']->getRouteKey()])

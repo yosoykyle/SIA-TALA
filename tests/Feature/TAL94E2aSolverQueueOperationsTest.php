@@ -172,15 +172,17 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
     public function test_authorized_retry_requeues_the_same_immutable_run_and_preserves_prior_attempts(): void
     {
         $term = Term::factory()->create();
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $run = $this->finallyFailedTransientRun($term, $superAdmin);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $systemAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $run = $this->finallyFailedTransientRun($term, $registrar);
         $originalSnapshot = $run->input_snapshot;
         $originalHash = $run->input_hash;
         $event = $this->failedAttemptEvent($run, cycle: 1, attempt: 3, final: true);
 
-        $this->assertTrue(Gate::forUser($superAdmin)->allows('retry', $run));
+        $this->assertTrue(Gate::forUser($registrar)->allows('retry', $run));
+        $this->assertFalse(Gate::forUser($systemAdmin)->allows('retry', $run));
 
-        $component = Livewire::actingAs($superAdmin)
+        $component = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->assertOk()
             ->assertActionExists('retrySolverRun');

@@ -19,12 +19,16 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D2A | Done locally | Identity, Applicant Intake, Review, and Handover Hardening. |
 | TAL-96D2B | Done locally | Academic Period, Catalog, Curriculum, and Import Hardening. |
 | TAL-96D2C | Done locally | Offering, Section, Resource, and Scheduling-Readiness Hardening with guarded `MIN`, `MIDDLE`, and `MAX` acceptance scenarios. |
-| TAL-96D3 | Planned; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening. |
-| TAL-96D4 | Planned; depends on TAL-96D3 | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
+| TAL-96D3 | Approved revised split; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening parent. |
+| TAL-96D3A | Done locally | Master Schedule Functional Hardening: readiness, dispatch and retry, candidate review and correction, publication and revision, and official faculty/student schedule projections. |
+| TAL-96D3B | Planned; depends on TAL-96D3A | Enrollment Window and Placement Hardening: canonical calendar enforcement, regular and irregular placement, academic and conflict gates, capacity, reservations, cancellation, and recovery. |
+| TAL-96D3C | Planned; depends on TAL-96D3B | Assessment, PayMongo, Ledger, and Finance-Gate Hardening: assessment activation, checkout, verified webhook processing, reconciliation, queue recovery, ledger effects, notifications, and operator visibility. |
+| TAL-96D3D | Planned; depends on TAL-96D3C | Official Enrollment, COR, and Cross-Role Convergence: final gate recheck, official enrollment, current COR and schedule consistency, output logging, holds, and modality-authority reconciliation. |
+| TAL-96D4 | Planned; depends on TAL-96D3D | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
 | TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, targeted population/configuration and cost evaluation, deployment-readiness gate, CP-SAT evidence synchronization, and the consolidated System Operations and Defense Guide. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
 
-Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3 -> TAL-96D4 -> TAL-96D5 -> TAL-97`. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment and cutover remain outside this split.
+Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B -> TAL-96D3C -> TAL-96D3D -> TAL-96D4 -> TAL-96D5 -> TAL-97`. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment and cutover remain outside this split.
 
 The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
 
@@ -46,4 +50,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96D3`** under the approved TAL-96D order and refinement charter. Linear sync, push, PR creation, deployment, subagent use, external-service changes, destructive database work, persistent scenario replacement, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
+Next primary boundary: **`Plan TAL-96D3B`**. Linear sync, push, PR creation, deployment, subagent use, external-service changes, destructive database work, persistent scenario replacement, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.

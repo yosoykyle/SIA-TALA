@@ -8,6 +8,7 @@ use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -34,6 +35,20 @@ class ScheduleView extends Page implements HasTable
         if ($user instanceof User) {
             app(RecordStudentScheduleAccess::class)->execute($user, request());
         }
+    }
+
+    /**
+     * @return list<Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('printSchedule')
+                ->label('Print / Save as PDF')
+                ->icon('heroicon-o-printer')
+                ->url(route('student.schedule.print'))
+                ->openUrlInNewTab(),
+        ];
     }
 
     public function table(Table $table): Table

@@ -165,7 +165,8 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
 
         $this->assertTrue(Gate::forUser($registrar)->allows('viewAny', SchedulingDemand::class));
         $this->assertTrue(Gate::forUser($academicHead)->allows('viewAny', SchedulingDemand::class));
-        $this->assertTrue(Gate::forUser($systemSuperAdmin)->allows('create', SchedulingDemand::class));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('viewAny', SchedulingDemand::class));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('create', SchedulingDemand::class));
         $this->assertFalse(Gate::forUser($academicHead)->allows('create', SchedulingDemand::class));
         $this->assertFalse(Gate::forUser($faculty)->allows('viewAny', SchedulingDemand::class));
 

@@ -510,7 +510,8 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $this->assertTrue(Gate::forUser($registrar)->allows('viewAny', ScheduleGenerationRun::class));
         $this->assertTrue(Gate::forUser($academicHead)->allows('viewAny', ScheduleGenerationRun::class));
-        $this->assertTrue(Gate::forUser($systemSuperAdmin)->allows('create', ScheduleGenerationRun::class));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('viewAny', ScheduleGenerationRun::class));
+        $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('create', ScheduleGenerationRun::class));
         $this->assertFalse(Gate::forUser($academicHead)->allows('create', ScheduleGenerationRun::class));
         $this->assertFalse(Gate::forUser($faculty)->allows('viewAny', ScheduleGenerationRun::class));
         $this->assertTrue(Route::has('filament.admin.resources.schedule-generation-runs.index'));

@@ -12,6 +12,7 @@ use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class ListScheduleGenerationRuns extends ListRecords
@@ -59,11 +60,23 @@ class ListScheduleGenerationRuns extends ListRecords
                             ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch. Status refreshes automatically every five seconds.")
                             ->success()
                             ->send();
-                    } catch (Throwable $exception) {
+                    } catch (ValidationException $exception) {
+                        $message = collect($exception->errors())->flatten()->first();
+
                         Notification::make()
                             ->title('Solver run blocked')
-                            ->body($exception->getMessage())
+                            ->body(is_string($message) ? $message : 'Review the scheduling demand readiness findings and try again.')
                             ->danger()
+                            ->persistent()
+                            ->send();
+                    } catch (Throwable $exception) {
+                        report($exception);
+
+                        Notification::make()
+                            ->title('Solver run failed')
+                            ->body('TALA could not queue the solver run. Try again or ask the System Administrator to review the application log.')
+                            ->danger()
+                            ->persistent()
                             ->send();
                     }
                 }),

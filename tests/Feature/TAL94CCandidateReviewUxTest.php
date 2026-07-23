@@ -95,7 +95,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertCanSeeTableRecords([$candidate])
             ->assertTableActionHidden('correctAssignment', $candidate);
 
-        $this->assertTrue(Gate::forUser($superAdmin)->allows('reviewCandidates', $context['run']));
+        $this->assertFalse(Gate::forUser($superAdmin)->allows('reviewCandidates', $context['run']));
         $this->assertFalse(Gate::forUser($academicHead)->allows('reviewCandidates', $context['run']));
         $this->assertFalse(Gate::forUser($accounting)->allows('reviewCandidates', $context['run']));
         $this->assertFalse(Gate::forUser($faculty)->allows('reviewCandidates', $context['run']));

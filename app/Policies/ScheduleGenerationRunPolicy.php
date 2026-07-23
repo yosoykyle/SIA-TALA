@@ -15,7 +15,6 @@ class ScheduleGenerationRunPolicy
         return $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAcademicHead,
-            User::StaffRoleSystemSuperAdmin,
         ]);
     }
 
@@ -32,10 +31,7 @@ class ScheduleGenerationRunPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function publish(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
@@ -45,18 +41,13 @@ class ScheduleGenerationRunPolicy
 
     public function reviewCandidates(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
     {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function retry(User $user, ScheduleGenerationRun $scheduleGenerationRun): bool
     {
-        return $user->hasAnyRole([
-            User::StaffRoleRegistrar,
-            User::StaffRoleSystemSuperAdmin,
-        ]) && $scheduleGenerationRun->canRetrySolver();
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $scheduleGenerationRun->canRetrySolver();
     }
 
     /**
