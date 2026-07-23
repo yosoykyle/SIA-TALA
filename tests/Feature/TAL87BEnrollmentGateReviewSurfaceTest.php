@@ -8,6 +8,7 @@ use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentGateResult;
+use App\Models\Section;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -93,7 +94,22 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $systemSuperAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $faculty = $this->staff(User::StaffRoleFaculty);
-        $enrollment = Enrollment::factory()->create(['status' => 'pending_review']);
+        $enrollment = Enrollment::factory()->create([
+            'student_type' => 'irregular',
+            'status' => 'pending_review',
+        ]);
+        $termOffering = TermOffering::factory()->for($enrollment->term)->create();
+        $proposedSection = Section::factory()->for($termOffering)->create();
+
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_offering_id' => $termOffering->id,
+            'proposed_section_id' => $proposedSection->id,
+            'proposed_at' => now(),
+            'status' => CourseEnrollment::StatusActive,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
 
         EnrollmentGateResult::query()->create([
             'enrollment_id' => $enrollment->id,

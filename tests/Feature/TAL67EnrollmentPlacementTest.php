@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Models\CalendarEvent;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -73,7 +74,7 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, CourseEnrollment::query()->count());
         $this->assertSame(1, EnrollmentSeatReservation::query()->count());
         $this->assertSame(2, StudentScheduleBinding::query()->count());
-        $this->assertSame(3, EnrollmentGateResult::query()->count());
+        $this->assertSame(9, EnrollmentGateResult::query()->count());
 
         $courseEnrollment = CourseEnrollment::query()->sole();
         $reservation = EnrollmentSeatReservation::query()->sole();
@@ -86,15 +87,21 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(EnrollmentSeatReservation::StatusPending, $reservation->status);
         $this->assertSame($registrar->id, $reservation->registrar_user_id);
 
-        $this->assertSame(
-            [
-                EnrollmentGateResult::GateCapacity,
-                EnrollmentGateResult::GateConflict,
-                EnrollmentGateResult::GatePlacement,
-            ],
-            EnrollmentGateResult::query()->orderBy('gate_type')->pluck('gate_type')->sort()->values()->all(),
-        );
-        $this->assertTrue(EnrollmentGateResult::query()->where('result', EnrollmentGateResult::ResultPassed)->count() === 3);
+        $this->assertDatabaseHas('enrollment_gate_results', [
+            'enrollment_id' => $enrollment->id,
+            'gate_type' => EnrollmentGateResult::GateCapacity,
+            'result' => EnrollmentGateResult::ResultPassed,
+        ]);
+        $this->assertDatabaseHas('enrollment_gate_results', [
+            'enrollment_id' => $enrollment->id,
+            'gate_type' => EnrollmentGateResult::GateConflict,
+            'result' => EnrollmentGateResult::ResultPassed,
+        ]);
+        $this->assertDatabaseHas('enrollment_gate_results', [
+            'enrollment_id' => $enrollment->id,
+            'gate_type' => EnrollmentGateResult::GatePlacement,
+            'result' => EnrollmentGateResult::ResultPassed,
+        ]);
         $this->assertSame('pending_payment', $enrollment->fresh()->status);
         $this->assertNotNull($enrollment->fresh()->registered_at);
 
@@ -209,7 +216,7 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, CourseEnrollment::query()->count());
         $this->assertSame(1, EnrollmentSeatReservation::query()->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count());
         $this->assertSame(2, StudentScheduleBinding::query()->where('is_active', true)->count());
-        $this->assertSame(3, EnrollmentGateResult::query()->count());
+        $this->assertSame(9, EnrollmentGateResult::query()->count());
     }
 
     public function test_capacity_blocks_final_seat_and_rolls_back_partial_writes(): void
@@ -306,11 +313,18 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->for($term)->create();
         $section = $this->publishedPlacement($term)['section'];
+        $section->termOffering->curriculumEntry->update([
+            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
+            'term_label' => $term->label,
+            'term_type' => $term->type,
+        ]);
+        $cohortCode = (string) $section->deliveryGroups()->value('name');
+        $this->openEnrollmentWindow($term);
 
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->assertActionVisible('confirmPlacement')
-            ->callAction('confirmPlacement', data: ['section_id' => $section->id])
+            ->callAction('confirmPlacement', data: ['cohort_code' => $cohortCode])
             ->assertNotified('Placement confirmed');
 
         Livewire::actingAs($academicHead)
@@ -412,5 +426,21 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    private function openEnrollmentWindow(Term $term): CalendarEvent
+    {
+        return CalendarEvent::factory()->for($term)->create([
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessEnrollment,
+            'start_at' => now()->subDay(),
+            'end_at' => now()->addWeek(),
+            'day_of_week' => null,
+            'starts_at' => null,
+            'ends_at' => null,
+            'blocks_scheduling' => false,
+            'state' => CalendarEvent::StateActive,
+        ]);
     }
 }

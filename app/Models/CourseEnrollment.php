@@ -21,6 +21,8 @@ class CourseEnrollment extends Model
     protected $fillable = [
         'enrollment_id',
         'term_offering_id',
+        'proposed_section_id',
+        'proposed_at',
         'status',
         'units_snapshot',
         'added_at',
@@ -36,6 +38,7 @@ class CourseEnrollment extends Model
     {
         return [
             'units_snapshot' => 'decimal:2',
+            'proposed_at' => 'datetime',
             'added_at' => 'datetime',
             'dropped_at' => 'datetime',
             'withdrawn_at' => 'datetime',
@@ -52,6 +55,12 @@ class CourseEnrollment extends Model
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);
+    }
+
+    /** @return BelongsTo<Section, $this> */
+    public function proposedSection(): BelongsTo
+    {
+        return $this->belongsTo(Section::class, 'proposed_section_id');
     }
 
     /** @return HasMany<EnrollmentSeatReservation, $this> */

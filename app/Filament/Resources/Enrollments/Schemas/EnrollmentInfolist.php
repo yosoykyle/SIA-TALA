@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\Enrollments\Schemas;
 
 use App\Actions\Enrollment\EnrollmentGateReviewSummary;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\EnrollmentSeatReservation;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -41,7 +43,7 @@ class EnrollmentInfolist
                     ->schema([
                         Grid::make(3)
                             ->schema([
-                                TextEntry::make('term.term_name')
+                                TextEntry::make('term.label')
                                     ->label('Term'),
                                 TextEntry::make('status')
                                     ->badge(),
@@ -67,6 +69,73 @@ class EnrollmentInfolist
                                     ->placeholder('-'),
                             ]),
                     ]),
+                Section::make('Course Selections and Placements')
+                    ->description('Student proposals do not hold capacity. Only active Registrar-confirmed reservations and schedule bindings represent placement.')
+                    ->schema([
+                        RepeatableEntry::make('course_placement_rows')
+                            ->label('Courses')
+                            ->state(function (Enrollment $record): array {
+                                return $record->courseEnrollments()
+                                    ->with([
+                                        'termOffering.curriculumEntry.courseSpecification.course',
+                                        'proposedSection',
+                                        'seatReservations.section',
+                                        'scheduleBindings',
+                                    ])
+                                    ->where('status', 'active')
+                                    ->oldest('id')
+                                    ->get()
+                                    ->map(function (CourseEnrollment $courseEnrollment): array {
+                                        $reservation = $courseEnrollment->seatReservations
+                                            ->sortByDesc('id')
+                                            ->first();
+
+                                        return [
+                                            'subject' => collect([
+                                                $courseEnrollment->termOffering?->course()?->code,
+                                                $courseEnrollment->termOffering?->courseSpecification()?->title,
+                                            ])->filter()->implode(' - '),
+                                            'proposed_section' => $courseEnrollment->proposedSection?->code,
+                                            'confirmed_section' => $reservation instanceof EnrollmentSeatReservation
+                                                ? $reservation->section?->code
+                                                : null,
+                                            'reservation_status' => $reservation instanceof EnrollmentSeatReservation
+                                                ? $reservation->status
+                                                : null,
+                                            'reservation_deadline' => $reservation instanceof EnrollmentSeatReservation
+                                                ? $reservation->deadline?->format('M j, Y g:i A')
+                                                : null,
+                                            'active_meetings' => $courseEnrollment->scheduleBindings
+                                                ->where('is_active', true)
+                                                ->count(),
+                                        ];
+                                    })
+                                    ->all();
+                            })
+                            ->schema([
+                                TextEntry::make('subject')
+                                    ->label('Subject')
+                                    ->weight('bold'),
+                                TextEntry::make('proposed_section')
+                                    ->label('Student Proposal')
+                                    ->placeholder('None'),
+                                TextEntry::make('confirmed_section')
+                                    ->label('Confirmed Section')
+                                    ->placeholder('Not confirmed'),
+                                TextEntry::make('reservation_status')
+                                    ->label('Reservation')
+                                    ->badge()
+                                    ->placeholder('No capacity held'),
+                                TextEntry::make('reservation_deadline')
+                                    ->label('Reservation Deadline')
+                                    ->placeholder('-'),
+                                TextEntry::make('active_meetings')
+                                    ->label('Bound Meetings'),
+                            ])
+                            ->columns(3)
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
                 Section::make('Enrollment Gate Review')
                     ->description('Read-only TAL-87B staff summary from recorded gate results; missing gate rows are shown as Not Checked without database writes.')
                     ->schema([

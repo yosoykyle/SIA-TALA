@@ -85,16 +85,19 @@ class Enrollment extends Model
         return $this->hasMany(CourseEnrollment::class);
     }
 
+    /** @return HasMany<EnrollmentSeatReservation, $this> */
     public function seatReservations(): HasMany
     {
         return $this->hasMany(EnrollmentSeatReservation::class);
     }
 
+    /** @return HasMany<EnrollmentGateResult, $this> */
     public function gateResults(): HasMany
     {
         return $this->hasMany(EnrollmentGateResult::class);
     }
 
+    /** @return HasMany<EnrollmentException, $this> */
     public function exceptions(): HasMany
     {
         return $this->hasMany(EnrollmentException::class);

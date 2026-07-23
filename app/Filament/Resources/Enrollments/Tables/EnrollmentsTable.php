@@ -8,7 +8,9 @@ use App\Models\Enrollment;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -39,7 +41,7 @@ class EnrollmentsTable
                     ->label('Program')
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('term.term_name')
+                TextColumn::make('term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
@@ -100,6 +102,7 @@ class EnrollmentsTable
             ->recordActions([
                 ViewAction::make(),
                 self::confirmPlacementAction(),
+                self::cancelPlacementAction(),
             ])
             ->toolbarActions([]);
     }
@@ -107,23 +110,61 @@ class EnrollmentsTable
     public static function confirmPlacementAction(): Action
     {
         return Action::make('confirmPlacement')
-            ->label('Confirm Placement')
+            ->label('Confirm / Replace Placement')
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->schema([
-                Select::make('section_id')
-                    ->label('Published section placement')
+                Placeholder::make('proposal_summary')
+                    ->label('Student proposal')
+                    ->content(fn (?Enrollment $record): string => $record instanceof Enrollment
+                        ? $record->courseEnrollments()
+                            ->whereNotNull('proposed_section_id')
+                            ->count().' proposed subject section(s) will be confirmed together.'
+                        : 'No proposal available.')
+                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
+                        && $record->student_type === 'irregular'
+                        && $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists()),
+                Select::make('cohort_code')
+                    ->label('Published logical cohort')
                     ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
-                        ? app(EnrollmentPlacementService::class)->placementOptions($record)
+                        ? app(EnrollmentPlacementService::class)->regularCohortOptions($record)
                         : [])
                     ->required()
                     ->searchable()
                     ->native(false)
-                    ->helperText('Options come from active published section meetings only.'),
+                    ->helperText('Every eligible published subject in this cohort is confirmed atomically.')
+                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
+                        && $record->student_type !== 'irregular'),
+                Select::make('section_id')
+                    ->label('Replacement published section')
+                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
+                        ? app(EnrollmentPlacementService::class)->replacementOptions($record)
+                        : [])
+                    ->required()
+                    ->searchable()
+                    ->native(false)
+                    ->helperText('Use this only to replace one already-confirmed irregular subject placement.')
+                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
+                        && $record->student_type === 'irregular'
+                        && $record->courseEnrollments()->whereNotNull('proposed_section_id')->doesntExist()),
             ])
             ->modalHeading('Confirm enrollment placement')
             ->modalSubmitActionLabel('Confirm Placement')
-            ->visible(fn (Enrollment $record): bool => auth()->user()?->can('confirmPlacement', $record) ?? false)
+            ->visible(function (Enrollment $record): bool {
+                $actorMayConfirm = auth()->user()?->can('confirmPlacement', $record) ?? false;
+                $service = app(EnrollmentPlacementService::class);
+
+                if (! $actorMayConfirm || ! $service->placementIsMutable($record)) {
+                    return false;
+                }
+
+                if ($record->student_type !== 'irregular') {
+                    return $service->regularCohortOptions($record) !== [];
+                }
+
+                return $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists()
+                    || $service->replacementOptions($record) !== [];
+            })
             ->action(function (Enrollment $record, array $data): void {
                 $actor = auth()->user();
 
@@ -132,11 +173,16 @@ class EnrollmentsTable
                 }
 
                 try {
-                    $summary = app(EnrollmentPlacementService::class)->confirm(
-                        enrollment: $record,
-                        sectionId: (int) $data['section_id'],
-                        actor: $actor,
-                    );
+                    $service = app(EnrollmentPlacementService::class);
+                    $hasProposal = $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists();
+
+                    if ($record->student_type === 'irregular' && $hasProposal) {
+                        $summary = $service->confirmComplete($record, $actor);
+                    } elseif ($record->student_type === 'irregular') {
+                        $summary = $service->replace($record, (int) $data['section_id'], $actor);
+                    } else {
+                        $summary = $service->confirmRegularCohort($record, (string) $data['cohort_code'], $actor);
+                    }
 
                     Notification::make()
                         ->title($summary['already_confirmed'] ? 'Placement already confirmed' : 'Placement confirmed')
@@ -146,6 +192,52 @@ class EnrollmentsTable
                 } catch (Throwable $exception) {
                     Notification::make()
                         ->title('Placement confirmation failed')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    public static function cancelPlacementAction(): Action
+    {
+        return Action::make('cancelPlacement')
+            ->label('Cancel Enrollment')
+            ->icon(Heroicon::OutlinedXCircle)
+            ->color('danger')
+            ->requiresConfirmation()
+            ->schema([
+                Textarea::make('reason')
+                    ->label('Cancellation reason')
+                    ->required()
+                    ->maxLength(2000),
+            ])
+            ->visible(fn (Enrollment $record): bool => ! in_array(
+                $record->status,
+                ['officially_enrolled', 'cancelled', 'dropped', 'withdrawn'],
+                true,
+            ) && (auth()->user()?->can('confirmPlacement', $record) ?? false))
+            ->action(function (Enrollment $record, array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    return;
+                }
+
+                try {
+                    app(EnrollmentPlacementService::class)->cancel(
+                        $record,
+                        $actor,
+                        (string) $data['reason'],
+                    );
+                    Notification::make()
+                        ->title('Enrollment cancelled')
+                        ->body('Pending reservations and schedule bindings were released.')
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    Notification::make()
+                        ->title('Enrollment cancellation failed')
                         ->body($exception->getMessage())
                         ->danger()
                         ->send();

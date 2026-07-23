@@ -32,6 +32,7 @@ class ViewEnrollment extends ViewRecord
     {
         return [
             EnrollmentsTable::confirmPlacementAction(),
+            EnrollmentsTable::cancelPlacementAction(),
             Action::make('refreshGateResults')
                 ->label('Refresh Gate Results')
                 ->icon('heroicon-o-arrow-path')

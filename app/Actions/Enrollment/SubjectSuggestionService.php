@@ -40,7 +40,15 @@ class SubjectSuggestionService
         $result = $this->progression->evaluate($studentProfile, $enrollment->term);
         $suggested = collect($result['suggestions'])->map(fn (array $item): array => $this->legacyItem($item))->all();
         $backSubjects = collect($result['back_subjects'])->map(fn (array $item): array => $this->legacyItem($item))->all();
-        $blocked = collect($result['blockers'])
+        $courseBlockers = collect($result['blockers'])
+            ->filter(fn (array $item): bool => isset($item['course_id']));
+        $setupBlockers = collect($result['blockers'])
+            ->reject(fn (array $item): bool => isset($item['course_id']))
+            ->pluck('key')
+            ->filter()
+            ->values()
+            ->all();
+        $blocked = $courseBlockers
             ->groupBy('course_id')
             ->map(function ($items): array {
                 $first = $items->first();
@@ -72,7 +80,7 @@ class SubjectSuggestionService
             'back_subjects' => $backSubjects,
             'blocked' => $blocked,
             'already_passed' => $alreadyPassed,
-            'setup_blockers' => $result['standing'] === StudentProfile::StandingNotYetEvaluated ? ['missing_curriculum_baseline'] : [],
+            'setup_blockers' => $setupBlockers,
             'standing' => $result['standing'],
             'facts' => $result['facts'],
             'summary' => [

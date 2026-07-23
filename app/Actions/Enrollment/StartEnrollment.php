@@ -2,6 +2,8 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Calendar\CalendarPhaseGateService;
+use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -12,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class StartEnrollment
 {
+    public function __construct(private readonly CalendarPhaseGateService $calendarPhaseGate) {}
+
     /**
      * @throws ValidationException
      */
@@ -27,6 +31,41 @@ class StartEnrollment
 
         $studentType = $this->validatedStudentType($studentType);
 
+        return $this->start($studentProfile, $term, $studentType);
+    }
+
+    /**
+     * @throws AuthorizationException
+     * @throws CalendarGateViolation
+     * @throws ValidationException
+     */
+    public function executeContinuing(
+        StudentProfile $studentProfile,
+        Term $term,
+        string $studentType,
+        User $actor,
+    ): Enrollment {
+        if (! $actor->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleSystemSuperAdmin,
+        ])) {
+            throw new AuthorizationException('Only Registrar or System Super Admin staff may start a continuing enrollment.');
+        }
+
+        $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);
+
+        return $this->start(
+            $studentProfile,
+            $term,
+            $this->validatedStudentType($studentType),
+        );
+    }
+
+    private function start(
+        StudentProfile $studentProfile,
+        Term $term,
+        string $studentType,
+    ): Enrollment {
         return DB::transaction(function () use ($studentProfile, $term, $studentType): Enrollment {
             $lockedProfile = StudentProfile::query()
                 ->lockForUpdate()

@@ -3,231 +3,190 @@
 namespace App\Actions\Calendar;
 
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
+use App\Models\CalendarEvent;
+use App\Models\Term;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use stdClass;
-use Throwable;
 
 class CalendarPhaseGateService
 {
     public function assertEnrollmentWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
-        $now = $at ?? CarbonImmutable::now();
-        $term = $this->getTermContext($termId);
+        $this->enrollmentWindow($termId, $at);
+    }
 
-        if (! $this->isCutoverActiveForTerm($term, $now)) {
-            return;
-        }
+    public function enrollmentWindow(int $termId, ?CarbonImmutable $at = null): CalendarEvent
+    {
+        return $this->resolveWindow(
+            termId: $termId,
+            processKey: CalendarEvent::ProcessEnrollment,
+            gate: 'enrollment_window',
+            missingMessage: 'Enrollment gate is not configured for this term.',
+            closedMessage: 'Enrollment is outside the configured window.',
+            at: $at,
+        );
+    }
 
-        $enrollmentStartsAt = $this->parseTermTimestamp($term->enrollment_starts_at);
-        $enrollmentEndsAt = $this->parseTermTimestamp($term->enrollment_ends_at);
+    public function enrollmentDeadline(int $termId, ?CarbonImmutable $at = null): CarbonImmutable
+    {
+        $window = $this->enrollmentWindow($termId, $at);
 
-        if ($enrollmentStartsAt === null || $enrollmentEndsAt === null) {
+        if (! $window->end_at instanceof \DateTimeInterface) {
             throw new CalendarGateViolation(
-                'Enrollment gate is not configured for this term.',
-                'enrollment_window',
-                ['term_id' => $termId],
-            );
-        }
-
-        if ($now->lt($enrollmentStartsAt) || $now->gt($enrollmentEndsAt)) {
-            throw new CalendarGateViolation(
-                'Enrollment is outside the configured window.',
+                'Enrollment window has no valid reservation deadline.',
                 'enrollment_window',
                 [
                     'term_id' => $termId,
-                    'enrollment_starts_at' => $enrollmentStartsAt->toIso8601String(),
-                    'enrollment_ends_at' => $enrollmentEndsAt->toIso8601String(),
-                    'evaluated_at' => $now->toIso8601String(),
+                    'window_configured' => true,
+                    'calendar_event_id' => $window->id,
                 ],
             );
         }
+
+        return CarbonImmutable::instance($window->end_at);
     }
 
     public function assertSchedulingWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
-        $now = $at ?? CarbonImmutable::now();
-        $term = $this->getTermContext($termId);
-
-        if (! $this->isCutoverActiveForTerm($term, $now)) {
-            return;
-        }
-
-        $schedulingStartsAt = $this->parseTermTimestamp($term->scheduling_starts_at);
-
-        if ($schedulingStartsAt === null) {
-            throw new CalendarGateViolation(
-                'Scheduling gate is not configured for this term.',
-                'scheduling_window',
-                ['term_id' => $termId],
-            );
-        }
-
-        if ($now->lt($schedulingStartsAt)) {
-            throw new CalendarGateViolation(
-                'Scheduling is not open yet for this term.',
-                'scheduling_window',
-                [
-                    'term_id' => $termId,
-                    'scheduling_starts_at' => $schedulingStartsAt->toIso8601String(),
-                    'evaluated_at' => $now->toIso8601String(),
-                ],
-            );
-        }
+        $this->resolveWindow(
+            termId: $termId,
+            processKey: CalendarEvent::ProcessScheduling,
+            gate: 'scheduling_window',
+            missingMessage: 'Scheduling gate is not configured for this term.',
+            closedMessage: 'Scheduling is outside the configured window.',
+            at: $at,
+        );
     }
 
     public function assertEnrollmentEditWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
-        $now = $at ?? CarbonImmutable::now();
-        $term = $this->getTermContext($termId);
+        $evaluatedAt = $at ?? CarbonImmutable::now();
 
-        if (! $this->isCutoverActiveForTerm($term, $now)) {
-            return;
-        }
-
-        $enrollmentStartsAt = $this->parseTermTimestamp($term->enrollment_starts_at);
-        $enrollmentEndsAt = $this->parseTermTimestamp($term->enrollment_ends_at);
-
-        if ($enrollmentStartsAt === null || $enrollmentEndsAt === null) {
-            $this->recordEnrollmentEditGateBlock($termId, $now, 'missing_enrollment_window');
-
-            throw new CalendarGateViolation(
-                'Enrollment edit window is not configured for this term.',
-                'enrollment_edit_window',
-                ['term_id' => $termId],
+        try {
+            $this->resolveWindow(
+                termId: $termId,
+                processKey: CalendarEvent::ProcessEnrollment,
+                gate: 'enrollment_edit_window',
+                missingMessage: 'Enrollment edit window is not configured for this term.',
+                closedMessage: 'Enrollment edits are locked outside the enrollment window.',
+                at: $evaluatedAt,
             );
-        }
-
-        if ($now->lt($enrollmentStartsAt) || $now->gt($enrollmentEndsAt)) {
-            $this->recordEnrollmentEditGateBlock($termId, $now, 'outside_enrollment_window');
-
-            throw new CalendarGateViolation(
-                'Enrollment edits are locked outside the enrollment window.',
-                'enrollment_edit_window',
-                [
-                    'term_id' => $termId,
-                    'enrollment_starts_at' => $enrollmentStartsAt->toIso8601String(),
-                    'enrollment_ends_at' => $enrollmentEndsAt->toIso8601String(),
-                    'evaluated_at' => $now->toIso8601String(),
-                ],
+        } catch (CalendarGateViolation $exception) {
+            $this->recordEnrollmentEditGateBlock(
+                $termId,
+                $evaluatedAt,
+                ($exception->context['window_configured'] ?? false) === true
+                    ? 'outside_enrollment_window'
+                    : 'missing_enrollment_window',
             );
+
+            throw $exception;
         }
-    }
-
-    public function isCutoverActive(int $termId, ?CarbonImmutable $at = null): bool
-    {
-        $now = $at ?? CarbonImmutable::now();
-        $term = $this->getTermContext($termId);
-
-        return $this->isCutoverActiveForTerm($term, $now);
-    }
-
-    private function isCutoverActiveForTerm(stdClass $term, CarbonImmutable $now): bool
-    {
-        $keys = $this->resolveCutoverKeys();
-        $cutoverTerm = $this->getSystemSetting($keys['term_key']);
-        $cutoverDatetime = $this->parseSettingTimestamp(
-            $this->getSystemSetting($keys['datetime_key']),
-            $keys['datetime_key'],
-        );
-
-        if ($cutoverTerm === null || $cutoverDatetime === null) {
-            return false;
-        }
-
-        if ($now->lt($cutoverDatetime)) {
-            return false;
-        }
-
-        $termStart = CarbonImmutable::parse($term->term_start_date, config('app.timezone'));
-
-        if ($term->term_name === $cutoverTerm) {
-            return true;
-        }
-
-        return $termStart->greaterThanOrEqualTo($cutoverDatetime->startOfDay());
     }
 
     /**
-     * @return array{term_key: string, datetime_key: string}
+     * @deprecated Canonical CalendarEvent windows are authoritative for every term.
      */
-    private function resolveCutoverKeys(): array
+    public function isCutoverActive(int $termId, ?CarbonImmutable $at = null): bool
     {
-        return [
-            'term_key' => 'college_cutover_effective_term',
-            'datetime_key' => 'college_cutover_effective_datetime',
-        ];
+        $evaluatedAt = $at ?? CarbonImmutable::now();
+
+        return $this->windowQuery($termId, CalendarEvent::ProcessEnrollment)
+            ->where('start_at', '<=', $evaluatedAt)
+            ->where('end_at', '>=', $evaluatedAt)
+            ->exists();
     }
 
-    private function getSystemSetting(string $key): ?string
-    {
-        $value = DB::table('system_settings')
-            ->where('key', $key)
-            ->value('value');
+    private function resolveWindow(
+        int $termId,
+        string $processKey,
+        string $gate,
+        string $missingMessage,
+        string $closedMessage,
+        ?CarbonImmutable $at,
+    ): CalendarEvent {
+        $evaluatedAt = $at ?? CarbonImmutable::now();
+        $this->assertTermExists($termId);
+        $windows = $this->windowQuery($termId, $processKey)
+            ->orderBy('start_at')
+            ->get();
 
-        return is_string($value) && trim($value) !== '' ? $value : null;
-    }
-
-    private function parseSettingTimestamp(?string $value, string $settingKey): ?CarbonImmutable
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        try {
-            return CarbonImmutable::parse($value);
-        } catch (Throwable $exception) {
-            Log::warning('Invalid system setting datetime encountered.', [
-                'setting_key' => $settingKey,
-                'value' => $value,
-                'error' => $exception->getMessage(),
-            ]);
-
-            return null;
-        }
-    }
-
-    private function parseTermTimestamp(mixed $value): ?CarbonImmutable
-    {
-        if (! is_string($value) || trim($value) === '') {
-            return null;
-        }
-
-        return CarbonImmutable::parse($value, config('app.timezone'));
-    }
-
-    private function getTermContext(int $termId): stdClass
-    {
-        $term = DB::table('terms')
-            ->leftJoin('academic_years', 'academic_years.id', '=', 'terms.academic_year_id')
-            ->where('terms.id', $termId)
-            ->select([
-                'terms.id',
-                'terms.term_name',
-                'terms.term_start_date',
-                'terms.enrollment_starts_at',
-                'terms.enrollment_ends_at',
-                'terms.scheduling_starts_at',
-            ])
-            ->first();
-
-        if (! $term instanceof stdClass) {
+        if ($windows->isEmpty()) {
             throw new CalendarGateViolation(
-                'Term not found for gate validation.',
-                'term_resolution',
-                ['term_id' => $termId],
+                $missingMessage,
+                $gate,
+                [
+                    'term_id' => $termId,
+                    'process_key' => $processKey,
+                    'window_configured' => false,
+                    'evaluated_at' => $evaluatedAt->toIso8601String(),
+                ],
             );
         }
 
-        return $term;
+        $window = $windows->first(function (CalendarEvent $event) use ($evaluatedAt): bool {
+            if (! $event->start_at instanceof \DateTimeInterface
+                || ! $event->end_at instanceof \DateTimeInterface) {
+                return false;
+            }
+
+            $startsAt = CarbonImmutable::instance($event->start_at);
+            $endsAt = CarbonImmutable::instance($event->end_at);
+
+            return $evaluatedAt->betweenIncluded($startsAt, $endsAt);
+        });
+
+        if (! $window instanceof CalendarEvent) {
+            throw new CalendarGateViolation(
+                $closedMessage,
+                $gate,
+                [
+                    'term_id' => $termId,
+                    'process_key' => $processKey,
+                    'window_configured' => true,
+                    'evaluated_at' => $evaluatedAt->toIso8601String(),
+                    'configured_windows' => $windows->map(fn (CalendarEvent $event): array => [
+                        'start_at' => $event->start_at?->toIso8601String(),
+                        'end_at' => $event->end_at?->toIso8601String(),
+                    ])->all(),
+                ],
+            );
+        }
+
+        return $window;
+    }
+
+    /**
+     * @return Builder<CalendarEvent>
+     */
+    private function windowQuery(int $termId, string $processKey): Builder
+    {
+        return CalendarEvent::query()
+            ->academicCalendarWindows()
+            ->where('term_id', $termId)
+            ->where('process_key', $processKey)
+            ->where('state', CalendarEvent::StateActive);
+    }
+
+    private function assertTermExists(int $termId): void
+    {
+        if (Term::query()->whereKey($termId)->exists()) {
+            return;
+        }
+
+        throw new CalendarGateViolation(
+            'Term not found for gate validation.',
+            'term_resolution',
+            ['term_id' => $termId],
+        );
     }
 
     private function recordEnrollmentEditGateBlock(
         int $termId,
         CarbonImmutable $evaluatedAt,
-        string $reason
+        string $reason,
     ): void {
         DB::table('activity_log')->insert([
             'log_name' => 'calendar_gate',
