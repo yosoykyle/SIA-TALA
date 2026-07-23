@@ -278,7 +278,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
      */
     private function time(array $snapshot, array $demand, ?int $facultyId, ?int $roomId, array $used): ?array
     {
-        $dayEndsAt = (string) ($snapshot['term']['scheduling_day_ends_at'] ?? '20:00:00');
+        $dayEndsAt = (string) ($snapshot['term']['scheduling_day_ends_at'] ?? '21:00:00');
 
         if (($demand['fixed_day_of_week'] ?? null) !== null && ($demand['fixed_start_time'] ?? null) !== null) {
             $startsAt = (string) $demand['fixed_start_time'];

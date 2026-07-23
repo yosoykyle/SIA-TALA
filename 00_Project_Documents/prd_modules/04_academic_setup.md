@@ -19,7 +19,7 @@ Summer rules:
 Default scheduling grid:
 
 1. Monday to Saturday.
-2. 7:00 AM to 8:00 PM.
+2. 7:00 AM to 9:00 PM.
 3. 30-minute base blocks.
 4. Sunday blocked by default.
 5. Holidays and no-class dates suspend or exclude their affected dated class occurrences; they do not change the recurring Master Schedule pattern.

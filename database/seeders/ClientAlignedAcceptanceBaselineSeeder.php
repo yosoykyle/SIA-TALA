@@ -7,6 +7,7 @@ use App\Actions\Registrar\BuildTermOfferings;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
+use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
@@ -40,6 +41,12 @@ use Illuminate\Support\Facades\Hash;
 use RuntimeException;
 use Spatie\Activitylog\ActivityLogStatus;
 
+/**
+ * Constructs the deterministic acceptance records used by TAL-96B1 and extended by TAL-96D2C.
+ *
+ * It exercises the real offering, cohort, and demand-generation services without
+ * invoking the solver. Guarded commands and tests must call it only on test_tala_db.
+ */
 final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 {
     public const StateEmpty = 'empty';
@@ -48,13 +55,23 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     public const StateConflict = 'conflict';
 
+    private string $scenario = SchedulingAcceptanceScenarioCatalog::Min;
+
     public function __construct(
         private readonly DatabaseSeeder $databaseSeeder,
         private readonly BuildTermOfferings $offeringBuilder,
         private readonly SectionDeliveryGroupService $deliveryGroupService,
         private readonly GenerateSchedulingDemand $demandGenerator,
         private readonly TermSchedulingReadinessService $readinessService,
+        private readonly SchedulingAcceptanceScenarioCatalog $scenarioCatalog,
     ) {}
+
+    public function forScenario(string $scenario): self
+    {
+        $this->scenario = $this->scenarioCatalog->normalize($scenario);
+
+        return $this;
+    }
 
     public function state(): string
     {
@@ -94,8 +111,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $demandSummary = $this->demandGenerator->forTerm($registrar, $term);
             $readiness = $this->readinessService->evaluateTerm($term);
 
-            if ($demandSummary['total'] !== 54
-                || $demandSummary['ready'] !== 54
+            $expectedDemands = $this->manifest()['counts']['scheduling_demands'];
+
+            if ($demandSummary['total'] !== $expectedDemands
+                || $demandSummary['ready'] !== $expectedDemands
                 || $demandSummary['action_required'] !== 0
                 || ! $readiness['is_ready']) {
                 throw new RuntimeException('The generated client acceptance baseline did not pass scheduling readiness.');
@@ -119,6 +138,22 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             : null;
 
         return $term instanceof Term && $this->readinessPassesForTerm($term);
+    }
+
+    /**
+     * @return array{
+     *     scenario:string,
+     *     basis:string,
+     *     limitation:string,
+     *     counts:array{students:int,cohorts:int,faculty:int,offerings:int,sections:int,scheduling_demands:int},
+     *     operating_grid:array{days:list<int>,starts_at:string,ends_at:string,slot_minutes:int},
+     *     solver_feasibility:'NOT_EVALUATED',
+     *     solver_optimality:'NOT_EVALUATED'
+     * }
+     */
+    public function manifest(): array
+    {
+        return $this->scenarioCatalog->manifest($this->scenario);
     }
 
     /**
@@ -200,7 +235,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'scheduling_slot_minutes' => 30,
             'scheduling_days' => [1, 2, 3, 4, 5, 6],
             'scheduling_day_starts_at' => '07:00:00',
-            'scheduling_day_ends_at' => '20:00:00',
+            'scheduling_day_ends_at' => '21:00:00',
             'default_max_units' => 21,
         ]);
 
@@ -212,7 +247,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
         $faculty = [];
 
-        for ($number = 1; $number <= 12; $number++) {
+        for ($number = 1; $number <= $this->manifest()['counts']['faculty']; $number++) {
             $email = $number === 1
                 ? 'faculty.demo@example.test'
                 : sprintf('faculty%02d.demo@example.test', $number);
@@ -328,18 +363,18 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ]);
             $sequence = 1;
 
-            foreach ($this->cohorts() as $cohort) {
-                if ($cohort['program'] !== $programCode) {
+            foreach ($this->academicScopes() as $scope) {
+                if ($scope['program'] !== $programCode) {
                     continue;
                 }
 
-                foreach ($cohort['courses'] as $courseCode) {
+                foreach ($scope['courses'] as $courseCode) {
                     CurriculumEntry::query()->create([
                         'curriculum_version_id' => $curriculum->id,
                         'course_specification_id' => $specifications[
                             $this->specificationKey($programCode, $courseCode)
                         ]->id,
-                        'year_level' => $cohort['year'],
+                        'year_level' => $scope['year'],
                         'term_label' => 'Second Semester',
                         'term_type' => Term::TypeSecondSemester,
                         'sequence' => $sequence++,
@@ -433,29 +468,58 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ]);
         }
 
-        $weights = $this->courseDemandWeights();
-        arsort($weights);
-        $facultyLoads = array_fill(0, count($faculty), 0.0);
+        if ($this->scenario === SchedulingAcceptanceScenarioCatalog::Min) {
+            $weights = $this->courseDemandWeights();
+            arsort($weights);
+            $facultyLoads = array_fill(0, count($faculty), 0.0);
 
-        foreach (array_keys($weights) as $courseCode) {
-            $facultyIndex = array_search(min($facultyLoads), $facultyLoads, true);
-            $facultyIndex = is_int($facultyIndex) ? $facultyIndex : 0;
+            foreach (array_keys($weights) as $courseCode) {
+                $facultyIndex = array_search(min($facultyLoads), $facultyLoads, true);
+                $facultyIndex = is_int($facultyIndex) ? $facultyIndex : 0;
+                $specification = $specifications[$courseCode];
+
+                $this->createFacultyQualification(
+                    $faculty[$facultyIndex],
+                    $specification,
+                    $registrar,
+                );
+                $facultyLoads[$facultyIndex] += $weights[$courseCode];
+            }
+
+            if (max($facultyLoads) > 21) {
+                throw new RuntimeException('The deterministic faculty assignment exceeds the approved 21-unit ceiling.');
+            }
+
+            return;
+        }
+
+        foreach (array_keys($this->courseCatalog()) as $courseIndex => $courseCode) {
             $specification = $specifications[$courseCode];
 
-            FacultyQualification::query()->create([
-                'faculty_user_id' => $faculty[$facultyIndex]->id,
-                'course_id' => $specification->course_id,
-                'is_active' => true,
-                'recorded_by' => $registrar->id,
-                'recorded_at' => '2025-12-01 08:00:00',
-                'notes' => 'Synthetic qualification for TAL-96B1 acceptance.',
-            ]);
-            $facultyLoads[$facultyIndex] += $weights[$courseCode];
+            for ($poolIndex = 0; $poolIndex < 3; $poolIndex++) {
+                $facultyIndex = ($courseIndex + $poolIndex) % count($faculty);
+                $this->createFacultyQualification(
+                    $faculty[$facultyIndex],
+                    $specification,
+                    $registrar,
+                );
+            }
         }
+    }
 
-        if (max($facultyLoads) > 21) {
-            throw new RuntimeException('The deterministic faculty assignment exceeds the approved 21-unit ceiling.');
-        }
+    private function createFacultyQualification(
+        User $faculty,
+        CourseSpecification $specification,
+        User $registrar,
+    ): void {
+        FacultyQualification::query()->create([
+            'faculty_user_id' => $faculty->id,
+            'course_id' => $specification->course_id,
+            'is_active' => true,
+            'recorded_by' => $registrar->id,
+            'recorded_at' => '2025-12-01 08:00:00',
+            'notes' => 'Synthetic qualification for scheduling acceptance.',
+        ]);
     }
 
     private function createSchedulingWindow(Term $term): void
@@ -466,7 +530,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'scope_type' => CalendarEvent::ScopeInstitution,
             'process_key' => CalendarEvent::ProcessScheduling,
             'start_at' => '2026-01-05 07:00:00',
-            'end_at' => '2026-05-30 20:00:00',
+            'end_at' => '2026-05-30 21:00:00',
             'blocks_scheduling' => false,
             'state' => CalendarEvent::StateActive,
             'authority' => 'TAL-96B1 synthetic acceptance baseline',
@@ -483,26 +547,25 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         array $programs,
         array $curricula,
     ): void {
-        foreach ($this->cohorts() as $cohortCode => $cohort) {
-            $curriculum = $curricula[$cohort['program']];
+        foreach ($this->academicScopes() as $scope) {
+            $curriculum = $curricula[$scope['program']];
             $entries = $this->offeringBuilder
-                ->preview($term, $programs[$cohort['program']], $curriculum, $cohort['year'])
+                ->preview($term, $programs[$scope['program']], $curriculum, $scope['year'])
                 ->keyBy(fn (CurriculumEntry $entry): string => (string) $entry->courseSpecification?->course?->code);
             $rows = [];
 
-            foreach ($cohort['courses'] as $courseCode) {
+            foreach ($scope['courses'] as $courseCode) {
                 $entry = $entries->get($courseCode);
 
                 if (! $entry instanceof CurriculumEntry) {
-                    throw new RuntimeException("Missing eligible curriculum entry for {$cohortCode} {$courseCode}.");
+                    throw new RuntimeException(
+                        "Missing eligible curriculum entry for {$scope['program']} {$scope['year']} {$courseCode}.",
+                    );
                 }
 
                 $modality = $this->courseCatalog()[$courseCode]['modality'];
-                $rows[] = [
-                    'curriculum_entry_id' => $entry->id,
-                    'expected_count' => $cohort['students'],
-                    'modality' => $modality,
-                    'sections' => [[
+                $sections = collect($scope['cohorts'])
+                    ->map(fn (array $cohort, string $cohortCode): array => [
                         'code' => $cohortCode.'-'.$courseCode,
                         'capacity' => 30,
                         'delivery_groups' => [[
@@ -510,21 +573,30 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                             'expected_count' => $cohort['students'],
                             'modality' => $modality,
                         ]],
-                    ]],
+                    ])
+                    ->values()
+                    ->all();
+                $rows[] = [
+                    'curriculum_entry_id' => $entry->id,
+                    'expected_count' => collect($scope['cohorts'])->sum('students'),
+                    'modality' => $modality,
+                    'sections' => $sections,
                 ];
             }
 
             $summary = $this->offeringBuilder->regular(
                 $registrar,
                 $term,
-                $programs[$cohort['program']],
+                $programs[$scope['program']],
                 $curriculum,
-                $cohort['year'],
+                $scope['year'],
                 $rows,
             );
 
-            if ($summary['created'] !== count($cohort['courses']) || $summary['blocked'] !== 0) {
-                throw new RuntimeException("The offering builder did not create the complete {$cohortCode} baseline.");
+            if ($summary['created'] !== count($scope['courses']) || $summary['blocked'] !== 0) {
+                throw new RuntimeException(
+                    "The offering builder did not create the complete {$scope['program']} {$scope['year']} scenario.",
+                );
             }
         }
     }
@@ -598,6 +670,9 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     private function isComplete(): bool
     {
+        $manifest = $this->manifest();
+        $counts = $manifest['counts'];
+        $qualificationCount = $this->scenario === SchedulingAcceptanceScenarioCatalog::Min ? 40 : 120;
         $academicYear = $this->exactAcademicYear();
 
         if (! $academicYear instanceof AcademicYear) {
@@ -611,10 +686,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         return $this->programsAreComplete()
-            && User::query()->count() === 64
+            && User::query()->count() === $counts['students'] + $counts['faculty'] + 5
             && User::query()->whereNull('email_verified_at')->doesntExist()
             && User::query()->where('email', 'not like', '%@example.test')->doesntExist()
-            && StudentProfile::query()->count() === 47
+            && StudentProfile::query()->count() === $counts['students']
             && Course::query()->count() === 40
             && Course::query()->where('state', Course::StateActive)->count() === 40
             && CourseSpecification::query()->count() === 41
@@ -622,22 +697,23 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && CourseComponent::query()->count() === 41
             && CurriculumVersion::query()->count() === 3
             && CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->count() === 3
-            && CurriculumEntry::query()->count() === 54
+            && CurriculumEntry::query()->count() === $counts['offerings']
             && Room::query()->count() === 6
             && Room::query()->where('is_active', true)->count() === 6
-            && FacultyQualification::query()->count() === 40
-            && FacultyQualification::query()->where('is_active', true)->count() === 40
-            && FacultyTermLoadOverride::query()->count() === 12
-            && FacultyTermLoadOverride::query()->where('is_active', true)->count() === 12
+            && FacultyQualification::query()->count() === $qualificationCount
+            && FacultyQualification::query()->where('is_active', true)->count() === $qualificationCount
+            && FacultyTermLoadOverride::query()->count() === $counts['faculty']
+            && FacultyTermLoadOverride::query()->where('is_active', true)->count() === $counts['faculty']
             && $this->schedulingWindowIsComplete($term)
-            && TermOffering::query()->count() === 54
-            && Section::query()->count() === 54
-            && SectionDeliveryGroup::query()->where('state', SectionDeliveryGroup::StateReady)->count() === 54
-            && SchedulingDemand::query()->count() === 54
-            && SchedulingDemand::query()->where('validation_state', SchedulingDemand::ValidationReadyForReview)->count() === 54
+            && TermOffering::query()->count() === $counts['offerings']
+            && Section::query()->count() === $counts['sections']
+            && SectionDeliveryGroup::query()->where('state', SectionDeliveryGroup::StateReady)->count() === $counts['sections']
+            && SchedulingDemand::query()->count() === $counts['scheduling_demands']
+            && SchedulingDemand::query()->where('validation_state', SchedulingDemand::ValidationReadyForReview)->count() === $counts['scheduling_demands']
             && $this->downpaymentRulesAreComplete($term)
             && $this->courseCatalogIsComplete($term)
             && $this->curriculaAndEntriesAreComplete($term)
+            && $this->offeringStructureIsComplete($term)
             && $this->studentCohortsAreComplete()
             && $this->roomsAreComplete()
             && $this->representativeAccountsAreComplete()
@@ -683,7 +759,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('state', Term::StateActive)
             ->where('scheduling_slot_minutes', 30)
             ->where('scheduling_day_starts_at', '07:00:00')
-            ->where('scheduling_day_ends_at', '20:00:00')
+            ->where('scheduling_day_ends_at', '21:00:00')
             ->where('default_max_units', 21)
             ->first();
 
@@ -728,7 +804,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('scope_type', CalendarEvent::ScopeInstitution)
             ->where('process_key', CalendarEvent::ProcessScheduling)
             ->where('start_at', '2026-01-05 07:00:00')
-            ->where('end_at', '2026-05-30 20:00:00')
+            ->where('end_at', '2026-05-30 21:00:00')
             ->where('blocks_scheduling', false)
             ->where('state', CalendarEvent::StateActive)
             ->where('authority', 'TAL-96B1 synthetic acceptance baseline')
@@ -885,15 +961,15 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
         $sequences = array_fill_keys(array_keys($this->programDefinitions()), 1);
 
-        foreach ($this->cohorts() as $cohort) {
-            $curriculum = $curricula[$cohort['program']];
+        foreach ($this->academicScopes() as $scope) {
+            $curriculum = $curricula[$scope['program']];
 
-            foreach ($cohort['courses'] as $courseCode) {
+            foreach ($scope['courses'] as $courseCode) {
                 $course = Course::query()->where('code', $courseCode)->first();
                 $specification = $course instanceof Course
                     ? CourseSpecification::query()
                         ->whereBelongsTo($course)
-                        ->where('revision_code', $this->specificationRevisionCode($cohort['program'], $courseCode))
+                        ->where('revision_code', $this->specificationRevisionCode($scope['program'], $courseCode))
                         ->first()
                     : null;
 
@@ -901,10 +977,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     || ! CurriculumEntry::query()
                         ->whereBelongsTo($curriculum)
                         ->whereBelongsTo($specification)
-                        ->where('year_level', $cohort['year'])
+                        ->where('year_level', $scope['year'])
                         ->where('term_label', 'Second Semester')
                         ->where('term_type', Term::TypeSecondSemester)
-                        ->where('sequence', $sequences[$cohort['program']]++)
+                        ->where('sequence', $sequences[$scope['program']]++)
                         ->where('requirement_group', CurriculumEntry::RequirementGroupRequired)
                         ->exists()) {
                     return false;
@@ -964,6 +1040,89 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 }
 
                 $globalNumber++;
+            }
+        }
+
+        return true;
+    }
+
+    private function offeringStructureIsComplete(Term $term): bool
+    {
+        foreach ($this->academicScopes() as $scope) {
+            $program = Program::query()->where('code', $scope['program'])->first();
+            $curriculum = $program instanceof Program
+                ? CurriculumVersion::query()->whereBelongsTo($program)->first()
+                : null;
+
+            if (! $curriculum instanceof CurriculumVersion) {
+                return false;
+            }
+
+            $scopeExpectedCount = collect($scope['cohorts'])->sum('students');
+
+            foreach ($scope['courses'] as $courseCode) {
+                $course = Course::query()->where('code', $courseCode)->first();
+                $specification = $course instanceof Course
+                    ? CourseSpecification::query()
+                        ->whereBelongsTo($course)
+                        ->where('revision_code', $this->specificationRevisionCode($scope['program'], $courseCode))
+                        ->first()
+                    : null;
+                $entry = $specification instanceof CourseSpecification
+                    ? CurriculumEntry::query()
+                        ->whereBelongsTo($curriculum)
+                        ->whereBelongsTo($specification)
+                        ->where('year_level', $scope['year'])
+                        ->where('term_type', Term::TypeSecondSemester)
+                        ->first()
+                    : null;
+                $modality = $this->courseCatalog()[$courseCode]['modality'];
+                $offering = $entry instanceof CurriculumEntry
+                    ? TermOffering::query()
+                        ->whereBelongsTo($term)
+                        ->whereBelongsTo($entry)
+                        ->where('category', TermOffering::CategoryRegular)
+                        ->where('delivery_variant', TermOffering::ArrangementNormalClass)
+                        ->where('modality', $modality)
+                        ->where('expected_count', $scopeExpectedCount)
+                        ->where('state', TermOffering::StatePendingScheduling)
+                        ->first()
+                    : null;
+
+                if (! $offering instanceof TermOffering) {
+                    return false;
+                }
+
+                foreach ($scope['cohorts'] as $cohortCode => $cohort) {
+                    $section = Section::query()
+                        ->whereBelongsTo($offering, 'termOffering')
+                        ->where('code', $cohortCode.'-'.$courseCode)
+                        ->where('capacity', 30)
+                        ->where('state', Section::StatePlanned)
+                        ->first();
+
+                    if (! $section instanceof Section) {
+                        return false;
+                    }
+
+                    $group = SectionDeliveryGroup::query()
+                        ->whereBelongsTo($section)
+                        ->where('name', $cohortCode)
+                        ->where('expected_count', $cohort['students'])
+                        ->where('modality', $modality)
+                        ->where('state', SectionDeliveryGroup::StateReady)
+                        ->first();
+
+                    if (! $group instanceof SectionDeliveryGroup
+                        || ! SchedulingDemand::query()
+                            ->whereBelongsTo($offering)
+                            ->whereBelongsTo($group, 'sectionDeliveryGroup')
+                            ->where('modality', $modality)
+                            ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
+                            ->exists()) {
+                        return false;
+                    }
+                }
             }
         }
 
@@ -1187,32 +1346,36 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      */
     private function cohorts(): array
     {
-        return [
-            'DBM-1A' => [
-                'program' => 'DBM', 'year' => 'First Year', 'students' => 10,
-                'courses' => ['GE04', 'GE05', 'BME05', 'BME04', 'CSNCII', 'GE06', 'PE02', 'FOSNCII', 'NSTP02', 'BME06'],
-            ],
-            'DBM-2A' => [
-                'program' => 'DBM', 'year' => 'Second Year', 'students' => 2,
-                'courses' => ['AGRONCIII', 'GE10', 'GE09', 'BME09', 'BME10', 'BME11', 'BME12', 'BME13', 'PE04'],
-            ],
-            'DIT-1A' => [
-                'program' => 'DIT', 'year' => 'First Year', 'students' => 10,
-                'courses' => ['GE04', 'GE05', 'GE06', 'CC102', 'PHY101', 'CC103', 'NSTP02', 'PE02'],
-            ],
-            'DIT-2A' => [
-                'program' => 'DIT', 'year' => 'Second Year', 'students' => 3,
-                'courses' => ['TECH001', 'NET102', 'VGDNCIII', 'IAS101', 'DM101', 'PE04', 'HCI101', 'IAS102'],
-            ],
-            'DTHM-1A' => [
-                'program' => 'DTHM', 'year' => 'First Year', 'students' => 15,
-                'courses' => ['HSKPNCII', 'THC05', 'THC04', 'GE04', 'GE05', 'GE06', 'THC03', 'HPC07', 'PE02', 'NSTP02'],
-            ],
-            'DTHM-2A' => [
-                'program' => 'DTHM', 'year' => 'Second Year', 'students' => 7,
-                'courses' => ['THC07', 'HPC11EMS', 'THC08', 'BME01', 'HPC13EMS', 'GE10', 'GE09', 'PE04', 'THC06'],
-            ],
-        ];
+        return $this->scenarioCatalog->cohorts($this->scenario);
+    }
+
+    /**
+     * @return list<array{
+     *     program:string,
+     *     year:string,
+     *     courses:list<string>,
+     *     cohorts:array<string, array{program:string,year:string,students:int,courses:list<string>}>
+     * }>
+     */
+    private function academicScopes(): array
+    {
+        return collect($this->cohorts())
+            ->groupBy(
+                fn (array $cohort): string => $cohort['program'].'|'.$cohort['year'],
+                preserveKeys: true,
+            )
+            ->map(function ($cohorts): array {
+                $first = $cohorts->first();
+
+                return [
+                    'program' => $first['program'],
+                    'year' => $first['year'],
+                    'courses' => $first['courses'],
+                    'cohorts' => $cohorts->all(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

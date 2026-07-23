@@ -24,7 +24,14 @@ class SectionDeliveryGroupService
 
         $validator = Validator::make($prepared, [
             'section_id' => ['required', 'integer', Rule::exists('sections', 'id')],
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('section_delivery_groups', 'name')
+                    ->where('section_id', $section->id)
+                    ->ignore($group?->id),
+            ],
             'expected_count' => ['required', 'integer', 'min:0'],
             'modality' => ['required', 'string', Rule::in(array_keys(SectionDeliveryGroup::modalityOptions()))],
             'delivery_override' => ['nullable', 'array'],
@@ -38,6 +45,16 @@ class SectionDeliveryGroupService
 
             if ((int) $prepared['expected_count'] > (int) $section->capacity) {
                 $validator->errors()->add('expected_count', 'Delivery-group expected count cannot exceed parent section capacity.');
+            }
+
+            $allowedModalities = $section->termOffering?->courseSpecification()?->getAttribute('allowed_modalities');
+
+            if (is_array($allowedModalities)
+                && ! in_array($prepared['modality'], $allowedModalities, true)) {
+                $validator->errors()->add(
+                    'modality',
+                    'The selected modality is not allowed by the parent Course Specification.',
+                );
             }
         });
 

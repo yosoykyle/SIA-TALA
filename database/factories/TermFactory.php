@@ -28,7 +28,7 @@ class TermFactory extends Factory
             'scheduling_slot_minutes' => 30,
             'scheduling_days' => [1, 2, 3, 4, 5, 6],
             'scheduling_day_starts_at' => '07:00:00',
-            'scheduling_day_ends_at' => '20:00:00',
+            'scheduling_day_ends_at' => '21:00:00',
             'default_max_units' => 21.00,
         ];
     }

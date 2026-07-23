@@ -53,7 +53,7 @@ The baseline uses the client's reported current population as its scale anchor. 
 
 The six reported program/year groups are represented as six regular cohort identifiers. Their approved curricula produce 54 course delivery demands. The fixture also contains an active second-semester term, rooms, faculty qualifications, availability and load data, fee rules, and verified test accounts. Names, personnel, rooms, and availability are synthetic. They provide complete relational inputs for acceptance testing and do not claim to reproduce the client's real personnel or published timetable.
 
-The Program records are the approved three-year `DBM`, `DIT`, and `DTHM` structures. The current population evidence contains only first- and second-year students; that population fact does not shorten the Programs or fabricate a third-year cohort. TAL-96D2C owns the later executable population and section scenarios.
+The Program records are the approved three-year `DBM`, `DIT`, and `DTHM` structures. The current population evidence contains only first- and second-year students; that population fact does not shorten the Programs. TAL-96D2C adds separate, explicitly synthetic MIDDLE and MAX workload scenarios when a three-year or historical-scale input set is required. Those scenarios do not rewrite the client-reported MIN facts.
 
 There is no universal 100-student limit in the accepted product rule. TALA controls occupancy through configurable section capacity, physical-room capacity for face-to-face meetings, published offerings, and Registrar-confirmed seat reservations. The current population of 47 is evidence of client scale, not a coded maximum.
 
@@ -300,7 +300,7 @@ For any failure, record the row ID, exact visible message, role, URL, input file
 | Registrar could directly edit Active or Retired Course Specifications and non-Draft Curriculum Versions | Defect / real gap | Policies and staff pages now restrict direct editing to Draft records. Revision copying, approval recording, and activation use focused domain actions. |
 | Curriculum state and approval fields were directly editable without an impact-confirmed activation workflow | Defect / real gap | Replaced by external-approval recording and transactional activation. The action locks the Program, validates readiness, supersedes the previous Active version, and preserves existing student locks. |
 | Terms could be saved outside the selected Academic Year | Defect / real gap | Both Term date fields now validate against the owning Academic Year. |
-| Catalog/import choices still exposed `BLENDED` | Defect / real gap | Course Specification and import choices now accept only Face-to-Face and Online. Offering-level cleanup remains in TAL-96D2C because offerings are outside this slice. |
+| Catalog/import choices still exposed `BLENDED` | Defect / real gap | Course Specification and import choices now accept only Face-to-Face and Online. The offering-level follow-through was routed to and completed in TAL-96D2C. |
 | Replacing native Filament resources with a custom academic-setup application | Cosmetic / preference | Not done. Native forms, infolists, actions, policies, and Import Batch review remain sufficient. |
 
 #### 5.3.3 Programmatic evidence
@@ -330,6 +330,101 @@ For any failure, record the row ID, exact visible message, role, URL, input file
 | What does one Active curriculum per Program mean for existing students? | It selects the default for future handovers. Existing students remain locked to the Curriculum Version already assigned to them. |
 | Why are the Programs three-year when current population evidence covers only two year levels? | Program duration comes from the approved curriculum structure. The client population is a current count, not a definition of Program length. |
 | Why are only two modalities available? | The approved product authority recognizes Face-to-Face and Online. Modality belongs to course/offer delivery, not to a permanent student type, and this correction does not change the solver contract. |
+
+### 5.4 TAL-96D2C Offering, Resource, and Scheduling-Readiness Acceptance
+
+#### 5.4.1 Intended operating flow
+
+1. The Registrar selects an active Term, Program, Curriculum Version, and year level, then builds course-specific Term Offerings from eligible Curriculum Entries.
+2. Each required subject becomes one course-specific Term Offering. Each offering owns one or more Section source records.
+3. A Section source-record code is unique across the Term. Its default includes both the logical cohort and course code, such as `DIT-1A-CC102`, because every course-specific offering stores a separate Section row.
+4. The Section Delivery Group name carries the stable logical cohort code, such as `DIT-1A`. Repeating that name across the cohort's different subjects lets the schedule payload identify them as the same student group and prevent timetable overlaps.
+5. Only `ONLINE` and `FACE_TO_FACE` may be selected. A delivery group must also use a modality allowed by its parent Course Specification.
+6. The Registrar completes rooms, active faculty qualifications, term load inputs, delivery groups, and the Monday-to-Saturday 07:00–21:00 operating window before generating Scheduling Demands.
+7. The readiness result proves that required source inputs exist and are internally usable. It does **not** prove that CP-SAT found a feasible or optimal timetable. Solver feasibility and solution quality are evaluated in their separately approved later gate.
+
+#### 5.4.2 Deterministic scenario manifests
+
+The three scenarios are replaceable acceptance starting states, not three populations combined in one database. A scenario is created only on an empty guarded `test_tala_db`; selecting another scenario while operational data exists fails closed.
+
+| Scenario | Evidence basis | Students | Logical cohorts | Faculty | Course-specific offerings | Section/group/demand rows | What the scenario proves |
+|---|---|---:|---:|---:|---:|---:|---|
+| `MIN` | Current client-reported population | 47 | 6 | 12 synthetic | 54 | 54 | The current six first-/second-year cohorts can be represented with complete scheduling-readiness inputs. |
+| `MIDDLE` | Synthetic representative three-year operating load | 270 | 9 | 14 synthetic | 80 | 80 | One 30-student cohort for every combination of three Programs and three year levels can be constructed deterministically. |
+| `MAX` | Client-reported historical total and faculty count | 600 | 20 | 14 synthetic | 80 | 178 | Twenty 30-student logical cohorts can be represented across the nine Program/year scopes without changing the schema. |
+
+The MAX cohort allocation starts with two cohorts in every Program/year scope, then assigns the remaining two cohorts deterministically to `DBM` First Year and `DIT` First Year. This is a balanced synthetic distribution, not a claim about the client's historical year-level distribution.
+
+The MIDDLE and MAX third-year scope uses a load-equivalent synthetic placement from the existing acceptance course catalogue where confirmed client third-year operational rows are incomplete. It is suitable for exercising relationships, forms, readiness, and later controlled capacity experiments; it must not be presented as the client's official third-year curriculum. Real deployment data must come through the approved curriculum recording and activation workflow.
+
+Every manifest records its basis, limitation, population, cohort count, faculty count, offering count, section/delivery-group/demand count, operating grid, and two explicit results:
+
+- `solver_feasibility=NOT_EVALUATED`
+- `solver_optimality=NOT_EVALUATED`
+
+Those labels prevent the readiness fixture from being misreported as a completed solver benchmark.
+
+#### 5.4.3 Guarded commands
+
+Prove the testing environment exactly as described in Section 3.3, then inspect without writing:
+
+```powershell
+php artisan acceptance:seed-scheduling-scenario MAX --check --no-interaction
+```
+
+Replace `MAX` with `MIN` or `MIDDLE` as needed. On an empty database the inspection reports `NOT_READY` and the target manifest. On an exact complete scenario it reports `PASS`. On partial, edited, downstream, or different-scenario data it reports a conflict and writes nothing.
+
+After a separately approved snapshot-and-rebuild gate has produced an empty `test_tala_db`, create one selected scenario:
+
+```powershell
+php artisan acceptance:seed-scheduling-scenario MIDDLE --no-interaction
+```
+
+The legacy command remains the compatible MIN entry point:
+
+```powershell
+php artisan acceptance:seed-client-baseline --no-interaction
+```
+
+Neither command truncates, switches, or repairs an occupied database automatically. Scenario switching requires the documented human-gated snapshot-and-rebuild procedure.
+
+#### 5.4.4 Change-control classification
+
+| Finding | Classification | Disposition and evidence |
+|---|---|---|
+| Native Term Offering, Section, Delivery Group, Room, qualification, demand, and readiness records | Aligned | Preserved. No migration or new dependency was introduced. |
+| Offering and group controls exposed the retired `MODULAR` value | Defect / real gap | Selectable modality options now contain only Face-to-Face and Online. The historical constant remains deprecated only so old validation references fail safely rather than breaking compatibility. |
+| Direct Section editing enforced code uniqueness only inside one offering, while the builder enforced it across the Term | Defect / real gap | Direct saves now apply the same Term-wide source-record-code rule. The builder default includes the course code and uses the delivery-group name for the shared cohort identity. |
+| Direct delivery-group editing did not enforce parent Course Specification modalities or provide a friendly duplicate-name error | Defect / real gap | The domain service now performs both checks before persistence. |
+| The fixture ended at 20:00 despite approved client evening operation to 21:00 | Defect / real gap | The Term, scheduling window, PRD, and exact-completeness contract now use 21:00. |
+| No guarded executable MIDDLE or MAX starting state existed | Defect / real gap | One parameterized scenario catalogue and transactional seeding seam now owns all three manifests while retaining the MIN compatibility command. |
+| Running CP-SAT or choosing Cloud Run resources inside D2C | Out of scope | Not done. D2C prepares stable input manifests; the later approved benchmark gate owns paid solver runs and resource conclusions. |
+
+#### 5.4.5 Programmatic evidence
+
+- `TAL96D2COfferingAndScenarioHardeningTest` contains eight focused cases covering the two approved modalities, Term-wide Section source-record-code uniqueness, parent Course Specification modality enforcement, friendly duplicate-group validation, deterministic manifest counts, executable and rerunnable MIDDLE/MAX scenarios, read-only inspection, conflicting-scenario refusal, and fail-closed behavior after an operator edits a manifest source record.
+- The affected TAL-59, TAL-61, TAL-62, TAL-85A/B/C, TAL-94E2a, TAL-96B1, and TAL-96D2B regression files passed against explicit `APP_ENV=testing`, MySQL, and `test_tala_db`.
+- `SchemaConformanceTest` passed 5 tests with 168 assertions after the clean-schema default changed to 21:00.
+- Laravel Pint, scoped PHPStan/Larastan, and `git diff --check` passed. No migration execution, Cloud solver call, deployment, external-service mutation, or persistent scenario replacement was performed.
+
+#### 5.4.6 User-led manual acceptance table
+
+| ID | Role and credential | Prerequisite | Steps and input | Expected visible result | Expected record or state change | Invalid or edge check | Pass / Fail | Observation |
+|---|---|---|---|---|---|---|---|---|
+| D2C-M01 | Operator — project terminal | Explicit testing environment; current database may be empty or occupied | Run the `--check` command for the intended scenario. | Output names `test_tala_db`, scenario, basis, limitation, target counts, current counts, readiness, and `NOT_EVALUATED` solver results. | None. | Run it against a different complete scenario; it must report conflict and preserve all rows. |  |  |
+| D2C-M02 | Registrar — `registrar.demo@example.test` | Exact MIN or selected scenario present | Open Term Offerings, Sections, and delivery groups. Inspect one cohort across two subjects. | Section codes differ by course; delivery-group names repeat the same logical cohort code; only Online and Face-to-Face are selectable. | None during inspection. | Attempt a duplicate Section code in the same Term, duplicate group name in one Section, or a modality disallowed by the Course Specification; each must show a field error and save nothing. |  |  |
+| D2C-M03 | Registrar — same account | Complete academic setup but one required scheduling input deliberately absent in an isolated test case | Generate/review demands and open readiness evidence. | The affected source record and missing input are named; the user is not told that the solver is feasible. | Invalid source remains unresolved until the Registrar corrects it. | Restore the missing qualification, room, group readiness, or Term window and rerun demand/readiness generation; the input-readiness result should recover. |  |  |
+| D2C-M04 | Operator and Registrar | Separately approved empty `test_tala_db` snapshot/rebuild | Seed one scenario, rerun the same command, then inspect the Registrar surfaces. | First run reports `created`; repeat is a no-op; UI row counts match the manifest. | One deterministic scenario only. | Do not switch to another scenario without the human-gated rebuild; the command must refuse. |  |  |
+
+#### 5.4.7 Likely panel questions
+
+| Question | Defensible answer |
+|---|---|
+| Why are Section codes course-specific if students think of `DIT-1A` as one section? | The database stores a Section under one course-specific Term Offering, so each source row needs a Term-unique code. The delivery-group name keeps `DIT-1A` as the shared logical cohort identity across subjects for conflict protection and presentation. |
+| Does readiness PASS mean the solver will find a timetable? | No. It means the required source records pass the Laravel readiness checks. Feasibility and optimality require an actual solver run and are reported separately. |
+| Are MIN, MIDDLE, and MAX actual client distributions? | MIN uses the current client-reported cohort counts. MIDDLE is a representative synthetic operating load. MAX uses the client-reported historical total and faculty count but a transparent deterministic cohort distribution. |
+| Why not keep all three scenarios in one database? | They are alternative starting states. Combining them would inflate counts and make acceptance results ambiguous. Guarded replacement keeps each run reproducible. |
+| Can the system exceed 600 students? | The schema has no universal institution ceiling. Six hundred is an evidence-based evaluation tier, not a coded maximum. Actual capacity depends on offerings, sections, rooms, faculty, time, and later measured solver behavior. |
 
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 

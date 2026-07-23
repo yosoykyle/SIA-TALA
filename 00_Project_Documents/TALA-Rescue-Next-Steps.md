@@ -18,7 +18,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D2 | Approved revised split; depends on TAL-96D1 | Identity, Admissions, Academic Setup, and Offering-State Hardening parent. |
 | TAL-96D2A | Done locally | Identity, Applicant Intake, Review, and Handover Hardening. |
 | TAL-96D2B | Done locally | Academic Period, Catalog, Curriculum, and Import Hardening. |
-| TAL-96D2C | Planned; depends on TAL-96D2B | Offering, Section, Resource, and Scheduling-Readiness Hardening, including guarded executable `MIN` (47), `MIDDLE` (270), and `MAX` (600) synthetic scenarios and their workload manifests; no Cloud capacity benchmark. |
+| TAL-96D2C | Done locally | Offering, Section, Resource, and Scheduling-Readiness Hardening with guarded `MIN`, `MIDDLE`, and `MAX` acceptance scenarios. |
 | TAL-96D3 | Planned; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening. |
 | TAL-96D4 | Planned; depends on TAL-96D3 | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
 | TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, targeted population/configuration and cost evaluation, deployment-readiness gate, CP-SAT evidence synchronization, and the consolidated System Operations and Defense Guide. |
@@ -46,4 +46,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96D2C`** for Offering, Section, Resource, and Scheduling-Readiness Hardening plus guarded executable population scenarios and workload manifests without a Cloud capacity benchmark. Linear sync, push, PR creation, deployment, subagent use, external-service changes, destructive database work, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
+Next primary boundary: **`Plan TAL-96D3`** under the approved TAL-96D order and refinement charter. Linear sync, push, PR creation, deployment, subagent use, external-service changes, destructive database work, persistent scenario replacement, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.

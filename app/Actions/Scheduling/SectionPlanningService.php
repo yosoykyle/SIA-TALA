@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\Section;
+use App\Models\TermOffering;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -25,13 +26,37 @@ class SectionPlanningService
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('sections', 'code')
-                    ->where('term_offering_id', $prepared['term_offering_id'])
-                    ->ignore($section?->id),
             ],
             'capacity' => ['required', 'integer', 'min:1'],
             'state' => ['required', 'string', Rule::in(array_keys(Section::stateOptions()))],
         ]);
+
+        $validator->after(function ($validator) use ($prepared, $section): void {
+            $termOffering = TermOffering::query()->find($prepared['term_offering_id']);
+
+            if (! $termOffering instanceof TermOffering || blank($prepared['code'])) {
+                return;
+            }
+
+            $duplicateExists = Section::query()
+                ->where('code', $prepared['code'])
+                ->when(
+                    $section instanceof Section,
+                    fn ($query) => $query->whereKeyNot($section->id),
+                )
+                ->whereHas(
+                    'termOffering',
+                    fn ($query) => $query->where('term_id', $termOffering->term_id),
+                )
+                ->exists();
+
+            if ($duplicateExists) {
+                $validator->errors()->add(
+                    'code',
+                    'Section source-record codes must be unique within the selected term.',
+                );
+            }
+        });
 
         if ($validator->fails()) {
             throw new ValidationException($validator);

@@ -259,11 +259,12 @@ class ListTermOfferings extends ListRecords
                 : [];
 
             if ($sectionRows === []) {
+                $logicalCohortCode = "{$program->code}-{$this->yearLevelNumber($entry->year_level)}A";
                 $sectionRows = [[
-                    'code' => "{$program->code}-{$this->yearLevelNumber($entry->year_level)}-A",
+                    'code' => "{$logicalCohortCode}-{$courseCode}",
                     'capacity' => 30,
                     'delivery_groups' => [[
-                        'name' => 'Regular Cohort',
+                        'name' => $logicalCohortCode,
                         'expected_count' => 30,
                         'modality' => $allowedModalities[0] ?? null,
                     ]],

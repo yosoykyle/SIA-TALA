@@ -209,7 +209,7 @@ Scheduling remains table-first because validation and exception details are easi
 | --- | --- | --- |
 | Academic calendar and break blocks | Term-scoped setup forms | DatePicker/DateTimePicker and blocked-period Table |
 | Room and faculty availability | One term-scoped scheduling-block source surface | Native Filament Resource Form and Table over `calendar_events`; faculty is limited to own `FACULTY`/`UNAVAILABLE` rows, while authorized Registrar or Academic Head staff may review and manage term rows; no submission, lock, version, or change-request UI |
-| Term offerings and delivery groups | Setup Resources | Resource and relation-manager Tables |
+| Term offerings, course-specific sections, and delivery groups | Setup Resources | Resource and relation-manager Tables; Section source-record codes are unique within the Term, while each delivery-group name carries the stable logical cohort code shared across that cohort's subjects |
 | Scheduling demand | Generated review queue | Filtered read-only/edit-limited Table with source links |
 | Readiness check | Validation result | Infolist summary plus missing/invalid input Table |
 | Solver run | Run record | Create Action/Form, confirmation, status badge, and polling read-only view |

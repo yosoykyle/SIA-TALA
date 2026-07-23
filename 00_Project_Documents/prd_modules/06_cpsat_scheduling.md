@@ -162,7 +162,7 @@ Fixed Assignments and Pre-locking:
 
 1. Staff can pre-fill or lock specific scheduling details (such as a specific room, faculty, or time block) for a Scheduling Demand before the solver runs.
 2. Locked fields are treated as hard constraints (Fixed Assignments) by the solver, which must respect these choices while optimizing the remaining unassigned variables.
-3. Modular or online modalities that have no weekly meetings or physical rooms are pre-marked as no-room or no-meeting demands.
+3. Online demands do not require a physical room. A no-meeting demand is used only when the authoritative Course Component requires no weekly scheduled meeting.
 4. TALA validates fixed assignments before solver execution and returns the failed source record when a fixed assignment conflicts with a fixed hard constraint.
 
 Consecutive Block Scheduling:

@@ -28,7 +28,7 @@ class ScheduleSolverSnapshotService
 
     private const DefaultDayStartsAt = '07:00:00';
 
-    private const DefaultDayEndsAt = '20:00:00';
+    private const DefaultDayEndsAt = '21:00:00';
 
     /**
      * @return array<string, mixed>

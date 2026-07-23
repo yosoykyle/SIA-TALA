@@ -71,6 +71,7 @@ Rules:
 14. The Term Offering owns the actual delivery modality and any authorized delivery or room override for that term; overrides do not mutate the Course Specification Revision or Curriculum Entry.
 15. Lecture and Laboratory components within one Course Specification Revision remain one Term Offering and one enrollment line unless the institution defines separate subject codes or separate released grades.
 16. Different qualified faculty may be assigned to linked Lecture and Laboratory components unless the Course Specification Revision or an authorized Term Offering override marks same faculty required.
+17. Because one course-specific Term Offering owns its own Section source records, each Section code must be unique across the Term even when several course-specific Section records represent the same logical student cohort. The shared logical cohort code is stored as the Section Delivery Group name so scheduling can prevent clashes across all subjects taken by that cohort.
 
 Term offering states:
 
@@ -114,7 +115,7 @@ Controlled by term configuration and term-specific override records.
 
 - **Fields:** Faculty ID, Academic Year, Term, Standard Max Units Snapshot, Approved Overload Units, Reason, Override_Approved_By (optional), Recorded By, Recorded At, Active Status.
 - **Rules:**
-  1.  Default teaching load is configured per term (`term_settings.default_faculty_max_units`).
+  1.  Default teaching load is configured per term (`terms.default_max_units`).
   2.  Faculty load uses course credit units by default.
   3.  Linked Lecture and Laboratory components for the same course do not double-count load unless the institution defines separate subject codes or separate released grades.
   4.  Allowed load = Default Max Units + Approved Overload Units (for that specific term).

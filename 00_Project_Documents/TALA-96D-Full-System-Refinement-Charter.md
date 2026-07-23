@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to:** `TAL-96D2B -> TAL-96D2C -> TAL-96D3 -> TAL-96D4 -> TAL-96D5`
+**Applies to:** `TAL-96D3 -> TAL-96D4 -> TAL-96D5`
 
-**Next planning boundary:** `Plan TAL-96D2B`
+**Next planning boundary:** `Plan TAL-96D3`
 
 ## 1. Purpose
 

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('terms', function (Blueprint $table): void {
             $table->json('scheduling_days')->nullable()->after('scheduling_slot_minutes');
             $table->time('scheduling_day_starts_at')->default('07:00:00')->after('scheduling_days');
-            $table->time('scheduling_day_ends_at')->default('20:00:00')->after('scheduling_day_starts_at');
+            $table->time('scheduling_day_ends_at')->default('21:00:00')->after('scheduling_day_starts_at');
         });
 
         Schema::table('course_components', function (Blueprint $table): void {

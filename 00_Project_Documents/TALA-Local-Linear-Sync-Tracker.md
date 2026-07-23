@@ -25,6 +25,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D1 | Done locally; pending explicit Linear sync | Client-Corrected Capacity Authority and Defense-Readiness Baseline |
 | TAL-96D2A | Done locally; pending explicit Linear sync | Identity, Applicant Intake, Review, and Handover Hardening |
 | TAL-96D2B | Done locally; pending explicit Linear sync | Academic Period, Catalog, Curriculum, and Import Hardening |
+| TAL-96D2C | Done locally; pending explicit Linear sync | Offering, Section, Resource, and Scheduling-Readiness Hardening |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 
