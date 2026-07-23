@@ -145,15 +145,29 @@ TAL-96D will maintain three distinct, executable, synthetic institutional scenar
 
 | Scenario | Population and structure | Purpose | Claim boundary |
 | --- | --- | --- | --- |
-| `MIN` | 47 students in the six current program-year sections reported in `business-evidence/currentpopulation.md` | Current-client acceptance and demonstration baseline | Smallest currently reported client population, not the minimum population TALA can support |
+| `MIN` | 47 students in the six current program-year sections and 9 faculty reported in `business-evidence/currentpopulation.md` | Current-client acceptance and demonstration baseline | Smallest currently reported client population, not the minimum population TALA can support |
 | `MIDDLE` | 270 students: three programs x three year levels x one 30-student section per program-year | Representative target operating and defense scenario | Chosen intermediate scenario for a complete three-year institutional picture, not a client census |
-| `MAX` | 600 students in 20 sections at about 30 students per section, with 14 faculty | Historical client-scale expansion scenario | Largest historical client context supplied by product authority, not the solver's maximum capacity |
+| `MAX` | 600 students in 20 sections at about 30 students per section; the historical report also names 14 faculty | Historical client-scale expansion scenario | Largest historical client context supplied by product authority, not the solver's maximum capacity; the reported faculty count is evidence, not an automatically sufficient scheduling roster |
 
 The client-reported ability to operate up to two sections per program and year level informs structural expansion planning. It does not establish an institution-wide maximum.
 
 Before the `MAX` values are used as a formal research claim, TAL-96D2C must place or cite the supporting business evidence, or label them explicitly as client-reported figures.
 
-### 8.1 Seeder requirements
+### 8.1 Faculty evidence and generated scheduling capacity
+
+The scenario fixtures distinguish a reported headcount from a synthetic roster that is sufficient for the constructed teaching load. The bounded calculation uses the configured 21-unit ceiling and the fixture's course qualifications. It does not run CP-SAT and does not prove that a timetable is feasible.
+
+| Scenario | Teaching units | Arithmetic lower bound, `ceil(units / 21)` | Client-reported faculty | Generated scheduling faculty | Maximum constructed load | Bounded result |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `MIN` | 162 | 8 | 9 | 9 | 19 | Pass |
+| `MIDDLE` | 240 | 12 | Not reported for this synthetic tier | 14 | 18 | Pass with operating headroom |
+| `MAX` | 532 | 26 | 14 | 26 | 21 | Pass for the synthetic roster; the reported 14 are insufficient for this constructed load |
+
+The arithmetic lower bound is a capacity calculation, not proof of the minimum workable roster. MIN deliberately uses the client's nine reported faculty. MIDDLE retains fourteen synthetic faculty as operating headroom rather than treating twelve as proven sufficient under every qualification and availability pattern. MAX preserves the historical fourteen-faculty fact, but `14 x 21 = 294` units cannot carry the constructed 532-unit workload; the fixture therefore uses a separately identified 26-faculty synthetic roster. The fixtures define no faculty-specific unavailability rows, so this bounded evidence assumes every synthetic faculty record may use the full Monday-to-Saturday operating grid. Real availability restrictions can require more faculty. Each scenario manifest also exposes `unassignable_workloads`: an empty list means every constructed workload found a qualified faculty record within the 21-unit ceiling, while a nonempty list identifies the workload keys that failed this bounded readiness check.
+
+The client evidence also contains categories that must not be copied into unrelated fields. `Freshman` is a year-level description, while `Regular` is an academic-standing value; the acceptance personas use TALA's actual standing model. Likewise, client modality headcounts describe students, while TALA schedules modality per subject offering. The fixture therefore uses only `ONLINE` and `FACE_TO_FACE` offerings and does not convert those headcounts into per-student modality records.
+
+### 8.2 Seeder requirements
 
 The scenarios must be real, rerunnable data fixtures rather than report-only tables. One guarded parameterized seeder with three scenario definitions is preferred over duplicated implementations.
 
@@ -170,7 +184,7 @@ As applicable to the scenario, structural completeness includes programs, curric
 
 Snapshot, destructive rebuild, restoration, and scenario replacement remain human-gated. No seed command may target `tala_db`.
 
-### 8.2 Slice placement
+### 8.3 Slice placement
 
 - TAL-96D2B stabilizes academic periods, program identity, three-year curricula, catalog, and import behavior needed by every scenario.
 - TAL-96D2C owns final `MIN`, `MIDDLE`, and `MAX` scenario construction, resource/section/offering completeness, and workload manifests.

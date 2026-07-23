@@ -139,7 +139,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             'MIN' => [
                 'students' => 47,
                 'cohorts' => 6,
-                'faculty' => 12,
+                'faculty' => 9,
                 'offerings' => 54,
                 'sections' => 54,
                 'scheduling_demands' => 54,
@@ -155,7 +155,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             'MAX' => [
                 'students' => 600,
                 'cohorts' => 20,
-                'faculty' => 14,
+                'faculty' => 26,
                 'offerings' => 80,
                 'sections' => 178,
                 'scheduling_demands' => 178,
@@ -173,7 +173,49 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             $this->assertSame(30, $manifest['operating_grid']['slot_minutes']);
             $this->assertNotSame('', $manifest['basis']);
             $this->assertNotSame('', $manifest['limitation']);
+            $this->assertSame('PASS', $manifest['faculty_evidence']['bounded_readiness']);
+            $this->assertSame([], $manifest['faculty_evidence']['unassignable_workloads']);
+            $this->assertSame(
+                'FULL_OPERATING_GRID',
+                $manifest['faculty_evidence']['availability_assumption'],
+            );
+            $this->assertLessThanOrEqual(
+                $manifest['faculty_evidence']['max_units_per_faculty'],
+                $manifest['faculty_evidence']['maximum_constructed_load'],
+            );
         }
+
+        $this->assertSame([
+            'MIN' => [
+                'client_reported_faculty' => 9,
+                'synthetic_scheduling_faculty' => 9,
+                'total_teaching_units' => 162.0,
+                'arithmetic_faculty_lower_bound' => 8,
+            ],
+            'MIDDLE' => [
+                'client_reported_faculty' => null,
+                'synthetic_scheduling_faculty' => 14,
+                'total_teaching_units' => 240.0,
+                'arithmetic_faculty_lower_bound' => 12,
+            ],
+            'MAX' => [
+                'client_reported_faculty' => 14,
+                'synthetic_scheduling_faculty' => 26,
+                'total_teaching_units' => 532.0,
+                'arithmetic_faculty_lower_bound' => 26,
+            ],
+        ], collect($catalog->keys())
+            ->mapWithKeys(function (string $key) use ($catalog): array {
+                $evidence = $catalog->manifest($key)['faculty_evidence'];
+
+                return [$key => [
+                    'client_reported_faculty' => $evidence['client_reported_faculty'],
+                    'synthetic_scheduling_faculty' => $evidence['synthetic_scheduling_faculty'],
+                    'total_teaching_units' => $evidence['total_teaching_units'],
+                    'arithmetic_faculty_lower_bound' => $evidence['arithmetic_faculty_lower_bound'],
+                ]];
+            })
+            ->all());
     }
 
     public function test_middle_scenario_is_executable_ready_and_rerunnable(): void
@@ -189,7 +231,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_max_scenario_is_executable_and_reports_input_readiness_without_claiming_solver_feasibility(): void
     {
-        $output = $this->assertScenarioCreatesExpectedWorkload('MAX', 600, 20, 14, 80, 178);
+        $output = $this->assertScenarioCreatesExpectedWorkload('MAX', 600, 20, 26, 80, 178);
         $this->assertStringContainsString('readiness=PASS', $output);
         $this->assertStringContainsString('solver_feasibility=NOT_EVALUATED', $output);
         $this->assertStringContainsString('solver_optimality=NOT_EVALUATED', $output);
@@ -254,6 +296,12 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertStringContainsString("students={$students}", $output);
         $this->assertStringContainsString("cohorts={$cohorts}", $output);
         $this->assertStringContainsString("faculty={$faculty}", $output);
+        $this->assertStringContainsString("synthetic_scheduling_faculty={$faculty}", $output);
+        $this->assertStringContainsString('total_teaching_units=', $output);
+        $this->assertStringContainsString('arithmetic_faculty_lower_bound=', $output);
+        $this->assertStringContainsString('faculty_availability_assumption=FULL_OPERATING_GRID', $output);
+        $this->assertStringContainsString('bounded_faculty_readiness=PASS', $output);
+        $this->assertStringContainsString('unassignable_workloads=[]', $output);
         $this->assertStringContainsString("term_offerings={$offerings}", $output);
         $this->assertStringContainsString("scheduling_demands={$demands}", $output);
         $this->assertStringContainsString('operating_grid=MON-SAT 07:00-21:00 Asia/Manila', $output);

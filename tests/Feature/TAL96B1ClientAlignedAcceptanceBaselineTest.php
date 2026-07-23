@@ -137,7 +137,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(54, SectionDeliveryGroup::query()->count());
         $this->assertSame(6, Room::query()->count());
         $this->assertSame(40, FacultyQualification::query()->count());
-        $this->assertSame(12, FacultyTermLoadOverride::query()->count());
+        $this->assertSame(9, FacultyTermLoadOverride::query()->count());
         $this->assertSame(54, SchedulingDemand::query()->count());
         $this->assertSame(54, SchedulingDemand::query()
             ->where('validation_state', SchedulingDemand::ValidationReadyForReview)

@@ -50,6 +50,18 @@ final class SchedulingAcceptanceScenarioCatalog
      *         sections:int,
      *         scheduling_demands:int
      *     },
+     *     faculty_evidence:array{
+     *         client_reported_faculty:int|null,
+     *         synthetic_scheduling_faculty:int,
+     *         total_teaching_units:float,
+     *         arithmetic_faculty_lower_bound:int,
+     *         max_units_per_faculty:float,
+     *         maximum_constructed_load:float,
+     *         availability_assumption:'FULL_OPERATING_GRID',
+     *         bounded_readiness:'PASS',
+     *         unassignable_workloads:list<string>,
+     *         interpretation:string
+     *     },
      *     operating_grid:array{days:list<int>,starts_at:string,ends_at:string,slot_minutes:int},
      *     solver_feasibility:'NOT_EVALUATED',
      *     solver_optimality:'NOT_EVALUATED'
@@ -66,6 +78,7 @@ final class SchedulingAcceptanceScenarioCatalog
         $sectionCount = collect($cohorts)->sum(
             fn (array $cohort): int => count($cohort['courses']),
         );
+        $facultyEvidence = $this->facultyEvidence($scenario);
 
         return [
             'scenario' => $scenario,
@@ -74,11 +87,12 @@ final class SchedulingAcceptanceScenarioCatalog
             'counts' => [
                 'students' => collect($cohorts)->sum('students'),
                 'cohorts' => count($cohorts),
-                'faculty' => $scenario === self::Min ? 12 : 14,
+                'faculty' => $facultyEvidence['synthetic_scheduling_faculty'],
                 'offerings' => $scopeCourseCounts->sum(),
                 'sections' => $sectionCount,
                 'scheduling_demands' => $sectionCount,
             ],
+            'faculty_evidence' => $facultyEvidence,
             'operating_grid' => [
                 'days' => [1, 2, 3, 4, 5, 6],
                 'starts_at' => '07:00:00',
@@ -213,7 +227,7 @@ final class SchedulingAcceptanceScenarioCatalog
         return match ($scenario) {
             self::Min => 'Current client-reported population: 47 students across six first- and second-year program cohorts.',
             self::Middle => 'Representative three-year operating scenario: one 30-student cohort for each of three programs and three year levels.',
-            self::Max => 'Client-reported historical scale: 600 students represented as twenty deterministic 30-student logical cohorts with fourteen faculty.',
+            self::Max => 'Client-reported historical scale: 600 students represented as twenty deterministic 30-student logical cohorts; the reported fourteen faculty are evidence, not the generated scheduling roster.',
             default => throw new InvalidArgumentException("Unknown scheduling acceptance scenario [{$scenario}]."),
         };
     }
@@ -221,9 +235,69 @@ final class SchedulingAcceptanceScenarioCatalog
     private function limitation(string $scenario): string
     {
         return match ($scenario) {
-            self::Min => 'Uses client-reported cohort counts with synthetic identities, faculty, rooms, qualifications, and operational availability.',
-            self::Middle => 'The 270-student population and third-year subject placement are synthetic acceptance inputs, not a claim about the client historical distribution.',
-            self::Max => 'The 600-student total and faculty count are client-reported; the balanced cohort distribution, identities, qualifications, rooms, and third-year subject placement are synthetic.',
+            self::Min => 'Uses the client-reported 47 students and nine-faculty count; identities, faculty records, rooms, qualifications, and operational availability remain synthetic.',
+            self::Middle => 'The 270-student population, fourteen-faculty operating roster, and third-year subject placement are synthetic acceptance inputs, not client historical claims.',
+            self::Max => 'The 600-student total and fourteen-faculty count are client-reported. Fourteen faculty cannot carry 532 teaching units under the configured 21-unit ceiling, so the acceptance fixture uses a separate sufficient synthetic scheduling roster.',
+            default => throw new InvalidArgumentException("Unknown scheduling acceptance scenario [{$scenario}]."),
+        };
+    }
+
+    /**
+     * These figures describe a deterministic load-and-qualification construction.
+     * They do not claim timetable feasibility or a mathematically minimal roster.
+     *
+     * @return array{
+     *     client_reported_faculty:int|null,
+     *     synthetic_scheduling_faculty:int,
+     *     total_teaching_units:float,
+     *     arithmetic_faculty_lower_bound:int,
+     *     max_units_per_faculty:float,
+     *     maximum_constructed_load:float,
+     *     availability_assumption:'FULL_OPERATING_GRID',
+     *     bounded_readiness:'PASS',
+     *     unassignable_workloads:list<string>,
+     *     interpretation:string
+     * }
+     */
+    private function facultyEvidence(string $scenario): array
+    {
+        return match ($scenario) {
+            self::Min => [
+                'client_reported_faculty' => 9,
+                'synthetic_scheduling_faculty' => 9,
+                'total_teaching_units' => 162.0,
+                'arithmetic_faculty_lower_bound' => 8,
+                'max_units_per_faculty' => 21.0,
+                'maximum_constructed_load' => 19.0,
+                'availability_assumption' => 'FULL_OPERATING_GRID',
+                'bounded_readiness' => 'PASS',
+                'unassignable_workloads' => [],
+                'interpretation' => 'The client-reported nine-faculty roster passes the bounded load-and-qualification construction for the 54-demand fixture.',
+            ],
+            self::Middle => [
+                'client_reported_faculty' => null,
+                'synthetic_scheduling_faculty' => 14,
+                'total_teaching_units' => 240.0,
+                'arithmetic_faculty_lower_bound' => 12,
+                'max_units_per_faculty' => 21.0,
+                'maximum_constructed_load' => 18.0,
+                'availability_assumption' => 'FULL_OPERATING_GRID',
+                'bounded_readiness' => 'PASS',
+                'unassignable_workloads' => [],
+                'interpretation' => 'Fourteen synthetic faculty provide operating headroom above the twelve-faculty arithmetic lower bound; the count is not a midpoint or a proven minimum.',
+            ],
+            self::Max => [
+                'client_reported_faculty' => 14,
+                'synthetic_scheduling_faculty' => 26,
+                'total_teaching_units' => 532.0,
+                'arithmetic_faculty_lower_bound' => 26,
+                'max_units_per_faculty' => 21.0,
+                'maximum_constructed_load' => 21.0,
+                'availability_assumption' => 'FULL_OPERATING_GRID',
+                'bounded_readiness' => 'PASS',
+                'unassignable_workloads' => [],
+                'interpretation' => 'The historical fourteen-faculty count is preserved as evidence but is insufficient for 532 teaching units. Twenty-six is a sufficient synthetic construction, not a proven institutional minimum.',
+            ],
             default => throw new InvalidArgumentException("Unknown scheduling acceptance scenario [{$scenario}]."),
         };
     }

@@ -93,6 +93,21 @@ final class SeedSchedulingAcceptanceScenario extends Command
         $this->line('students='.$report['students']);
         $this->line('cohorts='.$report['cohorts']);
         $this->line('faculty='.$manifest['counts']['faculty']);
+        $this->line('client_reported_faculty='.(
+            $manifest['faculty_evidence']['client_reported_faculty'] ?? 'NOT_REPORTED'
+        ));
+        $this->line('synthetic_scheduling_faculty='.$manifest['faculty_evidence']['synthetic_scheduling_faculty']);
+        $this->line('total_teaching_units='.$manifest['faculty_evidence']['total_teaching_units']);
+        $this->line('arithmetic_faculty_lower_bound='.$manifest['faculty_evidence']['arithmetic_faculty_lower_bound']);
+        $this->line('max_units_per_faculty='.$manifest['faculty_evidence']['max_units_per_faculty']);
+        $this->line('maximum_constructed_load='.$manifest['faculty_evidence']['maximum_constructed_load']);
+        $this->line('faculty_availability_assumption='.$manifest['faculty_evidence']['availability_assumption']);
+        $this->line('bounded_faculty_readiness='.$manifest['faculty_evidence']['bounded_readiness']);
+        $this->line('unassignable_workloads='.json_encode(
+            $manifest['faculty_evidence']['unassignable_workloads'],
+            JSON_THROW_ON_ERROR,
+        ));
+        $this->line('faculty_evidence_interpretation='.$manifest['faculty_evidence']['interpretation']);
         $this->line('term_offerings='.$manifest['counts']['offerings']);
         $this->line('sections='.$manifest['counts']['sections']);
         $this->line('scheduling_demands='.$report['scheduling_demands']);

@@ -8,6 +8,7 @@ use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
+use App\Actions\SystemAdministration\SchedulingFacultyCapacityAssessment;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
@@ -64,6 +65,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         private readonly GenerateSchedulingDemand $demandGenerator,
         private readonly TermSchedulingReadinessService $readinessService,
         private readonly SchedulingAcceptanceScenarioCatalog $scenarioCatalog,
+        private readonly SchedulingFacultyCapacityAssessment $facultyCapacityAssessment,
     ) {}
 
     public function forScenario(string $scenario): self
@@ -146,6 +148,18 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      *     basis:string,
      *     limitation:string,
      *     counts:array{students:int,cohorts:int,faculty:int,offerings:int,sections:int,scheduling_demands:int},
+     *     faculty_evidence:array{
+     *         client_reported_faculty:int|null,
+     *         synthetic_scheduling_faculty:int,
+     *         total_teaching_units:float,
+     *         arithmetic_faculty_lower_bound:int,
+     *         max_units_per_faculty:float,
+     *         maximum_constructed_load:float,
+     *         availability_assumption:'FULL_OPERATING_GRID',
+     *         bounded_readiness:'PASS',
+     *         unassignable_workloads:list<string>,
+     *         interpretation:string
+     *     },
      *     operating_grid:array{days:list<int>,starts_at:string,ends_at:string,slot_minutes:int},
      *     solver_feasibility:'NOT_EVALUATED',
      *     solver_optimality:'NOT_EVALUATED'
@@ -153,7 +167,37 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      */
     public function manifest(): array
     {
-        return $this->scenarioCatalog->manifest($this->scenario);
+        $manifest = $this->scenarioCatalog->manifest($this->scenario);
+        $assessment = $this->facultyCapacityAssessment();
+        $evidence = $manifest['faculty_evidence'];
+
+        if (
+            $assessment['readiness'] !== $evidence['bounded_readiness']
+            || $assessment['total_teaching_units'] !== $evidence['total_teaching_units']
+            || $assessment['arithmetic_faculty_lower_bound'] !== $evidence['arithmetic_faculty_lower_bound']
+            || $assessment['maximum_constructed_load'] !== $evidence['maximum_constructed_load']
+            || $assessment['unassigned_workloads'] !== $evidence['unassignable_workloads']
+        ) {
+            throw new RuntimeException(
+                "The {$this->scenario} faculty evidence no longer matches the constructed scheduling workload.",
+            );
+        }
+
+        if (
+            $this->scenario === SchedulingAcceptanceScenarioCatalog::Max
+            && $this->facultyCapacityAssessment->firstPassingFacultyCount(
+                workloads: $this->facultyWorkloads(),
+                startingFacultyCount: $evidence['arithmetic_faculty_lower_bound'],
+                maximumFacultyCount: $evidence['synthetic_scheduling_faculty'],
+                maxUnits: $evidence['max_units_per_faculty'],
+            ) !== $evidence['synthetic_scheduling_faculty']
+        ) {
+            throw new RuntimeException(
+                'The MAX synthetic faculty roster is no longer the first sufficient bounded construction.',
+            );
+        }
+
+        return $manifest;
     }
 
     /**
@@ -468,39 +512,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ]);
         }
 
-        if ($this->scenario === SchedulingAcceptanceScenarioCatalog::Min) {
-            $weights = $this->courseDemandWeights();
-            arsort($weights);
-            $facultyLoads = array_fill(0, count($faculty), 0.0);
-
-            foreach (array_keys($weights) as $courseCode) {
-                $facultyIndex = array_search(min($facultyLoads), $facultyLoads, true);
-                $facultyIndex = is_int($facultyIndex) ? $facultyIndex : 0;
-                $specification = $specifications[$courseCode];
-
+        foreach ($this->facultyQualificationCourseMap() as $facultyIndex => $courseCodes) {
+            foreach ($courseCodes as $courseCode) {
                 $this->createFacultyQualification(
                     $faculty[$facultyIndex],
-                    $specification,
-                    $registrar,
-                );
-                $facultyLoads[$facultyIndex] += $weights[$courseCode];
-            }
-
-            if (max($facultyLoads) > 21) {
-                throw new RuntimeException('The deterministic faculty assignment exceeds the approved 21-unit ceiling.');
-            }
-
-            return;
-        }
-
-        foreach (array_keys($this->courseCatalog()) as $courseIndex => $courseCode) {
-            $specification = $specifications[$courseCode];
-
-            for ($poolIndex = 0; $poolIndex < 3; $poolIndex++) {
-                $facultyIndex = ($courseIndex + $poolIndex) % count($faculty);
-                $this->createFacultyQualification(
-                    $faculty[$facultyIndex],
-                    $specification,
+                    $specifications[$courseCode],
                     $registrar,
                 );
             }
@@ -672,7 +688,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     {
         $manifest = $this->manifest();
         $counts = $manifest['counts'];
-        $qualificationCount = $this->scenario === SchedulingAcceptanceScenarioCatalog::Min ? 40 : 120;
+        $qualificationCount = array_sum(array_map(
+            'count',
+            $this->facultyQualificationCourseMap(),
+        ));
         $academicYear = $this->exactAcademicYear();
 
         if (! $academicYear instanceof AcademicYear) {
@@ -1285,6 +1304,108 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'purpose' => 'Missing progression-baseline journey.',
             ],
         ];
+    }
+
+    /**
+     * @return array{
+     *     readiness:'PASS'|'FAIL',
+     *     total_teaching_units:float,
+     *     arithmetic_faculty_lower_bound:int,
+     *     faculty_loads:list<float>,
+     *     maximum_constructed_load:float,
+     *     assignments:list<array{workload_key:string,course_code:string,units:float,faculty_index:int}>,
+     *     faculty_course_codes:array<int,list<string>>,
+     *     unassigned_workloads:list<string>
+     * }
+     */
+    private function facultyCapacityAssessment(): array
+    {
+        return $this->facultyCapacityAssessment->assess(
+            workloads: $this->facultyWorkloads(),
+            facultyCount: $this->scenarioCatalog->manifest($this->scenario)['counts']['faculty'],
+            maxUnits: 21.0,
+        );
+    }
+
+    /**
+     * MIN keeps each course's total demand together so its nine-faculty result
+     * remains conservative. Larger synthetic scenarios model each cohort-course
+     * demand separately, matching the scheduling demand boundary.
+     *
+     * @return list<array{key:string,course_code:string,units:float}>
+     */
+    private function facultyWorkloads(): array
+    {
+        if ($this->scenario === SchedulingAcceptanceScenarioCatalog::Min) {
+            return collect($this->courseDemandWeights())
+                ->map(fn (float $units, string $courseCode): array => [
+                    'key' => $courseCode,
+                    'course_code' => $courseCode,
+                    'units' => $units,
+                ])
+                ->values()
+                ->all();
+        }
+
+        $catalog = $this->courseCatalog();
+        $workloads = [];
+
+        foreach ($this->cohorts() as $cohortKey => $cohort) {
+            foreach ($cohort['courses'] as $courseCode) {
+                $workloads[] = [
+                    'key' => $cohortKey.':'.$courseCode,
+                    'course_code' => $courseCode,
+                    'units' => (float) ($courseCode === 'NSTP02' && $cohort['program'] === 'DBM'
+                        ? 2
+                        : $catalog[$courseCode]['units']),
+                ];
+            }
+        }
+
+        return $workloads;
+    }
+
+    /** @return array<int, list<string>> */
+    private function facultyQualificationCourseMap(): array
+    {
+        $assessment = $this->facultyCapacityAssessment();
+
+        if ($assessment['readiness'] !== 'PASS') {
+            throw new RuntimeException(
+                "The {$this->scenario} workload cannot be assigned within its synthetic faculty roster.",
+            );
+        }
+
+        $qualificationMap = $assessment['faculty_course_codes'];
+
+        if ($this->scenario !== SchedulingAcceptanceScenarioCatalog::Min) {
+            $facultyCount = count($qualificationMap);
+
+            foreach (array_keys($this->courseCatalog()) as $courseIndex => $courseCode) {
+                $qualifiedFaculty = array_keys(array_filter(
+                    $qualificationMap,
+                    fn (array $courseCodes): bool => in_array($courseCode, $courseCodes, true),
+                ));
+
+                for ($offset = 0; count($qualifiedFaculty) < 3 && $offset < $facultyCount; $offset++) {
+                    $facultyIndex = ($courseIndex + $offset) % $facultyCount;
+
+                    if (in_array($facultyIndex, $qualifiedFaculty, true)) {
+                        continue;
+                    }
+
+                    $qualificationMap[$facultyIndex][] = $courseCode;
+                    $qualifiedFaculty[] = $facultyIndex;
+                }
+            }
+        }
+
+        return array_map(function (array $courseCodes): array {
+            $courseCodes = array_values(array_unique($courseCodes));
+            sort($courseCodes);
+
+            return $courseCodes;
+        }, $qualificationMap);
     }
 
     /** @return array<string, float> */
