@@ -231,7 +231,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $programs[$code] = Program::query()->create([
                 'code' => $code,
                 'name' => $name,
-                'duration_years' => 2,
+                'duration_years' => 3,
                 'is_active' => true,
             ]);
         }
@@ -257,13 +257,13 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             );
         }
 
-        $dtbmNstpDefinition = $this->courseCatalog()['NSTP02'];
-        $dtbmNstpDefinition['units'] = 2;
-        $specifications[$this->specificationKey('DTBM', 'NSTP02')] = $this->createCourseSpecification(
+        $dbmNstpDefinition = $this->courseCatalog()['NSTP02'];
+        $dbmNstpDefinition['units'] = 2;
+        $specifications[$this->specificationKey('DBM', 'NSTP02')] = $this->createCourseSpecification(
             Course::query()->where('code', 'NSTP02')->sole(),
             $term,
-            $this->specificationRevisionCode('DTBM', 'NSTP02'),
-            $dtbmNstpDefinition,
+            $this->specificationRevisionCode('DBM', 'NSTP02'),
+            $dbmNstpDefinition,
         );
 
         return $specifications;
@@ -644,11 +644,12 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && CourseSpecification::query()
                 ->where(function ($query): void {
                     $query->whereJsonContains('allowed_modalities', 'BLENDED')
-                        ->orWhereJsonContains('allowed_modalities', 'HYFE');
+                        ->orWhereJsonContains('allowed_modalities', 'HYFE')
+                        ->orWhereJsonContains('allowed_modalities', 'MODULAR');
                 })
                 ->doesntExist()
-            && TermOffering::query()->whereIn('modality', ['BLENDED', 'HYFE'])->doesntExist()
-            && SectionDeliveryGroup::query()->whereIn('modality', ['BLENDED', 'HYFE'])->doesntExist()
+            && TermOffering::query()->whereIn('modality', ['BLENDED', 'HYFE', 'MODULAR'])->doesntExist()
+            && SectionDeliveryGroup::query()->whereIn('modality', ['BLENDED', 'HYFE', 'MODULAR'])->doesntExist()
             && $this->readinessPassesForTerm($term)
             && $this->downstreamEvidenceIsEmpty();
     }
@@ -705,7 +706,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             if (! Program::query()
                 ->where('code', $code)
                 ->where('name', $name)
-                ->where('duration_years', 2)
+                ->where('duration_years', 3)
                 ->where('is_active', true)
                 ->exists()) {
                 return false;
@@ -790,15 +791,15 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         $nstpCourse = Course::query()->where('code', 'NSTP02')->first();
-        $dtbmNstpDefinition = $this->courseCatalog()['NSTP02'];
-        $dtbmNstpDefinition['units'] = 2;
+        $dbmNstpDefinition = $this->courseCatalog()['NSTP02'];
+        $dbmNstpDefinition['units'] = 2;
 
         return $nstpCourse instanceof Course
             && $this->courseSpecificationIsComplete(
                 $term,
                 $nstpCourse,
-                $this->specificationRevisionCode('DTBM', 'NSTP02'),
-                $dtbmNstpDefinition,
+                $this->specificationRevisionCode('DBM', 'NSTP02'),
+                $dbmNstpDefinition,
             );
     }
 
@@ -1084,15 +1085,15 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     private function scenarioAnchorDefinitions(): array
     {
         return [
-            'DTBM-1A-001' => [
+            'DBM-1A-001' => [
                 'academic_standing' => StudentProfile::StandingRegular,
                 'purpose' => 'Regular progression and representative Student Hub account.',
             ],
-            'DTBM-1A-002' => [
+            'DBM-1A-002' => [
                 'academic_standing' => StudentProfile::StandingIrregular,
                 'purpose' => 'First-year irregular subject-selection journey.',
             ],
-            'DTBM-2A-001' => [
+            'DBM-2A-001' => [
                 'academic_standing' => StudentProfile::StandingIrregular,
                 'purpose' => 'Continuing irregular subject-selection journey.',
             ],
@@ -1135,7 +1136,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
         foreach ($this->cohorts() as $cohort) {
             foreach ($cohort['courses'] as $courseCode) {
-                $weights[$courseCode] += $courseCode === 'NSTP02' && $cohort['program'] === 'DTBM'
+                $weights[$courseCode] += $courseCode === 'NSTP02' && $cohort['program'] === 'DBM'
                     ? 2
                     : $catalog[$courseCode]['units'];
             }
@@ -1146,15 +1147,15 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     private function specificationKey(string $programCode, string $courseCode): string
     {
-        return $programCode === 'DTBM' && $courseCode === 'NSTP02'
-            ? 'DTBM:NSTP02'
+        return $programCode === 'DBM' && $courseCode === 'NSTP02'
+            ? 'DBM:NSTP02'
             : $courseCode;
     }
 
     private function specificationRevisionCode(string $programCode, string $courseCode): string
     {
-        return $programCode === 'DTBM' && $courseCode === 'NSTP02'
-            ? 'AY2025-2026-DTBM'
+        return $programCode === 'DBM' && $courseCode === 'NSTP02'
+            ? 'AY2025-2026-DBM'
             : 'AY2025-2026';
     }
 
@@ -1162,9 +1163,9 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     private function programDefinitions(): array
     {
         return [
-            'DTBM' => 'Diploma in Tourism Business Management',
+            'DBM' => 'Diploma in Business Management Technology',
             'DIT' => 'Diploma in Information Technology',
-            'DTHM' => 'Diploma in Tourism Hospitality Management',
+            'DTHM' => 'Diploma in Tourism and Hospitality Management Services',
         ];
     }
 
@@ -1187,12 +1188,12 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     private function cohorts(): array
     {
         return [
-            'DTBM-1A' => [
-                'program' => 'DTBM', 'year' => 'First Year', 'students' => 10,
+            'DBM-1A' => [
+                'program' => 'DBM', 'year' => 'First Year', 'students' => 10,
                 'courses' => ['GE04', 'GE05', 'BME05', 'BME04', 'CSNCII', 'GE06', 'PE02', 'FOSNCII', 'NSTP02', 'BME06'],
             ],
-            'DTBM-2A' => [
-                'program' => 'DTBM', 'year' => 'Second Year', 'students' => 2,
+            'DBM-2A' => [
+                'program' => 'DBM', 'year' => 'Second Year', 'students' => 2,
                 'courses' => ['AGRONCIII', 'GE10', 'GE09', 'BME09', 'BME10', 'BME11', 'BME12', 'BME13', 'PE04'],
             ],
             'DIT-1A' => [

@@ -4,11 +4,8 @@ namespace App\Filament\Resources\CurriculumVersions\Schemas;
 
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
-use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
-use App\Models\User;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -21,7 +18,7 @@ class CurriculumVersionForm
     {
         return $schema->components([
             Section::make('Curriculum Version')
-                ->description('Record the externally approved curriculum result. Activation/supersession is handled separately after impact review.')
+                ->description('Encode or import a Draft curriculum. External approval and activation are separate controlled actions.')
                 ->schema([
                     Select::make('program_id')
                         ->label('Program')
@@ -41,23 +38,6 @@ class CurriculumVersionForm
                         ->options(fn (): array => self::termOptions())
                         ->searchable()
                         ->preload()
-                        ->nullable(),
-                    Select::make('state')
-                        ->options(CurriculumVersion::stateOptions())
-                        ->default(CurriculumVersion::StateDraft)
-                        ->required(),
-                    TextInput::make('approval_reference')
-                        ->label('Approval Reference')
-                        ->maxLength(255)
-                        ->nullable(),
-                    Select::make('approved_by')
-                        ->label('Recorded Approver')
-                        ->options(fn (): array => self::userOptions())
-                        ->searchable()
-                        ->preload()
-                        ->nullable(),
-                    DateTimePicker::make('approved_at')
-                        ->seconds(false)
                         ->nullable(),
                 ])
                 ->columns(2)
@@ -128,18 +108,6 @@ class CurriculumVersionForm
                     $term->label,
                 ])->filter()->implode(' | '),
             ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function userOptions(): array
-    {
-        return User::query()
-            ->orderBy('name')
-            ->get()
-            ->mapWithKeys(fn (User $user): array => [$user->id => $user->name])
             ->all();
     }
 

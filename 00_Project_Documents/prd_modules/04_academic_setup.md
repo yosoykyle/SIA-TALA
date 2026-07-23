@@ -113,7 +113,6 @@ Supported delivery modality values:
 
 1. Online
 2. Face-to-Face
-3. Modular
 
 Modality field:
 
@@ -123,7 +122,6 @@ Allowed enum values:
 
 1. `ONLINE`
 2. `FACE_TO_FACE`
-3. `MODULAR`
 
 Rules:
 
@@ -131,8 +129,9 @@ Rules:
 2. Payment status uses finance values. Delivery modality remains a separate academic scheduling value.
 3. Online classes do not require physical room assignment.
 4. Face-to-Face classes require physical room assignment.
-5. Modular classes may require staff handling. Modular packet distribution is handled through classroom or office procedures.
-6. Modality may affect fee computation only if Accounting configures modality-based fee rules.
+5. Modality belongs to the Course Specification allowance and the actual Term Offering or delivery group. It is not a per-student scheduling mode.
+6. A student's timetable may therefore contain both Online and Face-to-Face subjects.
+7. Modality may affect fee computation only if Accounting configures modality-based fee rules.
 
 ---
 

@@ -252,8 +252,8 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         ));
 
         $expectedCohortCounts = [
-            'DTBM-1A' => 10,
-            'DTBM-2A' => 9,
+            'DBM-1A' => 10,
+            'DBM-2A' => 9,
             'DIT-1A' => 8,
             'DIT-2A' => 8,
             'DTHM-1A' => 10,
@@ -295,7 +295,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $this->assertSame(54, collect($facultyProjectionCounts)->sum('meeting_count'));
 
         $firstYearCohortCounts = [
-            'DTBM-1A' => 10,
+            'DBM-1A' => 10,
             'DIT-1A' => 8,
             'DTHM-1A' => 10,
         ];

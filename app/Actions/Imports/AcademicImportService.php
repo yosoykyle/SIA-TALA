@@ -709,7 +709,7 @@ class AcademicImportService
                 if (! $activeBase instanceof CourseSpecification) {
                     $errors[] = "Course {$courseCode} has no complete Active revision to clone. Import a complete Course Specification template for {$row['course_revision_code']} first.";
                 } else {
-                    $warnings[] = "Curriculum source values will propose Draft Course Specification {$courseCode} {$row['course_revision_code']} from the preserved Active revision {$activeBase->revision_code}.";
+                    $warnings[] = "Curriculum source values will propose Draft Course Specification {$courseCode} {$row['course_revision_code']}. TALA will inherit components, grading, modality, and other operational enrichment from preserved Active revision {$activeBase->revision_code}; the Registrar must review that enrichment before activation.";
                 }
             }
         }

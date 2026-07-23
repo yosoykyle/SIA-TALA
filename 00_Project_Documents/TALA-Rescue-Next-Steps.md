@@ -17,7 +17,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D1 | Done locally | Client-Corrected Capacity Authority, Representative Scenario Catalogue, Operating-Order Map, Implementation-Validity Audit, Baseline Correction, and Required-Gap Routing. |
 | TAL-96D2 | Approved revised split; depends on TAL-96D1 | Identity, Admissions, Academic Setup, and Offering-State Hardening parent. |
 | TAL-96D2A | Done locally | Identity, Applicant Intake, Review, and Handover Hardening. |
-| TAL-96D2B | Planned; depends on TAL-96D2A | Academic Period, Catalog, Curriculum, and Import Hardening. |
+| TAL-96D2B | Done locally | Academic Period, Catalog, Curriculum, and Import Hardening. |
 | TAL-96D2C | Planned; depends on TAL-96D2B | Offering, Section, Resource, and Scheduling-Readiness Hardening, including guarded executable `MIN` (47), `MIDDLE` (270), and `MAX` (600) synthetic scenarios and their workload manifests; no Cloud capacity benchmark. |
 | TAL-96D3 | Planned; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening. |
 | TAL-96D4 | Planned; depends on TAL-96D3 | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
@@ -46,4 +46,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96D2B`**. Linear sync, push, PR creation, deployment, subagent use, and external-service changes remain unauthorized until their corresponding explicit commands.
+Next primary boundary: **`Plan TAL-96D2C`** for Offering, Section, Resource, and Scheduling-Readiness Hardening plus guarded executable population scenarios and workload manifests without a Cloud capacity benchmark. Linear sync, push, PR creation, deployment, subagent use, external-service changes, destructive database work, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.

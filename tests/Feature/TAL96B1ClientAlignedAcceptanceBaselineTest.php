@@ -64,10 +64,11 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('applicant=applicant.demo@example.test', $output);
         $this->assertStringContainsString('system-super-admin=system-admin.demo@example.test', $output);
 
-        $this->assertSame(['DIT', 'DTBM', 'DTHM'], Program::query()->orderBy('code')->pluck('code')->all());
+        $this->assertSame(['DBM', 'DIT', 'DTHM'], Program::query()->orderBy('code')->pluck('code')->all());
+        $this->assertSame([3], Program::query()->distinct()->pluck('duration_years')->all());
         $this->assertSame(47, StudentProfile::query()->count());
-        $this->assertSame(10, StudentProfile::query()->where('student_number', 'like', 'DTBM-1A-%')->count());
-        $this->assertSame(2, StudentProfile::query()->where('student_number', 'like', 'DTBM-2A-%')->count());
+        $this->assertSame(10, StudentProfile::query()->where('student_number', 'like', 'DBM-1A-%')->count());
+        $this->assertSame(2, StudentProfile::query()->where('student_number', 'like', 'DBM-2A-%')->count());
         $this->assertSame(10, StudentProfile::query()->where('student_number', 'like', 'DIT-1A-%')->count());
         $this->assertSame(3, StudentProfile::query()->where('student_number', 'like', 'DIT-2A-%')->count());
         $this->assertSame(15, StudentProfile::query()->where('student_number', 'like', 'DTHM-1A-%')->count());
@@ -99,12 +100,12 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             ->orWhereNull('curriculum_version_id')
             ->count());
         $this->assertSame([
+            'DBM-1A-001' => StudentProfile::StandingRegular,
+            'DBM-1A-002' => StudentProfile::StandingIrregular,
+            'DBM-2A-001' => StudentProfile::StandingIrregular,
             'DIT-1A-001' => StudentProfile::StandingProbationary,
             'DIT-1A-002' => StudentProfile::StandingDeficient,
             'DIT-2A-001' => StudentProfile::StandingBlockedByPrerequisite,
-            'DTBM-1A-001' => StudentProfile::StandingRegular,
-            'DTBM-1A-002' => StudentProfile::StandingIrregular,
-            'DTBM-2A-001' => StudentProfile::StandingIrregular,
             'DTHM-1A-001' => StudentProfile::StandingMustRepeatYear,
             'DTHM-1A-002' => StudentProfile::StandingCompletionCandidate,
             'DTHM-2A-001' => StudentProfile::StandingGraduationCandidate,
@@ -114,9 +115,9 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
                 'DIT-1A-001',
                 'DIT-1A-002',
                 'DIT-2A-001',
-                'DTBM-1A-001',
-                'DTBM-1A-002',
-                'DTBM-2A-001',
+                'DBM-1A-001',
+                'DBM-1A-002',
+                'DBM-2A-001',
                 'DTHM-1A-001',
                 'DTHM-1A-002',
                 'DTHM-2A-001',
@@ -145,9 +146,10 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(0, CourseSpecification::query()
             ->whereJsonContains('allowed_modalities', 'BLENDED')
             ->orWhereJsonContains('allowed_modalities', 'HYFE')
+            ->orWhereJsonContains('allowed_modalities', 'MODULAR')
             ->count());
-        $this->assertSame(0, TermOffering::query()->whereIn('modality', ['BLENDED', 'HYFE'])->count());
-        $this->assertSame(0, SectionDeliveryGroup::query()->whereIn('modality', ['BLENDED', 'HYFE'])->count());
+        $this->assertSame(0, TermOffering::query()->whereIn('modality', ['BLENDED', 'HYFE', 'MODULAR'])->count());
+        $this->assertSame(0, SectionDeliveryGroup::query()->whereIn('modality', ['BLENDED', 'HYFE', 'MODULAR'])->count());
         $this->assertSame(
             'Basic Macroeconomics',
             CourseSpecification::query()
@@ -176,7 +178,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             ->get();
         $this->assertSame(['2.00', '3.00'], $nstpSpecifications->pluck('credit_units')->all());
 
-        foreach (['DTBM' => '2.00', 'DIT' => '3.00', 'DTHM' => '3.00'] as $programCode => $expectedUnits) {
+        foreach (['DBM' => '2.00', 'DIT' => '3.00', 'DTHM' => '3.00'] as $programCode => $expectedUnits) {
             $curriculum = CurriculumVersion::query()
                 ->whereBelongsTo(Program::query()->where('code', $programCode)->sole())
                 ->sole();
@@ -386,7 +388,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
     public function test_complete_baseline_with_changed_student_association_fails_closed_without_writes(): void
     {
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $student = StudentProfile::query()->where('student_number', 'DTBM-1A-001')->sole();
+        $student = StudentProfile::query()->where('student_number', 'DBM-1A-001')->sole();
         $unexpectedProgram = Program::query()->where('code', 'DIT')->sole();
         $student->update(['program_id' => $unexpectedProgram->id]);
         $before = $this->baselineCounts();
@@ -403,7 +405,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
     public function test_complete_baseline_with_changed_academic_standing_fails_closed_without_writes(): void
     {
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $student = StudentProfile::query()->where('student_number', 'DTBM-1A-002')->sole();
+        $student = StudentProfile::query()->where('student_number', 'DBM-1A-002')->sole();
         $student->update(['academic_standing' => StudentProfile::StandingRegular]);
         $before = $this->baselineCounts();
 

@@ -74,6 +74,34 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
     }
 
     #[Test]
+    public function course_specification_import_rejects_unsupported_modality_values(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $path = AcademicImportService::CourseSpecificationDirectory.'/unsupported-modality.csv';
+
+        Storage::disk(AcademicImportService::Disk)->put($path, AcademicImportCsv::toCsv([
+            CourseSpecificationImportTemplate::headers(),
+            $this->validCourseSpecificationRow([
+                'allowed_modalities' => 'FACE_TO_FACE|BLENDED',
+            ]),
+        ]));
+
+        $batch = app(AcademicImportService::class)->createPreview(
+            ImportBatch::TypeCourseSpecification,
+            $path,
+            $registrar,
+        );
+        $details = $batch->getAttribute('validation_details');
+
+        $this->assertIsArray($details);
+        $this->assertGreaterThanOrEqual(1, $batch->error_count);
+        $this->assertStringContainsString(
+            'Allowed Modalities must contain approved modality values',
+            collect($details['errors'])->pluck('message')->implode(' '),
+        );
+    }
+
+    #[Test]
     public function strict_header_validation_blocks_missing_or_duplicate_headers_before_rows_are_posted(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -589,6 +617,12 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
 
         $this->assertSame(0, $batch->error_count);
         $this->assertGreaterThanOrEqual(1, $batch->warning_count);
+        $details = $batch->getAttribute('validation_details');
+        $this->assertIsArray($details);
+        $this->assertStringContainsString(
+            'inherit components, grading, modality',
+            collect($details['warnings'])->pluck('message')->implode(' '),
+        );
 
         $acknowledged = app(ImportBatchLifecycleService::class)->acknowledgeWarnings($batch, $registrar);
         app(ImportBatchLifecycleService::class)->post($acknowledged, $registrar);
@@ -607,6 +641,11 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
         $this->assertSame(2, $draft->requirements()->count());
         $this->assertSame(1, $draft->requirements()->distinct()->count('group_key'));
         $this->assertDatabaseHas('curriculum_entries', ['course_specification_id' => $draft->id]);
+
+        $this->actingAs($registrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(ViewImportBatch::class, ['record' => $batch->getRouteKey()])
+            ->assertActionVisible('reviewCurriculumDraft');
     }
 
     #[Test]

@@ -39,10 +39,6 @@ class CourseSpecificationForm
                         ->label('Subject Title')
                         ->required()
                         ->maxLength(255),
-                    Select::make('state')
-                        ->options(CourseSpecification::stateOptions())
-                        ->default(CourseSpecification::StateDraft)
-                        ->required(),
                     Textarea::make('description')
                         ->rows(3)
                         ->columnSpanFull(),

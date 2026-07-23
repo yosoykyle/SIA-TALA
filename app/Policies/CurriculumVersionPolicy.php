@@ -24,7 +24,20 @@ class CurriculumVersionPolicy
 
     public function update(User $user, CurriculumVersion $curriculumVersion): bool
     {
-        return $this->canManage($user);
+        return $this->canManage($user)
+            && $curriculumVersion->state === CurriculumVersion::StateDraft;
+    }
+
+    public function recordApproval(User $user, CurriculumVersion $curriculumVersion): bool
+    {
+        return $this->canManage($user)
+            && $curriculumVersion->state === CurriculumVersion::StateDraft;
+    }
+
+    public function activate(User $user, CurriculumVersion $curriculumVersion): bool
+    {
+        return $this->canManage($user)
+            && $curriculumVersion->state === CurriculumVersion::StateRecordedApproved;
     }
 
     public function delete(User $user, CurriculumVersion $curriculumVersion): bool

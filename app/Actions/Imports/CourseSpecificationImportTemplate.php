@@ -54,7 +54,7 @@ class CourseSpecificationImportTemplate
                 '3.00',
                 'college_standard',
                 '1',
-                'FACE_TO_FACE|BLENDED',
+                'FACE_TO_FACE|ONLINE',
                 'yes',
                 '',
                 'DRAFT',

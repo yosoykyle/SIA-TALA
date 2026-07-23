@@ -1,6 +1,6 @@
 # TALA System Operations and Defense Guide
 
-**Document status:** TAL-96D2A programmatic acceptance complete; user-led manual acceptance pending, dated 2026-07-22
+**Document status:** TAL-96D2B programmatic acceptance complete; user-led manual acceptance pending, dated 2026-07-23
 **Purpose:** One consolidated guide for operating, auditing, demonstrating, and defending the TALA production-level MVP. Later TAL-96D slices will expand this same file rather than create competing manuals.
 
 ## 1. Scope and Evidence Language
@@ -46,12 +46,14 @@ The baseline uses the client's reported current population as its scale anchor. 
 
 | Program | First year | Second year | Total |
 |---|---:|---:|---:|
-| Diploma in Tourism Business Management (DTBM) | 10 | 2 | 12 |
+| Diploma in Business Management Technology (DBM) | 10 | 2 | 12 |
 | Diploma in Information Technology (DIT) | 10 | 3 | 13 |
-| Diploma in Tourism Hospitality Management (DTHM) | 15 | 7 | 22 |
+| Diploma in Tourism and Hospitality Management Services (DTHM) | 15 | 7 | 22 |
 | **Total** | **35** | **12** | **47** |
 
 The six reported program/year groups are represented as six regular cohort identifiers. Their approved curricula produce 54 course delivery demands. The fixture also contains an active second-semester term, rooms, faculty qualifications, availability and load data, fee rules, and verified test accounts. Names, personnel, rooms, and availability are synthetic. They provide complete relational inputs for acceptance testing and do not claim to reproduce the client's real personnel or published timetable.
+
+The Program records are the approved three-year `DBM`, `DIT`, and `DTHM` structures. The current population evidence contains only first- and second-year students; that population fact does not shorten the Programs or fabricate a third-year cohort. TAL-96D2C owns the later executable population and section scenarios.
 
 There is no universal 100-student limit in the accepted product rule. TALA controls occupancy through configurable section capacity, physical-room capacity for face-to-face meetings, published offerings, and Registrar-confirmed seat reservations. The current population of 47 is evidence of client scale, not a coded maximum.
 
@@ -65,15 +67,15 @@ Student state is not one label. The fixture keeps these dimensions separate:
 | Academic standing | Deliberately distributed across the nine PRD values | Standing describes curriculum progression, not payment or enrollment completion. |
 | Term enrollment | No enrollment records yet | A student may exist before beginning a particular term enrollment. |
 | Financial state | No assessments, ledger entries, or payments yet | Financial standing is derived from term charges, ledger effects, payments, accommodations, and holds; it is not a permanent student label. |
-| Modality | Stored on term offerings and published meetings | Online, face-to-face, or modular delivery describes a class offering, not an immutable type of student. |
+| Modality | Stored on Course Specification allowances, term offerings, delivery groups, and published meetings | Online or face-to-face delivery describes a class offering, not an immutable type of student. |
 
 Ten deterministic records anchor later adverse and cross-role journeys. All other students begin as `Regular`.
 
 | Student number | Academic standing | Later journey represented |
 |---|---|---|
-| `DTBM-1A-001` | Regular | Standard cohort progression and the representative Student Hub login |
-| `DTBM-1A-002` | Irregular | First-year individual subject-selection path |
-| `DTBM-2A-001` | Irregular | Continuing irregular selection path |
+| `DBM-1A-001` | Regular | Standard cohort progression and the representative Student Hub login |
+| `DBM-1A-002` | Irregular | First-year individual subject-selection path |
+| `DBM-2A-001` | Irregular | Continuing irregular selection path |
 | `DIT-1A-001` | Probationary | Probation explanation and staff review |
 | `DIT-1A-002` | Deficient | Academic-deficiency guidance and hold interaction |
 | `DIT-2A-001` | Blocked by Prerequisite | Prerequisite failure and scoped exception handling |
@@ -156,8 +158,8 @@ The matrix is the controlling audit map for TAL-96D. `Source record` identifies 
 | D2-ID-01 | Applicant, student, staff | Authenticate only into the assigned panel | Verified, active account and canonical role | Panel login pages | User, role, permission, student profile | Editable only through approved account flows | Valid user reaches intended panel; wrong, unverified, inactive, or archived access is denied or routed to verification | Panel, authentication-eligibility, email-verification, and D2A service-authorization tests | Applicant, student, and registrar login samples inspected; final user-led checklist pending | Programmatic pass | TAL-96D2A |
 | D2-AD-01 | Applicant | Start, save, submit, correct, or withdraw an application when allowed | Active term, active program, effective requirement policy, verified applicant account | Applicant Dashboard, My Application, and Requirements | Applicant intake, checklist item, and document evidence | Draft is editable; each applicable digital requirement has its own private upload; rejected digital evidence is replaceable; withdrawal is restricted to an unreviewed draft or pending intake | Required fields, declaration, file constraints, duplicate checks, status, correction reason, and blocked actions remain explicit | Wizard, partial-draft, policy-driven multi-upload, mixed-evidence, declaration, active-scope, duplicate, invalid-replacement, correction, and withdrawal tests | Previous single-upload surface is superseded; revised user-led D2A checklist pending | Programmatic pass | TAL-96D2A |
 | D2-AD-02 | Registrar | Review evidence, move the intake through evaluation and approval, and perform explicit handover | Submitted intake, authorized active Registrar, resolved handover blockers, and exactly one active curriculum | Applicant Review | Applicant intake, checklist/evidence history, output-access log, Student Profile, and initial Enrollment | Read-only evidence and preview with focused review, approval, download, and handover actions | Decisions follow the allowed order; stale/repeat/wrong-role actions fail without mutation; handover creates or explicitly reuses one profile | Registrar action, private-download audit, stale/repeat, blocker, curriculum, first-time, transfer, returning, and failed-handover tests | Exact user-led Registrar and post-handover checklist pending | Programmatic pass | TAL-96D2A |
-| D2-AS-01 | Registrar / Academic Head | Establish a valid academic period | Authorized staff | Academic Years, Terms, Calendar Windows | Academic year, term, calendar event | Editable before dependent records lock it | Invalid dates, missing windows, or inactive terms prevent dependent operations clearly | Existing academic setup and scheduling-readiness tests | Pending adversarial browser audit | Routed | TAL-96D2 |
-| D2-AS-02 | Registrar | Maintain catalog and curriculum | Active program and authorized staff | Programs, Course Catalog, Specifications, Curriculum Versions, Import Batch Audit | Program, course, specification, curriculum, import batch | Editable under lifecycle rules | Import and manual entry preserve source meaning; malformed input returns row-level guidance | Existing import/catalog tests | Pending file-based UAT | Routed | TAL-96D2 |
+| D2-AS-01 | Registrar / Academic Head | Establish a valid academic period | Authorized staff | Academic Years, Terms, Calendar Windows | Academic year, term, calendar event | Registrar editable; Academic Head read-only | A Term outside its Academic Year is rejected with field-level guidance; later calendar and offering readiness remain separate | D2B term-bound, role, academic-calendar, and scheduling-readiness tests | User-led rows D2B-M01 and D2B-M06 pending | Programmatic pass; manual pending | TAL-96D2B |
+| D2-AS-02 | Registrar | Maintain catalog and curriculum | Active program and authorized staff | Programs, Course Catalog, Specifications, Curriculum Versions, Import Batch Audit | Program, course, specification, curriculum, import batch | Draft records editable; protected revisions read-only; lifecycle changes use focused actions | Source meaning, inherited enrichment, row-level findings, Draft-only posting, approval evidence, activation impact, supersession, and student curriculum locks remain explicit | D2B lifecycle and import tests plus TAL-82 regressions | User-led rows D2B-M02 through D2B-M06 pending | Programmatic pass; manual pending | TAL-96D2B |
 | D2-OF-01 | Registrar / Academic Head | Build schedulable offerings | Valid term, curriculum, rooms, qualified faculty | Term Offerings, Sections, Scheduling Demand | Offering, section, delivery group, faculty qualification, room | Editable before publication boundaries | Readiness findings identify missing or conflicting inputs before solving | Client baseline and readiness tests | Registrar demand list inspected at 1366×768; 54 ready demands visible | Baseline pass; mutation/error journeys pending | TAL-96D2 |
 | D3-SC-01 | Registrar / Academic Head | Generate, review, and publish a timetable | All demands ready; solver integration available | Scheduling Demand, Solver Runs, Official Schedules | Demand, generation run, meeting, revision event | Controlled action and review | Solver status, conflicts, objective evidence, and publication state remain distinguishable | Existing scheduling and solver contract tests | Full operational journey pending | Routed | TAL-96D3 |
 | D3-EN-01 | Registrar / Student | Enroll regular and irregular students through explicit gates | Student profile, enrollment window, published compatible offerings, progression facts, required clearances | Enrollments and the planned irregular selection surface | Enrollment, course enrollment, gate result, reservation, exception | Student proposes where policy permits; Registrar confirms | Each failed gate names the responsible office and next action. Irregular choices must be filtered and validated for prerequisites, corequisites, units, conflicts, and remaining capacity. | Existing placement tests cover publication, capacity, conflict, reservation, and lifecycle; the full irregular contract is not yet covered | Full regular and irregular journeys pending | Partial implementation; routed | TAL-96D3 |
@@ -182,8 +184,8 @@ The bounded browser audit used the deterministic baseline and test-only accounts
 | 360×800 mobile | Student Dashboard, Class Schedule, Finance | Authentication succeeded. Navigation rendered. Schedule and finance showed explicit unavailable/empty states, disabled unavailable payment, and responsible-office guidance. No horizontal document overflow was detected. |
 | 768×1024 tablet | Applicant Dashboard and Application | Historical D1 evidence confirmed authentication and the earlier single-upload surface without horizontal overflow. TAL-96D2A has since replaced that form with the approved Wizard and policy-driven multi-upload; the revised surface requires the user-led checklist in Section 5.2.4. |
 | 1366×768 desktop | Registrar Dashboard and Scheduling Demands | Authentication succeeded. Registrar-authorized navigation rendered, and the table exposed 54 client-aligned demands with section, delivery group, course, component, modality, duration, readiness, findings, and check time. |
-| Browser default | Regular anchor `DTBM-1A-001` Student Dashboard | Authentication succeeded. The page showed lifecycle `Active`, academic standing `Regular`, zero ledger-derived balance, and no active holds. |
-| Browser default | Irregular anchor `DTBM-1A-002` Student Dashboard | Authentication succeeded. The page showed lifecycle `Active` and stored academic standing `Irregular`. No enrollment or subject-selection entry was available in Student Hub. The page also displayed a computed `Recommended: Regular; blockers: 0` description without explaining how that recommendation differs from the stored standing. |
+| Browser default | Regular anchor `DBM-1A-001` Student Dashboard | Authentication succeeded. The page showed lifecycle `Active`, academic standing `Regular`, zero ledger-derived balance, and no active holds. |
+| Browser default | Irregular anchor `DBM-1A-002` Student Dashboard | Authentication succeeded. The page showed lifecycle `Active` and stored academic standing `Irregular`. No enrollment or subject-selection entry was available in Student Hub. The page also displayed a computed `Recommended: Regular; blockers: 0` description without explaining how that recommendation differs from the stored standing. |
 
 No warning or error was present in the current browser console during the audit. Historical browser logs and deliberately simulated test exceptions are not treated as current browser failures.
 
@@ -277,6 +279,57 @@ Use `test_tala_db` only. Begin from a complete client-aligned baseline with no a
 | D2A-M11 | Applicant — same baseline account after an approved snapshot restore/rebuild only | Fresh baseline with no intake | Save a draft or submit a pending intake, then select Withdraw Application and confirm. | Warning explains that withdrawal is retained and online continuation stops; completion notification appears; action disappears afterward. | Intake becomes `withdrawn`, `archived_at` and activity event are recorded, account remains in the withdrawal audit state, and no Student Profile is created. | Do not run this row after M09 without restoring the approved baseline snapshot; one account cannot represent both terminal paths simultaneously. |  |  |
 
 For any failure, record the row ID, exact visible message, role, URL, input filename if relevant, and whether a record changed. Do not repair the database manually. Return the completed rows so the primary can distinguish a presentation issue from a state, authorization, or transaction defect.
+
+### 5.3 TAL-96D2B Academic Setup acceptance
+
+#### 5.3.1 Intended operating flow
+
+1. The Registrar records one Academic Year, then creates Terms whose start and end dates remain inside that Academic Year.
+2. Programs identify the approved three-year `DBM`, `DIT`, and `DTHM` structures. Current student counts do not redefine Program length.
+3. Course identity remains stable while Course Specifications carry versioned academic and scheduling definitions. Staff edit only Draft revisions. A complete Draft is activated through a focused action; later material changes start by copying an existing revision to a new Draft.
+4. Curriculum CSV is the normal client-onboarding path. The Import Batch keeps the private source, checksum, full row preview, findings, warning acknowledgement, and Draft-only posting. A proposed Draft may inherit components, grading, modalities, and other enrichment from a complete Active Course Specification, but the preview names that inheritance and requires Registrar review.
+5. The Registrar completes Draft curriculum entries and Course Specifications, records the external institutional approval reference, reviews activation impact, and explicitly activates the Curriculum Version.
+6. Activation supersedes the prior Active Curriculum Version for future applicant handovers only. Existing Student Profiles retain their assigned Curriculum Version.
+
+#### 5.3.2 Change-control classification
+
+| Finding | Classification | Disposition and evidence |
+|---|---|---|
+| Separate Course identity, Course Specification revision, Course Component, Course Requirement, Curriculum Version, Curriculum Entry, and Import Batch records | Aligned | Preserved. The structure separates durable catalog facts, curriculum placement, and auditable import evidence. |
+| Private source storage, SHA-256 checksum, exact headers, full preview, warning acknowledgement, stale-preview protection, transaction, and Draft-only import posting | Aligned | Preserved and covered by the existing TAL-82D import acceptance suite. |
+| Registrar could directly edit Active or Retired Course Specifications and non-Draft Curriculum Versions | Defect / real gap | Policies and staff pages now restrict direct editing to Draft records. Revision copying, approval recording, and activation use focused domain actions. |
+| Curriculum state and approval fields were directly editable without an impact-confirmed activation workflow | Defect / real gap | Replaced by external-approval recording and transactional activation. The action locks the Program, validates readiness, supersedes the previous Active version, and preserves existing student locks. |
+| Terms could be saved outside the selected Academic Year | Defect / real gap | Both Term date fields now validate against the owning Academic Year. |
+| Catalog/import choices still exposed `BLENDED` | Defect / real gap | Course Specification and import choices now accept only Face-to-Face and Online. Offering-level cleanup remains in TAL-96D2C because offerings are outside this slice. |
+| Replacing native Filament resources with a custom academic-setup application | Cosmetic / preference | Not done. Native forms, infolists, actions, policies, and Import Batch review remain sufficient. |
+
+#### 5.3.3 Programmatic evidence
+
+- `TAL96D2BAcademicSetupHardeningTest` covers accepted modalities, Term bounds, Draft-only editing, server-owned lifecycle state despite forged Livewire form values, independent revision copying, Course Specification activation, lifecycle action visibility, explicit confirmation, complete approval evidence, supersession, readiness blockers, one Active curriculum, and unchanged Student Profile curriculum locks.
+- `TAL82DImportTemplateAcceptanceTest` covers exact templates, unsupported modality rejection, source/enrichment warning visibility, linked Draft review, Draft-only writes, Active-history protection, stale previews, authorization, private downloads, and audit evidence.
+- The final independently verified focused run passed 102 tests with 1,071 assertions across D2B, TAL-55, TAL-59, TAL-61, TAL-82, D2A, and the client baseline. These regressions protect downstream academic foundation, offering readiness, and applicant handover behavior.
+
+#### 5.3.4 User-led manual acceptance table
+
+| ID | Role and credential | Prerequisite | Steps and input | Expected visible result | Expected record or state change | Invalid or edge check | Pass / Fail | Observation |
+|---|---|---|---|---|---|---|---|---|
+| D2B-M01 | Registrar — `registrar.demo@example.test` | Existing Academic Year | Open Academic Setup > Terms. Create a Term whose start is before the Academic Year and end is after it; then correct both dates. | Each invalid date receives field-level guidance naming the Academic Year; corrected dates save. | Invalid attempt creates no Term; valid attempt creates one Draft Term. | Reverse start/end as a separate attempt; the end-after-start rule must also remain visible. |  |  |
+| D2B-M02 | Registrar — same account | Guarded client baseline | Open Programs and inspect `DBM`, `DIT`, and `DTHM`. | Codes and client-aligned names are consistent; each Program shows a three-year length. | No change during inspection. | Current first-/second-year population must not appear as a two-year Program definition. |  |  |
+| D2B-M03 | Registrar — same account | One complete Draft Course Specification | Confirm only Face-to-Face and Online are offered. Activate the Draft, reopen it, then use Copy to New Draft with a unique revision identifier. | Activation warns that the revision becomes protected. Edit disappears after activation. Copy opens a separate editable Draft with cloned components and requirements. | Original becomes Active and remains unchanged; one new Draft is created. | Try a duplicate revision identifier and a Draft with no component; both must be blocked clearly. |  |  |
+| D2B-M04 | Registrar — same account | Current templates and at least one complete Active revision | Download the Curriculum template, import one valid source row that proposes a new Draft revision, review the inheritance warning, acknowledge it, post, then select Review Curriculum Draft. | Full source row and warning identify source values versus inherited TALA enrichment; posting never claims activation; the action opens the resulting Draft curriculum. | One posted Import Batch, one Draft Curriculum Version, Draft Course Specification when needed, and Curriculum Entry are recorded. | Upload an altered-header file, `BLENDED` Course Specification template, unknown course, or ambiguous prerequisite; the whole batch must remain unposted with row-level findings. |  |  |
+| D2B-M05 | Registrar — same account | Candidate Draft curriculum with complete Active specifications and one previous Active curriculum | Record a real-looking synthetic approval reference, read the activation impact, and confirm activation. | Impact names the previous Active version, entry count, existing student locks, and readiness. Success explains future-handover scope. | Candidate becomes Active; previous version becomes Superseded; existing Student Profiles keep their original curriculum IDs. | Attempt activation with a Draft specification, missing approval, or without confirmation; no curriculum state may change. |  |  |
+| D2B-M06 | Academic Head — `academic-head.demo@example.test` | Same academic records | Open Programs, Course Specifications, Curriculum Versions, and Import Batch Audit. | Review information is visible; create, edit, approval, activation, and posting actions are absent. | No record changes. | Direct edit/action URLs must not bypass policy authorization. |  |  |
+
+#### 5.3.5 Likely panel questions
+
+| Question | Defensible answer |
+|---|---|
+| Why can staff not edit an Active Course Specification directly? | Enrollments, schedules, CORs, grades, and history may reference that exact revision. A new Draft records the change without rewriting past facts. |
+| Why does importing a curriculum not activate it automatically? | Import proves file structure and creates reviewable Draft records. Institutional approval, complete operational enrichment, and activation impact are separate decisions that require an authorized Registrar. |
+| What happens when the client source does not contain scheduling details? | TALA retains the source values. If a complete Active revision exists, a proposed Draft explicitly inherits its operational enrichment for review. Without a complete source revision, posting is blocked rather than inventing data. |
+| What does one Active curriculum per Program mean for existing students? | It selects the default for future handovers. Existing students remain locked to the Curriculum Version already assigned to them. |
+| Why are the Programs three-year when current population evidence covers only two year levels? | Program duration comes from the approved curriculum structure. The client population is a current count, not a definition of Program length. |
+| Why are only two modalities available? | The approved product authority recognizes Face-to-Face and Online. Modality belongs to course/offer delivery, not to a permanent student type, and this correction does not change the solver contract. |
 
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 

@@ -27,8 +27,6 @@ class CourseSpecification extends Model
 
     public const ModalityOnline = 'ONLINE';
 
-    public const ModalityBlended = 'BLENDED';
-
     /**
      * @var list<string>
      */
@@ -125,7 +123,6 @@ class CourseSpecification extends Model
         return [
             self::ModalityFaceToFace => 'Face-to-Face',
             self::ModalityOnline => 'Online',
-            self::ModalityBlended => 'Blended',
         ];
     }
 }

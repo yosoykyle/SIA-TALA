@@ -4,12 +4,15 @@ namespace App\Filament\Resources\Terms\Schemas;
 
 use App\Models\AcademicYear;
 use App\Models\Term;
+use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class TermForm
@@ -49,8 +52,13 @@ class TermForm
             Section::make('Academic Dates')
                 ->description('These dates drive phase gates and solver scheduling windows.')
                 ->schema([
-                    DatePicker::make('starts_on')->required(),
-                    DatePicker::make('ends_on')->required()->after('starts_on'),
+                    DatePicker::make('starts_on')
+                        ->required()
+                        ->rules([self::academicYearBoundRule('start')]),
+                    DatePicker::make('ends_on')
+                        ->required()
+                        ->after('starts_on')
+                        ->rules([self::academicYearBoundRule('end')]),
                     TextInput::make('scheduling_slot_minutes')
                         ->label('Scheduling Slot Minutes')
                         ->integer()
@@ -93,5 +101,35 @@ class TermForm
                 ->columns(2)
                 ->columnSpanFull(),
         ]);
+    }
+
+    private static function academicYearBoundRule(string $boundary): Closure
+    {
+        return function (Get $get) use ($boundary): Closure {
+            return function (string $attribute, mixed $value, Closure $fail) use ($get, $boundary): void {
+                $academicYearId = $get('academic_year_id');
+
+                if (blank($academicYearId) || blank($value)) {
+                    return;
+                }
+
+                $academicYear = AcademicYear::query()->find($academicYearId);
+
+                if (! $academicYear instanceof AcademicYear) {
+                    return;
+                }
+
+                $date = CarbonImmutable::parse($value)->startOfDay();
+                $startsOn = CarbonImmutable::parse($academicYear->starts_on)->startOfDay();
+                $endsOn = CarbonImmutable::parse($academicYear->ends_on)->startOfDay();
+
+                if ($date->betweenIncluded($startsOn, $endsOn)) {
+                    return;
+                }
+
+                $label = $boundary === 'start' ? 'start' : 'end';
+                $fail("The term {$label} date must be within {$academicYear->displayLabel()}.");
+            };
+        };
     }
 }
