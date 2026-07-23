@@ -1,0 +1,41 @@
+{
+    "agents": [
+        "antigravity",
+        "codex",
+        "kiro",
+        "claude_code",
+        "junie",
+        "opencode",
+        "cursor",
+        "copilot"
+    ],
+    "cloud": true,
+    "guidelines": true,
+    "mcp": true,
+    "nightwatch": false,
+    "packages": [
+        "filament/filament"
+    ],
+    "sail": false,
+    "skills": [
+        "fortify-development",
+        "laravel-best-practices",
+        "mcp-development",
+        "livewire-development",
+        "tailwindcss-development",
+        "configuring-horizon",
+        "deploying-laravel-cloud",
+        "diagnosing-bugs",
+        "grill-me",
+        "grilling",
+        "handoff",
+        "laravel-filament",
+        "laravel-patterns",
+        "laravel-permission-development",
+        "laravel-pwa-setup",
+        "laravel-security",
+        "laravel-tdd",
+        "laravel-verification",
+        "ui-ux-pro-max"
+    ]
+}

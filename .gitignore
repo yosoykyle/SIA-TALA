@@ -25,9 +25,7 @@ Thumbs.db
 dont access
 # Laravel Boost & Agents
 .gemini/
-/boost.json
 /GEMINI.md
-/.agents/
 /.ai/
 /.codex/
 /.qwen/
@@ -36,7 +34,6 @@ dont access
 /.junie/
 /.claude/
 /.cursor/
-/app/BoostAgents/
 CLAUDE.md
 .mcp.json
 /opencode.json
