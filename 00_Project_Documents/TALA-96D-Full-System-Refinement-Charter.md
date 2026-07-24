@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to remaining work:** `TAL-96D4C -> TAL-96D4D -> TAL-96D5`
+**Applies to remaining work:** `TAL-96D5`
 
-**Next execution boundary:** `Plan TAL-96D4D` for the Bootstrap landing-page refinement and cross-role presentation-consistency closure
+**Next execution boundary:** Plan `TAL-96D5` through a fresh Ground-Truth Gate
 
 ## 1. Purpose
 
@@ -93,7 +93,7 @@ TAL-96D4 is divided into four sequential sub-slices so that shared presentation 
 1. `TAL-96D4A` establishes the system-wide UX foundation: plain-language hierarchy, responsive Filament actions and tables, accessible loading/empty/success/failure/recovery states, validation feedback, and branded browser error pages that preserve API and framework response behavior.
 2. `TAL-96D4B` hardens the Grades and Student Lifecycle journeys from faculty or staff action through student-facing projection.
 3. `TAL-96D4C` hardens Student Hub, reports, CSV semantics, authenticated generated outputs, and code-defined notification presentation without reopening aligned source-of-truth workflows.
-4. `TAL-96D4D` refines the isolated Bootstrap landing page and performs the final cross-role presentation-consistency closure while preserving the approved landing sections, navigation style, and bottom blur strip.
+4. `TAL-96D4D` refines the isolated Bootstrap landing page, closes first-party template and static-diagnostic defects, and performs the final cross-role presentation-consistency closure while preserving the approved landing sections, navigation style, bottom blur strip, role boundaries, and aligned domain workflows.
 
 Native Filament v5 and the existing isolated Bootstrap assets remain the default. No UI dependency or plugin is added without a proven capability gap and a separately approved plan revision. Confirmation is required for destructive or consequential actions, but undo or restore is offered only where the existing domain model supports a safe reversal. CSV coherence concerns headings, field order, formatting, encoding, filenames, authorization, and audit evidence rather than visual branding. Database-editable notification templates remain deferred to `TAL-100`.
 

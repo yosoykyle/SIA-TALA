@@ -3,12 +3,6 @@
     :subtitle="'Current published schedule for '.$schedule['owner']"
     :generated-at="$schedule['generated_at']"
 >
-    <x-slot:styles>
-        .schedule-owner { margin-bottom: 16px; }
-        .schedule-empty { border: 1px solid #d1d5db; padding: 16px; }
-        .schedule-table { font-size: 12px; }
-    </x-slot:styles>
-
     <p class="schedule-owner">
         This document shows the current published schedule available to <strong>{{ $schedule['owner'] }}</strong>.
         Use the Student Hub or Faculty Workspace to confirm later revisions.

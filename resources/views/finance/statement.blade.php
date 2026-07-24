@@ -4,20 +4,6 @@
     :subtitle="$statement['summary']['term']"
     :generated-at="$statement['generated_at']->format('M d, Y h:i A')"
 >
-    <x-slot:styles>
-        .finance-grid {
-            display: grid;
-            gap: 8px 24px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            margin-bottom: 24px;
-        }
-        .finance-heading { font-size: 16px; margin: 24px 0 8px; }
-        .finance-summary { margin-top: 16px; }
-        @media (max-width: 720px) {
-            .finance-grid { grid-template-columns: 1fr; }
-        }
-    </x-slot:styles>
-
     <section class="finance-grid">
         <div><strong>Student Number:</strong> {{ $statement['summary']['student_number'] }}</div>
         <div><strong>Student Name:</strong> {{ $statement['summary']['student_name'] }}</div>
