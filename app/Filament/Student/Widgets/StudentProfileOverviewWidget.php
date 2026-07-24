@@ -18,7 +18,6 @@ class StudentProfileOverviewWidget extends BaseWidget
         /** @var User $user */
         $user = auth()->user();
 
-        // Load profile
         $user->loadMissing('studentProfile');
         $profile = $user->studentProfile;
 
@@ -37,30 +36,55 @@ class StudentProfileOverviewWidget extends BaseWidget
 
         $stats = [
             Stat::make('Lifecycle Status', str((string) $profile->lifecycle_status)->headline()->toString())
-                ->description('Current student profile status')
+                ->description(match ($profile->lifecycle_status) {
+                    StudentProfile::LifecycleArchived => 'This is your official Student Profile status. Contact the Registrar Office if this is unexpected.',
+                    default => 'This is your official Student Profile status.',
+                })
                 ->color(match ($profile->lifecycle_status) {
                     StudentProfile::LifecycleActive => 'success',
                     StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
             Stat::make('Academic Standing', str((string) $profile->academic_standing)->headline()->toString())
-                ->description('Recommended: '.$progression['standing'].'; blockers: '.count($progression['blockers']))
+                ->description($this->academicStandingGuidance(
+                    (string) $profile->academic_standing,
+                    (string) $progression['standing'],
+                    count($progression['blockers']),
+                ))
                 ->color('info'),
             Stat::make('Balance', $balance)
-                ->description('Ledger-derived outstanding balance')
+                ->description($hasBalance
+                    ? 'An outstanding balance is posted. Open Finance or contact the Accounting Office.'
+                    : 'No outstanding posted balance.')
                 ->color($hasBalance ? 'warning' : 'success'),
         ];
 
         foreach (array_slice($progression['blockers'], 0, 3) as $blocker) {
             $stats[] = Stat::make(
-                'Progression Blocker',
+                'Academic action needed',
                 $blocker['course_code'] ?? 'Curriculum requirement',
             )->description(collect([
                 $blocker['rule'] ?? $blocker['reason'] ?? null,
-                filled($blocker['source']['id'] ?? null) ? 'Source #'.$blocker['source']['id'] : null,
-            ])->filter()->implode(' - '))->color('warning');
+                'Contact the Registrar Office for guidance.',
+            ])->filter()->implode(' '))->color('warning');
         }
 
         return $stats;
+    }
+
+    private function academicStandingGuidance(
+        string $officialStanding,
+        string $recommendedStanding,
+        int $blockerCount,
+    ): string {
+        if ($recommendedStanding !== '' && $recommendedStanding !== $officialStanding) {
+            return 'System review suggests '.str($recommendedStanding)->headline()->toString().'. Registrar Office must confirm any change.';
+        }
+
+        if ($blockerCount > 0) {
+            return "Review {$blockerCount} academic requirement(s) with the Registrar Office.";
+        }
+
+        return 'No academic progression issue is currently recorded.';
     }
 }

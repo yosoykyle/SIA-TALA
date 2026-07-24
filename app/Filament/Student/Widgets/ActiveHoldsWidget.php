@@ -43,8 +43,9 @@ class ActiveHoldsWidget extends BaseWidget
                     ->state(fn (Hold $record): string => $record->studentFacingMessage())
                     ->wrap(),
             ])
+            ->stackedOnMobile()
             ->emptyStateHeading('No active holds')
-            ->emptyStateDescription('You are clear from any blocks or deficiencies.')
+            ->emptyStateDescription('No active hold is blocking your current school transactions.')
             ->emptyStateIcon('heroicon-o-check-circle');
     }
 }

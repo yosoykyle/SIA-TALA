@@ -237,7 +237,10 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         $profile = StudentProfile::factory()->for($student)->for($program)->create([
             'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
         ]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),

@@ -179,7 +179,10 @@
         <header class="header">
             <div class="logo">SIA</div>
             <div>
-                <p><strong>SERVITECH INSTITUTE ASIA INC.</strong></p>
+                <p><strong>{{ config('institution.name') }}</strong></p>
+                @if (filled(config('institution.address')))
+                    <p>{{ config('institution.address') }}</p>
+                @endif
                 <h1>Registration Form / Certificate of Registration</h1>
                 <p>Generated {{ $cor['generated_at']->format('M d, Y h:i A') }}</p>
             </div>

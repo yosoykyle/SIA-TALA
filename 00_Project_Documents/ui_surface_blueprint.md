@@ -136,8 +136,8 @@ Student Hub is a read-mostly workspace. Use focused custom Filament Pages rather
 
 | Navigation item | Surface | Primary component |
 | --- | --- | --- |
-| Dashboard | Active term, current official enrollment, finance gate, holds, and next actions | Custom Page with read-only sections and small stats; current enrollment uses the same resolver as COR and Schedule |
-| Profile | Student summary and allowed self-service fields | Infolist plus limited Form |
+| Dashboard | Active term, official Student Profile status, confirmed academic standing, system progression review, ledger balance, holds, and next actions | Custom Page with plain-language read-only stats and mobile-stacked hold details; the current official record stays visibly separate from any computed recommendation, and the responsible office is named when action is required |
+| Profile | Official student summary and allowed self-service contact fields | Read-only grouped record plus limited Form; status codes are converted to familiar labels, while identity, program, curriculum, lifecycle, grades, finance, and enrollment records remain staff-owned |
 | Enrollment | Gate result, selected sections, and enrollment status | Read-only Table; selectable section table only during an authorized irregular-enrollment window |
 | Schedule | Published class schedule for the current official enrollment | Responsive read-only Table grouped by day, with per-row Online or Face-to-Face modality and an authenticated printable view; show an explicit unavailable state when no current official enrollment or active binding exists |
 | COR | Current official COR | Generated read-only page from the active term's official enrollment, with per-row modality, a derived Online/Face-to-Face/Mixed course-delivery summary, explicit blocked or unavailable guidance, and an authenticated print/save-as-PDF action |
@@ -158,7 +158,7 @@ Use navigation groups to prevent the existing resource inventory from becoming o
 | Finance | Accounting | One Fee Rules table/form with Program and Term scope and peso amounts, assessments, payment evidence, OR mapping, ledger, accommodations, adjustments, signed-webhook reconciliation, and bounded provider-checkout recovery; assessment activation requires an exact Program-and-Term downpayment rule |
 | Grades | Faculty, Registrar, Academic Head | Faculty rosters, late authorization, submission review, posting/release, INC completion, corrections |
 | Student Records | Registrar, Accounting for owned holds | Student profile, holds, lifecycle changes, program shifts, graduation review |
-| Reports & Audit | Authorized staff | Filtered operational reports, CSV export, audit log, integration events |
+| Reports & Audit | Authorized staff | Role-authorized fixed report catalog, controlled filters, mobile-stacked table, audited UTF-8 CSV export, audit log, and integration events |
 | System | System Super Admin | Users, fixed canonical role assignment, governed settings, code-defined notification content, and restricted read-only integration status |
 
 Staff dashboards show a small number of actionable counts and links. The operational table remains the source for work; charts are not planned unless a revised PRD proves a comparison need and a new Next Steps issue is approved.
@@ -196,7 +196,7 @@ Academic Setup preserves the existing split between course identity, versioned C
 | Area | Decision | MVP implementation |
 | --- | --- | --- |
 | Student finance surface | Use one read-mostly Student Hub Finance page | Replace the placeholder SOA and payment-acknowledgement pages with one focused page showing the active assessment, charge lines, required downpayment, posted payments, ledger-derived balance, payment schedule, pending/review status, OR mapping state, Financial Accommodation summary, and available outputs. The existing Dashboard balance stat uses the same ledger-derived balance. |
-| Finance printable outputs | Reuse the TAL-70 output pattern | SOA, billing slip, and payment acknowledgement use authenticated Laravel Blade print routes, browser print/save-as-PDF, ownership/role authorization, and `output_access_logs`. |
+| Finance printable outputs | Reuse the TAL-70 output pattern | SOA, billing slip, and payment acknowledgement use authenticated Laravel Blade print routes, one institutional header and print control, browser print/save-as-PDF, ownership/role authorization, and `output_access_logs`. |
 | Billing slip | Generate from an active assessment with a positive currently due amount | The slip is an internal request for payment, identifies the due category and exact amount, and never creates payment evidence or ledger activity. |
 | Payment acknowledgement | Show only after verified evidence and posted ledger payment | OR mapping is displayed when present and remains Accounting reconciliation when absent. |
 | PayMongo checkout | Use a focused Filament Action backed by the existing checkout service | The action uses the authenticated student's active assessment and a positive system-derived amount, records a pending Payment Attempt, reuses an active matching pending attempt, and redirects to the configured gateway. Webhook verification and ledger posting remain authoritative. |
@@ -230,8 +230,8 @@ Academic Setup preserves the existing split between course identity, versioned C
 | 09 COR | Current generated COR | Student Hub custom Page, staff-accessible read-only source summary, authenticated printable Blade route, and output log action | Exclude public verification/QR/token inventory for MVP; resolve the active term's official enrollment once, then generate COR, schedule, dashboard, and output-log context from that same record; show each subject's Online or Face-to-Face modality and a derived course-delivery mix |
 | 10 Grades | Faculty roster entry, Registrar review/release, late authorization, INC completion, correction, student history | Mobile-stacked Faculty roster Page with course, section, term, state, and completion context; staff review Resource with one focused action group; Student Hub released-only Table | Preserve the grading formula and workflow. TAL-96D4B replaces code-oriented states and narrow-screen action sprawl with plain-language context; it does not introduce generic Grade CRUD. |
 | 11 Student Lifecycle | Holds, approved lifecycle changes, program-shift credit evaluation, graduation review | Recognizable student/enrollment/subject selectors; staff Resources with focused action groups; structured immutable-impact infolists; searchable graduation members; Student Hub status and completion projections | Preserve recorded decisions, hold ownership, snapshot history, and authorization. TAL-96D4B presents affected subjects, released assignments/reservations, finance effect, status, COR effect, and master-schedule effect as labeled fields instead of raw JSON. |
-| 12 Student Hub | Read-only current records plus permitted profile/evidence/payment/enrollment actions | Custom Filament Pages composed from infolists, Tables, Forms, and Actions | Shell is confirmed; profile work requires baseline review; remaining pages are required surfaces |
-| 13 System Admin, Reports & Audit | Users, canonical role assignment, typed settings, imports, filtered reports, CSV export, audit, integrations | Resources, native filters, Export Actions or streamed CSV, activity-log Resource, restricted settings Forms | Reuse installed activity-log support; audit Users/Roles/Settings/Import inventory |
+| 12 Student Hub | Read-only current records plus permitted profile/evidence/payment/enrollment actions | Custom Filament Pages composed from infolists, mobile-stacked Tables, Forms, Actions, and one owner-scoped priority-notice projection | TAL-96D4C keeps official status, computed guidance, balance, holds, and office-owned recovery instructions distinct; it deliberately does not expose a second persistent notification center |
+| 13 System Admin, Reports & Audit | Users, canonical role assignment, typed settings, imports, fixed filtered reports, CSV export, audit, integrations | Resources, native filters, mobile-stacked report Table, audited UTF-8 streamed CSV, activity-log Resource, restricted settings Forms | TAL-96D4C preserves the established catalog, queries, role matrix, sensitivity, filter set, and allowlisted columns while clarifying selection and export presentation |
 
 ## Scheduling UI Baseline
 
@@ -266,11 +266,15 @@ Course Specification and Curriculum imports use a custom Filament Page composed 
 
 ### Reports
 
-MVP reports are filtered operational Tables with CSV export. Use native Filament filters and an authorized export Action. Analysis, pivoting, and chart building occur outside TALA. Sensitive exports capture purpose and create an export log.
+MVP reports are fixed, role-authorized operational Tables with controlled filters and one CSV export Action. The report title and description explain the selected dataset, the table stacks on narrow screens, and empty results explain how to change scope. CSV files preserve the approved heading order and allowlisted fields, use readable report-label filenames, begin with a UTF-8 byte-order mark for Excel compatibility, protect formula-like values, and retain stable date and money semantics. Sensitive exports require a purpose; every export records actor, role, report, normalized filters, purpose, sensitivity, row count, request context, and generation outcome. Analysis, pivoting, and chart building occur outside TALA.
+
+### Generated outputs
+
+COR, student and faculty schedules, Statement of Account, Billing Slip, and Payment Acknowledgement remain authenticated source-derived browser outputs. They use the configured institution identity, a clear document title and copy context, a consistent generated timestamp, responsive overflow for wide tables, one print/save-as-PDF control, and document-specific disclaimers. The shared presentation layer does not change source builders, role or owner authorization, or `output_access_logs`.
 
 ### Notifications
 
-Filament notifications provide immediate success, warning, and error feedback after an action. Critical asynchronous product notifications use email and recorded delivery metadata. MVP does not include a persistent in-app notification center.
+Filament notifications provide immediate success, warning, and error feedback after an action. Student Hub renders one owner-scoped priority notice from the existing notification and authoritative domain records; it does not expose Filament's separate persistent notification-center control. Critical schedule-release, schedule-revision, and payment-posting messages use queued email with consistent institution branding, a plain action, the responsible office, and recorded delivery metadata. Database-editable templates remain outside the MVP.
 
 ### Plugin policy
 

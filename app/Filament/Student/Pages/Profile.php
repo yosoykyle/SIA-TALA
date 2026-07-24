@@ -107,7 +107,7 @@ class Profile extends Page
                     ],
                     [
                         'label' => 'Account status',
-                        'value' => $this->displayValue($user->getAttribute('status')),
+                        'value' => $this->displayStatus($user->getAttribute('status')),
                     ],
                     [
                         'label' => 'Student number',
@@ -123,11 +123,11 @@ class Profile extends Page
                     ],
                     [
                         'label' => 'Lifecycle status',
-                        'value' => $this->displayValue($studentProfile->getAttribute('lifecycle_status')),
+                        'value' => $this->displayStatus($studentProfile->getAttribute('lifecycle_status')),
                     ],
                     [
                         'label' => 'Academic standing',
-                        'value' => $this->displayValue($studentProfile->getAttribute('academic_standing')),
+                        'value' => $this->displayStatus($studentProfile->getAttribute('academic_standing')),
                     ],
                 ],
             ],
@@ -136,11 +136,11 @@ class Profile extends Page
                 'items' => [
                     [
                         'label' => 'Admission category',
-                        'value' => $this->displayValue($applicantIntake?->getAttribute('admission_category')),
+                        'value' => $this->displayStatus($applicantIntake?->getAttribute('admission_category')),
                     ],
                     [
                         'label' => 'Credential basis',
-                        'value' => $this->displayValue($applicantIntake?->getAttribute('credential_basis')),
+                        'value' => $this->displayStatus($applicantIntake?->getAttribute('credential_basis')),
                     ],
                     [
                         'label' => 'Birth date',
@@ -249,6 +249,15 @@ class Profile extends Page
         }
 
         return (string) $value;
+    }
+
+    private function displayStatus(mixed $value): string
+    {
+        if (blank($value)) {
+            return 'Not available';
+        }
+
+        return str((string) $value)->replace('_', ' ')->headline()->toString();
     }
 
     private function studentProfileFor(User $user): StudentProfile

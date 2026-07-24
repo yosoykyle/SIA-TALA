@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to remaining work:** `TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5`
+**Applies to remaining work:** `TAL-96D4C -> TAL-96D4D -> TAL-96D5`
 
-**Next execution boundary:** `Plan TAL-96D4B`
+**Next execution boundary:** `Plan TAL-96D4D` for the Bootstrap landing-page refinement and cross-role presentation-consistency closure
 
 ## 1. Purpose
 

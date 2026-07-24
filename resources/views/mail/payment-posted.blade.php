@@ -1,18 +1,18 @@
 <x-mail::message>
-# Payment Posted
+# Your payment was posted
 
 Hello {{ $recipientName }},
 
-Your payment of {{ $amount }} for {{ $termLabel }} has been verified and posted to your T.A.L.A. student ledger.
+The Accounting Office verified and posted **{{ $amount }}** for **{{ $termLabel }}** to your TALA student ledger.
 
-This message confirms the ledger posting. It is not an official receipt or OR.
+This email confirms the ledger posting only. It is not an official receipt or official-receipt (OR) record.
 
 <x-mail::button :url="$financeUrl">
-View Finance
+Review Finance
 </x-mail::button>
 
-Sign in to review your current balance, payment acknowledgement, and OR-mapping status.
+Sign in to review your current balance, payment acknowledgement, and OR status. If the amount or status appears incorrect, contact the Accounting Office before submitting another payment.
 
-Thanks,<br>
-{{ config('app.name') }}
+Regards,<br>
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

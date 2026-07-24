@@ -1,9 +1,9 @@
 <x-mail::message>
-# Published schedule updated
+# Your class schedule was updated
 
 Hello {{ $recipientName }},
 
-Your published class schedule has changed. The current assignment details are listed below.
+The Registrar Office changed one or more assignments in your current published schedule. The previous and current details are listed below.
 
 @foreach ($scheduleChanges as $change)
 ## {{ $change['course'] }} - {{ $change['section'] }}
@@ -19,8 +19,8 @@ Your published class schedule has changed. The current assignment details are li
 | Modality | {{ $change['before']['modality'] }} | {{ $change['after']['modality'] }} |
 @endforeach
 
-Sign in to TALA to view the current published schedule.
+Sign in to TALA and open **Schedule** before attending your next class. The Student Hub shows the current published schedule. If an assignment appears incorrect, contact the Registrar Office.
 
-Thanks,<br>
-{{ config('app.name') }}
+Regards,<br>
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

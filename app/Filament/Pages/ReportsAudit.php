@@ -92,6 +92,7 @@ class ReportsAudit extends Page implements HasTable
                         $data,
                     )),
             ])
+            ->stackedOnMobile()
             ->paginated([10, 25, 50])
             ->defaultPaginationPageOption(25)
             ->emptyStateHeading('No report rows match the current scope')
@@ -110,6 +111,7 @@ class ReportsAudit extends Page implements HasTable
                     Select::make('report_key')
                         ->label('Fixed report')
                         ->options(fn (): array => $this->reports()->optionsFor($this->actor()))
+                        ->helperText('Choose from the fixed reports authorized for your staff role. Each report keeps its approved columns and filters.')
                         ->required()
                         ->native(false),
                 ])

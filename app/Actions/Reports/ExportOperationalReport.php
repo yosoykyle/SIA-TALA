@@ -77,8 +77,8 @@ class ExportOperationalReport
             'occurred_at' => now(),
         ]);
 
-        $filename = Str::of($reportKey)
-            ->replace('.', '-')
+        $filename = Str::of($this->reports->label($reportKey))
+            ->slug()
             ->append('-'.now()->format('Ymd-His').'.csv')
             ->toString();
 
@@ -89,6 +89,7 @@ class ExportOperationalReport
                 return;
             }
 
+            fwrite($stream, "\xEF\xBB\xBF");
             fputcsv($stream, collect($columns)->pluck('label')->all());
 
             foreach ($records as $record) {

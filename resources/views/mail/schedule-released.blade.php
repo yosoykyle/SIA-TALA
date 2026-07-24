@@ -1,16 +1,16 @@
 <x-mail::message>
-# Schedule Released
+# Your class schedule is ready
 
 Hello {{ $recipientName }},
 
-Your class schedule for {{ $termLabel }} is now available in T.A.L.A.
+The Registrar Office has released your current published schedule for **{{ $termLabel }}**.
 
 <x-mail::button :url="$scheduleUrl">
 View Schedule
 </x-mail::button>
 
-Sign in to view the current published schedule.
+Review the day, time, room, modality, and faculty for every class before attending. If an assignment appears incorrect, contact the Registrar Office and refer to the schedule shown in your Student Hub.
 
-Thanks,<br>
-{{ config('app.name') }}
+Regards,<br>
+{{ config('institution.name') }} via {{ config('app.name') }}
 </x-mail::message>

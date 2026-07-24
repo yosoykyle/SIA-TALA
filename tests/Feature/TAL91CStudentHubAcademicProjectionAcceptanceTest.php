@@ -118,7 +118,10 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
     {
         $student = $this->studentUser();
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'capacity_pending',
             'registered_at' => now()->subDay(),
@@ -138,7 +141,10 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
     {
         $student = $this->studentUser();
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'pending_review',
             'registered_at' => now()->subDay(),
@@ -193,7 +199,10 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
         $profile = StudentProfile::factory()->for($student)->for($program)->create([
             'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
         ]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),

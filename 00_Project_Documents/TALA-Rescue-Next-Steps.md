@@ -27,7 +27,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D4 | Approved revised split; depends on TAL-96D3D | Cross-role UI/UX hardening parent covering the system-wide UX foundation, Grades and Lifecycle, Student Hub and generated outputs, and Bootstrap landing-page refinement. |
 | TAL-96D4A | Done locally; pending explicit Linear sync | System-Wide UX Foundation and Error Handling. |
 | TAL-96D4B | Done locally; pending explicit Linear sync | Grades and Student Lifecycle Hardening from faculty/staff action through controlled review and student-facing projection. |
-| TAL-96D4C | Planned; depends on TAL-96D4B | Student Hub, Reports, Generated Outputs, and Notification Presentation. |
+| TAL-96D4C | Done locally; pending explicit Linear sync; depends on TAL-96D4B | Student Hub, Reports, Generated Outputs, and Notification Presentation. |
 | TAL-96D4D | Planned; depends on TAL-96D4C | Bootstrap Landing Page and Cross-Role Consistency Closure. |
 | TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, targeted population/configuration and cost evaluation, deployment-readiness gate, CP-SAT evidence synchronization, and the consolidated System Operations and Defense Guide. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
@@ -54,4 +54,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next primary boundary: **`Plan TAL-96D4C`**. Planning must re-run the Ground-Truth Gate against the master charter, Student Hub, report/output, and notification authorities before proposing the next executable contract. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
+Next primary boundary: **`Plan TAL-96D4D`**. Reconcile the approved Bootstrap landing-page refinement and cross-role presentation-consistency closure against the master charter, current landing implementation, UI blueprint, and established D4 presentation rules. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
