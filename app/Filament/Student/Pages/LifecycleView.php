@@ -39,12 +39,14 @@ class LifecycleView extends Page implements HasTable
                 $query->where('user_id', $user->id);
             })
             ->where('state', StudentLifecycleChange::StateApplied))
-            ->description(filled($academicStanding) ? "Current Academic Standing: {$academicStanding}" : null)
+            ->description(filled($academicStanding)
+                ? 'Current academic standing: '.str((string) $academicStanding)->headline()->toString()
+                : null)
             ->columns([
                 TextColumn::make('type')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('term.label')->label('Term'),
                 TextColumn::make('effective_on')->date(),
-                TextColumn::make('state')->badge(),
+                TextColumn::make('state')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('student_summary')
                     ->label('Summary')
                     ->state(fn (StudentLifecycleChange $record): string => sprintf(
@@ -54,6 +56,7 @@ class LifecycleView extends Page implements HasTable
                     ))
                     ->wrap(),
             ])->defaultSort('effective_on', 'desc')
+            ->stackedOnMobile()
             ->emptyStateHeading('No recorded lifecycle changes');
     }
 }

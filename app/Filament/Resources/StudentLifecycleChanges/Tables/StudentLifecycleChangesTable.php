@@ -5,6 +5,7 @@ namespace App\Filament\Resources\StudentLifecycleChanges\Tables;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
 use App\Models\StudentLifecycleChange;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
@@ -24,7 +25,16 @@ class StudentLifecycleChangesTable
                 TextColumn::make('type')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('term.label')->label('Term')->sortable(),
                 TextColumn::make('effective_on')->date()->sortable(),
-                TextColumn::make('state')->badge()->sortable(),
+                TextColumn::make('state')->badge()->sortable()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                TextColumn::make('next_step')
+                    ->label('Next Step')
+                    ->state(fn (StudentLifecycleChange $record): string => match ($record->state) {
+                        StudentLifecycleChange::StateRecordedApproved => 'Registrar must apply or cancel the approved action.',
+                        StudentLifecycleChange::StateApplied => 'No staff action is pending.',
+                        StudentLifecycleChange::StateCancelled => 'No action — this decision was cancelled.',
+                        default => 'Review this lifecycle record.',
+                    })
+                    ->wrap(),
                 TextColumn::make('authority')->searchable(),
             ])
             ->defaultSort('effective_on', 'desc')
@@ -43,26 +53,29 @@ class StudentLifecycleChangesTable
                     ->when($data['until'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('effective_on', '<=', $date))),
             ])
             ->recordActions([
-                ViewAction::make(),
-                Action::make('apply')
-                    ->label('Apply Program Shift')
-                    ->authorize('apply')
-                    ->requiresConfirmation()
-                    ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
-                    ->action(function (StudentLifecycleChange $record): void {
-                        app(StudentLifecycleService::class)->applyProgramShift($record, auth()->user());
-                        Notification::make()->title('Program Shift applied')->success()->send();
-                    }),
-                Action::make('cancel')
-                    ->label('Cancel Program Shift')
-                    ->authorize('cancel')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
-                    ->action(function (StudentLifecycleChange $record): void {
-                        app(StudentLifecycleService::class)->cancelProgramShift($record, auth()->user());
-                        Notification::make()->title('Program Shift cancelled')->success()->send();
-                    }),
-            ]);
+                ActionGroup::make([
+                    ViewAction::make(),
+                    Action::make('apply')
+                        ->label('Apply Program Shift')
+                        ->authorize('apply')
+                        ->requiresConfirmation()
+                        ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
+                        ->action(function (StudentLifecycleChange $record): void {
+                            app(StudentLifecycleService::class)->applyProgramShift($record, auth()->user());
+                            Notification::make()->title('Program Shift applied')->success()->send();
+                        }),
+                    Action::make('cancel')
+                        ->label('Cancel Program Shift')
+                        ->authorize('cancel')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->visible(fn (StudentLifecycleChange $record): bool => $record->type === StudentLifecycleChange::TypeProgramShift && $record->state === StudentLifecycleChange::StateRecordedApproved)
+                        ->action(function (StudentLifecycleChange $record): void {
+                            app(StudentLifecycleService::class)->cancelProgramShift($record, auth()->user());
+                            Notification::make()->title('Program Shift cancelled')->success()->send();
+                        }),
+                ])->tooltip('Lifecycle actions'),
+            ])
+            ->stackedOnMobile();
     }
 }

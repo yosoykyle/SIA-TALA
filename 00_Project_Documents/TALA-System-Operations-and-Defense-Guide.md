@@ -166,8 +166,8 @@ The matrix is the controlling audit map for TAL-96D. `Source record` identifies 
 | D3-FI-01 | Accounting / Student | Assess fees and process the current due | Enrollment and active fee rules | Assessments, Payments, Student Finance | Assessment, fee line, ledger entry, payment attempt, payment | Accounting editable; student evidence view with payment initiation | Amount due is derived from assessment and ledger; unavailable payment is disabled and explained | Existing finance and PayMongo tests | Student Finance empty state inspected at 360×800 | Empty state pass; populated journey pending | TAL-96D3 |
 | D3-CO-01 | Student / Registrar / Accounting | Finalize an eligible Enrollment, then view and issue the current COR and schedule | Active Term, official Enrollment, published bindings, applicable hold/lifecycle clearance | Staff Enrollment, Student COR, Class Schedule, Holds, and print views | Enrollment, course enrollment, meeting, binding, hold, and output-access log | Registrar-owned mutation followed by authorized read-only outputs | Missing or blocked output explains the next step; current Student outputs share one Enrollment source; each row shows Online or Face-to-Face modality | Named D3D resolver, COR, official-enrollment, source-output, schedule-projection, hold-window, authorization, print, and revision convergence tests | Consolidated D3D table in Section 5.8.4 deferred to TAL-96D5 | Programmatic implementation and independent verification passed; manual acceptance pending TAL-96D5 | TAL-96D3D |
 | D3-IN-01 | System Super Admin / Accounting | Monitor and recover integrations | Authorized role and recorded operational event | Integration Status, PayMongo Reconciliation | Operational event, payment attempt, webhook call | Controlled recovery action | Duplicate, delayed, rejected, and retried events remain auditable and idempotent | Existing integration tests | Pending browser recovery audit; no external calls in D1 | Routed | TAL-96D3 |
-| D4-GR-01 | Faculty / Registrar / Student | Enter, review, release, and view grades | Enrollment, roster, assigned faculty | Grade Rosters, Faculty Grade Roster, Student Grades | Grade roster, grade entry, revision event | Role- and state-dependent | Draft, submitted, reviewed, released, and revised states are distinct | Existing grade tests | Pending end-to-end browser audit | Routed | TAL-96D4 |
-| D4-LC-01 | Registrar / Student | Manage holds and lifecycle decisions | Student master and applicable source evidence | Lifecycle Changes, Graduation Review, Student Holds and Academic Status | Hold, lifecycle change, progression result, graduation batch | Staff-controlled; student read-only | Responsible office, reason, effect, and resolution remain understandable | Existing lifecycle tests | Pending cross-role browser comparison | Routed | TAL-96D4 |
+| D4-GR-01 | Faculty / Registrar / Student | Enter, review, release, and view grades | Enrollment, roster, assigned faculty | Grade Rosters, Faculty Grade Roster, Student Grades | Grade roster, grade entry, revision event | Role- and state-dependent | Course, section, term, assigned faculty, progress, state, and permitted next action remain visible; only released grades reach students | TAL-96D4B focused and grade regression tests | Consolidated user-led walkthrough deferred to TAL-96D5 | Programmatic pass; manual pending | TAL-96D4B |
+| D4-LC-01 | Registrar / Student | Manage holds and lifecycle decisions | Student master and applicable source evidence | Lifecycle Changes, Graduation Review, Student Holds, Academic Status, Completion | Hold, lifecycle change, progression result, graduation batch and snapshot | Staff-controlled; student read-only | Recognizable selectors and labeled operational impacts replace IDs and raw JSON; responsible office, result, visibility, and required action remain understandable | TAL-96D4B focused and lifecycle/graduation regression tests | Consolidated user-led walkthrough deferred to TAL-96D5 | Programmatic pass; manual pending | TAL-96D4B |
 | D4-SH-01 | Student | Understand current academic and financial state | Accessible student profile | Student Hub | Aggregated authoritative records | Read-only except permitted profile fields | Empty, blocked, pending, and complete states provide actionable guidance | D1 route harness | Dashboard, Finance, and Schedule sampled on mobile | Sampled pass; comprehensive state audit pending | TAL-96D4 |
 | D4-RP-01 | Authorized staff | Produce reports and trace changes | Source records and role permission | Reports / Audit and Import Batch Audit | Audit logs, operational events, import records, output snapshots | Read-only and export actions | Report totals reconcile with source records; sensitive evidence stays permission-bound | Existing report/audit tests | Pending browser and export audit | Routed | TAL-96D4 |
 | D5-AC-01 | Project team / stakeholders | Attempt invalid, out-of-order, and hostile journeys before defense | Completed D2–D4 corrections | All representative surfaces | Whole-system evidence | Mixed | The system prevents invalid transitions, explains recoverable errors, and records sensitive actions | Full suite and final adversarial harness | Stakeholder UAT and defense rehearsal | Pending | TAL-96D5 |
@@ -751,6 +751,52 @@ The HTML pages intentionally do not display raw exception messages, paths, queri
 #### 5.9.3 Programmatic evidence
 
 `TAL96D4ASystemUxFoundationTest` passes 12 scenarios with 84 assertions. It covers the six named statuses, both fallback families, a genuinely unmatched route, safe HTML content, the recovery action and static stylesheet, preserved JSON negotiation, the canonical Admin panel brand, and contrast thresholds for actions and keyboard-focus indicators in light and dark themes. The three directly affected public-auth, role-aware landing, and panel-access regression files pass 53 tests with 101 assertions against the proven `APP_ENV=testing`, MySQL, `test_tala_db` target. Blade template compilation, Laravel Pint, scoped PHPStan/Larastan, Serena diagnostics, and `git diff --check` also pass. No schema, domain workflow, integration, deployment, dependency, or external-service behavior changed; consolidated visual acceptance remains owned by TAL-96D5.
+
+### 5.10 TAL-96D4B Grades and Student Lifecycle hardening
+
+TAL-96D4B retained the established grade, hold, lifecycle, and graduation rules. The correction is intentionally presentation- and reachability-focused: it does not change the grading formula, lifecycle transaction behavior, role ownership, or Student Hub release boundary.
+
+| Finding | Classification | Disposition |
+|---|---|---|
+| Faculty rosters lacked sufficient course, section, term, status, and completion context | Defect / real gap | Added roster identity, plain-language state, final-grade completion count, clearer submission consequence, and mobile stacking. |
+| Registrar grade actions were spread across a wide row and internal states were exposed | Defect / real gap | Kept the same authorized actions in one responsive action group and formatted state labels for staff. |
+| Lifecycle forms showed enrollment and subject database IDs and the record view printed raw impact JSON | Defect / real gap | Added recognizable selectors and a structured immutable impact section covering affected subjects, schedule assignments, reservations, status, finance, COR, and master-schedule effect. |
+| Graduation member search preloaded only the first 100 Student Profiles | Defect / real gap | Replaced the fixed list with query-backed search by student number or name; snapshot visibility and refresh authorization are unchanged. |
+| Grade, lifecycle, graduation, and directly owned Student tables could hide actions or meaning on narrow screens | Defect / real gap | Applied native Filament mobile stacking and plain-language labels only within the D4B vertical. |
+| A visual redesign of aligned domain workflows | Cosmetic preference | Not performed. Broader Student Hub and cross-role presentation remain D4C and D4D. |
+
+#### 5.10.1 Guarded acceptance-state overlay
+
+The operator command below adds representative grade-roster states, active and resolved holds, two lifecycle decisions, and complete and blocked graduation projections to an already seeded acceptance scenario:
+
+```powershell
+$env:APP_ENV = 'testing'
+$env:DB_CONNECTION = 'mysql'
+$env:DB_DATABASE = 'test_tala_db'
+php artisan acceptance:seed-tal96d4b-states
+```
+
+The command refuses any environment outside testing, MySQL, and `test_tala_db`. It requires an existing acceptance baseline and is safe to repeat: fixed source references and a fixed completion-batch name update the same synthetic records. To keep the Program Shift example truthful to the existing lifecycle rules, it also creates or refreshes one clearly named future, draft, acceptance-only academic year and term; the target curriculum belongs to a different program and includes a representative credit-checklist row. It is not registered in `DatabaseSeeder`, does not select or replace MIN, MIDDLE, or MAX, and does not run CP-SAT. Replacing the persistent acceptance scenario remains a separate destructive, human-gated operation.
+
+#### 5.10.2 Consolidated manual-acceptance handoff
+
+| Case | Role | Prerequisite | Manual check in TAL-96D5 | Expected visible result | Expected record rule |
+|---|---|---|---|---|---|
+| D4B-GR-01 | Faculty | Draft and returned rosters | Select each roster, review context, enter grades, attempt submit | Course, section, term, status, and progress are understandable; incomplete or invalid values are rejected | Saving and submission retain existing grade services and audit behavior. |
+| D4B-GR-02 | Registrar | Submitted, returned, late, and released rosters | Review action menu and open one roster at phone and desktop widths | Return, release, and late authorization remain discoverable without clipped controls | Only authorized state transitions are offered. |
+| D4B-GR-03 | Student | One released and one unreleased grade | Open Grades | Released grade is plain-language and visible; unreleased grade is absent | Student projection remains released-only. |
+| D4B-LC-01 | Registrar | Representative lifecycle records | Open list and record detail; review selectors and impact | Student and affected records are recognizable; consequences are labeled rather than shown as JSON | Immutable stored impact remains unchanged. |
+| D4B-HO-01 | Staff and Student | Active and resolved holds | Compare staff record and Student Holds | Status, message, resolution, next office, and blocking meaning agree | Staff-only reason remains staff-only. |
+| D4B-GR-04 | Registrar and Student | Complete and blocked graduation snapshots | Search for a student beyond the first 100, expose/hide snapshot, then open Completion | Search reaches the record; visibility follows the authorized action; result and required action are readable | Snapshot versions and visibility audit remain authoritative. |
+
+#### 5.10.3 Likely panel questions
+
+| Question | Defense-ready answer |
+|---|---|
+| Did D4B change how grades are calculated? | No. It clarified roster readiness, status, responsive actions, and student-safe labels. The configured grading profile and existing grade services remain unchanged. |
+| Why is lifecycle impact stored but not displayed as JSON? | The immutable snapshot is retained for audit. The interface translates its stable fields into labeled operational consequences so staff can understand what changed without reading an internal data structure. |
+| Can the Registrar find a completion candidate in a large student list? | Yes. The selector now performs query-backed search by student number and name instead of loading only the first 100 profiles. |
+| Does the D4B overlay alter the scheduling benchmark fixture? | No. It is an explicit downstream overlay applied after a guarded acceptance baseline; it neither selects a population scenario nor invokes the solver. |
 
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 

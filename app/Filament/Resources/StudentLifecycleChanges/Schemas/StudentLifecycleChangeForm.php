@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\StudentLifecycleChanges\Schemas;
 
 use App\Models\Course;
+use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use Filament\Forms\Components\DatePicker;
@@ -24,11 +26,29 @@ class StudentLifecycleChangeForm
             ->components([
                 Section::make('Approved Lifecycle Result')
                     ->schema([
-                        Select::make('student_profile_id')->relationship('studentProfile', 'student_number')->searchable()->preload()->required(),
+                        Select::make('student_profile_id')
+                            ->label('Student')
+                            ->relationship('studentProfile', 'student_number')
+                            ->getOptionLabelFromRecordUsing(fn ($record): string => $record->student_number.' — '.$record->last_name.', '.$record->first_name)
+                            ->searchable(['student_number', 'last_name', 'first_name'])
+                            ->preload()
+                            ->helperText('Select the student whose approved status change is being recorded.')
+                            ->required(),
                         Select::make('term_id')->relationship('term', 'label')->searchable()->preload()->required(),
                         Select::make('type')->options(StudentLifecycleChange::typeOptions())->required()->live(),
-                        Select::make('enrollment_id')->relationship('enrollment', 'id')->searchable()->preload(),
-                        Select::make('course_enrollment_id')->relationship('courseEnrollment', 'id')->searchable()->preload()
+                        Select::make('enrollment_id')
+                            ->label('Affected enrollment')
+                            ->relationship('enrollment', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (Enrollment $record): string => $record->displayLabel())
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Required when the action changes an existing term enrollment.'),
+                        Select::make('course_enrollment_id')
+                            ->label('Subject to drop')
+                            ->relationship('courseEnrollment', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (CourseEnrollment $record): string => self::courseEnrollmentLabel($record))
+                            ->searchable()
+                            ->preload()
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeSubjectDrop)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeSubjectDrop),
                         DatePicker::make('requested_on'),
@@ -60,7 +80,11 @@ class StudentLifecycleChangeForm
                             ->live()
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift),
-                        TextInput::make('finance_adjustment')->numeric()->default(0),
+                        TextInput::make('finance_adjustment')
+                            ->label('Finance adjustment (PHP)')
+                            ->helperText('Use 0 when the approved action has no financial adjustment.')
+                            ->numeric()
+                            ->default(0),
                         Repeater::make('credit_entries')
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
@@ -101,5 +125,17 @@ class StudentLifecycleChangeForm
                         Textarea::make('late_exception_reason')->maxLength(2000),
                     ])->columns(2)->collapsed(),
             ]);
+    }
+
+    private static function courseEnrollmentLabel(CourseEnrollment $courseEnrollment): string
+    {
+        $courseEnrollment->loadMissing('termOffering.curriculumEntry.courseSpecification.course');
+        $specification = $courseEnrollment->termOffering?->curriculumEntry?->courseSpecification;
+
+        return collect([
+            $specification?->course?->code,
+            $specification?->title,
+            str((string) $courseEnrollment->status)->headline()->toString(),
+        ])->filter()->implode(' — ');
     }
 }

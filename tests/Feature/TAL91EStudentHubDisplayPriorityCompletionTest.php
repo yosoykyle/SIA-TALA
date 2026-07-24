@@ -325,7 +325,10 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
         [$student, $profile] = $this->studentWithProfile();
         $program = Program::factory()->create(['code' => fake()->unique()->bothify('BSIT####')]);
         $profile->forceFill(['program_id' => $program->id])->save();
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),

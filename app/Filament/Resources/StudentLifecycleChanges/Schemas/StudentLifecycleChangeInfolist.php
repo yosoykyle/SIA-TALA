@@ -33,9 +33,33 @@ class StudentLifecycleChangeInfolist
                     TextEntry::make('state')->label('Evaluation State')->badge(),
                     TextEntry::make('impact_snapshot.finance_adjustment')->label('Recorded Fee Impact')->placeholder('0'),
                 ])->columns(3)->visible(fn ($record): bool => $record?->type === StudentLifecycleChange::TypeProgramShift),
-                Section::make('Immutable Impact Preview')->schema([
-                    TextEntry::make('impact_snapshot')->formatStateUsing(fn (array $state): string => json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES))->columnSpanFull(),
-                ]),
+                Section::make('Recorded Operational Impact')
+                    ->description('This is the immutable result calculated when the approved action was recorded.')
+                    ->schema([
+                        TextEntry::make('impact_snapshot.course_enrollment_ids')
+                            ->label('Affected subjects')
+                            ->state(fn (StudentLifecycleChange $record): string => count((array) data_get($record->impact_snapshot, 'course_enrollment_ids', [])).' subject enrollment(s)'),
+                        TextEntry::make('impact_snapshot.binding_ids')
+                            ->label('Schedule assignments released')
+                            ->state(fn (StudentLifecycleChange $record): string => count((array) data_get($record->impact_snapshot, 'binding_ids', [])).' assignment(s)'),
+                        TextEntry::make('impact_snapshot.reservation_ids')
+                            ->label('Seat reservations released')
+                            ->state(fn (StudentLifecycleChange $record): string => count((array) data_get($record->impact_snapshot, 'reservation_ids', [])).' reservation(s)'),
+                        TextEntry::make('impact_snapshot.profile_status_after')
+                            ->label('Student status after action')
+                            ->formatStateUsing(fn (?string $state): string => filled($state) ? str((string) $state)->headline()->toString() : 'Unchanged'),
+                        TextEntry::make('impact_snapshot.finance_adjustment')
+                            ->label('Recorded finance adjustment')
+                            ->money('PHP'),
+                        TextEntry::make('impact_snapshot.cor_available_after')
+                            ->label('COR availability after action')
+                            ->formatStateUsing(fn (mixed $state): string => (bool) $state ? 'Available' : 'Unavailable'),
+                        TextEntry::make('impact_snapshot.master_schedule_changes')
+                            ->label('Master schedule changes')
+                            ->state(fn (StudentLifecycleChange $record): string => ((int) data_get($record->impact_snapshot, 'master_schedule_changes', 0) === 0)
+                                ? 'None — the published master schedule is unchanged'
+                                : (int) data_get($record->impact_snapshot, 'master_schedule_changes').' change(s)'),
+                    ])->columns(2),
                 Section::make('Program Shift Credit Checklist')->schema([
                     RepeatableEntry::make('programShiftCredits')->schema([
                         TextEntry::make('curriculumEntry.courseSpecification.course.code')->label('Target Course'),

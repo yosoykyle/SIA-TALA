@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GraduationReviewBatches\Tables;
 
 use App\Models\GraduationReviewBatch;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -34,8 +35,11 @@ class GraduationReviewBatchesTable
                 ]),
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-            ]);
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                ])->tooltip('Completion review batch actions'),
+            ])
+            ->stackedOnMobile();
     }
 }

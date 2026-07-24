@@ -7,6 +7,7 @@ use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\StudentProfile;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -31,15 +32,32 @@ class MembersRelationManager extends RelationManager
         return $schema->components([
             Select::make('student_profile_id')
                 ->label('Student')
-                ->options(fn (): array => StudentProfile::query()
-                    ->orderBy('student_number')
-                    ->limit(100)
-                    ->get()
-                    ->mapWithKeys(fn (StudentProfile $profile): array => [$profile->id => $profile->student_number.' - '.$profile->last_name.', '.$profile->first_name])
-                    ->all())
                 ->searchable()
+                ->getSearchResultsUsing(fn (string $search): array => self::searchableStudentOptions($search))
+                ->getOptionLabelUsing(function (mixed $value): ?string {
+                    $profile = StudentProfile::query()->find($value);
+
+                    return $profile instanceof StudentProfile ? self::studentOptionLabel($profile) : null;
+                })
+                ->helperText('Search by student number, first name, or last name.')
                 ->required(),
         ]);
+    }
+
+    /** @return array<int, string> */
+    public static function searchableStudentOptions(string $search): array
+    {
+        return StudentProfile::query()
+            ->where(function ($query) use ($search): void {
+                $query->where('student_number', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%");
+            })
+            ->orderBy('student_number')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (StudentProfile $profile): array => [$profile->id => self::studentOptionLabel($profile)])
+            ->all();
     }
 
     public function table(Table $table): Table
@@ -77,94 +95,97 @@ class MembersRelationManager extends RelationManager
                     }),
             ])
             ->recordActions([
-                Action::make('refreshSnapshot')
-                    ->label('Refresh Snapshot')
-                    ->authorize('refreshSnapshot')
-                    ->action(function (GraduationReviewMember $record): void {
-                        app(GraduationEligibilitySnapshotService::class)->generate($record, auth()->user());
-                        Notification::make()->title('Snapshot refreshed')->success()->send();
-                    }),
-                Action::make('makeVisible')
-                    ->label('Expose to Student')
-                    ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
-                    ->schema([
-                        Textarea::make('visibility_reason')
-                            ->required()
-                            ->maxLength(2000),
-                    ])
-                    ->action(function (array $data, GraduationReviewMember $record): void {
-                        $snapshot = $this->latestSnapshot($record);
-                        Gate::authorize('updateVisibility', $snapshot);
-                        $visibleBefore = $snapshot->made_visible_at !== null;
+                ActionGroup::make([
+                    Action::make('refreshSnapshot')
+                        ->label('Refresh Snapshot')
+                        ->authorize('refreshSnapshot')
+                        ->action(function (GraduationReviewMember $record): void {
+                            app(GraduationEligibilitySnapshotService::class)->generate($record, auth()->user());
+                            Notification::make()->title('Snapshot refreshed')->success()->send();
+                        }),
+                    Action::make('makeVisible')
+                        ->label('Expose to Student')
+                        ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
+                        ->schema([
+                            Textarea::make('visibility_reason')
+                                ->required()
+                                ->maxLength(2000),
+                        ])
+                        ->action(function (array $data, GraduationReviewMember $record): void {
+                            $snapshot = $this->latestSnapshot($record);
+                            Gate::authorize('updateVisibility', $snapshot);
+                            $visibleBefore = $snapshot->made_visible_at !== null;
 
-                        $snapshot->update([
-                            'made_visible_by' => auth()->id(),
-                            'made_visible_at' => now(),
-                            'visibility_reason' => $data['visibility_reason'],
-                        ]);
-
-                        activity()
-                            ->performedOn($snapshot)
-                            ->causedBy(auth()->user())
-                            ->event('graduation_snapshot_visibility_changed')
-                            ->withProperties([
-                                'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                            $snapshot->update([
+                                'made_visible_by' => auth()->id(),
+                                'made_visible_at' => now(),
                                 'visibility_reason' => $data['visibility_reason'],
-                                'visible_before' => $visibleBefore,
-                                'visible_after' => true,
-                            ])
-                            ->log('Graduation Eligibility Snapshot made visible to student');
+                            ]);
 
-                        Notification::make()->title('Snapshot visibility updated')->success()->send();
-                    }),
-                Action::make('hideVisible')
-                    ->label('Hide from Student')
-                    ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
-                    ->requiresConfirmation()
-                    ->visible(fn (GraduationReviewMember $record): bool => $record->latestSnapshot?->made_visible_at !== null)
-                    ->action(function (GraduationReviewMember $record): void {
-                        $snapshot = $this->latestSnapshot($record);
-                        Gate::authorize('updateVisibility', $snapshot);
-                        $visibilityReason = 'Hidden by Registrar.';
+                            activity()
+                                ->performedOn($snapshot)
+                                ->causedBy(auth()->user())
+                                ->event('graduation_snapshot_visibility_changed')
+                                ->withProperties([
+                                    'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                                    'visibility_reason' => $data['visibility_reason'],
+                                    'visible_before' => $visibleBefore,
+                                    'visible_after' => true,
+                                ])
+                                ->log('Graduation Eligibility Snapshot made visible to student');
 
-                        $snapshot->update([
-                            'made_visible_by' => auth()->id(),
-                            'made_visible_at' => null,
-                            'visibility_reason' => $visibilityReason,
-                        ]);
+                            Notification::make()->title('Snapshot visibility updated')->success()->send();
+                        }),
+                    Action::make('hideVisible')
+                        ->label('Hide from Student')
+                        ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
+                        ->requiresConfirmation()
+                        ->visible(fn (GraduationReviewMember $record): bool => $record->latestSnapshot?->made_visible_at !== null)
+                        ->action(function (GraduationReviewMember $record): void {
+                            $snapshot = $this->latestSnapshot($record);
+                            Gate::authorize('updateVisibility', $snapshot);
+                            $visibilityReason = 'Hidden by Registrar.';
 
-                        activity()
-                            ->performedOn($snapshot)
-                            ->causedBy(auth()->user())
-                            ->event('graduation_snapshot_visibility_changed')
-                            ->withProperties([
-                                'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                            $snapshot->update([
+                                'made_visible_by' => auth()->id(),
+                                'made_visible_at' => null,
                                 'visibility_reason' => $visibilityReason,
-                                'visible_before' => true,
-                                'visible_after' => false,
-                            ])
-                            ->log('Graduation Eligibility Snapshot hidden from student');
+                            ]);
 
-                        Notification::make()->title('Snapshot hidden from Student Hub')->success()->send();
-                    }),
-                DeleteAction::make()
-                    ->action(function (GraduationReviewMember $record): bool {
-                        $updated = $record->update(['is_active' => false]);
+                            activity()
+                                ->performedOn($snapshot)
+                                ->causedBy(auth()->user())
+                                ->event('graduation_snapshot_visibility_changed')
+                                ->withProperties([
+                                    'graduation_review_member_id' => $snapshot->graduation_review_member_id,
+                                    'visibility_reason' => $visibilityReason,
+                                    'visible_before' => true,
+                                    'visible_after' => false,
+                                ])
+                                ->log('Graduation Eligibility Snapshot hidden from student');
 
-                        activity()
-                            ->performedOn($record)
-                            ->causedBy(auth()->user())
-                            ->event('graduation_review_member_removed')
-                            ->withProperties([
-                                'graduation_review_batch_id' => $record->graduation_review_batch_id,
-                                'student_profile_id' => $record->student_profile_id,
-                                'is_active_after' => false,
-                            ])
-                            ->log('Graduation Review member removed');
+                            Notification::make()->title('Snapshot hidden from Student Hub')->success()->send();
+                        }),
+                    DeleteAction::make()
+                        ->action(function (GraduationReviewMember $record): bool {
+                            $updated = $record->update(['is_active' => false]);
 
-                        return $updated;
-                    }),
+                            activity()
+                                ->performedOn($record)
+                                ->causedBy(auth()->user())
+                                ->event('graduation_review_member_removed')
+                                ->withProperties([
+                                    'graduation_review_batch_id' => $record->graduation_review_batch_id,
+                                    'student_profile_id' => $record->student_profile_id,
+                                    'is_active_after' => false,
+                                ])
+                                ->log('Graduation Review member removed');
+
+                            return $updated;
+                        }),
+                ])->tooltip('Completion review actions'),
             ])
+            ->stackedOnMobile()
             ->toolbarActions([
                 BulkAction::make('refreshSelectedSnapshots')
                     ->label('Refresh Selected Snapshots')
@@ -198,5 +219,10 @@ class MembersRelationManager extends RelationManager
         }
 
         return auth()->user()?->can('updateVisibility', $snapshot) ?? false;
+    }
+
+    private static function studentOptionLabel(StudentProfile $profile): string
+    {
+        return $profile->student_number.' — '.$profile->last_name.', '.$profile->first_name;
     }
 }

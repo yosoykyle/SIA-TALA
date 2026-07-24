@@ -13,7 +13,7 @@
                         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Snapshot version {{ $this->snapshot->version }} generated {{ optional($this->snapshot->generated_at)->format('M d, Y g:i A') }}.</p>
                     </div>
                     <span class="inline-flex w-fit rounded-md bg-warning-50 px-2 py-1 text-sm font-medium text-warning-700 dark:bg-warning-400/10 dark:text-warning-300">
-                        {{ $this->projection['result_status'] ?? $this->snapshot->result_status }}
+                        {{ str($this->projection['result_status'] ?? $this->snapshot->result_status)->headline() }}
                     </span>
                 </div>
             </div>

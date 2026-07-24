@@ -37,8 +37,16 @@ class GradesView extends Page implements HasTable
                         ->displayGrade($state, $record->current_outcome_category))
                     ->badge(),
                 TextColumn::make('current_outcome_category')->label('Status')->badge(),
+                TextColumn::make('inc_deadline')
+                    ->label('INC Deadline')
+                    ->state(fn (GradeRosterRow $record): mixed => $record->current_outcome_category === GradeRosterRow::CategoryIncomplete
+                        ? $record->outcomeEvents()->latest('id')->value('deadline')
+                        : null)
+                    ->date()
+                    ->placeholder('Not applicable'),
                 TextColumn::make('released_at')->label('Released')->dateTime(),
             ])
+            ->stackedOnMobile()
             ->emptyStateHeading('No grades available')
             ->emptyStateDescription('Grades will appear here after posting and release.')
             ->emptyStateIcon('heroicon-o-clipboard-document-list');

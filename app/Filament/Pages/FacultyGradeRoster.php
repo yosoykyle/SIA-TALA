@@ -54,6 +54,8 @@ class FacultyGradeRoster extends Page implements HasTable
     {
         return $table
             ->query($this->rowsQuery())
+            ->heading(fn (): string => $this->selectedRosterHeading())
+            ->description(fn (): string => $this->selectedRosterDescription())
             ->columns([
                 TextColumn::make('courseEnrollment.enrollment.studentProfile.student_number')
                     ->label('Student No.')
@@ -77,7 +79,12 @@ class FacultyGradeRoster extends Page implements HasTable
                     ->rules(['nullable', 'numeric', 'min:0', 'max:100'])
                     ->updateStateUsing(fn (GradeRosterRow $record, mixed $state) => app(SaveGradeRosterPeriodEquivalent::class)->execute($record, 'final', $state, auth()->user())),
                 TextColumn::make('computed_average')->label('Average'),
-                TextColumn::make('current_outcome_code')->label('Outcome')->badge(),
+                TextColumn::make('current_outcome_code')
+                    ->label('Outcome')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'Pending final grade')
+                    ->badge(),
             ])
             ->headerActions([
                 Action::make('selectRoster')
@@ -103,6 +110,9 @@ class FacultyGradeRoster extends Page implements HasTable
                         Notification::make()->title('Grade roster selected')->success()->send();
                     }),
                 Action::make('submit')
+                    ->label('Submit for Registrar Review')
+                    ->modalHeading('Submit this grade roster?')
+                    ->modalDescription('The Registrar will review the completed roster before grades are posted and released to students.')
                     ->requiresConfirmation()
                     ->visible(fn (): bool => $this->rosterId !== null)
                     ->action(function (): void {
@@ -110,6 +120,7 @@ class FacultyGradeRoster extends Page implements HasTable
                         Notification::make()->title('Grade roster submitted')->success()->send();
                     }),
             ])
+            ->stackedOnMobile()
             ->emptyStateHeading('No active grade roster')
             ->emptyStateDescription('Assigned draft or returned grade rosters appear here during an encoding window.');
     }
@@ -132,7 +143,7 @@ class FacultyGradeRoster extends Page implements HasTable
     private function assignedRosterOptions(): array
     {
         return GradeRoster::query()
-            ->with(['termOffering.term', 'section'])
+            ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
             ->where('faculty_user_id', auth()->id())
             ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
             ->orderByDesc('id')
@@ -141,9 +152,58 @@ class FacultyGradeRoster extends Page implements HasTable
                 $roster->id => collect([
                     $roster->termOffering?->term?->label,
                     $roster->section?->code,
-                    $roster->state,
+                    $roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+                    str((string) $roster->state)->headline()->toString(),
                 ])->filter()->implode(' / '),
             ])
             ->all();
+    }
+
+    private function selectedRosterHeading(): string
+    {
+        $roster = $this->selectedRoster();
+
+        if (! $roster instanceof GradeRoster) {
+            return 'Grade encoding workspace';
+        }
+
+        $specification = $roster->termOffering?->curriculumEntry?->courseSpecification;
+        $course = $specification?->course;
+
+        return collect([$course?->code, $specification?->title, $roster->section?->code])
+            ->filter()
+            ->implode(' — ');
+    }
+
+    private function selectedRosterDescription(): string
+    {
+        $roster = $this->selectedRoster();
+
+        if (! $roster instanceof GradeRoster) {
+            return 'Select an assigned roster to encode grades.';
+        }
+
+        $total = $roster->rows()->count();
+        $completed = $roster->rows()->whereNotNull('final_equivalent')->count();
+
+        return sprintf(
+            '%s · %s · %d of %d students have final grades entered.',
+            $roster->termOffering?->term->label ?? 'Term not recorded',
+            str((string) $roster->state)->headline()->toString(),
+            $completed,
+            $total,
+        );
+    }
+
+    private function selectedRoster(): ?GradeRoster
+    {
+        if ($this->rosterId === null) {
+            return null;
+        }
+
+        return GradeRoster::query()
+            ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
+            ->where('faculty_user_id', auth()->id())
+            ->find($this->rosterId);
     }
 }
