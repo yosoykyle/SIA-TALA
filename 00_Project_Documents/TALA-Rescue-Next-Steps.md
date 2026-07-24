@@ -24,11 +24,15 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D3B | Done locally; pending explicit Linear sync; consolidated manual acceptance deferred to TAL-96D5 | Enrollment Window, Proposal, and Placement Hardening plus truthful final-state handling, responsive action controls, and a plain-language enrollment information hierarchy. |
 | TAL-96D3C | Done locally; pending explicit Linear sync | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening. |
 | TAL-96D3D | Done locally; pending explicit Linear sync | Official Enrollment, Current COR/Schedule, Hold, Modality, and Cross-Role Comprehensibility Hardening. |
-| TAL-96D4 | Planned; depends on TAL-96D3D | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
+| TAL-96D4 | Approved revised split; depends on TAL-96D3D | Cross-role UI/UX hardening parent covering the system-wide UX foundation, Grades and Lifecycle, Student Hub and generated outputs, and Bootstrap landing-page refinement. |
+| TAL-96D4A | Done locally; pending explicit Linear sync | System-Wide UX Foundation and Error Handling. |
+| TAL-96D4B | Planned; depends on TAL-96D4A | Grades and Student Lifecycle Hardening. |
+| TAL-96D4C | Planned; depends on TAL-96D4B | Student Hub, Reports, Generated Outputs, and Notification Presentation. |
+| TAL-96D4D | Planned; depends on TAL-96D4C | Bootstrap Landing Page and Cross-Role Consistency Closure. |
 | TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, targeted population/configuration and cost evaluation, deployment-readiness gate, CP-SAT evidence synchronization, and the consolidated System Operations and Defense Guide. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
 
-Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B implementation/automated verification -> standalone TAL-96D2C faculty-evidence reconciliation -> refreshed MIN baseline -> TAL-96D3B manual acceptance finding -> TAL-96D3B remediation and automated reverification -> TAL-96D3C -> TAL-96D3D -> TAL-96D4 -> TAL-96D5 consolidated manual acceptance and benchmark -> TAL-97`. Each D3 and D4 slice maintains its scenarios in the consolidated acceptance table, but the user executes the complete walkthrough once in TAL-96D5 unless an earlier human-only gate requires a bounded sample. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment and cutover remain outside this split.
+Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B implementation/automated verification -> standalone TAL-96D2C faculty-evidence reconciliation -> refreshed MIN baseline -> TAL-96D3B manual acceptance finding -> TAL-96D3B remediation and automated reverification -> TAL-96D3C -> TAL-96D3D -> TAL-96D4A -> TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5 consolidated manual acceptance and benchmark -> TAL-97`. Each D3 and D4 sub-slice maintains its scenarios in the consolidated acceptance table, but the user executes the complete walkthrough once in TAL-96D5 unless an earlier human-only gate requires a bounded sample. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment and cutover remain outside this split.
 
 The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
 
@@ -48,6 +52,6 @@ Approved compact dispositions: preserve aligned implementation; fix only evidenc
 
 No work outside the listed issues is approved or implied. Any additional institutional feature, UI plugin, or infrastructure enhancement must pass the protocol gates and receive an explicit Next Steps issue before implementation.
 
-### Next Boundary
+## Next Planning Boundary
 
-Next primary boundary: **`Plan TAL-96D4`**. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
+Next primary boundary: **`Plan TAL-96D4B`**. TAL-96D4B remains unapproved until its Ground-Truth Gate and implementation plan are presented and accepted. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.

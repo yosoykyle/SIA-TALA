@@ -78,7 +78,7 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             ->emailVerification()
             ->profile()
-            ->brandName('T.A.L.A. System')
+            ->brandName('TALA Staff Workspace')
             ->brandLogo(asset('talalogo.png'))
             ->colors([
                 'primary' => Color::Blue,

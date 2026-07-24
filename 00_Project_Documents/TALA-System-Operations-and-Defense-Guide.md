@@ -712,6 +712,46 @@ The named D3D scenarios cover active-term resolution, absence of a current offic
 | Is modality chosen for the Student? | No. Modality belongs to each subject offering. A Student can naturally have a Mixed week when some enrolled subjects are Online and others are Face-to-Face. |
 | Why does the system log output access? | COR and schedules are sensitive Student records. The log identifies the source Enrollment, actor, role, action, copy context, schedule version, and time without creating a second editable copy of the output. |
 
+### 5.9 System-wide workspace identity and browser failure recovery
+
+TALA presents four consistent entry surfaces: the public site, Applicant Workspace, Student Hub, and Staff Workspace. The `/admin` route is the technical route for the Staff Workspace; staff should not be instructed to look for a separate product called “T.A.L.A. System.”
+
+When a browser request cannot be completed, the error page preserves the real HTTP status and gives a safe recovery step:
+
+| Status | Meaning in plain language | Operator or user response |
+| --- | --- | --- |
+| `403 Access not allowed` | The account is authenticated or known but lacks permission for the requested surface | Use the workspace assigned to the account's role; contact the responsible office if access should exist |
+| `404 Page not found` | The link is wrong, moved, or points to a record no longer available | Reopen the item from TALA navigation rather than repeatedly using the old link |
+| `419 Session expired` | The protected browser session or CSRF token is no longer valid | Return to TALA, sign in again, and repeat the action once |
+| `429 Too many requests` | Protective request limiting is active | Pause before retrying; do not repeatedly refresh or submit |
+| `500 Something went wrong` | An unexpected application error prevented completion | Retry once; if it persists, record the attempted action and contact the system administrator |
+| `503 Service temporarily unavailable` | Maintenance or a service interruption is preventing access | Wait a few minutes and retry |
+| Other `4xx` or `5xx` | A safe family-level fallback handled the error | Follow the page's return and escalation guidance |
+
+The HTML pages intentionally do not display raw exception messages, paths, queries, or stack details. This does not conceal operational evidence from administrators: server-side logging remains authoritative. JSON/API callers continue to receive Laravel's JSON error response, and Livewire or Filament validation remains attached to the form or action that produced it.
+
+#### 5.9.1 Change-control classification
+
+| Finding | Classification | Disposition |
+| --- | --- | --- |
+| The three registered panels, logo, palette, Auth Designer integration, and native Filament feedback patterns already work | Aligned | Preserved |
+| `/admin` displayed `T.A.L.A. System` while the PRD and UI blueprint call it Staff Workspace | Defect / real gap | Renamed only the Admin panel brand to `TALA Staff Workspace` |
+| No application-owned browser error templates existed | Required but unbuilt | Added the Laravel status-specific and fallback templates with one shared accessible layout |
+| A custom theme, global exception-response rewrite, or mass domain-resource restyling | Cosmetic preference or unjustified expansion | Not introduced; later D4 slices retain their domain ownership |
+
+#### 5.9.2 Likely panel questions
+
+| Question | Defense-ready answer |
+| --- | --- |
+| Why customize error pages? | A production-facing SIS must tell a user what happened and what to do next without exposing internal diagnostics or sending them to an unrelated framework page. |
+| Do the custom pages change API behavior? | No. They customize browser HTML views through Laravel's documented error-view convention. Laravel still negotiates JSON responses for API clients. |
+| Why is the staff route still `/admin`? | The route is an internal technical identifier. `TALA Staff Workspace` is the user-facing identity shared by Registrar, Accounting, Faculty, Academic Head, and System Super Admin roles. |
+| Where are detailed failures investigated? | Users receive safe recovery guidance; authorized operators investigate server logs and the owning workflow's audit or operational records. |
+
+#### 5.9.3 Programmatic evidence
+
+`TAL96D4ASystemUxFoundationTest` passes 12 scenarios with 84 assertions. It covers the six named statuses, both fallback families, a genuinely unmatched route, safe HTML content, the recovery action and static stylesheet, preserved JSON negotiation, the canonical Admin panel brand, and contrast thresholds for actions and keyboard-focus indicators in light and dark themes. The three directly affected public-auth, role-aware landing, and panel-access regression files pass 53 tests with 101 assertions against the proven `APP_ENV=testing`, MySQL, `test_tala_db` target. Blade template compilation, Laravel Pint, scoped PHPStan/Larastan, Serena diagnostics, and `git diff --check` also pass. No schema, domain workflow, integration, deployment, dependency, or external-service behavior changed; consolidated visual acceptance remains owned by TAL-96D5.
+
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 
 D1 compares the PRD, database contract, current actions, tests, Git history, and rendered surfaces. A gap listed here is not evidence that the whole application is wrong. It identifies the smallest boundary that must be corrected or proved in its owning vertical slice.

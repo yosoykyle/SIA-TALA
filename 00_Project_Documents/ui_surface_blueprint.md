@@ -99,6 +99,24 @@ Filament v5 implementation conventions:
 7. Bulk actions are used only when the same authorized decision can safely apply to every selected record.
 8. Native confirmation modals and Filament notifications provide action feedback.
 
+### System-wide failure and workspace identity
+
+TALA uses one product identity across its four entry surfaces: the public site, `TALA Applicant Workspace`, `TALA Student Hub`, and `TALA Staff Workspace`. The Staff Workspace label is the canonical name for `/admin`; technical panel IDs and route prefixes do not appear as user-facing product names.
+
+Browser requests that end in an HTTP failure use a shared TALA presentation contract:
+
+| Failure | User-facing meaning | Recovery guidance |
+| --- | --- | --- |
+| `403` | The signed-in account is not permitted to open the page or action | Return to the correct role workspace or contact the responsible office |
+| `404` | The page, link, or record is unavailable | Check the address and reopen the item through workspace navigation |
+| `419` | The protected session expired | Return, sign in again, and repeat the action once |
+| `429` | Requests were temporarily limited | Wait before retrying and avoid repeated refresh or submission |
+| `500` | An unexpected application error prevented completion | Retry once; if it persists, report the action to the system administrator |
+| `503` | The service is temporarily unavailable | Wait and retry later |
+| Other `4xx` / `5xx` | Safe client-error or service-error fallback | Return to TALA and follow the stated recovery step |
+
+These pages identify the status in text, never rely on color alone, expose no internal exception message, remain usable at a narrow viewport, and provide a keyboard-visible recovery action with at least a 44-pixel target. Laravel continues to own content negotiation: JSON/API requests receive framework JSON errors, while the branded templates apply to browser HTML responses. Domain-specific validation, action notifications, and Livewire errors remain on their owning surfaces rather than being replaced by generic HTTP pages.
+
 ## Panel and Navigation Map
 
 ### Applicant Workspace

@@ -30,6 +30,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D3B | Done locally; pending explicit Linear sync | Enrollment Window, Proposal, Placement, Final-State, and Responsive Presentation Hardening |
 | TAL-96D3C | Done locally; pending explicit Linear sync | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening |
 | TAL-96D3D | Done locally; pending explicit Linear sync | Official Enrollment, Current COR/Schedule, Hold, Modality, and Cross-Role Comprehensibility Hardening |
+| TAL-96D4A | Done locally; pending explicit Linear sync | System-Wide UX Foundation and Error Handling |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

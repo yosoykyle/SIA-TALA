@@ -25,6 +25,7 @@
     - [Why Filament and Livewire Were Selected](#71-why-filament-and-livewire-were-selected)
     - [Why a Separate SPA Was Not Selected](#72-why-a-separate-spa-was-not-selected)
     - [Authorization Rule](#73-authorization-rule)
+    - [Browser Failure Presentation Boundary](#74-browser-failure-presentation-boundary)
 8. [Security and Trust Boundaries](#8-security-and-trust-boundaries)
 9. [External Integrations](#9-external-integrations)
     - [Constraint Programming–Satisfiability (CP-SAT) Scheduling Service](#91-cp-sat-scheduling-service)
@@ -305,6 +306,12 @@ The selected server-driven UI reduces those boundaries. It is not inherently mor
 ### 7.3 Authorization Rule
 
 Navigation visibility is a usability control, not authorization. Panel access, resource operations, custom pages, actions, queries, downloads, and output access must be protected by policies or explicit authorization. Filament rechecks authorization during Livewire requests, while TALA's actions and services still enforce domain-specific rules.
+
+### 7.4 Browser Failure Presentation Boundary
+
+Laravel's exception pipeline remains the response authority. TALA supplies status-specific Blade views for `403`, `404`, `419`, `429`, `500`, and `503`, together with `4xx` and `5xx` fallbacks. The templates share one dependency-light layout and static stylesheet so a failure page does not depend on the Vite or Livewire runtime that may itself be unavailable. They state what happened and the safe next action without rendering exception details.
+
+This is a presentation boundary, not a global exception transformation. Laravel content negotiation continues to produce JSON for API or JSON-expecting requests, Livewire retains its framework response lifecycle, and domain validation remains on the relevant Filament form or action. The browser pages do not change status codes, authorization, sessions, transactions, logging, or retry policy.
 
 ---
 

@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to:** `TAL-96D3 -> TAL-96D4 -> TAL-96D5`
+**Applies to remaining work:** `TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5`
 
-**Next execution boundary:** `Plan TAL-96D3D`
+**Next execution boundary:** `Plan TAL-96D4B`
 
 ## 1. Purpose
 
@@ -85,6 +85,17 @@ Primary and record actions must remain discoverable and operable at representati
 Focused automated verification remains mandatory in the slice that changes the behavior. Earlier user-led manual execution is required only when an unresolved visual decision, product-authority question, or other human-only gate cannot be settled safely from code and programmatic evidence, or when the user explicitly requests an early sample. Otherwise, the slice may enter Cleanup after its focused verification passes and its scenarios are added to the consolidated acceptance table, with user-led execution explicitly deferred to TAL-96D5.
 
 TAL-96D4 owns final cross-role UI/UX consistency. TAL-96D5 owns the one consolidated user-led walkthrough and combined adversarial acceptance. A TAL-96D5 failure opens a bounded remediation for the failed journey and repeats only the affected acceptance cases; it does not automatically repeat every completed walkthrough.
+
+### 4.2 TAL-96D4 UX Scope Amendment
+
+TAL-96D4 is divided into four sequential sub-slices so that shared presentation rules, domain workflows, generated outputs, and the public landing page can be verified without mixing unrelated responsibilities:
+
+1. `TAL-96D4A` establishes the system-wide UX foundation: plain-language hierarchy, responsive Filament actions and tables, accessible loading/empty/success/failure/recovery states, validation feedback, and branded browser error pages that preserve API and framework response behavior.
+2. `TAL-96D4B` hardens the Grades and Student Lifecycle journeys from faculty or staff action through student-facing projection.
+3. `TAL-96D4C` hardens Student Hub, reports, CSV semantics, authenticated generated outputs, and code-defined notification presentation without reopening aligned source-of-truth workflows.
+4. `TAL-96D4D` refines the isolated Bootstrap landing page and performs the final cross-role presentation-consistency closure while preserving the approved landing sections, navigation style, and bottom blur strip.
+
+Native Filament v5 and the existing isolated Bootstrap assets remain the default. No UI dependency or plugin is added without a proven capability gap and a separately approved plan revision. Confirmation is required for destructive or consequential actions, but undo or restore is offered only where the existing domain model supports a safe reversal. CSV coherence concerns headings, field order, formatting, encoding, filenames, authorization, and audit evidence rather than visual branding. Database-editable notification templates remain deferred to `TAL-100`.
 
 ## 5. Required Coverage
 
@@ -278,7 +289,11 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D2B | Academic period, program, course catalog, curriculum, and import correctness; establish stable three-year academic inputs | No Cloud capacity benchmark |
 | TAL-96D2C | Offerings, sections, faculty, rooms, operating grid, scheduling readiness, and executable `MIN`/`MIDDLE`/`MAX` scenarios with workload manifests | No Cloud capacity benchmark |
 | TAL-96D3 | Candidate scheduling, publication, enrollment, finance, COR, PayMongo, queue, ledger, and integration-state hardening | At most a separately authorized functional solve when needed; no population capacity study |
-| TAL-96D4 | Grades, lifecycle, Student Hub, reports, cross-role projection, UI/UX consistency, and adversarial scenario coverage | No population capacity study |
+| TAL-96D4 | Cross-role UI/UX hardening parent for the four approved D4 sub-slices | No population capacity study |
+| TAL-96D4A | System-wide UX foundation, responsive interaction controls, validation and feedback states, and branded browser error handling | No population capacity study |
+| TAL-96D4B | Grades and Student Lifecycle vertical hardening, including faculty/staff action and student-facing projection | No population capacity study |
+| TAL-96D4C | Student Hub, reports, CSV semantics, authenticated generated outputs, and code-defined notification presentation | No population capacity study |
+| TAL-96D4D | Isolated Bootstrap landing-page refinement and final cross-role presentation-consistency closure | No population capacity study |
 | TAL-96D5 | Final adversarial acceptance, targeted population/configuration evaluation, deployment-readiness review, research evidence synchronization, and consolidated guide | Owns authorized population capacity and cost evaluation |
 
 Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained manual acceptance scenarios, and Cleanup. User-led execution of those scenarios is consolidated in TAL-96D5 unless an earlier human-only gate requires a bounded sample.
