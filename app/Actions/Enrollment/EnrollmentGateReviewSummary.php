@@ -34,10 +34,6 @@ class EnrollmentGateReviewSummary
         $recordedByGate = [];
 
         foreach ($enrollment->gateResults->sortByDesc('sequence') as $gateResult) {
-            if (! $gateResult instanceof EnrollmentGateResult) {
-                continue;
-            }
-
             $gateType = $gateResult->getAttribute('gate_type');
 
             if (is_string($gateType) && ! isset($recordedByGate[$gateType])) {
@@ -124,6 +120,29 @@ class EnrollmentGateReviewSummary
         $blockingRow = $this->blockingRow($enrollment);
 
         return $blockingRow['office_label'] ?? 'No blocking office';
+    }
+
+    public function nextStep(Enrollment $enrollment): string
+    {
+        return match ($enrollment->status) {
+            'officially_enrolled' => 'Enrollment is official. No further enrollment processing is required.',
+            'cancelled' => 'Enrollment is cancelled. Review the recorded reason before advising the student.',
+            'dropped' => 'Enrollment is dropped. Review the recorded reason and lifecycle record.',
+            'withdrawn' => 'Enrollment is withdrawn. Review the recorded reason and lifecycle record.',
+            'pending_payment' => 'Complete or reconcile the required assessment and payment.',
+            'capacity_pending' => 'Confirm a published section with available capacity.',
+            'ready_for_official_enrollment' => 'Record official enrollment after the final gate review.',
+            default => $this->compactStatus($enrollment),
+        };
+    }
+
+    public function responsibleOffice(Enrollment $enrollment): string
+    {
+        return match ($enrollment->status) {
+            'officially_enrolled', 'cancelled', 'dropped', 'withdrawn' => 'Registrar Office',
+            'pending_payment' => 'Accounting Office',
+            default => $this->compactResponsibleOffice($enrollment),
+        };
     }
 
     /**

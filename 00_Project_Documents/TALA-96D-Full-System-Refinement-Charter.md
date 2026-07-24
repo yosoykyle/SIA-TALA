@@ -4,7 +4,7 @@
 
 **Applies to:** `TAL-96D3 -> TAL-96D4 -> TAL-96D5`
 
-**Next planning boundary:** `Plan TAL-96D3`
+**Next execution boundary:** `Plan TAL-96D3C`
 
 ## 1. Purpose
 
@@ -66,6 +66,25 @@ Each journey is examined vertically in this order:
 10. the authoritative output visible to the user.
 
 The plan for each slice must map existing coverage before proposing changes. Missing cases should first become named PHPUnit or Livewire scenarios. Native Laravel, Livewire, and Filament v5 behavior is preferred. New dependencies and broad redesigns remain out of scope unless separately approved.
+
+### 4.1 Comprehensibility and Responsive Acceptance Contract
+
+Programmatic verification is necessary but cannot by itself prove that a user can understand or operate a surface. Each remaining slice must therefore define and maintain its manual acceptance scenarios while implementing the journey, but the user executes the complete consolidated walkthrough once in TAL-96D5 after the D3 and D4 refinements are stable.
+
+For each retained list, record, form, action, and cross-role projection, the implementation and its deferred acceptance scenario must establish that the intended user can determine:
+
+1. what record or process is being shown;
+2. its current plain-language status;
+3. what must happen next;
+4. which role or office is responsible;
+5. why progress is blocked, when applicable; and
+6. how the user can recover or obtain help.
+
+Primary and record actions must remain discoverable and operable at representative phone, tablet, and desktop widths. Native Filament responsive labels, tooltips, action groups, column visibility, and table layouts are preferred. An icon-only action must retain an accessible name and tooltip. Technical codes, timestamps, and diagnostic evidence remain available but must not displace the primary status, next action, responsible office, and recovery explanation.
+
+Focused automated verification remains mandatory in the slice that changes the behavior. Earlier user-led manual execution is required only when an unresolved visual decision, product-authority question, or other human-only gate cannot be settled safely from code and programmatic evidence, or when the user explicitly requests an early sample. Otherwise, the slice may enter Cleanup after its focused verification passes and its scenarios are added to the consolidated acceptance table, with user-led execution explicitly deferred to TAL-96D5.
+
+TAL-96D4 owns final cross-role UI/UX consistency. TAL-96D5 owns the one consolidated user-led walkthrough and combined adversarial acceptance. A TAL-96D5 failure opens a bounded remediation for the failed journey and repeats only the affected acceptance cases; it does not automatically repeat every completed walkthrough.
 
 ## 5. Required Coverage
 
@@ -262,7 +281,7 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D4 | Grades, lifecycle, Student Hub, reports, cross-role projection, UI/UX consistency, and adversarial scenario coverage | No population capacity study |
 | TAL-96D5 | Final adversarial acceptance, targeted population/configuration evaluation, deployment-readiness review, research evidence synchronization, and consolidated guide | Owns authorized population capacity and cost evaluation |
 
-Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, manual acceptance table, and Cleanup.
+Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained manual acceptance scenarios, and Cleanup. User-led execution of those scenarios is consolidated in TAL-96D5 unless an earlier human-only gate requires a bounded sample.
 
 ## 11. Documentation Ownership
 
@@ -291,7 +310,7 @@ Each TAL-96D slice must produce:
 6. unresolved decisions and routed future boundaries;
 7. synthetic data needed to exercise the slice;
 8. named programmatic scenarios;
-9. one manual acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, pass/fail, and observations;
+9. additions to the consolidated manual acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, pass/fail, and observations, for user-led execution in TAL-96D5 unless an earlier human-only gate applies;
 10. likely panel questions with honest answers; and
 11. exact documentation updates warranted by verified results.
 

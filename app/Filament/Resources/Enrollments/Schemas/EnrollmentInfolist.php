@@ -11,6 +11,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class EnrollmentInfolist
 {
@@ -18,6 +19,40 @@ class EnrollmentInfolist
     {
         return $schema
             ->components([
+                Section::make('Current Enrollment Status')
+                    ->description('Review the current state, the next action, and the office responsible before changing placement.')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('status')
+                                    ->label('Current Status')
+                                    ->badge()
+                                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                                        ? Str::headline($state)
+                                        : 'Unknown'),
+                                TextEntry::make('term.label')
+                                    ->label('Term'),
+                                TextEntry::make('enrollment_next_step')
+                                    ->label('Next Step')
+                                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->nextStep($record))
+                                    ->columnSpanFull(),
+                                TextEntry::make('enrollment_responsible_office')
+                                    ->label('Responsible Office')
+                                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->responsibleOffice($record))
+                                    ->badge(),
+                                TextEntry::make('student_type')
+                                    ->label('Enrollment Type')
+                                    ->badge()
+                                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                                        ? Str::headline($state)
+                                        : 'Unknown')
+                                    ->placeholder('-'),
+                                TextEntry::make('status_reason')
+                                    ->label('Reason / Notes')
+                                    ->visible(fn (?string $state): bool => filled($state))
+                                    ->columnSpanFull(),
+                            ]),
+                    ]),
                 Section::make('Student')
                     ->schema([
                         Grid::make(3)
@@ -33,20 +68,12 @@ class EnrollmentInfolist
                                 TextEntry::make('studentProfile.program.name')
                                     ->label('Program')
                                     ->placeholder('-'),
-                                TextEntry::make('student_type')
-                                    ->label('Student Type')
-                                    ->badge()
-                                    ->placeholder('-'),
                             ]),
                     ]),
-                Section::make('Enrollment')
+                Section::make('Enrollment Dates')
                     ->schema([
                         Grid::make(3)
                             ->schema([
-                                TextEntry::make('term.label')
-                                    ->label('Term'),
-                                TextEntry::make('status')
-                                    ->badge(),
                                 TextEntry::make('registered_at')
                                     ->label('Registered At')
                                     ->dateTime()
@@ -64,13 +91,12 @@ class EnrollmentInfolist
                                 TextEntry::make('withdrawn_at')
                                     ->dateTime()
                                     ->placeholder('-'),
-                                TextEntry::make('status_reason')
-                                    ->columnSpanFull()
-                                    ->placeholder('-'),
                             ]),
-                    ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Course Selections and Placements')
-                    ->description('Student proposals do not hold capacity. Only active Registrar-confirmed reservations and schedule bindings represent placement.')
+                    ->description('A proposed section does not reserve a seat. A confirmed section has an active seat reservation and published schedule.')
                     ->schema([
                         RepeatableEntry::make('course_placement_rows')
                             ->label('Courses')
@@ -123,30 +149,30 @@ class EnrollmentInfolist
                                     ->label('Confirmed Section')
                                     ->placeholder('Not confirmed'),
                                 TextEntry::make('reservation_status')
-                                    ->label('Reservation')
+                                    ->label('Seat Reservation')
                                     ->badge()
                                     ->placeholder('No capacity held'),
                                 TextEntry::make('reservation_deadline')
                                     ->label('Reservation Deadline')
                                     ->placeholder('-'),
                                 TextEntry::make('active_meetings')
-                                    ->label('Bound Meetings'),
+                                    ->label('Scheduled Meetings'),
                             ])
                             ->columns(3)
                             ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
                 Section::make('Enrollment Gate Review')
-                    ->description('Read-only TAL-87B staff summary from recorded gate results; missing gate rows are shown as Not Checked without database writes.')
+                    ->description('Detailed gate evidence for staff review. A missing result is shown as Not Checked and does not create a database record.')
                     ->schema([
                         TextEntry::make('gate_review_current')
-                            ->label('Current blocker / next gate')
-                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatus($record))
+                            ->label('Next Step')
+                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->nextStep($record))
                             ->badge()
                             ->color(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatusColor($record)),
                         TextEntry::make('gate_review_office')
                             ->label('Responsible Office')
-                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactResponsibleOffice($record))
+                            ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->responsibleOffice($record))
                             ->badge(),
                         RepeatableEntry::make('gate_review_rows')
                             ->label('Gate Summary')
@@ -186,7 +212,9 @@ class EnrollmentInfolist
                             ->columnSpanFull(),
                     ])
                     ->columns(2)
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 }

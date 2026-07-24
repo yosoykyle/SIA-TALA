@@ -74,7 +74,9 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, CourseEnrollment::query()->count());
         $this->assertSame(1, EnrollmentSeatReservation::query()->count());
         $this->assertSame(2, StudentScheduleBinding::query()->count());
-        $this->assertSame(9, EnrollmentGateResult::query()->count());
+        $this->assertSame(9, EnrollmentGateResult::query()
+            ->whereBelongsTo($enrollment)
+            ->count());
 
         $courseEnrollment = CourseEnrollment::query()->sole();
         $reservation = EnrollmentSeatReservation::query()->sole();
@@ -216,7 +218,9 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, CourseEnrollment::query()->count());
         $this->assertSame(1, EnrollmentSeatReservation::query()->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count());
         $this->assertSame(2, StudentScheduleBinding::query()->where('is_active', true)->count());
-        $this->assertSame(9, EnrollmentGateResult::query()->count());
+        $this->assertSame(9, EnrollmentGateResult::query()
+            ->whereBelongsTo($enrollment)
+            ->count());
     }
 
     public function test_capacity_blocks_final_seat_and_rolls_back_partial_writes(): void

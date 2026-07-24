@@ -148,7 +148,9 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         $this->assertSame(0, CourseEnrollment::query()->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->count());
         $this->assertSame(0, StudentScheduleBinding::query()->count());
-        $this->assertSame(0, EnrollmentGateResult::query()->count());
+        $this->assertSame(0, EnrollmentGateResult::query()
+            ->whereBelongsTo($enrollment)
+            ->count());
         $this->assertSame(0, Assessment::query()->count());
         $this->assertSame(0, LedgerEntry::query()->count());
         $this->assertSame(0, Payment::query()->count());

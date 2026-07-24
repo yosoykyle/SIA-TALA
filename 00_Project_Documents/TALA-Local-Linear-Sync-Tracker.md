@@ -27,7 +27,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D2B | Done locally; pending explicit Linear sync | Academic Period, Catalog, Curriculum, and Import Hardening |
 | TAL-96D2C | Done locally; pending explicit Linear sync | Offering, Section, Resource, Scheduling-Readiness, and Faculty-Evidence Reconciliation |
 | TAL-96D3A | Done locally; pending explicit Linear sync | Master Schedule Functional Hardening |
-| TAL-96D3B | Done locally; pending explicit Linear sync | Enrollment Window, Proposal, and Placement Hardening; manual acceptance deferred until the refreshed MIN baseline |
+| TAL-96D3B | Done locally; pending explicit Linear sync | Enrollment Window, Proposal, Placement, Final-State, and Responsive Presentation Hardening |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

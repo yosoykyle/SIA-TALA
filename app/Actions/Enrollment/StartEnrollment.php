@@ -10,6 +10,7 @@ use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class StartEnrollment
@@ -31,7 +32,7 @@ class StartEnrollment
 
         $studentType = $this->validatedStudentType($studentType);
 
-        return $this->start($studentProfile, $term, $studentType);
+        return $this->start($studentProfile, $term, $studentType, rejectFinalExisting: false);
     }
 
     /**
@@ -58,6 +59,7 @@ class StartEnrollment
             $studentProfile,
             $term,
             $this->validatedStudentType($studentType),
+            rejectFinalExisting: true,
         );
     }
 
@@ -65,8 +67,9 @@ class StartEnrollment
         StudentProfile $studentProfile,
         Term $term,
         string $studentType,
+        bool $rejectFinalExisting,
     ): Enrollment {
-        return DB::transaction(function () use ($studentProfile, $term, $studentType): Enrollment {
+        return DB::transaction(function () use ($studentProfile, $term, $studentType, $rejectFinalExisting): Enrollment {
             $lockedProfile = StudentProfile::query()
                 ->lockForUpdate()
                 ->findOrFail($studentProfile->id);
@@ -81,6 +84,17 @@ class StartEnrollment
                 ->first();
 
             if ($enrollment instanceof Enrollment) {
+                if ($rejectFinalExisting && in_array($enrollment->status, [
+                    'officially_enrolled',
+                    'cancelled',
+                    'dropped',
+                    'withdrawn',
+                ], true)) {
+                    throw ValidationException::withMessages([
+                        'status' => $this->nonRestartableMessage($enrollment),
+                    ]);
+                }
+
                 return $enrollment;
             }
 
@@ -93,6 +107,20 @@ class StartEnrollment
                 'officially_enrolled_at' => null,
             ]);
         }, attempts: 3);
+    }
+
+    private function nonRestartableMessage(Enrollment $enrollment): string
+    {
+        $status = Str::headline($enrollment->status);
+        $message = $enrollment->status === 'officially_enrolled'
+            ? 'This student is already officially enrolled for this term. Review the existing enrollment record.'
+            : "This enrollment is {$status} and cannot be restarted. Review the existing enrollment record.";
+
+        if (filled($enrollment->status_reason)) {
+            $message .= ' Recorded reason: '.$enrollment->status_reason;
+        }
+
+        return $message;
     }
 
     /**

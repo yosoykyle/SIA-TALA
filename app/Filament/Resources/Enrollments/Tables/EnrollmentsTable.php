@@ -7,6 +7,7 @@ use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Models\Enrollment;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -16,6 +17,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 use Throwable;
 
 class EnrollmentsTable
@@ -25,22 +27,18 @@ class EnrollmentsTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.program', 'term', 'gateResults']))
             ->columns([
-                TextColumn::make('studentProfile.student_number')
-                    ->label('Student No.')
-                    ->searchable()
-                    ->sortable(),
                 TextColumn::make('studentProfile.last_name')
                     ->label('Student')
                     ->state(fn (Enrollment $record): string => collect([
                         $record->studentProfile?->last_name,
                         $record->studentProfile?->first_name,
                     ])->filter()->implode(', '))
+                    ->description(fn (Enrollment $record): string => collect([
+                        $record->studentProfile?->student_number,
+                        $record->studentProfile?->program?->code,
+                    ])->filter()->implode(' · '))
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('studentProfile.program.code')
-                    ->label('Program')
-                    ->placeholder('-')
-                    ->searchable(),
                 TextColumn::make('term.label')
                     ->label('Term')
                     ->searchable()
@@ -55,22 +53,29 @@ class EnrollmentsTable
                         'primary' => 'officially_enrolled',
                         'danger' => ['cancelled', 'dropped', 'withdrawn'],
                     ])
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? Str::headline($state)
+                        : 'Unknown')
                     ->searchable(),
                 TextColumn::make('student_type')
-                    ->label('Type')
+                    ->label('Enrollment Type')
                     ->badge()
                     ->placeholder('-')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? Str::headline($state)
+                        : 'Unknown')
                     ->searchable(),
                 TextColumn::make('gate_review')
-                    ->label('Gate Review')
-                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatus($record))
-                    ->description(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactResponsibleOffice($record))
-                    ->badge()
+                    ->label('Next Step')
+                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->nextStep($record))
+                    ->description(fn (Enrollment $record): string => 'Responsible: '.app(EnrollmentGateReviewSummary::class)->responsibleOffice($record))
                     ->color(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatusColor($record))
                     ->wrap(),
                 TextColumn::make('registered_at')
+                    ->label('Registered')
                     ->dateTime()
                     ->placeholder('-')
+                    ->visibleFrom('lg')
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -100,10 +105,14 @@ class EnrollmentsTable
                     ]),
             ])
             ->recordActions([
-                ViewAction::make(),
-                self::confirmPlacementAction(),
-                self::cancelPlacementAction(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    self::confirmPlacementAction(),
+                    self::cancelPlacementAction(),
+                ])
+                    ->tooltip('Enrollment actions'),
             ])
+            ->stackedOnMobile()
             ->toolbarActions([]);
     }
 

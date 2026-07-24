@@ -26,6 +26,8 @@ class ListEnrollments extends ListRecords
             Action::make('startContinuingEnrollment')
                 ->label('Start Continuing Enrollment')
                 ->icon('heroicon-o-plus-circle')
+                ->labeledFrom('md')
+                ->tooltip('Start continuing enrollment')
                 ->visible(fn (): bool => auth()->user()?->hasAnyRole([
                     User::StaffRoleRegistrar,
                     User::StaffRoleSystemSuperAdmin,
@@ -79,12 +81,23 @@ class ListEnrollments extends ListRecords
                     }
 
                     try {
-                        app(StartEnrollment::class)->executeContinuing(
+                        $enrollment = app(StartEnrollment::class)->executeContinuing(
                             $profile,
                             $term,
                             (string) $data['student_type'],
                             $actor,
                         );
+
+                        if (! $enrollment->wasRecentlyCreated) {
+                            Notification::make()
+                                ->title('Enrollment already exists')
+                                ->body('No duplicate was created. Open the existing record from the enrollment list to continue its current workflow.')
+                                ->info()
+                                ->send();
+
+                            return;
+                        }
+
                         Notification::make()
                             ->title('Enrollment started')
                             ->body('The source record is ready for proposal and placement review.')

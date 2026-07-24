@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
+use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Enrollment\EnrollmentProposalService;
 use App\Actions\Enrollment\StartEnrollment;
@@ -27,6 +28,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\Testing\TestAction;
 use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -162,6 +164,46 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->whereBelongsTo($studentProfile)
             ->whereBelongsTo($term)
             ->count());
+    }
+
+    public function test_continuing_start_rejects_completed_or_terminal_enrollments_without_reopening_them(): void
+    {
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->openEnrollmentWindow($term);
+        $service = app(StartEnrollment::class);
+
+        foreach (['officially_enrolled', 'cancelled', 'dropped', 'withdrawn'] as $status) {
+            $studentProfile = StudentProfile::factory()->create();
+            $reason = "Original {$status} reason.";
+            $enrollment = Enrollment::factory()
+                ->for($studentProfile)
+                ->for($term)
+                ->create([
+                    'status' => $status,
+                    'status_reason' => $reason,
+                ]);
+
+            try {
+                $service->executeContinuing($studentProfile, $term, 'regular', $registrar);
+                $this->fail("A {$status} enrollment was reported as newly started.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('status', $exception->errors());
+                $this->assertStringContainsString(
+                    str_replace('_', ' ', $status),
+                    strtolower($exception->errors()['status'][0]),
+                );
+            }
+
+            $enrollment->refresh();
+
+            $this->assertSame($status, $enrollment->status);
+            $this->assertSame($reason, $enrollment->status_reason);
+            $this->assertSame(1, Enrollment::query()
+                ->whereBelongsTo($studentProfile)
+                ->whereBelongsTo($term)
+                ->count());
+        }
     }
 
     public function test_continuing_start_blocks_closed_windows_and_wrong_roles_without_creating_records(): void
@@ -1028,6 +1070,109 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             'student_type' => 'regular',
             'status' => 'pending_review',
         ]);
+    }
+
+    public function test_staff_list_truthfully_reports_an_existing_active_enrollment(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $profile = StudentProfile::factory()->create();
+        $this->openEnrollmentWindow($term);
+        $enrollment = Enrollment::factory()
+            ->for($profile)
+            ->for($term)
+            ->create([
+                'status' => 'pending_review',
+                'student_type' => 'regular',
+            ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ListEnrollments::class)
+            ->callAction('startContinuingEnrollment', data: [
+                'student_profile_id' => $profile->id,
+                'term_id' => $term->id,
+                'student_type' => 'regular',
+            ])
+            ->assertNotified('Enrollment already exists');
+
+        $this->assertSame(1, Enrollment::query()
+            ->whereBelongsTo($profile)
+            ->whereBelongsTo($term)
+            ->count());
+        $this->assertSame('pending_review', $enrollment->fresh()->status);
+    }
+
+    public function test_staff_list_rejects_a_cancelled_enrollment_restart_with_a_clear_notice(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $profile = StudentProfile::factory()->create();
+        $this->openEnrollmentWindow($term);
+        $enrollment = Enrollment::factory()
+            ->for($profile)
+            ->for($term)
+            ->create([
+                'status' => 'cancelled',
+                'status_reason' => 'Student withdrew the request.',
+            ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ListEnrollments::class)
+            ->callAction('startContinuingEnrollment', data: [
+                'student_profile_id' => $profile->id,
+                'term_id' => $term->id,
+                'student_type' => 'regular',
+            ])
+            ->assertNotified('Enrollment not started');
+
+        $enrollment->refresh();
+
+        $this->assertSame('cancelled', $enrollment->status);
+        $this->assertSame('Student withdrew the request.', $enrollment->status_reason);
+        $this->assertSame(1, Enrollment::query()
+            ->whereBelongsTo($profile)
+            ->whereBelongsTo($term)
+            ->count());
+    }
+
+    public function test_enrollment_summary_explains_the_next_step_and_responsible_office_in_plain_language(): void
+    {
+        $cancelled = Enrollment::factory()->create([
+            'status' => 'cancelled',
+            'status_reason' => 'Student withdrew the request.',
+        ]);
+        $pendingPayment = Enrollment::factory()->create(['status' => 'pending_payment']);
+        $summary = app(EnrollmentGateReviewSummary::class);
+
+        $this->assertStringContainsString('cancelled', strtolower($summary->nextStep($cancelled)));
+        $this->assertSame('Registrar Office', $summary->responsibleOffice($cancelled));
+        $this->assertStringContainsString('payment', strtolower($summary->nextStep($pendingPayment)));
+        $this->assertSame('Accounting Office', $summary->responsibleOffice($pendingPayment));
+    }
+
+    public function test_staff_enrollment_actions_remain_discoverable_in_the_mobile_table_layout(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $component = Livewire::actingAs($registrar)->test(ListEnrollments::class);
+        $page = $component->instance();
+
+        $this->assertInstanceOf(ListEnrollments::class, $page);
+
+        $table = $page->getTable();
+        $recordActions = $table->getRecordActions();
+        $startAction = collect($page->getCachedHeaderActions())
+            ->first(fn ($action): bool => $action->getName() === 'startContinuingEnrollment');
+
+        $this->assertTrue($table->isStackedOnMobile());
+        $this->assertCount(1, $recordActions);
+        $this->assertInstanceOf(ActionGroup::class, $recordActions[0]);
+        $this->assertSame(
+            ['view', 'confirmPlacement', 'cancelPlacement'],
+            array_keys($recordActions[0]->getFlatActions()),
+        );
+        $this->assertNotNull($startAction);
+        $this->assertSame('md', $startAction->getLabeledFromBreakpoint());
+        $this->assertSame('Start continuing enrollment', $startAction->getTooltip());
     }
 
     public function test_expired_reservation_recovery_command_is_available_to_operations(): void

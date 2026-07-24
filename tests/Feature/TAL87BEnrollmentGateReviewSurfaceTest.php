@@ -72,7 +72,9 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
         $rows = $summary->rows($enrollment);
 
         $this->assertCount(9, $rows);
-        $this->assertSame(1, EnrollmentGateResult::query()->count());
+        $this->assertSame(1, EnrollmentGateResult::query()
+            ->whereBelongsTo($enrollment)
+            ->count());
         $this->assertSame('Identity', $rows[0]['label']);
         $this->assertSame('Not Checked', $rows[0]['result_label']);
 
@@ -151,7 +153,7 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
-            ->assertSee('Gate Review')
+            ->assertSee('Next Step')
             ->assertSee('Finance: Payment still requires Accounting confirmation.');
     }
 
