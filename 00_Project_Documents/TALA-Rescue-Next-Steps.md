@@ -22,7 +22,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D3 | Approved revised split; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening parent. |
 | TAL-96D3A | Done locally | Master Schedule Functional Hardening: readiness, dispatch and retry, candidate review and correction, publication and revision, and official faculty/student schedule projections. |
 | TAL-96D3B | Done locally; pending explicit Linear sync; consolidated manual acceptance deferred to TAL-96D5 | Enrollment Window, Proposal, and Placement Hardening plus truthful final-state handling, responsive action controls, and a plain-language enrollment information hierarchy. |
-| TAL-96D3C | Planned; depends on TAL-96D3B | Assessment, PayMongo, Ledger, and Finance-Gate Hardening: assessment activation, checkout, verified webhook processing, reconciliation, queue recovery, ledger effects, notifications, and operator visibility. |
+| TAL-96D3C | Done locally; pending explicit Linear sync | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening. |
 | TAL-96D3D | Planned; depends on TAL-96D3C | Official Enrollment, COR, and Cross-Role Convergence: final gate recheck, official enrollment, current COR and schedule consistency, output logging, holds, and modality-authority reconciliation. |
 | TAL-96D4 | Planned; depends on TAL-96D3D | Grades, Lifecycle, Student Hub, Reports, and Cross-Role UX Hardening. |
 | TAL-96D5 | Planned; depends on TAL-96D4 | Final Adversarial Acceptance, targeted population/configuration and cost evaluation, deployment-readiness gate, CP-SAT evidence synchronization, and the consolidated System Operations and Defense Guide. |
@@ -50,4 +50,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ### Next Boundary
 
-Next primary boundary: **`Plan TAL-96D3C`**. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.
+Next primary boundary: **`Plan TAL-96D3D`**. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, external-service changes, persistent scenario replacement, Cloud solver execution, and full-suite rebuilds remain unauthorized until their corresponding explicit commands or human gates.

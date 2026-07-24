@@ -121,7 +121,56 @@ class PayMongoPaymentGateway implements PaymentGateway
                     ?? data_get($payload, 'data.attributes.payment_intent_id'),
                 'expires_at' => data_get($payload, 'data.attributes.expires_at'),
             ],
+            referenceNumber: $this->optionalString(data_get($payload, 'data.attributes.reference_number')),
+            payments: $this->sanitizedPayments(data_get($payload, 'data.attributes.payments')),
         );
+    }
+
+    /**
+     * @return list<array{
+     *     id:string,
+     *     status:string,
+     *     amount_centavos:int|null,
+     *     currency:string,
+     *     livemode:bool|null,
+     *     payment_intent_id:string|null,
+     *     disputed:bool|null,
+     *     has_refunds:bool|null,
+     *     paid_at:int|null
+     * }>
+     */
+    private function sanitizedPayments(mixed $payments): array
+    {
+        if (! is_array($payments)) {
+            return [];
+        }
+
+        return collect($payments)
+            ->filter(fn (mixed $payment): bool => is_array($payment) && filled(data_get($payment, 'id')))
+            ->map(function (array $payment): array {
+                $amount = data_get($payment, 'attributes.amount');
+                $paidAt = data_get($payment, 'attributes.paid_at');
+                $livemode = data_get($payment, 'attributes.livemode');
+                $disputed = data_get($payment, 'attributes.disputed');
+                $refunds = data_get($payment, 'attributes.refunds');
+
+                return [
+                    'id' => (string) data_get($payment, 'id'),
+                    'status' => strtolower((string) data_get($payment, 'attributes.status', 'unknown')),
+                    'amount_centavos' => is_numeric($amount) ? (int) $amount : null,
+                    'currency' => strtoupper((string) data_get($payment, 'attributes.currency', '')),
+                    'livemode' => is_bool($livemode) ? $livemode : null,
+                    'payment_intent_id' => $this->optionalString(
+                        data_get($payment, 'attributes.payment_intent_id')
+                            ?? data_get($payment, 'attributes.payment_intent.id'),
+                    ),
+                    'disputed' => is_bool($disputed) ? $disputed : null,
+                    'has_refunds' => is_array($refunds) ? $refunds !== [] : null,
+                    'paid_at' => is_numeric($paidAt) ? (int) $paidAt : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -262,6 +311,11 @@ class PayMongoPaymentGateway implements PaymentGateway
         $name = trim($description);
 
         return $name !== '' ? Str::limit($name, 120, '') : 'TALA Payment';
+    }
+
+    private function optionalString(mixed $value): ?string
+    {
+        return filled($value) ? (string) $value : null;
     }
 
     /** @param array<string, mixed> $payload */

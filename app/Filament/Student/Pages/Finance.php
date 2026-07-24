@@ -14,6 +14,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Http\RedirectResponse;
+use Livewire\Attributes\Url;
 use Livewire\Features\SupportRedirects\Redirector;
 use Throwable;
 
@@ -30,6 +31,9 @@ class Finance extends Page
      */
     public array $finance = [];
 
+    #[Url(as: 'checkout')]
+    public ?string $checkout = null;
+
     public function mount(): void
     {
         $actor = auth()->user();
@@ -37,6 +41,7 @@ class Finance extends Page
         abort_unless($actor !== null, 403);
 
         $this->finance = app(FinanceEvidenceService::class)->studentFinance($actor);
+        $this->finance['state']['return_notice'] = $this->checkoutReturnNotice();
     }
 
     public function content(Schema $schema): Schema
@@ -44,6 +49,36 @@ class Finance extends Page
         return $schema
             ->state($this->finance['state'] ?? [])
             ->components([
+                Section::make('Checkout Return')
+                    ->schema([
+                        TextEntry::make('return_notice.title')
+                            ->hiddenLabel()
+                            ->badge()
+                            ->color(fn (): string => $this->checkout === 'success' ? 'info' : 'gray'),
+                        TextEntry::make('return_notice.status')
+                            ->label('Status')
+                            ->columnSpanFull(),
+                        TextEntry::make('return_notice.explanation')
+                            ->label('Important')
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn (): bool => in_array($this->checkout, ['success', 'cancelled'], true)),
+                Section::make('Your Current Finance Position')
+                    ->description('Start here. These values come from TALA records, not from the browser return alone.')
+                    ->schema([
+                        TextEntry::make('current_due')->label('Current Amount Due'),
+                        TextEntry::make('payment_status')
+                            ->label('Payment Status')
+                            ->badge(),
+                        TextEntry::make('payment_evidence.required_action')
+                            ->label('What to do next')
+                            ->columnSpanFull(),
+                        TextEntry::make('payment_evidence.responsible_office')
+                            ->label('Responsible Office'),
+                        TextEntry::make('or_mapping_state')
+                            ->label('Official Receipt Status'),
+                    ])
+                    ->columns(2),
                 Section::make('Finance Status')
                     ->schema([
                         TextEntry::make('availability_status')
@@ -55,7 +90,9 @@ class Finance extends Page
                             ->label('Notice')
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Assessment Summary')
                     ->schema([
                         TextEntry::make('student_number')->label('Student No.'),
@@ -64,13 +101,15 @@ class Finance extends Page
                         TextEntry::make('assessment_total')->label('Assessment Total'),
                         TextEntry::make('required_downpayment')->label('Required Downpayment'),
                         TextEntry::make('posted_payments')->label('Posted Payments'),
-                        TextEntry::make('ledger_balance')->label('Ledger-Derived Balance'),
+                        TextEntry::make('ledger_balance')->label('Remaining Balance'),
                         TextEntry::make('current_due')->label('Current Amount Due'),
                         TextEntry::make('current_due_source')->label('Due Category'),
                         TextEntry::make('payment_status')->label('Payment Status'),
                         TextEntry::make('or_mapping_state')->label('OR Mapping State'),
                     ])
-                    ->columns(4),
+                    ->columns(4)
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Payment Evidence')
                     ->schema([
                         TextEntry::make('payment_evidence.headline')
@@ -83,10 +122,12 @@ class Finance extends Page
                             ->label('What This Means')
                             ->columnSpanFull(),
                         TextEntry::make('payment_evidence.required_action')
-                            ->label('Required Action')
+                            ->label('What to do next')
                             ->columnSpanFull(),
                     ])
-                    ->columns(4),
+                    ->columns(4)
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Charge Lines')
                     ->schema([
                         RepeatableEntry::make('charge_lines')
@@ -99,7 +140,9 @@ class Finance extends Page
                             ])
                             ->columns(4)
                             ->columnSpanFull(),
-                    ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Payment Schedule')
                     ->schema([
                         RepeatableEntry::make('schedule_rows')
@@ -112,7 +155,9 @@ class Finance extends Page
                             ])
                             ->columns(4)
                             ->columnSpanFull(),
-                    ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Ledger and Payments')
                     ->schema([
                         RepeatableEntry::make('ledger_rows')
@@ -154,7 +199,9 @@ class Finance extends Page
                             ])
                             ->columns(4)
                             ->columnSpanFull(),
-                    ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Financial Accommodation')
                     ->schema([
                         TextEntry::make('accommodation_summary.status')->label('Status'),
@@ -166,8 +213,28 @@ class Finance extends Page
                             ->listWithLineBreaks()
                             ->placeholder('No explicit finance effects recorded.'),
                     ])
-                    ->columns(5),
+                    ->columns(5)
+                    ->collapsible()
+                    ->collapsed(),
             ]);
+    }
+
+    /** @return array{title:string,status:string,explanation:string}|null */
+    private function checkoutReturnNotice(): ?array
+    {
+        return match ($this->checkout) {
+            'success' => [
+                'title' => 'Checkout completed',
+                'status' => 'Waiting for verified payment confirmation',
+                'explanation' => 'A successful return is not proof that the payment was posted. TALA updates your balance only after verified provider evidence is processed.',
+            ],
+            'cancelled' => [
+                'title' => 'Checkout cancelled',
+                'status' => 'No payment was recorded from this return',
+                'explanation' => 'Your current TALA balance is unchanged. You may start another checkout when you are ready.',
+            ],
+            default => null,
+        };
     }
 
     protected function getHeaderActions(): array

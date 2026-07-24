@@ -207,7 +207,7 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
             ->assertSee('Pending')
             ->assertSee('Payment')
             ->assertSee('Pending OR Mapping')
-            ->assertSee('Required Action')
+            ->assertSee('What to do next')
             ->assertSee('Responsible Office');
 
         // Now map the OR number and confirm the mapped state becomes distinct from the pending state,

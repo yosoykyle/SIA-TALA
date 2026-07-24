@@ -593,6 +593,75 @@ Use only the disposable `test_tala_db` acceptance environment. Enter Pass or Fai
 | Why can status still say Pending Review after placement? | Placement is only part of enrollment. Document, academic, behavior, discipline, finance, and other source gates may still be unresolved. |
 | Does cancellation delete the Student Profile? | No. It ends one term Enrollment and releases its pending placement effects. The Student master record remains. |
 
+### 5.7 Finance, PayMongo, and Accounting recovery
+
+TALA treats the ledger as the source of truth for a Student's balance. A browser redirect from PayMongo is only a return to the Student Hub; it is not payment proof. The normal path remains a signed PayMongo webhook, queued processing, one verified Payment, and one linked payment Ledger Entry.
+
+#### 5.7.1 Authoritative flow and ownership
+
+| Stage | Owner | Authoritative evidence | Visible result |
+|---|---|---|---|
+| Assessment and amount due | Accounting / TALA | Active Assessment, assessment lines, payment schedule, and posted Ledger Entries | Student Finance shows the Current Amount Due and Payment Status. |
+| Hosted checkout | Student / PayMongo | TALA Payment Attempt and PayMongo Checkout Session | Student leaves TALA temporarily to pay. The return page does not clear the balance. |
+| Normal payment confirmation | PayMongo / TALA queue | Valid signed webhook matched to the exact TALA attempt | The posting service creates one verified Payment and one payment Ledger Entry, recalculates the finance gate, and queues the Student notification. |
+| Missed-webhook recovery | Accounting | Existing TALA Payment Attempt plus a server-to-server retrieval of that exact PayMongo Checkout Session | Pending or expired provider state updates only the attempt. A reported paid state creates sanitized review evidence and requires an Accounting decision. |
+| Official receipt mapping | Accounting | Verified Payment and institutional OR number | Student Finance shows the OR number or **Pending OR Mapping**. Provider confirmation does not invent an official receipt. |
+
+PayMongo's Checkout Session retrieval requires the secret API key and may return related payments. TALA keeps only the fields needed for reconciliation: checkout identifier, institutional reference, provider state, payment identifier, amount, currency, mode, intent identifier, dispute/refund indicators, and paid time. It does not persist the checkout URL, API credentials, signature secret, or raw provider response in recovery evidence. This recovery design follows PayMongo's [Checkout Session retrieval contract](https://docs.paymongo.com/reference/retrieve-a-checkout) while preserving the [webhook-based payment-confirmation flow](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start).
+
+#### 5.7.2 Student checkout-return meanings
+
+| Return | What the Student sees | What TALA changes |
+|---|---|---|
+| `checkout=success` | **Checkout completed**, **Waiting for verified payment confirmation**, and an explanation that the return is not proof of posting | Nothing is posted from the redirect. The displayed balance still comes from the ledger. |
+| `checkout=cancelled` | **Checkout cancelled** and **No payment was recorded from this return** | No Payment or payment Ledger Entry is created. The Student may start another checkout when eligible. |
+
+Student Finance leads with **Current Amount Due**, **Payment Status**, **What to do next**, **Responsible Office**, and **Official Receipt Status**. Assessment lines, schedules, ledger rows, attempts, acknowledgements, and accommodations remain available as collapsed detail instead of displacing the current decision.
+
+#### 5.7.3 Missed-webhook operator recovery
+
+1. Accounting opens **PayMongo Reconciliation** and chooses **Recover a PayMongo checkout**.
+2. Accounting selects an existing pending or expired PayMongo Payment Attempt. TALA never accepts an arbitrary provider identifier from the operator.
+3. TALA retrieves the recorded checkout server-to-server.
+4. A pending or expired checkout updates only the Payment Attempt and creates a processed operational record.
+5. A paid response creates sanitized **Provider recovery** evidence in **Accounting confirmation required** state. It does not post automatically because it did not arrive through the normal signed-webhook path.
+6. Accounting confirms only when the Student/Assessment ownership, checkout identifier, institutional reference, PHP currency, exact amount, provider payment identifier, payment-intent identifier, test/live mode, and dispute/refund state match.
+7. Confirmation reuses the existing idempotent posting service. Repeated confirmation returns the existing Payment and does not create another ledger or notification effect.
+8. Accounting may reject unposted recovered evidence with a recorded reason. Posted evidence cannot be rejected through this recovery control.
+
+The **Integration Status** page intentionally separates four facts: **Local PayMongo readiness**, **Recent verified webhook**, **Open local exceptions**, and **Provider dashboard state**. The final value is **Not checked by TALA** because this read-only local screen does not claim knowledge of the current PayMongo dashboard.
+
+#### 5.7.4 TAL-96D3C evidence and classification
+
+| Finding | Classification | Evidence and disposition |
+|---|---|---|
+| Assessment, checkout, signed webhook, idempotent posting, ledger clearance, notification, and OR mapping already had distinct owners | Aligned | Preserved. Existing TAL-69, TAL-86B, TAL-95, and TAL-96C tests remain the accepted regression evidence. |
+| A completely missed webhook had no bounded operator recovery from a known TALA attempt | Defect / real gap | Added server-to-server checkout retrieval, sanitized review evidence, exact-match Accounting confirmation/rejection, and audit activity without a schema change. |
+| Hosted-checkout return parameters were not explained | Defect / real gap | Added truthful success and cancellation notices that never claim a payment was posted. |
+| Student and operator finance screens led with technical detail | Defect / real gap | Added plain-language current state and next action; retained technical evidence as secondary detail. |
+| Combining Assessment, Attempt, Payment, Ledger, reconciliation, and official receipt into one record | Cosmetic / unsafe redesign | Rejected. Separate records preserve evidence authority and auditability. |
+
+Automated TAL-96D3C evidence covers success/cancellation return non-authority; paid recovery without posting; pending, failed, and expired recovery; exact confirmation; rejection of incomplete mode, dispute, or refund evidence; idempotent repetition; mismatch refusal; audited rejection; Accounting authorization; secret-safe reconciliation; and truthful integration monitoring. The compatible affected regression gate passed 104 tests with 1,180 assertions. Two older test families remain unsuitable for a populated acceptance database because they assume globally empty tables; TAL-96D3C did not destructively remove the approved baseline to satisfy those assumptions. Consolidated user-run visual acceptance remains scheduled once in TAL-96D5.
+
+#### 5.7.5 TAL-96D3C manual acceptance rows for TAL-96D5
+
+| ID | Role and credential | Prerequisite | Steps and input | Expected visible result | Expected record/state change | Invalid or edge case | Pass/Fail | Observation |
+|---|---|---|---|---|---|---|---|---|
+| D3C-M01 | Student — assigned D5 finance account | Active assessment with a positive due | Return to Student Finance with `checkout=success` | Waiting-for-verification notice; current due remains ledger-derived | No redirect-only Payment or Ledger Entry | Refresh and repeat the URL |  |  |
+| D3C-M02 | Student — assigned D5 finance account | Same as D3C-M01 | Return with `checkout=cancelled` | Cancellation notice and unchanged current finance position | No Payment or payment Ledger Entry | Start another eligible checkout |  |  |
+| D3C-M03 | Accounting — `accounting.demo@example.test` | Pending known PayMongo attempt with provider state supplied during the bounded D5 sandbox gate | Recover the known checkout | Pending/expired result or Provider recovery row with a clear next step | Attempt truthfully updated; paid state remains review-only | Wrong role and mismatched evidence must be denied |  |  |
+| D3C-M04 | System Super Admin — `system.admin.demo@example.test` | Existing local integration events | Open Integration Status | Local readiness, recent verified webhook, open local exceptions, and provider dashboard not checked are distinct | Read-only; no provider call or secret exposure | Narrow viewport and empty-event state |  |  |
+
+#### 5.7.6 Likely panel questions
+
+| Question | Defensible answer |
+|---|---|
+| Why does a successful PayMongo return not immediately reduce the balance? | A redirect can be copied, interrupted, or replayed. TALA changes the authoritative ledger only from verified provider evidence processed through an idempotent posting service. |
+| What if PayMongo was paid but its webhook never reached TALA? | Accounting retrieves the exact checkout already recorded on the TALA Payment Attempt. A paid response enters review and posts only after all ownership, amount, currency, mode, reference, intent, and risk indicators match. |
+| Can recovery create duplicate payments? | No. The provider reference, one-payment-per-attempt behavior, ledger source uniqueness, operational-event identity, and idempotent posting service converge repeats to the existing records. |
+| Does TALA generate the school's official receipt from PayMongo? | No. PayMongo evidence verifies the external payment. Accounting separately maps the institution's official receipt number. |
+| Can the Registrar override a failed finance gate? | The Registrar consumes the verified finance projection but does not own payment confirmation. Accounting owns payment evidence and reconciliation. |
+
 ## 6. Implementation-Validity Audit and Required-Gap Routing
 
 D1 compares the PRD, database contract, current actions, tests, Git history, and rendered surfaces. A gap listed here is not evidence that the whole application is wrong. It identifies the smallest boundary that must be corrected or proved in its owning vertical slice.

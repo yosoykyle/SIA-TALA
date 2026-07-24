@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
 use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
@@ -58,7 +59,55 @@ class PayMongoReconciliation extends Page implements HasTable
 
     public function getSubheading(): ?string
     {
-        return 'Resolve persisted PayMongo exceptions without exposing private webhook payloads.';
+        return 'Recover a known checkout or resolve persisted PayMongo exceptions without exposing private provider payloads.';
+    }
+
+    /** @return list<Action> */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('recoverCheckout')
+                ->label('Recover a PayMongo checkout')
+                ->icon(Heroicon::OutlinedArrowPath)
+                ->schema([
+                    Select::make('payment_attempt_id')
+                        ->label('Pending or expired PayMongo Payment Attempt')
+                        ->options(fn (): array => PaymentAttempt::query()
+                            ->with(['studentProfile.user', 'assessment'])
+                            ->where('provider', 'paymongo')
+                            ->whereNotNull('provider_checkout_id')
+                            ->whereIn('status', ['pending', 'expired'])
+                            ->whereHas('assessment', fn (Builder $query): Builder => $query->where('state', Assessment::StateActive))
+                            ->latest('id')
+                            ->limit(100)
+                            ->get()
+                            ->mapWithKeys(fn (PaymentAttempt $attempt): array => [$attempt->id => $attempt->displayLabel()])
+                            ->all())
+                        ->searchable()
+                        ->required()
+                        ->native(false),
+                ])
+                ->modalHeading('Recover a known PayMongo checkout')
+                ->modalDescription('TALA will retrieve this checkout from PayMongo. A reported payment still requires an Accounting decision before any ledger posting.')
+                ->modalSubmitActionLabel('Retrieve provider state')
+                ->action(function (array $data): void {
+                    $result = $this->recoveryService()->recover(
+                        (int) $data['payment_attempt_id'],
+                        $this->actor(),
+                    );
+
+                    Notification::make()
+                        ->title(match ($result['status']) {
+                            'review_required' => 'Provider payment found — Accounting confirmation required',
+                            'expired' => 'Checkout confirmed expired',
+                            'failed' => 'Provider payment attempt confirmed failed',
+                            'duplicate' => 'Checkout recovery was already processed',
+                            default => 'Checkout remains pending',
+                        })
+                        ->color($result['status'] === 'review_required' ? 'warning' : 'success')
+                        ->send();
+                }),
+        ];
     }
 
     public function table(Table $table): Table
@@ -67,30 +116,39 @@ class PayMongoReconciliation extends Page implements HasTable
             ->query(OperationalEvent::query()
                 ->where('event_domain', OperationalEvent::DomainIntegration)
                 ->where('integration', OperationalEvent::IntegrationPayMongo)
-                ->where('channel', OperationalEvent::ChannelWebhook)
+                ->whereIn('channel', [OperationalEvent::ChannelWebhook, OperationalEvent::ChannelProviderApi])
                 ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
                 ->latest('occurred_at'))
             ->columns([
                 TextColumn::make('external_id')
-                    ->label('PayMongo Event')
+                    ->label('Technical Event ID')
                     ->searchable()
-                    ->copyable(),
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('source')
+                    ->label('Evidence Source')
+                    ->state(fn (OperationalEvent $record): string => $record->channel === OperationalEvent::ChannelProviderApi
+                        ? 'Provider recovery'
+                        : 'Signed webhook')
+                    ->badge(),
                 TextColumn::make('event_type')
                     ->label('Event Type')
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('.', ' ')->headline()->toString())
-                    ->wrap(),
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->headline()->toString())
                     ->color(fn (string $state): string => $state === OperationalEvent::StatusFailed ? 'danger' : 'warning'),
                 TextColumn::make('review_reason')
                     ->label('Reason')
-                    ->state(fn (OperationalEvent $record): string => str((string) data_get($record->diagnostics, 'reason', 'review_required'))
-                        ->replace('_', ' ')
-                        ->headline()
-                        ->toString())
+                    ->state(fn (OperationalEvent $record): string => $this->reasonLabel($record))
                     ->badge()
                     ->color('warning'),
+                TextColumn::make('next_step')
+                    ->label('Next Step')
+                    ->state(fn (OperationalEvent $record): string => $this->nextStepLabel($record))
+                    ->wrap(),
                 TextColumn::make('student')
                     ->state(fn (OperationalEvent $record): string => $this->studentLabel($record))
                     ->wrap(),
@@ -108,7 +166,8 @@ class PayMongoReconciliation extends Page implements HasTable
                 Action::make('linkAndReprocess')
                     ->label('Link and Reprocess')
                     ->icon(Heroicon::OutlinedLink)
-                    ->visible(fn (OperationalEvent $record): bool => $record->status === OperationalEvent::StatusReviewRequired
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelWebhook
+                        && $record->status === OperationalEvent::StatusReviewRequired
                         && data_get($record->diagnostics, 'reason') === 'unknown_reference')
                     ->schema([
                         Select::make('payment_attempt_id')
@@ -142,7 +201,8 @@ class PayMongoReconciliation extends Page implements HasTable
                 Action::make('reprocess')
                     ->label('Reprocess')
                     ->icon(Heroicon::OutlinedArrowPath)
-                    ->visible(fn (OperationalEvent $record): bool => $record->status === OperationalEvent::StatusFailed
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelWebhook
+                        && $record->status === OperationalEvent::StatusFailed
                         && data_get($record->diagnostics, 'reason') === 'processing_failed')
                     ->schema([$this->reasonField()])
                     ->requiresConfirmation()
@@ -154,7 +214,8 @@ class PayMongoReconciliation extends Page implements HasTable
                     ->label('Confirm Payment')
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->color('success')
-                    ->visible(fn (OperationalEvent $record): bool => $record->status === OperationalEvent::StatusReviewRequired
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelWebhook
+                        && $record->status === OperationalEvent::StatusReviewRequired
                         && $record->related_record_type === Payment::class
                         && in_array(data_get($record->diagnostics, 'reason'), ['amount_mismatch', 'missing_tala_reference', 'reference_mismatch'], true))
                     ->schema([$this->reasonField()])
@@ -167,13 +228,49 @@ class PayMongoReconciliation extends Page implements HasTable
                     ->label('Reject Evidence')
                     ->icon(Heroicon::OutlinedXCircle)
                     ->color('danger')
-                    ->visible(fn (OperationalEvent $record): bool => $record->status === OperationalEvent::StatusReviewRequired
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelWebhook
+                        && $record->status === OperationalEvent::StatusReviewRequired
                         && ! in_array(data_get($record->diagnostics, 'reason'), ['refund_or_reversal', 'unknown_refund_payment'], true))
                     ->schema([$this->reasonField()])
                     ->requiresConfirmation()
                     ->action(function (OperationalEvent $record, array $data): void {
                         $this->service()->reject($record->id, (string) $data['reason'], $this->actor());
                         Notification::make()->title('PayMongo evidence rejected')->success()->send();
+                    }),
+                Action::make('confirmRecovered')
+                    ->label('Confirm Recovered Payment')
+                    ->icon(Heroicon::OutlinedCheckCircle)
+                    ->color('success')
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelProviderApi
+                        && $record->status === OperationalEvent::StatusReviewRequired
+                        && data_get($record->diagnostics, 'reason') === 'recovered_paid_without_webhook')
+                    ->schema([$this->reasonField()])
+                    ->requiresConfirmation()
+                    ->modalDescription('Confirm only after the checkout reference, assessment, amount, currency, mode, and provider payment identifiers all match.')
+                    ->action(function (OperationalEvent $record, array $data): void {
+                        $this->recoveryService()->confirm(
+                            $record->id,
+                            (string) $data['reason'],
+                            $this->actor(),
+                        );
+                        Notification::make()->title('Recovered PayMongo payment confirmed and posted')->success()->send();
+                    }),
+                Action::make('rejectRecovered')
+                    ->label('Reject Recovered Evidence')
+                    ->icon(Heroicon::OutlinedXCircle)
+                    ->color('danger')
+                    ->visible(fn (OperationalEvent $record): bool => $record->channel === OperationalEvent::ChannelProviderApi
+                        && $record->status === OperationalEvent::StatusReviewRequired
+                        && data_get($record->diagnostics, 'reason') === 'recovered_paid_without_webhook')
+                    ->schema([$this->reasonField()])
+                    ->requiresConfirmation()
+                    ->action(function (OperationalEvent $record, array $data): void {
+                        $this->recoveryService()->reject(
+                            $record->id,
+                            (string) $data['reason'],
+                            $this->actor(),
+                        );
+                        Notification::make()->title('Recovered PayMongo evidence rejected')->success()->send();
                     }),
                 Action::make('openSource')
                     ->label('Open Source')
@@ -184,7 +281,7 @@ class PayMongoReconciliation extends Page implements HasTable
             ->paginated([10, 25, 50])
             ->defaultPaginationPageOption(25)
             ->emptyStateHeading('No PayMongo exceptions need Accounting review')
-            ->emptyStateDescription('Failed processing and review-required webhook evidence will appear here.');
+            ->emptyStateDescription('Failed signed webhooks and provider-recovered payments awaiting a decision will appear here.');
     }
 
     private function reasonField(): Textarea
@@ -200,6 +297,35 @@ class PayMongoReconciliation extends Page implements HasTable
     private function service(): PayMongoReconciliationService
     {
         return app(PayMongoReconciliationService::class);
+    }
+
+    private function recoveryService(): PayMongoCheckoutRecoveryService
+    {
+        return app(PayMongoCheckoutRecoveryService::class);
+    }
+
+    private function reasonLabel(OperationalEvent $event): string
+    {
+        return match (data_get($event->diagnostics, 'reason')) {
+            'recovered_paid_without_webhook' => 'Accounting confirmation required',
+            default => str((string) data_get($event->diagnostics, 'reason', 'review_required'))
+                ->replace('_', ' ')
+                ->headline()
+                ->toString(),
+        };
+    }
+
+    private function nextStepLabel(OperationalEvent $event): string
+    {
+        if ($event->channel === OperationalEvent::ChannelProviderApi) {
+            return 'Confirm the exact provider evidence or reject it with a reason.';
+        }
+
+        return match (data_get($event->diagnostics, 'reason')) {
+            'unknown_reference' => 'Link the evidence to the correct eligible Payment Attempt.',
+            'processing_failed' => 'Review the failure, then reprocess the persisted signed webhook.',
+            default => 'Review the evidence and choose the permitted Accounting action.',
+        };
     }
 
     private function actor(): User

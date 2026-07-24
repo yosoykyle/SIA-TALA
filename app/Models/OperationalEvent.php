@@ -33,6 +33,8 @@ class OperationalEvent extends Model
 
     public const ChannelWebhook = 'webhook';
 
+    public const ChannelProviderApi = 'provider_api';
+
     public const DirectionOutbound = 'OUTBOUND';
 
     public const DirectionInbound = 'INBOUND';

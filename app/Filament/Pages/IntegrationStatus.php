@@ -177,7 +177,10 @@ class IntegrationStatus extends Page
             ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
             ->latest('occurred_at')
             ->first(['occurred_at', 'failed_at']);
-        $openExceptions = (clone $webhookEvents)
+        $openExceptions = OperationalEvent::query()
+            ->where('event_domain', OperationalEvent::DomainIntegration)
+            ->where('integration', OperationalEvent::IntegrationPayMongo)
+            ->whereIn('channel', [OperationalEvent::ChannelWebhook, OperationalEvent::ChannelProviderApi])
             ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
             ->count();
 
@@ -195,11 +198,11 @@ class IntegrationStatus extends Page
                 'API key references' => $hasApiKeys ? 'Configured' : 'Missing',
                 'Webhook signing secret' => $hasWebhookSecret ? 'Configured' : 'Missing',
                 'Local webhook route' => $hasWebhookRoute ? 'Registered' : 'Missing',
-                'Local webhook readiness' => $localReady ? 'Ready' : 'Incomplete',
-                'Last processed webhook' => $this->eventTimestamp($lastProcessed?->processed_at),
-                'Last failed/review webhook' => $this->eventTimestamp($lastFailed->failed_at ?? $lastFailed->occurred_at ?? null),
-                'Open exceptions' => (string) $openExceptions,
-                'Provider endpoint status' => 'Not verified locally',
+                'Local PayMongo readiness' => $localReady ? 'Ready' : 'Incomplete',
+                'Recent verified webhook' => $this->eventTimestamp($lastProcessed?->processed_at),
+                'Recent failed/review webhook' => $this->eventTimestamp($lastFailed->failed_at ?? $lastFailed->occurred_at ?? null),
+                'Open local exceptions' => (string) $openExceptions,
+                'Provider dashboard state' => 'Not checked by TALA',
             ] : [
                 'Mock checkout URL' => (string) config('tala_integrations.payments.mock.checkout_base_url'),
             ],
