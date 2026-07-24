@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
+use App\Actions\StudentHub\StudentDashboardService;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Models\Course;
@@ -294,6 +295,38 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $this->assertSame('TBA', $cor['subjects'][0]['instructor']);
     }
 
+    #[Test]
+    public function student_schedule_and_access_log_use_only_the_current_official_enrollment(): void
+    {
+        $historical = $this->scheduleFixture();
+        $historical['term']->update(['state' => Term::StateClosed]);
+        $current = $this->scheduleFixture(student: $historical['student']);
+
+        Livewire::actingAs($historical['student'])
+            ->test(ScheduleView::class)
+            ->assertCanSeeTableRecords([$current['binding']])
+            ->assertCanNotSeeTableRecords([$historical['binding']])
+            ->assertSee($current['course']->code)
+            ->assertDontSee($historical['course']->code);
+
+        $this->assertDatabaseHas('output_access_logs', [
+            'output_type' => 'STUDENT_SCHEDULE',
+            'source_record_type' => Enrollment::class,
+            'source_record_id' => $current['enrollment']->id,
+            'student_profile_id' => $current['profile']->id,
+            'row_count' => 1,
+        ]);
+        $this->assertDatabaseMissing('output_access_logs', [
+            'output_type' => 'STUDENT_SCHEDULE',
+            'source_record_id' => $historical['enrollment']->id,
+        ]);
+
+        $dashboard = app(StudentDashboardService::class)->forStudent($current['profile']);
+
+        $this->assertCount(1, $dashboard['schedule']['current']);
+        $this->assertSame($current['course']->code, $dashboard['schedule']['current'][0]['subject_code']);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -463,6 +496,16 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
      */
     private function studentContextFor(User $student): array
     {
+        $existingProfile = $student->studentProfile()->with('program')->first();
+
+        if ($existingProfile instanceof StudentProfile && $existingProfile->program instanceof Program) {
+            return [
+                'student' => $student,
+                'profile' => $existingProfile,
+                'program' => $existingProfile->program,
+            ];
+        }
+
         $program = Program::factory()->create(['code' => 'D3CP'.$student->id]);
         $profile = StudentProfile::factory()
             ->for($student)

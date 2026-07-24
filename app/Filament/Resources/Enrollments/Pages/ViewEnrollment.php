@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Enrollments\Pages;
 
+use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\EnrollmentGateEvaluator;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Enrollment\RecordAcademicException;
@@ -35,6 +36,8 @@ class ViewEnrollment extends ViewRecord
             EnrollmentsTable::cancelPlacementAction(),
             Action::make('refreshGateResults')
                 ->label('Refresh Gate Results')
+                ->labeledFrom('sm')
+                ->tooltip('Refresh enrollment gate results')
                 ->icon('heroicon-o-arrow-path')
                 ->authorize(fn (): bool => auth()->user()?->can('refreshGates', $this->getRecord()) ?? false)
                 ->action(function (Enrollment $record): void {
@@ -44,6 +47,8 @@ class ViewEnrollment extends ViewRecord
                 }),
             Action::make('academicException')
                 ->label('Record Approved Academic Exception')
+                ->labeledFrom('lg')
+                ->tooltip('Record an approved academic exception')
                 ->icon('heroicon-o-academic-cap')
                 ->authorize(fn (): bool => auth()->user()?->can('create', EnrollmentException::class) ?? false)
                 ->schema([
@@ -88,6 +93,8 @@ class ViewEnrollment extends ViewRecord
                 ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin]) ?? false),
             Action::make('unitLoadException')
                 ->label('Record Approved Unit-Load Exception')
+                ->labeledFrom('lg')
+                ->tooltip('Record an approved unit-load exception')
                 ->icon('heroicon-o-scale')
                 ->authorize(fn (): bool => auth()->user()?->can('create', EnrollmentException::class) ?? false)
                 ->schema([
@@ -140,6 +147,8 @@ class ViewEnrollment extends ViewRecord
                 ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin]) ?? false),
             Action::make('recordOfficialEnrollment')
                 ->label('Record Official Enrollment')
+                ->labeledFrom('md')
+                ->tooltip('Record official enrollment')
                 ->icon('heroicon-o-check-badge')
                 ->color('success')
                 ->authorize(fn (): bool => auth()->user()?->can('officiallyEnroll', $this->getRecord()) ?? false)
@@ -158,7 +167,7 @@ class ViewEnrollment extends ViewRecord
                         ->maxLength(2000),
                 ])
                 ->modalHeading('Record official enrollment')
-                ->modalDescription('This rechecks every enrollment gate, converts the seat reservation, binds the official schedule, and makes the COR available. The result is recorded and auditable.')
+                ->modalDescription('This rechecks every enrollment gate, converts the seat reservation, and binds the official schedule. The enrollment becomes official; the Student COR is available only when its current-record and hold checks also pass.')
                 ->modalSubmitActionLabel('Record Official Enrollment')
                 ->action(function (Enrollment $record, array $data): void {
                     $actor = auth()->user();
@@ -170,10 +179,18 @@ class ViewEnrollment extends ViewRecord
                     try {
                         app(FinalizeOfficialEnrollment::class)->execute($record, $actor, $data['remark'] ?? null);
                         $this->record = $record->refresh();
+                        $this->record->loadMissing('studentProfile.user');
+                        $student = $this->record->studentProfile?->user;
+                        $cor = $student instanceof User
+                            ? app(BuildCorOutput::class)->forStudent($student)
+                            : ['available' => false, 'reason' => 'No Student Hub account is linked to this enrollment.'];
+                        $body = ($cor['available'] ?? false) === true
+                            ? 'The enrollment is official. The current COR and class schedule are available in the Student Hub.'
+                            : 'The enrollment is official, but the current COR is not available yet: '.($cor['reason'] ?? 'Review the student record and active holds.');
 
                         Notification::make()
                             ->title('Official enrollment recorded')
-                            ->body('The enrollment is now official and the COR is available.')
+                            ->body($body)
                             ->success()
                             ->send();
                     } catch (Throwable $exception) {
@@ -186,6 +203,8 @@ class ViewEnrollment extends ViewRecord
                 }),
             Action::make('printCor')
                 ->label('Print COR')
+                ->labeledFrom('sm')
+                ->tooltip('Print or save this COR as PDF')
                 ->icon('heroicon-o-printer')
                 ->url(fn (): string => route('cor.print', $this->getRecord()))
                 ->openUrlInNewTab()

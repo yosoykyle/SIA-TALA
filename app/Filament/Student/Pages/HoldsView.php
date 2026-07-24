@@ -59,6 +59,7 @@ class HoldsView extends Page implements HasTable
                     ->label('Effective Date')
                     ->date(),
             ])
+            ->stackedOnMobile()
             ->emptyStateHeading('No active holds')
             ->emptyStateDescription('You are clear from any blocks or deficiencies.')
             ->emptyStateIcon('heroicon-o-check-circle');

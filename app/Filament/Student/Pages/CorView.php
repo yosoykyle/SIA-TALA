@@ -53,20 +53,22 @@ class CorView extends Page
                             ->label('Notice')
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(['default' => 1, 'sm' => 2]),
                 Section::make('Student Information')
+                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true)
                     ->schema([
                         TextEntry::make('student_number')->label('Student No.'),
                         TextEntry::make('student_name')->label('Full Name'),
                         TextEntry::make('program')->label('Program'),
                         TextEntry::make('year_level')->label('Year Level'),
                         TextEntry::make('registration_date')->label('Registration Date'),
-                        TextEntry::make('delivery_modality')->label('Delivery Modality'),
+                        TextEntry::make('delivery_modality')->label('Course Delivery Mix'),
                         TextEntry::make('payment_status')->label('Payment Status'),
                         TextEntry::make('balance')->label('Balance'),
                     ])
-                    ->columns(4),
+                    ->columns(['default' => 1, 'sm' => 2, 'xl' => 4]),
                 Section::make('Current Enrolled Subjects')
+                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true)
                     ->schema([
                         TextEntry::make('total_units')->label('Total Units'),
                         RepeatableEntry::make('subjects')
@@ -82,13 +84,15 @@ class CorView extends Page
                                 TextEntry::make('time')->label('Time'),
                                 TextEntry::make('room')->label('Room'),
                                 TextEntry::make('instructor')->label('Instructor'),
+                                TextEntry::make('modality')->label('Modality')->badge(),
                             ])
-                            ->columns(5)
+                            ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
                 Section::make('Installment Schedule')
-                    ->visible(fn (): bool => (bool) ($this->cor['state']['installment_applicable'] ?? false))
+                    ->visible(fn (): bool => ($this->cor['available'] ?? false) === true
+                        && (bool) ($this->cor['state']['installment_applicable'] ?? false))
                     ->schema([
                         RepeatableEntry::make('installment_rows')
                             ->label('Installments')
@@ -101,7 +105,7 @@ class CorView extends Page
                                 TextEntry::make('date_paid')->label('Date Paid'),
                                 TextEntry::make('remaining_balance')->label('Remaining'),
                             ])
-                            ->columns(7)
+                            ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
@@ -114,9 +118,11 @@ class CorView extends Page
             Action::make('print')
                 ->label('Print / Save as PDF')
                 ->icon('heroicon-o-printer')
+                ->labeledFrom('sm')
+                ->tooltip('Print or save the current COR as PDF')
                 ->url(fn (): string => route('cor.print', $this->cor['summary']['enrollment_id'] ?? 0))
                 ->openUrlInNewTab()
-                ->disabled(fn (): bool => ($this->cor['available'] ?? false) !== true),
+                ->visible(fn (): bool => ($this->cor['available'] ?? false) === true),
         ];
     }
 }

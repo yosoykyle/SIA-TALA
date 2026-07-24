@@ -196,7 +196,7 @@
                 'Year Level' => $cor['summary']['year_level'],
                 'Term' => $cor['summary']['term'],
                 'Registration Date' => $cor['summary']['registration_date'],
-                'Delivery Modality' => $cor['summary']['delivery_modality'],
+                'Course Delivery Mix' => $cor['summary']['delivery_modality'],
                 'Payment Status' => $cor['summary']['payment_status'],
                 'Total Units' => $cor['summary']['total_units'],
                 'Balance' => 'PHP '.$cor['summary']['balance'],
@@ -223,6 +223,7 @@
                     <th>Time</th>
                     <th>Room</th>
                     <th>Instructor</th>
+                    <th>Modality</th>
                 </tr>
             </thead>
             <tbody>
@@ -238,10 +239,11 @@
                         <td>{{ $subject['time'] }}</td>
                         <td>{{ $subject['room'] }}</td>
                         <td>{{ $subject['instructor'] }}</td>
+                        <td>{{ $subject['modality'] }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">No enrolled subjects are available for this COR.</td>
+                        <td colspan="11">No enrolled subjects are available for this COR.</td>
                     </tr>
                 @endforelse
             </tbody>

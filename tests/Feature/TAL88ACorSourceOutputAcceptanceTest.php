@@ -185,9 +185,6 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $this->assertSame('0.00', $rows[1]['remaining_balance']);
     }
 
-    /**
-     * @param  array<string, mixed>  $fixture
-     */
     private function addAssessmentInstallmentRows(Assessment $assessment): void
     {
         PaymentScheduleRow::query()->create([
@@ -327,7 +324,10 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
             'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
             'prior_identifier' => '123456789012',
         ]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),

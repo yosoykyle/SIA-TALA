@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Models\Enrollment;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
@@ -18,18 +19,32 @@ class RecordStudentScheduleAccess
 
     public const CopyStudent = 'STUDENT_COPY';
 
+    public function __construct(
+        private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
+    ) {}
+
     public function execute(
         User $student,
         ?Request $request = null,
         string $action = self::ActionView,
+        ?Enrollment $enrollment = null,
     ): void {
         if (! $student->hasRole('student') || ! in_array($action, [self::ActionView, self::ActionPrint], true)) {
             return;
         }
 
+        $currentEnrollment = $this->currentEnrollmentResolver->forStudent($student);
+
+        if (! $currentEnrollment instanceof Enrollment
+            || ($enrollment instanceof Enrollment && ! $enrollment->is($currentEnrollment))) {
+            return;
+        }
+
+        $enrollment = $currentEnrollment;
+
         $bindings = StudentScheduleBinding::query()
             ->activeOfficial()
-            ->forStudent($student)
+            ->forEnrollment($enrollment)
             ->with([
                 'courseEnrollment.enrollment.studentProfile',
                 'sectionMeeting.scheduleRun',
@@ -37,16 +52,6 @@ class RecordStudentScheduleAccess
             ->get();
 
         if ($bindings->isEmpty()) {
-            return;
-        }
-
-        $enrollment = $bindings
-            ->map(fn (StudentScheduleBinding $binding): mixed => $binding->courseEnrollment?->enrollment)
-            ->filter(fn (mixed $record): bool => $record instanceof Enrollment)
-            ->sortByDesc('id')
-            ->first();
-
-        if (! $enrollment instanceof Enrollment) {
             return;
         }
 

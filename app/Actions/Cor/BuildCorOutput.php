@@ -2,7 +2,9 @@
 
 namespace App\Actions\Cor;
 
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Finance\PaymentStatusResolver;
+use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
@@ -42,6 +44,8 @@ class BuildCorOutput
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly PaymentStatusResolver $paymentStatusResolver,
+        private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
+        private readonly HoldEvaluationService $holdEvaluation,
     ) {}
 
     /**
@@ -211,13 +215,7 @@ class BuildCorOutput
 
     private function currentOfficialEnrollment(StudentProfile $studentProfile): ?Enrollment
     {
-        $enrollment = Enrollment::query()
-            ->where('student_profile_id', $studentProfile->id)
-            ->where('status', 'officially_enrolled')
-            ->whereNotNull('officially_enrolled_at')
-            ->orderByDesc('officially_enrolled_at')
-            ->orderByDesc('id')
-            ->first();
+        $enrollment = $this->currentEnrollmentResolver->forProfile($studentProfile);
 
         if (! $enrollment instanceof Enrollment) {
             return null;
@@ -268,21 +266,11 @@ class BuildCorOutput
      */
     private function blockingCorHolds(Enrollment $enrollment): Collection
     {
-        return Hold::query()
-            ->where('student_profile_id', $enrollment->student_profile_id)
-            ->where('status', Hold::StatusActive)
-            ->where(function ($query) use ($enrollment): void {
-                $query->whereNull('term_id')->orWhere('term_id', $enrollment->term_id);
-            })
-            ->where(function ($query) use ($enrollment): void {
-                $query->whereNull('enrollment_id')->orWhere('enrollment_id', $enrollment->id);
-            })
-            ->where(function ($query): void {
-                $query->where('hold_type', Hold::TypeCorDownload)
-                    ->orWhere('blocking_level', Hold::BlockingCorPrint);
-            })
-            ->orderBy('effective_at')
-            ->get();
+        return $this->holdEvaluation->activeBlockingHolds(
+            $enrollment->studentProfile,
+            [Hold::BlockingCorPrint],
+            $enrollment,
+        );
     }
 
     /**
@@ -312,6 +300,7 @@ class BuildCorOutput
                     'time' => 'Unscheduled',
                     'room' => 'TBA',
                     'instructor' => 'TBA',
+                    'modality' => TermOffering::modalityOptions()[$termOffering->modality] ?? str($termOffering->modality)->headline()->toString(),
                     'schedule_version' => null,
                 ];
 
@@ -330,8 +319,11 @@ class BuildCorOutput
                             'section' => $section->code,
                             'day' => SectionMeeting::dayOptions()[(int) $meeting->day_of_week] ?? 'Unscheduled',
                             'time' => $this->timeRange($meeting->starts_at, $meeting->ends_at),
-                            'room' => $meeting->room_id !== null ? $meeting->room->code : 'TBA',
+                            'room' => $meeting->room_id !== null
+                                ? $meeting->room->code
+                                : ($meeting->modality === TermOffering::ModalityOnline ? 'Online' : 'TBA'),
                             'instructor' => $meeting->faculty->name,
+                            'modality' => TermOffering::modalityOptions()[$meeting->modality] ?? str($meeting->modality)->headline()->toString(),
                             'schedule_version' => $scheduleRun instanceof ScheduleGenerationRun
                                 ? $scheduleRun->publication_version
                                 : null,
@@ -568,10 +560,18 @@ class BuildCorOutput
 
     private function deliveryModality(Enrollment $enrollment): string
     {
-        $modality = $enrollment->courseEnrollments
+        $modalities = $enrollment->courseEnrollments
+            ->filter(fn (CourseEnrollment $courseEnrollment): bool => $courseEnrollment->status === CourseEnrollment::StatusActive)
             ->map(fn (CourseEnrollment $courseEnrollment): string => $courseEnrollment->termOffering->modality)
             ->filter()
-            ->first();
+            ->unique()
+            ->values();
+
+        if ($modalities->count() > 1) {
+            return 'Mixed';
+        }
+
+        $modality = $modalities->first();
 
         return TermOffering::modalityOptions()[$modality] ?? 'Not recorded';
     }

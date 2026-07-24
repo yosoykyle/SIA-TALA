@@ -6,6 +6,7 @@ use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\EnrollmentGateEvaluator;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Enrollment\StudentEnrollmentService;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\Assessment;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -14,6 +15,7 @@ use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\ScheduleGenerationRun;
@@ -32,6 +34,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -119,6 +122,71 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
 
         $cor = app(BuildCorOutput::class)->forEnrollment($enrollment, $registrar, BuildCorOutput::CopyRegistrar);
         $this->assertTrue($cor['available']);
+    }
+
+    #[Test]
+    public function registrar_action_truthfully_reports_available_current_cor_and_schedule(): void
+    {
+        $fixture = $this->clearSourceGateFixture();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']);
+        $enrollment = $fixture['enrollment']->refresh();
+
+        $component = Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()]);
+        $page = $component->instance();
+
+        $this->assertInstanceOf(ViewEnrollment::class, $page);
+
+        $officializeAction = collect($page->getCachedHeaderActions())
+            ->first(fn ($action): bool => $action->getName() === 'recordOfficialEnrollment');
+
+        $this->assertNotNull($officializeAction);
+        $this->assertSame('md', $officializeAction->getLabeledFromBreakpoint());
+        $this->assertSame('Record official enrollment', $officializeAction->getTooltip());
+
+        $component->callAction('recordOfficialEnrollment', ['remark' => 'Verified at the Registrar counter.']);
+
+        $this->assertSessionNotification(
+            'Official enrollment recorded',
+            'The enrollment is official. The current COR and class schedule are available in the Student Hub.',
+        );
+
+        $this->assertSame('officially_enrolled', $enrollment->fresh()->status);
+    }
+
+    #[Test]
+    public function registrar_action_reports_when_official_enrollment_succeeds_but_cor_is_blocked(): void
+    {
+        $fixture = $this->clearSourceGateFixture();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']);
+        $enrollment = $fixture['enrollment']->refresh();
+
+        Hold::query()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'term_id' => $fixture['term']->id,
+            'enrollment_id' => $enrollment->id,
+            'hold_type' => Hold::TypeCorDownload,
+            'blocking_level' => Hold::BlockingCorPrint,
+            'status' => Hold::StatusActive,
+            'reason' => 'Registrar test hold.',
+            'student_message' => 'Contact Accounting before printing your COR.',
+            'source_type' => Enrollment::class,
+            'source_id' => $enrollment->id,
+            'effective_at' => now()->subMinute(),
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->callAction('recordOfficialEnrollment');
+
+        $this->assertSessionNotification(
+            'Official enrollment recorded',
+            'The enrollment is official, but the current COR is not available yet: Contact Accounting before printing your COR.',
+        );
+
+        $this->assertSame('officially_enrolled', $enrollment->fresh()->status);
     }
 
     #[Test]
@@ -266,6 +334,20 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
         return $reservations + $bindingSeats;
     }
 
+    private function assertSessionNotification(string $title, string $body): void
+    {
+        $notifications = collect([
+            ...session()->get('filament.claimed_notifications', []),
+            ...session()->get('filament.notifications', []),
+        ]);
+
+        $this->assertTrue(
+            $notifications->contains(fn (array $notification): bool => ($notification['title'] ?? null) === $title
+                && ($notification['body'] ?? null) === $body),
+            "Expected session notification [{$title}] with body [{$body}]. Actual: ".json_encode($notifications->all()),
+        );
+    }
+
     /**
      * @return array{profile:StudentProfile,term:Term,enrollment:Enrollment,assessment:Assessment,offerings:Collection<int, TermOffering>,sections:Collection<int, Section>}
      */
@@ -279,6 +361,7 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
             'label' => 'First Semester 2026-2027',
             'starts_on' => '2026-06-01',
             'ends_on' => '2026-10-31',
+            'state' => Term::StateActive,
         ]);
         $enrollment = Enrollment::factory()
             ->for($profile)

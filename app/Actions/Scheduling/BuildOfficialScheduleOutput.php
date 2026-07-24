@@ -2,7 +2,9 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
+use App\Models\Enrollment;
 use App\Models\Room;
 use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
@@ -13,6 +15,10 @@ use Illuminate\Support\Facades\DB;
 
 class BuildOfficialScheduleOutput
 {
+    public function __construct(
+        private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
+    ) {}
+
     /**
      * @return array{title:string,owner:string,generated_at:string,rows:list<array<string, string>>}
      */
@@ -82,9 +88,15 @@ class BuildOfficialScheduleOutput
     {
         abort_unless($student->hasRole('student'), 403);
 
+        $enrollment = $this->currentEnrollmentResolver->forStudent($student);
+
         $bindings = StudentScheduleBinding::query()
             ->activeOfficial()
-            ->forStudent($student)
+            ->when(
+                $enrollment instanceof Enrollment,
+                fn ($query) => $query->forEnrollment($enrollment),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            )
             ->with([
                 'courseEnrollment.termOffering.term',
                 'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
@@ -105,6 +117,7 @@ class BuildOfficialScheduleOutput
             $student,
             $request,
             RecordStudentScheduleAccess::ActionPrint,
+            $enrollment,
         );
 
         return [

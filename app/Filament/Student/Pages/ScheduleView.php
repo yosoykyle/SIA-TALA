@@ -2,8 +2,10 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
 use App\Models\CourseComponent;
+use App\Models\Enrollment;
 use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
@@ -46,8 +48,11 @@ class ScheduleView extends Page implements HasTable
             Action::make('printSchedule')
                 ->label('Print / Save as PDF')
                 ->icon('heroicon-o-printer')
+                ->labeledFrom('sm')
+                ->tooltip('Print or save the current class schedule as PDF')
                 ->url(route('student.schedule.print'))
-                ->openUrlInNewTab(),
+                ->openUrlInNewTab()
+                ->visible(fn (): bool => $this->hasCurrentOfficialSchedule()),
         ];
     }
 
@@ -55,12 +60,17 @@ class ScheduleView extends Page implements HasTable
     {
         /** @var User $user */
         $user = auth()->user();
+        $enrollment = app(CurrentOfficialEnrollmentResolver::class)->forStudent($user);
 
         return $table
             ->query(
                 StudentScheduleBinding::query()
                     ->activeOfficial()
-                    ->forStudent($user)
+                    ->when(
+                        $enrollment instanceof Enrollment,
+                        fn ($query) => $query->forEnrollment($enrollment),
+                        fn ($query) => $query->whereRaw('1 = 0'),
+                    )
                     ->with([
                         'courseEnrollment.termOffering.term',
                         'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
@@ -116,8 +126,11 @@ class ScheduleView extends Page implements HasTable
             ])
             ->defaultGroup('sectionMeeting.day_of_week')
             ->groupingSettingsHidden()
+            ->stackedOnMobile()
             ->emptyStateHeading('No schedule available')
-            ->emptyStateDescription('Your class schedule is not available yet.')
+            ->emptyStateDescription($enrollment instanceof Enrollment
+                ? 'Your official enrollment is active, but no published class meetings are assigned yet. Please contact the Registrar Office.'
+                : 'No official enrollment exists for the active term yet. Complete enrollment or contact the Registrar Office.')
             ->emptyStateIcon('heroicon-o-calendar');
     }
 
@@ -126,5 +139,22 @@ class ScheduleView extends Page implements HasTable
         return collect([$meeting->starts_at, $meeting->ends_at])
             ->map(fn (mixed $time): string => CarbonImmutable::createFromFormat('H:i:s', (string) $time)->format('g:i A'))
             ->implode(' - ');
+    }
+
+    private function hasCurrentOfficialSchedule(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        $enrollment = app(CurrentOfficialEnrollmentResolver::class)->forStudent($user);
+
+        return $enrollment instanceof Enrollment
+            && StudentScheduleBinding::query()
+                ->activeOfficial()
+                ->forEnrollment($enrollment)
+                ->exists();
     }
 }

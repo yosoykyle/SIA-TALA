@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Actions\Cor\BuildCorOutput;
 use App\Filament\Student\Pages\CorView;
+use App\Filament\Student\Pages\HoldsView;
+use App\Filament\Student\Pages\ScheduleView;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\Course;
@@ -67,6 +69,9 @@ final class TAL70CorOutputTest extends TestCase
             ->test(CorView::class)
             ->assertSee('Available')
             ->assertSee($fixture['course_code'])
+            ->assertSee('Course Delivery Mix')
+            ->assertSee('Modality')
+            ->assertSee('Face-to-Face')
             ->assertSee('Print / Save as PDF');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -85,6 +90,9 @@ final class TAL70CorOutputTest extends TestCase
             ->assertOk()
             ->assertSee('Registration Form / Certificate of Registration')
             ->assertSee($fixture['course_code'])
+            ->assertSee('Course Delivery Mix')
+            ->assertSee('Modality')
+            ->assertSee('Face-to-Face')
             ->assertSee('PHP 4500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -95,6 +103,40 @@ final class TAL70CorOutputTest extends TestCase
             'action' => BuildCorOutput::ActionPrint,
             'copy_context' => BuildCorOutput::CopyStudent,
         ]);
+    }
+
+    public function test_student_cor_schedule_and_holds_keep_actions_and_records_responsive(): void
+    {
+        $fixture = $this->officialCorFixture();
+        $student = $fixture['student'];
+
+        $corPage = Livewire::actingAs($student)->test(CorView::class)->instance();
+
+        $this->assertInstanceOf(CorView::class, $corPage);
+
+        $corPrintAction = collect($corPage->getCachedHeaderActions())
+            ->first(fn ($action): bool => $action->getName() === 'print');
+
+        $this->assertNotNull($corPrintAction);
+        $this->assertSame('sm', $corPrintAction->getLabeledFromBreakpoint());
+        $this->assertSame('Print or save the current COR as PDF', $corPrintAction->getTooltip());
+
+        $schedulePage = Livewire::actingAs($student)->test(ScheduleView::class)->instance();
+
+        $this->assertInstanceOf(ScheduleView::class, $schedulePage);
+
+        $schedulePrintAction = collect($schedulePage->getCachedHeaderActions())
+            ->first(fn ($action): bool => $action->getName() === 'printSchedule');
+
+        $this->assertTrue($schedulePage->getTable()->isStackedOnMobile());
+        $this->assertNotNull($schedulePrintAction);
+        $this->assertSame('sm', $schedulePrintAction->getLabeledFromBreakpoint());
+        $this->assertSame('Print or save the current class schedule as PDF', $schedulePrintAction->getTooltip());
+
+        $holdsPage = Livewire::actingAs($student)->test(HoldsView::class)->instance();
+
+        $this->assertInstanceOf(HoldsView::class, $holdsPage);
+        $this->assertTrue($holdsPage->getTable()->isStackedOnMobile());
     }
 
     public function test_student_sees_blocked_state_without_staff_only_hold_notes(): void
@@ -116,6 +158,75 @@ final class TAL70CorOutputTest extends TestCase
             ->assertDontSee('Private reconciliation note.');
 
         $this->assertSame(0, DB::table('output_access_logs')->count());
+    }
+
+    public function test_future_and_expired_cor_holds_do_not_block_the_current_cor(): void
+    {
+        $fixture = $this->officialCorFixture();
+
+        foreach ([
+            ['effective_at' => now()->addDay(), 'expires_at' => null],
+            ['effective_at' => now()->subDays(2), 'expires_at' => now()->subDay()],
+        ] as $timing) {
+            Hold::query()->create([
+                'student_profile_id' => $fixture['profile']->id,
+                'term_id' => $fixture['term']->id,
+                'enrollment_id' => $fixture['enrollment']->id,
+                'hold_type' => Hold::TypeCorDownload,
+                'blocking_level' => Hold::BlockingCorPrint,
+                'status' => Hold::StatusActive,
+                'reason' => 'Time-bounded test hold.',
+                'student_message' => 'This message must not block the current COR.',
+                'source_type' => Enrollment::class,
+                'source_id' => $fixture['enrollment']->id,
+                ...$timing,
+            ]);
+        }
+
+        $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
+
+        $this->assertTrue($output['available']);
+    }
+
+    public function test_cor_reports_each_subject_modality_and_a_mixed_course_delivery_summary(): void
+    {
+        $fixture = $this->officialCorFixture();
+        $course = Course::factory()->create(['code' => fake()->unique()->bothify('ONL###')]);
+        $specification = CourseSpecification::factory()->for($course)->create([
+            'title' => 'Online General Education',
+            'credit_units' => '3.00',
+            'state' => CourseSpecification::StateActive,
+        ]);
+        CourseComponent::factory()->for($specification)->create([
+            'component_type' => CourseComponent::TypeLecture,
+            'weekly_contact_hours' => '3.00',
+        ]);
+        $curriculumEntry = CurriculumEntry::factory()
+            ->for($fixture['profile']->curriculumVersion)
+            ->for($specification)
+            ->create(['year_level' => '1', 'term_label' => 'First Semester']);
+        $onlineOffering = TermOffering::factory()
+            ->for($fixture['term'])
+            ->for($curriculumEntry)
+            ->create([
+                'modality' => TermOffering::ModalityOnline,
+                'state' => TermOffering::StateScheduled,
+            ]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $fixture['enrollment']->id,
+            'term_offering_id' => $onlineOffering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'units_snapshot' => '3.00',
+            'added_at' => now(),
+        ]);
+
+        $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
+
+        $this->assertSame('Mixed', $output['state']['delivery_modality']);
+        $this->assertEqualsCanonicalizing(
+            ['Face-to-Face', 'Online'],
+            collect($output['subjects'])->pluck('modality')->unique()->values()->all(),
+        );
     }
 
     public function test_non_active_lifecycle_status_blocks_current_cor_with_student_safe_message(): void
@@ -161,7 +272,10 @@ final class TAL70CorOutputTest extends TestCase
         Livewire::actingAs($student)
             ->test(CorView::class)
             ->assertSee('Unavailable')
-            ->assertSee('No current official enrollment is available for COR viewing.');
+            ->assertSee('No current official enrollment is available for COR viewing.')
+            ->assertDontSee('Student Information')
+            ->assertDontSee('Current Enrolled Subjects')
+            ->assertActionHidden('print');
 
         $this->assertSame(0, DB::table('output_access_logs')->count());
     }
@@ -231,7 +345,10 @@ final class TAL70CorOutputTest extends TestCase
             'student_number' => 'SIA-2026-'.fake()->unique()->numerify('####'),
             'prior_identifier' => '123456789012',
         ]);
-        $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
+        $term = Term::factory()->create([
+            'label' => 'First Semester 2026-2027',
+            'state' => Term::StateActive,
+        ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),

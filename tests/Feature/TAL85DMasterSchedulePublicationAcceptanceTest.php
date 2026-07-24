@@ -95,7 +95,9 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             $candidate = $this->candidate($run, $source['demand']);
 
             $published = $this->publisher->publish($run, $registrar, '  TAL-85D accepted publication.  ');
-            $meeting = SectionMeeting::query()->sole();
+            $meeting = SectionMeeting::query()
+                ->where('schedule_run_id', $run->id)
+                ->sole();
 
             $this->assertSame(ScheduleGenerationRun::StatusPublished, $published->status);
             $this->assertSame($registrar->id, $published->published_by);
@@ -127,7 +129,9 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             }
 
             $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $blockedRun->fresh()->status);
-            $this->assertSame(1, SectionMeeting::query()->count());
+            $this->assertSame(1, SectionMeeting::query()
+                ->whereIn('schedule_run_id', [$run->id, $blockedRun->id])
+                ->count());
         } finally {
             Carbon::setTestNow();
         }
@@ -156,7 +160,12 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         $this->assertModelExists($historicalMeeting);
         $this->assertSame(
             [$currentMeeting->id],
-            SectionMeeting::query()->activeOfficial()->pluck('id')->values()->all(),
+            SectionMeeting::query()
+                ->activeOfficial()
+                ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $source['term']->id))
+                ->pluck('id')
+                ->values()
+                ->all(),
         );
 
         $this->assertTrue(Route::has('filament.admin.resources.section-meetings.index'));
@@ -210,7 +219,9 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             $this->fail('Academic Head publication was not blocked.');
         } catch (AuthorizationException) {
             $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $publishableRun->fresh()->status);
-            $this->assertSame(0, SectionMeeting::query()->count());
+            $this->assertSame(0, SectionMeeting::query()
+                ->where('schedule_run_id', $publishableRun->id)
+                ->count());
         }
 
         try {
@@ -218,7 +229,9 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             $this->fail('System Super Admin publication was not blocked.');
         } catch (AuthorizationException) {
             $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $publishableRun->fresh()->status);
-            $this->assertSame(0, SectionMeeting::query()->count());
+            $this->assertSame(0, SectionMeeting::query()
+                ->where('schedule_run_id', $publishableRun->id)
+                ->count());
         }
 
         $published = $this->publisher->publish($publishableRun, $registrar);
@@ -265,7 +278,13 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         $this->assertSame('Online', $schedule[0]['modality_label']);
         $this->assertSame(
             [$published->id],
-            SectionMeeting::query()->activeOfficial()->pluck('schedule_run_id')->unique()->values()->all(),
+            SectionMeeting::query()
+                ->activeOfficial()
+                ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $source['term']->id))
+                ->pluck('schedule_run_id')
+                ->unique()
+                ->values()
+                ->all(),
         );
         $this->assertSame(1, CandidateScheduleRow::query()->where('schedule_run_id', $candidateOnlyRun->id)->count());
     }

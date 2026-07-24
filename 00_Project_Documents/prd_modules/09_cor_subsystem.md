@@ -31,7 +31,7 @@ Required fields:
 6. Section
 7. Registration Date
 8. Payment Type / Payment Status
-9. Delivery Modality
+9. Course Delivery Mix
 
 Payment status values:
 
@@ -43,13 +43,12 @@ Payment status values:
 6. Payment Under Review
 7. Payment Rejected
 
-Delivery modality values:
+Course delivery values:
 
 1. Online
 2. Face-to-Face
-3. Modular
 
-Payment status and delivery modality must remain separate fields.
+Delivery modality belongs to each enrolled subject offering, not to the student as a whole. The student-level **Course Delivery Mix** is derived from the current official subject rows and is displayed as Online, Face-to-Face, or Mixed when both occur. Payment status and course delivery must remain separate fields.
 
 #### 9.1.3 Class Schedule / Subjects
 
@@ -65,6 +64,7 @@ Required columns:
 8. Time
 9. Room
 10. Instructor / Teacher / Trainor
+11. Modality
 
 Rules:
 
@@ -75,6 +75,7 @@ Rules:
 5. COR must show the current official enrolled subject list.
 6. A course with linked Lecture and Laboratory components remains one subject line for units and enrollment, but may display separate schedule meeting rows for each component.
 7. The printed instructor label may be configured as Instructor, Teacher, Trainer, or Teacher/Trainor, but the source value must come from the published faculty assignment.
+8. Each subject or meeting row must show its own Online or Face-to-Face modality. Online rows do not require a physical room.
 
 #### 9.1.4 Computation of Fees
 
@@ -182,7 +183,7 @@ For MVP, COR download uses the browser's print or save-as-PDF flow from the auth
 
 ### 9.3. COR Visibility and Lightweight Print Log
 
-TALA renders the COR from the student's current official enrollment, active published schedule version, assessment, and ledger-derived balance. The source records and print logs provide traceability for v1.
+TALA renders the COR from the student's officially enrolled record in the active term, its active published schedule bindings, assessment, and ledger-derived balance. The Student Hub COR, Student Hub Schedule, Dashboard summary, printable outputs, and output-access logs must resolve that same enrollment so records from different terms are never mixed. The source records and print logs provide traceability for v1.
 
 **Rules:**
 

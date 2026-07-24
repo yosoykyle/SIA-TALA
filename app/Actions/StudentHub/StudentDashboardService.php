@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
@@ -25,6 +26,7 @@ class StudentDashboardService
         private readonly DecimalMoney $money,
         private readonly HoldEvaluationService $holds,
         private readonly StudentGradeLabelFormatter $gradeLabels,
+        private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
     ) {}
 
     /**
@@ -46,6 +48,7 @@ class StudentDashboardService
 
         $enrollments = $this->enrollmentsFor($studentProfile);
         $currentEnrollment = $enrollments->first();
+        $currentOfficialEnrollment = $this->currentEnrollmentResolver->forProfile($studentProfile);
         $holds = $this->holds($studentProfile, $currentEnrollment);
 
         return [
@@ -55,7 +58,7 @@ class StudentDashboardService
                 'history' => $enrollments->map(fn (Enrollment $enrollment): array => $this->enrollmentItem($enrollment))->values()->all(),
             ],
             'schedule' => [
-                'current' => $currentEnrollment instanceof Enrollment ? $this->scheduleFor($currentEnrollment) : [],
+                'current' => $currentOfficialEnrollment instanceof Enrollment ? $this->scheduleFor($currentOfficialEnrollment) : [],
             ],
             'financials' => $this->financials($studentProfile),
             'grades' => [
