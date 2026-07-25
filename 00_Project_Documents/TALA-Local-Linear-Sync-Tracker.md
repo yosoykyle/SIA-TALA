@@ -34,6 +34,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D4B | Done locally; pending explicit Linear sync | Grades and Student Lifecycle Hardening |
 | TAL-96D4C | Done locally; pending explicit Linear sync | Student Hub, Reports, Generated Outputs, and Notification Presentation |
 | TAL-96D4D | Done locally; pending explicit Linear sync | Bootstrap Landing, Static Diagnostics, and Cross-Role Consistency Closure |
+| TAL-96D5A | Done locally; pending explicit Linear sync | Completion Readiness and Acceptance-Matrix Reconciliation |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

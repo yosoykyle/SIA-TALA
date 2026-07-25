@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to remaining work:** `TAL-96D5`
+**Applies to remaining work:** `TAL-96D5A` through `TAL-96D5E`
 
-**Next execution boundary:** Plan `TAL-96D5` through a fresh Ground-Truth Gate
+**Next execution boundary:** Plan `TAL-96D5B` through a fresh Ground-Truth Gate
 
 ## 1. Purpose
 
@@ -69,7 +69,7 @@ The plan for each slice must map existing coverage before proposing changes. Mis
 
 ### 4.1 Comprehensibility and Responsive Acceptance Contract
 
-Programmatic verification is necessary but cannot by itself prove that a user can understand or operate a surface. Each remaining slice must therefore define and maintain its manual acceptance scenarios while implementing the journey, but the user executes the complete consolidated walkthrough once in TAL-96D5 after the D3 and D4 refinements are stable.
+Programmatic verification is necessary but cannot by itself prove that a user can understand or operate a surface. Each remaining slice must therefore define and maintain its manual acceptance scenarios while implementing the journey, but the user executes the complete consolidated walkthrough once in TAL-96D5B after the D3 and D4 refinements are stable.
 
 For each retained list, record, form, action, and cross-role projection, the implementation and its deferred acceptance scenario must establish that the intended user can determine:
 
@@ -82,9 +82,9 @@ For each retained list, record, form, action, and cross-role projection, the imp
 
 Primary and record actions must remain discoverable and operable at representative phone, tablet, and desktop widths. Native Filament responsive labels, tooltips, action groups, column visibility, and table layouts are preferred. An icon-only action must retain an accessible name and tooltip. Technical codes, timestamps, and diagnostic evidence remain available but must not displace the primary status, next action, responsible office, and recovery explanation.
 
-Focused automated verification remains mandatory in the slice that changes the behavior. Earlier user-led manual execution is required only when an unresolved visual decision, product-authority question, or other human-only gate cannot be settled safely from code and programmatic evidence, or when the user explicitly requests an early sample. Otherwise, the slice may enter Cleanup after its focused verification passes and its scenarios are added to the consolidated acceptance table, with user-led execution explicitly deferred to TAL-96D5.
+Focused automated verification remains mandatory in the slice that changes the behavior. Earlier user-led manual execution is required only when an unresolved visual decision, product-authority question, or other human-only gate cannot be settled safely from code and programmatic evidence, or when the user explicitly requests an early sample. Otherwise, the slice may enter Cleanup after its focused verification passes and its scenarios are added to the consolidated acceptance table, with user-led execution explicitly deferred to TAL-96D5B.
 
-TAL-96D4 owns final cross-role UI/UX consistency. TAL-96D5 owns the one consolidated user-led walkthrough and combined adversarial acceptance. A TAL-96D5 failure opens a bounded remediation for the failed journey and repeats only the affected acceptance cases; it does not automatically repeat every completed walkthrough.
+TAL-96D4 owns final cross-role UI/UX consistency. TAL-96D5B owns the one consolidated user-led walkthrough and combined adversarial acceptance. A TAL-96D5B failure opens a bounded remediation for the failed journey and repeats only the affected acceptance cases; it does not automatically repeat every completed walkthrough.
 
 ### 4.2 TAL-96D4 UX Scope Amendment
 
@@ -219,7 +219,11 @@ Snapshot, destructive rebuild, restoration, and scenario replacement remain huma
 - TAL-96D2B stabilizes academic periods, program identity, three-year curricula, catalog, and import behavior needed by every scenario.
 - TAL-96D2C owns final `MIN`, `MIDDLE`, and `MAX` scenario construction, resource/section/offering completeness, and workload manifests.
 - TAL-96D3 and TAL-96D4 use those fixtures to verify functional and cross-role behavior.
-- TAL-96D5 uses the stable workload manifests for the deferred capacity and resource-selection study.
+- TAL-96D5A reconciles completion readiness and the consolidated acceptance matrix without loading a scenario.
+- TAL-96D5B uses `MIDDLE` for the consolidated user-led adversarial walkthrough.
+- TAL-96D5C owns the full regression, security, and integration-readiness gate after manual remediation stabilizes.
+- TAL-96D5D uses the stable workload manifests for the deferred capacity and resource-selection study.
+- TAL-96D5E consolidates verified evidence, records the final deployment-readiness disposition, prepares the TAL-97 claim handoff, and retires this charter.
 
 ## 9. Capacity and Configuration Evaluation Contract
 
@@ -237,7 +241,7 @@ The final population-based study must use new labels to prevent confusion:
 - `TARGET-CFG` for the selected configuration evaluated against `MIDDLE`; and
 - `MAX-CFG` for the selected configuration evaluated against `MAX`.
 
-Exact CPU, memory, solver-worker, timeout, and cost values are TAL-96D5 results, not assumptions to encode now.
+Exact CPU, memory, solver-worker, timeout, and cost values are TAL-96D5D results, not assumptions to encode now.
 
 ### 9.1 Targeted evaluation method
 
@@ -294,9 +298,13 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D4B | Grades and Student Lifecycle vertical hardening, including faculty/staff action and student-facing projection | No population capacity study |
 | TAL-96D4C | Student Hub, reports, CSV semantics, authenticated generated outputs, and code-defined notification presentation | No population capacity study |
 | TAL-96D4D | Isolated Bootstrap landing-page refinement and final cross-role presentation-consistency closure | No population capacity study |
-| TAL-96D5 | Final adversarial acceptance, targeted population/configuration evaluation, deployment-readiness review, research evidence synchronization, and consolidated guide | Owns authorized population capacity and cost evaluation |
+| TAL-96D5A | Completion-readiness and acceptance-matrix reconciliation | No scenario replacement, browser walkthrough, full-suite gate, or Cloud capacity evaluation |
+| TAL-96D5B | Consolidated user-led adversarial acceptance against the representative `MIDDLE` scenario | Functional acceptance only; no population capacity study |
+| TAL-96D5C | Full regression, security, and integration-readiness gate after acceptance remediation stabilizes | No population capacity study |
+| TAL-96D5D | Targeted `MIN-CFG` / `TARGET-CFG` / `MAX-CFG` population, resource, solution-quality, and cost evaluation | Owns authorized population capacity and cost evaluation |
+| TAL-96D5E | Evidence consolidation, final deployment-readiness disposition, TAL-97 handoff, and charter retirement | No new capacity run unless a verified D5D evidence gap receives separate authorization |
 
-Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained manual acceptance scenarios, and Cleanup. User-led execution of those scenarios is consolidated in TAL-96D5 unless an earlier human-only gate requires a bounded sample.
+Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained manual acceptance scenarios, and Cleanup. User-led execution of those scenarios is consolidated in TAL-96D5B unless an earlier human-only gate requires a bounded sample.
 
 ## 11. Documentation Ownership
 
@@ -325,7 +333,7 @@ Each TAL-96D slice must produce:
 6. unresolved decisions and routed future boundaries;
 7. synthetic data needed to exercise the slice;
 8. named programmatic scenarios;
-9. additions to the consolidated manual acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, pass/fail, and observations, for user-led execution in TAL-96D5 unless an earlier human-only gate applies;
+9. additions to the consolidated manual acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, pass/fail, and observations, for user-led execution in TAL-96D5B unless an earlier human-only gate applies;
 10. likely panel questions with honest answers; and
 11. exact documentation updates warranted by verified results.
 
@@ -357,4 +365,4 @@ TAL-96D is complete only when:
 - the consolidated operations and defense guide is complete; and
 - TAL-97 can rehearse and present only verified claims.
 
-During TAL-96D5 Cleanup, this charter must be marked completed and either retained as historical governance evidence or archived according to the project documentation rules. It must not remain as a competing live product authority after its verified outcomes have been consolidated into their owning documents.
+During TAL-96D5E Cleanup, this charter must be marked completed and either retained as historical governance evidence or archived according to the project documentation rules. It must not remain as a competing live product authority after its verified outcomes have been consolidated into their owning documents.
