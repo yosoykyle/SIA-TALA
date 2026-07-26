@@ -69,6 +69,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Human-facing Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | TALA stores and processes timestamps in UTC. This separate timezone is
+    | used when presenting those timestamps to school users and operators.
+    |
+    */
+
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Manila'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

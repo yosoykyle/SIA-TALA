@@ -85,7 +85,7 @@ button:focus-visible,
 }
 
 .landing-brand-logo {
-    border-radius: 1rem;
+    border-radius: 22.37%;
     height: 2.5rem;
     margin-right: 0.625rem;
 }
@@ -281,7 +281,7 @@ button:focus-visible,
 }
 
 .hero-mockup-logo {
-    border-radius: 1rem;
+    border-radius: 22.37%;
     height: 3.6rem;
     object-fit: contain;
     width: 3.6rem;
@@ -309,7 +309,7 @@ button:focus-visible,
 }
 
 .workspace-summary strong,
-.workspace-summary span {
+.workspace-summary span:not(.workspace-number) {
     display: block;
 }
 
@@ -329,6 +329,7 @@ button:focus-visible,
     font-weight: 800;
     height: 2rem;
     justify-content: center;
+    width: 2rem;
 }
 
 .portal-note {
@@ -438,6 +439,14 @@ button:focus-visible,
     margin-top: auto;
 }
 
+.section-actions {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+}
+
 .btn-black-action {
     background: var(--tala-ink);
     border: 1px solid var(--tala-ink);
@@ -496,6 +505,24 @@ button:focus-visible,
     color: var(--tala-ink);
     font-weight: 750;
     padding: 1.25rem 1.35rem;
+}
+
+.faq-question {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-right: 0.75rem;
+    text-align: left;
+}
+
+.faq-category {
+    color: var(--tala-blue);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
 }
 
 .accordion-custom .accordion-button:not(.collapsed) {
@@ -558,6 +585,7 @@ button:focus-visible,
 }
 
 .footer-logo {
+    border-radius: 22.37%;
     height: 2.5rem;
     margin-right: 0.7rem;
     object-fit: contain;

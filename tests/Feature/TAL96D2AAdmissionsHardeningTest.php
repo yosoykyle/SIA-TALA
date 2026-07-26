@@ -6,11 +6,13 @@ use App\Actions\Applicants\ApplicantEvidenceService;
 use App\Actions\Applicants\ApplicantIntakeService;
 use App\Actions\Applicants\ApplicantReviewService;
 use App\Actions\Applicants\WithdrawApplicantIntake;
+use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Requirements;
 use App\Filament\Resources\ApplicantIntakes\Pages\ViewApplicantIntake;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
+use App\Models\CalendarEvent;
 use App\Models\ChecklistItem;
 use App\Models\DocumentEvidence;
 use App\Models\Program;
@@ -47,6 +49,7 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
     {
         $applicant = $this->applicant();
         $term = Term::factory()->create(['state' => Term::StateActive]);
+        $this->openAdmissions($term);
         $program = Program::factory()->create(['is_active' => true]);
         AdmissionRequirementPolicy::factory()->create([
             'requirement_type' => 'IDENTITY_DOCUMENT',
@@ -73,7 +76,8 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
     public function test_submission_rechecks_active_term_and_program_before_creating_checklist_records(): void
     {
         $applicant = $this->applicant();
-        $term = Term::factory()->create(['state' => 'inactive']);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $this->openAdmissions($term);
         $program = Program::factory()->create(['is_active' => true]);
         AdmissionRequirementPolicy::factory()->create([
             'requirement_type' => 'IDENTITY_DOCUMENT',
@@ -86,6 +90,7 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
             $applicant,
             $this->completeDraftData($term, $program, $path),
         );
+        $term->forceFill(['state' => 'inactive'])->save();
 
         try {
             app(ApplicantIntakeService::class)->submit($draft, true);
@@ -105,7 +110,7 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
         }
 
         $this->assertSame(ApplicantIntake::StatusDraft, $draft->fresh()->status);
-        $this->assertDatabaseCount('checklist_items', 0);
+        $this->assertSame(0, $draft->checklistItems()->count());
     }
 
     public function test_rejection_replacement_and_acceptance_keep_checklist_and_evidence_synchronized(): void
@@ -311,7 +316,11 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
             'reviewed_by' => null,
         ]);
 
-        app(WithdrawApplicantIntake::class)->execute($intake, $applicant);
+        app(WithdrawApplicantIntake::class)->execute(
+            $intake,
+            $applicant,
+            'I am withdrawing this synthetic acceptance-test application.',
+        );
 
         $this->assertSame(ApplicantIntake::StatusWithdrawn, $intake->fresh()->status);
         $this->assertNotNull($intake->fresh()->archived_at);
@@ -434,7 +443,7 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
             $this->assertArrayHasKey('replacement_file', $exception->errors());
         }
 
-        $this->assertDatabaseCount('document_evidence', 1);
+        $this->assertSame(1, $item->documentEvidence()->count());
         $this->assertSame(DocumentEvidence::StatusRejected, $original->fresh()->status);
         Storage::disk('local')->assertMissing($invalidPath);
         Storage::disk('local')->assertMissing($duplicatePath);
@@ -467,7 +476,7 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
         }
 
         Storage::disk('local')->assertExists($otherPath);
-        $this->assertDatabaseCount('document_evidence', 1);
+        $this->assertSame(1, $item->documentEvidence()->count());
         $this->assertSame(DocumentEvidence::StatusRejected, $original->fresh()->status);
     }
 
@@ -502,6 +511,112 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
             storage_path('framework/testing/disks/tmp-for-tests'),
             config('filesystems.disks.tmp-for-tests.root'),
         );
+    }
+
+    public function test_applicant_dashboard_explains_a_saved_draft_without_false_submission_empty_states(): void
+    {
+        $applicant = $this->applicant();
+        $term = Term::factory()->create();
+        $program = Program::factory()->create();
+        ApplicantIntake::factory()->create([
+            'user_id' => $applicant->id,
+            'term_id' => $term->id,
+            'program_id' => $program->id,
+            'status' => ApplicantIntake::StatusDraft,
+            'draft_document_references' => [
+                '1' => "applicant-evidence/drafts/{$applicant->id}/identity.pdf",
+            ],
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::actingAs($applicant)
+            ->test(Dashboard::class)
+            ->assertOk()
+            ->assertSee('Draft saved')
+            ->assertSee('1 document attached to this draft')
+            ->assertSee('The Registrar checklist and review history are created after you submit')
+            ->assertDontSee('No requirements configured for this application.')
+            ->assertDontSee('No digital uploads recorded yet.')
+            ->assertSeeHtml('class="tala-status-grid"');
+    }
+
+    public function test_applicant_upload_field_identifies_a_file_restored_from_the_saved_draft(): void
+    {
+        $applicationSource = file_get_contents(app_path('Filament/Applicant/Pages/Application.php'));
+        $applicant = $this->applicant();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $program = Program::factory()->create(['is_active' => true]);
+        $policy = AdmissionRequirementPolicy::factory()->create([
+            'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
+            'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
+            'requirement_type' => 'IDENTITY_DOCUMENT',
+            'evidence_method' => ChecklistItem::EvidenceMethodDigitalUpload,
+            'blocking_level' => ChecklistItem::BlockingHandover,
+        ]);
+        $path = "applicant-requirement-documents/{$applicant->id}/{$policy->id}/private.pdf";
+        Storage::disk('local')->put($path, "%PDF-1.4\nsaved draft evidence\n%%EOF");
+        ApplicantIntake::factory()->create([
+            'user_id' => $applicant->id,
+            'term_id' => $term->id,
+            'program_id' => $program->id,
+            'status' => ApplicantIntake::StatusDraft,
+            'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
+            'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
+            'draft_document_references' => [
+                (string) $policy->id => $path,
+            ],
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $this->assertIsString($applicationSource);
+        $this->assertStringContainsString('->openable()', $applicationSource);
+
+        Livewire::actingAs($applicant)
+            ->test(Application::class)
+            ->assertOk()
+            ->assertSee('Saved in this draft. Select the arrow beside the filename to open it, or Remove to replace it.');
+    }
+
+    public function test_guardian_address_can_follow_the_structured_applicant_address_without_losing_manual_editing(): void
+    {
+        $applicant = $this->applicant();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $program = Program::factory()->create(['is_active' => true]);
+        $intake = ApplicantIntake::factory()->create([
+            'user_id' => $applicant->id,
+            'term_id' => $term->id,
+            'program_id' => $program->id,
+            'status' => ApplicantIntake::StatusDraft,
+            'address_street' => '70 Madrigal Compound',
+            'address_barangay' => 'Bagong Silang',
+            'address_city' => 'San Pedro',
+            'address_district' => null,
+            'address_province' => 'Laguna',
+            'guardian_address' => '70 Madrigal Compound, Bagong Silang, San Pedro, Laguna',
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $component = Livewire::actingAs($applicant)
+            ->test(Application::class)
+            ->assertSet('data.guardian_address_same_as_applicant', true)
+            ->set('data.address_district', 'District 1')
+            ->assertSet(
+                'data.guardian_address',
+                '70 Madrigal Compound, Bagong Silang, San Pedro, District 1, Laguna',
+            )
+            ->call('saveDraft')
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            '70 Madrigal Compound, Bagong Silang, San Pedro, District 1, Laguna',
+            $intake->fresh()?->guardian_address,
+        );
+
+        $component
+            ->set('data.guardian_address_same_as_applicant', false)
+            ->set('data.guardian_address', 'Separate guardian residence')
+            ->set('data.address_street', '71 Madrigal Compound')
+            ->assertSet('data.guardian_address', 'Separate guardian residence');
     }
 
     /** @return array<string, mixed> */
@@ -539,6 +654,22 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
         $user->assignRole('applicant');
 
         return $user;
+    }
+
+    private function openAdmissions(Term $term): CalendarEvent
+    {
+        return CalendarEvent::factory()->for($term)->create([
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessAdmissions,
+            'start_at' => now()->subDay(),
+            'end_at' => now()->addDay(),
+            'day_of_week' => null,
+            'starts_at' => null,
+            'ends_at' => null,
+            'blocks_scheduling' => false,
+            'state' => CalendarEvent::StateActive,
+        ]);
     }
 
     private function registrar(): User

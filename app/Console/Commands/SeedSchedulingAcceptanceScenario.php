@@ -112,6 +112,7 @@ final class SeedSchedulingAcceptanceScenario extends Command
         $this->line('sections='.$manifest['counts']['sections']);
         $this->line('scheduling_demands='.$report['scheduling_demands']);
         $this->line('ready_scheduling_demands='.$report['ready_scheduling_demands']);
+        $this->line('admission_requirement_policies='.$report['admission_requirement_policies']);
         $this->line('operating_grid=MON-SAT 07:00-21:00 Asia/Manila');
         $this->line('readiness='.$readiness);
         $this->line('solver_feasibility='.$manifest['solver_feasibility']);

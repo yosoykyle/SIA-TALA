@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
+use App\Support\DisplayDateTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -73,7 +74,7 @@ class BuildOfficialScheduleOutput
         return [
             'title' => 'Faculty Assigned Schedule',
             'owner' => $faculty->name,
-            'generated_at' => now()->format('F j, Y g:i A'),
+            'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
             'rows' => $meetings
                 ->map(fn (SectionMeeting $meeting): array => $this->meetingRow($meeting))
                 ->values()
@@ -123,7 +124,7 @@ class BuildOfficialScheduleOutput
         return [
             'title' => 'Student Class Schedule',
             'owner' => $student->name,
-            'generated_at' => now()->format('F j, Y g:i A'),
+            'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
             'rows' => $bindings
                 ->map(function (StudentScheduleBinding $binding): array {
                     $meeting = $binding->sectionMeeting;

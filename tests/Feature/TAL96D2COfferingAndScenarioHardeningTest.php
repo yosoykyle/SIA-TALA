@@ -6,8 +6,10 @@ use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\SectionPlanningService;
 use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Models\AcademicYear;
+use App\Models\AdmissionRequirementPolicy;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
+use App\Models\ChecklistItem;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -279,6 +281,25 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertSame($before, $this->operationalCounts());
     }
 
+    public function test_scenario_rerun_fails_closed_when_the_admission_policy_fixture_is_incomplete(): void
+    {
+        $this->assertSame(
+            Command::SUCCESS,
+            Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']),
+        );
+        AdmissionRequirementPolicy::query()
+            ->where('requirement_type', 'FORM_137')
+            ->delete();
+        $before = $this->operationalCounts();
+
+        $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']);
+
+        $this->assertSame(Command::FAILURE, $exitCode);
+        $this->assertStringContainsString('partial, conflicting, or another scenario', Artisan::output());
+        $this->assertSame(9, AdmissionRequirementPolicy::query()->count());
+        $this->assertSame($before, $this->operationalCounts());
+    }
+
     private function assertScenarioCreatesExpectedWorkload(
         string $scenario,
         int $students,
@@ -304,6 +325,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertStringContainsString('unassignable_workloads=[]', $output);
         $this->assertStringContainsString("term_offerings={$offerings}", $output);
         $this->assertStringContainsString("scheduling_demands={$demands}", $output);
+        $this->assertStringContainsString('admission_requirement_policies=10', $output);
         $this->assertStringContainsString('operating_grid=MON-SAT 07:00-21:00 Asia/Manila', $output);
         $this->assertSame($students, StudentProfile::query()->count());
         $this->assertSame($offerings, TermOffering::query()->count());
@@ -317,6 +339,25 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertSame(
             $cohorts,
             SectionDeliveryGroup::query()->distinct()->count('name'),
+        );
+        $this->assertSame(10, AdmissionRequirementPolicy::query()->count());
+        $this->assertSame(
+            7,
+            AdmissionRequirementPolicy::query()
+                ->where('evidence_method', ChecklistItem::EvidenceMethodDigitalUpload)
+                ->count(),
+        );
+        $this->assertSame(
+            2,
+            AdmissionRequirementPolicy::query()
+                ->where('evidence_method', ChecklistItem::EvidenceMethodPhysicalCopy)
+                ->count(),
+        );
+        $this->assertSame(
+            1,
+            AdmissionRequirementPolicy::query()
+                ->where('evidence_method', ChecklistItem::EvidenceMethodMetadataOnly)
+                ->count(),
         );
         $this->assertSame(
             $demands,
@@ -343,11 +384,13 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             'sections' => Section::query()->count(),
             'groups' => SectionDeliveryGroup::query()->count(),
             'demands' => SchedulingDemand::query()->count(),
+            'admission_requirement_policies' => AdmissionRequirementPolicy::query()->count(),
         ];
     }
 
     private function clearOperationalDataInsideTestTransaction(): void
     {
+        AdmissionRequirementPolicy::query()->delete();
         SchedulingDemand::query()->delete();
         SectionDeliveryGroup::query()->delete();
         Section::query()->delete();

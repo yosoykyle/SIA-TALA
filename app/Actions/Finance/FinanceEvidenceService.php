@@ -168,6 +168,7 @@ class FinanceEvidenceService
                     $paymentAttempts,
                     $payments,
                     $availableAcknowledgements,
+                    hasCurrentDue: $this->money->greaterThanZero($due['amount']),
                 ),
                 'accommodation_summary' => $this->accommodationSummary($accommodation),
             ],

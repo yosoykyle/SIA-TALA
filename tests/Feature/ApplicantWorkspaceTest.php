@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Applicant\Pages\Application;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
@@ -57,7 +58,85 @@ class ApplicantWorkspaceTest extends TestCase
             ->get('/applicant')
             ->assertOk()
             ->assertSee('TALA Applicant Workspace')
-            ->assertSee('Start Your Application'); // Empty state when no intake exists
+            ->assertSee('No active application')
+            ->assertSee('Application History');
+    }
+
+    public function test_applicant_dashboard_empty_state_uses_bounded_icon_and_action_layout_hooks(): void
+    {
+        $dashboard = file_get_contents(resource_path('views/filament/applicant/pages/dashboard.blade.php'));
+        $styles = file_get_contents(public_path('css/tala-filament.css'));
+
+        $this->assertIsString($dashboard);
+        $this->assertIsString($styles);
+        $this->assertStringContainsString('<x-filament::icon', $dashboard);
+        $this->assertStringNotContainsString('<svg class="size-16"', $dashboard);
+        $this->assertStringContainsString('tala-empty-state__icon', $dashboard);
+        $this->assertStringContainsString('tala-empty-state__actions', $dashboard);
+        $this->assertMatchesRegularExpression(
+            '/\.tala-empty-state__icon\s*\{[^}]*width:\s*4rem;[^}]*height:\s*4rem;/s',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.tala-empty-state__actions\s*\{[^}]*margin-top:\s*0\.5rem;/s',
+            $styles,
+        );
+    }
+
+    public function test_requirements_empty_state_explains_its_purpose_and_links_to_the_application(): void
+    {
+        $user = User::factory()->create([
+            'status' => User::StatusApplicantPending,
+            'email_verified_at' => now(),
+        ]);
+        $user->assignRole('applicant');
+
+        $this->actingAs($user)
+            ->get('/applicant/requirements')
+            ->assertOk()
+            ->assertSee('Admission Requirements')
+            ->assertSee('Start Application')
+            ->assertSee(Application::getUrl(), false);
+    }
+
+    public function test_application_validates_wizard_progress_without_blocking_partial_drafts(): void
+    {
+        $application = file_get_contents(app_path('Filament/Applicant/Pages/Application.php'));
+
+        $this->assertIsString($application);
+        $this->assertStringContainsString('Fields marked * are required for final submission', $application);
+        $this->assertGreaterThanOrEqual(
+            15,
+            substr_count($application, '->required(fn (): bool => ! $this->savingDraft)'),
+        );
+        $this->assertStringContainsString(
+            '->required(fn (): bool => $isBlocking && ! $this->savingDraft)',
+            $application,
+        );
+    }
+
+    public function test_requirements_page_explains_that_a_draft_has_no_registrar_checklist_yet(): void
+    {
+        $user = User::factory()->create([
+            'status' => User::StatusApplicantPending,
+            'email_verified_at' => now(),
+        ]);
+        $user->assignRole('applicant');
+
+        ApplicantIntake::factory()->create([
+            'user_id' => $user->id,
+            'status' => ApplicantIntake::StatusDraft,
+            'submitted_at' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/applicant/requirements')
+            ->assertOk()
+            ->assertSee('Your application is still a draft')
+            ->assertSee('Continue Application')
+            ->assertSee(Application::getUrl(), false)
+            ->assertDontSee('Registrar Feedback / Instruction')
+            ->assertDontSee('No requirements are recorded yet.');
     }
 
     public function test_applicant_with_intake_displays_status_and_checklist(): void
@@ -128,5 +207,14 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertSee('id.pdf')
             ->assertSee('Submitted')
             ->assertDontSee('Start Your Application');
+
+        $this->actingAs($user)
+            ->get('/applicant/requirements')
+            ->assertOk()
+            ->assertSee('Requirement Status and Instructions')
+            ->assertSeeHtml('class="tala-table-scroll"')
+            ->assertSeeHtml('class="tala-data-table"')
+            ->assertSee('Birth Certificate')
+            ->assertSee('Submit original copy');
     }
 }

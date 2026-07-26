@@ -7,7 +7,9 @@ use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\AcceptanceBaselineEnvironmentGuard;
 use App\Models\AcademicYear;
+use App\Models\AdmissionRequirementPolicy;
 use App\Models\CalendarEvent;
+use App\Models\ChecklistItem;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -60,6 +62,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('outcome=created', $output);
         $this->assertStringContainsString('students=47', $output);
         $this->assertStringContainsString('scheduling_demands=54', $output);
+        $this->assertStringContainsString('admission_requirement_policies=10', $output);
         $this->assertStringContainsString('readiness=PASS', $output);
         $this->assertStringContainsString('applicant=applicant.demo@example.test', $output);
         $this->assertStringContainsString('system-super-admin=system-admin.demo@example.test', $output);
@@ -67,6 +70,13 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(['DBM', 'DIT', 'DTHM'], Program::query()->orderBy('code')->pluck('code')->all());
         $this->assertSame([3], Program::query()->distinct()->pluck('duration_years')->all());
         $this->assertSame(47, StudentProfile::query()->count());
+        $this->assertSame(10, AdmissionRequirementPolicy::query()->count());
+        $this->assertSame(
+            7,
+            AdmissionRequirementPolicy::query()
+                ->where('evidence_method', ChecklistItem::EvidenceMethodDigitalUpload)
+                ->count(),
+        );
         $this->assertSame(10, StudentProfile::query()->where('student_number', 'like', 'DBM-1A-%')->count());
         $this->assertSame(2, StudentProfile::query()->where('student_number', 'like', 'DBM-2A-%')->count());
         $this->assertSame(10, StudentProfile::query()->where('student_number', 'like', 'DIT-1A-%')->count());
@@ -195,6 +205,12 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame([1, 2, 3, 4, 5, 6], $term->scheduling_days);
         $this->assertSame(30, $term->scheduling_slot_minutes);
         $this->assertSame('21.00', $term->default_max_units);
+        $this->assertSame(2, CalendarEvent::query()->whereBelongsTo($term)->count());
+        $this->assertTrue(CalendarEvent::query()
+            ->whereBelongsTo($term)
+            ->where('process_key', CalendarEvent::ProcessAdmissions)
+            ->where('state', CalendarEvent::StateActive)
+            ->exists());
         $readiness = app(TermSchedulingReadinessService::class)->evaluateTerm($term);
         $this->assertTrue($readiness['is_ready'], json_encode($readiness, JSON_PRETTY_PRINT));
 
@@ -608,11 +624,13 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'groups' => SectionDeliveryGroup::query()->count(),
             'demands' => SchedulingDemand::query()->count(),
             'fee_rules' => FeeRule::query()->count(),
+            'admission_requirement_policies' => AdmissionRequirementPolicy::query()->count(),
         ];
     }
 
     private function clearPersistedAcceptanceBaselineInsideTestTransaction(): void
     {
+        AdmissionRequirementPolicy::query()->delete();
         SchedulingDemand::query()->delete();
         SectionDeliveryGroup::query()->delete();
         Section::query()->delete();

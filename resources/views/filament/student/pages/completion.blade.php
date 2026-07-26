@@ -10,7 +10,7 @@
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h2 class="text-base font-semibold text-gray-950 dark:text-white">Completion Review Status</h2>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Snapshot version {{ $this->snapshot->version }} generated {{ optional($this->snapshot->generated_at)->format('M d, Y g:i A') }}.</p>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Snapshot version {{ $this->snapshot->version }} generated {{ \App\Support\DisplayDateTime::format($this->snapshot->generated_at, 'M d, Y g:i A') }}.</p>
                     </div>
                     <span class="inline-flex w-fit rounded-md bg-warning-50 px-2 py-1 text-sm font-medium text-warning-700 dark:bg-warning-400/10 dark:text-warning-300">
                         {{ str($this->projection['result_status'] ?? $this->snapshot->result_status)->headline() }}

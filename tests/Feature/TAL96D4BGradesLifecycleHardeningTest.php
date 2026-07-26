@@ -163,8 +163,8 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
     #[Test]
     public function acceptance_state_overlay_is_guarded_and_idempotent(): void
     {
-        $faculty = $this->staff(User::StaffRoleFaculty);
-        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->staff(User::StaffRoleFaculty);
+        $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create();
         $sharedProfile = StudentProfile::factory()->create();
         StudentProfile::factory()->count(3)->create([
@@ -177,7 +177,12 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         app(TAL96D4BAcceptanceStateSeeder::class)->run();
         $this->artisan('acceptance:seed-tal96d4b-states')->assertSuccessful();
 
-        $this->assertSame(4, GradeRoster::query()->where('faculty_user_id', $faculty->id)->count());
+        $seededFacultyId = GradeRoster::query()->value('faculty_user_id');
+        $seededRegistrarId = GradeRoster::query()->whereNotNull('reviewed_by')->value('reviewed_by');
+
+        $this->assertNotNull($seededFacultyId);
+        $this->assertNotNull($seededRegistrarId);
+        $this->assertSame(4, GradeRoster::query()->where('faculty_user_id', $seededFacultyId)->count());
         GradeRoster::query()->with('section')->get()->each(function (GradeRoster $roster): void {
             $this->assertSame($roster->term_offering_id, $roster->section->term_offering_id);
         });
@@ -187,11 +192,12 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-WITHDRAWAL')->count());
         $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-PROGRAM-SHIFT')->count());
         $programShift = StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-PROGRAM-SHIFT')->sole();
-        $this->assertNotSame($programShift->studentProfile->program_id, $programShift->target_program_id);
+        $sourceProgramId = StudentProfile::query()->findOrFail($programShift->student_profile_id)->program_id;
+        $this->assertNotSame($sourceProgramId, $programShift->target_program_id);
         $this->assertTrue($programShift->term->starts_on->isFuture());
         $this->assertSame(1, $programShift->programShiftCredits()->count());
         $this->assertSame(1, GraduationReviewBatch::query()->where('name', TAL96D4BAcceptanceStateSeeder::BatchName)->count());
-        $this->assertSame(2, GraduationSnapshot::query()->where('generated_by', $registrar->id)->count());
+        $this->assertSame(2, GraduationSnapshot::query()->where('generated_by', $seededRegistrarId)->count());
         $blockedSnapshot = GraduationSnapshot::query()
             ->where('result_status', GraduationEligibilitySnapshotService::ResultBlockedHoldOrClearance)
             ->with('member')

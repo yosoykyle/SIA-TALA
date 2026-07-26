@@ -48,6 +48,7 @@ final class SeedClientAcceptanceBaseline extends Command
                 $this->line('cohorts='.$report['cohorts']);
                 $this->line('scheduling_demands='.$report['scheduling_demands']);
                 $this->line('ready_scheduling_demands='.$report['ready_scheduling_demands']);
+                $this->line('admission_requirement_policies='.$report['admission_requirement_policies']);
 
                 foreach ($report['standings'] as $standing => $count) {
                     $this->line('standing_'.str($standing)->snake()->toString().'='.$count);
@@ -96,6 +97,7 @@ final class SeedClientAcceptanceBaseline extends Command
         $this->line('term=AY 2025-2026 / Second Semester');
         $this->line('students=47');
         $this->line('scheduling_demands=54');
+        $this->line('admission_requirement_policies='.$seeder->inspectionReport()['admission_requirement_policies']);
         $this->line('readiness='.$readiness);
         $this->warn('Representative test-only logins (password: password):');
         $this->line('applicant=applicant.demo@example.test');

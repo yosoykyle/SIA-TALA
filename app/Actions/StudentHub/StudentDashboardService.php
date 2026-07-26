@@ -15,6 +15,7 @@ use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Support\DecimalMoney;
+use App\Support\DisplayDateTime;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -442,7 +443,7 @@ class StudentDashboardService
     private function dateTimeString(mixed $value): ?string
     {
         if ($value instanceof DateTimeInterface) {
-            return $value->format('Y-m-d H:i:s');
+            return DisplayDateTime::format($value, 'Y-m-d H:i:s');
         }
 
         return $value === null || $value === '' ? null : (string) $value;

@@ -47,6 +47,10 @@ class OperationalEvent extends Model
 
     public const TypePaymentPostedEmail = 'payment_posted_email';
 
+    public const TypeApplicantActionRequiredEmail = 'applicant_action_required_email';
+
+    public const TypeApplicantApprovedEmail = 'applicant_approved_email';
+
     public const StatusPending = 'PENDING';
 
     public const StatusProcessed = 'PROCESSED';

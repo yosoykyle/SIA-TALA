@@ -555,6 +555,30 @@ final class TAL62SolverRunDispatchTest extends TestCase
         );
     }
 
+    public function test_solver_run_list_does_not_sort_large_snapshot_payloads(): void
+    {
+        $source = $this->schedulingSource();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        ScheduleGenerationRun::query()->create([
+            'term_id' => $source['term']->id,
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'requested_by' => $registrar->id,
+            'input_snapshot' => ['payload' => str_repeat('x', 1_000_000)],
+            'input_hash' => hash('sha256', 'tal96d5b-large-snapshot'),
+            'solver_version' => 'tal96d5b-test',
+            'model_version' => 'tal96d5b-test',
+            'diagnostics' => ['detail' => str_repeat('y', 1_000_000)],
+        ]);
+
+        $this->actingAs($registrar);
+
+        $component = Livewire::test(ListScheduleGenerationRuns::class);
+
+        $component->assertOk();
+        $component->assertCanSeeTableRecords(ScheduleGenerationRun::query()->get());
+    }
+
     /**
      * @return array{
      *     term: Term,

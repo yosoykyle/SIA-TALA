@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use LogicException;
+use Spatie\Activitylog\Models\Activity;
 
 class ApplicantIntake extends Model
 {
@@ -154,9 +156,21 @@ class ApplicantIntake extends Model
         return $this->hasOne(StudentProfile::class);
     }
 
+    /** @return MorphOne<Activity, $this> */
+    public function withdrawalActivity(): MorphOne
+    {
+        return $this->morphOne(Activity::class, 'subject')
+            ->where('event', 'applicant_intake_withdrawn')
+            ->latestOfMany();
+    }
+
     protected static function booted(): void
     {
         static::updating(function (ApplicantIntake $intake): void {
+            if ($intake->getOriginal('status') === self::StatusWithdrawn) {
+                throw new LogicException('A withdrawn applicant intake is immutable history.');
+            }
+
             if ($intake->getOriginal('handed_over_at') !== null) {
                 throw new LogicException('A handed-over applicant intake is immutable.');
             }

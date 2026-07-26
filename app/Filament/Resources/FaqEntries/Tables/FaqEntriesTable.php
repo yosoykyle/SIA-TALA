@@ -21,9 +21,6 @@ class FaqEntriesTable
                 TextColumn::make('category')
                     ->formatStateUsing(fn (?string $state): string => FaqEntry::categoryLabel($state))
                     ->searchable(),
-                TextColumn::make('sort_order')
-                    ->numeric()
-                    ->sortable(),
                 IconColumn::make('is_published')
                     ->label('Published')
                     ->boolean(),
@@ -48,6 +45,7 @@ class FaqEntriesTable
                 SelectFilter::make('category')
                     ->options(FaqEntry::categoryOptions()),
             ])
+            ->reorderable('sort_order')
             ->recordActions([
                 EditAction::make(),
                 DeleteAction::make(),

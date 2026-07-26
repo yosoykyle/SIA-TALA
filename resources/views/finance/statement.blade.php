@@ -2,7 +2,7 @@
     title="Statement of Account"
     :context="$statement['copy_context'] === 'ACCOUNTING_COPY' ? 'Accounting Copy' : 'Student Copy'"
     :subtitle="$statement['summary']['term']"
-    :generated-at="$statement['generated_at']->format('M d, Y h:i A')"
+    :generated-at="\App\Support\DisplayDateTime::format($statement['generated_at'], 'M d, Y h:i A')"
 >
     <section class="finance-grid">
         <div><strong>Student Number:</strong> {{ $statement['summary']['student_number'] }}</div>

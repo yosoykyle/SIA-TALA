@@ -3,6 +3,7 @@
 namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Applicants\AdmissionRequirementResolver;
+use App\Actions\Applicants\AdmissionWindowService;
 use App\Actions\Applicants\ApplicantIntakeService;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
@@ -22,6 +23,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Concerns\RestrictsFileUploadsToSchemaComponents;
@@ -47,12 +49,20 @@ class Application extends Page
     /** @var array<string, mixed> | null */
     public ?array $data = [];
 
+    public bool $savingDraft = false;
+
+    public ?string $manualGuardianAddress = null;
+
     public function mount(): void
     {
         $applicant = Auth::user();
         abort_unless($applicant !== null, 403);
 
-        $intake = ApplicantIntake::query()->where('user_id', $applicant->id)->first();
+        $intake = ApplicantIntake::query()
+            ->where('user_id', $applicant->id)
+            ->where('status', '!=', ApplicantIntake::StatusWithdrawn)
+            ->latest('id')
+            ->first();
 
         if ($intake instanceof ApplicantIntake && $intake->status !== ApplicantIntake::StatusDraft) {
             $this->redirect(Dashboard::getUrl());
@@ -67,7 +77,7 @@ class Application extends Page
                 'document_uploads' => $intake->draft_document_references ?? [],
             ]
             : [
-                'term_id' => Term::query()->where('state', Term::StateActive)->value('id'),
+                'term_id' => app(AdmissionWindowService::class)->openTermIds()->first(),
                 'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
                 'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
                 'first_name' => $applicant->first_name,
@@ -75,6 +85,12 @@ class Application extends Page
                 'last_name' => $applicant->last_name,
                 'email' => $applicant->email,
             ];
+
+        $guardianAddressMatchesApplicant = $this->guardianAddressMatchesApplicant($defaults);
+        $defaults['guardian_address_same_as_applicant'] = $guardianAddressMatchesApplicant;
+        $this->manualGuardianAddress = $guardianAddressMatchesApplicant
+            ? null
+            : (filled($defaults['guardian_address'] ?? null) ? (string) $defaults['guardian_address'] : null);
 
         $this->applicationForm()->fill($defaults);
     }
@@ -92,11 +108,8 @@ class Application extends Page
                                 ->schema([
                                     Select::make('term_id')
                                         ->label('Admission Term')
-                                        ->options(fn (): array => Term::query()
-                                            ->where('state', Term::StateActive)
-                                            ->orderByDesc('id')
-                                            ->pluck('label', 'id')
-                                            ->all())
+                                        ->options(fn (): array => $this->admissionTermOptions())
+                                        ->live()
                                         ->required(),
                                     Select::make('program_id')
                                         ->label('Preferred Program')
@@ -130,15 +143,17 @@ class Application extends Page
                                             ApplicantIntake::ModalityPreferenceFaceToFace => 'Face-to-Face',
                                             ApplicantIntake::ModalityPreferenceOnline => 'Online',
                                         ])
+                                        ->required(fn (): bool => ! $this->savingDraft)
                                         ->helperText('This preference does not create a separate student timetable. Each subject offering determines its delivery modality.'),
                                 ])
                                 ->columns(2)
                                 ->columnSpanFull(),
                             Section::make('Personal Details')
+                                ->description('Fields marked * are required for final submission. You may leave them incomplete while saving a draft.')
                                 ->schema([
-                                    TextInput::make('first_name')->maxLength(255),
+                                    TextInput::make('first_name')->required(fn (): bool => ! $this->savingDraft)->maxLength(255),
                                     TextInput::make('middle_name')->maxLength(255),
-                                    TextInput::make('last_name')->maxLength(255),
+                                    TextInput::make('last_name')->required(fn (): bool => ! $this->savingDraft)->maxLength(255),
                                     TextInput::make('extension_name')
                                         ->label('Name Extension')
                                         ->placeholder('Jr., Sr., III')
@@ -149,55 +164,144 @@ class Application extends Page
                                             'FEMALE' => 'Female',
                                             'OTHER' => 'Other',
                                             'PREFER_NOT_TO_SAY' => 'Prefer not to say',
-                                        ]),
+                                        ])
+                                        ->required(fn (): bool => ! $this->savingDraft),
                                     Select::make('civil_status')
                                         ->options([
                                             'SINGLE' => 'Single',
                                             'MARRIED' => 'Married',
                                             'WIDOWED' => 'Widowed',
                                             'SEPARATED' => 'Separated',
-                                        ]),
+                                        ])
+                                        ->required(fn (): bool => ! $this->savingDraft),
                                     DatePicker::make('birth_date')
                                         ->label('Date of Birth')
                                         ->maxDate(now()->subDay())
                                         ->native(false)
-                                        ->live(),
+                                        ->live()
+                                        ->required(fn (): bool => ! $this->savingDraft),
                                     Placeholder::make('calculated_age')
                                         ->label('Age')
                                         ->content(fn (Get $get): string => filled($get('birth_date'))
                                             ? (string) CarbonImmutable::parse((string) $get('birth_date'))->age
                                             : 'Calculated from date of birth'),
-                                    TextInput::make('birth_place')->label('Place of Birth')->maxLength(255),
+                                    TextInput::make('birth_place')->label('Place of Birth')->required(fn (): bool => ! $this->savingDraft)->maxLength(255),
                                 ])
                                 ->columns(2)
                                 ->columnSpanFull(),
                             Section::make('Contact and Address')
+                                ->description('Use current contact details. Fields marked * are required for final submission.')
                                 ->schema([
-                                    TextInput::make('email')->email()->maxLength(255),
-                                    TextInput::make('phone')->tel()->placeholder('09XXXXXXXXX')->maxLength(11),
-                                    TextInput::make('address_street')->label('Street / House Number')->maxLength(255),
-                                    TextInput::make('address_barangay')->label('Barangay')->maxLength(255),
-                                    TextInput::make('address_city')->label('City / Municipality')->maxLength(255),
-                                    TextInput::make('address_district')->label('District (Optional)')->maxLength(255),
-                                    TextInput::make('address_province')->label('Province')->maxLength(255),
+                                    TextInput::make('email')->email()->required(fn (): bool => ! $this->savingDraft)->maxLength(255),
+                                    TextInput::make('phone')
+                                        ->tel()
+                                        ->placeholder('09XXXXXXXXX')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->regex('/^09\d{9}$/')
+                                        ->validationMessages([
+                                            'regex' => 'Enter exactly 11 digits beginning with 09.',
+                                        ])
+                                        ->maxLength(11),
+                                    TextInput::make('address_street')
+                                        ->label('Street / House Number')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->maxLength(255)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => $this->syncGuardianAddress($get, $set)),
+                                    TextInput::make('address_barangay')
+                                        ->label('Barangay')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->maxLength(255)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => $this->syncGuardianAddress($get, $set)),
+                                    TextInput::make('address_city')
+                                        ->label('City / Municipality')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->maxLength(255)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => $this->syncGuardianAddress($get, $set)),
+                                    TextInput::make('address_district')
+                                        ->label('District (Optional)')
+                                        ->maxLength(255)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => $this->syncGuardianAddress($get, $set)),
+                                    TextInput::make('address_province')
+                                        ->label('Province')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->maxLength(255)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => $this->syncGuardianAddress($get, $set)),
                                 ])
                                 ->columns(2)
                                 ->columnSpanFull(),
-                            Section::make('Guardian and Prior School')
+                            Section::make('Parent / Guardian Contact')
+                                ->description('Provide the contact details of the applicant’s parent or guardian.')
                                 ->schema([
-                                    TextInput::make('guardian_name')->label('Parent / Guardian Full Name')->maxLength(255),
-                                    TextInput::make('guardian_phone')->label('Parent / Guardian Contact Number')->tel()->placeholder('09XXXXXXXXX')->maxLength(11),
-                                    Textarea::make('guardian_address')->label('Parent / Guardian Address')->rows(2)->maxLength(1000)->columnSpanFull(),
-                                    TextInput::make('prior_school')->label('Prior School')->maxLength(255)->columnSpanFull(),
+                                    TextInput::make('guardian_name')->label('Parent / Guardian Full Name')->required(fn (): bool => ! $this->savingDraft)->maxLength(255),
+                                    TextInput::make('guardian_phone')
+                                        ->label('Parent / Guardian Contact Number')
+                                        ->tel()
+                                        ->placeholder('09XXXXXXXXX')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->regex('/^09\d{9}$/')
+                                        ->validationMessages([
+                                            'regex' => 'Enter exactly 11 digits beginning with 09.',
+                                        ])
+                                        ->maxLength(11),
+                                    Checkbox::make('guardian_address_same_as_applicant')
+                                        ->label('Same as applicant address')
+                                        ->helperText('When selected, the applicant address is copied and kept read-only. Clear this option to enter a different address.')
+                                        ->live()
+                                        ->dehydrated(false)
+                                        ->afterStateUpdated(function (?bool $state, Get $get, Set $set): void {
+                                            if ($state === true) {
+                                                $currentAddress = trim((string) $get('guardian_address'));
+                                                $applicantAddress = $this->applicantAddress($get);
+
+                                                if (filled($currentAddress) && $currentAddress !== $applicantAddress) {
+                                                    $this->manualGuardianAddress = $currentAddress;
+                                                }
+
+                                                $set('guardian_address', $this->applicantAddress($get));
+
+                                                return;
+                                            }
+
+                                            $set('guardian_address', $this->manualGuardianAddress);
+                                        })
+                                        ->columnSpanFull(),
+                                    Textarea::make('guardian_address')
+                                        ->label('Parent / Guardian Address')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->readOnly(fn (Get $get): bool => $get('guardian_address_same_as_applicant') === true)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(function (?string $state, Get $get): void {
+                                            if ($get('guardian_address_same_as_applicant') !== true) {
+                                                $this->manualGuardianAddress = filled($state) ? trim($state) : null;
+                                            }
+                                        })
+                                        ->rows(2)
+                                        ->maxLength(1000)
+                                        ->columnSpanFull(),
                                 ])
                                 ->columns(2)
+                                ->columnSpanFull(),
+                            Section::make('Applicant Education')
+                                ->description('This is the school most recently attended by the applicant, not the parent or guardian.')
+                                ->schema([
+                                    TextInput::make('prior_school')
+                                        ->label('Most Recent School Attended')
+                                        ->required(fn (): bool => ! $this->savingDraft)
+                                        ->maxLength(255)
+                                        ->columnSpanFull(),
+                                ])
                                 ->columnSpanFull(),
                         ]),
                     Step::make('Required Documents')
                         ->description('Upload each digital requirement separately')
                         ->schema([
-                            Section::make('Digital Requirements')
-                                ->description('Files are private and reviewed individually by the Registrar. Physical and metadata-only requirements are tracked after submission.')
+                            Section::make('Admission Requirements')
+                                ->description('Upload digital requirements here. Requirements marked for physical submission are brought to the Registrar after the application is submitted.')
                                 ->schema(fn (Get $get): array => $this->digitalRequirementFields($get))
                                 ->columnSpanFull(),
                         ]),
@@ -235,7 +339,18 @@ class Application extends Page
         $applicant = Auth::user();
         abort_unless($applicant !== null, 403);
 
-        app(ApplicantIntakeService::class)->saveDraft($applicant, $this->applicationForm()->getState());
+        $this->savingDraft = true;
+
+        try {
+            $state = $this->applicationForm()->getState();
+            app(ApplicantIntakeService::class)->saveDraft($applicant, $state);
+        } catch (ValidationException $exception) {
+            $this->reportValidationFailure($exception, 'Application draft was not saved', persistent: true);
+
+            return;
+        } finally {
+            $this->savingDraft = false;
+        }
 
         Notification::make()->title('Application draft saved')->success()->send();
     }
@@ -245,39 +360,84 @@ class Application extends Page
         $applicant = Auth::user();
         abort_unless($applicant !== null, 403);
 
-        $state = $this->applicationForm()->getState();
-
-        if (! ($state['information_confirmed'] ?? false)) {
-            $this->addError(
-                'data.information_confirmed',
-                'Confirm that the application information and identity evidence are accurate before submitting.',
-            );
-
-            return;
-        }
-
         try {
+            $state = $this->applicationForm()->getState();
+
+            if (! ($state['information_confirmed'] ?? false)) {
+                $this->addError(
+                    'data.information_confirmed',
+                    'Confirm that the application information and identity evidence are accurate before submitting.',
+                );
+
+                return;
+            }
+
             $draft = app(ApplicantIntakeService::class)->saveDraft($applicant, $state);
             app(ApplicantIntakeService::class)->submit($draft, true);
         } catch (ValidationException $exception) {
-            foreach ($exception->errors() as $field => $messages) {
-                $this->addError("data.{$field}", (string) collect($messages)->first());
-            }
-
-            $message = collect($exception->errors())->flatten()->first()
-                ?? 'Review the application details and try again.';
-
-            Notification::make()
-                ->title('Application cannot be submitted')
-                ->body($message)
-                ->danger()
-                ->send();
+            $this->reportValidationFailure($exception, 'Application cannot be submitted');
 
             return;
         }
 
         Notification::make()->title('Application submitted for Registrar review')->success()->send();
         $this->redirect(Dashboard::getUrl());
+    }
+
+    public function hasExistingDraft(): bool
+    {
+        return $this->currentDraft() instanceof ApplicantIntake;
+    }
+
+    public function currentDraft(): ?ApplicantIntake
+    {
+        $applicantId = Auth::id();
+
+        if ($applicantId === null) {
+            return null;
+        }
+
+        return ApplicantIntake::query()
+            ->where('user_id', $applicantId)
+            ->where('status', ApplicantIntake::StatusDraft)
+            ->latest('id')
+            ->first();
+    }
+
+    public function admissionsAreOpen(): bool
+    {
+        return app(AdmissionWindowService::class)->hasOpenAdmissionsWindow();
+    }
+
+    public function canSubmitApplication(): bool
+    {
+        $termId = (int) ($this->data['term_id'] ?? 0);
+
+        return $termId > 0
+            && app(AdmissionWindowService::class)->isAdmissionsWindowOpenForTerm($termId);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function admissionTermOptions(): array
+    {
+        $termIds = app(AdmissionWindowService::class)->openTermIds();
+        $existingTermId = ApplicantIntake::query()
+            ->where('user_id', Auth::id())
+            ->where('status', ApplicantIntake::StatusDraft)
+            ->value('term_id');
+
+        if ($existingTermId !== null) {
+            $termIds->push((int) $existingTermId);
+        }
+
+        return Term::query()
+            ->where('state', Term::StateActive)
+            ->whereKey($termIds->unique()->all())
+            ->orderByDesc('id')
+            ->pluck('label', 'id')
+            ->all();
     }
 
     /**
@@ -298,25 +458,38 @@ class Application extends Page
 
         $policies = app(AdmissionRequirementResolver::class)
             ->resolveFor($admissionCategory, $credentialBasis, failWhenEmpty: false)
-            ->where('evidence_method', ChecklistItem::EvidenceMethodDigitalUpload)
             ->values();
 
         if ($policies->isEmpty()) {
             return [
-                Placeholder::make('no_digital_requirements')
-                    ->label('No digital uploads configured')
-                    ->content('No active digital-upload policy matches this application scope. You may save the draft, but final submission requires an effective admission policy.'),
+                Placeholder::make('no_admission_requirements')
+                    ->label('No admission requirements configured')
+                    ->content('No active admission policy matches this application scope. You may save the draft, but final submission requires an effective policy configured by the Registrar.'),
             ];
         }
 
         return $policies
-            ->map(function (AdmissionRequirementPolicy $policy): FileUpload {
+            ->map(function (AdmissionRequirementPolicy $policy): FileUpload|Placeholder {
                 $label = AdmissionRequirementPolicy::requirementTypeOptions()[$policy->requirement_type]
                     ?? Str::of($policy->requirement_type)->replace('_', ' ')->title()->toString();
+                $blockingLabel = AdmissionRequirementPolicy::blockingLevelOptions()[$policy->blocking_level]
+                    ?? Str::of($policy->blocking_level)->replace('_', ' ')->title()->toString();
                 $isBlocking = ! in_array($policy->blocking_level, [
                     ChecklistItem::BlockingRetentionOnly,
                     ChecklistItem::BlockingAdvisoryOnly,
                 ], true);
+
+                if ($policy->evidence_method === ChecklistItem::EvidenceMethodPhysicalCopy) {
+                    return Placeholder::make("physical_requirement_{$policy->id}")
+                        ->label($label)
+                        ->content("Bring the original or certified copy to the Registrar after submitting the application. {$blockingLabel}.");
+                }
+
+                if ($policy->evidence_method === ChecklistItem::EvidenceMethodMetadataOnly) {
+                    return Placeholder::make("metadata_requirement_{$policy->id}")
+                        ->label($label)
+                        ->content("No file upload is needed. The Registrar records or verifies this information. {$blockingLabel}.");
+                }
 
                 return FileUpload::make("document_uploads.{$policy->id}")
                     ->key("applicant-document-upload-{$policy->id}")
@@ -330,9 +503,19 @@ class Application extends Page
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
                     ->maxFiles(1)
                     ->maxSize(5120)
-                    ->helperText($isBlocking
-                        ? 'Required before final submission. PDF, JPG, or PNG; maximum 5 MB.'
-                        : 'Optional at intake. PDF, JPG, or PNG; maximum 5 MB.');
+                    ->openable()
+                    ->required(fn (): bool => $isBlocking && ! $this->savingDraft)
+                    ->helperText(function (Get $get) use ($isBlocking, $policy): string {
+                        $requirementGuidance = $isBlocking
+                            ? 'Required before final submission. PDF, JPG, or PNG; maximum 5 MB.'
+                            : 'Optional at intake. PDF, JPG, or PNG; maximum 5 MB.';
+
+                        if (filled($get("document_uploads.{$policy->id}"))) {
+                            return "Saved in this draft. Select the arrow beside the filename to open it, or Remove to replace it. {$requirementGuidance}";
+                        }
+
+                        return $requirementGuidance;
+                    });
             })
             ->all();
     }
@@ -387,6 +570,70 @@ class Application extends Page
         return filled($name)
             ? $name.'; '.((string) ($get('email') ?: 'no email provided'))
             : 'Applicant name is incomplete.';
+    }
+
+    private function syncGuardianAddress(Get $get, Set $set): void
+    {
+        if ($get('guardian_address_same_as_applicant') === true) {
+            $set('guardian_address', $this->applicantAddress($get));
+        }
+    }
+
+    private function reportValidationFailure(
+        ValidationException $exception,
+        string $title,
+        bool $persistent = false,
+    ): void {
+        foreach ($exception->errors() as $field => $messages) {
+            $errorKey = Str::startsWith($field, 'data.') ? $field : "data.{$field}";
+            $this->addError($errorKey, (string) collect($messages)->first());
+        }
+
+        $notification = Notification::make()
+            ->title($title)
+            ->body(
+                (string) (collect($exception->errors())->flatten()->first()
+                    ?? 'Review the highlighted information and try again.'),
+            )
+            ->danger();
+
+        if ($persistent) {
+            $notification->persistent();
+        }
+
+        $notification->send();
+    }
+
+    private function applicantAddress(Get $get): string
+    {
+        return collect([
+            $get('address_street'),
+            $get('address_barangay'),
+            $get('address_city'),
+            $get('address_district'),
+            $get('address_province'),
+        ])
+            ->filter(fn (mixed $value): bool => is_string($value) && filled(trim($value)))
+            ->map(fn (string $value): string => trim($value))
+            ->implode(', ');
+    }
+
+    /** @param array<string, mixed> $state */
+    private function guardianAddressMatchesApplicant(array $state): bool
+    {
+        $applicantAddress = collect([
+            $state['address_street'] ?? null,
+            $state['address_barangay'] ?? null,
+            $state['address_city'] ?? null,
+            $state['address_district'] ?? null,
+            $state['address_province'] ?? null,
+        ])
+            ->filter(fn (mixed $value): bool => is_string($value) && filled(trim($value)))
+            ->map(fn (string $value): string => trim($value))
+            ->implode(', ');
+
+        return filled($applicantAddress)
+            && $applicantAddress === trim((string) ($state['guardian_address'] ?? ''));
     }
 
     /** @return list<string> */

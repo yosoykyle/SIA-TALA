@@ -6,6 +6,7 @@ use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Mail\TestConnectionMail;
 use App\Models\OperationalEvent;
 use App\Models\User;
+use App\Support\DisplayDateTime;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -213,7 +214,7 @@ class IntegrationStatus extends Page
     {
         return $timestamp === null
             ? 'None observed'
-            : $timestamp->timezone(config('app.timezone'))->format('Y-m-d H:i');
+            : DisplayDateTime::format($timestamp, 'Y-m-d H:i');
     }
 
     /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label: string} */

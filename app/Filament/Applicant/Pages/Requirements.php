@@ -135,8 +135,15 @@ class Requirements extends Page
         }
 
         return ApplicantIntake::query()
-            ->with(['checklistItems.documentEvidence.reviewer', 'program', 'term'])
+            ->with([
+                'checklistItems.documentEvidence.reviewer',
+                'program',
+                'term',
+                'withdrawalActivity.causer',
+            ])
             ->whereBelongsTo($applicant)
+            ->orderByRaw('status != ? desc', [ApplicantIntake::StatusWithdrawn])
+            ->latest('id')
             ->first();
     }
 

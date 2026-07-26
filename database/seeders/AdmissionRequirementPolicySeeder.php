@@ -61,6 +61,38 @@ class AdmissionRequirementPolicySeeder extends Seeder
         }
     }
 
+    public function expectedPolicyCount(): int
+    {
+        return count($this->baselinePolicies());
+    }
+
+    public function baselineIsComplete(): bool
+    {
+        if (AdmissionRequirementPolicy::query()->count() !== $this->expectedPolicyCount()) {
+            return false;
+        }
+
+        foreach ($this->baselinePolicies() as $policy) {
+            $matchesBaseline = AdmissionRequirementPolicy::query()
+                ->where('admission_category', $policy['admission_category'])
+                ->where('credential_basis', $policy['credential_basis'])
+                ->where('requirement_type', $policy['requirement_type'])
+                ->whereDate('effective_from', self::EffectiveFrom)
+                ->whereNull('effective_until')
+                ->where('evidence_method', $policy['evidence_method'])
+                ->where('blocking_level', $policy['blocking_level'])
+                ->where('state', AdmissionRequirementPolicy::StateActive)
+                ->where('authority', 'System Default')
+                ->exists();
+
+            if (! $matchesBaseline) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @return list<array{admission_category: string, credential_basis: string, requirement_type: string, evidence_method: string, blocking_level: string}>
      */

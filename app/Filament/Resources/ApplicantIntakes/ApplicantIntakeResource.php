@@ -61,6 +61,7 @@ class ApplicantIntakeResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->with(['withdrawalActivity.causer'])
             ->where('status', '!=', ApplicantIntake::StatusDraft);
     }
 }

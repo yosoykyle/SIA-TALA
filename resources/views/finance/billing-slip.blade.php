@@ -2,7 +2,7 @@
     title="Billing Slip"
     context="Internal Billing Reference"
     :subtitle="$slip['summary']['term']"
-    :generated-at="$slip['generated_at']->format('M d, Y h:i A')"
+    :generated-at="\App\Support\DisplayDateTime::format($slip['generated_at'], 'M d, Y h:i A')"
 >
     <p>
         Use this slip as a reference for the current assessment amount. It is not proof of payment or an official receipt.

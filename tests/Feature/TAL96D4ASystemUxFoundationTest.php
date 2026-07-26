@@ -2,14 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use App\Providers\Filament\AdminPanelProvider;
 use Filament\Panel;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TAL96D4ASystemUxFoundationTest extends TestCase
 {
+    use LazilyRefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -69,6 +74,57 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertHeader('content-type', 'application/json')
             ->assertJsonPath('message', 'TAL96D4A internal diagnostic must not appear in HTML.')
             ->assertDontSee('Return to TALA home');
+    }
+
+    public function test_authenticated_forbidden_page_offers_the_authorized_workspace_and_explicit_account_switch(): void
+    {
+        Role::findOrCreate('applicant', 'web');
+        $applicant = User::factory()->create([
+            'name' => 'Applicant Example',
+            'status' => User::StatusApplicantPending,
+            'email_verified_at' => now(),
+        ]);
+        $applicant->assignRole('applicant');
+
+        $this->actingAs($applicant)
+            ->get('/_tal96d4a/errors/403')
+            ->assertForbidden()
+            ->assertSee('Return to Applicant Workspace')
+            ->assertSee('/applicant', false)
+            ->assertSee('Use another account')
+            ->assertSee($applicant->fresh()->name)
+            ->assertSee($applicant->email)
+            ->assertSee('action="'.route('logout').'"', false)
+            ->assertSee('method="POST"', false)
+            ->assertSee(asset('js/tala-error.js'), false);
+
+        $this->assertAuthenticatedAs($applicant);
+
+        $this->post(route('logout'))
+            ->assertRedirect('/');
+
+        $this->assertGuest();
+    }
+
+    public function test_account_switch_recovery_is_not_shown_for_unrelated_http_errors(): void
+    {
+        Role::findOrCreate('applicant', 'web');
+        $applicant = User::factory()->create([
+            'status' => User::StatusApplicantPending,
+            'email_verified_at' => now(),
+        ]);
+        $applicant->assignRole('applicant');
+
+        foreach ([404, 419, 429, 500, 503] as $status) {
+            $this->actingAs($applicant)
+                ->get("/_tal96d4a/errors/{$status}")
+                ->assertStatus($status)
+                ->assertSee('Return to TALA home')
+                ->assertDontSee('Use another account')
+                ->assertDontSee('data-account-switch-dialog', false);
+        }
+
+        $this->assertAuthenticatedAs($applicant);
     }
 
     public function test_admin_panel_uses_the_canonical_staff_workspace_name(): void

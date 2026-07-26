@@ -14,7 +14,20 @@ class ScheduleGenerationRunsTable
     {
         return $table
             ->poll('5s')
-            ->modifyQueryUsing(fn ($query) => $query->with(['term', 'requester'])->withCount('candidateRows'))
+            ->modifyQueryUsing(fn ($query) => $query
+                ->select([
+                    'schedule_runs.id',
+                    'schedule_runs.term_id',
+                    'schedule_runs.status',
+                    'schedule_runs.requested_by',
+                    'schedule_runs.solver_version',
+                    'schedule_runs.model_version',
+                    'schedule_runs.runtime_ms',
+                    'schedule_runs.created_at',
+                    'schedule_runs.updated_at',
+                ])
+                ->with(['term', 'requester'])
+                ->withCount('candidateRows'))
             ->columns([
                 TextColumn::make('term.label')
                     ->label('Term')

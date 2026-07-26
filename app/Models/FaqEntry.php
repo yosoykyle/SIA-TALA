@@ -43,6 +43,10 @@ class FaqEntry extends Model
     protected static function booted(): void
     {
         static::creating(function (FaqEntry $faqEntry): void {
+            if (! array_key_exists('sort_order', $faqEntry->getAttributes())) {
+                $faqEntry->sort_order = ((int) static::query()->max('sort_order')) + 1;
+            }
+
             if (Auth::id() !== null) {
                 $faqEntry->created_by ??= Auth::id();
                 $faqEntry->updated_by = Auth::id();

@@ -184,7 +184,7 @@
                     <p>{{ config('institution.address') }}</p>
                 @endif
                 <h1>Registration Form / Certificate of Registration</h1>
-                <p>Generated {{ $cor['generated_at']->format('M d, Y h:i A') }}</p>
+                <p>Generated {{ \App\Support\DisplayDateTime::format($cor['generated_at'], 'M d, Y h:i A') }}</p>
             </div>
             <div class="copy-box">{{ str($cor['copy_context'])->replace('_', ' ')->headline() }}</div>
         </header>

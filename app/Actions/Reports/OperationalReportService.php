@@ -28,6 +28,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use App\Policies\OperationalReportPolicy;
+use App\Support\DisplayDateTime;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -993,7 +994,9 @@ class OperationalReportService
         }
 
         if ($value instanceof CarbonInterface) {
-            return $value->format($format === 'date' ? 'Y-m-d' : 'Y-m-d H:i:s');
+            return $format === 'date'
+                ? $value->format('Y-m-d')
+                : DisplayDateTime::format($value, 'Y-m-d H:i:s');
         }
 
         return match ($format) {

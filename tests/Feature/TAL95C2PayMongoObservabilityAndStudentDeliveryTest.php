@@ -277,6 +277,23 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
         $this->assertSame('Not applicable', $evidence['or_mapping_state']);
     }
 
+    public function test_partial_posting_with_a_current_due_requests_only_the_remaining_payment(): void
+    {
+        $postedPayment = (new Payment)->forceFill(['or_number' => null]);
+
+        $evidence = app(StudentPaymentEvidencePresenter::class)->present(
+            collect(),
+            collect([$postedPayment]),
+            collect([$postedPayment]),
+            hasCurrentDue: true,
+        );
+
+        $this->assertSame('Payment Partially Posted', $evidence['headline']);
+        $this->assertStringContainsString('Pay Current Due', $evidence['required_action']);
+        $this->assertStringContainsString('remaining amount', $evidence['required_action']);
+        $this->assertStringContainsString('OR mapping', $evidence['required_action']);
+    }
+
     /** @return iterable<string, array{0:string|null,1:string,2:string}> */
     public static function attemptEvidenceStates(): iterable
     {

@@ -77,6 +77,30 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->status === self::StatusActive;
     }
 
+    public function authorizedWorkspacePath(): ?string
+    {
+        if (! $this->canAuthenticate()) {
+            return null;
+        }
+
+        return match (true) {
+            $this->hasAnyRole(self::staffRoleNames()) => '/admin',
+            $this->hasRole('student') && $this->hasAccessibleStudentProfile() => '/student',
+            $this->hasRole('applicant') => '/applicant',
+            default => null,
+        };
+    }
+
+    public function authorizedWorkspaceName(): ?string
+    {
+        return match ($this->authorizedWorkspacePath()) {
+            '/admin' => 'Staff Workspace',
+            '/student' => 'Student Hub',
+            '/applicant' => 'Applicant Workspace',
+            default => null,
+        };
+    }
+
     public function facultyQualifications(): HasMany
     {
         return $this->hasMany(FacultyQualification::class, 'faculty_user_id');
@@ -87,10 +111,28 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return $this->hasMany(FacultyTermLoadOverride::class, 'faculty_user_id');
     }
 
-    /** @return HasOne<ApplicantIntake, $this> */
+    /**
+     * Backward-compatible reference to the latest application record.
+     *
+     * @return HasOne<ApplicantIntake, $this>
+     */
     public function applicantIntake(): HasOne
     {
-        return $this->hasOne(ApplicantIntake::class);
+        return $this->hasOne(ApplicantIntake::class)->latestOfMany();
+    }
+
+    /** @return HasMany<ApplicantIntake, $this> */
+    public function applicantIntakes(): HasMany
+    {
+        return $this->hasMany(ApplicantIntake::class);
+    }
+
+    /** @return HasOne<ApplicantIntake, $this> */
+    public function currentApplicantIntake(): HasOne
+    {
+        return $this->hasOne(ApplicantIntake::class)
+            ->where('status', '!=', ApplicantIntake::StatusWithdrawn)
+            ->latestOfMany();
     }
 
     /** @return HasOne<StudentProfile, $this> */

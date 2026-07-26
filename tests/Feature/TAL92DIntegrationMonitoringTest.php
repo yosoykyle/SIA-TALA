@@ -97,9 +97,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ListSystemSettings::class)
-            ->assertOk()
-            ->assertCanSeeTableRecords([$setting]);
+        $component = Livewire::test(ListSystemSettings::class);
+
+        $component->assertOk();
+        $component->assertCanSeeTableRecords([$setting]);
     }
 
     // ------------------------------------------------------------------
@@ -145,7 +146,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $html = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $component = Livewire::test(IntegrationStatus::class);
+
+        $component->assertOk();
+        $html = $component->html();
 
         $this->assertStringNotContainsString('sk_test_ABSOLUTELY_SECRET_VALUE', $html);
         $this->assertStringNotContainsString('pk_test_PUBLIC_BUT_NOT_RENDERED', $html);
@@ -185,14 +189,17 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $html = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $component = Livewire::test(IntegrationStatus::class);
 
-        $this->assertStringContainsString('Local webhook readiness', $html);
+        $component->assertOk();
+        $html = $component->html();
+
+        $this->assertStringContainsString('Local PayMongo readiness', $html);
         $this->assertStringContainsString('Ready', $html);
-        $this->assertStringContainsString('Open exceptions', $html);
+        $this->assertStringContainsString('Open local exceptions', $html);
         $this->assertStringContainsString('1', $html);
-        $this->assertStringContainsString('Provider endpoint status', $html);
-        $this->assertStringContainsString('Not verified locally', $html);
+        $this->assertStringContainsString('Provider dashboard state', $html);
+        $this->assertStringContainsString('Not checked by TALA', $html);
         $this->assertStringNotContainsString('must-not-render', $html);
         $this->assertStringNotContainsString('Enabled in PayMongo', $html);
     }
@@ -209,14 +216,20 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.payments.paymongo.public_key', null);
         Config::set('tala_integrations.payments.paymongo.webhook_signature', null);
 
-        $unconfiguredHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $unconfiguredComponent = Livewire::test(IntegrationStatus::class);
+
+        $unconfiguredComponent->assertOk();
+        $unconfiguredHtml = $unconfiguredComponent->html();
         $this->assertStringContainsString('Not configured ✗', $unconfiguredHtml);
 
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
         Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_present');
 
-        $configuredHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $configuredComponent = Livewire::test(IntegrationStatus::class);
+
+        $configuredComponent->assertOk();
+        $configuredHtml = $configuredComponent->html();
         $this->assertStringContainsString('Configured ✓', $configuredHtml);
         $this->assertStringNotContainsString('sk_test_present', $configuredHtml);
     }
@@ -230,7 +243,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         Config::set('tala_integrations.scheduling_solver.driver', 'local_stub');
         Config::set('tala_integrations.scheduling_solver.url', null);
-        $stubHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $stubComponent = Livewire::test(IntegrationStatus::class);
+
+        $stubComponent->assertOk();
+        $stubHtml = $stubComponent->html();
         $this->assertStringContainsString('Stub', $stubHtml);
         $this->assertStringContainsString('Configured ✓', $stubHtml);
 
@@ -238,7 +254,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
         Config::set('tala_integrations.scheduling_solver.audience', null);
         Config::set('tala_integrations.scheduling_solver.credentials_path', null);
-        $localHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $localComponent = Livewire::test(IntegrationStatus::class);
+
+        $localComponent->assertOk();
+        $localHtml = $localComponent->html();
         $this->assertStringContainsString('Local CP-SAT', $localHtml);
         $this->assertStringContainsString('http://127.0.0.1:8080', $localHtml);
         $this->assertStringContainsString('Configured ✓', $localHtml);
@@ -247,7 +266,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
         Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
         Config::set('tala_integrations.scheduling_solver.credentials_path', __FILE__);
-        $cloudHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $cloudComponent = Livewire::test(IntegrationStatus::class);
+
+        $cloudComponent->assertOk();
+        $cloudHtml = $cloudComponent->html();
         $this->assertStringContainsString('Private Cloud Run', $cloudHtml);
         $this->assertStringContainsString('Configured ✓', $cloudHtml);
         $this->assertStringNotContainsString(__FILE__, $cloudHtml);
@@ -262,14 +284,20 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
         Config::set('tala_integrations.scheduling_solver.url', 'http://192.168.1.10:8080');
-        $remoteLocalHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $remoteLocalComponent = Livewire::test(IntegrationStatus::class);
+
+        $remoteLocalComponent->assertOk();
+        $remoteLocalHtml = $remoteLocalComponent->html();
         $this->assertStringContainsString('Not configured ✗', $remoteLocalHtml);
 
         Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
         Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
         Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
         Config::set('tala_integrations.scheduling_solver.credentials_path', null);
-        $missingCredentialsHtml = Livewire::test(IntegrationStatus::class)->assertOk()->html();
+        $missingCredentialsComponent = Livewire::test(IntegrationStatus::class);
+
+        $missingCredentialsComponent->assertOk();
+        $missingCredentialsHtml = $missingCredentialsComponent->html();
         $this->assertStringContainsString('Not configured ✗', $missingCredentialsHtml);
     }
 
@@ -284,8 +312,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $this->assertSame(0, OperationalEvent::query()->count());
 
-        Livewire::test(IntegrationStatus::class)
-            ->assertOk()
+        $component = Livewire::test(IntegrationStatus::class);
+
+        $component->assertOk();
+        $component
             ->assertActionExists('sendTestEmail')
             ->callAction('sendTestEmail')
             ->assertNotified();
@@ -339,9 +369,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $event = OperationalEvent::factory()->create();
 
-        Livewire::test(ListOperationalEvents::class)
-            ->assertOk()
-            ->assertCanSeeTableRecords([$event]);
+        $component = Livewire::test(ListOperationalEvents::class);
+
+        $component->assertOk();
+        $component->assertCanSeeTableRecords([$event]);
 
         Livewire::test(ViewOperationalEvent::class, ['record' => $event->getRouteKey()])
             ->assertOk();
@@ -369,8 +400,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $processed = OperationalEvent::factory()->create(['status' => 'PROCESSED', 'event_domain' => 'notifications']);
         $failed = OperationalEvent::factory()->failed()->create(['event_domain' => 'notifications']);
 
-        Livewire::test(ListOperationalEvents::class)
-            ->assertOk()
+        $component = Livewire::test(ListOperationalEvents::class);
+
+        $component->assertOk();
+        $component
             ->assertCanSeeTableRecords([$processed, $failed])
             ->filterTable('status', 'FAILED')
             ->assertCanSeeTableRecords([$failed])
@@ -378,7 +411,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     }
 
     #[Test]
-    public function scheduling_solver_events_can_be_filtered_and_link_back_to_the_source_run(): void
+    public function scheduling_solver_events_name_the_source_run_without_bypassing_academic_authorization(): void
     {
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $term = Term::factory()->create();
@@ -406,18 +439,21 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ListOperationalEvents::class)
-            ->assertOk()
+        $component = Livewire::test(ListOperationalEvents::class);
+
+        $component->assertOk();
+        $component
             ->filterTable('integration', OperationalEvent::IntegrationSchedulingSolver)
             ->assertCanSeeTableRecords([$solverEvent])
             ->assertCanNotSeeTableRecords([$mailEvent]);
 
-        $html = Livewire::test(ViewOperationalEvent::class, ['record' => $solverEvent->getRouteKey()])
-            ->assertOk()
-            ->html();
+        $viewComponent = Livewire::test(ViewOperationalEvent::class, ['record' => $solverEvent->getRouteKey()]);
+
+        $viewComponent->assertOk();
+        $html = $viewComponent->html();
 
         $this->assertStringContainsString('Schedule Run #'.$run->id, $html);
-        $this->assertStringContainsString(
+        $this->assertStringNotContainsString(
             ScheduleGenerationRunResource::getUrl('view', ['record' => $run]),
             $html,
         );
@@ -437,9 +473,10 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
             'payload' => ['note' => 'test-email payload for '.$superAdmin->email],
         ]);
 
-        $html = Livewire::test(ViewOperationalEvent::class, ['record' => $event->getRouteKey()])
-            ->assertOk()
-            ->html();
+        $component = Livewire::test(ViewOperationalEvent::class, ['record' => $event->getRouteKey()]);
+
+        $component->assertOk();
+        $html = $component->html();
 
         $this->assertStringNotContainsString('sk_live_', $html);
         $this->assertStringNotContainsString('sk_test_', $html);

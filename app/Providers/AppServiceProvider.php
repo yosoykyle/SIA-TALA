@@ -73,6 +73,9 @@ use App\Policies\SectionPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Policies\TermPolicy;
 use App\Support\DecimalMoney;
+use Filament\Support\Assets\Css;
+use Filament\Support\Facades\FilamentAsset;
+use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -161,6 +164,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        FilamentTimezone::set((string) config('app.display_timezone', 'Asia/Manila'));
+
+        FilamentAsset::register([
+            Css::make('tala-panel-brand', asset('css/tala-filament.css')),
+        ]);
+
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);
         Gate::policy(AccountingAdjustment::class, AccountingAdjustmentPolicy::class);

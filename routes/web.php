@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Applicants\AdmissionWindowService;
 use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
@@ -9,11 +10,12 @@ use App\Http\Controllers\StudentSchedulePrintController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
+Route::get('/', function (AdmissionWindowService $admissionWindowService) {
     return view('welcome', [
         'faqEntries' => FaqEntry::query()->publishedOrdered()->get(),
+        'admissionsOpen' => $admissionWindowService->hasOpenAdmissionsWindow(),
     ]);
-});
+})->name('home');
 
 Route::get('/outputs/cor/{enrollment}', CorPrintController::class)
     ->middleware('auth')

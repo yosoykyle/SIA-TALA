@@ -54,6 +54,11 @@ class ApplicantIntakesTable
                 TextColumn::make('submitted_at')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('archived_at')
+                    ->label('Withdrawn At')
+                    ->dateTime()
+                    ->placeholder('—')
+                    ->sortable(),
             ])
             ->defaultSort('submitted_at', 'desc')
             ->filters([

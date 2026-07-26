@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
+use App\Models\CalendarEvent;
+use App\Models\Term;
 use App\Models\User;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\Filament\ApplicantPanelProvider;
@@ -20,6 +22,8 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     public function test_public_landing_page_renders_with_filament_auth_ctas(): void
     {
+        $this->openAdmissions();
+
         $this->get('/')
             ->assertOk()
             ->assertSee('TALA')
@@ -52,6 +56,8 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     public function test_filament_panel_auth_routes_render(): void
     {
+        $this->openAdmissions();
+
         $this->get(route('filament.admin.auth.login'))->assertOk();
         $this->get(route('filament.applicant.auth.login'))->assertOk();
         $this->get(route('filament.student.auth.login'))->assertOk();
@@ -70,6 +76,8 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     public function test_applicant_filament_registration_assigns_applicant_role(): void
     {
+        $this->openAdmissions();
+
         $page = app(RegisterApplicant::class);
         $method = new ReflectionMethod(RegisterApplicant::class, 'handleRegistration');
         $method->setAccessible(true);
@@ -94,5 +102,23 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         return (new $panelProviderClass($this->app))
             ->panel(new Panel)
             ->getColors()['primary'];
+    }
+
+    private function openAdmissions(): CalendarEvent
+    {
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+
+        return CalendarEvent::factory()->for($term)->create([
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessAdmissions,
+            'start_at' => now()->subDay(),
+            'end_at' => now()->addDay(),
+            'day_of_week' => null,
+            'starts_at' => null,
+            'ends_at' => null,
+            'blocks_scheduling' => false,
+            'state' => CalendarEvent::StateActive,
+        ]);
     }
 }

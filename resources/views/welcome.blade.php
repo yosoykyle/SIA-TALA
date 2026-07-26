@@ -26,7 +26,9 @@
             <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
                 <ul class="navbar-nav gap-3 pt-3 pt-lg-0">
                     <li class="nav-item"><a class="nav-link" href="{{ url('/#login') }}">LOGIN</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('filament.applicant.auth.register') }}">APPLY</a></li>
+                    @if ($admissionsOpen)
+                        <li class="nav-item"><a class="nav-link" href="{{ route('filament.applicant.auth.register') }}">APPLY</a></li>
+                    @endif
                     <li class="nav-item"><a class="nav-link" href="{{ url('/#about-us') }}">ABOUT US</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url('/#faq') }}">FAQ</a></li>
                 </ul>
@@ -45,10 +47,14 @@
                             TALA connects admissions, enrollment, scheduling, finance, grades, and official academic records through secure workspaces for each school role.
                         </p>
                         <div class="d-flex flex-column flex-sm-row gap-3 mt-4">
-                            <a class="btn btn-primary-custom" href="{{ route('filament.applicant.auth.register') }}">
-                                Apply Online
-                                <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i>
-                            </a>
+                            @if ($admissionsOpen)
+                                <a class="btn btn-primary-custom" href="{{ route('filament.applicant.auth.register') }}">
+                                    Apply Online
+                                    <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i>
+                                </a>
+                            @else
+                                <span class="btn btn-primary-custom disabled" aria-disabled="true">Applications are currently closed</span>
+                            @endif
                             <a class="btn btn-secondary-custom" href="{{ url('/#login') }}">Choose a workspace</a>
                         </div>
                     </div>
@@ -120,7 +126,11 @@
                                 <li>Track review and correction status</li>
                             </ul>
                             <div class="workspace-actions">
-                                <a class="btn btn-black-action" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a>
+                                @if ($admissionsOpen)
+                                    <a class="btn btn-black-action" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a>
+                                @else
+                                    <span class="btn btn-black-action disabled" aria-disabled="true">Applications Closed</span>
+                                @endif
                                 <a class="text-link" href="{{ route('filament.applicant.auth.login') }}">Applicant Sign In <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                             </div>
                         </article>
@@ -172,10 +182,12 @@
                         <p class="section-lead text-start">
                             TALA is the school information portal of Servitech Institute Asia. Open the map for campus location guidance.
                         </p>
-                        <a href="https://www.google.com/maps?cid=781880921815418296&g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAMYASAF&hl=en&gl=PH&source=embed" target="_blank" rel="noopener noreferrer" class="btn btn-black-action">
-                            Open in Google Maps
-                            <i class="bi bi-box-arrow-up-right ms-2" aria-hidden="true"></i>
-                        </a>
+                        <div class="section-actions">
+                            <a href="https://www.google.com/maps?cid=781880921815418296&g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAMYASAF&hl=en&gl=PH&source=embed" target="_blank" rel="noopener noreferrer" class="btn btn-black-action">
+                                Open in Google Maps
+                                <i class="bi bi-box-arrow-up-right ms-2" aria-hidden="true"></i>
+                            </a>
+                        </div>
                     </div>
                     <div class="col-lg-7">
                         <div class="map-box">
@@ -244,7 +256,10 @@
                                 <div class="accordion-item">
                                     <h3 class="accordion-header" id="headingFaq{{ $entry->id }}">
                                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaq{{ $entry->id }}" aria-expanded="false" aria-controls="collapseFaq{{ $entry->id }}">
-                                            {{ $entry->question }}
+                                            <span class="faq-question">
+                                                <span class="faq-category">{{ \App\Models\FaqEntry::categoryLabel($entry->category) }}</span>
+                                                <span>{{ $entry->question }}</span>
+                                            </span>
                                         </button>
                                     </h3>
                                     <div id="collapseFaq{{ $entry->id }}" class="accordion-collapse collapse" aria-labelledby="headingFaq{{ $entry->id }}" data-bs-parent="#faqAccordion">
@@ -280,7 +295,9 @@
                 <div class="col-lg-5">
                     <nav class="d-flex flex-wrap justify-content-lg-end gap-3" aria-label="Footer navigation">
                         <a class="footer-link" href="{{ url('/#login') }}">Login</a>
-                        <a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a>
+                        @if ($admissionsOpen)
+                            <a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Apply Online</a>
+                        @endif
                         <a class="footer-link" href="{{ url('/#about-us') }}">About Us</a>
                         <a class="footer-link" href="{{ url('/#faq') }}">FAQ</a>
                     </nav>

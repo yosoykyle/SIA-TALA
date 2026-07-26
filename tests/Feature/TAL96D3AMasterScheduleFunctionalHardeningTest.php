@@ -299,12 +299,12 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->actingAs($faculty)
             ->get(route('faculty.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available.');
+            ->assertSee('No current published schedule is available for this account.');
 
         $this->actingAs($student)
             ->get(route('student.schedule.print'))
             ->assertOk()
-            ->assertSee('No current published schedule is available.');
+            ->assertSee('No current published schedule is available for this account.');
 
         $this->assertDatabaseMissing('output_access_logs', [
             'actor_user_id' => $faculty->id,

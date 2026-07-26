@@ -6,6 +6,7 @@ use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Support\DisplayDateTime;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -129,7 +130,7 @@ class EnrollmentInfolist
                                                 ? $reservation->status
                                                 : null,
                                             'reservation_deadline' => $reservation instanceof EnrollmentSeatReservation
-                                                ? $reservation->deadline?->format('M j, Y g:i A')
+                                                ? DisplayDateTime::format($reservation->deadline, 'M j, Y g:i A', 'Not set')
                                                 : null,
                                             'active_meetings' => $courseEnrollment->scheduleBindings
                                                 ->where('is_active', true)

@@ -7,11 +7,12 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class WithdrawApplicantIntake
 {
-    public function execute(ApplicantIntake $intake, User $applicant): ApplicantIntake
+    public function execute(ApplicantIntake $intake, User $applicant, string $reason): ApplicantIntake
     {
         if ($intake->user_id !== $applicant->id
             || ! $applicant->hasRole('applicant')
@@ -19,7 +20,13 @@ class WithdrawApplicantIntake
             throw new AuthorizationException('Applicants may withdraw only their own application.');
         }
 
-        return DB::transaction(function () use ($intake, $applicant): ApplicantIntake {
+        $validated = Validator::make(
+            ['reason' => trim($reason)],
+            ['reason' => ['required', 'string', 'max:500']],
+            ['reason.required' => 'Tell the Registrar why you are withdrawing this application.'],
+        )->validate();
+
+        return DB::transaction(function () use ($intake, $applicant, $validated): ApplicantIntake {
             $locked = ApplicantIntake::query()->lockForUpdate()->findOrFail($intake->id);
 
             if (! in_array($locked->status, [ApplicantIntake::StatusDraft, ApplicantIntake::StatusPending], true)
@@ -49,6 +56,7 @@ class WithdrawApplicantIntake
                 'properties' => json_encode([
                     'status_before' => $before,
                     'status_after' => ApplicantIntake::StatusWithdrawn,
+                    'reason' => $validated['reason'],
                 ], JSON_UNESCAPED_SLASHES),
                 'created_at' => $timestamp->toDateTimeString(),
                 'updated_at' => $timestamp->toDateTimeString(),

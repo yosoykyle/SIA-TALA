@@ -86,19 +86,21 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
     public function test_super_admin_can_create_edit_and_delete_with_attribution(): void
     {
         $admin = $this->actingAsSuperAdmin();
+        $expectedSortOrder = ((int) FaqEntry::query()->max('sort_order')) + 1;
 
         Livewire::test(CreateFaqEntry::class)
             ->fillForm([
                 'question' => 'Where do I check my grades?',
                 'answer' => 'Grades appear in Student Hub after finalization.',
                 'category' => FaqEntry::CategoryGradesAcademics,
-                'sort_order' => 7,
                 'is_published' => true,
             ])
             ->call('create')
-            ->assertHasNoFormErrors();
+            ->assertHasNoFormErrors()
+            ->assertRedirect(FaqEntryResource::getUrl('index'));
 
         $created = FaqEntry::query()->where('question', 'Where do I check my grades?')->firstOrFail();
+        $this->assertSame($expectedSortOrder, $created->sort_order);
         $this->assertSame($admin->id, $created->created_by);
         $this->assertSame($admin->id, $created->updated_by);
         $this->assertTrue(Activity::query()->where('log_name', 'faq')->where('subject_id', $created->id)->exists());
@@ -158,6 +160,18 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
             ]);
     }
 
+    public function test_faq_order_is_managed_by_append_and_native_reordering_instead_of_a_number_field(): void
+    {
+        $form = file_get_contents(app_path('Filament/Resources/FaqEntries/Schemas/FaqEntryForm.php'));
+        $table = file_get_contents(app_path('Filament/Resources/FaqEntries/Tables/FaqEntriesTable.php'));
+
+        $this->assertIsString($form);
+        $this->assertIsString($table);
+        $this->assertStringNotContainsString("TextInput::make('sort_order')", $form);
+        $this->assertStringContainsString("->reorderable('sort_order')", $table);
+        $this->assertStringNotContainsString("TextColumn::make('sort_order')", $table);
+    }
+
     public function test_public_landing_renders_only_published_entries_in_order(): void
     {
         FaqEntry::query()->delete();
@@ -198,7 +212,7 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('No frequently asked questions are available right now.');
+        $response->assertSee('No public FAQs are available yet.');
         $response->assertDontSee('Draft only question?');
     }
 

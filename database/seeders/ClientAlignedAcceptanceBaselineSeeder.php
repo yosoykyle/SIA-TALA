@@ -10,6 +10,7 @@ use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Actions\SystemAdministration\SchedulingFacultyCapacityAssessment;
 use App\Models\AcademicYear;
+use App\Models\AdmissionRequirementPolicy;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
 use App\Models\Course;
@@ -60,6 +61,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     public function __construct(
         private readonly DatabaseSeeder $databaseSeeder,
+        private readonly AdmissionRequirementPolicySeeder $admissionRequirementPolicySeeder,
         private readonly BuildTermOfferings $offeringBuilder,
         private readonly SectionDeliveryGroupService $deliveryGroupService,
         private readonly GenerateSchedulingDemand $demandGenerator,
@@ -96,6 +98,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
         try {
             $this->databaseSeeder->run();
+            $this->admissionRequirementPolicySeeder->seedBaseline();
 
             [$term, $registrar, $faculty] = $this->createTermAndAccounts();
             $programs = $this->createPrograms();
@@ -106,6 +109,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $this->createRooms();
             $this->createFacultyReadiness($term, $registrar, $faculty, $specifications);
             $this->createSchedulingWindow($term);
+            $this->createAdmissionsWindow($term);
             $this->createOfferings($term, $registrar, $programs, $curricula);
             $this->markDeliveryGroupsReady($registrar);
             $this->createDownpaymentRules($term, $programs);
@@ -147,7 +151,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      *     scenario:string,
      *     basis:string,
      *     limitation:string,
-     *     counts:array{students:int,cohorts:int,faculty:int,offerings:int,sections:int,scheduling_demands:int},
+     *     counts:array{students:int,cohorts:int,faculty:int,offerings:int,sections:int,scheduling_demands:int,admission_requirement_policies:int},
      *     faculty_evidence:array{
      *         client_reported_faculty:int|null,
      *         synthetic_scheduling_faculty:int,
@@ -197,6 +201,8 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             );
         }
 
+        $manifest['counts']['admission_requirement_policies'] = $this->admissionRequirementPolicySeeder->expectedPolicyCount();
+
         return $manifest;
     }
 
@@ -207,6 +213,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      *     cohorts:int,
      *     scheduling_demands:int,
      *     ready_scheduling_demands:int,
+     *     admission_requirement_policies:int,
      *     standings:array<string,int>,
      *     scenario_anchors:array{matched:int,expected:int},
      *     downstream_state:'EMPTY'|'PRESENT',
@@ -250,6 +257,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'ready_scheduling_demands' => SchedulingDemand::query()
                 ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
                 ->count(),
+            'admission_requirement_policies' => AdmissionRequirementPolicy::query()->count(),
             'standings' => $standings,
             'scenario_anchors' => [
                 'matched' => $matchedAnchors,
@@ -554,6 +562,26 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     }
 
     /**
+     * The acceptance fixture keeps applicant intake open during the bounded
+     * TAL-96D5B manual-acceptance period. Production institutions configure
+     * their own Admissions window through the academic calendar.
+     */
+    private function createAdmissionsWindow(Term $term): void
+    {
+        CalendarEvent::query()->create([
+            'term_id' => $term->id,
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessAdmissions,
+            'start_at' => '2026-07-01 00:00:00',
+            'end_at' => '2026-08-31 23:59:59',
+            'blocks_scheduling' => false,
+            'state' => CalendarEvent::StateActive,
+            'authority' => 'TAL-96D5B synthetic admissions acceptance window',
+        ]);
+    }
+
+    /**
      * @param  array<string, Program>  $programs
      * @param  array<string, CurriculumVersion>  $curricula
      */
@@ -705,6 +733,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         return $this->programsAreComplete()
+            && $this->admissionRequirementPolicySeeder->baselineIsComplete()
             && User::query()->count() === $counts['students'] + $counts['faculty'] + 5
             && User::query()->whereNull('email_verified_at')->doesntExist()
             && User::query()->where('email', 'not like', '%@example.test')->doesntExist()
@@ -723,7 +752,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && FacultyQualification::query()->where('is_active', true)->count() === $qualificationCount
             && FacultyTermLoadOverride::query()->count() === $counts['faculty']
             && FacultyTermLoadOverride::query()->where('is_active', true)->count() === $counts['faculty']
-            && $this->schedulingWindowIsComplete($term)
+            && $this->calendarWindowsAreComplete($term)
             && TermOffering::query()->count() === $counts['offerings']
             && Section::query()->count() === $counts['sections']
             && SectionDeliveryGroup::query()->where('state', SectionDeliveryGroup::StateReady)->count() === $counts['sections']
@@ -811,13 +840,13 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         return true;
     }
 
-    private function schedulingWindowIsComplete(Term $term): bool
+    private function calendarWindowsAreComplete(Term $term): bool
     {
-        if (CalendarEvent::query()->count() !== 1) {
+        if (CalendarEvent::query()->count() !== 2) {
             return false;
         }
 
-        return CalendarEvent::query()
+        $schedulingWindowExists = CalendarEvent::query()
             ->whereBelongsTo($term)
             ->where('event_type', CalendarEvent::TypeWindow)
             ->where('scope_type', CalendarEvent::ScopeInstitution)
@@ -828,6 +857,20 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('state', CalendarEvent::StateActive)
             ->where('authority', 'TAL-96B1 synthetic acceptance baseline')
             ->exists();
+
+        $admissionsWindowExists = CalendarEvent::query()
+            ->whereBelongsTo($term)
+            ->where('event_type', CalendarEvent::TypeWindow)
+            ->where('scope_type', CalendarEvent::ScopeInstitution)
+            ->where('process_key', CalendarEvent::ProcessAdmissions)
+            ->where('start_at', '2026-07-01 00:00:00')
+            ->where('end_at', '2026-08-31 23:59:59')
+            ->where('blocks_scheduling', false)
+            ->where('state', CalendarEvent::StateActive)
+            ->where('authority', 'TAL-96D5B synthetic admissions acceptance window')
+            ->exists();
+
+        return $schedulingWindowExists && $admissionsWindowExists;
     }
 
     private function downpaymentRulesAreComplete(Term $term): bool
@@ -1200,6 +1243,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         /** @var list<class-string<Model>> $models */
         $models = [
             AcademicYear::class,
+            AdmissionRequirementPolicy::class,
             Term::class,
             Program::class,
             User::class,

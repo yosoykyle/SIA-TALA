@@ -94,6 +94,9 @@ Notification scope rules:
 4. Application-status notifications are sent only to the affected applicant.
 5. Grade-release notifications are sent only to the affected student.
 6. V1 notification delivery uses direct email to affected users.
+7. Applicant-status email is required when Registrar evidence review first places an intake in `Action Required` and when Registrar review approves an intake for handover. Repeated evaluation of the same recorded transition must not create duplicate delivery.
+8. Applicant submission uses immediate on-screen confirmation and does not generate a separate acknowledgement email in V1.
+9. Applicant-facing Dashboard and Requirements pages show the owner's operational state; Registrar Applicant Intake detail shows review and checklist evidence; the System Super Admin Activity Log at `/admin/activities` shows raw application audit history. `/admin/reports-audit` is a separate operational-reporting surface and is not the raw applicant activity log.
 
 > **V1 implementation note (recorded 2026-07-08, reconciled during TAL-93J3b and TAL-94E2b):** V1 notification content is defined in code (Laravel Mailable classes + Blade views), not database-configurable templates; DB-editable notification templates (§13.1.1 disposition #17) are routed to post-MVP TAL-100 and are not an MVP dependency. Notification *delivery metadata* (send/failure status, channel, recipient snapshot, timestamps, and transport message ID for accepted sends) is captured by the `operational_events` monitoring surface delivered under TAL-92D. (The student-facing Student Hub priority notices delivered under TAL-91 — backed by the Laravel `notifications` table — are a separate projection surface, distinct from this §13.2 email-alert channel.) Production Payment Received and Schedule Released triggers remain routed to TAL-95 and TAL-94 respectively, each subject to its integration Ground-Truth Gate.
 
@@ -406,6 +409,8 @@ TALA must support retention categories and disposal controls.
 5. V1 archival is a soft, in-database state: archived records are hidden from normal and student-facing views but remain queryable by authorized staff for audit and history. Physically relocating records out of the operational database is not required in V1.
 6. Backup (disaster recovery) and archival (long-term retention) are distinct. Backup handling is defined in the architecture specification and does not change how the application accesses live records.
 7. Physical or offline archival storage, an archive-management interface, and automated cold-storage export are routed to post-MVP TAL-98 and are not V1 scope.
+8. A withdrawn Applicant Intake is retained as non-actionable history. Its owner may view the compact application record and authorized detail, while ordinary work queues exclude it from active processing. This owner-scoped history does not authorize public disclosure, reinstatement, or reuse of the terminal record.
+9. The current implementation classifies applicant records and admission evidence as Archive After Review, records withdrawal through soft archival and audit history, and provides only the existing bounded manual disposal-review ledger. Applicant-specific retention periods, applicant disposal processing, automated expiry, and physical purge are not implemented in V1. Exact periods remain institution-configured, and any approved automation remains routed to TAL-98.
 
 ---
 

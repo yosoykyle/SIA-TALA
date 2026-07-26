@@ -1,48 +1,58 @@
 <x-filament-panels::page>
     @php
         $intake = $this->getIntake();
+        $draftUploadCount = count($intake?->draft_document_references ?? []);
     @endphp
 
     @if (! $intake)
         {{-- Empty State --}}
         <x-filament::section class="max-w-4xl mx-auto py-8">
-            <div class="flex flex-col items-center text-center gap-6 py-6">
-                <div class="p-4 rounded-full bg-primary-50 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400">
-                    <svg class="size-16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                    </svg>
+            <div class="tala-empty-state">
+                <div class="tala-empty-state__icon-shell">
+                    <x-filament::icon
+                        icon="heroicon-o-document-text"
+                        class="tala-empty-state__icon"
+                    />
                 </div>
 
-                <div class="space-y-2">
+                <div class="tala-empty-state__copy">
                     <h2 class="text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">
-                        Start Your Application
+                        No active application
                     </h2>
                     <p class="max-w-md text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
-                        Welcome to your Applicant Workspace. Before we can process your admission, please start and submit your official intake profile.
+                        You do not have an application in progress. Start a new application only when Admissions is open for a term. Earlier applications remain available in Application History below.
                     </p>
                 </div>
 
-                <div class="pt-2">
-                    <x-filament::button
-                        :href="\App\Filament\Applicant\Pages\Application::getUrl()"
-                        tag="a"
-                        icon="heroicon-m-document-text"
-                        size="lg"
-                    >
-                        Start Application
-                    </x-filament::button>
+                <div class="tala-empty-state__actions">
+                    @if ($this->admissionsAreOpen())
+                        <x-filament::button
+                            :href="\App\Filament\Applicant\Pages\Application::getUrl()"
+                            tag="a"
+                            icon="heroicon-m-document-text"
+                            size="lg"
+                        >
+                            Start Application
+                        </x-filament::button>
+                    @else
+                        <x-filament::callout color="info" icon="heroicon-m-clock">
+                            <x-slot name="heading">Admissions are currently closed</x-slot>
+                            <x-slot name="description">
+                                Check the public TALA page for the next admission period or contact the Registrar.
+                            </x-slot>
+                        </x-filament::callout>
+                    @endif
                 </div>
             </div>
         </x-filament::section>
     @else
-        {{-- Application Status Card --}}
-        <div class="grid gap-6 md:grid-cols-3">
-            <div class="md:col-span-2">
+        <div class="space-y-6">
+            <div class="tala-dashboard-grid__primary">
                 <x-filament::section>
                     <x-slot name="heading">
-                        <div class="flex items-center justify-between flex-wrap gap-4">
-                            <span class="text-lg font-bold tracking-tight">Application Status</span>
-                            
+                        <div class="tala-section-heading">
+                            <span>Application Status</span>
+
                             @php
                                 $statusColor = match ($intake->status) {
                                     \App\Models\ApplicantIntake::StatusDraft => 'gray',
@@ -64,54 +74,56 @@
                                 };
                             @endphp
 
-                            <x-filament::badge :color="$statusColor" size="lg" class="px-3 py-1 font-bold">
+                            <x-filament::badge :color="$statusColor" size="lg">
                                 {{ $statusLabel }}
                             </x-filament::badge>
                         </div>
                     </x-slot>
 
-                    <div class="grid gap-4 sm:grid-cols-2 pt-2">
-                        <div>
-                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Academic Term</span>
-                            <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
+                    <dl class="tala-status-grid">
+                        <div class="tala-status-grid__item">
+                            <dt>Academic Term</dt>
+                            <dd>
                                 {{ $intake->term?->label ?? 'Not Assigned' }}
-                            </p>
+                            </dd>
                         </div>
-                        <div>
-                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Preferred Program</span>
-                            <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
+                        <div class="tala-status-grid__item">
+                            <dt>Preferred Program</dt>
+                            <dd>
                                 {{ $intake->program?->name ?? 'Not Assigned' }}
-                            </p>
+                            </dd>
                         </div>
-                        <div>
-                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Admission Category</span>
-                            <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
+                        <div class="tala-status-grid__item">
+                            <dt>Admission Category</dt>
+                            <dd>
                                 {{ str_replace('_', ' ', ucfirst(strtolower($intake->admission_category))) }}
-                            </p>
+                            </dd>
                         </div>
-                        <div>
-                            <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Submission Date</span>
-                            <p class="text-sm font-medium text-zinc-950 dark:text-white mt-1">
-                                {{ $intake->submitted_at?->format('F j, Y, g:i a') ?? 'Not Submitted' }}
-                            </p>
+                        <div class="tala-status-grid__item">
+                            <dt>Submission Date</dt>
+                            <dd>
+                                {{ \App\Support\DisplayDateTime::format($intake->submitted_at, 'F j, Y, g:i a', 'Not Submitted') }}
+                            </dd>
                         </div>
-                    </div>
+                    </dl>
                 </x-filament::section>
             </div>
 
-            {{-- Next Step Guidance Card --}}
-            <div>
+            <div class="tala-dashboard-grid__aside">
                 <x-filament::section class="h-full">
                     <x-slot name="heading">
-                        <span class="text-lg font-bold tracking-tight">Next Step Guidance</span>
+                        Next Step
                     </x-slot>
 
-                    <div class="pt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                    <div class="tala-guidance">
                         @if ($intake->status === \App\Models\ApplicantIntake::StatusDraft)
-                            <x-filament::callout type="info" icon="heroicon-m-pencil-square">
-                                Your application is still a draft. Complete the required information and submit it for Registrar review.
+                            <x-filament::callout color="info" icon="heroicon-m-pencil-square">
+                                <x-slot name="heading">Draft saved</x-slot>
+                                <x-slot name="description">
+                                    {{ $draftUploadCount }} {{ $draftUploadCount === 1 ? 'document' : 'documents' }} attached to this draft. Continue the application when you are ready to complete the remaining information and submit it for Registrar review.
+                                </x-slot>
                             </x-filament::callout>
-                            <div class="mt-4">
+                            <div class="tala-action-block">
                                 <x-filament::button
                                     :href="\App\Filament\Applicant\Pages\Application::getUrl()"
                                     tag="a"
@@ -121,14 +133,20 @@
                                 </x-filament::button>
                             </div>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusPending)
-                            <x-filament::callout type="warning" icon="heroicon-m-clock">
-                                Your application has been submitted and is currently being processed. Please submit the physical copies of your documents to the Registrar's Office as soon as possible.
+                            <x-filament::callout color="warning" icon="heroicon-m-clock">
+                                <x-slot name="heading">Registrar review in progress</x-slot>
+                                <x-slot name="description">
+                                    Your application was submitted successfully. Follow the checklist below and provide any required physical documents to the Registrar's Office.
+                                </x-slot>
                             </x-filament::callout>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusActionRequired)
-                            <x-filament::callout type="danger" icon="heroicon-m-exclamation-triangle">
-                                The Registrar has requested corrections on your submitted documents. Please check the checklist items table below and re-upload the corrected versions of the rejected files.
+                            <x-filament::callout color="danger" icon="heroicon-m-exclamation-triangle">
+                                <x-slot name="heading">A correction is required</x-slot>
+                                <x-slot name="description">
+                                    Review the Registrar's feedback below, then replace each rejected digital document on the Requirements page.
+                                </x-slot>
                             </x-filament::callout>
-                            <div class="mt-4">
+                            <div class="tala-action-block">
                                 <x-filament::button
                                     :href="\App\Filament\Applicant\Pages\Requirements::getUrl()"
                                     tag="a"
@@ -138,47 +156,87 @@
                                 </x-filament::button>
                             </div>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusForEvaluation)
-                            <x-filament::callout type="info" icon="heroicon-m-magnifying-glass">
-                                All required digital document uploads have been received. The Registrar is currently evaluating your credentials for official student handover.
+                            <x-filament::callout color="info" icon="heroicon-m-magnifying-glass">
+                                <x-slot name="heading">Credential evaluation in progress</x-slot>
+                                <x-slot name="description">
+                                    The required evidence has been received. The Registrar is evaluating your admission record before student handover.
+                                </x-slot>
                             </x-filament::callout>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusApproved)
-                            <x-filament::callout type="success" icon="heroicon-m-check-circle">
-                                Congratulations! Your admission application has been approved. The system will activate your Student Hub access once the student handover processes are complete.
+                            <x-filament::callout color="success" icon="heroicon-m-check-circle">
+                                <x-slot name="heading">Application approved</x-slot>
+                                <x-slot name="description">
+                                    Your admission application is approved. Student Hub access becomes available after the Registrar completes student handover.
+                                </x-slot>
                             </x-filament::callout>
                         @elseif ($intake->status === \App\Models\ApplicantIntake::StatusWithdrawn)
-                            <x-filament::callout type="gray" icon="heroicon-m-archive-box-x-mark">
-                                You withdrew this application. It remains recorded for audit purposes and cannot continue through online review. Contact the Registrar if you need assistance.
+                            <x-filament::callout color="gray" icon="heroicon-m-archive-box-x-mark">
+                                <x-slot name="heading">Application withdrawn</x-slot>
+                                <x-slot name="description">
+                                    This application remains in the audit record and cannot continue online.
+                                    @if ($intake->archived_at)
+                                        It was withdrawn on {{ \App\Support\DisplayDateTime::format($intake->archived_at, 'F j, Y \a\t g:i A') }}.
+                                    @endif
+                                    Contact the Registrar if you need to apply again.
+                                </x-slot>
                             </x-filament::callout>
+                            <dl class="tala-summary-list">
+                                <div>
+                                    <dt>Withdrawal reason</dt>
+                                    <dd>{{ $intake->withdrawalActivity?->properties?->get('reason') ?? 'No reason was recorded.' }}</dd>
+                                </div>
+                            </dl>
                         @endif
                     </div>
                 </x-filament::section>
             </div>
         </div>
 
+        @if ($intake->status === \App\Models\ApplicantIntake::StatusDraft)
+            <x-filament::section>
+                <x-slot name="heading">Draft progress</x-slot>
+
+                <div class="tala-draft-progress">
+                    <p>
+                        <strong>{{ $draftUploadCount }} {{ $draftUploadCount === 1 ? 'document' : 'documents' }} attached to this draft.</strong>
+                        You can return to the application and replace or add files before submission.
+                    </p>
+                    <p>The Registrar checklist and review history are created after you submit the application.</p>
+                </div>
+            </x-filament::section>
+        @else
         {{-- Checklist Table --}}
         <x-filament::section>
             <x-slot name="heading">
-                <span class="text-lg font-bold tracking-tight">Required Documents Checklist</span>
+                Required Documents
             </x-slot>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            @if ($intake->checklistItems->isEmpty())
+                <x-filament::empty-state icon="heroicon-o-clipboard-document-check">
+                    <x-slot name="heading">Checklist unavailable</x-slot>
+                    <x-slot name="description">
+                        This submitted application does not yet have requirement records. Contact the Registrar for assistance.
+                    </x-slot>
+                </x-filament::empty-state>
+            @else
+            <div class="tala-table-scroll">
+                <table class="tala-data-table">
                     <thead>
-                        <tr class="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                            <th class="py-3 px-4">Document / Requirement</th>
-                            <th class="py-3 px-4">Blocking Level</th>
-                            <th class="py-3 px-4">Evidence Type</th>
-                            <th class="py-3 px-4">Status</th>
-                            <th class="py-3 px-4">Notes / Feedback</th>
+                        <tr>
+                            <th>Document / Requirement</th>
+                            <th>Why it matters</th>
+                            <th>How to provide it</th>
+                            <th>Status</th>
+                            <th>Registrar feedback</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-                        @forelse ($intake->checklistItems as $item)
-                            <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                                <td class="py-3 px-4 font-medium text-zinc-900 dark:text-white">
+                    <tbody>
+                        @foreach ($intake->checklistItems as $item)
+                            <tr>
+                                <td class="tala-data-table__primary">
                                     {{ str_replace('_', ' ', ucfirst($item->requirement_type)) }}
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500">
+                                <td>
                                     @php
                                         $blockColor = match ($item->blocking_level) {
                                             \App\Models\ChecklistItem::BlockingHandover => 'danger',
@@ -195,10 +253,10 @@
                                         {{ $blockLabel }}
                                     </x-filament::badge>
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500">
+                                <td class="tala-data-table__muted">
                                     {{ str_replace('_', ' ', ucfirst(strtolower($item->evidence_method))) }}
                                 </td>
-                                <td class="py-3 px-4">
+                                <td>
                                     @php
                                         $itemColor = match ($item->status) {
                                             \App\Models\ChecklistItem::StatusAccepted, \App\Models\ChecklistItem::StatusWaived, \App\Models\ChecklistItem::StatusUndertakingApproved => 'success',
@@ -212,52 +270,59 @@
                                         {{ str_replace('_', ' ', ucfirst(strtolower($item->status))) }}
                                     </x-filament::badge>
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500 max-w-xs truncate">
+                                <td class="tala-data-table__notes">
                                     {{ $item->waiver_reason ?? $item->undertaking_terms ?? 'No feedback provided.' }}
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="py-6 text-center text-zinc-500">
-                                    No requirements configured for this application.
-                                </td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
             </div>
+            @endif
         </x-filament::section>
 
         {{-- Upload History / Document Submissions --}}
         <x-filament::section>
             <x-slot name="heading">
-                <span class="text-lg font-bold tracking-tight">Recent Digital Uploads</span>
+                Submitted Digital Documents
             </x-slot>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            @php
+                $submittedUploads = $intake->checklistItems->flatMap->documentEvidence;
+            @endphp
+
+            @if ($submittedUploads->isEmpty())
+                <x-filament::empty-state icon="heroicon-o-document">
+                    <x-slot name="heading">No submitted digital documents</x-slot>
+                    <x-slot name="description">
+                        No reviewable digital evidence is attached to this submitted application. Contact the Registrar for assistance.
+                    </x-slot>
+                </x-filament::empty-state>
+            @else
+            <div class="tala-table-scroll">
+                <table class="tala-data-table">
                     <thead>
-                        <tr class="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                            <th class="py-3 px-4">Document Type</th>
-                            <th class="py-3 px-4">File Name</th>
-                            <th class="py-3 px-4">Submitted At</th>
-                            <th class="py-3 px-4">Review Status</th>
-                            <th class="py-3 px-4">Reviewed By</th>
+                        <tr>
+                            <th>Document Type</th>
+                            <th>File Name</th>
+                            <th>Submitted</th>
+                            <th>Review Status</th>
+                            <th>Reviewed By</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-                        @forelse ($intake->checklistItems->flatMap->documentEvidence as $upload)
-                            <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                                <td class="py-3 px-4 font-medium text-zinc-900 dark:text-white">
+                    <tbody>
+                        @foreach ($submittedUploads as $upload)
+                            <tr>
+                                <td class="tala-data-table__primary">
                                     {{ str_replace('_', ' ', ucfirst(strtolower($upload->checklistItem->requirement_type))) }}
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500 truncate max-w-xs">
+                                <td class="tala-data-table__notes">
                                     {{ basename($upload->path) }}
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500">
-                                    {{ $upload->uploaded_at?->format('M d, Y, h:i A') ?? 'N/A' }}
+                                <td class="tala-data-table__muted">
+                                    {{ \App\Support\DisplayDateTime::format($upload->uploaded_at, 'M d, Y, h:i A', 'N/A') }}
                                 </td>
-                                <td class="py-3 px-4">
+                                <td>
                                     @php
                                         $reviewColor = $upload->status === 'ACCEPTED' ? 'success' : 'warning';
                                         $reviewLabel = str_replace('_', ' ', ucfirst(strtolower($upload->status)));
@@ -266,20 +331,25 @@
                                         {{ $reviewLabel }}
                                     </x-filament::badge>
                                 </td>
-                                <td class="py-3 px-4 text-zinc-500">
+                                <td class="tala-data-table__muted">
                                     {{ $upload->reviewer?->name ?? 'Awaiting Review' }}
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="py-6 text-center text-zinc-500">
-                                    No digital uploads recorded yet.
-                                </td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
             </div>
+            @endif
         </x-filament::section>
+        @endif
     @endif
+
+    <x-filament::section>
+        <x-slot name="heading">Application History</x-slot>
+        <x-slot name="description">
+            Review your earlier and current admission records. Withdrawal reasons and other sensitive details appear only after you select View.
+        </x-slot>
+
+        {{ $this->table }}
+    </x-filament::section>
 </x-filament-panels::page>

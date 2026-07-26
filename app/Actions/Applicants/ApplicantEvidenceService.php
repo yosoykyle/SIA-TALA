@@ -20,6 +20,10 @@ class ApplicantEvidenceService
 
     public const DecisionReject = 'reject';
 
+    public function __construct(
+        private readonly ApplicantStatusNotificationService $statusNotifications,
+    ) {}
+
     /**
      * @param  self::DecisionAccept|self::DecisionReject  $decision
      */
@@ -87,7 +91,7 @@ class ApplicantEvidenceService
                 ])->save();
             }
 
-            $this->synchronizeApplicantAfterReview($item, $actor, $accepted, $timestamp);
+            $statusChangedIntake = $this->synchronizeApplicantAfterReview($item, $actor, $accepted, $timestamp);
             $this->recordActivity(
                 intakeId: $item->applicant_intake_id,
                 subjectId: $item->id,
@@ -96,6 +100,10 @@ class ApplicantEvidenceService
                 properties: ['reason' => $accepted ? null : trim((string) $reason)],
                 timestamp: $timestamp,
             );
+
+            if ($statusChangedIntake instanceof ApplicantIntake) {
+                $this->statusNotifications->record($statusChangedIntake);
+            }
 
             return $item->refresh()->load(['documentEvidence', 'applicantIntake.user']);
         }, attempts: 3);
@@ -391,12 +399,13 @@ class ApplicantEvidenceService
         User $actor,
         bool $accepted,
         CarbonImmutable $timestamp,
-    ): void {
+    ): ?ApplicantIntake {
         if ($item->owner_type !== ChecklistItem::OwnerApplicant || $item->applicant_intake_id === null) {
-            return;
+            return null;
         }
 
         $intake = ApplicantIntake::query()->lockForUpdate()->findOrFail($item->applicant_intake_id);
+        $previousStatus = $intake->status;
 
         if (! in_array($intake->status, [
             ApplicantIntake::StatusPending,
@@ -428,6 +437,12 @@ class ApplicantEvidenceService
                 default => User::StatusApplicantPending,
             },
         ])->save();
+
+        if ($previousStatus === $status) {
+            return null;
+        }
+
+        return $intake->refresh()->load('user');
     }
 
     /** @param array<string, mixed> $properties */

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Fortify;
 
+use App\Actions\Applicants\AdmissionWindowService;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,10 @@ class CreateNewUser implements CreatesNewUsers
 {
     use PasswordValidationRules;
 
+    public function __construct(
+        private AdmissionWindowService $admissionWindowService,
+    ) {}
+
     /**
      * Validate and create a newly registered user.
      *
@@ -24,6 +29,12 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
+        if (! $this->admissionWindowService->hasOpenAdmissionsWindow()) {
+            throw ValidationException::withMessages([
+                'email' => 'Applications are currently closed. You may sign in to an existing applicant account.',
+            ]);
+        }
+
         Validator::make($input, [
             'name' => ['required_without:first_name', 'string', 'max:255'],
             'first_name' => ['required_with:last_name', 'string', 'max:100'],

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Applicants;
 
+use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
@@ -23,6 +24,7 @@ class ApplicantIntakeService
 {
     public function __construct(
         private AdmissionRequirementResolver $requirementResolver,
+        private AdmissionWindowService $admissionWindowService,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -35,12 +37,30 @@ class ApplicantIntakeService
         }
 
         $validated = Validator::make($data, $this->draftRules())->validate();
-        $intake = $applicant->applicantIntake()->first();
+        $intake = $applicant->applicantIntakes()
+            ->where('status', '!=', ApplicantIntake::StatusWithdrawn)
+            ->latest('id')
+            ->first();
 
         if ($intake instanceof ApplicantIntake && $intake->status !== ApplicantIntake::StatusDraft) {
             throw ValidationException::withMessages([
-                'status' => 'A submitted application can no longer be edited as a draft.',
+                'status' => 'Complete the current application before starting another admission intake.',
             ]);
+        }
+
+        $termAlreadyHasApplication = $applicant->applicantIntakes()
+            ->where('term_id', (int) $validated['term_id'])
+            ->when($intake instanceof ApplicantIntake, fn ($query) => $query->whereKeyNot($intake->id))
+            ->exists();
+
+        if ($termAlreadyHasApplication) {
+            throw ValidationException::withMessages([
+                'term_id' => 'An application for this admission term already exists. Contact the Registrar if you need to apply again for the same term.',
+            ]);
+        }
+
+        if (! $intake instanceof ApplicantIntake) {
+            $this->assertAdmissionsWindowOpen((int) $validated['term_id']);
         }
 
         $policies = $this->requirementResolver->resolveFor(
@@ -90,11 +110,16 @@ class ApplicantIntakeService
         $attributes['email'] ??= $applicant->email;
 
         $saved = DB::transaction(function () use ($applicant, $intake, $attributes): ApplicantIntake {
+            $isNewIntake = ! $intake instanceof ApplicantIntake;
             $intake ??= new ApplicantIntake([
                 'user_id' => $applicant->id,
                 'status' => ApplicantIntake::StatusDraft,
             ]);
             $intake->fill($attributes)->save();
+
+            if ($isNewIntake && $applicant->status === User::StatusApplicantWithdrawn) {
+                $applicant->forceFill(['status' => User::StatusApplicantPending])->save();
+            }
 
             return $intake->refresh();
         }, attempts: 3);
@@ -168,6 +193,19 @@ class ApplicantIntakeService
         if (! Program::query()->whereKey($intake->program_id)->where('is_active', true)->exists()) {
             throw ValidationException::withMessages([
                 'program_id' => 'Select an active program before submitting.',
+            ]);
+        }
+
+        $this->assertAdmissionsWindowOpen((int) $intake->term_id);
+    }
+
+    private function assertAdmissionsWindowOpen(int $termId): void
+    {
+        try {
+            $this->admissionWindowService->admissionsWindow($termId);
+        } catch (CalendarGateViolation $exception) {
+            throw ValidationException::withMessages([
+                'term_id' => $exception->getMessage(),
             ]);
         }
     }
@@ -272,6 +310,7 @@ class ApplicantIntakeService
             ->exists();
         $applicantMatch = ApplicantIntake::query()
             ->whereKeyNot($intake->id)
+            ->where('user_id', '!=', $intake->user_id)
             ->whereRaw('LOWER(first_name) = ?', [mb_strtolower($intake->first_name)])
             ->whereRaw('LOWER(last_name) = ?', [mb_strtolower($intake->last_name)])
             ->whereDate('birth_date', $intake->birth_date)

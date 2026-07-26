@@ -6,3 +6,7 @@
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+.tala-brand-logo {
+  border-radius: 22.37%;
+}

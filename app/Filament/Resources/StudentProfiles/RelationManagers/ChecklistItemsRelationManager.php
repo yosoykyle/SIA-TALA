@@ -32,9 +32,17 @@ class ChecklistItemsRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('requirement_type')
                     ->label('Requirement Type')
+                    ->formatStateUsing(fn (string $state): string => ChecklistItem::requirementTypeLabel($state))
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('evidence_method')
+                    ->label('How It Is Provided')
+                    ->formatStateUsing(fn (string $state): string => ChecklistItem::evidenceMethodLabel($state))
+                    ->badge()
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('status')
+                    ->formatStateUsing(fn (string $state): string => ChecklistItem::statusLabel($state))
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::StatusAccepted => 'success',
@@ -45,6 +53,8 @@ class ChecklistItemsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('blocking_level')
+                    ->label('Workflow Effect')
+                    ->formatStateUsing(fn (string $state): string => ChecklistItem::blockingLevelLabel($state))
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::BlockingHandover => 'danger',
@@ -54,6 +64,8 @@ class ChecklistItemsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('verification_status')
+                    ->label('Verification')
+                    ->formatStateUsing(fn (string $state): string => ChecklistItem::verificationStatusLabel($state))
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         ChecklistItem::VerificationVerified => 'success',

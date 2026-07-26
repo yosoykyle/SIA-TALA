@@ -7,6 +7,7 @@ use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
+use App\Models\CalendarEvent;
 use App\Models\ChecklistItem;
 use App\Models\DocumentEvidence;
 use App\Models\Program;
@@ -33,6 +34,9 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $this->assertSame('test_tala_db', config('database.connections.mysql.database'));
         Role::findOrCreate('applicant', 'web');
         Storage::fake('local');
+        AdmissionRequirementPolicy::query()->update([
+            'state' => AdmissionRequirementPolicy::StateSuperseded,
+        ]);
     }
 
     public function test_applicant_can_save_only_their_own_single_draft(): void
@@ -120,7 +124,12 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $this->assertSame(ApplicantIntake::StatusPending, $intake->status);
         Storage::disk('local')->assertExists($intake->identity_evidence_reference);
         $this->assertSame(2, $intake->checklistItems()->count());
-        $this->assertSame(2, DocumentEvidence::query()->count());
+        $this->assertSame(
+            2,
+            DocumentEvidence::query()
+                ->whereHas('checklistItem', fn ($query) => $query->where('applicant_intake_id', $intake->id))
+                ->count(),
+        );
     }
 
     public function test_applicant_page_shows_the_required_declaration_before_submission(): void
@@ -145,6 +154,7 @@ class ApplicantIntakeSubmissionTest extends TestCase
     public function test_submit_action_is_bound_to_the_wizards_final_step(): void
     {
         $applicant = $this->applicant();
+        $this->scope();
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         Livewire::actingAs($applicant)
@@ -157,7 +167,9 @@ class ApplicantIntakeSubmissionTest extends TestCase
 
     public function test_applicant_page_explains_when_no_effective_requirement_policy_exists(): void
     {
-        AdmissionRequirementPolicy::query()->delete();
+        AdmissionRequirementPolicy::query()->update([
+            'state' => AdmissionRequirementPolicy::StateSuperseded,
+        ]);
 
         $applicant = $this->applicant();
         [$term, $program] = $this->scope();
@@ -216,7 +228,9 @@ class ApplicantIntakeSubmissionTest extends TestCase
 
     public function test_submission_fails_when_no_active_admission_policy_matches(): void
     {
-        AdmissionRequirementPolicy::query()->delete();
+        AdmissionRequirementPolicy::query()->update([
+            'state' => AdmissionRequirementPolicy::StateSuperseded,
+        ]);
 
         $applicant = $this->applicant();
         [$term, $program] = $this->scope();
@@ -256,7 +270,12 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $submitted = app(ApplicantIntakeService::class)->submit($draft, true);
 
         $this->assertSame(3, $submitted->checklistItems()->count());
-        $this->assertSame(2, DocumentEvidence::query()->count());
+        $this->assertSame(
+            2,
+            DocumentEvidence::query()
+                ->whereHas('checklistItem', fn ($query) => $query->where('applicant_intake_id', $submitted->id))
+                ->count(),
+        );
         $this->assertSame(
             2,
             $submitted->checklistItems()->where('status', ChecklistItem::StatusReceivedDigital)->count(),
@@ -420,10 +439,22 @@ class ApplicantIntakeSubmissionTest extends TestCase
     /** @return array{Term, Program} */
     private function scope(): array
     {
-        return [
-            Term::factory()->create(['state' => Term::StateActive]),
-            Program::factory()->create(['is_active' => true]),
-        ];
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+
+        CalendarEvent::factory()->for($term)->create([
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => CalendarEvent::ProcessAdmissions,
+            'start_at' => now()->subDay(),
+            'end_at' => now()->addDay(),
+            'day_of_week' => null,
+            'starts_at' => null,
+            'ends_at' => null,
+            'blocks_scheduling' => false,
+            'state' => CalendarEvent::StateActive,
+        ]);
+
+        return [$term, Program::factory()->create(['is_active' => true])];
     }
 
     /** @return array{Term, Program, AdmissionRequirementPolicy} */

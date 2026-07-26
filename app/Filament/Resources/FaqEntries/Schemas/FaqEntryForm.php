@@ -33,16 +33,10 @@ class FaqEntryForm
                             ->default(FaqEntry::CategoryGeneral)
                             ->searchable()
                             ->helperText('Fixed category list approved for public and Student Hub FAQ filtering.'),
-                        TextInput::make('sort_order')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(0)
-                            ->helperText('Lower numbers appear first.'),
                         Toggle::make('is_published')
                             ->label('Published')
                             ->required()
-                            ->helperText('Unpublished entries stay hidden from public/student FAQ views.'),
+                            ->helperText('Unpublished entries stay hidden from public/student FAQ views. Reorder entries from the FAQ list.'),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class ChecklistItem extends Model
@@ -74,6 +75,46 @@ class ChecklistItem extends Model
         'undertaking_terms',
     ];
 
+    public static function requirementTypeLabel(string $value): string
+    {
+        return AdmissionRequirementPolicy::requirementTypeOptions()[$value]
+            ?? self::humanize($value);
+    }
+
+    public static function evidenceMethodLabel(string $value): string
+    {
+        return AdmissionRequirementPolicy::evidenceMethodOptions()[$value]
+            ?? self::humanize($value);
+    }
+
+    public static function blockingLevelLabel(string $value): string
+    {
+        return AdmissionRequirementPolicy::blockingLevelOptions()[$value]
+            ?? self::humanize($value);
+    }
+
+    public static function statusLabel(string $value): string
+    {
+        return [
+            self::StatusPending => 'Pending',
+            self::StatusReceivedPhysical => 'Physical Copy Received',
+            self::StatusReceivedDigital => 'Digital File Received',
+            self::StatusAccepted => 'Accepted',
+            self::StatusRejected => 'Rejected',
+            self::StatusWaived => 'Waived',
+            self::StatusUndertakingApproved => 'Undertaking Approved',
+        ][$value] ?? self::humanize($value);
+    }
+
+    public static function verificationStatusLabel(string $value): string
+    {
+        return [
+            self::VerificationNotReviewed => 'Not Reviewed',
+            self::VerificationVerified => 'Verified',
+            self::VerificationRejected => 'Rejected',
+        ][$value] ?? self::humanize($value);
+    }
+
     protected function casts(): array
     {
         return [
@@ -135,5 +176,10 @@ class ChecklistItem extends Model
                 throw new InvalidArgumentException('Checklist items must have exactly one owner matching owner_type.');
             }
         });
+    }
+
+    private static function humanize(string $value): string
+    {
+        return Str::of($value)->replace('_', ' ')->lower()->title()->toString();
     }
 }

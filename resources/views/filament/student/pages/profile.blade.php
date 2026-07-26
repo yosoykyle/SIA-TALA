@@ -24,7 +24,7 @@
         <form wire:submit="saveProfile" class="space-y-4">
             {{ $this->form }}
 
-            <div>
+            <div class="tala-action-block">
                 <x-filament::button type="submit" icon="heroicon-m-check">
                     Save Contact Details
                 </x-filament::button>

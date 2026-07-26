@@ -95,6 +95,25 @@ class ApplicantIntakeInfolist
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
+                Section::make('Withdrawal Details')
+                    ->description('Applicant-provided withdrawal information retained in the audit record.')
+                    ->schema([
+                        TextEntry::make('archived_at')
+                            ->label('Withdrawn At')
+                            ->dateTime(),
+                        TextEntry::make('withdrawalActivity.causer.email')
+                            ->label('Withdrawn By'),
+                        TextEntry::make('withdrawal_reason')
+                            ->label('Reason')
+                            ->state(fn (ApplicantIntake $record): string => (string) (
+                                $record->withdrawalActivity?->properties?->get('reason')
+                                ?? 'No reason was recorded.'
+                            ))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2)
+                    ->visible(fn (ApplicantIntake $record): bool => $record->status === ApplicantIntake::StatusWithdrawn)
+                    ->columnSpanFull(),
                 Section::make('Digital Evidence')
                     ->description('Open and decide each digital requirement individually in the checklist below.')
                     ->schema([

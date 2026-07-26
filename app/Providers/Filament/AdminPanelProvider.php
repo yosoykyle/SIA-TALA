@@ -53,6 +53,9 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationBuilder;
+use Filament\Navigation\NavigationGroup;
+use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -144,6 +147,7 @@ class AdminPanelProvider extends PanelProvider
                 IntegrationStatus::class,
                 PayMongoReconciliation::class,
             ])
+            ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $this->staffNavigation($builder))
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
@@ -163,5 +167,97 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    private function staffNavigation(NavigationBuilder $builder): NavigationBuilder
+    {
+        return $builder
+            ->items($this->navigationItems([Dashboard::class]))
+            ->groups([
+                NavigationGroup::make('Admissions')
+                    ->items($this->navigationItems([
+                        ApplicantIntakeResource::class,
+                        AdmissionRequirementPolicyResource::class,
+                        DuplicateProfileResolutionResource::class,
+                    ])),
+                NavigationGroup::make('Academic Setup')
+                    ->items($this->navigationItems([
+                        AcademicYearResource::class,
+                        TermResource::class,
+                        AcademicCalendarWindowResource::class,
+                        ProgramResource::class,
+                        CourseResource::class,
+                        CourseSpecificationResource::class,
+                        CurriculumVersionResource::class,
+                        ImportBatchResource::class,
+                    ])),
+                NavigationGroup::make('Offerings & Scheduling')
+                    ->items($this->navigationItems([
+                        CalendarEventResource::class,
+                        RoomResource::class,
+                        FacultyQualificationResource::class,
+                        FacultyTermLoadOverrideResource::class,
+                        TermOfferingResource::class,
+                        SectionResource::class,
+                        SchedulingDemandResource::class,
+                        ScheduleGenerationRunResource::class,
+                        SectionMeetingResource::class,
+                        FacultySchedule::class,
+                    ])),
+                NavigationGroup::make('Enrollment')
+                    ->items($this->navigationItems([
+                        EnrollmentResource::class,
+                    ])),
+                NavigationGroup::make('Finance')
+                    ->items($this->navigationItems([
+                        FeeRuleResource::class,
+                        AssessmentResource::class,
+                        AccountingAdjustmentResource::class,
+                        FinancialAccommodationResource::class,
+                        LedgerEntryResource::class,
+                        PaymentAttemptResource::class,
+                        PaymentResource::class,
+                        PayMongoReconciliation::class,
+                    ])),
+                NavigationGroup::make('Grades')
+                    ->items($this->navigationItems([
+                        GradeRosterResource::class,
+                        FacultyGradeRoster::class,
+                    ])),
+                NavigationGroup::make('Student Records')
+                    ->items($this->navigationItems([
+                        StudentProfileResource::class,
+                        StudentLifecycleChangeResource::class,
+                        GraduationReviewBatchResource::class,
+                    ])),
+                NavigationGroup::make('Reports & Audit')
+                    ->items($this->navigationItems([
+                        ReportsAudit::class,
+                        ActivityResource::class,
+                        OperationalEventResource::class,
+                    ])),
+                NavigationGroup::make('System')
+                    ->items($this->navigationItems([
+                        UserResource::class,
+                        RoleResource::class,
+                        SystemSettingResource::class,
+                        FaqEntryResource::class,
+                        DisposalReviewResource::class,
+                        IntegrationStatus::class,
+                    ])),
+            ]);
+    }
+
+    /**
+     * @param  list<class-string>  $components
+     * @return list<NavigationItem>
+     */
+    private function navigationItems(array $components): array
+    {
+        return collect($components)
+            ->filter(fn (string $component): bool => $component::shouldRegisterNavigation() && $component::canAccess())
+            ->flatMap(fn (string $component): array => $component::getNavigationItems())
+            ->values()
+            ->all();
     }
 }

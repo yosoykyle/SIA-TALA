@@ -95,7 +95,7 @@ class OperationalEventInfolist
     {
         $run = self::sourceRun($event);
 
-        return $run instanceof ScheduleGenerationRun
+        return $run instanceof ScheduleGenerationRun && Gate::allows('view', $run)
             ? ScheduleGenerationRunResource::getUrl('view', ['record' => $run])
             : null;
     }
@@ -109,9 +109,7 @@ class OperationalEventInfolist
 
         $run = $event->scheduleGenerationRun;
 
-        return $run instanceof ScheduleGenerationRun && Gate::allows('view', $run)
-            ? $run
-            : null;
+        return $run instanceof ScheduleGenerationRun ? $run : null;
     }
 
     private static function formatJsonColumn(mixed $state): string

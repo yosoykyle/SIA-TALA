@@ -12,7 +12,23 @@ The admission model uses a simplified flat checklist approach to track document 
 4. **Physical and Metadata Tracking:** Requirements configured as `PHYSICAL_COPY` or `METADATA_ONLY` are not uploaded during applicant intake. The Registrar records and verifies those checklist items through the staff workflow. Handover is blocked if any requirement marked as "Blocks Handover" remains unresolved.
 5. **Correction and Versioning:** Rejected digital evidence places the application in `Action Required`. The applicant replaces the rejected item from the Requirements page; the system retains the evidence-version link, checksum, private-storage controls, and audit history.
 
+The Applicant Wizard validates the current step before moving forward so errors appear beside the information being entered. Personal, contact, guardian, and blocking digital-evidence fields required for final submission are enforced during step progression and again by the intake service at submission. `Save Draft` is intentionally different: it accepts an incomplete application, validates only values already supplied plus the minimum application scope, and returns field-level and plain-language failure feedback without advancing the workflow. Applicant and parent/guardian mobile numbers use the V1 Philippine local format of exactly 11 digits beginning with `09`.
+
+`Prior School` means the applicant's most recent school attended; it is applicant education information, not guardian information. `Same as applicant address` is a form-only convenience: while selected, the guardian address follows the applicant address and cannot be independently edited. Clearing it restores manual guardian-address entry without changing the stored intake schema.
+
 Document compliance is represented as direct checklist items on the applicant or student record. 
+
+#### Admissions availability and applicant withdrawal
+
+1. Public applicant registration and creation of a first intake are available only while at least one active institution-scoped `Admissions` calendar window is open for an active term.
+2. Final submission is allowed only while the selected term's `Admissions` window is open. A missing, inactive, future, or expired window fails closed with a clear message.
+3. Closing admissions does not block existing applicant accounts from signing in, saving an existing draft, viewing a submitted intake, or responding to an allowed Registrar correction. The landing page replaces application calls to action with an applications-closed explanation while preserving Applicant Sign In.
+4. An applicant may withdraw only their own `Draft` or unreviewed `Pending` intake before approval or student handover. Withdrawal is state-based and has no elapsed-time limit.
+5. Withdrawal requires a concise plain-text reason. The intake becomes terminally `Withdrawn`, the withdrawal timestamp is stored in `archived_at`, and the actor and reason are retained in the immutable activity log.
+6. Applicant surfaces show the withdrawal date, reason, and Registrar recovery guidance. Registrar lists show the status and date; the intake detail shows the actor and reason. The reason is not included in ordinary exports or a new report.
+7. An applicant account may retain multiple immutable application records, but only one nonterminal intake may be active at a time and no more than one intake may exist for the same applicant account and academic term.
+8. A withdrawn intake remains terminal history. The applicant may begin a new intake for a different term only while that term's `Admissions` window is open. A same-term retry requires Registrar assistance and must not create a silent duplicate.
+9. Withdrawal soft-archives the intake for authorized history and audit use. Applicant records and admission evidence follow the `Archive After Review` category in Section 13.7; the institution owns the exact retention period. V1 does not automatically expire or physically delete the applicant account.
 
 Configured admission policies define which checklist items apply by admission category and credential basis. Applicant or student checklist items track the actual requirement status, accepted evidence method, blocking effect, review result, and resolution.
 
@@ -164,9 +180,9 @@ Rules:
 | Information or action | Required interaction form |
 | --- | --- |
 | Applicant personal, contact, guardian, prior-school, program-choice, and informational modality-preference data | Three-step Wizard saved as a draft before final submission: Personal Information, Required Documents, and Review and Submit |
-| Admission requirements | Checklist of configured Admission Checklist Items; each item exposes only its allowed evidence method |
+| Admission requirements | Checklist of configured Admission Checklist Items with human-readable requirement, evidence-method, blocking, verification, and status labels; each item exposes only its allowed evidence method |
 | Digital evidence | One private File Upload per applicable `DIGITAL_UPLOAD` policy, with file-type/size validation, preview, and per-item replace/resubmit action |
-| Physical-copy or metadata-only evidence | Staff Record Form capturing received/verified status, date, recorder, and reference; no artificial upload requirement |
+| Physical-copy or metadata-only evidence | Applicant guidance distinguishes `Bring to the Registrar` from staff-tracked metadata; staff use a Record Form capturing received/verified status, date, recorder, and reference; no artificial upload requirement |
 | Applicant review | Operational Queue / Review Table with filters and a focused decision form |
 | Handover | Read-only comparison/preview of applicant and proposed student records, followed by an explicit confirmation action |
 | Possible duplicate student | Review Table comparing candidate official profiles; staff select reuse, merge according to policy, or stop handover |

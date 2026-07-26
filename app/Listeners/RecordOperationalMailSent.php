@@ -18,6 +18,8 @@ class RecordOperationalMailSent
                 OperationalEvent::TypeScheduleRevisionEmail,
                 OperationalEvent::TypeScheduleReleasedEmail,
                 OperationalEvent::TypePaymentPostedEmail,
+                OperationalEvent::TypeApplicantActionRequiredEmail,
+                OperationalEvent::TypeApplicantApprovedEmail,
             ], true)) {
             return;
         }

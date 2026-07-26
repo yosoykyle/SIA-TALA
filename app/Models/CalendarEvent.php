@@ -54,6 +54,8 @@ class CalendarEvent extends Model
 
     public const ProcessSpecialOfferingApproval = 'special_offering_approval';
 
+    public const ProcessAdmissions = 'admissions';
+
     public const ProcessScheduling = 'scheduling';
 
     public const ProcessScheduleReviewPublication = 'schedule_review_publication';
@@ -143,6 +145,7 @@ class CalendarEvent extends Model
             self::ProcessRegularOfferingPreparation => 'Regular Offering Preparation',
             self::ProcessSpecialOfferingRequest => 'Special Offering Request',
             self::ProcessSpecialOfferingApproval => 'Special Offering Approval',
+            self::ProcessAdmissions => 'Admissions',
             self::ProcessScheduling => 'Scheduling',
             self::ProcessScheduleReviewPublication => 'Schedule Review and Publication',
             self::ProcessEnrollment => 'Enrollment',

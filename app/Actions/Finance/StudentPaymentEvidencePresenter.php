@@ -14,11 +14,26 @@ class StudentPaymentEvidencePresenter
      * @param  Collection<int, Payment>  $postedPayments
      * @return array{headline:string,explanation:string,required_action:string,responsible_office:string,ledger_state:string,or_mapping_state:string}
      */
-    public function present(Collection $attempts, Collection $payments, Collection $postedPayments): array
-    {
+    public function present(
+        Collection $attempts,
+        Collection $payments,
+        Collection $postedPayments,
+        bool $hasCurrentDue = false,
+    ): array {
         $orMappingState = $this->orMappingState($postedPayments);
 
         if ($postedPayments->isNotEmpty()) {
+            if ($hasCurrentDue) {
+                return [
+                    'headline' => 'Payment Partially Posted',
+                    'explanation' => 'A verified payment is recorded in your student ledger, but the active assessment still has a remaining amount due.',
+                    'required_action' => 'Use Pay Current Due for the remaining amount. Accounting is also completing any pending OR mapping.',
+                    'responsible_office' => 'Accounting',
+                    'ledger_state' => 'Partially posted',
+                    'or_mapping_state' => $orMappingState,
+                ];
+            }
+
             return [
                 'headline' => 'Payment Posted',
                 'explanation' => 'A verified payment is recorded in your student ledger. This confirms posting, not issuance of an official receipt.',

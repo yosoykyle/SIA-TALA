@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class ApplicantReviewService
 {
+    public function __construct(
+        private readonly ApplicantStatusNotificationService $statusNotifications,
+    ) {}
+
     public function markForEvaluation(ApplicantIntake $intake, User $actor): ApplicantIntake
     {
         $this->authorizeActor($actor);
@@ -77,13 +81,17 @@ class ApplicantReviewService
                 ]);
             }
 
-            return $this->transition(
+            $approved = $this->transition(
                 intake: $locked,
                 actor: $actor,
                 status: ApplicantIntake::StatusApproved,
                 event: 'applicant_intake_approved',
                 approved: true,
             );
+
+            $this->statusNotifications->record($approved);
+
+            return $approved;
         }, attempts: 3);
     }
 
