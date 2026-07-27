@@ -440,7 +440,7 @@ Recent UCTP literature shows that exact solvers, commercial mathematical program
 
 ## 11. Dependency Architecture
 
-Versions in this section were verified from the installed dependency graph on **Tuesday, July 14, 2026 (Philippine Time)**. A dependency is justified only when its active responsibility is clear; presence in a manifest does not prove architectural use.
+Versions in this section were verified from the installed dependency graph on **July 27, 2026 (Philippine Time)**. A dependency is justified only when its active responsibility is clear; presence in a manifest does not prove architectural use.
 
 ### 11.1 Active PHP Runtime
 
@@ -455,6 +455,8 @@ Versions in this section were verified from the installed dependency graph on **
 | Spatie Laravel Permission | 6.25.0 | Persisted roles and permissions integrated with Laravel authorization |
 | Spatie Activitylog | 4.12.3 | Auditable model and workflow activity where explicitly configured |
 | Google Auth | 1.52.0 | Service-account credentials and identity-token creation for authenticated Cloud Run invocation |
+| Guzzle | 7.15.2 | HTTP transport used by Laravel's outbound integration clients |
+| Guzzle PSR-7 | 2.13.0 | PSR-7 request, response, stream, and URI implementation used by the HTTP transport |
 | TallStackUI | 3.0.0 | Limited reusable presentation components where TALA has deliberately adopted them |
 
 Laravel, Filament, and Livewire are selected together because TALA is a form-, table-, policy-, and workflow-heavy institutional application. They keep UI behavior, validation, authorization, and transactions in one PHP system. A separate JavaScript SPA would add an API contract, duplicated validation and authorization concerns, client-state complexity, and another deployment surface without a demonstrated baseline requirement for disconnected clients or independent frontend teams.
@@ -481,7 +483,7 @@ The PayMongo transport and signed webhook pipeline are application-owned. Previo
 | Vite | 7.3.6 | Asset bundling and development build pipeline |
 | Laravel Vite Plugin | 2.1.0 | Laravel-aware asset entry points and development integration |
 | Alpine.js | 3.15.10 | Declared client-side interaction dependency; Filament/Livewire also provide their expected runtime behavior |
-| Axios | 1.16.1 | Present in the default bootstrap layer, but not an architectural API client while the application entry point does not load that layer |
+| Axios | 1.18.1 | Present in the default bootstrap layer, but not an architectural API client while the application entry point does not load that layer |
 | Bootstrap assets | local landing-page assets | Isolated public-facing landing presentation, not the administrative component system |
 
 Driver.js 1.4.0 and the npm Heroicons package 2.2.0 are declared but have no active application import establishing a current production responsibility. Filament's PHP icon abstractions are the active administrative icon surface.
@@ -501,7 +503,7 @@ The scheduling container uses Python 3.12 slim, Google OR-Tools 9.15.6755, Flask
 | FakerPHP | 1.24.1 | Deterministic-shape test data generation through factories |
 | Mockery | 1.6.12 | Test doubles where an isolated collaborator is appropriate |
 | Collision | 8.9.4 | Readable command-line errors and test output |
-| Concurrently | 9.2.3 | Coordinates the local web, queue, log, and asset-development processes |
+| Concurrently | 9.2.4 | Coordinates the local web, queue, log, and asset-development processes |
 
 These are engineering controls, not user-facing production modules.
 

@@ -20,9 +20,11 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
+#[Group('acceptance-fixture')]
 final class TAL96D5BOperationalStateOverlayTest extends TestCase
 {
     use DatabaseTransactions;

@@ -1,6 +1,6 @@
 # TALA System Operations and Defense Guide
 
-**Document status:** TAL-96D5B accelerated convergence, authorized Cloud Run screening, PayMongo provider acceptance, and bounded final smoke complete; independent verification and Cleanup remain, dated 2026-07-26
+**Document status:** TAL-96D5C2 local full regression, security, and integration-readiness gate independently verified and closed locally; TAL-96D5D planning remains, dated 2026-07-27
 **Purpose:** One consolidated guide for operating, auditing, demonstrating, and defending the TALA production-level MVP. Later TAL-96D slices will expand this same file rather than create competing manuals.
 
 ## 1. Scope and Evidence Language
@@ -16,7 +16,7 @@ Evidence is classified as follows:
 | Stakeholder | The client, project adviser, or authorized school representative confirms that terminology, policy, or operational behavior matches institutional practice. |
 | Routed | A concern is real or plausible but belongs to a later approved TAL-96D correction slice. Routed does not mean failed. |
 
-An automated pass is not, by itself, final user acceptance. A browser pass does not replace business-policy confirmation. TAL-96D5B uses broad programmatic evidence first and limits the user's work to one bounded final smoke review; full regression closure remains TAL-96D5C, and formal presentation readiness remains TAL-97.
+An automated pass is not, by itself, final user acceptance. A browser pass does not replace business-policy confirmation. TAL-96D5B used broad programmatic evidence first and limited the user's work to one bounded final smoke review. TAL-96D5C2 has completed and independently verified its local regression gate; formal presentation readiness remains TAL-97.
 
 ## 2. System Starting Point and Operating Order
 
@@ -1248,4 +1248,50 @@ TAL-96D5C1 does not certify the full suite, create an official `MIDDLE` publicat
 - Verification remediation passed **18 focused tests with 255 assertions** covering the System Settings policy/table, every registered key's disposition metadata, truthful empty-state guidance, version-history storage semantics, and the operational Student Unit Load consumer. Scoped PHPStan, Serena diagnostics, Pint, Blade compilation, and `git diff --check` passed.
 - No destructive database action, browser-wide exploratory pass, Cloud solve, PayMongo provider call, deployment, dependency change, solver-contract change, or capacity benchmark occurred.
 
-The bounded verification remediation is complete but is not self-certified. The next boundary is independent re-`Verify TAL-96D5C1`; Cleanup and the bounded local commit remain unauthorized until that verification passes.
+Independent `Verify TAL-96D5C1` and `Cleanup TAL-96D5C1` subsequently passed, and the bounded local result is recorded in commit `23292bc0`. The next accepted boundary is TAL-96D5C2's full regression, security, and integration-readiness gate; this D5C1 evidence does not self-certify that later gate.
+
+### 9.8 TAL-96D5C2 full regression, security, and integration-readiness gate
+
+#### 9.8.1 Final local disposition
+
+The primary implementation and independent verification dispositions are **PASS for the approved local TAL-96D5C2 boundary**. This is not production, provider, browser-family, stakeholder, deployment, or capacity certification. No Cloud solve, PayMongo provider call, deployment, traffic promotion, credential rotation, paid capacity run, Linear mutation, push, or pull request occurred; Cleanup creates only the bounded local D5C2 commit.
+
+The test database target was proved as `APP_ENV=testing`, `DB_CONNECTION=mysql`, and `DB_DATABASE=test_tala_db` before every database-backed command. The ordinary lane ran without persistent acceptance data. The database was then proved exactly empty before the approved guarded `MIDDLE` seed; the re-check showed 270 students, 9 cohorts, 80 term offerings, 80 ready scheduling demands, 14 synthetic scheduling faculty, and readiness `PASS`.
+
+#### 9.8.2 Evidence-backed corrections
+
+| Finding | Classification | Correction and boundary |
+|---|---|---|
+| The three operational-overlay tests were indistinguishable from ordinary transaction-isolated tests. | Verification-harness defect | Added the PHPUnit 11 class-level `acceptance-fixture` group. The ordinary and guarded lanes now form an explicit, complete 1,025-test union. |
+| The current `MIN` fixture is correctly 9 faculty with a 21:00 operating close, while retained TAL-96B3 calibration evidence expects its historical 12-faculty, 156-slot shape. | Historical-fixture drift, not a current product or solver defect | The benchmark capture now makes a deterministic in-memory historical projection only for the known 54/9/6/168 MIN snapshot. It preserves the live MIN records, the old benchmark label, and the solver contract; it does not repeat or relabel the historical Cloud experiments. Current population/configuration evaluation remains TAL-96D5D. |
+| PayMongo demo readiness hard-coded the former 64-user baseline after MIN faculty authority changed from 12 to 9. | Test-only integration fixture defect | Derive the expected user total from the authoritative baseline manifest while preserving all exact unpaid-demo artifact, amount, ownership, readiness, and fail-closed checks. No PayMongo transaction behavior changed. |
+| Calendar-window acceptance expected Philippine wall-clock input to remain unconverted in UTC storage. | Stale acceptance expectation | Assert the documented UTC values while retaining Asia/Manila display conversion. Product timestamp behavior remains unchanged. |
+| Finance acceptance called a ₱500 ledger posting against a ₱9,000 charge fully posted. | Stale acceptance expectation | Assert the already accepted `Payment Partially Posted` state, remaining-due action, and separate OR-mapping state. Product finance behavior remains unchanged. |
+| Locked Guzzle, Axios, PostCSS, shell-quote, and Concurrently versions carried applicable advisories. | Supply-chain security finding | Updated only the affected lock entries within existing manifest constraints. `composer.json` and `package.json` remain unchanged; Composer and npm audits now report zero advisories. |
+
+#### 9.8.3 Programmatic evidence
+
+- Ordinary lane: `vendor\bin\phpunit.bat --exclude-group=acceptance-fixture --colors=never` passed **1,022 tests with 13,865 assertions** and 2 expected opt-in external-service skips in 6 minutes 57 seconds. The skips are the guarded real loopback and private tagged Cloud Run tests; neither external mode was authorized for D5C2.
+- Guarded fixture lane: `TAL96D5BOperationalStateOverlayTest.php` passed **3 tests with 88 assertions** after the verified-empty MIDDLE seed. The complete union is **1,025 passing tests with 13,953 assertions**.
+- Focused security and integration lane: **305 tests with 2,583 assertions** passed after the guarded MIDDLE lane. Five included classes deliberately use Laravel's `LazilyRefreshDatabase`, whose first database access runs `migrate:fresh`; the matrix therefore restored a clean migrated baseline rather than retaining MIDDLE afterward. Coverage included role/direct-entry authorization, private applicant evidence and uploads, controlled outputs, reports/audit, sessions, validation/error behavior, retention, PayMongo signatures/idempotency/ledger/recovery, queue and solver transport, notifications, monitoring, and the pre-integration gate.
+- Focused regression repairs passed independently: calendar windows **5/64**, Student Finance **3/51**, PayMongo demo readiness **4/60**, and the historical scheduling benchmark **12/4,434**.
+- Full Larastan/PHPStan reported **no errors**. Pint passed for dirty PHP, Serena reported no warning-or-higher diagnostics for changed PHP files, and `git diff --check` passed.
+- Production Vite build passed. Route, configuration, and Blade view caches compiled successfully and were then cleared through `optimize:clear`.
+- All **31 migrations** were applied on `test_tala_db`. The database queue resolved with `retry_after=420`; SMTP remained the configured mailer; the hourly `enrollment:release-expired-reservations` schedule was registered; and `queue:failed` reported no failed jobs.
+
+#### 9.8.4 Dependency and security evidence
+
+| Check | Verified result |
+|---|---|
+| Composer lock installation | `composer install --dry-run --no-interaction` found nothing to install, update, or remove |
+| Composer advisories | Zero; Guzzle `7.15.2` and Guzzle PSR-7 `2.13.0` installed |
+| npm lock installation | `npm ci` completed and a later `npm ci --dry-run` reported up to date |
+| npm advisories | Zero; Axios `1.18.1`, PostCSS `8.5.23`, its required NanoID `3.3.16`, shell-quote `1.9.0`, and Concurrently `9.2.4` installed |
+| Manifest validation | Composer reports a valid manifest; strict mode returns only the existing exact-version warning for TallStackUI `3.0.0` |
+| Tracked-secret patterns | No tracked application or configuration file matched the high-confidence live-key/private-key patterns; two duplicated best-practices rule files matched only their explicitly labelled synthetic `Incorrect` examples, and only `.env.example` is tracked as an environment file |
+
+`gitleaks` is not installed in this workspace, so the secret evidence is the bounded tracked-file pattern check, the review and classification of its two documentation-only example matches, and the existing application tests that prevent secret disclosure. This limitation does not authorize storing credentials in Git. The exact TallStackUI pin is a known dependency-governance warning, not an unresolved security advisory; broadening its constraint requires a separate dependency decision.
+
+#### 9.8.5 Next boundary
+
+Independent `Verify TAL-96D5C2` passed after rerunning the complete 1,025-test union, the 305-test security/integration matrix, changed acceptance behavior, full static analysis, formatter, dependency/audit/build checks, migrations, caches, queue/scheduler inventories, and the bounded tracked-secret review. Verification also corrected the fixture-lifecycle and documentation-only secret-match descriptions above. Cleanup records that verified result locally. The next boundary is **`Plan TAL-96D5D`** through a fresh Ground-Truth Gate; Linear synchronization, external traffic, deployment, push, and pull-request creation remain unauthorized.

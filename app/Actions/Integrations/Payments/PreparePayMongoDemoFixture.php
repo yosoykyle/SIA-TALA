@@ -255,7 +255,10 @@ final class PreparePayMongoDemoFixture
 
     private function fixtureCountsAreExact(): bool
     {
-        return User::query()->count() === 64
+        $baselineCounts = $this->baselineSeeder->manifest()['counts'];
+        $expectedUserCount = $baselineCounts['students'] + $baselineCounts['faculty'] + 5;
+
+        return User::query()->count() === $expectedUserCount
             && StudentProfile::query()->count() === 47
             && TermOffering::query()->count() === 54
             && SchedulingDemand::query()->count() === 54

@@ -4,7 +4,7 @@
 
 **Applies to remaining work:** `TAL-96D5C` through `TAL-96D5E`
 
-**Next execution boundary:** Plan `TAL-96D5C` through a fresh Ground-Truth Gate. Its plan must close the role-by-role implementation and experience audit described in Section 4.3 before the full regression, security, and integration-readiness gate is treated as final.
+**Next execution boundary:** Plan `TAL-96D5D` through a fresh Ground-Truth Gate against the locally completed TAL-96D5C2 readiness evidence. TAL-96D5D is the sole owner of targeted population, Cloud Run configuration, solution-quality, and cost evaluation; it has not started.
 
 ## 1. Purpose
 

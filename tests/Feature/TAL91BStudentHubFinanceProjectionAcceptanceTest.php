@@ -193,10 +193,11 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         // (d) OR mapping pending vs mapped: the posted payment has no or_number, so mapping is pending.
         $this->assertSame('Pending OR Mapping', $finance['summary']['or_mapping_state']);
-        $this->assertSame('Payment Posted', $finance['state']['payment_evidence']['headline']);
-        $this->assertSame('Posted', $finance['state']['payment_evidence']['ledger_state']);
+        $this->assertSame('Payment Partially Posted', $finance['state']['payment_evidence']['headline']);
+        $this->assertSame('Partially posted', $finance['state']['payment_evidence']['ledger_state']);
         $this->assertSame('Pending OR Mapping', $finance['state']['payment_evidence']['or_mapping_state']);
         $this->assertSame('Accounting', $finance['state']['payment_evidence']['responsible_office']);
+        $this->assertStringContainsString('Pay Current Due', $finance['state']['payment_evidence']['required_action']);
         $this->assertStringContainsString('OR mapping', $finance['state']['payment_evidence']['required_action']);
 
         // Confirm all four states are rendered as distinct, separately-labeled values on the page itself

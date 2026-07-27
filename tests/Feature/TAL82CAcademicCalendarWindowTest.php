@@ -108,8 +108,8 @@ final class TAL82CAcademicCalendarWindowTest extends TestCase
         $this->assertNull($window->day_of_week);
         $this->assertNull($window->starts_at);
         $this->assertNull($window->ends_at);
-        $this->assertSame('2026-10-01 08:00:00', (string) $window->start_at);
-        $this->assertSame('2026-10-07 17:00:00', (string) $window->end_at);
+        $this->assertSame('2026-10-01 00:00:00', (string) $window->start_at);
+        $this->assertSame('2026-10-07 09:00:00', (string) $window->end_at);
     }
 
     public function test_calendar_window_surface_and_scheduling_blocks_surface_keep_separate_queries(): void
