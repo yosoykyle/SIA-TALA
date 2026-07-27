@@ -21,6 +21,7 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -112,15 +113,16 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 'ownerRecord' => $context['run'],
                 'pageClass' => ViewScheduleGenerationRun::class,
             ])
-            ->callTableAction('correctAssignment', $candidate, data: [
+            ->callAction(TestAction::make('correctAssignment')->table($candidate), data: [
                 'faculty_user_id' => $context['faculty']->id,
                 'room_id' => $context['room']->id,
                 'day_of_week' => 1,
-                'starts_at' => '09:00:00',
-                'ends_at' => '12:00:00',
+                'starts_at' => '09:00',
+                'ends_at' => '12:00',
                 'override_authority' => 'Registrar scheduling memorandum',
                 'override_reason' => 'Corrected the start time after faculty confirmation.',
             ])
+            ->assertHasNoActionErrors()
             ->assertNotified('Candidate assignment corrected');
 
         $corrected = $context['run']->candidateRows()->sole();

@@ -731,6 +731,18 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
     }
 
     #[Test]
+    public function academic_import_uploads_are_restricted_to_declared_schema_components(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $this->actingAs($registrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::test(ListImportBatches::class)->instance();
+
+        $this->assertTrue($page->shouldRestrictFileUploadsToSchemaComponents());
+    }
+
+    #[Test]
     public function non_utf8_encoded_uploads_are_rejected_before_domain_rows_are_validated(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);

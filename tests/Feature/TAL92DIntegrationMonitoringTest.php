@@ -64,10 +64,11 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     public function system_setting_resource_is_super_admin_scoped_and_fully_read_only(): void
     {
         $this->assertFalse(SystemSettingResource::canCreate());
+        $this->assertSame([], SystemSetting::editableKeyOptions());
 
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $policy = app(SystemSettingPolicy::class);
-        $setting = SystemSetting::query()->forceCreate([
+        $maintenanceSetting = SystemSetting::query()->forceCreate([
             'key' => 'maintenance_mode',
             'value' => 'false',
             'value_type' => SystemSetting::ValueTypeBoolean,
@@ -75,14 +76,55 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
             'version' => 1,
             'status' => 'active',
         ]);
+        $unitLoadSetting = SystemSetting::query()->forceCreate([
+            'key' => 'student_unit_load_policy_defaults',
+            'value' => SystemSetting::defaultValueFor('student_unit_load_policy_defaults'),
+            'value_type' => SystemSetting::ValueTypeJson,
+            'effective_from' => now(),
+            'version' => 1,
+            'status' => 'active',
+        ]);
 
         $this->assertTrue($policy->viewAny($superAdmin));
-        $this->assertTrue($policy->view($superAdmin, $setting));
+        $this->assertTrue($policy->view($superAdmin, $maintenanceSetting));
         $this->assertFalse($policy->create($superAdmin));
-        $this->assertFalse($policy->update($superAdmin, $setting));
-        $this->assertFalse($policy->delete($superAdmin, $setting));
-        $this->assertFalse($policy->restore($superAdmin, $setting));
-        $this->assertFalse($policy->forceDelete($superAdmin, $setting));
+        $this->assertFalse($policy->update($superAdmin, $maintenanceSetting));
+        $this->assertFalse($policy->delete($superAdmin, $maintenanceSetting));
+        $this->assertFalse($policy->restore($superAdmin, $maintenanceSetting));
+        $this->assertFalse($policy->forceDelete($superAdmin, $maintenanceSetting));
+
+        $this->assertSame('Dormant', SystemSetting::operationalStatusFor($maintenanceSetting->key));
+        $this->assertSame('Deployment operator', SystemSetting::ownerFor($maintenanceSetting->key));
+        $this->assertSame(
+            'No application runtime consumer; Laravel maintenance is controlled through deployment or CLI operations.',
+            SystemSetting::runtimeConsumerFor($maintenanceSetting->key),
+        );
+        $this->assertSame('Operational', SystemSetting::operationalStatusFor($unitLoadSetting->key));
+        $this->assertSame('Academic Head and Registrar', SystemSetting::ownerFor($unitLoadSetting->key));
+        $this->assertSame(
+            'StudentUnitLoadPolicy reads the active JSON fallback when evaluating enrollment unit limits.',
+            SystemSetting::runtimeConsumerFor($unitLoadSetting->key),
+        );
+
+        $expectedDispositions = [
+            'maintenance_mode' => ['Dormant', 'Deployment operator'],
+            'maintenance_message' => ['Dormant', 'Deployment operator'],
+            'maintenance_eta' => ['Dormant', 'Deployment operator'],
+            'admission_requirements' => ['Superseded', 'Registrar'],
+            'installment_policy_defaults' => ['Dormant', 'Accounting'],
+            'college_cutover_effective_term' => ['Dormant', 'Academic Head and Registrar'],
+            'college_cutover_effective_datetime' => ['Dormant', 'Academic Head and Registrar'],
+            'student_unit_load_policy_defaults' => ['Operational', 'Academic Head and Registrar'],
+        ];
+
+        foreach ($expectedDispositions as $key => [$expectedStatus, $expectedOwner]) {
+            $this->assertSame($expectedStatus, SystemSetting::operationalStatusFor($key));
+            $this->assertSame($expectedOwner, SystemSetting::ownerFor($key));
+            $this->assertNotSame(
+                'No verified runtime consumer is documented.',
+                SystemSetting::runtimeConsumerFor($key),
+            );
+        }
 
         foreach ([
             User::StaffRoleRegistrar,
@@ -100,7 +142,31 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $component = Livewire::test(ListSystemSettings::class);
 
         $component->assertOk();
-        $component->assertCanSeeTableRecords([$setting]);
+        $component->assertCanSeeTableRecords([$maintenanceSetting, $unitLoadSetting]);
+        $component->assertSee(SystemSetting::labelFor($maintenanceSetting->key));
+        $component->assertSee(SystemSetting::descriptionFor($maintenanceSetting->key));
+        $component->assertSee($maintenanceSetting->formattedValue());
+        $component->assertSee('Dormant');
+        $component->assertSee('Operational');
+        $component->assertSee('Deployment operator');
+        $component->assertSee('Academic Head and Registrar');
+        $component->assertSee('No application runtime consumer');
+        $component->assertSee('StudentUnitLoadPolicy reads the active JSON fallback');
+    }
+
+    #[Test]
+    public function system_setting_resource_explains_an_empty_governed_registry_truthfully(): void
+    {
+        $this->assertSame(0, SystemSetting::query()->count());
+
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ListSystemSettings::class)
+            ->assertOk()
+            ->assertSee('No governed setting records')
+            ->assertSee('An empty registry is not a configuration failure')
+            ->assertSee('owning workflows, application code, or the deployment environment');
     }
 
     // ------------------------------------------------------------------

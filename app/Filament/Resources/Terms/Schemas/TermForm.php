@@ -82,13 +82,15 @@ class TermForm
                         ->required(),
                     TimePicker::make('scheduling_day_starts_at')
                         ->label('Scheduling Day Starts At')
+                        ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->default('07:00')
                         ->required(),
                     TimePicker::make('scheduling_day_ends_at')
                         ->label('Scheduling Day Ends At')
+                        ->timezone((string) config('app.timezone'))
                         ->seconds(false)
-                        ->default('20:00')
+                        ->default('21:00')
                         ->after('scheduling_day_starts_at')
                         ->required(),
                     TextInput::make('default_max_units')

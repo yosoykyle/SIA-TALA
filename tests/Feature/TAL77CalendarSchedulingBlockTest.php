@@ -107,6 +107,8 @@ final class TAL77CalendarSchedulingBlockTest extends TestCase
         $this->assertSame($faculty->id, $block->faculty_user_id);
         $this->assertTrue($block->blocks_scheduling);
         $this->assertSame(CalendarEvent::StateActive, $block->state);
+        $this->assertSame('08:00:00', $block->starts_at?->format('H:i:s'));
+        $this->assertSame('12:00:00', $block->ends_at?->format('H:i:s'));
         $this->assertNull($block->start_at);
         $this->assertNull($block->end_at);
         $this->assertDatabaseHas('activity_log', [

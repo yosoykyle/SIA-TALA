@@ -27,8 +27,11 @@ use Tests\TestCase;
  * Complementary scope only. TAL-92D already owns `SystemSettingResource`
  * read-only/policy acceptance and the `operational_events` monitoring
  * surface; those are NOT re-asserted here. This slice proves (A1) the
- * config-governance *semantics* of the `system_settings` table — two
- * coexisting versions of one key preserved with full audit metadata — and
+ * config-governance *storage semantics* of the `system_settings` table — two
+ * coexisting synthetic versions of one key preserved with full audit metadata.
+ * The maintenance key is a governance fixture only; this test does not prove
+ * that the running application consumes it or enters Laravel maintenance mode.
+ * This slice also proves
  * (A2) the `RolePolicy` / `RoleResource` role-permission configuration
  * surface is read-only and Super-Admin-only.
  */
@@ -57,9 +60,10 @@ final class TAL92FSystemConfigurationAcceptanceTest extends TestCase
     #[Test]
     public function two_coexisting_versions_of_one_setting_key_are_preserved_with_full_governance_metadata(): void
     {
-        // Governance rules 2-5: a config change captures actor + reason,
+        // Synthetic governance fixture for rules 2-5: a stored version captures actor + reason,
         // effective-dating preserves the historical value, and the value
-        // used by official records remains traceable across versions.
+        // remains traceable across versions. This does not assert a runtime
+        // maintenance effect.
         $firstActor = User::factory()->create(['status' => User::StatusActive]);
         $secondActor = User::factory()->create(['status' => User::StatusActive]);
 

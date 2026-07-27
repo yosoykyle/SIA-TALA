@@ -42,6 +42,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
             'Completion',
             'COR',
             'Dashboard',
+            'Enrollment',
             'Finance',
             'Grades',
             'Holds & Blockers',

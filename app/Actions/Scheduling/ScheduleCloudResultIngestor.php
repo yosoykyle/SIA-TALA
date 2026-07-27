@@ -102,6 +102,8 @@ final class ScheduleCloudResultIngestor
             'solver_statistics' => $metadata['solver_statistics'],
             'summary' => $summary,
             'findings' => $validation->findings(),
+            'soft_constraint_scores' => $solverResult['soft_constraint_scores'] ?? [],
+            'objective_details' => $solverResult['objective_details'] ?? [],
             'warnings' => $solverResult['warnings'] ?? [],
             'infeasible_reasons' => $solverResult['infeasible_reasons'] ?? [],
         ];

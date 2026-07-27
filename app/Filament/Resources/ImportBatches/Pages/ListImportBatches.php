@@ -14,11 +14,14 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Concerns\RestrictsFileUploadsToSchemaComponents;
 use Filament\Support\Icons\Heroicon;
 use Throwable;
 
 class ListImportBatches extends ListRecords
 {
+    use RestrictsFileUploadsToSchemaComponents;
+
     protected static string $resource = ImportBatchResource::class;
 
     protected function getHeaderActions(): array

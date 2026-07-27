@@ -54,10 +54,12 @@ class CalendarEventForm
                         ->required(),
                     TimePicker::make('starts_at')
                         ->label('Starts At')
+                        ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->required(),
                     TimePicker::make('ends_at')
                         ->label('Ends At')
+                        ->timezone((string) config('app.timezone'))
                         ->seconds(false)
                         ->after('starts_at')
                         ->required(),

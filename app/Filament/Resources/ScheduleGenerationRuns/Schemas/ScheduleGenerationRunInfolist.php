@@ -257,6 +257,58 @@ class ScheduleGenerationRunInfolist
                         'md' => 3,
                         'xl' => 5,
                     ]),
+                Section::make('Hard Constraint Checklist')
+                    ->description('Each listed rule comes from this run\'s captured solver input. Passed means Laravel revalidated the complete candidate and found no violation for that rule.')
+                    ->schema([
+                        RepeatableEntry::make('hard_constraint_checklist')
+                            ->label('Hard Constraint Checklist')
+                            ->state(fn (ScheduleGenerationRun $record): array => self::hardConstraintRows($record))
+                            ->table([
+                                TableColumn::make('Rule'),
+                                TableColumn::make('Result'),
+                                TableColumn::make('Evidence'),
+                            ])
+                            ->schema([
+                                TextEntry::make('label')
+                                    ->wrap(),
+                                TextEntry::make('status')
+                                    ->badge()
+                                    ->color(fn (string $state): string => match ($state) {
+                                        'Passed' => 'success',
+                                        'Finding' => 'danger',
+                                        default => 'gray',
+                                    }),
+                                TextEntry::make('evidence')
+                                    ->wrap(),
+                            ])
+                            ->contained(false)
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::hardConstraintRows($record) !== []),
+                Section::make('Soft Objective Evidence')
+                    ->description('Soft objectives rank otherwise valid schedules. They are measured preferences, not pass/fail constraints or an accuracy score.')
+                    ->schema([
+                        RepeatableEntry::make('soft_objective_evidence')
+                            ->label('Soft Objective Evidence')
+                            ->state(fn (ScheduleGenerationRun $record): array => self::softObjectiveRows($record))
+                            ->table([
+                                TableColumn::make('Objective'),
+                                TableColumn::make('Evidence status'),
+                                TableColumn::make('Recorded result'),
+                            ])
+                            ->schema([
+                                TextEntry::make('label')
+                                    ->wrap(),
+                                TextEntry::make('status')
+                                    ->badge()
+                                    ->color(fn (string $state): string => $state === 'Measured' ? 'success' : 'gray'),
+                                TextEntry::make('evidence')
+                                    ->wrap(),
+                            ])
+                            ->contained(false)
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn (ScheduleGenerationRun $record): bool => self::softObjectiveRows($record) !== []),
                 Section::make('Validation Findings')
                     ->description(fn (ScheduleGenerationRun $record): string => self::currentRevalidation($record) !== []
                         ? 'Latest current-record revalidation findings.'
@@ -400,6 +452,108 @@ class ScheduleGenerationRunInfolist
         $summary = self::currentRevalidation($record)['summary'] ?? null;
 
         return is_array($summary) ? $summary : [];
+    }
+
+    /**
+     * @return list<array{label:string,status:string,evidence:string}>
+     */
+    private static function hardConstraintRows(ScheduleGenerationRun $record): array
+    {
+        $snapshot = self::inputSnapshot($record);
+        $constraints = data_get($snapshot, 'constraint_profile.hard_constraints', $snapshot['hard_constraints'] ?? []);
+        $findings = self::findingRows($record);
+        $validation = self::currentRevalidation($record);
+        $summary = $validation !== [] ? self::currentSummary($record) : self::solverSummary($record);
+        $accepted = ($summary['status'] ?? null) === 'accepted'
+            && (int) ($summary['hard_violation_count'] ?? 0) === 0;
+
+        if (! is_array($constraints)) {
+            return [];
+        }
+
+        return collect($constraints)
+            ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '')
+            ->unique()
+            ->map(function (string $constraint) use ($findings, $accepted): array {
+                $finding = collect($findings)->first(
+                    fn (array $row): bool => ($row['constraint'] ?? null) === $constraint
+                        && ($row['severity'] ?? null) === 'blocking',
+                );
+
+                return [
+                    'label' => Str::headline($constraint),
+                    'status' => is_array($finding) ? 'Finding' : ($accepted ? 'Passed' : 'Not proven'),
+                    'evidence' => is_array($finding)
+                        ? (string) ($finding['message'] ?? 'Laravel recorded a blocking finding for this rule.')
+                        : ($accepted
+                            ? 'Laravel accepted the complete candidate with no blocking finding for this rule.'
+                            : 'This stored run does not contain an accepted Laravel validation result for this rule.'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{label:string,status:string,evidence:string}>
+     */
+    private static function softObjectiveRows(ScheduleGenerationRun $record): array
+    {
+        $snapshot = self::inputSnapshot($record);
+        $weights = data_get($snapshot, 'constraint_profile.soft_weights', []);
+        $constraints = data_get($snapshot, 'constraint_profile.soft_constraints', $snapshot['soft_constraints'] ?? []);
+        $terms = data_get(self::solverResult($record), 'objective_details.terms', []);
+
+        $weights = is_array($weights) ? $weights : [];
+        $terms = is_array($terms) ? $terms : [];
+        $constraints = is_array($constraints) && $constraints !== [] ? $constraints : array_keys($weights);
+
+        return collect($constraints)
+            ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '')
+            ->unique()
+            ->map(function (string $constraint) use ($weights, $terms): array {
+                $term = $terms[$constraint] ?? null;
+
+                if (is_array($term)) {
+                    return [
+                        'label' => Str::headline($constraint),
+                        'status' => 'Measured',
+                        'evidence' => sprintf(
+                            'Raw %s; weight %s; weighted contribution %s.',
+                            self::displayValue($term['raw'] ?? null),
+                            self::displayValue($term['weight'] ?? $weights[$constraint] ?? null),
+                            self::displayValue($term['weighted'] ?? null),
+                        ),
+                    ];
+                }
+
+                return [
+                    'label' => Str::headline($constraint),
+                    'status' => 'Configured',
+                    'evidence' => 'Weight '.self::displayValue($weights[$constraint] ?? null).'; this stored run does not report a separate contribution.',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function inputSnapshot(ScheduleGenerationRun $record): array
+    {
+        $snapshot = $record->getAttribute('input_snapshot');
+
+        return is_array($snapshot) ? $snapshot : [];
+    }
+
+    private static function displayValue(mixed $value): string
+    {
+        if (! is_numeric($value)) {
+            return 'not reported';
+        }
+
+        return rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
     }
 
     /**

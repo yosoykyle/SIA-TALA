@@ -158,11 +158,13 @@ final class CandidateScheduleReviewForm
                 ->required(),
             TimePicker::make('starts_at')
                 ->label('Start Time')
+                ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
                 ->required(),
             TimePicker::make('ends_at')
                 ->label('End Time')
+                ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
                 ->after('starts_at')

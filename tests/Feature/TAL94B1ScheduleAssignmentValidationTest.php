@@ -516,6 +516,43 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ->assertSeeHtml('href="'.SchedulingDemandResource::getUrl('view', ['record' => $context['demands'][0]]).'"');
     }
 
+    public function test_schedule_run_view_explains_each_recorded_hard_constraint_and_soft_objective(): void
+    {
+        $context = $this->context();
+        $snapshot = $context['run']->input_snapshot;
+        $snapshot['hard_constraints'] = [
+            'assign_every_ready_scheduling_demand_once',
+            'faculty_no_overlap',
+        ];
+        $snapshot['soft_constraints'] = [
+            'prefer_earlier_time_blocks',
+            'balance_faculty_load',
+        ];
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+
+        app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $this->validResult($context));
+
+        $diagnostics = $context['run']->fresh()->diagnostics;
+        $this->assertSame(
+            1,
+            data_get($diagnostics, 'solver_result.objective_details.terms.prefer_earlier_time_blocks.weight'),
+        );
+
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->assertOk()
+            ->assertSee('Hard Constraint Checklist')
+            ->assertSee('Assign Every Ready Scheduling Demand Once')
+            ->assertSee('Passed')
+            ->assertSee('Soft Objective Evidence')
+            ->assertSee('Prefer Earlier Time Blocks')
+            ->assertSee('Measured')
+            ->assertSee('Raw 1; weight 1; weighted contribution 1.');
+    }
+
     /**
      * @return array{run:ScheduleGenerationRun,term:Term,faculty:User,room:Room,demands:list<SchedulingDemand>,snapshot:array<string,mixed>}
      */

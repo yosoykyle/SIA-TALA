@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to remaining work:** `TAL-96D5A` through `TAL-96D5E`
+**Applies to remaining work:** `TAL-96D5C` through `TAL-96D5E`
 
-**Next execution boundary:** Continue the approved TAL-96D5B accelerated-convergence goal, beginning with the open Batch 2 admissions validation, requirements-clarity, and applicant-status gaps
+**Next execution boundary:** Plan `TAL-96D5C` through a fresh Ground-Truth Gate. Its plan must close the role-by-role implementation and experience audit described in Section 4.3 before the full regression, security, and integration-readiness gate is treated as final.
 
 ## 1. Purpose
 
@@ -86,6 +86,8 @@ Focused automated verification remains mandatory in the slice that changes the b
 
 TAL-96D4 owns the completed cross-role UI/UX foundation. TAL-96D5B owns accelerated full-system convergence: programmatic adversarial acceptance, deterministic operational-state overlays on `MIDDLE`, evidence-backed remediation, and the bounded final smoke review. A TAL-96D5B failure opens a bounded remediation for the failed journey and repeats only the affected evidence; it does not automatically repeat every completed case.
 
+TAL-96D5B is bounded evidence, not a claim that every role, navigation item, record page, form, action, and cross-role projection has received final visual and workflow certification. Completion of TAL-96D5B therefore does not waive the remaining role-by-role closure required by Section 4.3.
+
 ### 4.2 TAL-96D4 UX Scope Amendment
 
 TAL-96D4 is divided into four sequential sub-slices so that shared presentation rules, domain workflows, generated outputs, and the public landing page can be verified without mixing unrelated responsibilities:
@@ -96,6 +98,52 @@ TAL-96D4 is divided into four sequential sub-slices so that shared presentation 
 4. `TAL-96D4D` refines the isolated Bootstrap landing page, closes first-party template and static-diagnostic defects, and performs the final cross-role presentation-consistency closure while preserving the approved landing sections, navigation style, bottom blur strip, role boundaries, and aligned domain workflows.
 
 Native Filament v5 and the existing isolated Bootstrap assets remain the default. No UI dependency or plugin is added without a proven capability gap and a separately approved plan revision. Confirmation is required for destructive or consequential actions, but undo or restore is offered only where the existing domain model supports a safe reversal. CSV coherence concerns headings, field order, formatting, encoding, filenames, authorization, and audit evidence rather than visual branding. Database-editable notification templates remain deferred to `TAL-100`.
+
+### 4.3 Role-by-Role Implementation and Experience Closure
+
+Before TAL-96D can be treated as fully accepted, the remaining work must produce a complete, code-first inventory of every authenticated role and each navigation item, page, resource, form, table, action, generated output, and downstream projection visible to that role. This inventory is a verification obligation, not an assumption that the current implementation is defective.
+
+For every retained surface, the audit must identify:
+
+1. the intended role and real user goal;
+2. the surface's plain-language purpose and owning office;
+3. its source record, prerequisites, and permitted state transitions;
+4. whether it is editable, read-only, an office-result record, or an integration input/output;
+5. the producing role or configuration source and every consuming role or surface;
+6. validation, authorization, duplicate prevention, and out-of-order guardrails;
+7. empty, loading, success, failure, blocked, retry, recovery, and terminal states that materially apply;
+8. the expected visible status, next action, responsible office, and help or recovery path;
+9. responsive behavior, keyboard and assistive-technology risks, and plain-language labels; and
+10. the automated, database, rendered, or human evidence that supports the verdict.
+
+The audit must specifically test producer-to-consumer consistency. A value or rule configured by one authorized role must appear with the same meaning, scope, status, and effective period wherever applicants, students, faculty, Accounting, the Registrar, academic heads, or system administrators consume it. A mismatch, stale projection, hidden dependency, or contradictory label is a defect or real gap; a different but understandable presentation is not automatically a defect.
+
+Forms and actions must be assessed at the point of use. Validation must identify the affected field or prerequisite and explain recovery without waiting until an unrelated final step when the framework can safely report it earlier. Destructive, irreversible, externally consequential, official-publication, financial, identity, and lifecycle-changing actions require authorization and a clear consequence statement, confirmation when it materially prevents mistakes, audit evidence, and idempotency or duplicate protection where applicable. Confirmation must not be added indiscriminately to harmless actions, because confirmation fatigue weakens rather than improves protection. Reversal or undo is offered only when the domain model supports a safe, authorized recovery.
+
+System Settings and integration-monitoring surfaces require an explicit purpose audit. A retained setting must identify who owns it, what behavior it changes, when the change takes effect, who consumes it, how unsafe values are prevented, and how the operator can verify the result. Environment-owned or secret-backed configuration must not be presented as an ordinary editable database setting. An ambiguous, inert, duplicate, or authority-less setting must be classified and then renamed, regrouped, made clearly read-only, deferred, or retired through the normal change-control gate; it must not be removed merely because its current presentation is confusing.
+
+The scheduling review experience requires a dedicated closure check without changing the solver contract by assumption. The authorized reviewer must be able to understand:
+
+- the solver outcome and what that status means;
+- the generated timetable and assignment completeness;
+- the Laravel hard-constraint revalidation result;
+- each applicable hard-constraint category and whether it passed or has a finding;
+- the applicable soft objectives, warnings, penalties, or trade-offs actually supported by recorded evidence;
+- solve duration and available solution-quality measures; and
+- whether the candidate is provisional, accepted, published, superseded, or blocked.
+
+Any manual schedule correction must remain role-authorized, reasoned, audited, and revalidated against the complete candidate before acceptance or publication. The UI must explain the affected assignment and consequences and must never imply that an authorized user may silently bypass a hard constraint. A checklist may display only constraints and results that the solver response or Laravel validation pipeline can factually prove; this charter does not pre-judge that the current UI already captures every required item.
+
+The closure method remains cost-conscious:
+
+1. derive the role/surface inventory and producer-consumer map from routes, panel registration, policies, resources, services, schema, PRD, and blueprint;
+2. classify aligned, defect-gap, and preference findings before editing;
+3. express behavioral gaps as focused PHPUnit or Livewire scenarios and apply only bounded, evidence-backed remediation;
+4. use representative rendered inspection for each role and each distinct interaction pattern after programmatic behavior is stable, rather than making the user explore every page;
+5. reserve the user's final review for a concise, role-organized cherry-pick checklist; and
+6. record unresolved policy, structural, solver-contract, dependency, cost, and external-service decisions at their human gates.
+
+TAL-96D5C planning must reconcile this closure requirement before running the final regression gate. If the Ground-Truth Gate identifies material remediation, the plan must split D5C into a role/surface closure sub-slice followed by a separate full regression, security, and integration-readiness sub-slice. TAL-96D5D remains the owner of paid population/configuration benchmarking, and TAL-96D5E remains the owner of final evidence consolidation and charter retirement.
 
 ## 5. Required Coverage
 
@@ -221,7 +269,7 @@ Snapshot, destructive rebuild, restoration, and scenario replacement remain huma
 - TAL-96D3 and TAL-96D4 use those fixtures to verify functional and cross-role behavior.
 - TAL-96D5A reconciles completion readiness and the consolidated acceptance matrix without loading a scenario.
 - TAL-96D5B uses `MIDDLE` for agent-led programmatic adversarial acceptance, deterministic downstream-state overlays, and one bounded final human smoke review.
-- TAL-96D5C owns the full regression, security, and integration-readiness gate after manual remediation stabilizes.
+- TAL-96D5C first closes the role-by-role implementation, producer-consumer, Settings-purpose, critical-action, and scheduling-review experience audit, then owns the full regression, security, and integration-readiness gate after any resulting remediation stabilizes.
 - TAL-96D5D uses the stable workload manifests for the deferred capacity and resource-selection study.
 - TAL-96D5E consolidates verified evidence, records the final deployment-readiness disposition, prepares the TAL-97 claim handoff, and retires this charter.
 
@@ -300,7 +348,7 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D4D | Isolated Bootstrap landing-page refinement and final cross-role presentation-consistency closure | No population capacity study |
 | TAL-96D5A | Completion-readiness and acceptance-matrix reconciliation | No scenario replacement, browser walkthrough, full-suite gate, or Cloud capacity evaluation |
 | TAL-96D5B | Accelerated full-system convergence against representative `MIDDLE`: programmatic adversarial acceptance, deterministic operational-state overlays, bounded remediation, and one final human smoke review | Functional acceptance only; no population capacity study |
-| TAL-96D5C | Full regression, security, and integration-readiness gate after acceptance remediation stabilizes | No population capacity study |
+| TAL-96D5C | Role-by-role implementation and experience closure, including producer-consumer consistency, Settings purpose, critical-action guardrails, scheduling-review evidence, followed by the full regression, security, and integration-readiness gate | No population capacity study |
 | TAL-96D5D | Targeted `MIN-CFG` / `TARGET-CFG` / `MAX-CFG` population, resource, solution-quality, and cost evaluation | Owns authorized population capacity and cost evaluation |
 | TAL-96D5E | Evidence consolidation, final deployment-readiness disposition, TAL-97 handoff, and charter retirement | No new capacity run unless a verified D5D evidence gap receives separate authorization |
 
@@ -335,7 +383,8 @@ Each TAL-96D slice must produce:
 8. named programmatic scenarios;
 9. additions to the consolidated acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, evidence source, pass/fail, and observations; TAL-96D5B executes these programmatically first and retains only bounded human-smoke steps that cannot be proven otherwise;
 10. likely panel questions with honest answers; and
-11. exact documentation updates warranted by verified results.
+11. exact documentation updates warranted by verified results; and
+12. for TAL-96D5C, a complete role/surface inventory and producer-consumer traceability matrix with an explicit purpose and disposition for Settings and other unclear administrative surfaces.
 
 ## 13. Safety and Human Gates
 
@@ -358,6 +407,8 @@ TAL-96D is complete only when:
 
 - every scheduled slice has passed independent verification and cleanup;
 - material journeys and state variations have programmatic and manual acceptance evidence;
+- every retained role surface has a verified purpose, understandable operating state, appropriate validation and action guardrails, and consistent producer-to-consumer behavior;
+- Settings and scheduling-review surfaces have explicit evidence-backed dispositions rather than assumed acceptance;
 - remaining limitations are explicitly defended or routed;
 - the three scenario fixtures and their safe operator procedures are verified;
 - the targeted capacity study is complete or honestly bounded by an approved limitation;

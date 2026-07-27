@@ -96,6 +96,7 @@ final class PublishedScheduleRevisionForm
                 ->live(),
             TimePicker::make('starts_at')
                 ->label('Replacement Start Time')
+                ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
                 ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
@@ -103,6 +104,7 @@ final class PublishedScheduleRevisionForm
                 ->live(),
             TimePicker::make('ends_at')
                 ->label('Replacement End Time')
+                ->timezone((string) config('app.timezone'))
                 ->seconds(false)
                 ->minutesStep($slotMinutes)
                 ->after('starts_at')

@@ -133,6 +133,8 @@ class TAL82AcademicSetupAcceptanceTest extends TestCase
             'type' => Term::TypeFirstSemester,
             'label' => 'First Semester',
             'scheduling_slot_minutes' => 30,
+            'scheduling_day_starts_at' => '07:00:00',
+            'scheduling_day_ends_at' => '21:00:00',
         ]);
     }
 
