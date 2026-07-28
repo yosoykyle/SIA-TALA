@@ -16,28 +16,28 @@
         <div class="container">
             <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
                 <img src="{{ asset('landing/images/talalogo.png') }}" alt="" class="landing-brand-logo">
-                <span>TALA</span>
+                <span data-navbar-contrast-target>TALA</span>
             </a>
 
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Open navigation menu">
+            <button class="navbar-toggler border-0" type="button" data-navbar-contrast-target data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Open navigation menu">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
                 <ul class="navbar-nav gap-3 pt-3 pt-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="{{ url('/#login') }}">LOGIN</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ url('/#login') }}">LOGIN</a></li>
                     @if ($admissionsOpen)
-                        <li class="nav-item"><a class="nav-link" href="{{ route('filament.applicant.auth.register') }}">APPLY</a></li>
+                        <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ route('filament.applicant.auth.register') }}">APPLY</a></li>
                     @endif
-                    <li class="nav-item"><a class="nav-link" href="{{ url('/#about-us') }}">ABOUT US</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url('/#faq') }}">FAQ</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ url('/#about-us') }}">ABOUT US</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ url('/#faq') }}">FAQ</a></li>
                 </ul>
             </div>
         </div>
     </nav>
 
     <main id="main-content" tabindex="-1">
-        <section class="hero-section" id="top" data-navbar-theme="dark" aria-labelledby="hero-title">
+        <section class="hero-section" id="top" data-navbar-contrast-surface="dark" aria-labelledby="hero-title">
             <div class="container">
                 <div class="row align-items-center gx-3 gx-lg-5 gy-5">
                     <div class="col-lg-6">
@@ -60,7 +60,7 @@
                     </div>
 
                     <div class="col-lg-6">
-                        <div class="portal-overview" aria-labelledby="portal-overview-title">
+                        <div class="portal-overview" data-navbar-contrast-surface="light" aria-labelledby="portal-overview-title">
                             <div class="portal-overview-header">
                                 <img src="{{ asset('landing/images/talalogo.png') }}" alt="" class="hero-mockup-logo">
                                 <div>
@@ -103,7 +103,7 @@
             </div>
         </section>
 
-        <section class="features-section section-block" id="login" data-navbar-theme="light" aria-labelledby="login-title">
+        <section class="features-section section-block" id="login" data-navbar-contrast-surface="theme" aria-labelledby="login-title">
             <div class="container">
                 <div class="section-heading text-center">
                     <p class="section-kicker">Secure role-based access</p>
@@ -173,7 +173,7 @@
             </div>
         </section>
 
-        <section class="info-map-section section-block" data-navbar-theme="light" aria-labelledby="location-title">
+        <section class="info-map-section section-block" data-navbar-contrast-surface="theme" aria-labelledby="location-title">
             <div class="container">
                 <div class="row align-items-center gx-3 gx-lg-5 gy-5">
                     <div class="col-lg-5">
@@ -190,7 +190,7 @@
                         </div>
                     </div>
                     <div class="col-lg-7">
-                        <div class="map-box">
+                        <div class="map-box" data-navbar-contrast-surface="light">
                             <iframe title="Map showing Servitech Institute Asia" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3865.5801177213743!2d121.02881261016364!3d14.335805183447881!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3397d7a36f29214b%3A0xad9cc8e497685b8!2sServitech%20Institute%20Asia%2C%20Inc.!5e0!3m2!1sen!2sph!4v1782779440549!5m2!1sen!2sph" width="100%" height="420" class="map-frame" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
                         </div>
                     </div>
@@ -198,7 +198,7 @@
             </div>
         </section>
 
-        <section class="about-section section-block" id="about-us" data-navbar-theme="light" aria-labelledby="about-title">
+        <section class="about-section section-block" id="about-us" data-navbar-contrast-surface="theme" aria-labelledby="about-title">
             <div class="container">
                 <div class="section-heading text-center">
                     <p class="section-kicker">Institutional direction</p>
@@ -241,7 +241,7 @@
             </div>
         </section>
 
-        <section class="faq-section section-block" id="faq" data-navbar-theme="light" aria-labelledby="faq-title">
+        <section class="faq-section section-block" id="faq" data-navbar-contrast-surface="theme" aria-labelledby="faq-title">
             <div class="container">
                 <div class="section-heading text-center">
                     <p class="section-kicker">Public guidance</p>
@@ -282,7 +282,7 @@
         </section>
     </main>
 
-    <footer class="footer-section">
+    <footer class="footer-section" data-navbar-contrast-surface="dark">
         <div class="container">
             <div class="row align-items-start g-4">
                 <div class="col-lg-7">

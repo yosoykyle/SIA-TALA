@@ -22,28 +22,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const navbar = document.querySelector('.navbar');
-    const themedSections = document.querySelectorAll('section[data-navbar-theme]');
+    const contrastTargets = navbar
+        ? navbar.querySelectorAll('[data-navbar-contrast-target]')
+        : [];
+    let scheduleNavbarContrastUpdate = () => {};
 
-    if (navbar && themedSections.length && 'IntersectionObserver' in window) {
-        const navbarObserver = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                    navbar.classList.toggle(
-                        'navbar-light-theme',
-                        entry.target.getAttribute('data-navbar-theme') === 'light'
-                    );
+    if (navbar && contrastTargets.length && document.elementsFromPoint) {
+        let animationFrame = null;
+
+        const foregroundFor = (target) => {
+            const bounds = target.getBoundingClientRect();
+
+            if (bounds.width === 0 || bounds.height === 0) {
+                return null;
+            }
+
+            const sampleX = Math.min(
+                window.innerWidth - 1,
+                Math.max(0, bounds.left + (bounds.width / 2))
+            );
+            const sampleY = Math.min(
+                window.innerHeight - 1,
+                Math.max(0, bounds.top + (bounds.height / 2))
+            );
+            const surface = document.elementsFromPoint(sampleX, sampleY)
+                .filter((element) => !navbar.contains(element))
+                .map((element) => element.closest('[data-navbar-contrast-surface]'))
+                .find((element) => element);
+            const surfaceTone = surface?.getAttribute('data-navbar-contrast-surface') ?? 'dark';
+            const isLightSurface = surfaceTone === 'light'
+                || (
+                    surfaceTone === 'theme'
+                    && document.documentElement.getAttribute('data-bs-theme') !== 'dark'
+                );
+
+            return isLightSurface ? 'black' : 'white';
+        };
+
+        const updateNavbarContrast = () => {
+            contrastTargets.forEach((target) => {
+                const foreground = foregroundFor(target);
+
+                if (foreground) {
+                    target.setAttribute('data-navbar-foreground', foreground);
                 }
             });
-        }, {
-            root: null,
-            rootMargin: '0px 0px -90% 0px',
-            threshold: 0
-        });
+        };
 
-        themedSections.forEach((section) => navbarObserver.observe(section));
+        scheduleNavbarContrastUpdate = () => {
+            if (animationFrame !== null) {
+                return;
+            }
+
+            animationFrame = window.requestAnimationFrame(() => {
+                animationFrame = null;
+                updateNavbarContrast();
+            });
+        };
+
+        window.addEventListener('load', scheduleNavbarContrastUpdate);
+        window.addEventListener('resize', scheduleNavbarContrastUpdate);
+        window.addEventListener('scroll', scheduleNavbarContrastUpdate, { passive: true });
+        navbar.addEventListener('shown.bs.collapse', scheduleNavbarContrastUpdate);
+        navbar.addEventListener('hidden.bs.collapse', scheduleNavbarContrastUpdate);
+        scheduleNavbarContrastUpdate();
     }
 
     colorScheme.addEventListener('change', (event) => {
         document.documentElement.setAttribute('data-bs-theme', event.matches ? 'dark' : 'light');
+        scheduleNavbarContrastUpdate();
     });
 });

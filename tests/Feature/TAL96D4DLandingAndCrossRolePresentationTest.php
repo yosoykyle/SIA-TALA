@@ -92,8 +92,12 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
 
     public function test_landing_retains_the_progressive_navigation_and_bottom_edge_blur(): void
     {
+        $landing = file_get_contents(resource_path('views/welcome.blade.php'));
+        $script = file_get_contents(public_path('landing/js/main.js'));
         $styles = file_get_contents(public_path('landing/css/styles.css'));
 
+        $this->assertIsString($landing);
+        $this->assertIsString($script);
         $this->assertIsString($styles);
         $this->assertStringContainsString('.backdrop-blur > :nth-child(6)', $styles);
         $this->assertStringContainsString('.bottom-blur-strip > :nth-child(6)', $styles);
@@ -110,9 +114,19 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         );
         $this->assertStringContainsString('padding-top: 1.5rem !important;', $styles);
         $this->assertStringContainsString('padding-bottom: 1.5rem !important;', $styles);
-        $this->assertStringContainsString('.navbar.navbar-light-theme .navbar-brand', $styles);
-        $this->assertStringContainsString('.navbar.navbar-light-theme .navbar-nav .nav-link', $styles);
-        $this->assertStringContainsString('.navbar.navbar-light-theme .navbar-toggler-icon', $styles);
+        $this->assertGreaterThanOrEqual(5, substr_count($landing, 'data-navbar-contrast-target'));
+        $this->assertStringContainsString('data-navbar-contrast-surface="dark"', $landing);
+        $this->assertStringContainsString('data-navbar-contrast-surface="light"', $landing);
+        $this->assertStringContainsString('data-navbar-contrast-surface="theme"', $landing);
+        $this->assertStringContainsString('document.elementsFromPoint', $script);
+        $this->assertStringContainsString('window.requestAnimationFrame', $script);
+        $this->assertStringContainsString('data-navbar-foreground', $script);
+        $this->assertStringContainsString('[data-navbar-foreground="black"]', $styles);
+        $this->assertStringContainsString('[data-navbar-foreground="white"]', $styles);
+        $this->assertStringContainsString('color: #000000 !important;', $styles);
+        $this->assertStringContainsString('color: #ffffff !important;', $styles);
+        $this->assertStringNotContainsString('navbar-light-theme', $script);
+        $this->assertStringNotContainsString('navbar-light-theme', $styles);
     }
 
     public function test_tala_logo_surfaces_share_the_approved_brand_radius_and_access_numbers_stay_centered(): void
