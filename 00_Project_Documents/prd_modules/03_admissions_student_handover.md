@@ -179,7 +179,7 @@ Rules:
 
 | Information or action | Required interaction form |
 | --- | --- |
-| Applicant personal, contact, guardian, prior-school, program-choice, and informational modality-preference data | Three-step Wizard saved as a draft before final submission: Personal Information, Required Documents, and Review and Submit |
+| Applicant personal, contact, guardian, prior-school, and program-choice data | Three-step Wizard saved as a draft before final submission: Personal Information, Required Documents, and Review and Submit. Applicant intake does not ask for a student-level delivery modality; Online or Face-to-Face is assigned later to each subject offering. |
 | Admission requirements | Checklist of configured Admission Checklist Items with human-readable requirement, evidence-method, blocking, verification, and status labels; each item exposes only its allowed evidence method |
 | Digital evidence | One private File Upload per applicable `DIGITAL_UPLOAD` policy, with file-type/size validation, preview, and per-item replace/resubmit action |
 | Physical-copy or metadata-only evidence | Applicant guidance distinguishes `Bring to the Registrar` from staff-tracked metadata; staff use a Record Form capturing received/verified status, date, recorder, and reference; no artificial upload requirement |

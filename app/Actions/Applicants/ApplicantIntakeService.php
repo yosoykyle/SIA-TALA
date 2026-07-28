@@ -226,10 +226,6 @@ class ApplicantIntakeService
                 ApplicantIntake::CredentialBasisTransferCredentials,
                 ApplicantIntake::CredentialBasisPriorStudentRecord,
             ])],
-            'modality_preference' => ['sometimes', 'nullable', Rule::in([
-                ApplicantIntake::ModalityPreferenceFaceToFace,
-                ApplicantIntake::ModalityPreferenceOnline,
-            ])],
             'first_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'middle_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'last_name' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -263,10 +259,6 @@ class ApplicantIntakeService
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'birth_date' => ['required', 'date', 'before:today'],
-            'modality_preference' => ['required', Rule::in([
-                ApplicantIntake::ModalityPreferenceFaceToFace,
-                ApplicantIntake::ModalityPreferenceOnline,
-            ])],
             'gender' => ['required', Rule::in(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'])],
             'civil_status' => ['required', Rule::in(['SINGLE', 'MARRIED', 'WIDOWED', 'SEPARATED'])],
             'birth_place' => ['required', 'string', 'max:255'],
@@ -288,7 +280,7 @@ class ApplicantIntakeService
     {
         return [
             'term_id', 'program_id', 'admission_category', 'credential_basis',
-            'modality_preference', 'first_name', 'middle_name', 'last_name',
+            'first_name', 'middle_name', 'last_name',
             'extension_name', 'birth_date', 'gender', 'civil_status', 'birth_place',
             'email', 'phone', 'address_barangay', 'address_street', 'address_city',
             'address_district', 'address_province', 'prior_school', 'guardian_name',

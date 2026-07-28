@@ -1117,7 +1117,7 @@ A bounded result of `PASS` proves readiness only under the disclosed load, quali
 
 The client population evidence contains labels belonging to different concepts. `Freshman` describes a year level, whereas `Regular` is an academic-standing value. TALA's synthetic personas use the system's actual standing model instead of converting that mixed table directly.
 
-Likewise, client modality headcounts describe students, while the implemented scheduler stores modality per subject offering. The fixture therefore uses `ONLINE` and `FACE_TO_FACE` offerings and does not create per-student modality records.
+Likewise, client modality headcounts describe students, while the implemented scheduler stores modality per subject offering. Applicant intake records the selected term and program but does not ask for a student-level scheduling modality. The fixture therefore uses `ONLINE` and `FACE_TO_FACE` offerings and does not create per-student modality records. This clarification changes no CP-SAT variable, equation, constraint, objective, fixture, or measured capacity result.
 
 The corrected post-promotion acceptance published 54 official meetings inside a rolled-back transaction. The following cohort totals prove that all six logical cohorts received every required subject.
 

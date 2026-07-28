@@ -222,7 +222,6 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             'program_id' => $program->id,
             'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-            'modality_preference' => ApplicantIntake::ModalityPreferenceFaceToFace,
             'first_name' => $applicant->first_name,
             'middle_name' => $applicant->middle_name,
             'last_name' => $applicant->last_name,

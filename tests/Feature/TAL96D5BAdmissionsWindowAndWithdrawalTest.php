@@ -340,7 +340,6 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
             'program_id' => $program->id,
             'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-            'modality_preference' => ApplicantIntake::ModalityPreferenceFaceToFace,
             'first_name' => 'Synthetic',
             'last_name' => 'Applicant',
             'birth_date' => '2005-05-10',

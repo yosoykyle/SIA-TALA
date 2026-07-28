@@ -80,7 +80,7 @@ class RegistrarApplicantIntakeQueueTest extends TestCase
             ->assertSee('Sample Senior High School')
             ->assertSee('identity.pdf')
             ->assertDontSee('Applicant Type')
-            ->assertDontSee('Preferred Modality');
+            ->assertDontSee('Modality Preference');
     }
 
     public function test_staff_intake_resource_is_read_only(): void

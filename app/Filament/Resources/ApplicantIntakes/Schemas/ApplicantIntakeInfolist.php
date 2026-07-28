@@ -45,14 +45,6 @@ class ApplicantIntakeInfolist
                     ->schema([
                         TextEntry::make('term.label')->label('Admission Term'),
                         TextEntry::make('program.name')->label('Preferred Program'),
-                        TextEntry::make('modality_preference')
-                            ->label('Modality Preference')
-                            ->badge()
-                            ->formatStateUsing(fn (?string $state): string => match ($state) {
-                                ApplicantIntake::ModalityPreferenceFaceToFace => 'Face-to-Face',
-                                ApplicantIntake::ModalityPreferenceOnline => 'Online',
-                                default => 'Not provided',
-                            }),
                         TextEntry::make('admission_category')
                             ->label('Admission Category')
                             ->badge()

@@ -104,7 +104,7 @@ class Application extends Page
                         ->description('Application, identity, contact, and guardian details')
                         ->schema([
                             Section::make('Application Scope')
-                                ->description('Your modality preference is for Registrar guidance only. Class modality remains assigned per subject offering.')
+                                ->description('Select the admission term and program for this application. Class delivery is assigned later per subject offering.')
                                 ->schema([
                                     Select::make('term_id')
                                         ->label('Admission Term')
@@ -137,14 +137,6 @@ class Application extends Page
                                         ])
                                         ->live()
                                         ->required(),
-                                    Select::make('modality_preference')
-                                        ->label('Preferred Modality')
-                                        ->options([
-                                            ApplicantIntake::ModalityPreferenceFaceToFace => 'Face-to-Face',
-                                            ApplicantIntake::ModalityPreferenceOnline => 'Online',
-                                        ])
-                                        ->required(fn (): bool => ! $this->savingDraft)
-                                        ->helperText('This preference does not create a separate student timetable. Each subject offering determines its delivery modality.'),
                                 ])
                                 ->columns(2)
                                 ->columnSpanFull(),
@@ -549,13 +541,8 @@ class Application extends Page
     {
         $term = Term::query()->whereKey($get('term_id'))->value('label') ?? 'No admission term selected';
         $program = Program::query()->whereKey($get('program_id'))->value('name') ?? 'No program selected';
-        $modality = match ($get('modality_preference')) {
-            ApplicantIntake::ModalityPreferenceFaceToFace => 'Face-to-Face preference',
-            ApplicantIntake::ModalityPreferenceOnline => 'Online preference',
-            default => 'No modality preference selected',
-        };
 
-        return "{$term}; {$program}; {$modality}";
+        return "{$term}; {$program}";
     }
 
     private function identitySummary(Get $get): string
@@ -641,7 +628,7 @@ class Application extends Page
     {
         return [
             'term_id', 'program_id', 'admission_category', 'credential_basis',
-            'modality_preference', 'first_name', 'middle_name', 'last_name',
+            'first_name', 'middle_name', 'last_name',
             'extension_name', 'birth_date', 'gender', 'civil_status', 'birth_place',
             'email', 'phone', 'address_barangay', 'address_street', 'address_city',
             'address_district', 'address_province', 'prior_school', 'guardian_name',

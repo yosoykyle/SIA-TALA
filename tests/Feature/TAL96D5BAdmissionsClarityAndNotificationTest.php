@@ -54,6 +54,7 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
 
         Livewire::actingAs($applicant)
             ->test(Application::class)
+            ->assertFormFieldDoesNotExist('modality_preference', 'form')
             ->set('data.term_id', $term->id)
             ->set('data.program_id', $program->id)
             ->set('data.admission_category', ApplicantIntake::AdmissionCategoryFirstTimeCollege)
@@ -62,7 +63,6 @@ class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
             ->set('data.last_name', null)
             ->goToNextWizardStep('form')
             ->assertHasFormErrors([
-                'modality_preference',
                 'first_name',
                 'last_name',
                 'gender',

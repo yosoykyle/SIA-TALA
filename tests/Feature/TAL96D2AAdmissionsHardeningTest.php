@@ -627,7 +627,6 @@ class TAL96D2AAdmissionsHardeningTest extends TestCase
             'program_id' => $program->id,
             'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-            'modality_preference' => ApplicantIntake::ModalityPreferenceFaceToFace,
             'birth_date' => '2005-05-10',
             'gender' => 'FEMALE',
             'civil_status' => 'SINGLE',

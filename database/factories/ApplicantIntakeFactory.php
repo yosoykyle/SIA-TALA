@@ -28,7 +28,6 @@ class ApplicantIntakeFactory extends Factory
             'program_id' => Program::factory(),
             'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-            'modality_preference' => ApplicantIntake::ModalityPreferenceFaceToFace,
             'first_name' => fake()->firstName(),
             'middle_name' => fake()->optional()->firstName(),
             'last_name' => fake()->lastName(),

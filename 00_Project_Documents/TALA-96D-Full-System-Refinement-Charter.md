@@ -168,6 +168,7 @@ The following decisions govern remaining TAL-96D planning unless later evidence 
 
 - The supported modalities are `FACE_TO_FACE` and `ONLINE`.
 - Modality belongs to a subject offering, not to an individual student's scheduling track.
+- Applicant intake does not ask for a personal modality choice. Admissions records the selected term and program; authorized academic setup assigns modality per offering.
 - A student's timetable may naturally contain both modalities.
 - Face-to-face meetings consume physical rooms; online meetings do not.
 - Synthetic schedules may be online-heavy; no equal-modality ratio is required.
@@ -243,7 +244,7 @@ The scenario fixtures distinguish a reported headcount from a synthetic roster t
 
 The arithmetic lower bound is a capacity calculation, not proof of the minimum workable roster. MIN deliberately uses the client's nine reported faculty. MIDDLE retains fourteen synthetic faculty as operating headroom rather than treating twelve as proven sufficient under every qualification and availability pattern. MAX preserves the historical fourteen-faculty fact, but `14 x 21 = 294` units cannot carry the constructed 532-unit workload; the fixture therefore uses a separately identified 26-faculty synthetic roster. The fixtures define no faculty-specific unavailability rows, so this bounded evidence assumes every synthetic faculty record may use the full Monday-to-Saturday operating grid. Real availability restrictions can require more faculty. Each scenario manifest also exposes `unassignable_workloads`: an empty list means every constructed workload found a qualified faculty record within the 21-unit ceiling, while a nonempty list identifies the workload keys that failed this bounded readiness check.
 
-The client evidence also contains categories that must not be copied into unrelated fields. `Freshman` is a year-level description, while `Regular` is an academic-standing value; the acceptance personas use TALA's actual standing model. Likewise, client modality headcounts describe students, while TALA schedules modality per subject offering. The fixture therefore uses only `ONLINE` and `FACE_TO_FACE` offerings and does not convert those headcounts into per-student modality records.
+The client evidence also contains categories that must not be copied into unrelated fields. `Freshman` is a year-level description, while `Regular` is an academic-standing value; the acceptance personas use TALA's actual standing model. Likewise, client modality headcounts describe students, while TALA schedules modality per subject offering. Applicant intake therefore does not ask for or write a personal modality choice. The fixture uses only `ONLINE` and `FACE_TO_FACE` offerings and does not convert client headcounts into per-student modality records.
 
 ### 8.2 Seeder requirements
 

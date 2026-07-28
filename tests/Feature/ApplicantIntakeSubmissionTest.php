@@ -47,12 +47,17 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $data = $this->draftData($term, $program);
 
         $service = app(ApplicantIntakeService::class);
-        $draft = $service->saveDraft($applicant, [...$data, 'phone' => '09123456789']);
+        $draft = $service->saveDraft($applicant, [
+            ...$data,
+            'phone' => '09123456789',
+            'modality_preference' => ApplicantIntake::ModalityPreferenceOnline,
+        ]);
         $updatedDraft = $service->saveDraft($applicant, [...$data, 'phone' => '09987654321']);
 
         $this->assertTrue($draft->is($updatedDraft));
         $this->assertSame(ApplicantIntake::StatusDraft, $updatedDraft->status);
         $this->assertSame('09987654321', $updatedDraft->phone);
+        $this->assertNull($updatedDraft->modality_preference);
         $this->assertSame(1, ApplicantIntake::query()->whereBelongsTo($applicant)->count());
         $this->assertSame(0, ApplicantIntake::query()->whereBelongsTo($otherApplicant)->count());
     }
@@ -478,7 +483,6 @@ class ApplicantIntakeSubmissionTest extends TestCase
             'program_id' => $program->id,
             'admission_category' => ApplicantIntake::AdmissionCategoryFirstTimeCollege,
             'credential_basis' => ApplicantIntake::CredentialBasisSeniorHighSchool,
-            'modality_preference' => ApplicantIntake::ModalityPreferenceFaceToFace,
         ];
     }
 
