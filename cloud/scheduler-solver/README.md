@@ -13,10 +13,10 @@ Laravel remains authoritative: it captures the immutable input snapshot, queues 
 - Output unit: `assignments` keyed by `scheduling_demand_id`.
 - Container port: the Cloud Run `PORT` environment variable; local default `8080`.
 - Solver budget: `SOLVER_TIMEOUT_SECONDS`, clamped to 1-300 seconds by the service.
-- Hypertext Transfer Protocol (HTTP) request limit: 300 seconds in the approved Cloud Run and Laravel transport contract.
+- Hypertext Transfer Protocol (HTTP) request limit: 300 seconds in the approved production Cloud Run and Laravel transport contract. The guarded `FINAL-CFG-02-MEM` research candidate uses 360 seconds only to return and serialize a result after the unchanged 300-second solver cap.
 - Current production solver budget: 30 seconds, leaving response and network headroom inside the 300-second HTTP limit.
-- Search configuration: fixed random seed `20260718`; the code default and historical TAL-96B2 local experiment use one CP-SAT worker, while the current Cloud Run profile B explicitly uses two workers.
-- Response evidence: one strict `solver_statistics` object containing allowlisted input/model/search counts, best bound, relative gap, deterministic time, wall time, worker count, and seed. Raw solver logs are never part of the response contract.
+- Search configuration: fixed random seed `20260718`; the runtime allowlist is one, two, four, or eight CP-SAT workers. The code default and historical TAL-96B2 local experiment use one worker, current Cloud Run profile B uses two, and eight is reserved for the guarded `FINAL-CFG-02-MEM` research candidate.
+- Response evidence: one strict `solver_statistics` object containing allowlisted input/model/search counts, best bound, relative gap, deterministic time, wall time, worker count, seed, `result_source`, and separate feasibility/optimization stage telemetry. Raw solver logs are never part of the response contract.
 
 The solver may return `optimal`, `feasible`, `infeasible`, `model_invalid`, or `unknown`. A feasible result is a valid candidate, not proof of mathematical optimality and not an instruction to publish.
 
@@ -43,6 +43,15 @@ The `balanced_v1` profile remains unchanged:
 
 Faculty idle time is calculated per faculty/day as the span between the first start and last end minus selected teaching duration. This counts only actual gaps between meetings and avoids double-counting non-adjacent meeting pairs.
 
+### Equation-preserving staged search
+
+The service executes the unchanged model in two search stages so a large soft-objective search cannot erase a hard-valid timetable:
+
+1. **Feasibility stage:** build the candidate variables and every approved hard constraint, but do not add the soft objective. If this stage returns `UNKNOWN`, the response contains no assignments or conflict placeholders and makes no infeasibility claim.
+2. **Optimization stage:** retain the same model, add a complete solution hint from the hard-valid assignment, add the unchanged `balanced_v1` objective, and use only the remaining solver budget. If optimization returns `UNKNOWN`, the service returns the validated first-stage timetable as `FEASIBLE` with an `optimization_limit_reached` warning.
+
+This is a search-control change, not a new equation, constraint, objective term, fixture, data-contract version, or publication rule. `result_source` identifies whether the returned rows came from optimization or the feasibility fallback, while `search_stages` records the two outcomes independently.
+
 ## Local Python Tests
 
 Docker is optional for local development. A temporary virtual environment can run the solver directly:
@@ -59,7 +68,7 @@ $env:PYTHONPATH = (Resolve-Path 'cloud/scheduler-solver').Path
 & "$venv\Scripts\python.exe" -m unittest discover -s 'cloud/scheduler-solver/tests' -v
 ```
 
-The Python suite includes contract, hard-constraint, objective, HTTP, bounded model-growth, adjacent idle-gap, deterministic search-configuration, and typed-statistics regressions.
+The Python suite includes contract, hard-constraint, objective, HTTP, bounded model-growth, adjacent idle-gap, deterministic search-configuration, staged-search fallback, truthful `UNKNOWN`, and typed-statistics regressions.
 
 ## Local HTTP Service Without Docker
 
@@ -222,6 +231,30 @@ TAL-96B4 reran the approved profile comparison after correcting shared-cohort co
 Profile A accepted 4/10 client-representative runs; profiles B and C accepted 10/10 with full coverage, zero hard violations, and complete telemetry. **Telemetry** is the typed model, search, and runtime evidence collected for a run. **p95** is a 95th-percentile tail indicator. **Relative gap** measures the remaining distance between the best valid solution found and CP-SAT's bound; it is not accuracy. B had the stronger p95 gap and faster median/p95 runtime than C while using half its CPU and memory, so B remained the production choice. At proportional 2× and 120 seconds, B accepted 2/3 before one 4-GiB OOM/503, while C accepted 3/3. All three proportional 4× attempts on C at 240 seconds exceeded 8 GiB and were terminated; this is an observed resource boundary rather than a supported maximum. Full methods and measurements are in [`TAL-96B3-Cloud-Run-Capacity-Benchmark.md`](../../00_Project_Documents/TAL-96B3-Cloud-Run-Capacity-Benchmark.md).
 
 The corrected Profile B revision passed tagged acceptance and two authenticated post-promotion representative solves plus Laravel validation, ingestion, publication, and Registrar, Faculty, and Student projections. It now receives 100% canonical traffic. Private IAM is unchanged, the queue is resumed, and no benchmark scheduling record or queued job survived.
+
+### TAL-96D5D private operating-envelope candidates
+
+TAL-96D5D stages population-capacity candidates from the unchanged corrected immutable image without changing production traffic. `TARGET-CFG-01` revision `tala-scheduler-solver-d5d-c1-3b46df2a7129` uses 4 CPU, 8 GiB, four workers, concurrency 1, a 120-second solver limit, and a 300-second HTTP timeout. Its exact MIDDLE and MIN fixtures each produced three accepted feasible runs with complete coverage and zero solver or Laravel hard violations, while the MAX screen returned `unknown_timed_out` with stable memory and no OOM or infrastructure failure. `TARGET-CFG-01` is the verified MIDDLE scaling candidate, but it is not promoted; the live Profile B revision remains the accepted current-client baseline.
+
+That MAX evidence triggered the study's single permitted adjacent branch. The earlier time-only `infeasible` observation is retained as a superseded pre-correction fixture diagnostic and must not be attributed to the corrected MAX fixture. The corrected-MAX `TARGET-CFG-01-TIME` request ended `unknown_timed_out` without an incumbent; it therefore proves neither infeasibility nor a valid timetable. The adjacent revision remains private and at zero traffic, production remains unchanged, and `test_tala_db` was restored to the deterministic MIDDLE demonstration fixture with no schedule run, candidate row, official meeting, or queued job.
+
+The replacement final configuration study preserves those reports as exploratory evidence and does not reinterpret them as final selection evidence. Retired candidate `FINAL-CFG-01` used 8 vCPU, 8 GiB, eight workers, concurrency one, a 300-second solver cap, and a 360-second experimental transport limit. Its private immutable revision remains under zero-traffic tag `d5d-final-cfg-01` with service- and revision-level maximum instances both set to two. Its one authorized corrected-MAX screen passed the health probe but returned HTTP 503 after approximately 200.20 seconds because Cloud Run terminated the instance at 8208 MiB against the 8192-MiB limit. The report is therefore an infrastructure-memory failure with no CP-SAT status, incumbent, objective, gap, assignment set, or timetable. This result shows that the exact 8-GiB/eight-worker MAX request exceeded memory; it does not change the mathematical formulation, prove the fixture infeasible, or establish an absolute ceiling.
+
+`FINAL-CFG-02-MEM` retained 8 vCPU, eight workers, concurrency one, the 300-second solver cap, the 360-second experimental transport limit, seed `20260718`, zero minimum instances, and service- and revision-level maximum instances two, while changing memory only from 8 GiB to 16 GiB. Approved gates built immutable digest `sha256:86d4f2936480cb2685cddc0586ae43bd1c6d303e90de9fde2390b9767170b66a` and staged private zero-traffic revision `tala-scheduler-solver-d5dmem2-8036c05dd5f5`. Exactly one authenticated health probe returned HTTP 200, and one corrected-MAX request returned HTTP 200 with CP-SAT status `UNKNOWN`, `timeout=true`, no incumbent, no objective, and no relative gap after the unchanged solver limit. Its 178 conflict placeholder rows are not assignments or a timetable. One-minute p99-aligned monitoring peaked at approximately 92.98% CPU and 70.98% memory with no OOM event, so 16 GiB removed the prior memory termination but did not establish an accepted MAX configuration. Recalculation using the disclosed request-based rate class gives US$0.0378624112 for the probe and request before free tier and exclusions; the immutable report's embedded US$0.11208928 field is retained only as superseded evidence. The revision remains private at zero traffic, production Profile B remains at 100%, and MIDDLE was restored with no official scheduling writes.
+
+The equation-preserving staged-search image reused the same `FINAL-CFG-02-MEM` resource envelope and limits but changed search control: find a complete hard-feasible assignment first, then use it as a hint for the unchanged objective. Approved gates built digest `sha256:229172013cd0e82a7d4d9c74e259618470a92b01465ba10f1fd4e8c5fa8b9b27` and staged private zero-traffic revision `tala-scheduler-solver-d5dstage2-665963443cc0`. One authorized corrected-MAX request returned `FEASIBLE` with 178/178 assignments, zero unassigned demands, zero Python or Laravel hard-constraint violations, objective 1,115,910, best bound 0, relative gap 1.0, 307.819849 seconds reported runtime, and 314.471862 seconds client elapsed time. The result is operationally accepted but does not prove optimality or repeatability. The revision remained private at zero traffic, production Profile B remained at 100%, and `test_tala_db` was restored to MIDDLE with no official scheduling writes.
+
+The immutable accepted report predates the bounded Laravel evidence-runner correction that retains nested `result_source` and `search_stages` fields, so per-stage timing must not be inferred from that file. Future reports retain those validated typed fields. This persistence correction does not change the solver response, equations, fixtures, or the accepted assignment rows.
+
+Cost is an explicitly labelled request-based proxy, not a Cloud invoice or monthly forecast. The corrected 27 July 2026 Singapore rate inputs are US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, US$0.40 per million requests, and 100-millisecond rounding of client elapsed time. The three MIN requests total US$0.0201717512, the three MIDDLE requests total US$0.0211756160, and the two MAX diagnostics total US$0.0210600184; all eight exploratory requests total US$0.0624073856 before free tier, discounts, networking, logging, registry, build, tax, and unrelated charges. Later probe-plus-request proxies are US$0.0203565448 for the 8-GiB infrastructure failure, US$0.0378624112 for the earlier 16-GiB `UNKNOWN` result, and US$0.03593148 for the accepted staged-search result. These values supersede only the cost fields embedded in earlier private D5D JSON reports that used the wrong rate class. Solver statuses, timings, model counts, hashes, and validation evidence remain authoritative.
+
+### Private parity replay
+
+`php artisan scheduling:capture-parity-evidence {MIN|MIDDLE|MAX}` is a local-only evidence command. It is restricted to `APP_ENV=testing`, MySQL `test_tala_db`, the exact loaded scenario manifest, and a database with no schedule run, candidate row, official meeting, or queued job. It creates a private ignored `tal96d5d-parity-v2` artifact from a structural allowlist and deterministic witness. The assignment allowlist retains the non-sensitive `assignment_status` required by Laravel validation. Before reporting success, the command validates the allowlisted payload, writes it, reads it back, verifies the payload hash, and independently validates the exact decoded stored snapshot and assignments. It never calls Cloud Run, invokes CP-SAT optimization, or publishes a schedule.
+
+`python -m tala_solver.replay <private-artifact.json>` verifies the payload hash and replays every witness row through the solver's candidate enumeration without invoking CP-SAT optimization. A successful replay proves candidate admissibility for that exact artifact; it does not prove optimality.
+
+Operational scaling must be triggered by demand/candidate/variable/constraint growth, repeated status and acceptance, duration, relative gap, memory/OOM, transport health, and queue pressure—not student count alone. Workload approaching the 80-demand MIDDLE scale should trigger review of the verified private 4-vCPU/8-GiB candidate. Workload approaching the disclosed 178-demand MAX model scale, or repeated non-acceptance on the smaller candidate, should trigger review of the private 8-vCPU/16-GiB staged-search configuration. Neither configuration is automatically promoted. A new rule, operating grid, cohort structure, room/faculty set, or qualification pattern requires fresh evidence even at a previously tested population.
 
 ## Explicit Cloud Gates
 

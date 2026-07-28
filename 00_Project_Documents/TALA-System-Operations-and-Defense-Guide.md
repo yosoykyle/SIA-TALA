@@ -1,6 +1,6 @@
 # TALA System Operations and Defense Guide
 
-**Document status:** TAL-96D5C2 local full regression, security, and integration-readiness gate independently verified and closed locally; TAL-96D5D planning remains, dated 2026-07-27
+**Document status:** TAL-96D5D is independently verified and complete locally; TAL-96D5E final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and charter retirement remain pending, dated 2026-07-28
 **Purpose:** One consolidated guide for operating, auditing, demonstrating, and defending the TALA production-level MVP. Later TAL-96D slices will expand this same file rather than create competing manuals.
 
 ## 1. Scope and Evidence Language
@@ -1295,3 +1295,55 @@ The test database target was proved as `APP_ENV=testing`, `DB_CONNECTION=mysql`,
 #### 9.8.5 Next boundary
 
 Independent `Verify TAL-96D5C2` passed after rerunning the complete 1,025-test union, the 305-test security/integration matrix, changed acceptance behavior, full static analysis, formatter, dependency/audit/build checks, migrations, caches, queue/scheduler inventories, and the bounded tracked-secret review. Verification also corrected the fixture-lifecycle and documentation-only secret-match descriptions above. Cleanup records that verified result locally. The next boundary is **`Plan TAL-96D5D`** through a fresh Ground-Truth Gate; Linear synchronization, external traffic, deployment, push, and pull-request creation remain unauthorized.
+
+### 9.9 TAL-96D5D population operating envelope and operator decision
+
+Implementation parity was established locally before the final corrected-MAX Cloud request. With the exact approved scenario loaded and no scheduling outputs or queued jobs present, `php artisan scheduling:capture-parity-evidence MAX` created a private ignored `tal96d5d-parity-v2` artifact containing an allowlisted structural snapshot and deterministic assignment witness. The command requires `APP_ENV=testing` and MySQL `test_tala_db`. It retains the non-sensitive assignment status required by Laravel, validates the allowlisted payload before writing, reads the file back, verifies its payload hash, and independently validates the exact decoded stored snapshot and assignments. It never calls Cloud Run, invokes CP-SAT optimization, or publishes a schedule. `python -m tala_solver.replay <artifact>` then verifies the same artifact hash and checks every assignment against the Python candidate-enumeration path used before CP-SAT. The replay accepted all 178 witness rows and proves candidate admissibility for that artifact; it is not CP-SAT optimization or an optimality claim. Rebuilding MAX and restoring MIDDLE remain human-gated database operations.
+
+#### 9.9.1 What was evaluated
+
+TAL-96D5D evaluated complete `MIN`, `MIDDLE`, and `MAX` scheduling fixtures after functional and cross-role hardening had stabilized. This is a **targeted capacity and solution-quality study**, not a full stress test of every Cloud Run configuration and not a claim that student population alone determines solver capacity.
+
+| Scenario | Students | Cohorts | Scheduling faculty | Ready demands | Candidate / variable / constraint scale |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `MIN` | 47 | 6 | 9 | 54 | 11,340 / 34,335 / 68,592 |
+| `MIDDLE` | 270 | 9 | 14 synthetic | 80 | 56,112 / 169,043 / 337,725 |
+| `MAX` | 600 | 20 | 26 synthetic | 178 | 192,492 / 579,437 / 1,157,585 |
+
+The 26 MAX faculty are generated scheduling capacity, not a rewrite of the client's historical 14-faculty evidence. The constructed 532 teaching units require at least 26 people under the configured 21-unit individual ceiling before qualification and availability restrictions are applied.
+
+#### 9.9.2 Configuration and result matrix
+
+| Configuration | Purpose | Verified result | Operational disposition |
+| --- | --- | --- | --- |
+| Production Profile B: 2 vCPU, 4 GiB, 2 workers, concurrency 1, 30-second solver limit | Current 54-demand client baseline | Previously promoted and accepted; remained at 100% traffic during D5D | Keep serving until a separately approved promotion |
+| `TARGET-CFG-01`: 4 vCPU, 8 GiB, 4 workers, concurrency 1, 120-second solver limit, 300-second HTTP timeout | Evidence-based MIDDLE candidate | `MIN` 3/3 accepted feasible; `MIDDLE` 3/3 accepted feasible; `MAX` returned `unknown_timed_out` | Recommended candidate when workload grows toward the verified MIDDLE shape; remains private at zero traffic |
+| `TARGET-CFG-01-TIME`: same resources with a 240-second solver limit | Historical diagnostic branch | The corrected fixture returned `unknown_timed_out`; the earlier `infeasible` result belongs to a superseded pre-correction fixture | Historical only; do not promote or cite the old infeasible result against corrected MAX |
+| `FINAL-CFG-01`: 8 vCPU, 8 GiB, 8 workers, concurrency 1, 300-second solver limit, 360-second HTTP timeout | Strict corrected-MAX candidate | HTTP 503 after Cloud Run terminated the instance at 8,208 MiB against an 8,192-MiB limit | Infrastructure-memory failure; no solver-status or timetable claim |
+| Earlier `FINAL-CFG-02-MEM` image: same as `FINAL-CFG-01`, but 16 GiB | Controlled higher-memory corrected-MAX test | HTTP 200; `unknown_timed_out`; no incumbent after the unchanged 300-second solver limit; no OOM | Memory failure resolved, but that image did not return a schedule; historical private evidence |
+| Final staged-search image on `FINAL-CFG-02-MEM` resources | Equation-preserving corrected-MAX completion run | `feasible`; 178/178 assigned; zero hard violations; objective 1,115,910; best bound 0; relative gap 100%; 307.819849-second reported runtime | Operationally accepted for the disclosed MAX fixture; not optimal, not repeated, not promoted, and not a universal ceiling |
+
+For accepted `MIN` runs, end-to-end duration was 122.191974–122.727425 seconds and relative gap was 3.5256988%–4.1487866%. For accepted `MIDDLE` runs, duration was 127.517125–129.330287 seconds and relative gap was 16.8320877%–19.8179851%. Every accepted run assigned every demand and passed both solver and independent Laravel hard-constraint checks. These are valid feasible schedules, not proofs of optimality.
+
+The corrected MAX fixture is structurally complete and first passed the cross-runtime 178/178 feasibility witness. The final staged-search Cloud request then returned a real solver assignment for all 178 demands. The sanitized rows include day, start time, duration, faculty, modality, and room where applicable and can be reconstructed into cohort, faculty, and room views. They are research evidence, not official published meetings. The readable DBM-1A excerpt is retained in the standalone technical formulation.
+
+The approved staged-search implementation searches the unchanged hard model first. A complete first-stage timetable is used as a full solution hint for the same four-term objective during the remaining budget. If only optimization reaches its limit, operators still receive the independently validated first-stage timetable as `feasible`; if feasibility itself reaches its limit, no timetable is shown. Future evidence reports retain validated `result_source` and `search_stages` telemetry. The immutable accepted MAX report predates that bounded persistence correction, so its missing nested stage values are neither inferred nor rewritten.
+
+#### 9.9.3 Scaling trigger and cost interpretation
+
+Do not resize from student count alone. Reassess the solver configuration when one or more of these conditions occurs:
+
+- ready demands, candidate choices, variables, or constraints approach or exceed the verified MIDDLE scale, at which point the private 4-vCPU/8-GiB candidate becomes the evidence-based review point;
+- model scale approaches the disclosed MAX values, or the MIDDLE candidate repeatedly fails acceptance, at which point the private 8-vCPU/16-GiB staged-search configuration becomes the evidence-based review point;
+- repeated runs cease returning accepted `feasible` or `optimal` results inside the approved time objective;
+- the relative optimality gap is too large for institutional review needs;
+- monitoring shows OOM, sustained memory pressure, transport failure, or queue delay; or
+- material scheduling rules, operating hours, rooms, qualifications, or cohort construction change.
+
+The corrected request-based proxy uses the 27 July 2026 Singapore rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, US$0.40 per million requests, and 100-millisecond rounding. It estimates `MIN` at US$0.0067038032–US$0.0067367168 per run and `MIDDLE` at US$0.0070000256–US$0.0070987664 per run. The retained eight-run exploratory series totals US$0.0624073856. Recalculation gives US$0.0203565448 for the `FINAL-CFG-01` probe plus failed request, US$0.0378624112 for the earlier `FINAL-CFG-02-MEM` probe plus request, and US$0.03593148 for the accepted staged-search probe plus request. The earlier immutable reports retain their embedded US$0.06051832 and US$0.11208928 fields as superseded evidence. All figures are before free tier and excluded platform charges; solver results and timings were unaffected.
+
+#### 9.9.4 Current operator state and defense answer
+
+The demonstration database is restored to the deterministic `MIDDLE` fixture: 270 students, 9 cohorts, 14 synthetic scheduling faculty, and 80/80 ready demands on the Monday–Saturday 07:00–21:00 Asia/Manila grid. It contains no schedule run, candidate row, official meeting, or queued job from the study.
+
+**Panel answer:** TALA does not claim a universal maximum population. The current production profile is verified for the client's 54-demand baseline. A private 4-vCPU/8-GiB candidate repeatedly solved both the `MIN` and `MIDDLE` fixtures, so it is the evidence-based review configuration when workload grows toward 80 demands and the disclosed MIDDLE model scale. For the corrected 178-demand MAX fixture, the final private 8-vCPU/16-GiB staged-search configuration returned one complete `FEASIBLE` schedule with zero hard-constraint violations in 307.819849 seconds. This verifies an operational point through the disclosed MAX workload, but the 100% relative gap means optimality was not proved, and one run is not a repeatability or universal-capacity claim. The CP-SAT equations, constraints, objective, fixtures, Laravel validation contract, and publication workflow did not change.

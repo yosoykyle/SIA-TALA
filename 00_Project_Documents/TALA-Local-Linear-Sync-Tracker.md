@@ -38,6 +38,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5B | Done locally; pending explicit Linear sync | Accelerated Full-System Convergence and Bounded Final Acceptance |
 | TAL-96D5C1 | Done locally; pending explicit Linear sync | Role, Surface, and Cross-Role Contract Closure |
 | TAL-96D5C2 | Done locally; pending explicit Linear sync | Full Regression, Security, and Integration-Readiness Gate |
+| TAL-96D5D | Done locally; pending explicit Linear sync | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

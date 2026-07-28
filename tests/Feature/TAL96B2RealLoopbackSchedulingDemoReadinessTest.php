@@ -41,7 +41,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
 
     private const ContractVersion = 'tal94-demand-v2';
 
-    private const SolverVersion = 'cloud-cp-sat-tal94-demand-v2';
+    private const SolverVersion = 'cloud-cp-sat-tal94-demand-v2-staged-search-v1';
 
     public function test_client_baseline_completes_the_real_solver_publication_and_cross_role_projections(): void
     {

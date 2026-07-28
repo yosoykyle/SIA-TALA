@@ -2,6 +2,7 @@
 
 namespace App\Actions\SystemAdministration;
 
+use App\Models\Room;
 use InvalidArgumentException;
 
 /**
@@ -151,6 +152,38 @@ final class SchedulingAcceptanceScenarioCatalog
         $cohorts['DIT-1C'] = $this->cohort('DIT', 'First Year', 30);
 
         return $cohorts;
+    }
+
+    /**
+     * The MAX fixture keeps the same six-room count as MIN and MIDDLE, but its
+     * room-type mix follows the constructed workload instead of retaining an
+     * unused special room and an aggregate laboratory shortfall.
+     *
+     * @return list<array{string, string, string}>
+     */
+    public function roomDefinitions(string $scenario): array
+    {
+        $scenario = $this->normalize($scenario);
+
+        if ($scenario === self::Max) {
+            return [
+                ['LEC-101', 'Lecture Room 101', Room::TypeLectureRoom],
+                ['LEC-102', 'Lecture Room 102', Room::TypeLectureRoom],
+                ['LAB-101', 'Applied Skills Laboratory 1', Room::TypeLaboratory],
+                ['LAB-102', 'Applied Skills Laboratory 2', Room::TypeLaboratory],
+                ['COMP-101', 'Computer Laboratory 1', Room::TypeComputerLaboratory],
+                ['COMP-102', 'Computer Laboratory 2', Room::TypeComputerLaboratory],
+            ];
+        }
+
+        return [
+            ['LEC-101', 'Lecture Room 101', Room::TypeLectureRoom],
+            ['LEC-102', 'Lecture Room 102', Room::TypeLectureRoom],
+            ['LEC-103', 'Lecture Room 103', Room::TypeLectureRoom],
+            ['LAB-101', 'Applied Skills Laboratory', Room::TypeLaboratory],
+            ['COMP-101', 'Computer Laboratory', Room::TypeComputerLaboratory],
+            ['SPEC-101', 'Specialized Demonstration Room', Room::TypeSpecialRoom],
+        ];
     }
 
     /**

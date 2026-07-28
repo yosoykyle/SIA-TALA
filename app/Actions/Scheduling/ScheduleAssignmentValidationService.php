@@ -63,6 +63,21 @@ final class ScheduleAssignmentValidationService
         'wall_time_seconds',
         'worker_count',
         'random_seed',
+        'result_source',
+        'search_stages',
+    ];
+
+    /** @var list<string> */
+    private const SearchStageStatisticsKeys = [
+        'status',
+        'model_variable_count',
+        'model_constraint_count',
+        'no_overlap_constraint_count',
+        'boolean_variable_count',
+        'branch_count',
+        'conflict_count',
+        'deterministic_time_seconds',
+        'wall_time_seconds',
     ];
 
     /** @var list<string> */
@@ -295,8 +310,41 @@ final class ScheduleAssignmentValidationService
             'response.solver_statistics.conflict_count' => ['present', 'nullable', 'integer', 'min:0'],
             'response.solver_statistics.deterministic_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
             'response.solver_statistics.wall_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
-            'response.solver_statistics.worker_count' => ['required', 'integer', Rule::in([1, 2, 4])],
+            'response.solver_statistics.worker_count' => ['required', 'integer', Rule::in([1, 2, 4, 8])],
             'response.solver_statistics.random_seed' => ['required', 'integer', Rule::in([20260718])],
+            'response.solver_statistics.result_source' => [
+                'required',
+                'string',
+                Rule::in(['none', 'feasibility_fallback', 'optimization']),
+            ],
+            'response.solver_statistics.search_stages' => [
+                'required',
+                'array:feasibility,optimization',
+                'required_array_keys:feasibility,optimization',
+            ],
+            'response.solver_statistics.search_stages.feasibility' => [
+                'required',
+                'array:'.implode(',', self::SearchStageStatisticsKeys),
+                'required_array_keys:'.implode(',', self::SearchStageStatisticsKeys),
+            ],
+            'response.solver_statistics.search_stages.optimization' => [
+                'required',
+                'array:'.implode(',', self::SearchStageStatisticsKeys),
+                'required_array_keys:'.implode(',', self::SearchStageStatisticsKeys),
+            ],
+            'response.solver_statistics.search_stages.*.status' => [
+                'required',
+                'string',
+                Rule::in(['optimal', 'feasible', 'infeasible', 'model_invalid', 'unknown', 'not_run']),
+            ],
+            'response.solver_statistics.search_stages.*.model_variable_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.model_constraint_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.no_overlap_constraint_count' => ['required', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.boolean_variable_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.branch_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.conflict_count' => ['present', 'nullable', 'integer', 'min:0'],
+            'response.solver_statistics.search_stages.*.deterministic_time_seconds' => ['present', 'nullable', 'numeric', 'min:0'],
+            'response.solver_statistics.search_stages.*.wall_time_seconds' => ['required', 'numeric', 'min:0'],
             'response.solver_version' => ['required', 'string', 'max:255'],
             'response.model_version' => ['required', 'string', 'max:255'],
             'response.generated_at' => ['required', 'date'],
@@ -330,6 +378,10 @@ final class ScheduleAssignmentValidationService
      */
     private function counterFindings(ScheduleGenerationRun $run, array $solverResult, array $assignments): array
     {
+        $snapshot = $this->arrayValue($run->getAttribute('input_snapshot'));
+        $expectedDemandCount = collect($this->listValue($snapshot['scheduling_demands'] ?? null))
+            ->filter(fn (mixed $demand): bool => is_array($demand))
+            ->count();
         $conflicts = collect($assignments)
             ->filter(fn (mixed $assignment): bool => is_array($assignment) && ($assignment['assignment_status'] ?? null) === 'conflict')
             ->count();
@@ -338,7 +390,7 @@ final class ScheduleAssignmentValidationService
             ->count();
         $expected = [
             'assigned_count' => count($assignments) - $conflicts,
-            'unassigned_count' => $conflicts,
+            'unassigned_count' => max(0, $expectedDemandCount - (count($assignments) - $conflicts)),
             'hard_violation_count' => $conflicts,
             'warning_count' => $warnings,
         ];
@@ -877,14 +929,13 @@ final class ScheduleAssignmentValidationService
         }
 
         $timeSlotId = $this->integerValue($assignment['time_slot_id'] ?? null);
-        $fixedStart = $this->stringValue($demand['fixed_start_time'] ?? null);
 
-        if ($timeSlotId === null && $fixedStart === null) {
+        if ($timeSlotId === null) {
             $findings[] = $this->finding(
                 run: $run,
                 code: 'missing_time_slot',
                 constraint: 'calendar_validity',
-                message: 'A non-fixed assignment must reference its captured starting time slot.',
+                message: 'Every assignment, including a fixed assignment, must reference its captured starting time slot.',
                 demandId: $demandId,
                 meetingSequence: $sequence,
                 sourceType: 'term',

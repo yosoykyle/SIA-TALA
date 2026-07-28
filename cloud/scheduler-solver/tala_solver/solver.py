@@ -11,7 +11,7 @@ from ortools.sat.python import cp_model
 
 
 CONTRACT_VERSION = "tal94-demand-v2"
-SOLVER_VERSION = "cloud-cp-sat-tal94-demand-v2"
+SOLVER_VERSION = "cloud-cp-sat-tal94-demand-v2-staged-search-v1"
 SOFT_TERMS = (
     "prefer_earlier_time_blocks",
     "reduce_faculty_idle_gaps",
@@ -31,7 +31,7 @@ HARD_CONSTRAINTS = (
 BALANCED_V1_WEIGHTS = {term: 1 for term in SOFT_TERMS}
 DEFAULT_SOLVER_WORKER_COUNT = 1
 DEFAULT_SOLVER_RANDOM_SEED = 20_260_718
-APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4)
+APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4, 8)
 
 
 @dataclass(frozen=True)
@@ -181,64 +181,7 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             infeasible_reasons=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
             runtime_configuration=runtime_configuration,
         )
-    rooms = _rooms(snapshot)
-    time_slots = _time_slots(snapshot)
-    availability = _faculty_availability(snapshot)
-    existing_commitments = _existing_commitments(snapshot)
-    calendar_blocks = _calendar_blocks(snapshot)
-
-    candidates: list[Candidate] = []
-    unassignable_reasons: dict[int, list[dict[str, str]]] = {}
-
-    for demand in demands:
-        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
-
-        if demand_id is None:
-            continue
-
-        reasons: list[dict[str, str]] = []
-        faculty_ids = _faculty_ids(demand)
-        room_ids = _room_ids(demand, rooms)
-        slots = _slots_for_demand(demand, time_slots)
-
-        if not faculty_ids:
-            reasons.append(_reason("missing_faculty", "No eligible faculty was available in the Scheduling Demand snapshot."))
-
-        if _room_required(demand) and not room_ids:
-            reasons.append(_reason("missing_room", "No active room matched the Scheduling Demand room requirement."))
-
-        if not slots:
-            reasons.append(_reason("missing_time_slot", "No usable time slot matched the Scheduling Demand duration or fixed time."))
-
-        if reasons:
-            unassignable_reasons[demand_id] = reasons
-
-        for faculty_id in faculty_ids:
-            for room_id in room_ids:
-                for slot in slots:
-                    candidate = _candidate(demand, faculty_id, room_id, slot, rooms.get(room_id, {}))
-
-                    if candidate is None:
-                        continue
-
-                    if not _inside_faculty_availability(candidate, availability):
-                        continue
-
-                    if _conflicts_existing(candidate, existing_commitments):
-                        continue
-
-                    if _conflicts_calendar(candidate, calendar_blocks):
-                        continue
-
-                    candidates.append(candidate)
-
-    candidate_demand_ids = {candidate.scheduling_demand_id for candidate in candidates}
-    for demand in demands:
-        demand_id = int(demand["scheduling_demand_id"])
-        if demand_id not in candidate_demand_ids and demand_id not in unassignable_reasons:
-            unassignable_reasons[demand_id] = [
-                _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
-            ]
+    candidates, unassignable_reasons = _enumerate_candidates(snapshot, demands)
 
     if unassignable_reasons:
         assignments = [
@@ -280,6 +223,280 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     _add_same_faculty_constraints(model, variables, candidates, demands)
     load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
 
+    feasibility_solver = _configured_solver(
+        timeout_seconds=float(timeout_seconds),
+        runtime_configuration=runtime_configuration,
+    )
+    feasibility_started_at = perf_counter()
+    feasibility_status = feasibility_solver.solve(model)
+    feasibility_stage = _search_stage_statistics(
+        model=model,
+        solver=feasibility_solver,
+        solver_status=feasibility_status,
+        measured_wall_time_seconds=perf_counter() - feasibility_started_at,
+    )
+
+    if feasibility_status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
+        if feasibility_status == cp_model.INFEASIBLE:
+            assignments = [
+                _conflict_assignment(
+                    demand,
+                    [_reason("solver_infeasible", "CP-SAT proved that no assignment satisfies every hard constraint.")],
+                )
+                for demand in demands
+            ]
+            infeasible_reasons = [
+                item
+                for assignment in assignments
+                for item in assignment["violations"]
+            ]
+            warnings: list[dict[str, str]] = []
+        elif feasibility_status == cp_model.MODEL_INVALID:
+            assignments = []
+            infeasible_reasons = [
+                _reason("solver_model_invalid", "CP-SAT rejected the generated hard-constraint model."),
+            ]
+            warnings = []
+        else:
+            assignments = []
+            infeasible_reasons = []
+            warnings = [
+                _reason(
+                    "search_limit",
+                    "The feasibility search ended before CP-SAT found or disproved a complete timetable.",
+                ),
+            ]
+
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status=_status_name(feasibility_status),
+            assignments=assignments,
+            objective_score=None,
+            timeout=feasibility_status == cp_model.UNKNOWN,
+            started_at=started_at,
+            warnings=warnings,
+            infeasible_reasons=infeasible_reasons,
+            objective_details=_empty_objective_details(snapshot),
+            solver_statistics=_solver_statistics(
+                snapshot=snapshot,
+                candidates=candidates,
+                model=model,
+                result_solver=feasibility_solver,
+                objective_score=None,
+                runtime_configuration=runtime_configuration,
+                result_source="none",
+                feasibility_stage=feasibility_stage,
+                optimization_stage=_not_run_stage_statistics(),
+            ),
+            runtime_configuration=runtime_configuration,
+        )
+
+    feasibility_selected = _selected_candidates(
+        candidates=candidates,
+        variables=variables,
+        solver=feasibility_solver,
+    )
+    feasibility_objective_details = _objective_details(
+        feasibility_selected,
+        BALANCED_V1_WEIGHTS,
+        snapshot,
+    )
+    feasibility_objective_score = int(feasibility_objective_details["total"])
+
+    for variable in variables:
+        model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
+
+    _add_soft_objective(
+        model=model,
+        variables=variables,
+        candidates=candidates,
+        load_variables=load_variables,
+    )
+
+    remaining_seconds = max(
+        0.0,
+        float(timeout_seconds) - float(feasibility_stage["wall_time_seconds"] or 0.0),
+    )
+
+    if remaining_seconds <= 0.001:
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="feasible",
+            assignments=[
+                _assignment(candidate)
+                for candidate in sorted(feasibility_selected, key=_candidate_sort_key)
+            ],
+            objective_score=feasibility_objective_score,
+            timeout=False,
+            started_at=started_at,
+            warnings=[
+                _reason(
+                    "optimization_budget_exhausted",
+                    "A complete timetable was found, but no solver budget remained for soft-preference optimization.",
+                ),
+            ],
+            infeasible_reasons=[],
+            objective_details=feasibility_objective_details,
+            solver_statistics=_solver_statistics(
+                snapshot=snapshot,
+                candidates=candidates,
+                model=model,
+                result_solver=feasibility_solver,
+                objective_score=feasibility_objective_score,
+                runtime_configuration=runtime_configuration,
+                result_source="feasibility_fallback",
+                feasibility_stage=feasibility_stage,
+                optimization_stage=_not_run_stage_statistics(),
+            ),
+            runtime_configuration=runtime_configuration,
+        )
+
+    optimization_solver = _configured_solver(
+        timeout_seconds=remaining_seconds,
+        runtime_configuration=runtime_configuration,
+    )
+    optimization_started_at = perf_counter()
+    optimization_status = optimization_solver.solve(model)
+    optimization_stage = _search_stage_statistics(
+        model=model,
+        solver=optimization_solver,
+        solver_status=optimization_status,
+        measured_wall_time_seconds=perf_counter() - optimization_started_at,
+    )
+
+    if optimization_status in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
+        selected = _selected_candidates(
+            candidates=candidates,
+            variables=variables,
+            solver=optimization_solver,
+        )
+        objective_score = int(optimization_solver.objective_value)
+
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status=_status_name(optimization_status),
+            assignments=[
+                _assignment(candidate)
+                for candidate in sorted(selected, key=_candidate_sort_key)
+            ],
+            objective_score=objective_score,
+            timeout=False,
+            started_at=started_at,
+            warnings=[],
+            infeasible_reasons=[],
+            objective_details=_objective_details(selected, BALANCED_V1_WEIGHTS, snapshot),
+            solver_statistics=_solver_statistics(
+                snapshot=snapshot,
+                candidates=candidates,
+                model=model,
+                result_solver=optimization_solver,
+                objective_score=objective_score,
+                runtime_configuration=runtime_configuration,
+                result_source="optimization",
+                feasibility_stage=feasibility_stage,
+                optimization_stage=optimization_stage,
+            ),
+            runtime_configuration=runtime_configuration,
+        )
+
+    if optimization_status == cp_model.UNKNOWN:
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="feasible",
+            assignments=[
+                _assignment(candidate)
+                for candidate in sorted(feasibility_selected, key=_candidate_sort_key)
+            ],
+            objective_score=feasibility_objective_score,
+            timeout=False,
+            started_at=started_at,
+            warnings=[
+                _reason(
+                    "optimization_limit_reached",
+                    "The soft-preference search reached its limit; the complete hard-valid feasibility timetable was retained.",
+                ),
+            ],
+            infeasible_reasons=[],
+            objective_details=feasibility_objective_details,
+            solver_statistics=_solver_statistics(
+                snapshot=snapshot,
+                candidates=candidates,
+                model=model,
+                result_solver=optimization_solver,
+                objective_score=feasibility_objective_score,
+                runtime_configuration=runtime_configuration,
+                result_source="feasibility_fallback",
+                feasibility_stage=feasibility_stage,
+                optimization_stage=optimization_stage,
+            ),
+            runtime_configuration=runtime_configuration,
+        )
+
+    return _result(
+        snapshot=snapshot,
+        solver_run_id=solver_run_id,
+        solver_status="model_invalid",
+        assignments=[],
+        objective_score=None,
+        timeout=False,
+        started_at=started_at,
+        warnings=[],
+        infeasible_reasons=[
+            _reason(
+                "optimization_model_inconsistent",
+                "The soft-objective stage rejected a hard-valid feasibility assignment.",
+            ),
+        ],
+        objective_details=_empty_objective_details(snapshot),
+        solver_statistics=_solver_statistics(
+            snapshot=snapshot,
+            candidates=candidates,
+            model=model,
+            result_solver=optimization_solver,
+            objective_score=None,
+            runtime_configuration=runtime_configuration,
+            result_source="none",
+            feasibility_stage=feasibility_stage,
+            optimization_stage=optimization_stage,
+        ),
+        runtime_configuration=runtime_configuration,
+    )
+
+
+def _configured_solver(
+    timeout_seconds: float,
+    runtime_configuration: SolverRuntimeConfiguration,
+) -> cp_model.CpSolver:
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = max(0.001, timeout_seconds)
+    solver.parameters.num_workers = runtime_configuration.worker_count
+    solver.parameters.random_seed = runtime_configuration.random_seed
+
+    return solver
+
+
+def _selected_candidates(
+    candidates: list[Candidate],
+    variables: list[cp_model.IntVar],
+    solver: cp_model.CpSolver,
+) -> list[Candidate]:
+    return [
+        candidate
+        for index, candidate in enumerate(candidates)
+        if solver.boolean_value(variables[index])
+    ]
+
+
+def _add_soft_objective(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    load_variables: dict[int, cp_model.IntVar],
+) -> None:
     weights = BALANCED_V1_WEIGHTS
     objective_terms: list[cp_model.LinearExpr] = []
     objective_terms.extend(
@@ -290,63 +507,75 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         weights["use_rooms_efficiently"] * _room_efficiency_score(candidate) * variables[index]
         for index, candidate in enumerate(candidates)
     )
-    objective_terms.extend(_idle_gap_objective_terms(model, variables, candidates, weights["reduce_faculty_idle_gaps"]))
-    objective_terms.extend(_load_balance_objective_terms(model, load_variables, weights["balance_faculty_load"]))
-
+    objective_terms.extend(
+        _idle_gap_objective_terms(
+            model,
+            variables,
+            candidates,
+            weights["reduce_faculty_idle_gaps"],
+        )
+    )
+    objective_terms.extend(
+        _load_balance_objective_terms(
+            model,
+            load_variables,
+            weights["balance_faculty_load"],
+        )
+    )
     model.maximize(sum(objective_terms))
 
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(timeout_seconds)
-    solver.parameters.num_workers = runtime_configuration.worker_count
-    solver.parameters.random_seed = runtime_configuration.random_seed
 
-    status = solver.solve(model)
-    selected = [
-        candidate
-        for index, candidate in enumerate(candidates)
-        if status in {cp_model.OPTIMAL, cp_model.FEASIBLE} and solver.boolean_value(variables[index])
+def evaluate_candidate_membership(
+    snapshot: dict[str, Any],
+    assignments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Replay assignments through candidate generation without invoking CP-SAT."""
+    demands = _demands(snapshot)
+    cohort_ids_by_delivery_group = _cohort_ids_by_delivery_group(snapshot, demands)
+
+    if cohort_ids_by_delivery_group is None:
+        raise ValueError("Every demand requires one consistent shared cohort mapping.")
+
+    demands = [
+        {
+            **demand,
+            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])],
+        }
+        for demand in demands
     ]
-    assignments = [_assignment(candidate) for candidate in sorted(selected, key=_candidate_sort_key)]
-
-    if status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
-        assignments = [
-            _conflict_assignment(demand, [_reason("solver_infeasible", "CP-SAT found no assignment satisfying every hard constraint.")])
-            for demand in demands
-        ]
-        selected = []
-
-    assigned_count = len(selected)
-    unassigned_count = max(0, len(demands) - assigned_count)
-    solver_status = _status_name(status)
-    objective_score = int(solver.objective_value) if status in {cp_model.OPTIMAL, cp_model.FEASIBLE} else None
-
-    return _result(
-        snapshot=snapshot,
-        solver_run_id=solver_run_id,
-        solver_status=solver_status,
-        assignments=assignments,
-        objective_score=objective_score,
-        timeout=status == cp_model.UNKNOWN,
-        started_at=started_at,
-        warnings=[],
-        infeasible_reasons=[
-            item
-            for assignment in assignments
-            if assignment["assignment_status"] == "conflict"
-            for item in assignment["violations"]
-        ],
-        objective_details=_objective_details(selected, weights, snapshot),
-        solver_statistics=_solver_statistics(
-            snapshot=snapshot,
-            candidates=candidates,
-            model=model,
-            solver=solver,
-            solver_status=status,
-            objective_score=objective_score,
-            runtime_configuration=runtime_configuration,
-        ),
-        runtime_configuration=runtime_configuration,
+    candidates, _ = _enumerate_candidates(snapshot, demands)
+    candidate_keys = {_candidate_membership_key(candidate) for candidate in candidates}
+    results = [
+        {
+            "scheduling_demand_id": _int_or_none(assignment.get("scheduling_demand_id")),
+            "admissible": _assignment_membership_key(assignment) in candidate_keys,
+        }
+        for assignment in assignments
+        if isinstance(assignment, dict)
+    ]
+    admissible_count = sum(1 for result in results if result["admissible"])
+    expected_demand_ids = {
+        int(demand["scheduling_demand_id"])
+        for demand in demands
+    }
+    assigned_demand_ids = [
+        result["scheduling_demand_id"]
+        for result in results
+    ]
+    complete_demand_coverage = (
+        len(assigned_demand_ids) == len(expected_demand_ids)
+        and len(set(assigned_demand_ids)) == len(assigned_demand_ids)
+        and set(assigned_demand_ids) == expected_demand_ids
     )
+
+    return {
+        "expected_demand_count": len(expected_demand_ids),
+        "assignment_count": len(results),
+        "admissible_count": admissible_count,
+        "complete_demand_coverage": complete_demand_coverage,
+        "all_admissible": complete_demand_coverage and admissible_count == len(results),
+        "assignments": results,
+    }
 
 
 def _result(
@@ -366,6 +595,8 @@ def _result(
     runtime_configuration = runtime_configuration or solver_runtime_configuration()
     conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
     warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
+    assigned_count = len(assignments) - conflict_count
+    expected_demand_count = _list_count(snapshot.get("scheduling_demands"))
 
     return {
         "solver_run_id": solver_run_id,
@@ -375,7 +606,7 @@ def _result(
         "hard_constraint_violations": infeasible_reasons,
         "hard_violation_count": conflict_count,
         "soft_constraint_scores": {
-            "assigned_count": len(assignments) - conflict_count,
+            "assigned_count": assigned_count,
             "conflict_count": conflict_count,
             "prefer_earlier_time_blocks": _earlier_time_score(assignments),
         },
@@ -388,8 +619,8 @@ def _result(
         "solver_version": SOLVER_VERSION,
         "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "assigned_count": len(assignments) - conflict_count,
-        "unassigned_count": conflict_count,
+        "assigned_count": assigned_count,
+        "unassigned_count": max(0, expected_demand_count - assigned_count),
         "warning_count": warning_count,
         "timeout": timeout,
     }
@@ -418,6 +649,11 @@ def _empty_solver_statistics(
         "wall_time_seconds": None,
         "worker_count": runtime_configuration.worker_count,
         "random_seed": runtime_configuration.random_seed,
+        "result_source": "none",
+        "search_stages": {
+            "feasibility": _not_run_stage_statistics(),
+            "optimization": _not_run_stage_statistics(),
+        },
     }
 
 
@@ -425,19 +661,24 @@ def _solver_statistics(
     snapshot: dict[str, Any],
     candidates: list[Candidate],
     model: cp_model.CpModel,
-    solver: cp_model.CpSolver,
-    solver_status: int,
+    result_solver: cp_model.CpSolver,
     objective_score: int | None,
     runtime_configuration: SolverRuntimeConfiguration,
+    result_source: str,
+    feasibility_stage: dict[str, Any],
+    optimization_stage: dict[str, Any],
 ) -> dict[str, Any]:
     statistics = _empty_solver_statistics(snapshot, runtime_configuration)
     model_proto = model.proto
-    best_objective_bound = _float_metric(solver, "best_objective_bound")
+    best_objective_bound = (
+        _float_metric(result_solver, "best_objective_bound")
+        if optimization_stage["status"] != "not_run"
+        else None
+    )
     relative_optimality_gap = None
 
     if (
-        solver_status in {cp_model.OPTIMAL, cp_model.FEASIBLE}
-        and objective_score is not None
+        objective_score is not None
         and best_objective_bound is not None
     ):
         relative_optimality_gap = abs(float(objective_score) - best_objective_bound) / max(
@@ -445,6 +686,7 @@ def _solver_statistics(
             abs(float(objective_score)),
         )
 
+    stages = [feasibility_stage, optimization_stage]
     statistics.update({
         "candidate_count": len(candidates),
         "model_variable_count": len(model_proto.variables),
@@ -456,14 +698,76 @@ def _solver_statistics(
         ),
         "best_objective_bound": best_objective_bound,
         "relative_optimality_gap": _rounded_float(relative_optimality_gap),
+        "boolean_variable_count": _int_metric(result_solver, "num_booleans"),
+        "branch_count": _sum_stage_metric(stages, "branch_count"),
+        "conflict_count": _sum_stage_metric(stages, "conflict_count"),
+        "deterministic_time_seconds": _sum_stage_metric(stages, "deterministic_time_seconds"),
+        "wall_time_seconds": _sum_stage_metric(stages, "wall_time_seconds"),
+        "result_source": result_source,
+        "search_stages": {
+            "feasibility": feasibility_stage,
+            "optimization": optimization_stage,
+        },
+    })
+
+    return statistics
+
+
+def _search_stage_statistics(
+    model: cp_model.CpModel,
+    solver: cp_model.CpSolver,
+    solver_status: int,
+    measured_wall_time_seconds: float,
+) -> dict[str, Any]:
+    model_proto = model.proto
+    solver_wall_time = _float_metric(solver, "wall_time")
+
+    return {
+        "status": _status_name(solver_status),
+        "model_variable_count": len(model_proto.variables),
+        "model_constraint_count": len(model_proto.constraints),
+        "no_overlap_constraint_count": sum(
+            1
+            for constraint in model_proto.constraints
+            if constraint.has_no_overlap()
+        ),
         "boolean_variable_count": _int_metric(solver, "num_booleans"),
         "branch_count": _int_metric(solver, "num_branches"),
         "conflict_count": _int_metric(solver, "num_conflicts"),
         "deterministic_time_seconds": _float_metric(solver, "deterministic_time"),
-        "wall_time_seconds": _float_metric(solver, "wall_time"),
-    })
+        "wall_time_seconds": solver_wall_time
+        if solver_wall_time is not None
+        else _rounded_float(measured_wall_time_seconds),
+    }
 
-    return statistics
+
+def _not_run_stage_statistics() -> dict[str, Any]:
+    return {
+        "status": "not_run",
+        "model_variable_count": 0,
+        "model_constraint_count": 0,
+        "no_overlap_constraint_count": 0,
+        "boolean_variable_count": None,
+        "branch_count": None,
+        "conflict_count": None,
+        "deterministic_time_seconds": None,
+        "wall_time_seconds": 0.0,
+    }
+
+
+def _sum_stage_metric(stages: list[dict[str, Any]], key: str) -> int | float | None:
+    values = [
+        stage[key]
+        for stage in stages
+        if isinstance(stage.get(key), (int, float))
+    ]
+
+    if values == []:
+        return None
+
+    total = sum(values)
+
+    return int(total) if all(isinstance(value, int) for value in values) else _rounded_float(float(total))
 
 
 def _metric(solver: cp_model.CpSolver, attribute: str) -> Any:
@@ -694,17 +998,76 @@ def _room_suits_demand(demand: dict[str, Any], room: dict[str, Any]) -> bool:
     return (_int_or_none(room.get("capacity")) or 0) >= expected_count
 
 
+def _enumerate_candidates(
+    snapshot: dict[str, Any],
+    demands: list[dict[str, Any]],
+) -> tuple[list[Candidate], dict[int, list[dict[str, str]]]]:
+    rooms = _rooms(snapshot)
+    time_slots = _time_slots(snapshot)
+    availability = _faculty_availability(snapshot)
+    existing_commitments = _existing_commitments(snapshot)
+    calendar_blocks = _calendar_blocks(snapshot)
+    candidates: list[Candidate] = []
+    unassignable_reasons: dict[int, list[dict[str, str]]] = {}
+
+    for demand in demands:
+        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
+
+        if demand_id is None:
+            continue
+
+        reasons: list[dict[str, str]] = []
+        faculty_ids = _faculty_ids(demand)
+        room_ids = _room_ids(demand, rooms)
+        slots = _slots_for_demand(demand, time_slots)
+
+        if not faculty_ids:
+            reasons.append(_reason("missing_faculty", "No eligible faculty was available in the Scheduling Demand snapshot."))
+
+        if _room_required(demand) and not room_ids:
+            reasons.append(_reason("missing_room", "No active room matched the Scheduling Demand room requirement."))
+
+        if not slots:
+            reasons.append(_reason("missing_time_slot", "No usable time slot matched the Scheduling Demand duration or fixed time."))
+
+        if reasons:
+            unassignable_reasons[demand_id] = reasons
+
+        for faculty_id in faculty_ids:
+            for room_id in room_ids:
+                for slot in slots:
+                    candidate = _candidate(demand, faculty_id, room_id, slot, rooms.get(room_id, {}))
+
+                    if candidate is None:
+                        continue
+
+                    if not _inside_faculty_availability(candidate, availability):
+                        continue
+
+                    if _conflicts_existing(candidate, existing_commitments):
+                        continue
+
+                    if _conflicts_calendar(candidate, calendar_blocks):
+                        continue
+
+                    candidates.append(candidate)
+
+    candidate_demand_ids = {candidate.scheduling_demand_id for candidate in candidates}
+
+    for demand in demands:
+        demand_id = int(demand["scheduling_demand_id"])
+
+        if demand_id not in candidate_demand_ids and demand_id not in unassignable_reasons:
+            unassignable_reasons[demand_id] = [
+                _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
+            ]
+
+    return candidates, unassignable_reasons
+
+
 def _slots_for_demand(demand: dict[str, Any], time_slots: list[dict[str, Any]]) -> list[dict[str, Any]]:
     fixed_day = _int_or_none(demand.get("fixed_day_of_week"))
     fixed_start = _time_to_minutes(demand.get("fixed_start_time"))
-
-    if fixed_day is not None and fixed_start is not None:
-        return [{
-            "time_slot_id": None,
-            "time_block_key": f"fixed-{int(demand['scheduling_demand_id'])}",
-            "day_of_week": fixed_day,
-            "starts_at": _minutes_to_time(fixed_start),
-        }]
 
     duration = _duration_minutes(demand)
     day_ends = _day_ends(time_slots)
@@ -729,6 +1092,44 @@ def _slots_for_demand(demand: dict[str, Any], time_slots: list[dict[str, Any]]) 
         slots.append(slot)
 
     return slots
+
+
+def _candidate_membership_key(candidate: Candidate) -> tuple[Any, ...]:
+    return (
+        candidate.scheduling_demand_id,
+        candidate.term_offering_id,
+        candidate.section_id,
+        candidate.section_delivery_group_id,
+        candidate.cohort_or_student_group_id,
+        candidate.subject_id,
+        candidate.course_component_id,
+        candidate.faculty_id,
+        candidate.room_id,
+        candidate.day_of_week,
+        candidate.starts_at,
+        candidate.ends_at,
+        candidate.time_slot_id,
+        candidate.time_block_key,
+    )
+
+
+def _assignment_membership_key(assignment: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        _int_or_none(assignment.get("scheduling_demand_id")),
+        _int_or_none(assignment.get("term_offering_id")) or 0,
+        _int_or_none(assignment.get("section_id")) or 0,
+        _int_or_none(assignment.get("section_delivery_group_id")) or 0,
+        _int_or_none(assignment.get("cohort_or_student_group_id")) or 0,
+        _int_or_none(assignment.get("subject_id") or assignment.get("course_id")),
+        _int_or_none(assignment.get("course_component_id")),
+        _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id")),
+        _int_or_none(assignment.get("room_id")),
+        _int_or_none(assignment.get("day_of_week") or assignment.get("day")),
+        _time_or_none(assignment.get("starts_at") or assignment.get("start_time")),
+        _time_or_none(assignment.get("ends_at") or assignment.get("end_time")),
+        _int_or_none(assignment.get("time_slot_id")),
+        str(assignment.get("time_block_key") or assignment.get("time_block_reference") or ""),
+    )
 
 
 def _day_ends(time_slots: list[dict[str, Any]]) -> dict[int, int]:

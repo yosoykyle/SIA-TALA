@@ -193,6 +193,16 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
     {
         $context = $this->context();
         $valid = $this->validResult($context);
+        $eightWorkerResult = $valid;
+        $eightWorkerResult['solver_statistics']['worker_count'] = 8;
+        $eightWorkerValidation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run'], $eightWorkerResult);
+
+        $this->assertTrue(
+            $eightWorkerValidation->passes(),
+            json_encode($eightWorkerValidation->findings(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+        );
+
         $cases = [
             'missing' => function (array $result): array {
                 unset($result['solver_statistics']);
@@ -206,6 +216,21 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             },
             'malformed_field' => function (array $result): array {
                 $result['solver_statistics']['candidate_count'] = 'many';
+
+                return $result;
+            },
+            'unapproved_worker_count' => function (array $result): array {
+                $result['solver_statistics']['worker_count'] = 3;
+
+                return $result;
+            },
+            'missing_result_source' => function (array $result): array {
+                unset($result['solver_statistics']['result_source']);
+
+                return $result;
+            },
+            'unknown_stage_field' => function (array $result): array {
+                $result['solver_statistics']['search_stages']['feasibility']['raw_solver_log'] = 'not allowed';
 
                 return $result;
             },
@@ -229,6 +254,62 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             'must not be persisted',
             json_encode($diagnostics, JSON_THROW_ON_ERROR),
         );
+    }
+
+    public function test_unknown_search_limit_has_truthful_empty_coverage_counters(): void
+    {
+        $context = $this->context(demandCount: 2);
+        $result = $this->validResult($context);
+        $result['solver_status'] = 'unknown';
+        $result['assignments'] = [];
+        $result['hard_constraint_violations'] = [];
+        $result['hard_violation_count'] = 0;
+        $result['soft_constraint_scores'] = [
+            'assigned_count' => 0,
+            'conflict_count' => 0,
+        ];
+        $result['infeasible_reasons'] = [];
+        $result['warnings'] = [[
+            'type' => 'search_limit',
+            'message' => 'The feasibility search ended before a complete timetable was found or disproved.',
+        ]];
+        $result['runtime_seconds'] = 300.0;
+        $result['objective_score'] = null;
+        $result['objective_details'] = [
+            'profile_key' => 'balanced_v1',
+            'profile_version' => 1,
+            'terms' => [],
+        ];
+        $result['solver_statistics']['best_objective_bound'] = null;
+        $result['solver_statistics']['relative_optimality_gap'] = null;
+        $result['solver_statistics']['result_source'] = 'none';
+        $result['solver_statistics']['search_stages']['feasibility']['status'] = 'unknown';
+        $result['solver_statistics']['search_stages']['optimization'] = [
+            'status' => 'not_run',
+            'model_variable_count' => 0,
+            'model_constraint_count' => 0,
+            'no_overlap_constraint_count' => 0,
+            'boolean_variable_count' => null,
+            'branch_count' => null,
+            'conflict_count' => null,
+            'deterministic_time_seconds' => null,
+            'wall_time_seconds' => 0.0,
+        ];
+        $result['assigned_count'] = 0;
+        $result['unassigned_count'] = 2;
+        $result['warning_count'] = 0;
+        $result['timeout'] = true;
+
+        $validation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run'], $result);
+        $codes = collect($validation->findings())->pluck('code')->all();
+
+        $this->assertFalse($validation->passes());
+        $this->assertContains('solver_unknown', $codes);
+        $this->assertNotContains('invalid_response_field', $codes);
+        $this->assertNotContains('assigned_count_mismatch', $codes);
+        $this->assertNotContains('unassigned_count_mismatch', $codes);
+        $this->assertNotContains('hard_violation_count_mismatch', $codes);
     }
 
     public function test_exact_coverage_and_assignment_hard_constraints_are_enforced(): void
@@ -276,6 +357,19 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
 
                 return $result;
             },
+            'missing_time_slot' => function (array $result): array {
+                $result['__snapshot']['scheduling_demands'][0]['fixed_day_of_week'] = 1;
+                $result['__snapshot']['scheduling_demands'][0]['fixed_start_time'] = '08:13:00';
+                $result['assignments'][0]['starts_at'] = '08:13:00';
+                $result['assignments'][0]['start_time'] = '08:13:00';
+                $result['assignments'][0]['ends_at'] = '10:13:00';
+                $result['assignments'][0]['end_time'] = '10:13:00';
+                $result['assignments'][0]['time_slot_id'] = null;
+                $result['assignments'][0]['time_block_key'] = 'fixed-off-grid';
+                $result['assignments'][0]['time_block_reference'] = 'fixed-off-grid';
+
+                return $result;
+            },
             'calendar_block_overlap' => function (array $result): array {
                 $result['__snapshot']['calendar_blocks'][] = [
                     'calendar_event_id' => 771,
@@ -311,6 +405,38 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             $this->assertContains($expectedCode, collect($validation->findings())->pluck('code')->all());
             $context['run']->forceFill(['input_snapshot' => $context['snapshot']])->save();
         }
+    }
+
+    public function test_non_fixed_assignment_requires_a_captured_starting_time_slot(): void
+    {
+        $context = $this->context();
+        $result = $this->validResult($context);
+        $result['assignments'][0]['time_slot_id'] = null;
+
+        $this->assertNull($context['snapshot']['scheduling_demands'][0]['fixed_day_of_week']);
+        $this->assertNull($context['snapshot']['scheduling_demands'][0]['fixed_start_time']);
+
+        $validation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run'], $result);
+
+        $this->assertFalse($validation->passes());
+        $this->assertContains('missing_time_slot', collect($validation->findings())->pluck('code')->all());
+    }
+
+    public function test_assignment_time_slot_key_must_match_the_captured_grid_row(): void
+    {
+        $context = $this->context();
+        $result = $this->validResult($context);
+        $result['assignments'][0]['time_block_key'] = 'D1-0900';
+        $result['assignments'][0]['time_block_reference'] = 'D1-0900';
+
+        $this->assertNotNull($result['assignments'][0]['time_slot_id']);
+
+        $validation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run'], $result);
+
+        $this->assertFalse($validation->passes());
+        $this->assertContains('time_slot_mismatch', collect($validation->findings())->pluck('code')->all());
     }
 
     public function test_overlap_same_faculty_and_deduplicated_load_rules_are_enforced(): void
@@ -519,7 +645,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
     public function test_schedule_run_view_explains_each_recorded_hard_constraint_and_soft_objective(): void
     {
         $context = $this->context();
-        $snapshot = $context['run']->input_snapshot;
+        $snapshot = $context['snapshot'];
         $snapshot['hard_constraints'] = [
             'assign_every_ready_scheduling_demand_once',
             'faculty_no_overlap',
@@ -790,8 +916,33 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                 'wall_time_seconds' => 0.02,
                 'worker_count' => 1,
                 'random_seed' => 20260718,
+                'result_source' => 'optimization',
+                'search_stages' => [
+                    'feasibility' => [
+                        'status' => 'optimal',
+                        'model_variable_count' => count($assignments),
+                        'model_constraint_count' => count($assignments),
+                        'no_overlap_constraint_count' => 0,
+                        'boolean_variable_count' => count($assignments),
+                        'branch_count' => 0,
+                        'conflict_count' => 0,
+                        'deterministic_time_seconds' => 0.005,
+                        'wall_time_seconds' => 0.01,
+                    ],
+                    'optimization' => [
+                        'status' => 'optimal',
+                        'model_variable_count' => count($assignments),
+                        'model_constraint_count' => count($assignments),
+                        'no_overlap_constraint_count' => 0,
+                        'boolean_variable_count' => count($assignments),
+                        'branch_count' => 0,
+                        'conflict_count' => 0,
+                        'deterministic_time_seconds' => 0.005,
+                        'wall_time_seconds' => 0.01,
+                    ],
+                ],
             ],
-            'solver_version' => 'cloud-cp-sat-tal94-demand-v2',
+            'solver_version' => 'cloud-cp-sat-tal94-demand-v2-staged-search-v1',
             'model_version' => 'tal94-demand-v2',
             'generated_at' => now()->toIso8601String(),
             'assigned_count' => count($assignments),

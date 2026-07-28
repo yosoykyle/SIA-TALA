@@ -25,7 +25,7 @@ class SolverServerTest(unittest.TestCase):
                 "status": "ok",
                 "service": "tala-scheduler-solver",
                 "contract_version": "tal94-demand-v2",
-                "solver_version": "cloud-cp-sat-tal94-demand-v2",
+                "solver_version": "cloud-cp-sat-tal94-demand-v2-staged-search-v1",
             },
             response.get_json(),
         )
@@ -53,6 +53,21 @@ class SolverServerTest(unittest.TestCase):
         solve.assert_called_once_with(
             {"contract_version": "tal94-demand-v2"},
             timeout_seconds=45,
+        )
+
+    def test_solver_timeout_is_clamped_to_the_approved_300_second_search_cap(self) -> None:
+        with (
+            patch.dict(os.environ, {"SOLVER_TIMEOUT_SECONDS": "360"}),
+            patch("tala_solver.server.solve_snapshot") as solve,
+        ):
+            solve.return_value = {"solver_status": "optimal", "assignments": []}
+
+            response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
+
+        self.assertEqual(200, response.status_code)
+        solve.assert_called_once_with(
+            {"contract_version": "tal94-demand-v2"},
+            timeout_seconds=300,
         )
 
     def test_app_startup_rejects_an_invalid_solver_runtime_configuration(self) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import unittest
@@ -10,7 +11,12 @@ from unittest.mock import patch
 
 from ortools.sat.python import cp_model
 
-from tala_solver.solver import solve_snapshot, solver_runtime_configuration
+from tala_solver.replay import replay_artifact
+from tala_solver.solver import (
+    evaluate_candidate_membership,
+    solve_snapshot,
+    solver_runtime_configuration,
+)
 
 
 class SolveSnapshotTest(unittest.TestCase):
@@ -38,6 +44,97 @@ class SolveSnapshotTest(unittest.TestCase):
             self.assertEqual([], row["violations"])
 
         self.assertEqual([], self.hard_constraint_violations(assignments))
+        self.assertIn(
+            result["solver_statistics"]["search_stages"]["feasibility"]["status"],
+            {"optimal", "feasible"},
+        )
+        self.assertIn(
+            result["solver_statistics"]["search_stages"]["optimization"]["status"],
+            {"optimal", "feasible"},
+        )
+        self.assertEqual(
+            "optimization",
+            result["solver_statistics"]["result_source"],
+        )
+
+    def test_unknown_feasibility_search_returns_no_false_conflict_timetable(self) -> None:
+        snapshot = self.snapshot()
+
+        with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.UNKNOWN):
+            result = solve_snapshot(snapshot, timeout_seconds=1)
+
+        self.assertEqual("unknown", result["solver_status"])
+        self.assertTrue(result["timeout"])
+        self.assertEqual([], result["assignments"])
+        self.assertEqual([], result["infeasible_reasons"])
+        self.assertEqual([], result["hard_constraint_violations"])
+        self.assertEqual(0, result["assigned_count"])
+        self.assertEqual(2, result["unassigned_count"])
+        self.assertEqual(0, result["hard_violation_count"])
+        self.assertEqual(
+            "search_limit",
+            result["warnings"][0]["type"],
+        )
+        self.assertEqual(
+            "unknown",
+            result["solver_statistics"]["search_stages"]["feasibility"]["status"],
+        )
+        self.assertEqual(
+            "not_run",
+            result["solver_statistics"]["search_stages"]["optimization"]["status"],
+        )
+        self.assertEqual(
+            "none",
+            result["solver_statistics"]["result_source"],
+        )
+
+    def test_unknown_optimization_keeps_the_complete_feasibility_assignment(self) -> None:
+        snapshot = self.snapshot()
+        snapshot["scheduling_demands"][0].update({
+            "fixed_faculty_user_id": 200,
+            "fixed_room_id": 301,
+            "fixed_day_of_week": 1,
+            "fixed_start_time": "08:00:00",
+        })
+        snapshot["scheduling_demands"][1].update({
+            "fixed_faculty_user_id": 201,
+            "fixed_room_id": 301,
+            "fixed_day_of_week": 1,
+            "fixed_start_time": "09:00:00",
+        })
+
+        with (
+            patch.object(
+                cp_model.CpSolver,
+                "solve",
+                side_effect=[cp_model.OPTIMAL, cp_model.UNKNOWN],
+            ),
+            patch.object(
+                cp_model.CpSolver,
+                "boolean_value",
+                side_effect=lambda variable: variable.name in {"candidate_0", "candidate_1"},
+            ),
+        ):
+            result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("feasible", result["solver_status"])
+        self.assertFalse(result["timeout"])
+        self.assertEqual(2, result["assigned_count"])
+        self.assertEqual(0, result["unassigned_count"])
+        self.assertEqual(0, result["hard_violation_count"])
+        self.assertEqual([], result["infeasible_reasons"])
+        self.assertEqual(
+            "optimization_limit_reached",
+            result["warnings"][0]["type"],
+        )
+        self.assertEqual(
+            "unknown",
+            result["solver_statistics"]["search_stages"]["optimization"]["status"],
+        )
+        self.assertEqual(
+            "feasibility_fallback",
+            result["solver_statistics"]["result_source"],
+        )
 
     def test_unassignable_v2_demand_returns_conflict_assignment_with_demand_id(self) -> None:
         snapshot = self.snapshot()
@@ -82,8 +179,8 @@ class SolveSnapshotTest(unittest.TestCase):
         demand = snapshot["scheduling_demands"][0]
         demand["fixed_faculty_user_id"] = 200
         demand["fixed_room_id"] = 301
-        demand["fixed_day_of_week"] = 2
-        demand["fixed_start_time"] = "10:00:00"
+        demand["fixed_day_of_week"] = 1
+        demand["fixed_start_time"] = "08:00:00"
 
         result = solve_snapshot(snapshot, timeout_seconds=10)
         assignment = next(
@@ -94,10 +191,80 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual("ok", assignment["assignment_status"])
         self.assertEqual(200, assignment["faculty_id"])
         self.assertEqual(301, assignment["room_id"])
-        self.assertEqual(2, assignment["day_of_week"])
-        self.assertEqual("10:00:00", assignment["starts_at"])
-        self.assertEqual("11:00:00", assignment["ends_at"])
-        self.assertEqual("fixed-5001", assignment["time_block_key"])
+        self.assertEqual(1, assignment["day_of_week"])
+        self.assertEqual("08:00:00", assignment["starts_at"])
+        self.assertEqual("09:00:00", assignment["ends_at"])
+        self.assertEqual(1, assignment["time_slot_id"])
+        self.assertEqual("D1-0800", assignment["time_block_key"])
+
+    def test_off_grid_fixed_time_has_no_admissible_candidate(self) -> None:
+        snapshot = self.snapshot()
+        demand = snapshot["scheduling_demands"][0]
+        demand["fixed_faculty_user_id"] = 200
+        demand["fixed_room_id"] = 301
+        demand["fixed_day_of_week"] = 1
+        demand["fixed_start_time"] = "08:13:00"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+        assignment = next(
+            row for row in result["assignments"]
+            if row["scheduling_demand_id"] == demand["scheduling_demand_id"]
+        )
+
+        self.assertEqual("conflict", assignment["assignment_status"])
+        self.assertEqual("missing_time_slot", assignment["violations"][0]["type"])
+
+    def test_candidate_membership_replay_accepts_valid_rows_and_rejects_tampering(self) -> None:
+        snapshot = self.snapshot()
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        replay = evaluate_candidate_membership(snapshot, result["assignments"])
+
+        self.assertTrue(replay["all_admissible"])
+        self.assertTrue(replay["complete_demand_coverage"])
+        self.assertEqual(2, replay["admissible_count"])
+
+        tampered = copy.deepcopy(result["assignments"])
+        tampered[0]["starts_at"] = "08:13:00"
+        tampered[0]["start_time"] = "08:13:00"
+        tampered[0]["ends_at"] = "09:13:00"
+        tampered[0]["end_time"] = "09:13:00"
+        tampered[0]["time_slot_id"] = None
+        tampered[0]["time_block_key"] = "fixed-off-grid"
+        tampered[0]["time_block_reference"] = "fixed-off-grid"
+
+        rejected = evaluate_candidate_membership(snapshot, tampered)
+
+        self.assertFalse(rejected["all_admissible"])
+        self.assertEqual(1, rejected["admissible_count"])
+
+    def test_private_replay_artifact_requires_an_untampered_payload_hash(self) -> None:
+        snapshot = self.snapshot()
+        assignments = solve_snapshot(snapshot, timeout_seconds=10)["assignments"]
+        payload = {"snapshot": snapshot, "assignments": assignments}
+        payload_hash = hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8"),
+        ).hexdigest()
+        artifact = {
+            "evidence_version": "tal96d5d-parity-v1",
+            "scenario": "MIN",
+            "payload_sha256": payload_hash,
+            **payload,
+        }
+
+        replay = replay_artifact(artifact)
+
+        self.assertTrue(replay["all_admissible"])
+
+        artifact["assignments"][0]["starts_at"] = "08:13:00"
+
+        with self.assertRaisesRegex(ValueError, "payload hash"):
+            replay_artifact(artifact)
 
     def test_same_section_group_and_room_assignments_do_not_overlap(self) -> None:
         snapshot = self.snapshot()
@@ -239,6 +406,8 @@ class SolveSnapshotTest(unittest.TestCase):
                 "wall_time_seconds",
                 "worker_count",
                 "random_seed",
+                "result_source",
+                "search_stages",
             },
             set(statistics),
         )
@@ -260,9 +429,20 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertIsInstance(statistics["wall_time_seconds"], float)
         self.assertEqual(1, statistics["worker_count"])
         self.assertEqual(20_260_718, statistics["random_seed"])
+        self.assertEqual(
+            {
+                "feasibility",
+                "optimization",
+            },
+            set(statistics["search_stages"]),
+        )
+        self.assertLess(
+            statistics["search_stages"]["feasibility"]["model_variable_count"],
+            statistics["search_stages"]["optimization"]["model_variable_count"],
+        )
 
     def test_solver_runtime_configuration_accepts_the_approved_worker_profiles(self) -> None:
-        for worker_count in (1, 2, 4):
+        for worker_count in (1, 2, 4, 8):
             with self.subTest(worker_count=worker_count), patch.dict(
                 os.environ,
                 {
@@ -353,6 +533,17 @@ class SolveSnapshotTest(unittest.TestCase):
             for demand in demands
         ]
         snapshot["faculty"] = [{"faculty_id": 200, "max_allowed_units": "100.00"}]
+        snapshot["time_slots"] = [
+            {
+                "time_slot_id": index + 1,
+                "time_block_key": f"D1-{minute // 60:02d}{minute % 60:02d}",
+                "day_of_week": 1,
+                "starts_at": f"{minute // 60:02d}:{minute % 60:02d}:00",
+                "ends_at": f"{(minute + 30) // 60:02d}:{(minute + 30) % 60:02d}:00",
+                "duration_minutes": 30,
+            }
+            for index, minute in enumerate(range(8 * 60, 13 * 60 + 1, 30))
+        ]
 
         result = solve_snapshot(snapshot, timeout_seconds=10)
 

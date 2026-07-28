@@ -15,6 +15,7 @@ Plain-language terms used in this module:
 - A **candidate schedule** is a proposal awaiting Laravel validation and authorized review. It is not an official schedule.
 - A **hard constraint** is mandatory. A **soft preference** ranks only schedules that already satisfy every hard constraint.
 - `feasible` means all hard constraints pass but the solver has not proved the proposal is the best-ranked possible result. `optimal` means it has also proved that no better objective value exists for the tested input.
+- `unknown` means the search stopped before proving feasibility, infeasibility, or optimality. It is not evidence that the input is impossible.
 
 Scheduling flow:
 
@@ -274,6 +275,13 @@ Each assignment must map back to TALA records:
 14. assignment_status
 
 #### 6.2.5 Solver Status Handling
+
+The solver searches in two equation-preserving stages within one total solver budget:
+
+1. The **feasibility stage** uses the approved hard constraints without the soft objective to find one complete valid assignment.
+2. When that stage succeeds, the **optimization stage** adds the unchanged approved soft-objective terms, uses the valid assignment as a search hint, and improves it during the remaining budget.
+3. If the optimization stage reaches its limit, TALA may retain the complete feasibility-stage assignment as `FEASIBLE` after independent Laravel validation. It must not relabel that assignment `OPTIMAL`.
+4. If no stage finds an incumbent and CP-SAT returns `UNKNOWN`, the response contains no candidate timetable and makes no infeasibility claim.
 
 When the solver returns `INFEASIBLE`, TALA presents a "Relaxation & Override" review path. The Registrar can fix source records, relax configured soft preferences, record approved policy overrides, rerun the solver, or create a Manual Schedule Override that passes fixed hard-constraint validation.
 

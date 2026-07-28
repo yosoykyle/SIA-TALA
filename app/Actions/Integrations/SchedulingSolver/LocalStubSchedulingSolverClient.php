@@ -32,6 +32,11 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             ->values()
             ->all();
         $objectiveScore = $conflictCount === 0 ? count($assignments) : null;
+        $resultSource = $conflictCount === 0 ? 'optimization' : 'none';
+        $searchStages = $this->searchStages(
+            feasibilityStatus: $conflictCount === 0 ? 'optimal' : 'infeasible',
+            optimizationStatus: $conflictCount === 0 ? 'optimal' : 'not_run',
+        );
 
         return [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
@@ -69,6 +74,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'wall_time_seconds' => 0.0,
                 'worker_count' => 1,
                 'random_seed' => 20260718,
+                'result_source' => $resultSource,
+                'search_stages' => $searchStages,
             ],
             'solver_version' => 'local-stub-tal94-demand-v2',
             'model_version' => 'tal94-demand-v2',
@@ -88,6 +95,32 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
         return [
             'status' => 200,
             'body' => 'local_stub',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     feasibility:array<string, int|float|string|null>,
+     *     optimization:array<string, int|float|string|null>
+     * }
+     */
+    private function searchStages(string $feasibilityStatus, string $optimizationStatus): array
+    {
+        $statistics = fn (string $status): array => [
+            'status' => $status,
+            'model_variable_count' => 0,
+            'model_constraint_count' => 0,
+            'no_overlap_constraint_count' => 0,
+            'boolean_variable_count' => null,
+            'branch_count' => null,
+            'conflict_count' => null,
+            'deterministic_time_seconds' => null,
+            'wall_time_seconds' => 0.0,
+        ];
+
+        return [
+            'feasibility' => $statistics($feasibilityStatus),
+            'optimization' => $statistics($optimizationStatus),
         ];
     }
 

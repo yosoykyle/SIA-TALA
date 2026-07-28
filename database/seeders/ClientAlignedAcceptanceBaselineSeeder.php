@@ -1053,6 +1053,12 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         return true;
     }
 
+    /**
+     * Verifies every synthetic student's structural fixture data.
+     *
+     * Login-password verification belongs to representativeAccountsAreComplete()
+     * so scenario inspection does not repeat an expensive hash check per student.
+     */
     private function studentCohortsAreComplete(): bool
     {
         $globalNumber = 1;
@@ -1080,7 +1086,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     || $user->status !== User::StatusActive
                     || $user->roles()->orderBy('name')->pluck('name')->all() !== ['student']
                     || ! $user->hasVerifiedEmail()
-                    || ! Hash::check('password', $user->password)
                     || ! StudentProfile::query()
                         ->whereBelongsTo($user)
                         ->whereBelongsTo($program)
@@ -1496,14 +1501,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     /** @return list<array{string, string, string}> */
     private function roomDefinitions(): array
     {
-        return [
-            ['LEC-101', 'Lecture Room 101', Room::TypeLectureRoom],
-            ['LEC-102', 'Lecture Room 102', Room::TypeLectureRoom],
-            ['LEC-103', 'Lecture Room 103', Room::TypeLectureRoom],
-            ['LAB-101', 'Applied Skills Laboratory', Room::TypeLaboratory],
-            ['COMP-101', 'Computer Laboratory', Room::TypeComputerLaboratory],
-            ['SPEC-101', 'Specialized Demonstration Room', Room::TypeSpecialRoom],
-        ];
+        return $this->scenarioCatalog->roomDefinitions($this->scenario);
     }
 
     /**

@@ -468,6 +468,34 @@ class GenerateSchedulingDemand
             $findings[] = $this->finding('invalid_fixed_start_time', 'blocking', 'section_delivery_group', $group->id, 'The fixed start time override must be a valid time value.');
         }
 
+        $fixedDay = $fixedInputs['fixed_day_of_week'];
+        $fixedStart = $this->minutesFromTime($fixedInputs['fixed_start_time']);
+        $schedulingDays = array_map('intval', $term->scheduling_days ?? []);
+        $dayStart = $this->minutesFromTime($this->timeString($term->scheduling_day_starts_at));
+        $dayEnd = $this->minutesFromTime($this->timeString($term->scheduling_day_ends_at));
+        $slotMinutes = (int) $term->scheduling_slot_minutes;
+
+        if ($fixedDay !== null
+            && $fixedDay >= 1
+            && $fixedDay <= 7
+            && ! in_array($fixedDay, $schedulingDays, true)) {
+            $findings[] = $this->finding('fixed_day_outside_scheduling_grid', 'blocking', 'term', $term->id, 'The fixed day override must belong to the term scheduling days.');
+        }
+
+        if ($fixedStart !== null
+            && $dayStart !== null
+            && ($fixedStart < $dayStart
+                || $slotMinutes < 1
+                || ($fixedStart - $dayStart) % $slotMinutes !== 0)) {
+            $findings[] = $this->finding('fixed_start_outside_scheduling_grid', 'blocking', 'term', $term->id, 'The fixed start override must align with a captured term scheduling slot.');
+        }
+
+        if ($fixedStart !== null
+            && $dayEnd !== null
+            && $fixedStart + $durationMinutes > $dayEnd) {
+            $findings[] = $this->finding('fixed_time_exceeds_scheduling_day', 'blocking', 'term', $term->id, 'The fixed assignment duration must finish within the term scheduling day.');
+        }
+
         $conflictingBlockId = $this->conflictingCalendarBlockId($fixedInputs, $blockingCalendarBlocks, $durationMinutes);
 
         if ($conflictingBlockId !== null) {

@@ -6,9 +6,9 @@
 
 **Technical baseline date:** 18 July 2026
 
-**Empirical revision date:** 18 July 2026 — Cloud Run profile selection, capacity evidence, deployment outcome, and cost basis; solver equations are unchanged
+**Empirical revision date:** 28 July 2026 — final corrected-MAX configuration screen, population operating-envelope disposition, and corrected request-based cost basis; solver equations are unchanged
 
-**Consistency revision date:** 19 July 2026 — shared-cohort terminology, benchmark-profile rationale, and role-specific timetable interpretation aligned with the promoted TAL-96B4 implementation; solver equations remain unchanged
+**Consistency revision date:** 28 July 2026 — shared-cohort terminology, benchmark-profile rationale, role-specific timetable interpretation, and reader-facing identifier conventions aligned with the verified implementation; solver equations remain unchanged
 
 ## Contents
 
@@ -61,15 +61,43 @@ Every displayed equation includes an **Interpretation** defining its symbols and
 | IAM | Identity and Access Management, the Cloud Run access control that keeps the solver private to its authorized service identity. |
 | HTTP | Hypertext Transfer Protocol, the request/response protocol used between Laravel and the private solver service. |
 
+### How to read technical identifiers
+
+Exact identifiers are retained so another researcher or operator can trace a claim to the precise interface, deployment, input, or experiment that produced it. They do not replace the plain-language description of that evidence.
+
+| Identifier type | Example | What it identifies |
+| --- | --- | --- |
+| Cloud Run service | `tala-scheduler-solver` | The continuing private cloud service that receives scheduling requests. A service can have many revisions over time. |
+| Cloud Run revision | `tala-scheduler-solver-b4f-ad9177e472f8` | One immutable deployed version of the service. The complete value is recorded for reproducibility; its suffix is not interpreted as an equation, workload, result, or resource profile. |
+| Revision tag | `d5d-final-cfg-02-mem-v2` | An optional readable routing label used to reach a particular zero-traffic research revision without sending production traffic to it. |
+| Container-image digest | `sha256:2291720…` | A content-derived identifier for the exact packaged solver image. A digest identifies software contents, whereas a revision also includes deployed configuration. |
+| Experimental configuration label | `TARGET-CFG-01` or `FINAL-CFG-02-MEM` | A project-defined shorthand for a disclosed CPU, memory, worker, concurrency, and timeout combination. It is not a Google Cloud product tier. |
+| Data-contract version | `tal94-demand-v2` | The agreed structure and meaning of the Laravel request and Python response. |
+| Optimization-profile version | `balanced_v1`, version `1` | The approved hard-rule catalog and soft-objective weights used with the data contract. |
+| Snapshot SHA-256 | A 64-character hexadecimal hash | A content fingerprint of one immutable scheduling input. Matching hashes mean the compared captured inputs are byte-for-byte equivalent under the stated canonicalization. |
+| Random seed | `20260718` | A reproducibility control for randomized search choices. It does not select a timetable in advance or guarantee identical multi-worker results. |
+| Run ratio | `3/3` | Three accepted requests out of three executed requests. It does not mean that CP-SAT performed only three internal search attempts. |
+| Solver outcome | `FEASIBLE` / interface value `feasible` | The uppercase word is the explanatory CP-SAT outcome name; the lowercase code value is what the JSON interface carries. Section 7 defines every outcome. |
+| Guarded test database | `test_tala_db` | The isolated MySQL database used for destructive acceptance setup and rollback. It is not the production database. |
+| Official-meeting table | `section_meetings` | The Laravel records that represent published meetings after validation and authorized review. Solver assignments are not official until this publication step. |
+
+Google Cloud documents that a service configuration change creates an immutable revision and that traffic can be directed to or withheld from individual revisions. Artifact Registry separately defines an image digest as the SHA-256 identifier of an image version. These distinctions are why this document reports the human-readable role, resource profile, revision, and image digest separately.
+
 ## 1. Technical summary
 
 TALA uses constraint programming to generate a **candidate** academic timetable. It does not allow the optimization service to create official meetings directly. Laravel remains the authoritative application: it validates source records, captures an immutable run snapshot, dispatches the computation, independently validates the returned result, stores candidate rows, requires authorized human review, revalidates mutable records, and only then publishes official `section_meetings`.
 
 The Python service uses Google OR-Tools CP-SAT to select one feasible candidate assignment for every ready Scheduling Demand. Each candidate combines a demand with a qualified faculty member, a suitable room or no-room option, a day, and a start time. Boolean variables represent whether those candidates are selected. Hard constraints make invalid combinations impossible; a fixed four-term objective ranks the remaining valid schedules.
 
+The implemented search first finds a timetable using only the hard constraints. It then supplies that complete timetable as a solution hint while optimizing the unchanged objective with the remaining time. This execution order changes neither the equations nor their meaning.
+
 ### 1.1 Data Contract and Optimization Profile
 
-Two independently versioned components govern the Laravel-to-Python integration. The `tal94-demand-v2` **data contract** specifies the structure and semantics of the immutable scheduling snapshot and solver response. It defines the required identifiers, Scheduling Demand fields, resource and calendar inputs, assignment fields, counters, warnings, infeasibility reasons, objective details, and model metadata exchanged by both services. Laravel writes the value to `contract_version`; the solver rejects an incompatible value; and Laravel verifies the returned `model_version` before accepting assignments. The contract version identifies the integration interface and does not represent the release version of the complete TALA application.
+Two independently versioned components govern the Laravel-to-Python integration.
+
+The `tal94-demand-v2` **data contract** specifies the structure and meaning of the immutable scheduling snapshot and solver response. It defines the required identifiers, Scheduling Demand fields, resource and calendar inputs, assignment fields, counters, warnings, infeasibility reasons, objective details, and model metadata exchanged by both services.
+
+Laravel writes this value to `contract_version`; the solver rejects an incompatible value; and Laravel verifies the returned `model_version` before accepting assignments. The contract version identifies the integration interface, not the release version of the complete TALA application.
 
 The `balanced_v1` **optimization profile** specifies the active rule configuration carried within that contract. It fixes the accepted hard-constraint identifiers and assigns a weight of one to each implemented soft objective. The solver rejects any change to the profile key, profile version, ordered hard-constraint list, or weight set. Profile version 1 therefore denotes the first approved optimization preset for this interface; it does not identify the solver or application release.
 
@@ -86,7 +114,9 @@ This section presents an abbreviated Laravel-to-solver exchange using a two-dema
 
 The fixture represents two separate one-hour classes. Demand `5001` is eligible for faculty record `200`, demand `5002` is eligible for faculty record `201`, and both require physical rooms. The hard-constraint list defines mandatory validity conditions, while the four weights rank timetables that already satisfy those conditions.
 
-The following abbreviated input illustrates how the data-contract version and optimization profile are transmitted with those Scheduling Demands. The complete immutable snapshot additionally contains term settings, time slots, faculty and room records, qualifications, availability, commitments, calendar blocks, source identifiers, and run metadata.
+The following abbreviated input illustrates how the data-contract version and optimization profile are transmitted with the Scheduling Demands. The complete immutable snapshot also contains term settings, time slots, faculty and room records, qualifications, recurring term-scoped calendar blocks, source identifiers, and run metadata.
+
+The Laravel snapshot does not maintain a second recurring-availability table. When no matching blocking calendar event exists, the applicable faculty, room, or cohort has no additional recurring restriction beyond the other disclosed rules.
 
 ```json
 {
@@ -199,7 +229,12 @@ The solver response repeats the model identity and provides its native status, c
     "best_objective_bound": 18900.0,
     "relative_optimality_gap": 0.0,
     "worker_count": 1,
-    "random_seed": 20260718
+    "random_seed": 20260718,
+    "result_source": "optimization",
+    "search_stages": {
+      "feasibility": {"status": "optimal"},
+      "optimization": {"status": "optimal"}
+    }
   }
 }
 ```
@@ -211,10 +246,16 @@ The solver response repeats the model identity and provides its native status, c
 | `assignments` | Gives the source delivery group, shared cohort, selected faculty, room, day, start, and end for each demand. | The two classes share cohort `110` and room `301` but use adjacent, non-overlapping times. |
 | `objective_details.total` | Gives the reconciled four-term ranking score. | The total is `18900`; it is a score, not an accuracy percentage. |
 | `solver_statistics` | Gives typed evidence about model size, search quality, runtime configuration, and reproducibility. | Six candidates became a 31-variable, 59-constraint model with zero relative gap. |
+| `result_source` | Identifies which search stage supplied the returned assignments. | `optimization` means the final rows came from the objective-bearing stage; `feasibility_fallback` would mean the hard-valid first-stage timetable was retained after an optimization limit. |
+| `search_stages` | Separately records the hard-feasibility and soft-optimization outcomes. | Both stages completed for this small fixture. |
 | `worker_count` | Number of CP-SAT search threads used inside this request. | This small default fixture uses one worker; current production profile B uses two workers. |
 | `random_seed` | Integer used to control randomized search choices. | The disclosed seed is `20260718`. |
 
-The returned model identity binds the result to the submitted contract. The profile identity and objective total provide an auditable connection between the selected assignments and the fixed ranking policy. The abbreviated statistics above show the categories returned by the implementation; the complete allowlist additionally records input counts, presolved Boolean variables, branches, conflicts, deterministic time, wall time, and other typed search evidence. Laravel rejects missing, malformed, or unknown statistics fields and never persists raw solver logs. It accepts the response only after validating these values and independently rechecking the assignment set. The complete representation is defined in Section 4, while Section 12 maps the formulation to its implementation and tests.
+The returned model identity binds the result to the submitted contract. The profile identity and objective total provide an auditable connection between the selected assignments and the fixed ranking policy.
+
+The abbreviated statistics above show the categories returned by the implementation. The complete allowlist additionally records input counts, presolved Boolean variables, branches, conflicts, deterministic time, wall time, and other typed search evidence.
+
+Laravel rejects missing, malformed, or unknown statistics fields and never persists raw solver logs. It accepts the response only after validating these values and independently rechecking the assignment set. Section 4 defines the complete representation, and Section 12 maps the formulation to its implementation and tests.
 
 ## 2. Scope and delimitations
 
@@ -227,7 +268,11 @@ The implemented baseline schedules regular section delivery groups by assigning 
 - one institutional day and start time; and
 - one uninterrupted block whose duration comes from the demand.
 
-It enforces exact assignment coverage, faculty/room/logical-cohort non-overlap, fixed assignments, recurring calendar restrictions, room capacity/type/features, faculty qualification/load, and configured same-faculty links. Course-specific delivery-group identifiers remain attached to assignments for traceability, while the shared logical-cohort identity prevents subjects attended by the same students from overlapping. It ranks valid solutions using earlier placement, faculty idle-gap reduction, faculty-load balance, and efficient use of already-suitable rooms.
+It enforces exact assignment coverage; faculty, room, and logical-cohort non-overlap; fixed assignments; recurring calendar restrictions; room capacity, type, and features; faculty qualification and load; and configured same-faculty links.
+
+Course-specific delivery-group identifiers remain attached to assignments for traceability. The shared logical-cohort identity prevents subjects attended by the same students from overlapping.
+
+It ranks valid solutions using earlier placement, faculty idle-gap reduction, faculty-load balance, and efficient use of already-suitable rooms.
 
 ### 2.2 Delimitations
 
@@ -252,7 +297,9 @@ The integration follows a controlled pipeline rather than a single “run solver
 3. **Authorized run creation.** The generation service authorizes the user, locks the term, prevents a competing active run, and creates a `schedule_runs` record in the `queued` state.
 4. **Immutable snapshot capture.** Within a database transaction, Laravel locks the run and captures the exact ready demands, source identifiers, recurring constraints, time grid, and `balanced_v1` profile. The snapshot and its hash preserve what the solver actually received even if live records later change.
 5. **After-commit queue dispatch.** Laravel dispatches the scheduling job only after the run transaction commits. The job uses the dedicated `scheduling` queue, a 360-second job timeout, at most three attempts, and bounded backoff.
-6. **CP-SAT computation.** The Python service validates the `tal94-demand-v2` contract and unchanged profile, constructs admissible candidates, creates Boolean selection variables and hard constraints, maximizes the fixed objective, and returns structured assignments and diagnostics.
+6. **CP-SAT computation.** The Python service validates the `tal94-demand-v2` contract and unchanged profile, constructs admissible candidates, creates the Boolean selection variables and every hard constraint, and first searches for one complete hard-valid timetable.
+   It then supplies that assignment as a complete solution hint, adds the unchanged fixed objective, and optimizes with the remaining search budget.
+   If optimization reaches its limit, the first-stage timetable remains available as `feasible`; if feasibility itself reaches its limit, the response contains no timetable and no infeasibility claim.
 7. **Independent result ingestion.** Laravel does not trust a returned “optimal” label by itself. In a locking transaction, it checks run/model identity, counters, solver status, objective arithmetic, assignment fields, exact coverage, and all implemented hard constraints. Invalid results block the run and do not replace previously preserved candidates.
 8. **Candidate review and correction.** A valid result becomes `under_review` and is stored in `candidate_schedule_rows`, not `section_meetings`. The Registrar can review the table, propose a correction, or perform an evidenced manual replacement. Laravel revalidates the whole candidate set before applying a change.
 9. **Live-record revalidation and impact check.** Before publication, Laravel rebuilds validation inputs from current mutable records. It also prevents unsafe whole-version replacement when active student bindings already depend on the published version.
@@ -266,7 +313,9 @@ This separation preserves a practical middle ground between automation and insti
 
 A Scheduling Demand represents one required course component for one term offering and one course-specific delivery group. Lecture and laboratory components can therefore become separate but linked demands when their duration, room, modality, or faculty requirements differ.
 
-The course-specific delivery-group identifier preserves the exact source record used for publication. A second field, `cohort_or_student_group_id`, identifies the logical attendance cohort across subjects. Laravel builds that mapping from the exact term, program, curriculum year level, and cohort code. For example, ten different first-year Business Management subjects may have ten delivery-group records, but all ten map to the single logical cohort `DTBM-1A`. This distinction preserves traceability without weakening the rule that the same students cannot attend overlapping classes.
+The course-specific delivery-group identifier preserves the exact source record used for publication. A second field, `cohort_or_student_group_id`, identifies the logical attendance cohort across subjects. Laravel builds that mapping from the exact term, program, curriculum year level, and cohort code.
+
+For example, ten different first-year Business Management subjects may have ten delivery-group records, but all ten map to the single logical cohort `DTBM-1A`. This distinction preserves traceability without weakening the rule that the same students cannot attend overlapping classes.
 
 The solver receives stable TALA identifiers rather than re-deriving institutional meaning. This allows Laravel to reconcile every returned row with its source demand and preserves auditability from input through publication.
 
@@ -284,17 +333,23 @@ This scaling avoids using floating-point variables in the optimization model. Th
 
 ### 4.3 Candidate-based formulation
 
-Laravel sends the immutable requirements; Python enumerates only combinations that satisfy deterministic single-candidate rules. This means room suitability, fixed values, faculty availability, recurring blocks, and the time grid narrow the candidate set before Boolean selection begins. CP-SAT then represents every candidate as a Boolean selection decision and a corresponding optional fixed-size interval. Resource/day `NoOverlap` constraints enforce faculty, room, and logical-cohort exclusivity over the selected intervals, while aggregate constraints enforce linked-component faculty and faculty load.
+Laravel sends the immutable requirements, and Python enumerates only combinations satisfying deterministic single-candidate rules. Room suitability, fixed values, recurring term-scoped calendar blocks, and the time grid therefore narrow the candidate set before Boolean selection begins.
+
+CP-SAT represents every remaining candidate as a Boolean selection decision and a corresponding optional fixed-size interval. Resource/day `NoOverlap` constraints enforce faculty, room, and logical-cohort exclusivity over selected intervals. Aggregate constraints enforce linked-component faculty and faculty load.
 
 ### 4.4 Illustrative formulation example
 
-Consider a cohort that must attend a one-hour IT101 lecture. Laravel represents that requirement as one Scheduling Demand. Two qualified faculty members, two suitable rooms, and four permitted start times produce sixteen possible candidate assignments. CP-SAT creates one Boolean decision variable for each candidate and selects exactly one. Candidates that overlap another meeting for the same faculty member, room, or logical cohort cannot be selected together. The four soft terms then rank the remaining valid timetables according to earlier placement, reduced faculty idle gaps, balanced faculty load, and efficient use of suitable rooms.
+Consider a cohort that must attend a one-hour IT101 lecture. Laravel represents that requirement as one Scheduling Demand. Two qualified faculty members, two suitable rooms, and four permitted start times produce sixteen possible candidate assignments.
+
+CP-SAT creates one Boolean decision variable for each candidate and selects exactly one. Candidates overlapping another meeting for the same faculty member, room, or logical cohort cannot be selected together. The four soft terms then rank the remaining valid timetables by earlier placement, reduced faculty idle gaps, balanced faculty load, and efficient use of suitable rooms.
 
 The symbols in Sections 5–6 describe this process compactly. For example, $d$ means a demand, $c$ means one candidate assignment for that demand, and $x_c=1$ means that candidate is selected. The complete two-demand numerical example appears in Section 10.
 
 ## 5. Mathematical formulation
 
-The presentation follows the reporting convention used by the scheduling references in Section 13: define the problem notation and decision variables first, state each hard and soft rule as an individually identified equation, and then explain its operational meaning. The equations below are derived from TALA's implemented candidate model. They are not copied from PyJobShop's job-shop formulation or Han and Wang's genetic-algorithm and dynamic-programming model, because those systems optimize different scheduling structures.
+The presentation follows the reporting convention used by the scheduling references in Section 13: define the notation and decision variables, state each hard and soft rule as an identified equation, and explain its operational meaning.
+
+The equations below are derived from TALA's implemented candidate model. They are not copied from PyJobShop's job-shop formulation or Han and Wang's genetic-algorithm and dynamic-programming model because those systems optimize different scheduling structures.
 
 ### Constraint taxonomy and implemented family index
 
@@ -314,7 +369,7 @@ The `balanced_v1` profile carries eight versioned hard-constraint family identif
 | F3 | `room_no_overlap` | H7 | `NoOverlap` over selected room/day intervals | Room-time conflict validation |
 | F4 | `section_delivery_group_no_overlap` | H8 | `NoOverlap` over selected shared-cohort/day intervals | Shared-cohort conflict validation while retaining course-specific delivery-group traceability |
 | F5 | `respect_fixed_assignments` | H3 | Candidate filtering against every supplied fixed value | Fixed faculty, room, day, and start-time comparison |
-| F6 | `respect_calendar_blocks` | H4 | Candidate filtering against captured recurring blocks and commitments | Calendar, availability, and existing-commitment overlap checks |
+| F6 | `respect_calendar_blocks` | H4 | Candidate filtering against captured recurring term-scoped calendar blocks | Matching institution, faculty, or room calendar-block overlap checks; no matching row means no extra restriction |
 | F7 | `respect_room_capacity_type_and_features` | H4, H5a-H5c | Candidate filtering through the room-suitability predicate | Physical-room requirement, capacity, type, and feature checks |
 | F8 | `respect_faculty_qualification_and_load` | H4, H9, H10a-H10d | Candidate filtering plus linked-faculty and aggregate-load constraints | Qualification, linked-component faculty, deduplicated load, and maximum-load checks |
 
@@ -355,7 +410,7 @@ For every demand $d$ and candidate $c$:
 - $A_r$ is room $r$'s feature-key set;
 - $u_d$ is the demand's faculty load multiplied by 100;
 - $M_f$ is faculty member $f$'s maximum allowed load multiplied by 100; and
-- $\mathcal{B}$ contains recurring calendar, availability, and existing-commitment blocks captured in the snapshot.
+- $\mathcal{B}$ contains the blocking intervals captured in the snapshot. In the current Laravel implementation these are recurring term-scoped `calendar_events`; no separate recurring availability or existing-commitment source is populated.
 
 Define the strict interval-overlap predicate
 
@@ -462,7 +517,7 @@ $$
 
 whenever the corresponding value is fixed. A conflicting fixed value therefore produces no admissible candidate rather than being treated as a soft preference.
 
-The same candidate-set rule excludes a candidate when its faculty member is not eligible, its time lies outside the faculty's captured availability, or its interval intersects a matching existing commitment or recurring calendar block:
+The same candidate-set rule excludes a candidate when its faculty member is not eligible or its interval intersects a matching recurring term-scoped calendar block. The solver contract retains defensive support for explicit availability and existing-commitment arrays, but the current Laravel snapshot emits no rows for those two legacy-compatible inputs:
 
 **H4 — Qualified, available, unblocked, grid-valid, and room-suitable candidate admissibility**
 
@@ -473,7 +528,14 @@ C_d = \{c : \operatorname{eligible}(c) \land
 \operatorname{roomSuitable}(c)\}.
 $$
 
-**Interpretation.** This set definition says $C_d$ contains only candidates that pass all single-candidate checks. `eligible` covers faculty qualification; `blocked` checks captured availability, commitments, and calendar blocks $\mathcal{B}$; `fitsGrid` checks time; and `roomSuitable` checks the room. Removing invalid choices here reduces model size and stops CP-SAT from ever selecting them.
+**Interpretation.** This set definition says $C_d$ contains only candidates passing every single-candidate check:
+
+- `eligible` covers faculty qualification;
+- `blocked` checks captured blocking intervals $\mathcal{B}$, currently recurring term-scoped calendar events;
+- `fitsGrid` requires the assignment to start on a captured slot and finish within the scheduling day; and
+- `roomSuitable` checks the room.
+
+Removing invalid choices here reduces model size and prevents CP-SAT from selecting them.
 
 ### 5.7 Room suitability, features, and capacity
 
@@ -837,18 +899,26 @@ and that the returned `objective_score` matches the reconciled total. A solver l
 
 ## 7. Solver outcomes and operational failures
 
-[OR-Tools defines five CP-SAT outcome categories](https://developers.google.com/optimization/cp/cp_solver), which the service maps to lowercase values:
+[OR-Tools defines five CP-SAT outcome categories](https://developers.google.com/optimization/cp/cp_solver). This document writes the explanatory outcome names in uppercase and shows the lowercase JSON interface values beside them.
 
-| Result word | What it means | Is there a candidate timetable? | What TALA does next |
+TALA's two-stage execution does not add a sixth solver status. The feasibility stage answers whether CP-SAT found or disproved a complete hard-valid timetable. Only after a hard-valid timetable exists does the optimization stage rank it using O1.
+
+If the second stage reaches its limit, TALA returns the valid first-stage timetable as `feasible`. If the first stage reaches its limit without finding a timetable, the result remains `unknown`. The response records both stage outcomes and the assignment source so a reader can distinguish “no timetable found” from “valid timetable found but optimization proof unfinished.”
+
+OR-Tools supports supplying solution hints to a model, and UniTime's documented course-solver workflow likewise distinguishes constructing an initial solution from improving it. TALA uses those established search-control capabilities while retaining its own equations, data contract, objective, validation, and publication rules.
+
+| CP-SAT outcome / interface value | What it means | Candidate timetable? | What TALA does next |
 | --- | --- | --- | --- |
-| `optimal` | CP-SAT found a timetable satisfying every hard rule and proved that no better objective value exists for the tested model and input. | Yes. | Laravel independently validates it before human review. |
-| `feasible` | CP-SAT found a timetable satisfying every hard rule, but search stopped before proving that it was the best-ranked possible timetable. | Yes. | Laravel independently validates it; the Registrar may review or reject it. |
-| `infeasible` | CP-SAT proved that no assignment can satisfy all hard rules for the exact tested input, or deterministic filtering left a demand with no allowed candidate. | No. | Staff inspect the source-oriented reason, correct inputs or use the controlled manual path, then rerun or revalidate. |
-| `model_invalid` | The request, model, or approved profile was malformed or unsupported. This is an input/contract problem, not a difficult timetable. | No. | TALA blocks ingestion and records the specific validation failure. |
-| `unknown` | Search ended without finding a valid timetable and without proving infeasibility. It commonly means the time limit ended before CP-SAT reached a conclusion. | No. | Treat it as inconclusive; do not call it infeasible. A separately approved run may use more time or resources. |
+| `OPTIMAL` / `optimal` | CP-SAT found a timetable satisfying every hard rule and proved that no better objective value exists for the tested model and input. | Yes. | Laravel independently validates it before human review. |
+| `FEASIBLE` / `feasible` | CP-SAT found a timetable satisfying every hard rule, but search stopped before proving that it was the best-ranked possible timetable. | Yes. | Laravel independently validates it; the Registrar may review or reject it. |
+| `INFEASIBLE` / `infeasible` | CP-SAT proved that no assignment can satisfy all hard rules for the exact tested input, or deterministic filtering left a demand with no allowed candidate. | No. | Staff inspect the source-oriented reason, correct inputs or use the controlled manual path, then rerun or revalidate. |
+| `MODEL_INVALID` / `model_invalid` | The request, model, or approved profile was malformed or unsupported. This is an input/contract problem, not a difficult timetable. | No. | TALA blocks ingestion and records the specific validation failure. |
+| `UNKNOWN` / `unknown` | Search ended without finding a valid timetable and without proving infeasibility. It commonly means the time limit ended before CP-SAT reached a conclusion. | No. | Treat it as inconclusive; do not call it infeasible. A separately approved run may use more time or resources. |
 | Operational failure | The request failed outside the mathematical search, for example authentication, network, queue, service, or out-of-memory failure. | Not reliably. | TALA records and classifies the failure; it does not infer a solver conclusion. |
 
-These outcomes differ from **operational failures**. Network errors, authentication failures, invalid HTTP payloads, service unavailability, queue timeouts, and container termination after exceeding a runtime memory limit occur outside the mathematical model. A terminated container may return no CP-SAT status at all and must not be interpreted as mathematical infeasibility. Laravel classifies transport and runtime failures, records operational evidence, retries only bounded retryable failures, and ultimately marks the run `failed` when processing cannot complete. A structurally or mathematically unacceptable returned result becomes `blocked` during ingestion. Only an independently valid usable result becomes `under_review`.
+These outcomes differ from **operational failures**. Network errors, authentication failures, invalid HTTP payloads, service unavailability, queue timeouts, and container termination after exceeding a runtime memory limit occur outside the mathematical model. A terminated container may return no CP-SAT status at all and must not be interpreted as mathematical infeasibility.
+
+Laravel classifies transport and runtime failures, records operational evidence, retries only bounded retryable failures, and ultimately marks the run `failed` when processing cannot complete. A structurally or mathematically unacceptable returned result becomes `blocked` during ingestion. Only an independently valid usable result becomes `under_review`.
 
 ## 8. Laravel validation and human authority
 
@@ -858,7 +928,9 @@ Laravel validates the institutional records before dispatch and captures only re
 
 ### 8.2 Queue and transaction boundary
 
-Run creation and snapshot capture use database transactions and row locks. Laravel's [database transaction](https://laravel.com/docs/12.x/database#database-transactions) behavior rolls back the enclosed database changes if an exception occurs. Dispatch uses [`afterCommit`](https://laravel.com/docs/12.x/queues#jobs-and-database-transactions), so the worker does not receive a run that the database has not committed. The job timeout is 360 seconds while the database queue's `retry_after` is 420 seconds, preserving Laravel's documented requirement that the [job timeout remain shorter than the retry visibility window](https://laravel.com/docs/12.x/queues#worker-timeouts).
+Run creation and snapshot capture use database transactions and row locks. Laravel's [database transaction](https://laravel.com/docs/12.x/database#database-transactions) behavior rolls back the enclosed database changes if an exception occurs.
+
+Dispatch uses [`afterCommit`](https://laravel.com/docs/12.x/queues#jobs-and-database-transactions), so the worker does not receive a run that the database has not committed. The job timeout is 360 seconds, while the database queue's `retry_after` is 420 seconds. This preserves Laravel's requirement that the [job timeout remain shorter than the retry visibility window](https://laravel.com/docs/12.x/queues#worker-timeouts).
 
 ### 8.3 Independent output validation
 
@@ -917,7 +989,16 @@ These are refinement boundaries, not evidence that the completed baseline failed
 
 The repository's deterministic `minimal_snapshot.json` contains two one-hour lecture demands:
 
-In this example, a **demand** is one required lecture. An **offering** is the record saying that a course is available in the selected term. A **delivery group** is the course-specific source record that connects one offering to its section, while a **logical cohort** identifies the students who attend subjects together. This reduced fixture uses delivery-group identifier `110` for both demands and maps it to logical cohort `110`; the identical numbers are a fixture simplification rather than a rule that delivery groups and cohorts must always be the same record. **Eligible faculty** identifies the qualified person the solver is allowed to assign. **Candidate starts** are the possible start times remaining after time-grid and other single-candidate checks. The numbers are stable internal identifiers, not headcounts or scores.
+In this example:
+
+- a **demand** is one required lecture;
+- an **offering** says that a course is available in the selected term;
+- a **delivery group** connects one course-specific offering to its section;
+- a **logical cohort** identifies students who attend subjects together;
+- **eligible faculty** identifies a qualified person the solver may assign; and
+- **candidate starts** are the start times remaining after time-grid and other single-candidate checks.
+
+The reduced fixture uses delivery-group identifier `110` for both demands and maps it to logical cohort `110`. Those identical numbers are a fixture simplification, not a rule that delivery groups and cohorts must always be the same record. The numbers are stable identifiers, not headcounts or scores.
 
 | Required meeting (demand) | Course-in-term record (offering) | Delivery group / logical cohort | Faculty allowed to teach | Suitable room | Possible start times |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -1006,9 +1087,13 @@ The representative baseline is structurally complete scheduling input stored thr
 | Solver candidate output | One assignment per demand containing the subject and section identifiers, selected eligible faculty, weekday, start and end time, and room when required | Forms a complete proposed timetable. Laravel rejects missing, duplicate, overlapping, or otherwise invalid assignments. |
 | Published application output | Validated candidate assignments copied into official meeting records after authorized review | Produces the normal user-facing timetable by subject and section, with faculty, day, time, and room information. |
 
-For example, the first-year Business Management cohort `DTBM-1A` contains 10 students and 10 curriculum-derived course requirements. Each requirement becomes a term offering, a course-specific section, a course-specific delivery group with expected count 10, and a Scheduling Demand. Those ten delivery groups share the logical cohort identity for `DTBM-1A`. For BME05 (Retail Management), the seed supplies the course, cohort, duration, modality, eligible faculty qualification, room type, expected count, and permissible time grid. CP-SAT supplies the selected faculty, room, weekday, and start and end times. The same process applies to the other subjects, producing a conventional timetable rather than an aggregate workload count.
+For example, first-year Business Management cohort `DTBM-1A` contains 10 students and 10 curriculum-derived course requirements. Each requirement becomes a term offering, course-specific section, course-specific delivery group with expected count 10, and Scheduling Demand. Those ten delivery groups share the logical cohort identity `DTBM-1A`.
 
-The fixture assigns one active synthetic faculty qualification per distinct subject and uses a common weekly scheduling grid. It therefore exercises complete assignment generation, faculty and room non-overlap, room suitability, cross-course logical-cohort conflicts, and faculty-load validation, but it does not reproduce the client's actual faculty roster, individual availability, room inventory, or alternative qualified-faculty pools. The benchmark establishes end-to-end capability for the disclosed client-shaped input; it does not represent every possible institutional constraint pattern.
+For BME05 (Retail Management), the seed supplies the course, cohort, duration, modality, eligible faculty qualification, room type, expected count, and permissible time grid. CP-SAT supplies the selected faculty, room, weekday, and start and end times. The same process applies to other subjects, producing a conventional timetable rather than an aggregate workload count.
+
+The fixture assigns one active synthetic faculty qualification per distinct subject and uses a common weekly scheduling grid. It exercises complete assignment generation, faculty and room non-overlap, room suitability, cross-course logical-cohort conflicts, and faculty-load validation.
+
+It does not reproduce the client's actual faculty roster, individual availability, room inventory, or alternative qualified-faculty pools. The benchmark establishes end-to-end capability for the disclosed client-shaped input, not every possible institutional constraint pattern.
 
 Faculty headcount evidence is reconciled before any timetable claim. Let \(U\) be the sum of teaching units in a scenario and let \(M=21\) be the configured maximum units for one faculty member. The arithmetic lower bound is
 
@@ -1022,11 +1107,17 @@ This equation answers only how many faculty would be required if load could be d
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | MIN | 162 | 8 | 9 | 9 | 19 | The current reported roster size passes the bounded load-and-qualification construction. |
 | MIDDLE | 240 | 12 | Not reported for this synthetic tier | 14 | 18 | Fourteen provide operating headroom; twelve is not presented as a proven minimum. |
-| MAX | 532 | 26 | 14 | 26 | Fourteen can carry only \(14\times21=294\) units, so the constructed MAX workload uses a separate sufficient synthetic roster. |
+| MAX | 532 | 26 | 14 | 26 | 21 | Fourteen can carry only \(14\times21=294\) units, so the constructed MAX workload uses a separate sufficient synthetic roster. |
 
-“Generated scheduling faculty” means synthetic records created only for the acceptance scenario. It does not change the reported client headcount. “Maximum constructed load” is the largest faculty load in the deterministic assignment. The manifest field `unassignable_workloads` lists any constructed workload that cannot be assigned to a qualified synthetic faculty record without exceeding the 21-unit ceiling; an empty list means none failed this bounded check. No faculty-specific unavailability rows are present, so the calculation assumes each synthetic faculty record may use the full Monday-to-Saturday operating grid. A bounded result of `PASS` proves only readiness under that disclosed load, qualification, and availability assumption; it is not a CP-SAT feasibility, optimality, or solution-quality result. The 26-faculty MAX roster is sufficient for this construction but is not claimed as a universal or mathematically proven minimum. Real availability restrictions may require a larger roster.
+“Generated scheduling faculty” means synthetic records created only for the acceptance scenario. It does not change the reported client headcount. “Maximum constructed load” is the largest faculty load in the deterministic assignment.
 
-The client population evidence also contains labels that belong to different concepts. `Freshman` describes a year level, whereas `Regular` is an academic-standing value; TALA's synthetic personas use the system's actual standing model instead of converting that mixed table directly. Likewise, client modality headcounts describe students, while the implemented scheduler stores modality per subject offering. The fixture therefore uses `ONLINE` and `FACE_TO_FACE` offerings and does not create per-student modality records.
+The manifest field `unassignable_workloads` lists any workload that cannot be assigned to a qualified synthetic faculty record without exceeding the 21-unit ceiling. An empty list means none failed this bounded check. Because the fixture contains no faculty-specific unavailability rows, the calculation assumes every synthetic faculty record may use the full Monday-to-Saturday operating grid.
+
+A bounded result of `PASS` proves readiness only under the disclosed load, qualification, and availability assumptions. It is not a CP-SAT feasibility, optimality, or solution-quality result. The 26-faculty MAX roster is sufficient for this construction but is not claimed as a universal or mathematically proven minimum. Real availability restrictions may require a larger roster.
+
+The client population evidence contains labels belonging to different concepts. `Freshman` describes a year level, whereas `Regular` is an academic-standing value. TALA's synthetic personas use the system's actual standing model instead of converting that mixed table directly.
+
+Likewise, client modality headcounts describe students, while the implemented scheduler stores modality per subject offering. The fixture therefore uses `ONLINE` and `FACE_TO_FACE` offerings and does not create per-student modality records.
 
 The corrected post-promotion acceptance published 54 official meetings inside a rolled-back transaction. The following cohort totals prove that all six logical cohorts received every required subject.
 
@@ -1040,7 +1131,9 @@ The corrected post-promotion acceptance published 54 official meetings inside a 
 | `DTHM-2A` | Tourism and Hospitality Management, second year | 9 |
 | **Total** | **Six logical cohorts** | **54** |
 
-The next three tables show one complete first-year timetable produced by the promoted solver revision. They are research-paper renderings of validated official meeting records, not screenshots of one universal application table. The three first-year cohorts are shown in full so the reader can inspect the resulting day, time, faculty, room, and modality pattern; the three second-year cohorts were also validated and are summarized by count above. “Not required” means the online meeting does not consume a physical room. Every row is one official meeting after Laravel validation; no two rows within the same cohort overlap.
+The next three tables show one complete first-year timetable produced by the production-baseline deployment. They are research-paper renderings of validated official meeting records, not screenshots of one universal application table.
+
+The three first-year cohorts are shown in full so the reader can inspect the day, time, faculty, room, and modality pattern. The three second-year cohorts were also validated and are summarized by count above. “Not required” means an online meeting consumes no physical room. Every row is one official meeting after Laravel validation, and no two rows within the same cohort overlap.
 
 **Business Management — `DTBM-1A`**
 
@@ -1085,17 +1178,34 @@ The next three tables show one complete first-year timetable produced by the pro
 | HSKPNCII — Housekeeping NC II | Laboratory | Faculty 10 | Wednesday | 07:00–11:00 | LAB-101 | Face-to-Face |
 | HPC07 — Front Office Services NC II | Laboratory | Faculty 12 | Saturday | 16:00–20:00 | LAB-101 | Face-to-Face |
 
-The Registrar projection contained all 54 published meetings because the Registrar reviews the institutional master schedule. Each Faculty projection contained only the meetings assigned to that authenticated faculty account; the 12 Faculty projections in this historical pre-reconciliation acceptance run collectively contained the same 54 assignments. Each Student projection contained only active official meetings bound to that authenticated student's enrollments. Representative Student projections therefore contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`, rather than all 54 meetings or the other cohorts' tables. These cross-role counts verify that the candidate was not only mathematically valid but also consumable by the existing role-specific application views. The later faculty-evidence correction changes the rerunnable MIN input fixture to nine faculty; it does not rewrite this already recorded 12-faculty Cloud-run result, and no replacement solver result is claimed in this reconciliation.
+The Registrar projection contained all 54 published meetings because the Registrar reviews the institutional master schedule. Each Faculty projection contained only meetings assigned to that authenticated faculty account. The 12 Faculty projections in this historical pre-reconciliation run collectively contained the same 54 assignments.
 
-Delivery modality is an academic property of the applicable term offering or delivery group in the current TALA contract; it is not an individual student's solver preference. The Student schedule consequently shows the student's complete set of bound meetings and labels each row's modality. An online meeting still displays its subject, faculty, day, and time but does not consume a physical room. A face-to-face meeting displays its assigned room. A student whose bound offerings are all online naturally sees an all-online schedule, but the current system does not let one student convert an otherwise mixed cohort schedule into a personal online-only timetable.
+Each Student projection contained only active official meetings bound to that student's enrollments. Representative Student projections therefore contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`, rather than all 54 meetings or the other cohorts' tables. These cross-role counts show that the candidate was both mathematically valid and consumable by the role-specific application views.
+
+The later faculty-evidence correction changes the rerunnable MIN fixture to nine faculty. It does not rewrite this recorded 12-faculty Cloud result, and this reconciliation claims no replacement solver result.
+
+Delivery modality is an academic property of the applicable term offering or delivery group. It is not an individual student's solver preference. The Student schedule therefore shows the student's complete set of bound meetings and labels each row's modality.
+
+An online meeting still displays its subject, faculty, day, and time but consumes no physical room. A face-to-face meeting displays its assigned room. A student whose bound offerings are all online naturally sees an all-online schedule, but one student cannot convert an otherwise mixed cohort schedule into a personal online-only timetable.
 
 The historical replacement solve used 156 half-hour grid units: Monday through Saturday, 07:00–20:00, gives \(6\times13\times2=156\). The current acceptance fixtures extend the configured day to 21:00, giving \(6\times14\times2=168\) half-hour grid units. This reconciliation does not rerun or relabel the historical Cloud result. “Slot” describes the time grid, not a room, class, or independently split meeting.
 
 #### Benchmark design and instance composition
 
-Scheduling research commonly identifies every test instance by the number and type of entities it contains. The International Timetabling Competition 2019 publishes course, class, room, student, and constraint counts for each instance and accepts only schedules satisfying every hard constraint. PyJobShop reports the minimum, average, and maximum task and resource counts across its benchmark collections, then compares objective quality, optimality gap, and runtime under fixed computational controls. Han and Wang's university-course-scheduling experiment lists the combined courses, independent courses, teachers, and total courses for each small and large instance, repeats each instance ten times, and reports fitness and resource-utilization results. TALA follows that reporting pattern for its own implemented model; it does not copy those studies' datasets or compare their algorithms with CP-SAT.
+Scheduling research commonly identifies every test instance by the number and type of entities it contains. The International Timetabling Competition 2019 publishes course, class, room, student, and constraint counts for each instance and accepts only schedules satisfying every hard constraint.
 
-TALA derives its tiers from the accepted client-aligned workload instead of treating an external institution's population as equivalent. The **reduced technical** tier verifies deterministic smaller-model construction and is not a minimum institution size. The **client-representative** tier is the unscaled baseline. **Proportional 2×** and **proportional 4×** create two and four identifier-remapped copies of the baseline demand and resource structure. **Contention 2×** doubles the demand structure while retaining the baseline faculty and rooms to isolate resource pressure. All tiers retain the same weekly time grid.
+PyJobShop reports minimum, average, and maximum task and resource counts across benchmark collections, then compares objective quality, optimality gap, and runtime under fixed controls. Han and Wang list the courses and teachers in each small and large instance, repeat each instance ten times, and report fitness and resource utilization.
+
+TALA follows that reporting pattern for its implemented model. It does not copy those datasets or compare their algorithms with CP-SAT.
+
+TALA derives its tiers from the client-aligned workload instead of treating an external institution's population as equivalent:
+
+- **Reduced technical** verifies deterministic smaller-model construction; it is not a minimum institution size.
+- **Client-representative** is the unscaled baseline.
+- **Proportional 2×** and **Proportional 4×** create two and four identifier-remapped copies of the baseline demand and resource structure.
+- **Contention 2×** doubles the demand structure while retaining baseline faculty and rooms to isolate resource pressure.
+
+All tiers retain the same weekly time grid.
 
 | Tier | Subjects | Offerings | Course-specific delivery groups | Logical cohorts | Demands | Faculty | Rooms | Experimental purpose |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -1105,7 +1215,9 @@ TALA derives its tiers from the accepted client-aligned workload instead of trea
 | Contention 2× | 80 | 108 | 108 | 12 | 108 | 12 | 6 | Diagnose demand growth without proportional faculty and room growth. |
 | Proportional 4× | 160 | 216 | 216 | 24 | 216 | 48 | 24 | Explore an upper computational boundary; no supported maximum is claimed. |
 
-The client has six logical attendance cohorts, while the baseline contains 54 course-specific sections and delivery groups because each cohort-course requirement receives its own offering, section, delivery-group record, and demand. Forty distinct subjects produce 54 offerings because some subjects occur in more than one cohort. The proportional tier labels describe copied scheduling structures, not doubled or quadrupled student populations. The 12-faculty value in this historical benchmark table is intentionally retained; it is not the current nine-faculty MIN fixture or a claim about the reported roster after reconciliation.
+The client has six logical attendance cohorts. The baseline contains 54 course-specific sections and delivery groups because each cohort-course requirement receives its own offering, section, delivery-group record, and demand. Forty distinct subjects produce 54 offerings because some subjects occur in more than one cohort.
+
+The proportional labels describe copied scheduling structures, not doubled or quadrupled student populations. The 12-faculty value in this historical table is intentionally retained. It is not the current nine-faculty MIN fixture or a claim about the reconciled roster.
 
 CP-SAT expands those business inputs into a larger mathematical model. A **candidate assignment** is one permitted demand/faculty/room/time combination. **Model variables** include the candidate-selection variables and auxiliary variables used to express the constraints and objective; therefore, variable count is much larger than demand count.
 
@@ -1123,13 +1235,19 @@ The benchmark establishes neither a universal minimum nor a maximum institution 
 
 The experiment did not preserve temporary database rows or published schedules. They were created only in the guarded `test_tala_db` environment and were rolled back or removed after evidence capture. This prevents synthetic benchmark data from polluting operational records.
 
-The reproducibility mechanism was **not** deleted. The versioned project retains the deterministic client-aligned baseline definitions, the snapshot-capture logic, the tier-construction factory, the benchmark runner, and automated tests for the disclosed counts and transformations. A future authorized rerun can recreate the test baseline, capture the same logical 54-demand snapshot, generate the selected tiers in memory, submit sequential requests to a pinned solver image and profile, save a sanitized report, and then roll back the database again. Exact result distributions must be measured again if the solver image, resource profile, search limit, constraints, or institutional inputs change.
+The reproducibility mechanism was **not** deleted. The versioned project retains deterministic baseline definitions, snapshot capture, tier construction, the benchmark runner, and automated checks for the disclosed counts and transformations.
+
+A future authorized rerun can recreate the test baseline, capture the logical 54-demand snapshot, generate selected tiers in memory, submit sequential requests to a pinned image and profile, save a sanitized report, and roll back the test database. Exact result distributions must be measured again whenever the solver image, resource profile, search limit, constraints, or institutional inputs change.
 
 ### 11.2 Experimental controls and measures
 
-All Cloud Run profiles used the same immutable solver image, OR-Tools 9.15.6755, `tal94-demand-v2`, `balanced_v1`, random seed `20260718`, concurrency one, minimum instances zero, maximum instances three, and a 300-second HTTP timeout. The representative tier was executed ten times on each profile. Larger tiers used bounded 30-, 120-, and 240-second solver windows. Python verification ran in Cloud Build; Laravel performed environment guards, snapshot capture, authenticated dispatch, typed-response validation, independent assignment validation, publication, and rollback checks.
+All historical Cloud Run profile comparisons used the same immutable solver image, OR-Tools 9.15.6755, `tal94-demand-v2`, `balanced_v1`, random seed `20260718`, concurrency one, minimum instances zero, maximum instances three, and a 300-second HTTP timeout. Holding those controls constant made CPU, memory, worker count, and search-window differences interpretable.
 
-The **random seed** is an integer that initializes CP-SAT's randomized search choices; `20260718` is a reproducibility control derived from the experiment date, 18 July 2026. Using the same seed and configuration reduces uncontrolled variation but does not guarantee identical time-bounded multi-worker results. A **worker** is one CP-SAT search thread inside a request. **Concurrency one** means one HTTP request at a time per Cloud Run instance. **vCPU** is allocated virtual processor capacity, **GiB** is gibibytes of memory, and the **solver window** is the time allowed for CP-SAT search inside the longer 300-second HTTP request limit.
+The representative tier was executed ten times on each profile. Larger tiers used bounded 30-, 120-, and 240-second solver windows. Python verification ran in Cloud Build. Laravel enforced the environment guard, captured the snapshot, authenticated the request, validated the typed response and assignments independently, exercised publication, and rolled back test records.
+
+The **random seed** is an integer that initializes CP-SAT's randomized search choices. The value `20260718` is a reproducibility control derived from the experiment date, 18 July 2026. Using the same seed and configuration reduces uncontrolled variation but does not guarantee identical time-bounded multi-worker results.
+
+A **worker** is one CP-SAT search thread inside a request. **Concurrency one** means one HTTP request at a time per Cloud Run instance. **vCPU** is allocated virtual processor capacity, **GiB** is gibibytes of memory, and the **solver window** is the time allowed for CP-SAT search inside the longer HTTP request limit.
 
 | Profile | vCPU | Memory | Workers | Experimental role |
 | --- | ---: | ---: | ---: | --- |
@@ -1137,9 +1255,17 @@ The **random seed** is an integer that initializes CP-SAT's randomized search ch
 | B | 2 | 4 GiB | 2 | Client-production selection candidate and 2× comparison |
 | C | 4 | 8 GiB | 4 | Upper research profile for 2× and 4× boundaries |
 
-The profile letters are labels for this experiment, not Cloud Run product tiers. The earlier TAL-96B2 candidate used 1 vCPU, 1 GiB, one CP-SAT worker, and concurrency one. It was rejected as a production baseline after the representative acceptance path terminated the instance at approximately 1,045 MiB and again at 1,154 MiB. Profile A therefore retained one vCPU and one worker while doubling memory to 2 GiB, making it the smallest post-failure client-scale comparison. Profile B doubled A to 2 vCPU, 4 GiB, and two workers. Profile C doubled B to 4 vCPU, 8 GiB, and four workers. Keeping concurrency at one isolated one memory- and CPU-intensive solve per instance, while the ordered doubling ladder provided a simple comparison of progressively larger resources using the same solver image, workload, seed, and search window.
+The profile letters are experiment labels, not Cloud Run product tiers. An earlier one-vCPU, one-GiB pilot was rejected after the representative acceptance path terminated the instance at approximately 1,045 MiB and again at 1,154 MiB.
 
-Profiles D, E, and F were not omitted measurements. The bounded experiment required only three resource points to identify an unreliable lower profile, compare two fully accepted client-scale profiles, and examine a larger-workload boundary. After Profile B satisfied the client workload and Profile C supplied the upper research comparison, another profile would have addressed a different question: how much additional resource and cost should be approved for workloads beyond the tested production requirement. The proportional 4× attempts already showed an 8-GiB memory boundary on Profile C. Testing larger combinations therefore belongs to a future model-optimization or expansion-capacity study and is not necessary to justify the current Profile B production selection.
+Profile A retained one vCPU and one worker but doubled memory to 2 GiB, making it the smallest post-failure client-scale comparison. Profile B doubled A to 2 vCPU, 4 GiB, and two workers. Profile C doubled B to 4 vCPU, 8 GiB, and four workers.
+
+Keeping concurrency at one meant each instance processed only one CPU- and memory-intensive solve at a time. The ordered doubling ladder compared progressively larger resources using the same image, workload, seed, and search window.
+
+Profiles D, E, and F are not missing measurements. The bounded experiment needed three resource points to identify an unreliable lower profile, compare two fully accepted client-scale profiles, and examine a larger-workload boundary.
+
+After Profile B satisfied the client workload and Profile C supplied the upper comparison, a fourth profile would have answered a different question: how much additional resource and cost should be approved beyond the tested production requirement?
+
+The proportional 4× attempts had already exposed an 8-GiB memory boundary on Profile C. Larger combinations were therefore deferred to the later operating-envelope study in Section 11.6 instead of being added to the production-profile selection experiment.
 
 For incumbent objective $Z_i$, CP-SAT bound $B_i$, and same-tier best observed objective $Z^*$,
 
@@ -1173,11 +1299,24 @@ Accuracy normally measures how often a predictive model's outputs match known co
 
 Consequently, the evaluation reports the measures in the table rather than a single predictive-accuracy score.
 
-For the result tables, **accepted runs** count requests meeting all those conditions; **objective range** reports the smallest and largest ranking score; **median** is the middle observation after sorting; **p95** is the 95th-percentile tail indicator; and **p99** is the 99th-percentile monitoring indicator. **CPU** and **memory utilization** are the used shares of allocated resources. **Headroom** is the unused share available for variation. **Model scale** reports generated candidates, solver variables, and constraints. A dash means the measure does not apply or no accepted incumbent existed.
+The result tables use these terms:
+
+- **Accepted runs:** requests meeting every acceptance condition.
+- **Objective range:** smallest and largest ranking score.
+- **Median:** middle observation after sorting.
+- **p95:** 95th-percentile tail indicator.
+- **p99:** 99th-percentile monitoring indicator.
+- **CPU and memory utilization:** used shares of allocated resources.
+- **Headroom:** unused share available for variation.
+- **Model scale:** generated candidates, solver variables, and constraints.
+
+A dash means the measure does not apply or no accepted incumbent existed.
 
 ### 11.3 Stage 1: client-production profile selection
 
-Profiles B and C accepted all ten client-representative comparison runs. Profile A accepted four; six requests reached a compute boundary without returning an incumbent. Every accepted run assigned 54 of 54 demands and passed zero solver and Laravel hard violations.
+**Purpose.** This stage selects the smallest reliable resource profile for the historical 54-demand client-representative workload. It compares resource configurations, not different equations.
+
+**Observed result.** Profiles B and C accepted all ten comparison requests. Profile A accepted four; six requests reached a compute boundary without returning an incumbent. Every accepted request assigned 54 of 54 demands and passed both the solver and independent Laravel hard-constraint checks.
 
 | Measure | Profile A | Profile B | Profile C |
 | --- | ---: | ---: | ---: |
@@ -1188,7 +1327,7 @@ Profiles B and C accepted all ten client-representative comparison runs. Profile
 | Median runtime | 31.182 s | **31.152 s** | 31.439 s |
 | p95 runtime | 31.471 s | **31.380 s** | 31.849 s |
 
-Profile B was selected through five ordered gates:
+**Selection rationale.** Profile B was selected through five ordered gates:
 
 1. **Validity:** a profile first had to assign 54/54 demands with zero hard violations in every repetition. Profile A failed this gate in six of ten requests.
 2. **Solution quality:** B and C both passed validity. C had a slightly lower median gap, while B had the stronger p95 gap; the complete distribution therefore did not justify C solely on median quality.
@@ -1198,11 +1337,11 @@ Profile B was selected through five ordered gates:
 
 ### 11.4 Stages 2 and 3: proportional growth and stress-boundary evidence
 
-Stages 2 and 3 evaluate proportional growth and resource pressure after profile B's client-scale selection; they do not repeat the production-profile comparison.
+**Purpose.** These stages evaluate proportional model growth and resource pressure after Profile B's client-scale selection. They do not repeat the production-profile comparison or represent literal student-population multiplication.
 
 At the 30-second window, profiles B and C returned `unknown` without an incumbent for proportional 2×, with complete model telemetry and no infrastructure failure. The next approved window therefore increased search time rather than changing the mathematical model.
 
-Solver-status definitions follow Section 7. Capacity evidence accepts only `optimal` or `feasible` results that also pass Laravel validation. `Unknown` is inconclusive, diagnostic `infeasible` applies only to the exact stress input, OOM/HTTP 503 is an infrastructure failure, and an untested profile-tier combination supports no conclusion.
+**Acceptance rule.** Solver-status definitions follow Section 7. Capacity evidence accepts only interface value `optimal` or `feasible` when the complete assignment also passes Laravel validation. `UNKNOWN` is inconclusive. A diagnostic `INFEASIBLE` result applies only to the exact stress input. OOM/HTTP 503 is an infrastructure failure, and an untested profile-tier combination supports no conclusion.
 
 The staged execution matrix records both tested and untested profile-tier combinations:
 
@@ -1216,7 +1355,9 @@ The staged execution matrix records both tested and untested profile-tier combin
 | Proportional 4×, 120-second screen | Not tested | Not tested | One `unknown` screening run |
 | Proportional 4×, 240-second confirmation | Not tested | Not tested | Three attempts: all three OOM/503 |
 
-`3/3` denotes three successful requests, not three internal solver trials. The reduced tier supports harness verification but no Cloud-capacity claim. Profile A was not advanced after it failed six client-scale repetitions. Profiles B and C were compared at proportional 2×, while proportional 4× was tested only on profile C to locate an upper resource boundary. The single contention result is diagnostic rather than repeatable-capacity evidence. The benchmark is therefore bounded rather than a full-factorial comparison, and every untested cell remains outside the stated conclusions.
+**How to read the matrix.** `3/3` denotes three accepted requests, not three internal solver trials. The reduced tier supports harness verification but no Cloud-capacity claim. Profile A was not advanced after it failed six client-scale repetitions.
+
+Profiles B and C were compared at proportional 2×. Proportional 4× was tested only on Profile C to locate an upper resource boundary. The single contention result is diagnostic rather than repeatable-capacity evidence. The benchmark is therefore bounded rather than a full-factorial comparison, and every untested cell remains outside the stated conclusions.
 
 | Tier and profile | Accepted | Result | Gap range | Runtime | Model scale |
 | --- | ---: | --- | ---: | ---: | --- |
@@ -1226,48 +1367,177 @@ The staged execution matrix records both tested and untested profile-tier combin
 | Proportional 4×, C, 120 s | 0/1 | `unknown`; compute boundary | — | 146.428 s | 131,424 candidates; 396,816 variables; 792,192 constraints |
 | Proportional 4×, C, 240 s | 0/3 | three OOM/503 infrastructure failures | — | instances terminated after 170–225 s | same 4× model scale |
 
-Proportional 2× on Profile C is the largest **repeatably accepted** tier: every approved Profile C repeat returned a validated 108-demand candidate with complete evidence under the stated controls. Profile B accepted two of three but one request exceeded 4 GiB. Proportional 4× is the largest attempted tier and an **observed boundary**: all three 240-second attempts consumed approximately the full 8 GiB allocation, terminated the instance, and produced HTTP 503. The contention result applies only to its disclosed synthetic transformation and does not imply that every real 108-demand workload is infeasible.
+**Interpretation.** Proportional 2× on Profile C is the largest **repeatably accepted** tier: every approved Profile C repeat returned a validated 108-demand candidate under the stated controls. Profile B accepted two of three; one request exceeded 4 GiB.
+
+Proportional 4× is the largest attempted tier and an **observed boundary**. All three 240-second attempts consumed approximately the full 8-GiB allocation, terminated the instance, and produced HTTP 503. The contention result applies only to its disclosed synthetic transformation and does not imply that every real 108-demand workload is infeasible.
 
 ### 11.5 Production acceptance, cost, and applicability
 
-Profile B revision `tala-scheduler-solver-b4f-ad9177e472f8` was promoted to 100% canonical traffic with private IAM and concurrency one. Two post-promotion authenticated solves each assigned 54 of 54 demands with zero hard violations. Laravel independently validated the responses, ingested 54 candidate rows, exercised Registrar publication of 54 official meetings, and rendered the Registrar, Faculty, and representative Student schedules inside a rolled-back database transaction. No schedule run, candidate row, official meeting, queued job, or failed job survived, and the scheduling queue was resumed.
+**Deployment identity.** The selected Profile B configuration was deployed as one immutable Cloud Run revision. Its exact revision name is retained so the evidence can be traced to the deployed version that processed the requests.
 
-Using observed elapsed time as a billable-time proxy and the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests, the corrected retained experiment's 59 requests are estimated at US$0.196810 before free-tier credits. This is a bounded experiment estimate rather than a monthly forecast or invoice; it excludes billing-rounding differences, networking, registry and build charges, taxes, discounts, invalid deployment attempts, and unrelated project usage.
+| Reader-facing name | Exact technical identifier | Meaning |
+| --- | --- | --- |
+| Production-baseline scheduler deployment | Cloud Run revision `tala-scheduler-solver-b4f-ad9177e472f8` | The immutable deployed service version that received the post-promotion requests. |
+| Production resource profile | Profile B: 2 vCPU, 4 GiB, 2 CP-SAT workers, concurrency 1 | The compute and search configuration used by that revision. |
+| Canonical production traffic | 100% | All ordinary service traffic was directed to that production revision; private research revisions remained outside canonical traffic. |
 
-The empirical findings do not alter any equation in Sections 5 and 6. They establish that the corrected shared-cohort formulation and Laravel validation pipeline are operationally accepted at the disclosed client scale; identify Profile B as the production baseline; establish proportional 2× on Profile C at 120 seconds as repeatable larger-workload evidence; and disclose proportional 4× at 8 GiB as an observed limit requiring future model optimization or a separately approved resource study before any operational promise.
+The revision name identifies the deployment. Profile B identifies its disclosed resources. The accepted results and Laravel validation establish whether its returned schedules were usable. None of those meanings should be inferred from the revision suffix alone.
+
+**Observed result.** Two post-promotion authenticated solves each assigned 54 of 54 demands with zero hard violations. Laravel independently validated the responses, ingested 54 candidate rows, exercised Registrar publication of 54 official meetings, and rendered the Registrar, Faculty, and representative Student schedules inside a rolled-back database transaction.
+
+No schedule run, candidate row, official meeting, queued job, or failed job survived the controlled acceptance transaction. The scheduling queue was then resumed.
+
+**Cost interpretation.** Using observed elapsed time as a billable-time proxy and the dated Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests, the corrected retained experiment's 59 requests are estimated at US$0.196810 before free-tier credits.
+
+This is a bounded experiment estimate, not a monthly forecast or invoice. It excludes billing-rounding differences, networking, registry and build charges, taxes, discounts, invalid deployment attempts, and unrelated project usage.
+
+**Conclusion and limitation.** These findings do not alter any equation in Sections 5 and 6. They establish operational acceptance at the disclosed client scale, identify Profile B as the production baseline, establish proportional 2× on Profile C at 120 seconds as repeatable larger-workload evidence, and disclose proportional 4× at 8 GiB as an observed historical boundary. They do not establish a universal institution-size limit.
+
+### 11.6 Population operating-envelope study
+
+**Purpose.** The population study answers a different question from the proportional experiments. The proportional tiers isolate solver-model growth by transforming one baseline snapshot. The `MIN`, `MIDDLE`, and `MAX` scenarios instead construct complete, rerunnable school-operation fixtures whose student, cohort, faculty, offering, and scheduling-demand records can also support system demonstrations.
+
+Student headcount supplies the institutional scale narrative. The solver does not optimize one decision variable per student; it receives **scheduling demands** and expands them into candidate assignments, variables, and constraints. Those model measures govern compute difficulty more directly than student count alone.
+
+| Scenario | Population and basis | Executable scheduling composition | Constructed model scale |
+| --- | --- | --- | --- |
+| `MIN` | 47 current students, the lowest client-reported population | 6 cohorts; 9 client-reported and synthetic scheduling faculty; 54 demands; 6 rooms; 168 half-hour slots | 11,340 candidates; 34,335 variables; 68,592 constraints |
+| `MIDDLE` | 270 synthetic students, selected as the normal demonstration and growth-planning workload | 9 cohorts; 14 synthetic scheduling faculty; 80 demands; 6 rooms; 168 half-hour slots | 56,112 candidates; 169,043 variables; 337,725 constraints |
+| `MAX` | 600 students from the client's reported 2022–2023 high point | 20 cohorts; 178 demands; 6 rooms; 168 half-hour slots; 26 synthetic scheduling faculty | 192,492 candidates; 579,437 variables; 1,157,585 constraints in the corrected fixture's completed exploratory model build |
+
+The reported historical MAX headcount of 14 faculty is preserved as client evidence but is not treated as an executable staffing plan. At a 21-unit ceiling, 532 teaching units require at least 26 faculty by arithmetic alone (`ceil(532 / 21) = 26`) before qualifications and availability are considered.
+
+The MAX fixture therefore uses 26 explicitly synthetic scheduling faculty. This distinction lets the experiment test the disclosed population and workload without claiming that the client's historical faculty roster could satisfy the constructed load.
+
+**Configuration-label guide.** The following labels are research shorthand. The labels do not come from Google Cloud and do not themselves report whether a run succeeded.
+
+| Configuration label | Plain-language purpose | Disclosed configuration |
+| --- | --- | --- |
+| Production Profile B | Current client-baseline service | 2 vCPU, 4 GiB, 2 workers, concurrency 1, 30-second solver limit |
+| `TARGET-CFG-01` | Private MIDDLE-oriented growth candidate | 4 vCPU, 8 GiB, 4 workers, concurrency 1, 120-second solver limit, 300-second HTTP timeout |
+| `TARGET-CFG-01-TIME` | Time-only MAX diagnostic using the same resources as `TARGET-CFG-01` | Same CPU, memory, workers, and concurrency; solver limit extended to 240 seconds |
+| `FINAL-CFG-01` | Higher-CPU MAX memory-boundary test | 8 vCPU, 8 GiB, 8 workers, concurrency 1, 300-second solver limit, 360-second HTTP timeout |
+| `FINAL-CFG-02-MEM` | Controlled higher-memory MAX resource envelope | Same as `FINAL-CFG-01`, but memory increased from 8 GiB to 16 GiB |
+| Final staged-search image | Equation-preserving completion attempt on `FINAL-CFG-02-MEM` resources | First find one complete hard-valid timetable, then optimize the unchanged objective with the remaining time |
+
+`TARGET` means the configuration was a bounded research candidate. `FINAL` identifies the later controlled branch of this study, not a guarantee of mathematical optimality or production promotion. `MEM` indicates that memory was the intentionally changed resource.
+
+**Final corrected-MAX evidence identity.** These values identify the exact input, packaged solver, and private deployed revision used for the accepted MAX request.
+
+| Evidence element | Exact identifier | Plain-language meaning |
+| --- | --- | --- |
+| Corrected-MAX canonical snapshot | SHA-256 `576a5f4ce5e6e5988eb7edd64ce59a20ba61fdc972f7cf57d85dbef1aa48ce38` | Fingerprint of the exact scheduling input containing the disclosed 178-demand corrected-MAX fixture. |
+| Final staged-search container image | Digest `sha256:229172013cd0e82a7d4d9c74e259618470a92b01465ba10f1fd4e8c5fa8b9b27` | Immutable identifier of the packaged Python solver contents. |
+| Final private research deployment | Cloud Run revision `tala-scheduler-solver-d5dstage2-665963443cc0` | Immutable deployed version that combined the image with the disclosed Cloud Run configuration. |
+| Revision traffic state | Zero canonical traffic | The revision could be called only through its private research route; ordinary production requests continued to use Profile B. |
+
+**Method.** The study avoided an exhaustive configuration-by-population cross-product. It started with a candidate suitable for the representative `MIDDLE` workload, diagnosed only the observed boundary, and changed one resource or search-control factor at a time. `TARGET-CFG-01` and its time-only diagnostic are retained as **exploratory evidence**.
+
+The later branch tested `FINAL-CFG-01`, then changed only memory in `FINAL-CFG-02-MEM`. The final staged-search image retained the same 8-vCPU/16-GiB resources and time limits while changing only the search order described above. Production Profile B remained at 100% canonical traffic throughout; none of the private candidates was promoted.
+
+**Observed results.**
+
+| Scenario and configuration | Observed result | Coverage and hard constraints | Solution quality or failure classification | End-to-end duration | Corrected gross request-cost proxy |
+| --- | --- | --- | --- | --- | --- |
+| `MIN`, exploratory `TARGET-CFG-01` | 3/3 `feasible` and accepted | 54/54 demands; zero solver or Laravel hard violations | Relative gap 3.5256988%–4.1487866%; optimality not proved | 122.191974–122.727425 s; median 122.619782 s | US$0.0067038032–US$0.0067367168 per solver request; US$0.0201717512 total |
+| `MIDDLE`, exploratory `TARGET-CFG-01` | 3/3 `feasible` and accepted | 80/80 demands; zero solver or Laravel hard violations | Relative gap 16.8320877%–19.8179851%; optimality not proved | 127.517125–129.330287 s; median 128.939737 s | US$0.0070000256–US$0.0070987664 per solver request; US$0.0211756160 total |
+| Corrected `MAX`, exploratory `TARGET-CFG-01` | 1/1 `unknown_timed_out`; not accepted | No incumbent schedule, so no coverage claim | Feasibility was neither proved nor disproved | 119.168814 s client elapsed | US$0.02070680 including its probe and solver request |
+| Corrected `MAX`, exploratory `TARGET-CFG-01-TIME` | 1/1 `unknown_timed_out`; not accepted | No incumbent schedule, so no coverage claim | Feasibility was neither proved nor disproved after the longer search | 275.152538 s client elapsed | US$0.04586256 including its probe and solver request |
+| Corrected `MAX`, strict `FINAL-CFG-01` | HTTP 503; not accepted | No solver result or assignments were returned | `infrastructure_failure`: Cloud Run terminated the instance at 8,208 MiB against the 8,192-MiB limit | 201.001607 s client elapsed; 200.199660359 s Cloud request latency | US$0.0203565448 including its probe and failed solver request |
+| Corrected `MAX`, earlier `FINAL-CFG-02-MEM` image | 1/1 `unknown_timed_out`; not accepted | No incumbent schedule, so no coverage claim; 178 placeholder conflict rows are not assignments | The 16-GiB revision avoided the prior memory termination, but CP-SAT returned no incumbent within the unchanged 300-second solver limit | 342.669576203 s Cloud request latency; 343.477093 s client elapsed | US$0.0378624112 including its probe and solver request |
+| Corrected `MAX`, final staged-search image on `FINAL-CFG-02-MEM` resources | 1/1 `feasible`; operationally accepted | 178/178 demands assigned; zero unassigned demands; zero Python or Laravel hard-constraint violations | Objective 1,115,910; best bound 0; relative gap 100%; a valid timetable was found, but optimality was not proved | 307.819849 s reported runtime; 314.471862 s client elapsed | US$0.03593148 including one health probe and one solver request |
+
+**How to interpret the status column.** Interface value `feasible` means the candidate satisfied every hard scheduling rule, but the solver did not prove that no better soft-objective value existed. The relative optimality gap is the disclosed solution-quality measure; it is not an accuracy percentage.
+
+`unknown_timed_out` means the search ended without proving feasibility or infeasibility. An infrastructure failure is not a CP-SAT status; it means the service failed before returning a trustworthy solver result.
+
+**Corrected-MAX interpretation.** The earlier time-only `infeasible` observation belonged to a superseded pre-correction MAX construction. It must not be applied to the corrected MAX fixture.
+
+Before the final Cloud request, the corrected fixture passed deterministic input-readiness and aggregate room-capacity necessary conditions. One independently replayed, non-optimizing witness also satisfied candidate membership and Laravel hard-constraint validation for all 178 demands. That witness proved that the disclosed fixture had at least one hard-valid assignment; it did not claim a CP-SAT optimization result.
+
+The final staged-search Cloud run then supplied direct solver evidence. All 178 demands received assignments, and the complete assignment set passed Laravel hard-constraint validation. The corrected `MAX` scenario is therefore inside the **verified operational envelope** of the disclosed 8-vCPU, 16-GiB, eight-worker, 300-second staged-search configuration for this one controlled run.
+
+This is not an absolute student or institutional ceiling, a throughput guarantee, proof of repeatability, or proof that every 600-student dataset will have the same model size or runtime.
+
+**Cost basis.** The values above use the 27 July 2026 Singapore request-based list rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, and US$0.40 per million requests. Client elapsed time is rounded upward to the disclosed 100-millisecond billing quantum, and no free-tier credit is applied.
+
+The retained exploratory MIN/MIDDLE and original MAX solver-request proxies total US$0.0624073856 before exclusions. The later controlled requests include their health probes: US$0.0203565448 for `FINAL-CFG-01`, US$0.0378624112 for the earlier `FINAL-CFG-02-MEM` image, and US$0.03593148 for the accepted staged-search run.
+
+Earlier immutable reports retain superseded embedded estimates of US$0.06051832 and US$0.11208928 from the wrong rate class. These amounts are neither invoices nor monthly forecasts. Free tier, discounts, networking, logging, image storage, build charges, taxes, and unrelated project use are excluded.
+
+**Configuration decision.** No configuration proved repeated `OPTIMAL` results with zero relative gap across `MIN`, `MIDDLE`, and corrected `MAX`; that stronger solution-quality claim remains unproven. The operational acceptance criterion is complete coverage, zero hard-constraint violations, and interface value `feasible` or `optimal`.
+
+Production Profile B remains the deployed current-client baseline. `TARGET-CFG-01` is the evidence-based private candidate when workload grows toward the 80-demand `MIDDLE` demonstration scale; it produced three accepted schedules at that scale.
+
+The higher 8-vCPU/16-GiB staged-search configuration is justified when measured workload approaches the disclosed corrected-MAX model scale or when the smaller candidate repeatedly fails to return an accepted schedule inside its approved time objective. Neither private candidate was promoted.
+
+The final report retained all 178 sanitized assignment rows. The following excerpt reconstructs one logical cohort from that captured solver output. It is synthetic research evidence, not a published official schedule, and it must not be described as optimal.
+
+| Cohort | Subject | Day | Time | Faculty | Modality | Room |
+| --- | --- | --- | --- | --- | --- | --- |
+| DBM-1A | FOSNCII | Monday | 08:30–11:30 | Faculty 12 | Face-to-Face | LAB-101 |
+| DBM-1A | GE04 | Monday | 11:30–14:30 | Faculty 15 | Online | Not applicable |
+| DBM-1A | PE02 | Monday | 18:00–20:00 | Faculty 01 | Online | Not applicable |
+| DBM-1A | NSTP02 | Wednesday | 10:00–12:00 | Faculty 21 | Online | Not applicable |
+| DBM-1A | CSNCII | Wednesday | 17:00–21:00 | Faculty 07 | Face-to-Face | LAB-102 |
+| DBM-1A | GE06 | Thursday | 10:00–13:00 | Faculty 05 | Online | Not applicable |
+| DBM-1A | BME04 | Friday | 11:00–14:00 | Faculty 04 | Face-to-Face | LEC-101 |
+| DBM-1A | GE05 | Friday | 14:30–17:30 | Faculty 24 | Online | Not applicable |
+| DBM-1A | BME06 | Saturday | 07:00–10:00 | Faculty 10 | Face-to-Face | LEC-102 |
+| DBM-1A | BME05 | Saturday | 18:00–21:00 | Faculty 06 | Face-to-Face | LEC-101 |
+
+**Solve scope.** The returned schedule is term-wide: one solve assigns every ready Scheduling Demand in the selected academic term rather than solving one student, one section, or one program independently.
+
+A demand represents one required subject delivery for one delivery group. Individual students later see the meetings attached to their enrolled offerings; the solver does not create a separate optimization problem for each student.
+
+**Scaling trigger.** Operators must reassess configuration when:
+
+- demand, candidate, variable, or constraint counts approach or exceed the verified scenario values;
+- repeated runs stop returning accepted `feasible` or `optimal` results inside the approved time objective;
+- solution-quality gaps become operationally unacceptable; or
+- monitoring shows memory, transport, or queue-pressure failures.
+
+The accepted MAX result establishes one observed operating point, not a guarantee beyond 178 demands or 1,157,585 constraints. Raising maximum instances would increase concurrent-request capacity but would not give one solve more CPU, memory, or search time.
+
+The final immutable report predates the bounded report-persistence correction and therefore does not retain the nested per-stage timing records. Those missing telemetry values must not be reconstructed or guessed. The final result, assignments, aggregate statistics, status, cost, and validation evidence remain intact. These findings change neither the solver contract nor any equation in Sections 5 and 6.
 
 ## 12. Equation-to-implementation traceability
 
-This section provides implementation traceability for the mathematical and operational claims. Each row identifies the applicable product or architecture authority, the component responsible for implementation, and the focused verification evidence. The formulation, experimental findings, and limitations are stated independently in the preceding sections and do not require access to the referenced repository files for interpretation.
+This section provides implementation traceability for the mathematical and operational claims. Each row identifies the applicable authority, the component responsible for implementation, and the focused verification evidence.
 
-| Formulation or pipeline claim | Product/architecture authority | Current implementation evidence | Focused test evidence |
+Class, method, file, and test names are included for implementation reviewers. They are identifiers, not instructions to consult another document. The formulation, findings, and limitations are fully stated in the preceding sections.
+
+| Formulation or pipeline claim | Authority or rule source | Current implementation evidence | Focused verification evidence |
 | --- | --- | --- | --- |
-| Scheduling Demand is the canonical unit; candidate before official schedule | [`prd_modules/06_cpsat_scheduling.md`](../prd_modules/06_cpsat_scheduling.md), [`architecture_specification.md`](../architecture_specification.md) | `GenerateSchedulingDemand`, `ScheduleSolverSnapshotService`, `CandidateScheduleRow`, `SchedulePublishService` | Scheduling generation and publication feature tests |
-| `tal94-demand-v2` differs from `balanced_v1` v1 | PRD product-level solver contract and code-defined-profile rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `CONTRACT_VERSION`, profile checks | [`test_solver.py`](../../cloud/scheduler-solver/tests/test_solver.py): unsupported contract and tampered profile cases |
-| H1 — exact coverage $\sum_{c\in C_d}x_c=1$ | PRD assignment coverage | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): Boolean variables and equality per demand | `test_accepts_v2_demands...`, conflicting fixed-demand test |
-| H2a-H4 — duration/grid, fixed values, and candidate admissibility | PRD fixed assignment, calendar, qualification, and consecutive-block rules | `ScheduleSolverSnapshotService`; [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_faculty_ids`, `_room_ids`, `_slots_for_demand`, availability/commitment/calendar filters | Fixed assignment and recurring calendar-block solver tests; snapshot feature tests |
-| H5a-H5c — room capacity, type, and features | PRD room suitability and capacity rules | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_room_suits_demand`; Laravel independent validator | Required-features and no-suitable-room solver tests; assignment-validation feature tests |
-| H6-H8 — faculty, room, and logical-cohort `NoOverlap` | PRD hard constraint source map | `ScheduleSolverSnapshotService` shared-cohort mapping; [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_no_overlap_constraints`; Laravel validation/revalidation services | Cross-delivery-group shared-cohort solver and Laravel tests; model-growth test; assignment-validation and live-revalidation feature tests |
-| H9 — configured same-faculty equality | PRD linked-component rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_same_faculty_constraints`; Laravel validator | Linked-component and validation cases |
-| H10a-H10d — deduplicated load and maximum $L_f\le M_f$ | PRD faculty load rule | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_add_faculty_load_constraints`; Laravel validator | Faculty-load and linked-component load tests |
-| S2 — faculty/day internal idle-gap term $I=-\sum G_{f,\delta}$ | PRD faculty idle-gap preference; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_idle_gap_objective_terms`, `_objective_details`; Laravel objective reconciliation | `test_faculty_idle_gap_counts_only_time_between_adjacent_meetings`; objective-details validation tests |
-| S1-S4 and O1 — four-term fixed objective and reconciliation | PRD soft-preference rules; approved `balanced_v1` profile | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): objective builders and `_objective_details`; Laravel assignment validator | Objective-details and response-validation tests |
-| Typed experimental statistics and fixed search configuration | Controlled benchmark specification | [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py): `_solver_statistics`; Laravel strict response validation and allowlisted diagnostics persistence | Typed-statistics, rejection, and guarded real-service acceptance tests |
-| Solver statuses are distinct from queue, transport, and container-runtime failure | Architecture queue and external solver boundary | `ScheduleSolverDispatchJob`, `ScheduleSolverDispatchLifecycleService`, `ScheduleCloudResultIngestor`, [`server.py`](../../cloud/scheduler-solver/tala_solver/server.py) | Server and queue-operations tests |
+| Scheduling Demand is the canonical unit; candidate before official schedule | CP-SAT Scheduling Subsystem PRD; TALA Architecture Specification | `GenerateSchedulingDemand`, `ScheduleSolverSnapshotService`, `CandidateScheduleRow`, `SchedulePublishService` | Scheduling generation and publication feature tests |
+| `tal94-demand-v2` differs from `balanced_v1` v1 | Product-level solver contract and code-defined-profile rule | `solver.py`: `CONTRACT_VERSION` and profile checks | `test_solver.py`: unsupported-contract and tampered-profile cases |
+| H1 — exact coverage $\sum_{c\in C_d}x_c=1$ | PRD assignment-coverage rule | `solver.py`: Boolean variables and equality per demand | Version-2 demand acceptance and conflicting fixed-demand tests |
+| H2a-H4 — duration/grid, fixed values, and candidate admissibility | PRD fixed-assignment, calendar, qualification, and consecutive-block rules | `ScheduleSolverSnapshotService`; `solver.py`: `_faculty_ids`, `_room_ids`, `_slots_for_demand`, and candidate filters; Laravel readiness and response validation | Fixed on-grid and off-grid solver tests; recurring calendar-block tests; Laravel readiness and assignment-validation tests |
+| H5a-H5c — room capacity, type, and features | PRD room-suitability and capacity rules | `solver.py`: `_room_suits_demand`; Laravel independent validator | Required-features and no-suitable-room solver tests; assignment-validation feature tests |
+| H6-H8 — faculty, room, and logical-cohort `NoOverlap` | PRD hard-constraint source map | `ScheduleSolverSnapshotService` shared-cohort mapping; `solver.py`: `_add_no_overlap_constraints`; Laravel validation and revalidation services | Cross-delivery-group shared-cohort tests; model-growth test; assignment-validation and live-revalidation tests |
+| H9 — configured same-faculty equality | PRD linked-component rule | `solver.py`: `_add_same_faculty_constraints`; Laravel validator | Linked-component and validation cases |
+| H10a-H10d — deduplicated load and maximum $L_f\le M_f$ | PRD faculty-load rule | `solver.py`: `_add_faculty_load_constraints`; Laravel validator | Faculty-load and linked-component load tests |
+| S2 — faculty/day internal idle-gap term $I=-\sum G_{f,\delta}$ | PRD faculty idle-gap preference; approved `balanced_v1` profile | `solver.py`: `_idle_gap_objective_terms` and `_objective_details`; Laravel objective reconciliation | Faculty idle-gap and objective-details validation tests |
+| S1-S4 and O1 — four-term fixed objective and reconciliation | PRD soft-preference rules; approved `balanced_v1` profile | `solver.py`: objective builders and `_objective_details`; Laravel assignment validator | Objective-details and response-validation tests |
+| Hard-feasibility search, complete solution hint, then unchanged objective | Approved equation-preserving staged-search contract; official OR-Tools hint capability | `solver.py`: `_configured_solver`, `_selected_candidates`, `_add_soft_objective`; Laravel stage-telemetry validation | Truthful-`UNKNOWN`, feasibility-fallback, typed-statistics, and projection regressions |
+| Typed experimental statistics and fixed search configuration | Controlled benchmark specification | `solver.py`: `_solver_statistics`; Laravel strict response validation and allowlisted diagnostics persistence | Typed-statistics, rejection, and guarded real-service acceptance tests |
+| Solver statuses are distinct from queue, transport, and container-runtime failure | Architecture queue and external-solver boundary | `ScheduleSolverDispatchJob`, `ScheduleSolverDispatchLifecycleService`, `ScheduleCloudResultIngestor`, and `server.py` | Server and queue-operations tests |
 | Immutable input, after-commit dispatch, independent ingestion | Architecture transaction and source-of-truth boundary | `ScheduleGenerationService`, `ScheduleSolverSnapshotService`, `ScheduleSolverDispatchJob`, `ScheduleCloudResultIngestor` | Dispatch, ingestion, and validation feature tests |
 | Registrar correction, revalidation, and publication authority | PRD manual override/publication rules; UI blueprint | `CandidateScheduleRowReviewService`, `ScheduleAssignmentRevalidationService`, `ScheduleGenerationRunPolicy`, `SchedulePublishService` | Candidate-review, assignment-validation, and publication tests |
-| Worked example and 18,900 objective | Existing deterministic fixture | [`minimal_snapshot.json`](../../cloud/scheduler-solver/samples/minimal_snapshot.json), [`solver.py`](../../cloud/scheduler-solver/tala_solver/solver.py) | All Python solver tests; direct fixture execution with pinned requirements |
+| Worked example and 18,900 objective | Existing deterministic fixture | `minimal_snapshot.json` and `solver.py` | Python solver tests; direct fixture execution with pinned requirements |
 
 ## 13. References
 
-### Internal authorities, implementation, and presentation references
+### Project authorities and implementation sources
 
-1. TALA. [CP-SAT Scheduling Subsystem PRD](../prd_modules/06_cpsat_scheduling.md).
-2. TALA. [Architecture Specification](../architecture_specification.md).
-3. TALA. [UI Surface Blueprint](../ui_surface_blueprint.md).
-4. TALA. [Python CP-SAT solver](../../cloud/scheduler-solver/tala_solver/solver.py) and [deterministic sample snapshot](../../cloud/scheduler-solver/samples/minimal_snapshot.json).
-5. PyJobShop article copy in the repository, used only as a presentation reference for organizing constraint-programming equations and reporting instance composition, optimality gap, RPD, and controlled runtime: [Solving scheduling problems with constraint programming in Python](how%20the%20eqautions%20should%20look/PyJobShop-Solving%20scheduling%20problems%20with%20constraint%20programming%20in%20Python.md). Its job-shop datasets and solver-comparison results are not TALA evidence.
-6. Han, X.; Wang, D. (2025). *Gradual Optimization of University Course Scheduling Problem Using Genetic Algorithm and Dynamic Programming*. *Algorithms*, 18(3), 158. [Repository copy](how%20the%20eqautions%20should%20look/Gradual%20Optimization%20of%20University%20Course%20Scheduling%20Problem%20Using%20Genetic%20Algorithm%20and%20Dynamic); [DOI](https://doi.org/10.3390/a18030158). Used only as a presentation reference for individually explained hard and soft constraints, disclosed instance composition, repeated runs, and separated quality/resource measures. Its GA/DP model, fitness functions, datasets, comparative results, and claims are not part of TALA's CP-SAT formulation or evidence.
+1. TALA CP-SAT Scheduling Subsystem PRD. Internal product authority for Scheduling Demands, hard and soft rules, review, and publication.
+2. TALA Architecture Specification. Internal authority for the Laravel-to-Python boundary, immutable snapshots, queues, validation, and publication.
+3. TALA UI Surface Blueprint. Internal authority for Registrar review and role-specific timetable presentation.
+4. TALA Python CP-SAT implementation (`solver.py`) and deterministic sample snapshot (`minimal_snapshot.json`). Implementation and worked-example sources.
+5. PyJobShop, cited as external source 15 below. Used only as a presentation reference for organizing constraint-programming equations and reporting instance composition, optimality gap, RPD, and controlled runtime. Its datasets and comparative results are not TALA evidence.
+6. Han, X.; Wang, D. (2025). *Gradual Optimization of University Course Scheduling Problem Using Genetic Algorithm and Dynamic Programming*. *Algorithms*, 18(3), 158. [DOI](https://doi.org/10.3390/a18030158).
+   Used only as a presentation reference for individually explained constraints, disclosed instance composition, repeated runs, and separated quality/resource measures.
+   Its GA/DP model, fitness functions, datasets, comparative results, and claims are not part of TALA's CP-SAT formulation or evidence.
 
 ### Official external sources
 
@@ -1283,7 +1553,13 @@ This section provides implementation traceability for the mathematical and opera
 16. Google Cloud. [Cloud Run pricing](https://cloud.google.com/run/pricing). Dated request-based CPU, memory, request, free-tier, and billable-time basis.
 17. Google Cloud. [Configure CPU limits for services](https://docs.cloud.google.com/run/docs/configuring/services/cpu). CPU, memory, threading, and concurrency sizing considerations.
 18. Google Cloud. [Cloud Run monitoring](https://docs.cloud.google.com/run/docs/monitoring). Revision-scoped CPU and memory evidence.
+19. Google OR-Tools. [CP-SAT model documentation](https://github.com/google/or-tools/blob/stable/ortools/sat/docs/model.md). Official solution-hint capability used to carry the complete first-stage assignment into optimization.
+20. UniTime. [Courses Solver Manual](https://help.unitime.org/manuals/courses-solver). External operational pattern separating construction of an initial timetable from subsequent improvement; TALA does not copy UniTime's model or results.
+21. Google Cloud. [Manage Cloud Run revisions](https://docs.cloud.google.com/run/docs/managing/revisions). Official service, immutable revision, revision-tag, and traffic-allocation semantics.
+22. Google Cloud. [Artifact Registry repository and image names](https://docs.cloud.google.com/artifact-registry/docs/docker/names). Official image-tag and immutable SHA-256 image-digest terminology.
 
 ---
 
-**Version applicability.** This formulation applies to the implemented and verified `tal94-demand-v2` contract, `balanced_v1` version-1 profile, and dated Cloud Run experiment as of 18 July 2026. Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change the equations. Any approved change to the data contract, optimization profile, hard-constraint semantics, objective semantics, or material workload requires corresponding formulation or empirical-evidence revision.
+**Version applicability.** This formulation applies to the implemented `tal94-demand-v2` contract, `balanced_v1` version-1 profile, and dated Cloud Run evidence through the accepted 28 July 2026 corrected-MAX staged-search result.
+
+Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change the equations. Any approved change to the data contract, optimization profile, hard-constraint semantics, objective semantics, or material workload requires a corresponding formulation or empirical-evidence revision.

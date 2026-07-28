@@ -51,6 +51,9 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
 
     public function test_generated_demand_is_idempotent_and_captures_current_source_readiness_evidence(): void
     {
+        Room::query()
+            ->where('room_type', Room::TypeLectureRoom)
+            ->update(['is_active' => false]);
         $source = $this->sourceGraph();
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
@@ -74,9 +77,14 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
         $this->assertSame(1, $first['ready']);
         $this->assertSame(0, $first['action_required']);
         $this->assertSame(1, $second['total']);
-        $this->assertSame(1, SchedulingDemand::query()->count());
+        $this->assertSame(
+            1,
+            SchedulingDemand::query()->where('term_offering_id', $source['offering']->id)->count(),
+        );
 
-        $demand = SchedulingDemand::query()->sole();
+        $demand = SchedulingDemand::query()
+            ->where('term_offering_id', $source['offering']->id)
+            ->sole();
         $snapshot = $this->arrayAttribute($demand, 'source_snapshot');
 
         $this->assertSame(SchedulingDemand::ValidationReadyForReview, $demand->validation_state);
@@ -99,6 +107,9 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
 
     public function test_generation_blocks_missing_current_sources_and_allows_non_physical_modalities_without_rooms(): void
     {
+        Room::query()
+            ->where('room_type', Room::TypeLectureRoom)
+            ->update(['is_active' => false]);
         $blocked = $this->sourceGraph(
             withCalendar: false,
             withFaculty: false,
@@ -110,7 +121,9 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
 
         app(GenerateSchedulingDemand::class)->forTerm($this->staff(User::StaffRoleRegistrar), $blocked['term']);
 
-        $demand = SchedulingDemand::query()->sole();
+        $demand = SchedulingDemand::query()
+            ->where('term_offering_id', $blocked['offering']->id)
+            ->sole();
         $findingKeys = $demand->readinessFindingKeys();
 
         $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
@@ -171,7 +184,9 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
 
         app(GenerateSchedulingDemand::class)->forTerm($this->staff(User::StaffRoleRegistrar), $source['term']);
 
-        $demand = SchedulingDemand::query()->sole();
+        $demand = SchedulingDemand::query()
+            ->where('term_offering_id', $source['offering']->id)
+            ->sole();
         $findingKeys = $demand->readinessFindingKeys();
 
         $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
@@ -180,6 +195,35 @@ final class TAL85CSchedulingDemandReadinessAcceptanceTest extends TestCase
         $this->assertContains('fixed_faculty_not_qualified', $findingKeys);
         $this->assertContains('fixed_room_not_suitable', $findingKeys);
         $this->assertContains('fixed_time_conflicts_with_calendar_block', $findingKeys);
+    }
+
+    public function test_fixed_time_must_belong_to_the_term_grid_and_fit_the_operating_day(): void
+    {
+        $source = $this->sourceGraph();
+        $source['term']->update([
+            'scheduling_days' => [1, 2, 3, 4, 5],
+            'scheduling_slot_minutes' => 30,
+            'scheduling_day_starts_at' => '08:00:00',
+            'scheduling_day_ends_at' => '18:00:00',
+        ]);
+        $source['group']->update([
+            'delivery_override' => [
+                'fixed_day_of_week' => 6,
+                'fixed_start_time' => '17:13:00',
+            ],
+        ]);
+
+        app(GenerateSchedulingDemand::class)->forTerm($this->staff(User::StaffRoleRegistrar), $source['term']->fresh());
+
+        $demand = SchedulingDemand::query()
+            ->where('term_offering_id', $source['offering']->id)
+            ->sole();
+        $findingKeys = $demand->readinessFindingKeys();
+
+        $this->assertSame(SchedulingDemand::ValidationActionRequired, $demand->validation_state);
+        $this->assertContains('fixed_day_outside_scheduling_grid', $findingKeys);
+        $this->assertContains('fixed_start_outside_scheduling_grid', $findingKeys);
+        $this->assertContains('fixed_time_exceeds_scheduling_day', $findingKeys);
     }
 
     public function test_term_scheduling_readiness_service_uses_clean_schema_sources(): void

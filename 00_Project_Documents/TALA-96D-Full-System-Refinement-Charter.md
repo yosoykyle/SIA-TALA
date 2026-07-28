@@ -4,7 +4,7 @@
 
 **Applies to remaining work:** `TAL-96D5C` through `TAL-96D5E`
 
-**Next execution boundary:** Plan `TAL-96D5D` through a fresh Ground-Truth Gate against the locally completed TAL-96D5C2 readiness evidence. TAL-96D5D is the sole owner of targeted population, Cloud Run configuration, solution-quality, and cost evaluation; it has not started.
+**Next execution boundary:** TAL-96D5D is completed and independently verified. Its equation-preserving staged-search evidence records an operationally accepted `FEASIBLE` corrected-MAX schedule with 178/178 assignments and zero hard-constraint violations without claiming `OPTIMAL` or an absolute ceiling. TAL-96D5E owns final evidence consolidation, the deployment-readiness disposition, the TAL-97 verified-claim handoff, and charter retirement. No additional Cloud request, deployment, database scenario switch, production promotion, equation, fixture, schema, or publication-workflow change is implied.
 
 ## 1. Purpose
 
@@ -289,7 +289,7 @@ The final population-based study must use new labels to prevent confusion:
 - `TARGET-CFG` for the selected configuration evaluated against `MIDDLE`; and
 - `MAX-CFG` for the selected configuration evaluated against `MAX`.
 
-Exact CPU, memory, solver-worker, timeout, and cost values are TAL-96D5D results, not assumptions to encode now.
+The initial evidence-backed candidate is `TARGET-CFG-01`: `4 vCPU / 8 GiB / 4 solver workers / concurrency 1 / 120-second solver limit / 300-second HTTP timeout`, using the existing immutable solver image and fixed disclosed seed. This is an approved experimental starting point, not a selected production result. Exact accepted configuration, utilization, duration, operating envelope, scaling trigger, and cost remain TAL-96D5D results.
 
 ### 9.1 Targeted evaluation method
 
@@ -297,14 +297,32 @@ The study must avoid an expensive full cross-product of every configuration and 
 
 1. derive each scenario's actual workload manifest, including cohorts, sections, offerings, demands, faculty, rooms, candidates, variables, and constraints;
 2. confirm local model construction and Laravel readiness without a capacity Cloud run;
-3. use the historical Profile B/C evidence to exclude configurations already known to be insufficient;
-4. choose one evidence-backed candidate configuration for the scenario;
-5. run one authorized screening solve;
-6. when the screen is accepted, run the approved confirmation repetitions;
-7. test one adjacent configuration only when needed to resolve reliability, cost, or scaling uncertainty; and
+3. use the historical Profile B/C evidence and the inconclusive current-profile MIDDLE screen to exclude a wasteful full profile cross-product;
+4. use MIDDLE to select one evidence-backed candidate because it is the representative demonstration and operating target, not because it is an arithmetic midpoint;
+5. evaluate that same selected configuration against MIDDLE, MIN, and MAX, with one authorized screen plus two approved confirmations for each accepted scenario;
+6. test only one evidence-triggered adjacent branch for the whole study: longer search time when memory is stable, or additional memory when OOM/near-exhaustion is observed;
+7. cap the study at 12 solver requests unless an approved plan revision supplies new evidence and authority; and
 8. stop when validity, repeatability, duration, resource use, and cost are sufficiently answered.
 
 Every new Cloud run requires the protocol's external-service and cost gate. TAL-96D2B through TAL-96D4 must not perform capacity benchmarking merely to continue feature hardening.
+
+The base study stages a private zero-traffic candidate revision and never changes canonical traffic. If MIDDLE requires the single adjacent branch and that branch is accepted, the adjacent configuration becomes the selected candidate evaluated against MIN and MAX. If the selected configuration reaches MAX with repeatable accepted results, the claim is only “verified through the disclosed MAX fixture.” If MAX remains unknown, infeasible, invalid, or infrastructure-bound after the permitted branch, MIDDLE remains the supported operating target and MAX is reported as an observed boundary. Neither outcome establishes an absolute ceiling.
+
+Scaling guidance must use scheduling demands, candidate assignments, model variables and constraints, memory utilization or OOM, duration against the search budget, repeated acceptance, solver status, and optimality gap. Student population is contextual input and must not be the sole configuration trigger. Cost reporting must separate measured or explicitly proxied request cost, total experiment cost, disclosed solve-frequency examples, free-tier treatment, and excluded charges.
+
+The MIDDLE screen and confirmation pair on `TARGET-CFG-01` produced `3/3` accepted feasible results for all `80` demands with zero hard violations. Relative optimality gap ranged from `16.8320877%` to `19.8179851%`, median end-to-end duration was `128.939737` seconds, and the corrected gross three-run request-based cost proxy is `$0.0211756160`. Canonical scheduling-input SHA-256 is `4d38d36e68df40a4482a3b23771275d75f41c56047dc261f9cd67d293e2e91b7`; earlier per-report hashes retained volatile capture time and are not canonical. This establishes repeatable accepted feasibility for the disclosed MIDDLE fixture and immutable revision, not optimality, an absolute ceiling, or production promotion.
+
+The MIN screen and confirmation pair on the same `TARGET-CFG-01` revision produced `3/3` accepted feasible results for all `54` demands with zero hard violations and complete telemetry. Canonical scheduling-input SHA-256 is `837a8bb897dd5883d6558d8b024cd93e9e7f418a45307111c4d21749659c526b`; relative optimality gap ranged from `3.5256988%` to `4.1487866%`, median end-to-end duration was `122.619782` seconds, and the corrected gross three-run request-based cost proxy is `$0.0201717512`. This establishes repeatable accepted feasibility for the disclosed MIN fixture and immutable revision, not optimality, an absolute ceiling, or production promotion.
+
+The corrected MAX fixture contains `178` demands and, in its final captured form, constructs `192492` candidates, `579437` model variables, and `1157585` constraints. Its canonical scheduling-input SHA-256 is `576a5f4ce5e6e5988eb7edd64ce59a20ba61fdc972f7cf57d85dbef1aa48ce38`. A private, independently replayed, non-optimizing witness satisfies candidate membership and Laravel hard-constraint validation for `178/178` demands. This proves the disclosed fixture is feasible; it does not prove that CP-SAT found an incumbent or optimal solution.
+
+The corrected fixture's exploratory `TARGET-CFG-01` and `TARGET-CFG-01-TIME` runs both returned `unknown_timed_out` without an incumbent. The earlier `infeasible` time-extension result belonged to the superseded pre-correction construction and must not be cited against the corrected fixture. `FINAL-CFG-01` then terminated at the 8-GiB memory limit. Its controlled successor `FINAL-CFG-02-MEM` changed only memory to 16 GiB; its earlier image avoided the infrastructure failure but returned `UNKNOWN` without an incumbent inside the unchanged 300-second solver limit.
+
+The approved completion branch preserved every equation and fixture while changing search order. CP-SAT first searched only the existing hard constraints. After finding a complete timetable, the service used that assignment as a complete hint, added the unchanged four-term objective, and optimized with the remaining budget. The one authorized corrected-MAX request returned `FEASIBLE` with 178/178 assignments, zero unassigned demands, zero Python or Laravel hard-constraint violations, objective `1115910`, best bound `0`, relative gap `1.0`, reported runtime `307.819849` seconds, and client elapsed time `314.471862` seconds. This is accepted operational success and places the disclosed corrected-MAX fixture inside the observed envelope of the 8-vCPU, 16-GiB, eight-worker, 300-second staged-search configuration for this run. It does not prove optimality, repeatability, or an absolute population ceiling.
+
+The immutable final report predates the bounded telemetry-persistence correction and therefore does not contain its nested `result_source` and `search_stages` fields. Their missing values are not reconstructed. The runner now retains those validated typed fields for future reports, and focused regression coverage proves the persistence behavior without changing the solver response, equations, fixtures, or final captured assignments.
+
+The original private D5D reports retain their captured evidence unchanged, but their embedded dollar fields are superseded where the wrong rate class was used. The corrected calculation uses the 27 July 2026 Singapore request-based rates of `$0.000011244` per vCPU-second, `$0.000001235` per GiB-second, `$0.40` per million requests, client elapsed time rounded up to 100 milliseconds, and no free-tier credit. The retained eight-run exploratory series totals `$0.0624073856`; the corrected `FINAL-CFG-01` probe-plus-request proxy is `$0.0203565448`; the earlier `FINAL-CFG-02-MEM` probe-plus-request proxy is `$0.0378624112`; and the accepted staged-search probe-plus-request proxy is `$0.03593148`, all before free tier and excluded charges. The earlier immutable reports' embedded `$0.06051832` and `$0.11208928` fields are superseded only as cost estimates. These corrections do not alter any solver status, timing, model count, canonical hash, assignment, or validation result.
 
 ### 9.2 Required result classification
 

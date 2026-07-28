@@ -35,7 +35,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5C | Approved revised split; depends on TAL-96D5B | Role-by-Role Implementation and Experience Closure followed by the Full Regression, Security, and Integration Readiness Gate. |
 | TAL-96D5C1 | Done locally; pending explicit Linear sync | Role, Surface, and Cross-Role Contract Closure through code-first inventory, producer-consumer traceability, and evidence-backed remediation. |
 | TAL-96D5C2 | Done locally; pending explicit Linear sync | Full Regression, Security, and Integration-Readiness Gate after role/surface remediation stabilizes. |
-| TAL-96D5D | Planned; depends on TAL-96D5C2 | Targeted `MIN-CFG` / `TARGET-CFG` / `MAX-CFG` population, Cloud Run configuration, solution-quality, and cost evaluation without relabelling historical proportional evidence. |
+| TAL-96D5D | Done locally; pending explicit Linear sync | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization. |
 | TAL-96D5E | Planned; depends on TAL-96D5D | Evidence Consolidation, final deployment-readiness disposition, System Operations and Defense Guide completion, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
 
@@ -61,4 +61,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next primary boundary: **`Plan TAL-96D5D`** through a fresh Ground-Truth Gate against the verified TAL-96D5C2 commit and governing charter. TAL-96D5D owns only the targeted population/configuration, Cloud Run solution-quality, and cost evaluation boundary. Linear sync, push, PR creation, deployment, subagent use, destructive database actions, and external-service mutation remain unauthorized until their corresponding explicit commands or human gates.
+Next planning boundary: **`Plan TAL-96D5E`.** Consolidate verified evidence, make the final deployment-readiness disposition, complete the TAL-97 verified-claim handoff, and retire the TAL-96D charter. Do not add another capacity run unless a separately verified evidence gap is approved.
