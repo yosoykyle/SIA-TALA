@@ -24,6 +24,7 @@
         "livewire-development",
         "tailwindcss-development",
         "accessibility",
+        "better-interface",
         "configuring-horizon",
         "deploying-laravel-cloud",
         "diagnosing-bugs",
@@ -37,7 +38,6 @@
         "laravel-pwa-setup",
         "laravel-security",
         "laravel-tdd",
-        "laravel-verification",
-        "ui-ux-pro-max"
+        "laravel-verification"
     ]
 }
