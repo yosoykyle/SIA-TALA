@@ -24,4 +24,9 @@ class CreateCurriculumVersion extends CreateRecord
             'approved_at' => null,
         ];
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return CurriculumVersionResource::getUrl('review', ['record' => $this->getRecord()]);
+    }
 }

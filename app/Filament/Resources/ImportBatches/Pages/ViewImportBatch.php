@@ -23,7 +23,7 @@ class ViewImportBatch extends ViewRecord
                 ->label('Review Curriculum Draft')
                 ->icon(Heroicon::OutlinedAcademicCap)
                 ->url(fn (): ?string => $this->postedCurriculum() instanceof CurriculumVersion
-                    ? CurriculumVersionResource::getUrl('view', ['record' => $this->postedCurriculum()])
+                    ? CurriculumVersionResource::getUrl('review', ['record' => $this->postedCurriculum()])
                     : null)
                 ->visible(fn (): bool => $this->postedCurriculum() instanceof CurriculumVersion),
             ImportBatchDownloadActions::validationFindings(),

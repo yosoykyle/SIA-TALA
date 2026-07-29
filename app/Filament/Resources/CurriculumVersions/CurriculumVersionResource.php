@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CurriculumVersions;
 use App\Filament\Resources\CurriculumVersions\Pages\CreateCurriculumVersion;
 use App\Filament\Resources\CurriculumVersions\Pages\EditCurriculumVersion;
 use App\Filament\Resources\CurriculumVersions\Pages\ListCurriculumVersions;
+use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Filament\Resources\CurriculumVersions\Pages\ViewCurriculumVersion;
 use App\Filament\Resources\CurriculumVersions\Schemas\CurriculumVersionForm;
 use App\Filament\Resources\CurriculumVersions\Schemas\CurriculumVersionInfolist;
@@ -60,6 +61,7 @@ class CurriculumVersionResource extends Resource
         return [
             'index' => ListCurriculumVersions::route('/'),
             'create' => CreateCurriculumVersion::route('/create'),
+            'review' => ReviewCurriculumVersion::route('/{record}/review'),
             'view' => ViewCurriculumVersion::route('/{record}'),
             'edit' => EditCurriculumVersion::route('/{record}/edit'),
         ];

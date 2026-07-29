@@ -4,7 +4,7 @@
 
 **Applies to remaining work:** `TAL-96D5E1` through `TAL-96D5E2`
 
-**Next execution boundary:** TAL-96D5E1A has completed its browser-free reconciliation, independent verification, and local Cleanup. Its bounded result does not certify usability or authorize unplanned remediation: it preserves the domain model and identifies the evidence-backed recovery order for Registrar-centered operations, Accounting and PayMongo, remaining roles and shared presentation contracts, and concise human acceptance. `Plan TAL-96D5E1B` is next. No capacity rerun, deployment, database scenario switch, production promotion, equation, fixture, schema, external-provider action, or live-surface deletion or merge is implied.
+**Next execution boundary:** TAL-96D5E1A, TAL-96D5E1B1, and TAL-96D5E1B2A are independently verified and cleaned locally. B2A delivered Academic Readiness and the combined curriculum encoding/import-review interaction while preserving authoritative records and the corrected B1 fixture. `Plan TAL-96D5E1B2B` is next for the Admissions Work Queue and contextual Applicant Record. No capacity rerun, deployment, database scenario switch, production promotion, equation, fixture, schema, external-provider action, or live-surface deletion or merge is implied.
 
 ## 1. Purpose
 
@@ -152,7 +152,12 @@ The client-acceptance findings reopened the earlier D5C1 claim that registered p
 The remaining recovery is divided so that the system is not broadly redesigned or retested all at once:
 
 1. `TAL-96D5E1A` reconciles product authority, registered surfaces, source records, code, and tests without browser use or behavior changes.
-2. `TAL-96D5E1B` implements the smallest approved Registrar-centered recovery across setup, admissions, offerings, scheduling, enrollment, lifecycle, and student-record projections.
+2. `TAL-96D5E1B` implements the smallest approved Registrar-centered recovery across setup, admissions, offerings, scheduling, enrollment, lifecycle, and student-record projections:
+   - `TAL-96D5E1B1` establishes fixture truth and the corrected academic operating foundation.
+   - `TAL-96D5E1B2A` implements one Academic Readiness and Curriculum Workbench and the combined curriculum encoding/import-review interaction.
+   - `TAL-96D5E1B2B` implements one Admissions Work Queue and contextual Applicant Record.
+   - `TAL-96D5E1B2C` implements one Class Planning and Scheduling Operations workflow through official publication.
+   - `TAL-96D5E1B3` implements Enrollment, Student Record, and Lifecycle recovery and affected-role projections.
 3. `TAL-96D5E1C` implements the smallest approved Accounting and PayMongo recovery while preserving Assessment, Payment Attempt, Payment, Ledger Entry, adjustment, and reconciliation as separate authoritative records.
 4. `TAL-96D5E1D` closes remaining-role and shared presentation contracts, including responsive tables, business-question filters, status language, action hierarchy, date meaning, empty/blocked/recovery states, and appropriate task navigation.
 5. `TAL-96D5E1E` uses the preserved MIDDLE personas for code-first evidence and a concise role-organized human acceptance pass. It repeats only failed or corrected journeys.
@@ -400,6 +405,11 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D5E1 | Exploration-ready `MIDDLE` personas and compatible operational states, email and PayMongo acceptance, developer spin-up, first-time role journey guide, and guided exploration/remediation | No capacity study; at most one separately authorized functional `MIDDLE` solve when no accepted candidate can be restored |
 | TAL-96D5E1A | Browser-free system-truth, workflow, surface, and authority reconciliation; reopens overstated D5C1 comprehension claims and routes evidence-backed recovery | Read-only; no browser acceptance, database mutation, external request, or implementation change |
 | TAL-96D5E1B | Registrar-centered operational recovery and affected-role projections | No schema redesign, capacity study, Cloud solve, or external-provider request |
+| TAL-96D5E1B1 | Fixture truth and corrected academic operating foundation | No workflow/UI redesign or solver run |
+| TAL-96D5E1B2A | Academic Readiness and Curriculum Workbench with one combined encoding/import-review interaction | Preserve authoritative records, direct authorization, corrected fixture, and downstream contracts |
+| TAL-96D5E1B2B | Admissions Work Queue and contextual Applicant Record | No source-record merge, applicant-policy invention, or external notification/provider request |
+| TAL-96D5E1B2C | Class Planning and Scheduling Operations through validated publication | No equation, solver-contract, capacity-study, or Cloud change |
+| TAL-96D5E1B3 | Enrollment, Student Record, and Lifecycle recovery with affected-role projections | No finance-provider or remaining-role expansion |
 | TAL-96D5E1C | Accounting and PayMongo operational recovery while preserving ledger and evidence boundaries | No live payment, webhook, or provider request without a separate human gate |
 | TAL-96D5E1D | Remaining-role and shared presentation-contract closure | No broad visual rewrite or dependency addition |
 | TAL-96D5E1E | Exploration evidence, first-time guide, and concise human acceptance over the stable MIDDLE fixture | No capacity study; repeat only failed or corrected representative journeys |

@@ -33,6 +33,7 @@ class Program extends Model
         ];
     }
 
+    /** @return HasMany<CurriculumVersion, $this> */
     public function curriculumVersions(): HasMany
     {
         return $this->hasMany(CurriculumVersion::class);
@@ -43,6 +44,7 @@ class Program extends Model
         return $this->hasMany(StudentProfile::class);
     }
 
+    /** @return HasMany<CurriculumVersion, $this> */
     public function curriculums(): HasMany
     {
         return $this->curriculumVersions();

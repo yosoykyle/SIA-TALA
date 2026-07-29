@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
@@ -98,7 +98,7 @@ class RegistrarOperationalReadinessWidget extends StatsOverviewWidget
                 ->description("Confirm all {$activePrograms} active programs have the correct three-year curriculum.")
                 ->descriptionIcon(Heroicon::OutlinedArrowTopRightOnSquare)
                 ->color($activePrograms > 0 && $activeCurricula === $activePrograms ? 'success' : 'warning')
-                ->url(CurriculumVersionResource::getUrl('index')),
+                ->url(AcademicReadiness::getUrl()),
             Stat::make(
                 '3. Offerings & Sections',
                 "{$offeringCount} offerings / {$sectionCount} sections",

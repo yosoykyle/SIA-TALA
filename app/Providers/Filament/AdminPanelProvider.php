@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
@@ -141,6 +142,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Dashboard::class,
+                AcademicReadiness::class,
                 FacultyGradeRoster::class,
                 FacultySchedule::class,
                 ReportsAudit::class,
@@ -182,14 +184,7 @@ class AdminPanelProvider extends PanelProvider
                     ])),
                 NavigationGroup::make('Academic Setup')
                     ->items($this->navigationItems([
-                        AcademicYearResource::class,
-                        TermResource::class,
-                        AcademicCalendarWindowResource::class,
-                        ProgramResource::class,
-                        CourseResource::class,
-                        CourseSpecificationResource::class,
-                        CurriculumVersionResource::class,
-                        ImportBatchResource::class,
+                        AcademicReadiness::class,
                     ])),
                 NavigationGroup::make('Offerings & Scheduling')
                     ->items($this->navigationItems([
