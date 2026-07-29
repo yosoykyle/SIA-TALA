@@ -2,9 +2,9 @@
 
 **Status:** Active governing charter for the remaining TAL-96D plans
 
-**Applies to remaining work:** `TAL-96D5C` through `TAL-96D5E`
+**Applies to remaining work:** `TAL-96D5E1` through `TAL-96D5E2`
 
-**Next execution boundary:** TAL-96D5D is completed and independently verified. Its equation-preserving staged-search evidence records an operationally accepted `FEASIBLE` corrected-MAX schedule with 178/178 assignments and zero hard-constraint violations without claiming `OPTIMAL` or an absolute ceiling. TAL-96D5E owns final evidence consolidation, the deployment-readiness disposition, the TAL-97 verified-claim handoff, and charter retirement. No additional Cloud request, deployment, database scenario switch, production promotion, equation, fixture, schema, or publication-workflow change is implied.
+**Next execution boundary:** TAL-96D5E1A has completed its browser-free reconciliation, independent verification, and local Cleanup. Its bounded result does not certify usability or authorize unplanned remediation: it preserves the domain model and identifies the evidence-backed recovery order for Registrar-centered operations, Accounting and PayMongo, remaining roles and shared presentation contracts, and concise human acceptance. `Plan TAL-96D5E1B` is next. No capacity rerun, deployment, database scenario switch, production promotion, equation, fixture, schema, external-provider action, or live-surface deletion or merge is implied.
 
 ## 1. Purpose
 
@@ -145,6 +145,30 @@ The closure method remains cost-conscious:
 
 TAL-96D5C planning must reconcile this closure requirement before running the final regression gate. If the Ground-Truth Gate identifies material remediation, the plan must split D5C into a role/surface closure sub-slice followed by a separate full regression, security, and integration-readiness sub-slice. TAL-96D5D remains the owner of paid population/configuration benchmarking, and TAL-96D5E remains the owner of final evidence consolidation and charter retirement.
 
+### 4.4 Systemic Client-Acceptance Recovery
+
+The client-acceptance findings reopened the earlier D5C1 claim that registered purpose, authorization, and focused tests were sufficient evidence of complete role/surface closure. D5C1 remains valid evidence for registration, policy, service, and regression facts; it is not final proof that the operating order, information hierarchy, terminology, or cross-role workflow is understandable.
+
+The remaining recovery is divided so that the system is not broadly redesigned or retested all at once:
+
+1. `TAL-96D5E1A` reconciles product authority, registered surfaces, source records, code, and tests without browser use or behavior changes.
+2. `TAL-96D5E1B` implements the smallest approved Registrar-centered recovery across setup, admissions, offerings, scheduling, enrollment, lifecycle, and student-record projections.
+3. `TAL-96D5E1C` implements the smallest approved Accounting and PayMongo recovery while preserving Assessment, Payment Attempt, Payment, Ledger Entry, adjustment, and reconciliation as separate authoritative records.
+4. `TAL-96D5E1D` closes remaining-role and shared presentation contracts, including responsive tables, business-question filters, status language, action hierarchy, date meaning, empty/blocked/recovery states, and appropriate task navigation.
+5. `TAL-96D5E1E` uses the preserved MIDDLE personas for code-first evidence and a concise role-organized human acceptance pass. It repeats only failed or corrected journeys.
+
+Separate authoritative records are not merged merely because their current navigation is confusing. The recovery may use Filament clusters, resource subnavigation, relation managers, tabs, infolists, action groups, and responsive table layouts to present one task-centered workflow while keeping its normalized records and existing service boundaries. A schema change, record merge, surface deletion, or transfer of office ownership remains a human gate.
+
+The shared recovery contract is:
+
+- navigation describes a task or operating stage rather than exposing every table as an equal destination;
+- list pages answer the role's immediate business question with prioritized columns and filters;
+- record pages lead with identity, current status, next action, responsible office, and blockers, then expose chronology and technical evidence;
+- raw IDs, class names, enum codes, and audit keys remain secondary traceability unless they are the user's actual decision input;
+- consequential actions show impact, authority, confirmation, result, and recovery;
+- true timestamps use UTC storage and Asia/Manila presentation, while recurring institutional wall-clock values are not timezone-shifted; and
+- programmatic evidence precedes the smallest representative human acceptance pass.
+
 ## 5. Required Coverage
 
 The complete TAL-96D chain must cover the roles and states that materially alter behavior, including:
@@ -272,7 +296,8 @@ Snapshot, destructive rebuild, restoration, and scenario replacement remain huma
 - TAL-96D5B uses `MIDDLE` for agent-led programmatic adversarial acceptance, deterministic downstream-state overlays, and one bounded final human smoke review.
 - TAL-96D5C first closes the role-by-role implementation, producer-consumer, Settings-purpose, critical-action, and scheduling-review experience audit, then owns the full regression, security, and integration-readiness gate after any resulting remediation stabilizes.
 - TAL-96D5D uses the stable workload manifests for the deferred capacity and resource-selection study.
-- TAL-96D5E consolidates verified evidence, records the final deployment-readiness disposition, prepares the TAL-97 claim handoff, and retires this charter.
+- TAL-96D5E1 makes `MIDDLE` exploration-ready with deterministic role/state personas, email and PayMongo acceptance, developer spin-up, a first-time journey guide, and guided remediation of evidence-backed findings.
+- TAL-96D5E2 consolidates only the resulting verified evidence, records the final deployment-readiness disposition, prepares the TAL-97 claim handoff, and retires this charter.
 
 ## 9. Capacity and Configuration Evaluation Contract
 
@@ -369,9 +394,16 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D5B | Accelerated full-system convergence against representative `MIDDLE`: programmatic adversarial acceptance, deterministic operational-state overlays, bounded remediation, and one final human smoke review | Functional acceptance only; no population capacity study |
 | TAL-96D5C | Role-by-role implementation and experience closure, including producer-consumer consistency, Settings purpose, critical-action guardrails, scheduling-review evidence, followed by the full regression, security, and integration-readiness gate | No population capacity study |
 | TAL-96D5D | Targeted `MIN-CFG` / `TARGET-CFG` / `MAX-CFG` population, resource, solution-quality, and cost evaluation | Owns authorized population capacity and cost evaluation |
-| TAL-96D5E | Evidence consolidation, final deployment-readiness disposition, TAL-97 handoff, and charter retirement | No new capacity run unless a verified D5D evidence gap receives separate authorization |
+| TAL-96D5E | Parent split for exploration readiness followed by evidence consolidation and retirement | No new capacity study |
+| TAL-96D5E1 | Exploration-ready `MIDDLE` personas and compatible operational states, email and PayMongo acceptance, developer spin-up, first-time role journey guide, and guided exploration/remediation | No capacity study; at most one separately authorized functional `MIDDLE` solve when no accepted candidate can be restored |
+| TAL-96D5E1A | Browser-free system-truth, workflow, surface, and authority reconciliation; reopens overstated D5C1 comprehension claims and routes evidence-backed recovery | Read-only; no browser acceptance, database mutation, external request, or implementation change |
+| TAL-96D5E1B | Registrar-centered operational recovery and affected-role projections | No schema redesign, capacity study, Cloud solve, or external-provider request |
+| TAL-96D5E1C | Accounting and PayMongo operational recovery while preserving ledger and evidence boundaries | No live payment, webhook, or provider request without a separate human gate |
+| TAL-96D5E1D | Remaining-role and shared presentation-contract closure | No broad visual rewrite or dependency addition |
+| TAL-96D5E1E | Exploration evidence, first-time guide, and concise human acceptance over the stable MIDDLE fixture | No capacity study; repeat only failed or corrected representative journeys |
+| TAL-96D5E2 | Final evidence consolidation, deployment-readiness disposition, TAL-97 handoff, and charter retirement after D5E1 verification and Cleanup | No implementation or external run unless a newly proven material gap receives an approved plan revision |
 
-Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained acceptance scenarios, and Cleanup. TAL-96D5B proves scenarios programmatically wherever possible and routes only genuinely visual, policy-authority, destructive, credentialed, cost-bearing, or external-provider interactions to a human gate.
+Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained acceptance scenarios, and Cleanup. TAL-96D5B proves scenarios programmatically wherever possible and routes only genuinely visual, policy-authority, destructive, credentialed, cost-bearing, or external-provider interactions to a human gate. TAL-96D5E1 performs code-first and programmatic preflight before the user follows the guide as a first-time operator; it classifies and corrects only evidence-backed defects or real gaps and repeats only failed or corrected journeys. TAL-96D5E2 cannot consolidate or retire this charter while a material D5E1 finding remains unresolved.
 
 ## 11. Documentation Ownership
 
@@ -403,7 +435,8 @@ Each TAL-96D slice must produce:
 9. additions to the consolidated acceptance table with role, credential, prerequisites, steps, inputs, expected visible output, expected state change, invalid cases, evidence source, pass/fail, and observations; TAL-96D5B executes these programmatically first and retains only bounded human-smoke steps that cannot be proven otherwise;
 10. likely panel questions with honest answers; and
 11. exact documentation updates warranted by verified results; and
-12. for TAL-96D5C, a complete role/surface inventory and producer-consumer traceability matrix with an explicit purpose and disposition for Settings and other unclear administrative surfaces.
+12. for TAL-96D5C, a complete role/surface inventory and producer-consumer traceability matrix with an explicit purpose and disposition for Settings and other unclear administrative surfaces; and
+13. for TAL-96D5E1A, a corrected system-truth report that distinguishes registered purpose and backend correctness from proven workflow comprehensibility, then routes every material finding to D5E1B–E.
 
 ## 13. Safety and Human Gates
 
@@ -435,4 +468,4 @@ TAL-96D is complete only when:
 - the consolidated operations and defense guide is complete; and
 - TAL-97 can rehearse and present only verified claims.
 
-During TAL-96D5E Cleanup, this charter must be marked completed and either retained as historical governance evidence or archived according to the project documentation rules. It must not remain as a competing live product authority after its verified outcomes have been consolidated into their owning documents.
+During TAL-96D5E2 Cleanup, this charter must be marked completed and either retained as historical governance evidence or archived according to the project documentation rules. It must not remain as a competing live product authority after its verified outcomes have been consolidated into their owning documents.
