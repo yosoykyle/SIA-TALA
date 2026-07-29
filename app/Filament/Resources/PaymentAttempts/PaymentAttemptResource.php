@@ -22,7 +22,11 @@ class PaymentAttemptResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Payment Queue';
+    protected static ?string $navigationLabel = 'Payment Attempts';
+
+    protected static ?string $modelLabel = 'payment attempt';
+
+    protected static ?string $pluralModelLabel = 'Payment Attempts';
 
     protected static ?int $navigationSort = 20;
 

@@ -23,7 +23,11 @@ class LedgerEntryResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Ledger Entries';
+    protected static ?string $navigationLabel = 'Account Activity';
+
+    protected static ?string $modelLabel = 'account activity';
+
+    protected static ?string $pluralModelLabel = 'Account Activity';
 
     protected static ?int $navigationSort = 22;
 

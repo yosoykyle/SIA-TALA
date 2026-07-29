@@ -4,12 +4,18 @@ namespace App\Filament\Resources\Assessments\Pages;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
+use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
+use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
+use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
+use App\Filament\Resources\Payments\PaymentResource;
 use App\Models\Assessment;
 use App\Models\Payment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -111,7 +117,51 @@ class ViewAssessment extends ViewRecord
                         ->success()
                         ->send();
                 }),
+            ActionGroup::make([
+                Action::make('openAccountActivity')
+                    ->label('Account Activity')
+                    ->icon(Heroicon::OutlinedListBullet)
+                    ->url(fn (): string => LedgerEntryResource::getUrl('index', [
+                        'tableSearch' => $this->studentSearch(),
+                    ], panel: 'admin')),
+                Action::make('openPaymentAttempts')
+                    ->label('Payment Attempts')
+                    ->icon(Heroicon::OutlinedClock)
+                    ->url(fn (): string => PaymentAttemptResource::getUrl('index', [
+                        'tableSearch' => $this->studentSearch(),
+                    ], panel: 'admin')),
+                Action::make('openPayments')
+                    ->label('Payments and Official Receipts')
+                    ->icon(Heroicon::OutlinedReceiptPercent)
+                    ->url(fn (): string => PaymentResource::getUrl('index', [
+                        'tableSearch' => $this->studentSearch(),
+                    ], panel: 'admin')),
+                Action::make('openAdjustments')
+                    ->label('Adjustments and Reversals')
+                    ->icon(Heroicon::OutlinedArrowsRightLeft)
+                    ->url(fn (): string => AccountingAdjustmentResource::getUrl('index', [
+                        'tableSearch' => $this->studentSearch(),
+                    ], panel: 'admin')),
+                Action::make('openAccommodations')
+                    ->label('Financial Accommodations')
+                    ->icon(Heroicon::OutlinedShieldCheck)
+                    ->url(fn (): string => FinancialAccommodationResource::getUrl('index', [
+                        'tableSearch' => $this->studentSearch(),
+                    ], panel: 'admin')),
+            ])
+                ->label('Account Records')
+                ->icon(Heroicon::OutlinedFolderOpen)
+                ->visible(fn (): bool => auth()->user()?->canProcessPayments() === true),
         ];
+    }
+
+    private function studentSearch(): string
+    {
+        $assessment = $this->getRecord();
+
+        return $assessment instanceof Assessment
+            ? (string) $assessment->enrollment?->studentProfile?->student_number
+            : '';
     }
 
     private function canActivate(): bool

@@ -1543,7 +1543,7 @@ The guarded command is `acceptance:seed-tal96d5e1-exploration`. It is restricted
 - corrected 270-student, 77-offering, 77-demand, 14-faculty MIDDLE scheduling contract; and
 - no schedule run, official meeting, queued job, CP-SAT invocation, SMTP call, or PayMongo call.
 
-The final overlay-compatible matrix passed **87 tests with 1,104 assertions**. It covered the D5E1 catalogue, retained D5B operational states, applicant validation and status mail, checkout reliability, PayMongo signature and provider-contract boundaries, idempotent webhook posting, Accounting observability, and Student delivery. A first broad attempt also included the historical TAL-69 class, whose assertions deliberately require globally empty Payment and Ledger tables; those assertions are incompatible with a persistent exploration database that intentionally contains partial and cleared finance examples. They were not relabelled as product failures or weakened. Equivalent record-scoped PayMongo contracts passed in the overlay-compatible matrix, while the complete clean-baseline suite remains the independently verified D5C2 evidence.
+The final pre-D5E1C overlay-compatible matrix passed **87 tests with 1,104 assertions**. It covered the D5E1 catalogue, retained D5B operational states, applicant validation and status mail, checkout reliability, PayMongo signature and provider-contract boundaries, idempotent webhook posting, Accounting observability, and Student delivery. Its first broad attempt exposed older finance tests that counted every Payment or Ledger Entry in the persistent acceptance database. D5E1C corrected those test-isolation assumptions by scoping assertions to records created after each test boundary or to the test's Student, Term, and Enrollment. The expected business outcomes were not weakened. The resulting D5E1C affected matrix, including the complete TAL-69 webhook-to-ledger class, passed **96 tests with 1,292 assertions** against the populated MIDDLE fixture. The complete clean-baseline suite remains the independently verified D5C2 evidence.
 
 The landing-navigation acceptance regression also passed independently. Real-browser inspection at 929 by 818 pixels proved the mixed overlap that the old navbar-wide switch could not represent: the TALA brand and menu icon remained literal white over the dark hero while each expanded menu item became literal black over the white portal card. No opaque navbar background or replacement visual system was added.
 
@@ -1769,3 +1769,70 @@ This is programmatic evidence, not visual acceptance. The concise cross-role bro
 | Which academic standing is official? | Confirmed Academic Standing is the institution's stored result. System Recommendation is computed decision support and is labeled separately. |
 | Does recording a withdrawal or program shift rebuild the published timetable? | No. The preview explains affected enrollment bindings and reservations, while the published master schedule remains unchanged. Later enrollment placement uses the already published compatible offerings. |
 | Can lifecycle staff save a consequential change without seeing its effects? | No. The create flow requires a read-only impact review and explicit confirmation before the transactional writer runs. |
+
+### 9.14 TAL-96D5E1C Accounting and PayMongo operating flow
+
+TAL-96D5E1C changes the Accounting mental model without changing the normalized finance model. Accounting now follows **Fee Setup -> Student Accounts -> Payment Exceptions**. Assessment, Payment Attempt, Payment, Ledger Entry, Accounting Adjustment, Financial Accommodation, provider evidence, and output-access records remain separate authoritative records.
+
+#### 9.14.1 First-time Accounting operator sequence
+
+1. Open **Fee Setup** and confirm that the applicable Program-and-Term rules exist. An assessment may remain Draft while ordinary setup is incomplete, but activation requires the exact Program-and-Term downpayment rule.
+2. Open **Student Accounts** and locate the Student and Term. Read Account State, assessed total, posted payments, remaining balance, amount due now, Payment Status, Finance Gate, gate source, responsible office, and Next Action.
+3. Open the Student Account. Read **Current Position** and **Next Action** before opening supporting evidence.
+4. Use **Account Records** only when investigation is needed:
+   - **Account Activity** shows the chronological balance evidence;
+   - **Payment Attempts** shows checkout attempts and provider-facing states;
+   - **Payments and Official Receipts** shows verified evidence and OR mapping;
+   - **Adjustments and Reversals** shows authorized corrections; and
+   - **Financial Accommodations** shows approved institutional effects and schedules.
+5. Open **Payment Exceptions** when a signed webhook, provider-recovery result, mismatch, duplicate, expired attempt, failure, or refund/reversal signal requires Accounting action.
+6. Confirm or reject provider-recovery evidence only after the exact Student, Assessment, amount, currency, institutional reference, provider identifiers, mode, and dispute/refund state agree. A browser return never proves payment.
+
+#### 9.14.2 What each finance record means
+
+| Record | Plain-language meaning | What it must not be confused with |
+| --- | --- | --- |
+| Assessment | What the school charged the Student for the Term | It is not the chronological account history. |
+| Account Activity / Ledger Entry | Posted evidence that reproduces the balance: charges, payments, adjustments, and reversals | It is not a second assessment and posted history is not edited in place. |
+| Payment Attempt | A checkout attempt and its current provider-facing state | It is not verified payment evidence. |
+| Payment | Verified or authorized payment evidence, including payment method and OR-mapping state | A successful browser return alone does not create it. |
+| Accounting Adjustment | An authorized correction or reversal request with reason and evidence | It does not delete or rewrite the original ledger entry. |
+| Financial Accommodation | An approved institutional result and its explicit gate effects | It does not pretend that TALA authored the external promissory document. |
+| Payment Exception | Operational evidence that Accounting must investigate or decide | It is not automatically a posted payment. |
+
+#### 9.14.3 Exploration states in the corrected MIDDLE fixture
+
+The deterministic D5E1 overlay makes the finance workflow explorable without contacting PayMongo:
+
+| Persona / reference | Representative state | Expected operator interpretation |
+| --- | --- | --- |
+| `DIT-1A-001` | Amount due, expired checkout attempt, adjustment and reversal evidence, active accommodation, and an open provider exception | Accounting must distinguish balance evidence, gate effect, and unresolved provider evidence rather than treating every record as payment. |
+| `DIT-1A-002` | Partially paid, verified manual bank-transfer evidence awaiting OR mapping, and an expired accommodation | The ledger reflects the posted payment while OR mapping remains a separate cashier reconciliation step. |
+| `DIT-2A-001` | Cleared account plus an under-review attempt and recovered provider evidence | A cleared balance does not permit unresolved evidence to be silently discarded; the exception remains auditable. |
+
+The overlay is idempotent and creates no schedule run, candidate assignment, official meeting, solver job, SMTP request, PayMongo request, or production seed behavior.
+
+#### 9.14.4 Failure, recovery, and authorization rules
+
+- A duplicate manual reference or OR number is rejected without creating another Payment or payment Ledger Entry.
+- An under-review, failed, expired, mismatched, or unknown-reference attempt does not clear the Finance Gate.
+- Pending OR mapping does not create another payment. Accounting updates the existing verified Payment.
+- A correction creates a linked adjustment or reversal. The original posted Ledger Entry remains visible.
+- Registrar may view authorized finance summaries needed for enrollment decisions but cannot activate assessments, record payments, map OR numbers, or post corrections.
+- Student Finance remains read-only except for the authorized checkout action and generated-output access.
+- SOA, billing slip, and payment acknowledgement remain read-only projections and continue to write `output_access_logs`.
+
+#### 9.14.5 Likely panel questions
+
+| Question | Defense answer |
+| --- | --- |
+| Why did you not combine Assessment, Payment, and Ledger into one table? | They prove different facts. Combining them would weaken auditability and idempotency. TALA instead presents them through one Student Account workflow. |
+| What is the difference between Assessment and Account Activity? | Assessment is what the school charged. Account Activity is the chronological posted evidence used to reproduce what remains payable. |
+| Does returning from PayMongo mean the Student has paid? | No. The return is informational. TALA requires verified signed-webhook evidence or authorized manual evidence before creating one Payment and one payment Ledger Entry. |
+| How does Accounting correct a mistake? | Through an authorized adjustment or reversal linked to the source entry, with reason and evidence. Posted history is never silently edited or deleted. |
+| Why can a paid account still show a Payment Exception? | Balance state and evidence-review state answer different questions. A duplicate, delayed, mismatched, recovered, or refund-related event can require review even when the account balance is already clear. |
+| What happens if PayMongo is unavailable? | Existing verified records remain intact. New hosted checkout may be unavailable, while authorized manual cashier evidence and later controlled reconciliation provide continuity. |
+
+#### 9.14.6 Evidence boundary
+
+The focused D5E1C matrix passed **96 tests with 1,292 assertions**. It covers the task-centered navigation, account-summary and detail parity, business labels and filters, immutable adjustment/reversal behavior, manual-payment duplicate protection, OR mapping, accommodation effects, Finance Gate behavior, Student Finance outputs, signed and idempotent PayMongo processing, exception presentation and decisions, fixture idempotency, and the absence of scheduling side effects. These are local programmatic findings. No PayMongo request, webhook registration, credential change, deployment, destructive database rebuild, schema change, source-record merge, or visual acceptance is claimed. Consolidated human acceptance remains owned by TAL-96D5E1E.

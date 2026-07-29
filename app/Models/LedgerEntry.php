@@ -79,6 +79,7 @@ class LedgerEntry extends Model
         return $this->belongsTo(Enrollment::class);
     }
 
+    /** @return BelongsTo<Term, $this> */
     public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
@@ -94,14 +95,49 @@ class LedgerEntry extends Model
         return $this->belongsTo(Payment::class);
     }
 
+    public function reversedEntry(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reverses_entry_id');
+    }
+
+    public function adjustedEntry(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'adjusts_entry_id');
+    }
+
+    public function effectLabel(): string
+    {
+        return match ($this->direction) {
+            self::DirectionCharge, self::DirectionPenalty, self::DirectionRefund => 'Increases balance',
+            self::DirectionPayment, self::DirectionDiscount, self::DirectionScholarship, self::DirectionWaiver => 'Reduces balance',
+            self::DirectionAdjustment => (float) $this->amount >= 0 ? 'Increases balance' : 'Reduces balance',
+            self::DirectionReversal => 'Reverses a prior entry',
+            default => str((string) $this->direction)->replace('_', ' ')->headline()->toString(),
+        };
+    }
+
+    public function sourceLabel(): string
+    {
+        return match ($this->source_type) {
+            AssessmentLine::class => 'Assessment charge',
+            Payment::class => 'Verified payment',
+            AccountingAdjustment::class => $this->direction === self::DirectionReversal
+                ? 'Accounting reversal'
+                : 'Accounting adjustment',
+            Enrollment::class => 'Enrollment',
+            default => filled($this->source_type)
+                ? str(class_basename((string) $this->source_type))->headline()->toString()
+                : 'System posting',
+        };
+    }
+
     public function displayLabel(): string
     {
         return collect([
-            "#{$this->id}",
-            $this->direction,
-            $this->category,
+            $this->sourceLabel(),
+            $this->effectLabel(),
             $this->description,
-            'Amount: '.number_format((float) $this->amount, 2),
+            'PHP '.number_format((float) abs((float) $this->amount), 2),
         ])
             ->filter(fn (?string $part): bool => filled($part))
             ->implode(' - ');

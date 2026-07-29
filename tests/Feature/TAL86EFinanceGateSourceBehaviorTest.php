@@ -117,7 +117,10 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         $this->assertSame('active_financial_accommodation', $clearance['finance_clearance_source']);
         $this->assertSame('0.00', $clearance['total_confirmed_payments']);
         $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     public function test_expired_cancelled_wrong_term_and_missing_effect_accommodations_do_not_clear_finance_gate(): void
@@ -155,8 +158,14 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
 
         $this->assertFalse($clearance['finance_cleared']);
         $this->assertSame('none', $clearance['finance_clearance_source']);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, Payment::query()
+            ->where('student_profile_id', $fixture['profile']->id)
+            ->where('term_id', $fixture['term']->id)
+            ->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     public function test_under_review_payment_evidence_does_not_clear_finance_gate_without_ledger_posting(): void
@@ -185,7 +194,10 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
 
         $this->assertFalse($clearance['finance_cleared']);
         $this->assertSame('none', $clearance['finance_clearance_source']);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     public function test_or_mapping_absence_does_not_block_verified_evidence_with_posted_ledger_payment(): void
@@ -224,8 +236,14 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
 
         $this->assertFalse($clearance['finance_cleared']);
         $this->assertSame('none', $clearance['finance_clearance_source']);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, Payment::query()
+            ->where('student_profile_id', $fixture['profile']->id)
+            ->where('term_id', $fixture['term']->id)
+            ->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     /**

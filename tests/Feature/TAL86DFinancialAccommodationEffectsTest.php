@@ -94,8 +94,13 @@ final class TAL86DFinancialAccommodationEffectsTest extends TestCase
             ->assertHasNoFormErrors()
             ->assertNotified();
 
-        $accommodation = FinancialAccommodation::query()->sole();
-        $schedule = PaymentScheduleRow::query()->sole();
+        $accommodation = FinancialAccommodation::query()
+            ->where('student_profile_id', $fixture['profile']->id)
+            ->where('term_id', $fixture['term']->id)
+            ->sole();
+        $schedule = PaymentScheduleRow::query()
+            ->where('financial_accommodation_id', $accommodation->id)
+            ->sole();
 
         $this->assertSame($fixture['profile']->id, $accommodation->student_profile_id);
         $this->assertSame($fixture['term']->id, $accommodation->term_id);

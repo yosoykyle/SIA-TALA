@@ -15,6 +15,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,7 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_test_codex', DB::connection()->getDatabaseName());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         foreach ([
             'student',
@@ -65,8 +67,12 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
             ])
             ->assertNotified('Manual payment recorded');
 
-        $payment = Payment::query()->sole();
+        $payment = Payment::query()
+            ->where('student_profile_id', $fixture['profile']->id)
+            ->where('term_id', $fixture['term']->id)
+            ->sole();
         $ledgerEntry = LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
             ->where('direction', LedgerEntry::DirectionPayment)
             ->sole();
 
@@ -80,7 +86,10 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $this->assertSame($payment->id, $ledgerEntry->source_id);
         $this->assertSame('posted', $ledgerEntry->state);
         $this->assertSame('500.00', (string) $ledgerEntry->amount);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(1, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
     }
 
     public function test_duplicate_manual_payment_reference_and_or_number_are_rejected_without_reposting(): void
@@ -113,8 +122,14 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
                 orNumber: 'OR-86B-OTHER',
             );
         } finally {
-            $this->assertSame(1, Payment::query()->count());
-            $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+            $this->assertSame(1, Payment::query()
+                ->where('student_profile_id', $fixture['profile']->id)
+                ->where('term_id', $fixture['term']->id)
+                ->count());
+            $this->assertSame(1, LedgerEntry::query()
+                ->where('enrollment_id', $fixture['enrollment']->id)
+                ->where('direction', LedgerEntry::DirectionPayment)
+                ->count());
         }
     }
 
@@ -148,8 +163,14 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
                 orNumber: 'OR-86B-UNIQUE',
             );
         } finally {
-            $this->assertSame(1, Payment::query()->count());
-            $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+            $this->assertSame(1, Payment::query()
+                ->where('student_profile_id', $fixture['profile']->id)
+                ->where('term_id', $fixture['term']->id)
+                ->count());
+            $this->assertSame(1, LedgerEntry::query()
+                ->where('enrollment_id', $fixture['enrollment']->id)
+                ->where('direction', LedgerEntry::DirectionPayment)
+                ->count());
         }
     }
 
@@ -162,7 +183,7 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewAssessment::class, ['record' => $fixture['assessment']->getRouteKey()])
-            ->assertActionHidden('recordManualPayment');
+            ->assertDontSee('Record Manual Payment');
 
         $this->assertFalse(Gate::forUser($registrar)->allows('mapOfficialReceipt', $payment));
 
@@ -179,7 +200,10 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
 
             $this->fail('Non-Accounting manual payment recording should be rejected.');
         } catch (AuthorizationException) {
-            $this->assertSame(1, Payment::query()->count());
+            $this->assertSame(1, Payment::query()
+                ->where('student_profile_id', $fixture['profile']->id)
+                ->where('term_id', $fixture['term']->id)
+                ->count());
         }
 
         try {
@@ -209,7 +233,10 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
                 'provider_reference' => 'paymongo:under-review-86b',
             ]);
 
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, LedgerEntry::query()
+            ->where('enrollment_id', $fixture['enrollment']->id)
+            ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $underReview))
@@ -280,8 +307,14 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         } finally {
             $this->assertNull($candidate->fresh()->or_number);
             $this->assertFalse(Gate::forUser($accounting)->allows('mapOfficialReceipt', $unposted));
-            $this->assertSame(3, Payment::query()->count());
-            $this->assertSame(2, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+            $this->assertSame(3, Payment::query()
+                ->where('student_profile_id', $fixture['profile']->id)
+                ->where('term_id', $fixture['term']->id)
+                ->count());
+            $this->assertSame(2, LedgerEntry::query()
+                ->where('enrollment_id', $fixture['enrollment']->id)
+                ->where('direction', LedgerEntry::DirectionPayment)
+                ->count());
         }
     }
 

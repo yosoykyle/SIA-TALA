@@ -148,8 +148,14 @@ final class TAL86CAccountingAdjustmentReversalTest extends TestCase
                 'reason' => 'Attempted duplicate reversal should be blocked cleanly.',
             ], $accounting, CarbonImmutable::parse('2026-06-12 11:10:00'));
         } finally {
-            $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionReversal)->count());
-            $this->assertSame(1, AccountingAdjustment::query()->where('adjustment_type', AccountingAdjustment::TypeLedgerEntryReversal)->count());
+            $this->assertSame(1, LedgerEntry::query()
+                ->where('enrollment_id', $fixture['enrollment']->id)
+                ->where('direction', LedgerEntry::DirectionReversal)
+                ->count());
+            $this->assertSame(1, AccountingAdjustment::query()
+                ->where('enrollment_id', $fixture['enrollment']->id)
+                ->where('adjustment_type', AccountingAdjustment::TypeLedgerEntryReversal)
+                ->count());
         }
     }
 
@@ -217,8 +223,8 @@ final class TAL86CAccountingAdjustmentReversalTest extends TestCase
             ], $registrar, CarbonImmutable::parse('2026-06-12 12:15:00'));
             $this->fail('Non-Accounting user should be rejected.');
         } catch (AuthorizationException) {
-            $this->assertSame(0, AccountingAdjustment::query()->count());
-            $this->assertSame(2, LedgerEntry::query()->count());
+            $this->assertSame(0, AccountingAdjustment::query()->where('enrollment_id', $fixture['enrollment']->id)->count());
+            $this->assertSame(2, LedgerEntry::query()->where('enrollment_id', $fixture['enrollment']->id)->count());
         }
     }
 

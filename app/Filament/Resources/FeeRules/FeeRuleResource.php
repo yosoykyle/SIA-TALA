@@ -25,7 +25,11 @@ class FeeRuleResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Fee Rules';
+    protected static ?string $navigationLabel = 'Fee Setup';
+
+    protected static ?string $modelLabel = 'fee rule';
+
+    protected static ?string $pluralModelLabel = 'Fee Setup';
 
     protected static ?int $navigationSort = 10;
 

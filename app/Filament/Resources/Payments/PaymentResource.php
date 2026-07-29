@@ -22,7 +22,11 @@ class PaymentResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Confirmed Payments';
+    protected static ?string $navigationLabel = 'Payments and Official Receipts';
+
+    protected static ?string $modelLabel = 'payment and official receipt';
+
+    protected static ?string $pluralModelLabel = 'Payments and Official Receipts';
 
     protected static ?int $navigationSort = 21;
 

@@ -22,6 +22,7 @@ use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -34,6 +35,14 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
     private EnrollmentAssessmentService $assessments;
 
+    private int $ledgerEntryIdBoundary;
+
+    private int $operationalEventIdBoundary;
+
+    private int $paymentAttemptIdBoundary;
+
+    private int $paymentIdBoundary;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,6 +51,11 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+
+        $this->ledgerEntryIdBoundary = (int) (LedgerEntry::query()->max('id') ?? 0);
+        $this->operationalEventIdBoundary = (int) (OperationalEvent::query()->max('id') ?? 0);
+        $this->paymentAttemptIdBoundary = (int) (PaymentAttempt::query()->max('id') ?? 0);
+        $this->paymentIdBoundary = (int) (Payment::query()->max('id') ?? 0);
 
         foreach ([
             User::StaffRoleAccounting,
@@ -63,8 +77,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $result = app(PayMongoWebhookProcessor::class)->process($webhookCallId);
 
-        $payment = Payment::query()->sole();
-        $ledgerEntry = LedgerEntry::query()
+        $payment = $this->newPayments()->sole();
+        $ledgerEntry = $this->newLedgerEntries()
             ->where('direction', LedgerEntry::DirectionPayment)
             ->sole();
 
@@ -93,7 +107,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('posted', $result['status']);
         $this->assertTrue($result['finance_cleared']);
         $this->assertSame('pre_enrolled', $assessment->enrollment->fresh()->status);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_payment_paid_envelope_uses_checkout_for_ownership_and_payment_id_for_evidence(): void
@@ -110,14 +124,14 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $result = app(PayMongoWebhookProcessor::class)->process($this->webhookCall($payload));
         $attempt->refresh();
-        $payment = Payment::query()->sole();
+        $payment = $this->newPayments()->sole();
 
         $this->assertSame('posted', $result['status']);
         $this->assertSame('paid', $attempt->status);
         $this->assertSame('cs_tal69_payment_paid', $attempt->provider_checkout_id);
         $this->assertSame('pay_tal69_payment_paid', data_get($attempt->metadata, 'last_webhook.payment_id'));
         $this->assertSame('paymongo:pay_tal69_payment_paid', $payment->provider_reference);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_duplicate_paymongo_webhook_resolves_to_existing_payment_and_ledger_without_reposting(): void
@@ -134,8 +148,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('duplicate', $second['status']);
         $this->assertSame($first['payment_id'], $second['payment_id']);
         $this->assertSame($first['ledger_entry_id'], $second['ledger_entry_id']);
-        $this->assertSame(1, Payment::query()->count());
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(1, $this->newPayments()->count());
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_amount_mismatch_keeps_evidence_under_review_without_posting_ledger(): void
@@ -146,14 +160,14 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $result = app(PayMongoWebhookProcessor::class)->process($webhookCallId);
 
-        $payment = Payment::query()->sole();
+        $payment = $this->newPayments()->sole();
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('amount_mismatch', $result['reason']);
         $this->assertSame('under_review', $payment->evidence_status);
         $this->assertSame('999.00', (string) $payment->amount);
         $this->assertSame('under_review', $attempt->fresh()->status);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_currency_and_reference_mismatches_stay_under_review_without_posting_ledger(): void
@@ -173,8 +187,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('currency_mismatch', $currencyResult['reason']);
         $this->assertSame('reference_mismatch', $referenceResult['reason']);
-        $this->assertSame(2, Payment::query()->where('evidence_status', 'under_review')->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(2, $this->newPayments()->where('evidence_status', 'under_review')->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_unknown_paymongo_reference_is_marked_for_review_without_payment_or_ledger_rows(): void
@@ -192,14 +206,14 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('unknown_reference', $result['reason']);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, PaymentAttempt::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newPaymentAttempts()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertStringContainsString(
             'unknown_reference',
             (string) DB::table('webhook_calls')->where('id', $webhookCallId)->value('exception'),
         );
-        $this->assertSame(OperationalEvent::StatusReviewRequired, OperationalEvent::query()->sole()->status);
+        $this->assertSame(OperationalEvent::StatusReviewRequired, $this->newOperationalEvents()->sole()->status);
     }
 
     public function test_livemode_mismatch_cannot_mutate_financial_records(): void
@@ -214,9 +228,9 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('livemode_mismatch', $result['reason']);
         $this->assertSame('pending', $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(OperationalEvent::StatusReviewRequired, OperationalEvent::query()->sole()->status);
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(OperationalEvent::StatusReviewRequired, $this->newOperationalEvents()->sole()->status);
     }
 
     public function test_missing_currency_routes_known_evidence_to_review_without_posting(): void
@@ -231,8 +245,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('missing_currency', $result['reason']);
         $this->assertSame('under_review', $attempt->fresh()->status);
-        $this->assertSame('under_review', Payment::query()->sole()->evidence_status);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame('under_review', $this->newPayments()->sole()->evidence_status);
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_dispute_or_embedded_refund_signal_prevents_automatic_posting(): void
@@ -255,8 +269,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             $this->assertSame('under_review', $attempt->fresh()->status);
         }
 
-        $this->assertSame(2, Payment::query()->where('evidence_status', 'under_review')->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(2, $this->newPayments()->where('evidence_status', 'under_review')->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_inactive_assessment_blocks_payment_mutation_and_routes_the_event_to_review(): void
@@ -272,8 +286,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('assessment_not_active', $result['reason']);
         $this->assertSame('pending', $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_attempt_student_must_match_the_assessment_enrollment_owner(): void
@@ -290,8 +304,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('payment_attempt_ownership_mismatch', $result['reason']);
         $this->assertSame('pending', $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_conflicting_checkout_identifier_routes_evidence_to_review(): void
@@ -306,7 +320,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('checkout_session_mismatch', $result['reason']);
         $this->assertSame('under_review', $attempt->fresh()->status);
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_delivered_failure_after_a_verified_payment_never_undoes_the_payment(): void
@@ -324,11 +338,11 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('failure_after_paid', $result['reason']);
         $this->assertSame('paid', $attempt->fresh()->status);
-        $this->assertSame('verified', Payment::query()->sole()->evidence_status);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame('verified', $this->newPayments()->sole()->evidence_status);
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(
             OperationalEvent::StatusReviewRequired,
-            OperationalEvent::query()->where('external_id', 'evt_tal69_failure_after_paid')->sole()->status,
+            $this->newOperationalEvents()->where('external_id', 'evt_tal69_failure_after_paid')->sole()->status,
         );
     }
 
@@ -344,9 +358,9 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('retryable', $result['status']);
         $this->assertSame('pending', $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(OperationalEvent::StatusProcessed, OperationalEvent::query()->sole()->status);
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(OperationalEvent::StatusProcessed, $this->newOperationalEvents()->sole()->status);
     }
 
     public function test_delivered_failure_cannot_rewrite_a_non_pending_attempt(): void
@@ -363,8 +377,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('failure_attempt_not_pending', $result['reason']);
         $this->assertSame('expired', $attempt->fresh()->status);
-        $this->assertSame(0, Payment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newPayments()->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
     public function test_refund_event_links_the_original_payment_for_review_without_automatic_reversal(): void
@@ -375,7 +389,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         data_set($paidPayload, 'data.attributes.data.attributes.payment_id', 'pay_tal69_refund');
         $processor = app(PayMongoWebhookProcessor::class);
         $processor->process($this->webhookCall($paidPayload));
-        $payment = Payment::query()->sole();
+        $payment = $this->newPayments()->sole();
 
         $refund = $this->paymongoPayload(
             eventId: 'evt_tal69_refund',
@@ -394,8 +408,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('refund_or_reversal', $result['reason']);
         $this->assertSame($payment->id, $result['payment_id']);
         $this->assertSame('verified', $payment->fresh()->evidence_status);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionReversal)->count());
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionReversal)->count());
 
         $refundUpdate = $this->paymongoPayload(
             eventId: 'evt_tal69_refund_update',
@@ -414,8 +428,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('review_required', $updateResult['status']);
         $this->assertSame('refund_or_reversal', $updateResult['reason']);
         $this->assertSame($payment->id, $updateResult['payment_id']);
-        $this->assertSame(1, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-        $this->assertSame(0, LedgerEntry::query()->where('direction', LedgerEntry::DirectionReversal)->count());
+        $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
+        $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionReversal)->count());
     }
 
     private function activeAssessment(): Assessment
@@ -634,6 +648,38 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /**
+     * @return Builder<LedgerEntry>
+     */
+    private function newLedgerEntries(): Builder
+    {
+        return LedgerEntry::query()->where('id', '>', $this->ledgerEntryIdBoundary);
+    }
+
+    /**
+     * @return Builder<OperationalEvent>
+     */
+    private function newOperationalEvents(): Builder
+    {
+        return OperationalEvent::query()->where('id', '>', $this->operationalEventIdBoundary);
+    }
+
+    /**
+     * @return Builder<PaymentAttempt>
+     */
+    private function newPaymentAttempts(): Builder
+    {
+        return PaymentAttempt::query()->where('id', '>', $this->paymentAttemptIdBoundary);
+    }
+
+    /**
+     * @return Builder<Payment>
+     */
+    private function newPayments(): Builder
+    {
+        return Payment::query()->where('id', '>', $this->paymentIdBoundary);
     }
 
     private function ledgerBalanceFor(StudentProfile $studentProfile): string

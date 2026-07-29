@@ -22,6 +22,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +47,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         foreach ([
             User::StaffRoleAccounting,
@@ -192,14 +194,14 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             $this->assessments->generateDraft($enrollment, $faculty, CarbonImmutable::parse('2026-06-10'));
             $this->fail('Unauthorized assessment generation was not rejected.');
         } catch (AuthorizationException) {
-            $this->assertSame(1, Assessment::query()->count());
+            $this->assertSame(1, Assessment::query()->where('enrollment_id', $enrollment->id)->count());
         }
 
         try {
             $this->assessments->activate($assessment, $faculty, CarbonImmutable::parse('2026-06-11'));
             $this->fail('Unauthorized assessment activation was not rejected.');
         } catch (AuthorizationException) {
-            $this->assertSame(0, LedgerEntry::query()->count());
+            $this->assertSame(0, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
         }
     }
 
@@ -334,7 +336,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('downpayment', $exception->errors());
             $this->assertSame(Assessment::StateDraft, $assessment->fresh()->state);
-            $this->assertSame(0, LedgerEntry::query()->count());
+            $this->assertSame(0, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
         }
     }
 
@@ -383,24 +385,33 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $enrollment = $this->placedEnrollmentWithCourseUnits([3.00, 2.00]);
         $this->configureMvpFeeRules($enrollment);
         $assessment = $this->assessments->generateDraft($enrollment, $accounting, CarbonImmutable::parse('2026-06-10'));
+        $downstreamCountsBefore = [
+            'payments' => DB::table('payments')->count(),
+            'payment_attempts' => DB::table('payment_attempts')->count(),
+            'payment_allocations' => DB::table('payment_allocations')->count(),
+            'output_access_logs' => DB::table('output_access_logs')->count(),
+        ];
 
         $activated = $this->assessments->activate($assessment, $accounting, CarbonImmutable::parse('2026-06-11 09:00:00'));
         $this->assessments->activate($activated->fresh(), $accounting, CarbonImmutable::parse('2026-06-11 09:05:00'));
 
         $this->assertSame(Assessment::StateActive, $activated->fresh()->state);
-        $this->assertSame(6, LedgerEntry::query()->count());
+        $this->assertSame(6, LedgerEntry::query()->where('enrollment_id', $enrollment->id)->count());
         $this->assertSame('5800.00', $this->assessments->ledgerBalanceFor($enrollment->studentProfile, $enrollment->term));
         $this->assertFalse(Schema::hasColumn('ledger_entries', 'running_balance'));
 
-        $ledgerEntries = LedgerEntry::query()->orderBy('id')->get();
+        $ledgerEntries = LedgerEntry::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->orderBy('id')
+            ->get();
         $this->assertTrue($ledgerEntries->every(fn (LedgerEntry $entry): bool => $entry->direction === LedgerEntry::DirectionCharge));
         $this->assertTrue($ledgerEntries->every(fn (LedgerEntry $entry): bool => $entry->source_type === AssessmentLine::class));
         $this->assertSame('5800.00', number_format((float) $ledgerEntries->sum('amount'), 2, '.', ''));
 
-        $this->assertSame(0, DB::table('payments')->count());
-        $this->assertSame(0, DB::table('payment_attempts')->count());
-        $this->assertSame(0, DB::table('payment_allocations')->count());
-        $this->assertSame(0, DB::table('output_access_logs')->count());
+        $this->assertSame($downstreamCountsBefore['payments'], DB::table('payments')->count());
+        $this->assertSame($downstreamCountsBefore['payment_attempts'], DB::table('payment_attempts')->count());
+        $this->assertSame($downstreamCountsBefore['payment_allocations'], DB::table('payment_allocations')->count());
+        $this->assertSame($downstreamCountsBefore['output_access_logs'], DB::table('output_access_logs')->count());
 
     }
 
@@ -420,7 +431,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewAssessment::class, ['record' => $assessment->getRouteKey()])
-            ->assertActionHidden('activateAssessment');
+            ->assertDontSee('Activate Assessment');
     }
 
     /**

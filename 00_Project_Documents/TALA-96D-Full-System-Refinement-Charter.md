@@ -4,7 +4,7 @@
 
 **Applies to remaining work:** `TAL-96D5E1` through `TAL-96D5E2`
 
-**Next execution boundary:** TAL-96D5E1A, TAL-96D5E1B1, TAL-96D5E1B2A, TAL-96D5E1B2B, and TAL-96D5E1B2C are independently verified and cleaned locally. B2A delivered Academic Readiness and the combined curriculum encoding/import-review interaction; B2B delivered the Admissions Work Queue and contextual Applicant Record while preserving authoritative records; B2C delivered the Class Planning operating sequence with role-safe contextual source links and blocker-owned remediation routes. The corrected 77-demand MIDDLE foundation remains intact. The next boundary is `Plan TAL-96D5E1B3`; consolidated visual/manual acceptance remains owned by TAL-96D5E1E. No capacity rerun, deployment, production promotion, equation, fixture definition, schema, external-provider action, or live-surface deletion or merge is implied.
+**Next execution boundary:** TAL-96D5E1A through TAL-96D5E1C are independently verified and cleaned locally. B2A delivered Academic Readiness and the combined curriculum encoding/import-review interaction; B2B delivered the Admissions Work Queue and contextual Applicant Record while preserving authoritative records; B2C delivered the Class Planning operating sequence with role-safe contextual source links and blocker-owned remediation routes; B3 delivered Enrollment, Student Record, and Lifecycle recovery with affected-role projections; C delivered the task-centered Accounting flow and PayMongo exception recovery while preserving normalized finance records. The corrected 77-demand MIDDLE foundation remains intact. `Plan TAL-96D5E1D` is the next boundary; TAL-96D5E1E and later boundaries remain blocked. Consolidated visual/manual acceptance remains owned by TAL-96D5E1E. No capacity rerun, deployment, production promotion, equation, fixture-definition change, schema change, live provider request, or live-surface deletion or merge is implied.
 
 ## 1. Purpose
 
@@ -158,7 +158,7 @@ The remaining recovery is divided so that the system is not broadly redesigned o
    - `TAL-96D5E1B2B` implements one Admissions Work Queue and contextual Applicant Record.
    - `TAL-96D5E1B2C` implements one Class Planning and Scheduling Operations workflow through official publication.
    - `TAL-96D5E1B3` implements Enrollment, Student Record, and Lifecycle recovery and affected-role projections.
-3. `TAL-96D5E1C` implements the smallest approved Accounting and PayMongo recovery while preserving Assessment, Payment Attempt, Payment, Ledger Entry, adjustment, and reconciliation as separate authoritative records.
+3. `TAL-96D5E1C` is one compound slice with two ordered internal increments: Student Account recovery followed by PayMongo exception recovery. It presents `Fee Setup -> Student Accounts -> Payment Exceptions` as the Accounting operating flow while preserving Assessment, Payment Attempt, Payment, Ledger Entry, adjustment, accommodation, reconciliation, and output evidence as separate authoritative records.
 4. `TAL-96D5E1D` closes remaining-role and shared presentation contracts, including responsive tables, business-question filters, status language, action hierarchy, date meaning, empty/blocked/recovery states, and appropriate task navigation.
 5. `TAL-96D5E1E` uses the preserved MIDDLE personas for code-first evidence and a concise role-organized human acceptance pass. It repeats only failed or corrected journeys.
 

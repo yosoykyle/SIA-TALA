@@ -3,14 +3,19 @@
 namespace Database\Seeders;
 
 use App\Actions\Applicants\AdmissionRequirementResolver;
+use App\Actions\Finance\AccountingAdjustmentService;
+use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
+use App\Models\AccountingAdjustment;
 use App\Models\ApplicantIntake;
+use App\Models\Assessment;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
+use App\Models\FinancialAccommodation;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
@@ -18,6 +23,10 @@ use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\Hold;
+use App\Models\LedgerEntry;
+use App\Models\OperationalEvent;
+use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\StudentProfile;
@@ -42,6 +51,8 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         private readonly TAL96D5BAcceptanceStateSeeder $operationalStates,
         private readonly TAL96D5E1ExplorationPersonaCatalog $catalog,
         private readonly AdmissionRequirementResolver $requirements,
+        private readonly PaymentConfirmationService $paymentConfirmation,
+        private readonly AccountingAdjustmentService $accountingAdjustments,
     ) {}
 
     public function run(): void
@@ -56,6 +67,252 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $this->ensureStudentVerificationBoundary();
         $this->ensurePriorTermStudentHistories($term, $registrar);
         $this->ensureApplicantPersonas($term, $program, $registrar);
+        $this->ensureFinanceExplorationStates($term);
+    }
+
+    private function ensureFinanceExplorationStates(Term $term): void
+    {
+        $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
+        $dueAssessment = $this->activeAssessmentFor('DIT-1A-001');
+        $partialAssessment = $this->activeAssessmentFor('DIT-1A-002');
+        $clearedAssessment = $this->activeAssessmentFor('DIT-2A-001');
+
+        $expiredAttempt = $this->ensurePaymentAttempt(
+            assessment: $dueAssessment,
+            reference: 'TAL96D5E1C-SYNTHETIC-EXPIRED',
+            status: 'expired',
+            timestamp: CarbonImmutable::parse($term->starts_on)->addDays(3),
+        );
+        $reviewAttempt = $this->ensurePaymentAttempt(
+            assessment: $clearedAssessment,
+            reference: 'TAL96D5E1C-SYNTHETIC-UNDER-REVIEW',
+            status: 'under_review',
+            timestamp: CarbonImmutable::parse($term->starts_on)->addDays(4),
+        );
+
+        $this->ensurePendingOfficialReceiptPayment($partialAssessment, $accounting);
+        $this->ensureAccountingCorrections($dueAssessment, $accounting);
+        $this->ensureFinancialAccommodations($dueAssessment, $partialAssessment, $accounting, $term);
+        $this->ensurePayMongoEvidenceStates($expiredAttempt, $reviewAttempt, $term);
+    }
+
+    private function ensurePaymentAttempt(
+        Assessment $assessment,
+        string $reference,
+        string $status,
+        CarbonImmutable $timestamp,
+    ): PaymentAttempt {
+        return PaymentAttempt::query()->updateOrCreate(
+            ['internal_reference' => $reference],
+            [
+                'assessment_id' => $assessment->id,
+                'student_profile_id' => $assessment->enrollment->student_profile_id,
+                'channel' => 'online_checkout',
+                'provider' => 'paymongo',
+                'provider_checkout_id' => null,
+                'provider_intent_id' => null,
+                'amount' => $assessment->required_downpayment,
+                'currency' => 'PHP',
+                'status' => $status,
+                'expires_at' => $status === 'expired' ? $timestamp : $timestamp->addDay(),
+                'paid_at' => null,
+                'metadata' => [
+                    'synthetic_fixture' => 'TAL-96D5E1C',
+                    'purpose' => 'Accounting and PayMongo first-time exploration',
+                ],
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ],
+        );
+    }
+
+    private function ensurePendingOfficialReceiptPayment(Assessment $assessment, User $accounting): void
+    {
+        if (Payment::query()->where('provider_reference', 'TAL96D5E1C-PENDING-OR')->exists()) {
+            return;
+        }
+
+        $this->paymentConfirmation->confirmManualPayment(
+            enrollmentId: $assessment->enrollment_id,
+            amount: '125.00',
+            channel: 'bank_transfer',
+            paymentReference: 'TAL96D5E1C-PENDING-OR',
+            actor: $accounting,
+            confirmedAt: CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(5),
+        );
+    }
+
+    private function ensureAccountingCorrections(Assessment $assessment, User $accounting): void
+    {
+        $charges = LedgerEntry::query()
+            ->where('enrollment_id', $assessment->enrollment_id)
+            ->where('direction', LedgerEntry::DirectionCharge)
+            ->where('state', 'posted')
+            ->oldest('id')
+            ->get();
+        $creditSource = $charges->first();
+        $reversalSource = $charges->skip(1)->first() ?? $creditSource;
+
+        if (! $creditSource instanceof LedgerEntry || ! $reversalSource instanceof LedgerEntry) {
+            throw new RuntimeException('TAL-96D5E1C requires a posted assessment charge.');
+        }
+
+        if (! AccountingAdjustment::query()->where('evidence_reference', 'TAL96D5E1C-CREDIT')->exists()) {
+            $this->accountingAdjustments->post([
+                'student_profile_id' => $assessment->enrollment->student_profile_id,
+                'term_id' => $assessment->enrollment->term_id,
+                'enrollment_id' => $assessment->enrollment_id,
+                'source_ledger_entry_id' => $creditSource->id,
+                'adjustment_type' => AccountingAdjustment::TypeStudentAccountCredit,
+                'amount' => '25.00',
+                'reason' => 'Synthetic approved credit for Accounting account-history exploration.',
+                'evidence_reference' => 'TAL96D5E1C-CREDIT',
+            ], $accounting, CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(6));
+        }
+
+        if (! AccountingAdjustment::query()->where('evidence_reference', 'TAL96D5E1C-REVERSAL')->exists()) {
+            $this->accountingAdjustments->post([
+                'student_profile_id' => $assessment->enrollment->student_profile_id,
+                'term_id' => $assessment->enrollment->term_id,
+                'enrollment_id' => $assessment->enrollment_id,
+                'source_ledger_entry_id' => $reversalSource->id,
+                'adjustment_type' => AccountingAdjustment::TypeLedgerEntryReversal,
+                'reason' => 'Synthetic approved reversal for append-only correction exploration.',
+                'evidence_reference' => 'TAL96D5E1C-REVERSAL',
+            ], $accounting, CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(7));
+        }
+    }
+
+    private function ensureFinancialAccommodations(
+        Assessment $activeAssessment,
+        Assessment $expiredAssessment,
+        User $accounting,
+        Term $term,
+    ): void {
+        FinancialAccommodation::query()->updateOrCreate(
+            ['certification_reference' => 'TAL96D5E1C-ACTIVE'],
+            [
+                'student_profile_id' => $activeAssessment->enrollment->student_profile_id,
+                'term_id' => $term->id,
+                'balance_snapshot' => $activeAssessment->total,
+                'covered_amount' => '500.00',
+                'basis' => FinancialAccommodation::BasisInstitutionalAccommodation,
+                'private_evidence_reference' => 'private://tal96d5e1c/active-accommodation',
+                'promissory_required' => true,
+                'promissory_maker' => 'Synthetic Student',
+                'allows_finance_gate' => true,
+                'allows_next_term_enrollment' => false,
+                'allows_reactivation' => false,
+                'allows_record_release' => false,
+                'waives_downpayment' => false,
+                'authority' => 'Synthetic Accounting approval for TAL-96D5E1C exploration',
+                'recorded_by' => $accounting->id,
+                'status' => FinancialAccommodation::StatusActive,
+                'effective_from' => CarbonImmutable::parse($term->starts_on)->toDateString(),
+                'expires_on' => CarbonImmutable::parse($term->starts_on)->addMonths(5)->toDateString(),
+            ],
+        );
+
+        FinancialAccommodation::query()->updateOrCreate(
+            ['certification_reference' => 'TAL96D5E1C-EXPIRED'],
+            [
+                'student_profile_id' => $expiredAssessment->enrollment->student_profile_id,
+                'term_id' => $term->id,
+                'balance_snapshot' => $expiredAssessment->total,
+                'covered_amount' => '300.00',
+                'basis' => FinancialAccommodation::BasisDswDLguCertification,
+                'private_evidence_reference' => 'private://tal96d5e1c/expired-accommodation',
+                'promissory_required' => false,
+                'promissory_maker' => null,
+                'allows_finance_gate' => true,
+                'allows_next_term_enrollment' => false,
+                'allows_reactivation' => false,
+                'allows_record_release' => false,
+                'waives_downpayment' => false,
+                'authority' => 'Synthetic expired accommodation for TAL-96D5E1C exploration',
+                'recorded_by' => $accounting->id,
+                'status' => FinancialAccommodation::StatusExpired,
+                'effective_from' => CarbonImmutable::parse($term->starts_on)->subYear()->toDateString(),
+                'expires_on' => CarbonImmutable::parse($term->starts_on)->subMonth()->toDateString(),
+            ],
+        );
+    }
+
+    private function ensurePayMongoEvidenceStates(
+        PaymentAttempt $expiredAttempt,
+        PaymentAttempt $reviewAttempt,
+        Term $term,
+    ): void {
+        $timestamp = CarbonImmutable::parse($term->starts_on)->addDays(8);
+
+        OperationalEvent::query()->updateOrCreate(
+            [
+                'event_domain' => OperationalEvent::DomainIntegration,
+                'external_id' => 'tal96d5e1c-open-exception',
+            ],
+            [
+                'integration' => OperationalEvent::IntegrationPayMongo,
+                'channel' => OperationalEvent::ChannelWebhook,
+                'direction' => OperationalEvent::DirectionInbound,
+                'event_type' => 'payment.paid',
+                'event_version' => 'v1',
+                'status' => OperationalEvent::StatusReviewRequired,
+                'occurred_at' => $timestamp,
+                'processed_at' => null,
+                'failed_at' => null,
+                'related_record_type' => PaymentAttempt::class,
+                'related_record_id' => $reviewAttempt->id,
+                'diagnostics' => [
+                    'reason' => 'unknown_reference',
+                    'synthetic_fixture' => 'TAL-96D5E1C',
+                ],
+                'payload' => [
+                    'livemode' => false,
+                    'redacted' => true,
+                ],
+            ],
+        );
+
+        OperationalEvent::query()->updateOrCreate(
+            [
+                'event_domain' => OperationalEvent::DomainIntegration,
+                'external_id' => 'tal96d5e1c-recovered-evidence',
+            ],
+            [
+                'integration' => OperationalEvent::IntegrationPayMongo,
+                'channel' => OperationalEvent::ChannelProviderApi,
+                'direction' => OperationalEvent::DirectionInbound,
+                'event_type' => 'checkout.recovered',
+                'event_version' => 'v1',
+                'status' => OperationalEvent::StatusProcessed,
+                'occurred_at' => $timestamp->addMinute(),
+                'processed_at' => $timestamp->addMinutes(2),
+                'failed_at' => null,
+                'related_record_type' => PaymentAttempt::class,
+                'related_record_id' => $expiredAttempt->id,
+                'diagnostics' => [
+                    'reason' => 'recovered_paid_without_webhook',
+                    'decision' => 'confirmed',
+                    'synthetic_fixture' => 'TAL-96D5E1C',
+                ],
+                'payload' => [
+                    'livemode' => false,
+                    'redacted' => true,
+                ],
+            ],
+        );
+    }
+
+    private function activeAssessmentFor(string $studentNumber): Assessment
+    {
+        return Assessment::query()
+            ->where('state', Assessment::StateActive)
+            ->whereHas(
+                'enrollment.studentProfile',
+                fn ($query) => $query->where('student_number', $studentNumber),
+            )
+            ->with(['enrollment.studentProfile', 'enrollment.term'])
+            ->sole();
     }
 
     private function ensureStaffBoundaries(): void

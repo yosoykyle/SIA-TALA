@@ -24,7 +24,11 @@ class AccountingAdjustmentResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Accounting Adjustments';
+    protected static ?string $navigationLabel = 'Adjustments and Reversals';
+
+    protected static ?string $modelLabel = 'adjustment or reversal';
+
+    protected static ?string $pluralModelLabel = 'Adjustments and Reversals';
 
     protected static ?int $navigationSort = 23;
 

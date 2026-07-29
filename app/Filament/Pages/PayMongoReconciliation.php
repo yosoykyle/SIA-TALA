@@ -22,6 +22,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
@@ -37,7 +38,7 @@ class PayMongoReconciliation extends Page implements HasTable
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'PayMongo Reconciliation';
+    protected static ?string $navigationLabel = 'Payment Exceptions';
 
     protected static ?int $navigationSort = 22;
 
@@ -57,9 +58,14 @@ class PayMongoReconciliation extends Page implements HasTable
         return static::canAccess();
     }
 
+    public function getTitle(): string
+    {
+        return 'Payment Exceptions';
+    }
+
     public function getSubheading(): ?string
     {
-        return 'Recover a known checkout or resolve persisted PayMongo exceptions without exposing private provider payloads.';
+        return 'Review failed or mismatched PayMongo evidence. A browser return never posts a payment by itself.';
     }
 
     /** @return list<Action> */
@@ -161,6 +167,38 @@ class PayMongoReconciliation extends Page implements HasTable
                     ->label('Received')
                     ->dateTime()
                     ->sortable(),
+            ])
+            ->filters([
+                SelectFilter::make('channel')
+                    ->label('Evidence Source')
+                    ->options([
+                        OperationalEvent::ChannelWebhook => 'Signed webhook',
+                        OperationalEvent::ChannelProviderApi => 'Provider recovery',
+                    ]),
+                SelectFilter::make('status')
+                    ->options([
+                        OperationalEvent::StatusFailed => 'Failed processing',
+                        OperationalEvent::StatusReviewRequired => 'Accounting review required',
+                    ]),
+                SelectFilter::make('reason')
+                    ->label('Reason')
+                    ->options([
+                        'unknown_reference' => 'Unknown Reference',
+                        'processing_failed' => 'Processing Failed',
+                        'amount_mismatch' => 'Amount Mismatch',
+                        'missing_tala_reference' => 'Missing TALA Reference',
+                        'reference_mismatch' => 'Reference Mismatch',
+                        'recovered_paid_without_webhook' => 'Recovered Without Webhook',
+                        'refund_or_reversal' => 'Refund or Reversal',
+                        'unknown_refund_payment' => 'Unknown Refund Payment',
+                    ])
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $events): Builder => $events->where(
+                            'diagnostics->reason',
+                            (string) $data['value'],
+                        ),
+                    )),
             ])
             ->recordActions([
                 Action::make('linkAndReprocess')

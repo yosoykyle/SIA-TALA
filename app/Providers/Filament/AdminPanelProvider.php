@@ -201,11 +201,6 @@ class AdminPanelProvider extends PanelProvider
                     ->items($this->navigationItems([
                         FeeRuleResource::class,
                         AssessmentResource::class,
-                        AccountingAdjustmentResource::class,
-                        FinancialAccommodationResource::class,
-                        LedgerEntryResource::class,
-                        PaymentAttemptResource::class,
-                        PaymentResource::class,
                         PayMongoReconciliation::class,
                     ])),
                 NavigationGroup::make('Grades')

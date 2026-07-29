@@ -23,7 +23,11 @@ class AssessmentResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Accounting';
 
-    protected static ?string $navigationLabel = 'Assessments';
+    protected static ?string $navigationLabel = 'Student Accounts';
+
+    protected static ?string $modelLabel = 'student account';
+
+    protected static ?string $pluralModelLabel = 'Student Accounts';
 
     protected static ?int $navigationSort = 11;
 
