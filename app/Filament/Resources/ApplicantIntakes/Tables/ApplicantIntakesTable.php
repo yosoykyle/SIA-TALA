@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\ApplicantIntakes\Tables;
 
+use App\Actions\Applicants\ApplicantIntakeWorkflowPresenter;
 use App\Models\ApplicantIntake;
+use App\Models\ChecklistItem;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ApplicantIntakesTable
 {
@@ -24,56 +28,101 @@ class ApplicantIntakesTable
                     ])->filter()->implode(' '))
                     ->description(fn (ApplicantIntake $record): string => $record->email)
                     ->searchable(['first_name', 'middle_name', 'last_name', 'email']),
-                TextColumn::make('program.name')
-                    ->label('Program')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('term.label')
-                    ->label('Admission Term')
-                    ->sortable(),
+                TextColumn::make('admission_scope')
+                    ->label('Program / Term')
+                    ->state(fn (ApplicantIntake $record): string => (string) data_get($record, 'program.name'))
+                    ->description(fn (ApplicantIntake $record): string => (string) data_get($record, 'term.label'))
+                    ->wrap(),
+                TextColumn::make('workflow_stage')
+                    ->label('Current Stage')
+                    ->state(fn (ApplicantIntake $record): string => self::workflow($record)['stage'])
+                    ->description(fn (ApplicantIntake $record): string => 'Owner: '.self::workflow($record)['responsible_party'])
+                    ->badge()
+                    ->color(fn (ApplicantIntake $record): string => match (self::workflow($record)['stage']) {
+                        'Student Record Created' => 'success',
+                        'Ready for Handover' => 'success',
+                        'Applicant Action Required' => 'danger',
+                        'Registrar Evaluation' => 'info',
+                        'Withdrawn' => 'gray',
+                        default => 'warning',
+                    }),
+                TextColumn::make('next_action')
+                    ->label('Next Action')
+                    ->state(fn (ApplicantIntake $record): string => self::workflow($record)['next_action'])
+                    ->wrap(),
+                TextColumn::make('requirements_summary')
+                    ->label('Requirement Readiness')
+                    ->state(fn (ApplicantIntake $record): string => self::workflow($record)['requirements_summary'])
+                    ->color(fn (ApplicantIntake $record): string => self::workflow($record)['handover_blocker_count'] > 0
+                        ? 'danger'
+                        : 'success')
+                    ->wrap(),
+                TextColumn::make('last_activity_at')
+                    ->label('Last Activity')
+                    ->state(fn (ApplicantIntake $record): mixed => self::workflow($record)['last_activity_at'])
+                    ->dateTime()
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('updated_at', $direction)),
                 TextColumn::make('admission_category')
                     ->label('Admission Category')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => self::admissionCategoryLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString()),
+                    ->formatStateUsing(fn (?string $state): string => self::admissionCategoryLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString())
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('credential_basis')
                     ->label('Credential Basis')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => self::credentialBasisLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString())
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('status')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        ApplicantIntake::StatusApproved => 'success',
-                        ApplicantIntake::StatusActionRequired => 'danger',
-                        ApplicantIntake::StatusForEvaluation => 'info',
-                        ApplicantIntake::StatusDraft => 'gray',
-                        ApplicantIntake::StatusWithdrawn => 'gray',
-                        default => 'warning',
-                    })
-                    ->formatStateUsing(fn (?string $state): string => self::statusLabels()[$state] ?? str((string) $state)->replace('_', ' ')->title()->toString()),
-                TextColumn::make('submitted_at')
-                    ->dateTime()
-                    ->sortable(),
-                TextColumn::make('archived_at')
-                    ->label('Withdrawn At')
-                    ->dateTime()
-                    ->placeholder('—')
-                    ->sortable(),
             ])
-            ->defaultSort('submitted_at', 'desc')
+            ->defaultSort('updated_at', 'desc')
             ->filters([
+                SelectFilter::make('term')
+                    ->relationship('term', 'label')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('program')
+                    ->relationship('program', 'name')
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('status')
+                    ->label('Workflow State')
                     ->options(self::statusLabels()),
                 SelectFilter::make('admission_category')
                     ->label('Admission Category')
                     ->options(self::admissionCategoryLabels()),
-                SelectFilter::make('credential_basis')
-                    ->label('Credential Basis')
-                    ->options(self::credentialBasisLabels()),
+                Filter::make('has_handover_blocker')
+                    ->label('Has Handover Blocker')
+                    ->query(fn (Builder $query): Builder => $query->whereHas(
+                        'checklistItems',
+                        fn (Builder $query): Builder => $query
+                            ->where('blocking_level', ChecklistItem::BlockingHandover)
+                            ->whereNotIn('status', [
+                                ChecklistItem::StatusAccepted,
+                                ChecklistItem::StatusWaived,
+                                ChecklistItem::StatusUndertakingApproved,
+                            ])
+                            ->where('verification_status', '!=', ChecklistItem::VerificationVerified),
+                    )),
             ])
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()->label('Open Review'),
             ]);
+    }
+
+    /**
+     * @return array{
+     *     stage:string,
+     *     responsible_party:string,
+     *     next_action:string,
+     *     handover_blocker_count:int,
+     *     requirement_count:int,
+     *     requirements_summary:string,
+     *     ready_for_handover:bool,
+     *     last_activity_at:mixed
+     * }
+     */
+    private static function workflow(ApplicantIntake $record): array
+    {
+        return app(ApplicantIntakeWorkflowPresenter::class)->present($record);
     }
 
     /** @return array<string, string> */

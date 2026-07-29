@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\ApplicantIntakes\Pages;
 
-use App\Actions\Applicants\ApplicantEvidenceService;
+use App\Actions\Applicants\ApplicantDuplicateCandidateFinder;
 use App\Actions\Applicants\ApplicantReviewService;
 use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
@@ -19,7 +19,6 @@ use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ViewApplicantIntake extends ViewRecord
 {
@@ -94,30 +93,6 @@ class ViewApplicantIntake extends ViewRecord
                         $this->sendHandoverFailureNotification($exception->getMessage());
                     }
                 }),
-            Action::make('downloadIdentityDocument')
-                ->label('Download Identity Document')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->visible(fn (): bool => filled($this->applicantIntake()->identity_evidence_reference)
-                    && $this->currentUserCanDownloadEvidence())
-                ->action(function (): ?StreamedResponse {
-                    $actor = auth()->user();
-                    abort_unless($actor instanceof User, 403);
-
-                    try {
-                        Gate::authorize('downloadEvidence', $this->applicantIntake());
-
-                        return app(ApplicantEvidenceService::class)
-                            ->downloadIdentityEvidence($this->applicantIntake(), $actor);
-                    } catch (ValidationException $exception) {
-                        Notification::make()
-                            ->title('Identity document unavailable')
-                            ->body($exception->validator->errors()->first())
-                            ->danger()
-                            ->send();
-
-                        return null;
-                    }
-                }),
         ];
     }
 
@@ -132,8 +107,12 @@ class ViewApplicantIntake extends ViewRecord
     private function currentUserCanHandOver(): bool
     {
         $user = auth()->user();
+        $intake = $this->applicantIntake();
 
-        return $user instanceof User && $user->can('handOver', $this->applicantIntake());
+        return $user instanceof User
+            && $user->can('handOver', $intake)
+            && ! app(ApplicantDuplicateCandidateFinder::class)
+                ->requiresNonReturningIdentityReview($intake);
     }
 
     private function currentUserCanReview(): bool
@@ -141,13 +120,6 @@ class ViewApplicantIntake extends ViewRecord
         $user = auth()->user();
 
         return $user instanceof User && $user->can('review', $this->applicantIntake());
-    }
-
-    private function currentUserCanDownloadEvidence(): bool
-    {
-        $user = auth()->user();
-
-        return $user instanceof User && $user->can('downloadEvidence', $this->applicantIntake());
     }
 
     /** @return list<Radio|Select> */
@@ -186,18 +158,8 @@ class ViewApplicantIntake extends ViewRecord
     {
         $intake = $this->applicantIntake();
 
-        if ($intake->admission_category !== ApplicantIntake::AdmissionCategoryReturning || $intake->birth_date === null) {
-            return [];
-        }
-
-        return StudentProfile::query()
-            ->whereNull('archived_at')
-            ->whereNull('merged_into_id')
-            ->whereRaw('LOWER(first_name) = ?', [mb_strtolower($intake->first_name)])
-            ->whereRaw('LOWER(last_name) = ?', [mb_strtolower($intake->last_name)])
-            ->whereDate('birth_date', $intake->birth_date)
-            ->orderBy('student_number')
-            ->get()
+        return app(ApplicantDuplicateCandidateFinder::class)
+            ->find($intake)
             ->mapWithKeys(fn (StudentProfile $profile): array => [
                 $profile->id => "{$profile->student_number} — {$profile->first_name} {$profile->last_name}",
             ])

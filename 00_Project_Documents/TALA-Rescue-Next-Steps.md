@@ -43,8 +43,8 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B1 | Done locally; pending explicit Linear sync | Fixture Truth and Academic Operating Foundation. |
 | TAL-96D5E1B2 | Approved revised task-centered split; depends on cleaned TAL-96D5E1B1 | Academic Readiness and Curriculum, Admissions, and Class Planning and Scheduling Operational Recovery without merging authoritative records. |
 | TAL-96D5E1B2A | Done locally; pending explicit Linear sync | Academic Readiness and Curriculum Workbench. |
-| TAL-96D5E1B2B | Planned; ready for planning | Admissions Work Queue and Applicant Record with contextual requirements, evidence, decision, duplicate-resolution, handover, history, and applicant projection. |
-| TAL-96D5E1B2C | Planned; blocked on verified and cleaned TAL-96D5E1B2B | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
+| TAL-96D5E1B2B | Done locally; pending explicit Linear sync | Admissions Work Queue and Applicant Record with contextual requirements, evidence, decision, duplicate-resolution, handover, history, and applicant projection. |
+| TAL-96D5E1B2C | Planned; next planning boundary | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
 | TAL-96D5E1B3 | Planned; blocked on verified and cleaned TAL-96D5E1B2C | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
 | TAL-96D5E1C | Planned; blocked on verified and cleaned TAL-96D5E1B3 | Accounting and PayMongo Operational Recovery across assessments, account activity, payments, ledger, reconciliation, fallbacks, gates, and generated outputs. |
 | TAL-96D5E1D | Planned; blocked on verified and cleaned TAL-96D5E1C | Remaining-Role and Shared UI Contract Closure across Academic Head, Faculty, Student, Applicant, System Administration, Reports/Audit, Settings, and integrations. |
@@ -74,4 +74,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: **Plan TAL-96D5E1B2B.** TAL-96D5E1B2A is independently verified and cleaned locally. B2B must begin through a fresh Ground-Truth Gate and may not inherit an implementation contract from B2A.
+Next boundary: **Plan TAL-96D5E1B2C.** Re-run the full Ground-Truth Gate before planning; no implementation is authorized yet.

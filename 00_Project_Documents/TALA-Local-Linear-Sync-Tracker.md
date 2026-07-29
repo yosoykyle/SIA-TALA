@@ -43,6 +43,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5E1A | Done locally; pending explicit Linear sync | System Truth and Workflow Reconciliation |
 | TAL-96D5E1B1 | Done locally; pending explicit Linear sync | Fixture Truth and Academic Operating Foundation |
 | TAL-96D5E1B2A | Done locally; pending explicit Linear sync | Academic Readiness and Curriculum Workbench |
+| TAL-96D5E1B2B | Done locally; pending explicit Linear sync | Admissions Work Queue and Contextual Applicant Record |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

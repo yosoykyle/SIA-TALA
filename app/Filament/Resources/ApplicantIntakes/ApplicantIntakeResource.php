@@ -24,7 +24,9 @@ class ApplicantIntakeResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Applicant Review';
+    protected static ?string $navigationLabel = 'Admissions Work Queue';
+
+    protected static ?string $pluralModelLabel = 'Admissions Work Queue';
 
     protected static ?int $navigationSort = 20;
 
@@ -61,7 +63,7 @@ class ApplicantIntakeResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['withdrawalActivity.causer'])
+            ->with(['checklistItems', 'withdrawalActivity.causer'])
             ->where('status', '!=', ApplicantIntake::StatusDraft);
     }
 }

@@ -18,6 +18,7 @@ class HandOverApprovedApplicant
 {
     public function __construct(
         private readonly StartEnrollment $startEnrollment,
+        private readonly ApplicantDuplicateCandidateFinder $duplicateCandidateFinder,
     ) {}
 
     public function execute(
@@ -46,6 +47,7 @@ class HandOverApprovedApplicant
             }
 
             $this->assertNoHandoverBlockers($lockedIntake);
+            $this->assertNoUnresolvedIdentityCandidate($lockedIntake);
             $curriculumVersion = $this->activeCurriculumFor($lockedIntake);
             $studentProfile = $confirmedExistingProfile instanceof StudentProfile
                 ? $this->confirmExistingProfile($confirmedExistingProfile, $lockedIntake, $curriculumVersion)
@@ -96,6 +98,19 @@ class HandOverApprovedApplicant
         if ($hasBlocker) {
             throw ValidationException::withMessages([
                 'checklist' => 'Handover is blocked by unresolved BLOCKS_HANDOVER checklist items.',
+            ]);
+        }
+    }
+
+    private function assertNoUnresolvedIdentityCandidate(ApplicantIntake $intake): void
+    {
+        if ($intake->admission_category === ApplicantIntake::AdmissionCategoryReturning) {
+            return;
+        }
+
+        if ($this->duplicateCandidateFinder->find($intake)->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'student_profile' => 'An existing official student record matches this applicant. Investigate the match before handover; a new profile was not created.',
             ]);
         }
     }

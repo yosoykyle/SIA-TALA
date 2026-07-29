@@ -29,6 +29,8 @@ class AdmissionRequirementPolicyResource extends Resource
 
     protected static ?int $navigationSort = 30;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function form(Schema $schema): Schema
     {
         return AdmissionRequirementPolicyForm::configure($schema);

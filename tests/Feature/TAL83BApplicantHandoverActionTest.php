@@ -12,15 +12,19 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
+/**
+ * Transaction-only isolation preserves the persistent TAL-96 acceptance fixture.
+ * Do not replace this with RefreshDatabase or another migrate:fresh-based trait.
+ */
 class TAL83BApplicantHandoverActionTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

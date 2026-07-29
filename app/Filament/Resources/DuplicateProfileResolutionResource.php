@@ -31,6 +31,8 @@ class DuplicateProfileResolutionResource extends Resource
 
     protected static ?int $navigationSort = 50;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function form(Schema $schema): Schema
     {
         return $schema
