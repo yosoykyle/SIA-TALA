@@ -297,7 +297,10 @@ class TAL75ReportsAuditTest extends TestCase
         $this->assertSame($beforeExcluded, $excludedLedger->fresh()->getRawOriginal('updated_at'));
         $this->assertSame(2, LedgerEntry::query()->whereKey([$includedLedger->id, $excludedLedger->id])->count());
 
-        $log = OutputAccessLog::query()->sole();
+        $log = OutputAccessLog::query()
+            ->where('actor_user_id', $accounting->id)
+            ->where('purpose', 'Daily cashier turnover reconciliation.')
+            ->sole();
         $this->assertSame('REPORT', $log->output_type);
         $this->assertSame('EXPORT', $log->action);
         $this->assertSame('report:'.OperationalReportService::DailyCash, $log->source_record_type);
@@ -316,6 +319,7 @@ class TAL75ReportsAuditTest extends TestCase
     {
         $accounting = $this->user(User::StaffRoleAccounting);
         $reports = app(OperationalReportService::class);
+        $outputLogCountBeforeAttempt = OutputAccessLog::query()->count();
 
         try {
             app(ExportOperationalReport::class)->execute(
@@ -327,7 +331,7 @@ class TAL75ReportsAuditTest extends TestCase
             $this->fail('Sensitive export without purpose was not rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('purpose', $exception->errors());
-            $this->assertSame(0, OutputAccessLog::query()->count());
+            $this->assertSame($outputLogCountBeforeAttempt, OutputAccessLog::query()->count());
         }
 
         $this->actingAs($accounting);
@@ -474,7 +478,10 @@ class TAL75ReportsAuditTest extends TestCase
             [],
             'Ledger discrepancy review.',
         );
-        $log = OutputAccessLog::query()->sole();
+        $log = OutputAccessLog::query()
+            ->where('actor_user_id', $accounting->id)
+            ->where('purpose', 'Ledger discrepancy review.')
+            ->sole();
         $superAdmin = $this->user(User::StaffRoleSystemSuperAdmin);
 
         $this->assertTrue($reports->query(OperationalReportService::ReportExport, $superAdmin)->whereKey($log)->exists());

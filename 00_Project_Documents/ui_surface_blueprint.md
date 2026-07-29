@@ -125,10 +125,10 @@ Keep navigation task-based and small:
 
 | Navigation item | Surface | Primary component |
 | --- | --- | --- |
-| Dashboard | Current application state and next action | Custom Filament Page with compact status sections |
+| Home | Current application state and next action | Custom Filament Page with compact status sections |
 | Application | Draft, validate, and submit personal data and all applicable digital requirements | Custom Filament Page with native three-step Wizard: Personal Information, Required Documents, and Review and Submit |
-| Requirements | Checklist and allowed upload/reupload actions | Read-only Table plus private FileUpload action |
-| Account | Profile, password, and verification | Filament auth/profile surfaces |
+
+`Requirements` remains a contextual page reached from the current or historical Application when a checklist exists or Registrar feedback requires action. Filament account, password, and verification controls remain available through the account menu; they are not a third business task.
 
 The public landing page and registration surface read the active institution-scoped Admissions calendar windows. When no active term is accepting applications, public application links become a clear `Applications are currently closed` state while Applicant Sign In remains available. Direct registration and first-intake creation fail closed; existing accounts, drafts, submitted applications, and allowed correction work remain accessible.
 
@@ -148,20 +148,147 @@ Student Hub is a read-mostly workspace. Use focused custom Filament Pages rather
 
 | Navigation item | Surface | Primary component |
 | --- | --- | --- |
-| Dashboard | Active term, official Student Profile status, confirmed academic standing, system progression review, ledger balance, holds, and next actions | Custom Page with plain-language read-only stats and mobile-stacked hold details; the current official record stays visibly separate from any computed recommendation, and the responsible office is named when action is required |
-| Profile | Official student summary and allowed self-service contact fields | Read-only grouped record plus limited Form; status codes are converted to familiar labels, while identity, program, curriculum, lifecycle, grades, finance, and enrollment records remain staff-owned |
-| Enrollment | Gate result, selected sections, and enrollment status | Read-only Table; selectable section table only during an authorized irregular-enrollment window |
-| Schedule | Published class schedule for the current official enrollment | Responsive read-only Table grouped by day, with per-row Online or Face-to-Face modality and an authenticated printable view; show an explicit unavailable state when no current official enrollment or active binding exists |
-| COR | Current official COR | Generated read-only page from the active term's official enrollment, with per-row modality, a derived Online/Face-to-Face/Mixed course-delivery summary, explicit blocked or unavailable guidance, and an authenticated print/save-as-PDF action |
+| Home | Active term, official Student Profile status, confirmed academic standing, system progression review, ledger balance, holds, and next actions | Custom Page with plain-language read-only stats and mobile-stacked hold details; the current official record stays visibly separate from any computed recommendation, and the responsible office is named when action is required |
+| Enrollment | Current enrollment decision, gate result, proposed or confirmed sections, COR availability, and next action | Focused custom Page; contextual links open the published schedule, current COR, and authorized enrollment detail |
+| Academics | Published class schedule, released grades, academic standing, holds affecting academic work, and completion review | Focused custom Page with vertically ordered read-only summaries and contextual detail links |
 | Finance | Lead with Current Amount Due, Payment Status, What to do next, Responsible Office, and Official Receipt Status; explain successful/cancelled checkout returns without treating redirects as payment proof; keep assessment, charge, schedule, ledger, attempt, acknowledgement, and accommodation evidence as collapsed detail | Focused custom Page using responsive native Sections, infolist entries, and authorized Actions |
-| Grades | Released grade history and student-facing marks | Read-only Table |
-| Completion | Latest visible graduation eligibility snapshot | Read-only checklist Table |
+| Profile | Official student summary and allowed self-service contact fields | Read-only grouped record plus limited Form; status codes are converted to familiar labels, while identity, program, curriculum, lifecycle, grades, finance, and enrollment records remain staff-owned |
+
+The existing Class Schedule, COR, Grades, Holds, Academic Status, and Completion pages remain policy-protected projections. They are contextual destinations from Enrollment, Academics, Home, or Profile and do not remain peer primary-navigation items.
 
 ### Staff Workspace
 
 Use navigation groups to prevent the existing resource inventory from becoming one long menu:
 
-The Staff Dashboard begins with a Registrar-only **Registrar Operating Order** widget. It presents six numbered, linked readiness stages over existing source records: Academic Period; Active Curricula; Offerings & Sections; Teaching Resources; Scheduling Demands; and Published Timetable. Each stage shows the current authoritative count or blocked state and states the next check in plain language. The curriculum stage opens **Academic Readiness**; later stages continue to open their owning operational surface. The widget does not merge records, run scheduling, publish a timetable, or expose Registrar workflow to Accounting and other roles.
+The Staff Dashboard begins with a role-owned work summary rather than framework or developer information:
+
+- Registrar receives **Registrar Operating Order**, with six numbered readiness stages over existing source records: Academic Period; Active Curricula; Offerings & Sections; Teaching Resources; Scheduling Demands; and Published Timetable.
+- Accounting receives **Accounting Work**, linking the established Fee Setup → Student Accounts → Payment Exceptions → Reports flow.
+- Faculty receives **My Faculty Work**, linking Assigned Schedule, Grade Rosters, and My Unavailable Times.
+- Academic Head receives **Academic Oversight**, linking Academic Readiness, Class Planning, Grade Review, and Reports.
+- System Super Admin receives **System Administration**, linking Accounts, Public FAQs, Integration Status, and Governance & Audit.
+
+Each summary uses authoritative counts or readiness states and provides orientation links only. It does not merge records, execute a domain action, run scheduling, publish a timetable, post finance, or grant permissions beyond the user's policies. The generic Filament framework-information widget is not an institutional task and is not shown.
+
+### Lean-MVP capability and navigation register
+
+This register is the canonical presentation disposition for the currently registered MVP surfaces. Registration and direct-route authorization remain independent of sidebar placement.
+
+| Owner / primary task | Named surfaces and capabilities | Disposition | Normal entry and preservation rule |
+| --- | --- | --- | --- |
+| Public entry | Landing page, published notices/FAQ, location and institutional content, Apply/Sign In routes | Primary | Public landing page; content remains admin-curated where configured |
+| Public recovery | Branded 403, 404, 419, 429, 500, and 503 HTML responses | Contextual | Reached only on failure; Laravel retains JSON/API negotiation |
+| Applicant Home / Application | Applicant Dashboard, Application Wizard, application history, withdrawal, status and next-action guidance | Primary | Home or Application |
+| Applicant Application | Requirements checklist, Registrar feedback, digital evidence view/reupload, physical-document instructions | Contextual | Current or historical Application record; direct route remains applicant-authorized |
+| Applicant account | Profile, password reset, email verification | Contextual | Filament account/auth controls |
+| Student Home | Student Dashboard and next-action summary | Primary | Home |
+| Student Enrollment | Enrollment page and irregular proposal flow | Primary | Enrollment |
+| Student Enrollment | COR and Class Schedule projections | Contextual | Enrollment record or Academics; outputs remain read-only and access-logged |
+| Student Academics | Academics task center | Primary | Academics |
+| Student Academics | Grades, Holds, Academic Status/Lifecycle, Completion | Contextual | Academics or Profile |
+| Student Finance | Finance summary, checkout action, SOA, billing slip, payment acknowledgement | Primary | Finance; generated outputs remain contextual and access-logged |
+| Student Profile | Profile and permitted contact updates | Primary | Profile |
+| Registrar Academic Readiness | Academic Readiness and combined Curriculum review | Primary | Academic Readiness |
+| Registrar Academic Readiness | Academic Years, Terms, Academic Calendar Windows, Programs, Courses, Course Specifications, Curriculum Versions, Import Batches | Contextual | Academic Readiness and Curriculum review links |
+| Registrar Admissions | Admissions Work Queue / Applicant Intake | Primary | Admissions |
+| Registrar Admissions | Admission Requirement Policies, Duplicate Profile Resolution, checklist/evidence and handover records | Contextual | Applicant record or admissions queue |
+| Registrar Class Planning | Class Planning | Primary | Class Planning |
+| Registrar Class Planning | Term Offerings, Sections, Rooms, Faculty Qualifications, Faculty Load Overrides, Calendar Events, Scheduling Demands, Schedule Generation Runs, official Section Meetings | Contextual | Class Planning stage links; solver/provider diagnostics are secondary evidence |
+| Registrar Students & Enrollment | Enrollment and Student Profile | Primary | Students & Enrollment |
+| Registrar Students & Enrollment | Student Lifecycle Changes and record-owned holds/history | Contextual | Student Profile |
+| Registrar Grades & Completion | Grade Rosters and Graduation Review Batches | Primary | Grades & Completion |
+| Registrar Reports | Reports and authorized exports | Primary | Reports |
+| Accounting Student Accounts | Assessments and account-centered finance review | Primary | Student Accounts |
+| Accounting Student Accounts | Payments, Ledger Entries, Accounting Adjustments, Financial Accommodations | Contextual | Student account detail |
+| Accounting Payment Exceptions | PayMongo Reconciliation and provider/manual evidence requiring review | Primary | Payment Exceptions |
+| Accounting Payment Exceptions | Payment Attempts and retained provider-event evidence | Evidence-only | Payment exception detail |
+| Accounting Fee Setup | Fee Rules | Primary | Fee Setup |
+| Faculty work | Faculty Schedule, Faculty Grade Roster, own Calendar Events / unavailable blocks | Primary | My Schedule, Grade Rosters, My Unavailable Times |
+| Academic Head work | Academic Readiness/Class Planning oversight, authorized grade or progression approval, Reports | Primary | Academic Oversight, Approvals, Reports |
+| System administration | Users and Roles | Primary | Users & Access |
+| System administration | FAQ Entries | Primary | Public Content |
+| System administration | System Settings and Integration Status | Primary | System Health; secret values never render |
+| Governance | Reports & Audit | Primary | Governance & Audit |
+| Governance | Activity Logs, Operational Events, Output Access Logs, Disposal Reviews | Evidence-only | Governance/Audit questions or owning record |
+| Framework diagnostics | Generic Filament information widgets | Retired | No institutional purpose; remove from panel registration |
+| Deferred product work | Capabilities explicitly routed to TAL-98, TAL-99, TAL-100, TAL-175, or another approved future issue | Deferred | Not presented as active MVP work until its owning issue is approved |
+
+#### Executable capability inventory
+
+This is the code-level inventory behind the register above. A class appearing here does not make it a peer navigation item: **Primary** classes are task entries, **Contextual** classes are source records or projections reached from a task, and **Evidence-only** classes answer audit or exception questions. Registration and authorization stay in code; this inventory makes the presentation decision reviewable and prevents an implemented boundary from becoming an unexplained or forgotten surface.
+
+| Workspace / owner | Executable boundaries | Presentation disposition |
+| --- | --- | --- |
+| Shared staff entry and orientation | `Dashboard`, `StaffRoleWorkspaceOverviewWidget`, `RegistrarOperationalReadinessWidget`, `AccountWidget` | Primary dashboard plus role-owned orientation; account control is Contextual |
+| Registrar and Academic Head task centers | `AcademicReadiness`, `ClassPlanning`, `GradesAndCompletion`, `AcademicApprovals`, `ReportsAudit` | Primary where permitted by role |
+| Faculty task centers | `FacultySchedule`, `FacultyGradeRoster` | Primary for assigned schedule and grade work |
+| Accounting exception task center | `PayMongoReconciliation` | Primary for unresolved provider or manual-payment exceptions |
+| System administration task center | `IntegrationStatus` | Primary system-health summary; source settings remain Contextual |
+| Admissions records | `ApplicantIntakeResource`, `AdmissionRequirementPolicyResource`, `DuplicateProfileResolutionResource` | Applicant Intake is the Primary queue; policy and duplicate records are Contextual |
+| Academic-period and curriculum records | `AcademicYearResource`, `TermResource`, `AcademicCalendarWindowResource`, `ProgramResource`, `CourseResource`, `CourseSpecificationResource`, `CurriculumVersionResource`, `ImportBatchResource` | Contextual source records reached from Academic Readiness |
+| Class-planning records | `TermOfferingResource`, `SectionResource`, `RoomResource`, `FacultyQualificationResource`, `FacultyTermLoadOverrideResource`, `CalendarEventResource`, `SchedulingDemandResource`, `ScheduleGenerationRunResource`, `SectionMeetingResource` | Contextual planning, solve, review, and publication records reached from Class Planning |
+| Enrollment and student records | `EnrollmentResource`, `StudentProfileResource`, `StudentLifecycleChangeResource` | Enrollment and Student Profile are Primary operational records; lifecycle change is a Contextual consequential action/history record |
+| Grades and completion records | `GradeRosterResource`, `GraduationReviewBatchResource` | Contextual records reached from role-owned grade or completion work |
+| Finance records | `FeeRuleResource`, `AssessmentResource`, `PaymentResource`, `LedgerEntryResource`, `AccountingAdjustmentResource`, `FinancialAccommodationResource`, `PaymentAttemptResource` | Fee Rule and Assessment support Primary work; posting and adjustment records are Contextual; attempts are Evidence-only |
+| Public-content and access records | `UserResource`, `RoleResource`, `FaqEntryResource`, `SystemSettingResource` | Primary administration tasks, with Roles and Settings reached contextually from their task centers |
+| Governance records | `ActivityResource`, `OperationalEventResource`, `DisposalReviewResource` | Evidence-only sources reached from Governance & Audit |
+
+| Applicant / Student boundary | Executable boundaries | Presentation disposition |
+| --- | --- | --- |
+| Applicant account and intake | `RegisterApplicant`, `Dashboard`, `Application`, `Requirements`, `AccountWidget` | Registration, Home, and Application are Primary; Requirements and account control are Contextual |
+| Student task centers | `Dashboard`, `Enrollment`, `Academics`, `Finance`, `Profile` | Primary role navigation |
+| Student projections | `CorView`, `ScheduleView`, `GradesView`, `HoldsView`, `LifecycleView`, `Completion` | Contextual destinations from Enrollment, Academics, Home, or Profile |
+| Student orientation widgets | `StudentPriorityNoticeWidget`, `StudentProfileOverviewWidget`, `ActiveHoldsWidget`, `AccountWidget` | Contextual summaries; authoritative records remain the owning task or staff record |
+
+| Output or communication boundary | Executable boundary | Contract |
+| --- | --- | --- |
+| Controlled operational CSV | `ExportOperationalReport` | Role-authorized, allowlisted, purpose-recorded export; not a separate navigation feature |
+| Certificate of Registration | `CorPrintController` | Owner/role-authorized read-only output with access evidence |
+| Student finance outputs | `BillingSlipController`, `FinanceStatementController`, `PaymentAcknowledgementController` | Source-derived billing slip, statement, and payment acknowledgement; never proof of an unverified provider redirect |
+| Published schedules | `FacultySchedulePrintController`, `StudentSchedulePrintController` | Source-derived official schedule outputs after publication |
+| Applicant status mail | `ApplicantStatusChangedMail` | Queued cross-role status communication using the authoritative intake state |
+| Finance mail | `PaymentPostedMail` | Queued notification only after authoritative payment posting |
+| Schedule mail | `ScheduleReleasedMail`, `ScheduleRevisionMail` | Queued publication or revision communication from official schedule state |
+| Integration diagnostic mail | `TestConnectionMail` | Restricted system-health diagnostic, not a normal user journey |
+| In-app notification | `GeneralSystemNotification` | Authorized immediate guidance; it does not replace owning records or email delivery evidence |
+
+| Custom Blade family | View inventory | Presentation disposition |
+| --- | --- | --- |
+| Public entry layouts | `welcome.blade.php`, `layouts/landing-bootstrap.blade.php`, `layouts/public.blade.php` | Primary public entry and its isolated layouts |
+| Applicant workflow | `filament/applicant/pages/application.blade.php`, `filament/applicant/pages/application-submit-action.blade.php`, `filament/applicant/pages/dashboard.blade.php`, `filament/applicant/pages/requirements.blade.php` | Primary Application/Home views plus Contextual requirements projection |
+| Staff task centers | `filament/pages/academic-readiness.blade.php`, `filament/pages/class-planning.blade.php`, `filament/pages/academic-approvals.blade.php`, `filament/pages/grades-and-completion.blade.php`, `filament/pages/integration-status.blade.php`, `filament/pages/pay-mongo-reconciliation.blade.php`, `filament/pages/reports-audit.blade.php` | Primary role task-center views |
+| Applicant handover evidence | `filament/admin/applicant-intakes/handover-preview.blade.php` | Contextual review evidence inside the authoritative applicant record |
+| Student task and projection views | `filament/student/pages/academics.blade.php`, `filament/student/pages/profile.blade.php`, `filament/student/pages/completion.blade.php`, `filament/student/pages/generic-infolist.blade.php`, `filament/student/pages/generic-table.blade.php` | Primary task views or Contextual reusable projections as owned by their Page classes |
+| Official output layout and documents | `components/official-output-layout.blade.php`, `cor/print.blade.php`, `finance/billing-slip.blade.php`, `finance/statement.blade.php`, `finance/payment-acknowledgement.blade.php`, `schedules/print.blade.php` | Contextual authenticated outputs; the shared layout does not own source data |
+| Branded mail views | `mail/applicant-status-changed.blade.php`, `mail/payment-posted.blade.php`, `mail/schedule-released.blade.php`, `mail/schedule-revision.blade.php` | Cross-role communication generated from authoritative state |
+| Error view family | `errors/layout.blade.php`, `errors/4xx.blade.php`, `errors/5xx.blade.php`, `errors/403.blade.php`, `errors/404.blade.php`, `errors/419.blade.php`, `errors/429.blade.php`, `errors/500.blade.php`, `errors/503.blade.php` | Contextual recovery only |
+
+The public boundaries are the Bootstrap landing page, `/home` compatibility redirect, Filament/Fortify login, registration, verification, reset, and recovery surfaces, and the branded HTML error responses `403`, `404`, `419`, `429`, `500`, and `503`. Error pages remain contextual recovery surfaces and retain Laravel's content-negotiated JSON behavior for API requests.
+
+**Ground-truth verdicts for this inventory:** each retained boundary above is **Aligned** at the registration, authorization, and presentation-disposition level unless named here. The missing Academic Head → Class Planning, Users → Roles, Integration Status → System Settings, and Governance → audit/event/disposal contextual links were **Gaps** and are corrected in D5E1D1. The generic framework-information widget was a **Superseded remnant** and remains retired. Items routed to named future issues are intentionally **Deferred**, not missing MVP capabilities. No D5E1D1 capability is classified as **Required-but-unbuilt**, and no unresolved product-authority **Conflict** was found at this inventory level. Behavioral completeness and presentation correctness inside the retained journeys are deliberately owned by D5E1D2–D7; this inventory does not pre-label those later findings as aligned.
+
+The role-owned primary navigation is:
+
+| Role | Primary navigation |
+| --- | --- |
+| Applicant | Home; Application |
+| Student | Home; Enrollment; Academics; Finance; Profile |
+| Registrar | Home; Academic Readiness; Admissions; Class Planning; Students & Enrollment; Grades & Completion; Reports |
+| Accounting | Home; Student Accounts; Payment Exceptions; Fee Setup; Reports |
+| Faculty | Home; My Schedule; Grade Rosters; My Unavailable Times |
+| Academic Head | Home; Academic Oversight; Approvals; Reports |
+| System Super Admin | Home; Users & Access; Public Content; System Health; Governance & Audit |
+
+### Demonstration-critical cross-role journeys
+
+| Journey | Primary operating sequence | Contextual evidence and consumer |
+| --- | --- | --- |
+| Admissions and handover | Applicant Application → Registrar Admissions → decision and handover | Requirements/evidence, duplicate decision, Student Profile |
+| Timetable publication | Academic Readiness → Class Planning → solve/review/publish | Offering/resource/demand/run evidence; Faculty and Student schedules |
+| Enrollment and COR | Student or Registrar Enrollment → gates → placement → official enrollment | Reservation/proposal and exception evidence; COR and enrollment history |
+| Finance clearance | Fee Setup → Student Accounts or Payment Exceptions → verified posting/clearance | Assessment/payment/ledger/provider evidence; Student Finance and receipt outputs |
+| Grades | Faculty Grade Rosters → Registrar review/post/release | Grade history; Student Academics |
+| Lifecycle and completion | Registrar Student Profile → lifecycle/progression/completion action | Academic Head approval when required; Student Profile/Academics projection |
 
 **Academic Readiness** is the only primary Academic Setup navigation item. It lists each Program, the pending revision that needs action (or the Active curriculum when no pending revision exists), row count, plain-language readiness, exact blocker, and next action. Registrar actions create a Draft or open the existing Curriculum review; Academic Head sees the same truth without mutation actions. Academic Years, Terms, Calendar Windows, Programs, Courses, Course Specifications, Curriculum Versions, and Import Batches remain authorized source-record routes reached contextually from the workbench.
 
@@ -178,6 +305,10 @@ The Curriculum review presents every entry in one ordered table with curriculum-
 | Student Records | Registrar, Accounting for owned holds | Student profile, holds, lifecycle changes, program shifts, graduation review |
 | Reports & Audit | Authorized staff | Role-authorized fixed report catalog, controlled filters, mobile-stacked table, audited UTF-8 CSV export, audit log, and integration events |
 | System | System Super Admin | Users, fixed canonical role assignment, a read-only versioned settings registry with explicit operational/superseded/dormant disposition and verified consumer/effect, code-defined notification content, and restricted read-only integration status |
+
+Faculty sees **My Unavailable Times** inside **Offerings & Scheduling**. This is the Faculty-scoped projection of the existing Scheduling Blocks Resource: Faculty can maintain only their own active recurring unavailable blocks, while Registrar and Academic Head retain their authorized review scope over the same source records. Submitted and released Grade Rosters remain available in **Grade Roster** as read-only submission history; only Draft, Returned, or Late Not Submitted rosters expose encoding and submission actions.
+
+System Super Admin audit evidence uses two deliberately different read-only surfaces. **Audit Logs** answers who changed which institutional record and when, using business labels such as Audit Area, Change, Recorded Action, Record Type, Actor, and Recorded At. **Operational Events** answers what an integration or delivery service reported, using Area, Service, Event, Status, and Occurred At. Both tables stack on narrow screens. Their technical identifiers remain available in record detail and do not lead the primary table.
 
 **Admissions Work Queue** is the Registrar's only primary Admissions navigation entry. Its tabs separate work that needs Registrar action, work waiting on the applicant, approved records ready for handover review, and completed or withdrawn history. The list leads with applicant identity, Program/Term, plain-language current stage, responsible party, next action, requirement readiness, and last activity. Term, Program, workflow state, admission category, and unresolved-handover-blocker filters answer operating questions; raw credential codes and technical timestamps do not lead the table.
 

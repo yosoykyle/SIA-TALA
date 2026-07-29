@@ -94,6 +94,16 @@ Capability-depth taxonomy:
 
 Aligned accepted supporting features remain in scope unless they are proven harmful, conflicting, or unjustified. This taxonomy clarifies depth; it does not create a new backlog or invalidate accepted implementation.
 
+Capability depth does not determine menu placement. A capability may remain in scope and retain its own authoritative route without becoming a primary navigation item. Every visible capability must also have exactly one presentation disposition:
+
+1. **Primary:** a frequent role-owned task or operating-stage entry point.
+2. **Contextual:** a necessary supporting record reached from the primary task, person, or institutional record that owns the user's decision.
+3. **Evidence-only:** audit, integration, solver, generated-output access, or other technical proof reached only by an authorized investigator.
+4. **Deferred:** a valid nonblocking capability preserved outside the active MVP operating path and routed to an approved future boundary.
+5. **Retired:** a proven duplicate or superseded presentation with no unique remaining user purpose.
+
+Presentation disposition never changes authorization or authoritative-record ownership. Hiding a navigation item does not revoke direct-route access, and retiring a presentation does not delete its records or services. A live-route deletion, source-record merge, state-machine change, schema change, or transfer of office ownership requires a separate approved authority decision.
+
 Rules:
 
 1. TALA separates checklist requirements from stored files.

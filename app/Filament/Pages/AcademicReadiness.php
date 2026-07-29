@@ -152,6 +152,12 @@ class AcademicReadiness extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('classPlanning')
+                ->label('Open Class Planning')
+                ->icon(Heroicon::OutlinedCalendarDays)
+                ->color('gray')
+                ->url(ClassPlanning::getUrl())
+                ->visible(fn (): bool => ClassPlanning::canAccess()),
             Action::make('createCurriculum')
                 ->label('Create curriculum draft')
                 ->icon(Heroicon::OutlinedPlus)

@@ -45,7 +45,10 @@ class FacultyGradeRoster extends Page implements HasTable
     {
         $this->rosterId = GradeRoster::query()
             ->where('faculty_user_id', auth()->id())
-            ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
+            ->orderByRaw(
+                'CASE WHEN state IN (?, ?, ?) THEN 0 ELSE 1 END',
+                [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted],
+            )
             ->orderByDesc('id')
             ->value('id');
     }
@@ -67,16 +70,19 @@ class FacultyGradeRoster extends Page implements HasTable
                     ->label('Prelim')
                     ->type('number')
                     ->rules(['nullable', 'numeric', 'min:0', 'max:100'])
+                    ->disabled(fn (): bool => ! $this->selectedRosterIsEditable())
                     ->updateStateUsing(fn (GradeRosterRow $record, mixed $state) => app(SaveGradeRosterPeriodEquivalent::class)->execute($record, 'prelim', $state, auth()->user())),
                 TextInputColumn::make('midterm_equivalent')
                     ->label('Midterm')
                     ->type('number')
                     ->rules(['nullable', 'numeric', 'min:0', 'max:100'])
+                    ->disabled(fn (): bool => ! $this->selectedRosterIsEditable())
                     ->updateStateUsing(fn (GradeRosterRow $record, mixed $state) => app(SaveGradeRosterPeriodEquivalent::class)->execute($record, 'midterm', $state, auth()->user())),
                 TextInputColumn::make('final_equivalent')
                     ->label('Final')
                     ->type('number')
                     ->rules(['nullable', 'numeric', 'min:0', 'max:100'])
+                    ->disabled(fn (): bool => ! $this->selectedRosterIsEditable())
                     ->updateStateUsing(fn (GradeRosterRow $record, mixed $state) => app(SaveGradeRosterPeriodEquivalent::class)->execute($record, 'final', $state, auth()->user())),
                 TextColumn::make('computed_average')->label('Average'),
                 TextColumn::make('current_outcome_code')
@@ -114,15 +120,15 @@ class FacultyGradeRoster extends Page implements HasTable
                     ->modalHeading('Submit this grade roster?')
                     ->modalDescription('The Registrar will review the completed roster before grades are posted and released to students.')
                     ->requiresConfirmation()
-                    ->visible(fn (): bool => $this->rosterId !== null)
+                    ->visible(fn (): bool => $this->selectedRosterIsEditable())
                     ->action(function (): void {
                         app(SubmitGradeRoster::class)->execute(GradeRoster::findOrFail($this->rosterId), auth()->user());
                         Notification::make()->title('Grade roster submitted')->success()->send();
                     }),
             ])
             ->stackedOnMobile()
-            ->emptyStateHeading('No active grade roster')
-            ->emptyStateDescription('Assigned draft or returned grade rosters appear here during an encoding window.');
+            ->emptyStateHeading('No assigned grade roster')
+            ->emptyStateDescription('Assigned grade rosters and their submission history appear here.');
     }
 
     /**
@@ -145,7 +151,6 @@ class FacultyGradeRoster extends Page implements HasTable
         return GradeRoster::query()
             ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
             ->where('faculty_user_id', auth()->id())
-            ->whereIn('state', [GradeRoster::StateDraft, GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
             ->orderByDesc('id')
             ->get()
             ->mapWithKeys(fn (GradeRoster $roster): array => [
@@ -186,12 +191,17 @@ class FacultyGradeRoster extends Page implements HasTable
         $total = $roster->rows()->count();
         $completed = $roster->rows()->whereNotNull('final_equivalent')->count();
 
+        $historyNotice = $this->selectedRosterIsEditable()
+            ? 'This roster is open for encoding.'
+            : 'This is read-only submission history.';
+
         return sprintf(
-            '%s · %s · %d of %d students have final grades entered.',
+            '%s · %s · %d of %d students have final grades entered. %s',
             $roster->termOffering?->term->label ?? 'Term not recorded',
             str((string) $roster->state)->headline()->toString(),
             $completed,
             $total,
+            $historyNotice,
         );
     }
 
@@ -205,5 +215,17 @@ class FacultyGradeRoster extends Page implements HasTable
             ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
             ->where('faculty_user_id', auth()->id())
             ->find($this->rosterId);
+    }
+
+    private function selectedRosterIsEditable(): bool
+    {
+        $roster = $this->selectedRoster();
+
+        return $roster instanceof GradeRoster
+            && in_array($roster->state, [
+                GradeRoster::StateDraft,
+                GradeRoster::StateReturned,
+                GradeRoster::StateLateNotSubmitted,
+            ], true);
     }
 }

@@ -47,12 +47,19 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
 | TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
 | TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
-| TAL-96D5E1D | Next planning boundary | Remaining-Role and Shared UI Contract Closure across Academic Head, Faculty, Student, Applicant, System Administration, Reports/Audit, Settings, and integrations. |
-| TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the preserved `MIDDLE` fixtures and only required persona overlays. |
+| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1 done locally and D5E1D2 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
+| TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
+| TAL-96D5E1D2 | Next planning boundary; unblocked by cleaned D5E1D1 | Timetabling Operating-Journey Recovery from readiness through solve, review, publication, revision, and student/faculty projection. |
+| TAL-96D5E1D3 | Planned; blocked on D5E1D2 | Enrollment, Irregular Placement, Student Record, History, and COR Recovery. |
+| TAL-96D5E1D4 | Planned; blocked on D5E1D3 | Admissions, Evidence Verification, Decision, Duplicate Handling, Handover, and Applicant/Student Projection Recovery. |
+| TAL-96D5E1D5 | Planned; blocked on D5E1D4 | Assessment, PayMongo and Manual Payment, Ledger, Exception, Clearance, Receipt, and Finance-Output Recovery. |
+| TAL-96D5E1D6 | Planned; blocked on D5E1D5 | Grades, Lifecycle, Completion, and Remaining Faculty, Academic Head, and System Super Admin Capability Recovery. |
+| TAL-96D5E1D7 | Planned; blocked on D5E1D6 | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
+| TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the preserved `MIDDLE` fixtures and only required persona overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
 
-Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B implementation/automated verification -> standalone TAL-96D2C faculty-evidence reconciliation -> refreshed MIN baseline -> TAL-96D3B manual acceptance finding -> TAL-96D3B remediation and automated reverification -> TAL-96D3C -> TAL-96D3D -> TAL-96D4A -> TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5A -> TAL-96D5B -> TAL-96D5C1 -> TAL-96D5C2 -> TAL-96D5D -> TAL-96D5E1A -> TAL-96D5E1B1 -> TAL-96D5E1B2A -> TAL-96D5E1B2B -> TAL-96D5E1B2C -> TAL-96D5E1B3 -> TAL-96D5E1C -> TAL-96D5E1D -> TAL-96D5E1E -> TAL-96D5E2 -> TAL-97`. D5A reconciles readiness before destructive or external work; D5B provides bounded convergence evidence rather than whole-system usability certification; D5C1's code-first inventory remains evidence but its full role/surface closure conclusion is reopened by verified client-acceptance findings; D5C2 remains a regression baseline, not proof of comprehension. D5D owns the completed population/configuration study. D5E1A–E recover the system truth map, Registrar-centered operating flow, finance/PayMongo mental model, remaining-role consistency, exploration guide, and concise human acceptance before D5E2 may consolidate or retire the charter. TAL-96D5E1B2 uses three task-centered vertical slices rather than presenting academic, admissions, offering, and scheduling source records as peer workflows. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment, solver traffic promotion, and cutover remain outside this split unless separately authorized.
+Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B implementation/automated verification -> standalone TAL-96D2C faculty-evidence reconciliation -> refreshed MIN baseline -> TAL-96D3B manual acceptance finding -> TAL-96D3B remediation and automated reverification -> TAL-96D3C -> TAL-96D3D -> TAL-96D4A -> TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5A -> TAL-96D5B -> TAL-96D5C1 -> TAL-96D5C2 -> TAL-96D5D -> TAL-96D5E1A -> TAL-96D5E1B1 -> TAL-96D5E1B2A -> TAL-96D5E1B2B -> TAL-96D5E1B2C -> TAL-96D5E1B3 -> TAL-96D5E1C -> TAL-96D5E1D1 -> TAL-96D5E1D2 -> TAL-96D5E1D3 -> TAL-96D5E1D4 -> TAL-96D5E1D5 -> TAL-96D5E1D6 -> TAL-96D5E1D7 -> TAL-96D5E1E -> TAL-96D5E2 -> TAL-97`. D5A reconciles readiness before destructive or external work; D5B provides bounded convergence evidence rather than whole-system usability certification; D5C1's code-first inventory remains evidence but its full role/surface closure conclusion is reopened by verified client-acceptance findings; D5C2 remains a regression baseline, not proof of comprehension. D5D owns the completed population/configuration study. D5E1A–C provide verified salvage evidence but do not certify complete presentation correctness. D5E1D1–D7 recover capability authority, timetabling, enrollment, admissions, finance, grades/lifecycle, and shared outputs before D5E1E performs consolidated human acceptance. TAL-96D5E1B2 uses three task-centered vertical slices rather than presenting academic, admissions, offering, and scheduling source records as peer workflows. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment, solver traffic promotion, and cutover remain outside this split unless separately authorized.
 
 The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
 
@@ -60,7 +67,7 @@ Approved compact dispositions: preserve aligned implementation; fix only evidenc
 
 ## Active Approved Plan Contract
 
-No active contract. The next boundary is `Plan TAL-96D5E1D`.
+No active contract. The next boundary is `Plan TAL-96D5E1D2`.
 
 ## Post-MVP Deferrals
 
@@ -78,4 +85,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: `Plan TAL-96D5E1D`.
+Next boundary: `Plan TAL-96D5E1D2`.

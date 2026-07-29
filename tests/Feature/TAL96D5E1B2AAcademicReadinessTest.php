@@ -57,17 +57,17 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         $this->actingAs($this->staff(User::StaffRoleRegistrar));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $academicSetup = collect(Filament::getPanel('admin')->buildNavigation())
-            ->first(fn ($group): bool => $group->getLabel() === 'Academic Setup');
-
-        $this->assertNotNull($academicSetup);
-
-        $labels = collect($academicSetup->getItems())
+        $labels = collect(Filament::getPanel('admin')->buildNavigation())
+            ->flatMap(fn ($group) => $group->getItems())
             ->map(fn ($item): string => $item->getLabel())
             ->values()
             ->all();
 
-        $this->assertSame(['Academic Readiness'], $labels);
+        $this->assertContains('Academic Readiness', $labels);
+
+        foreach (['Academic Years', 'Terms', 'Programs', 'Courses', 'Course Specifications', 'Curriculum Versions', 'Import Batches'] as $sourceRecordLabel) {
+            $this->assertNotContains($sourceRecordLabel, $labels);
+        }
     }
 
     #[Test]

@@ -177,16 +177,35 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         app(TAL96D4BAcceptanceStateSeeder::class)->run();
         $this->artisan('acceptance:seed-tal96d4b-states')->assertSuccessful();
 
-        $seededFacultyId = GradeRoster::query()->value('faculty_user_id');
-        $seededRegistrarId = GradeRoster::query()->whereNotNull('reviewed_by')->value('reviewed_by');
+        $seededTerm = Term::query()
+            ->whereHas('termOfferings', fn ($query) => $query->whereHas('sections'), '>=', 4)
+            ->withCount('termOfferings')
+            ->orderByDesc('term_offerings_count')
+            ->orderByDesc('id')
+            ->firstOrFail();
+        $seededOfferingIds = TermOffering::query()
+            ->where('term_id', $seededTerm->id)
+            ->whereHas('sections')
+            ->orderBy('id')
+            ->limit(4)
+            ->pluck('id');
+        $seededFacultyId = User::role(User::StaffRoleFaculty)->orderBy('id')->value('id');
+        $seededRegistrarId = User::role(User::StaffRoleRegistrar)->orderBy('id')->value('id');
 
         $this->assertNotNull($seededFacultyId);
         $this->assertNotNull($seededRegistrarId);
-        $this->assertSame(4, GradeRoster::query()->where('faculty_user_id', $seededFacultyId)->count());
+        $seededRosterIds = GradeRoster::query()
+            ->where('faculty_user_id', $seededFacultyId)
+            ->whereIn('term_offering_id', $seededOfferingIds)
+            ->pluck('id');
+        $this->assertCount(4, $seededRosterIds);
         GradeRoster::query()->with('section')->get()->each(function (GradeRoster $roster): void {
             $this->assertSame($roster->term_offering_id, $roster->section->term_offering_id);
         });
-        $releasedRow = GradeRosterRow::query()->whereNotNull('released_at')->sole();
+        $releasedRow = GradeRosterRow::query()
+            ->whereIn('grade_roster_id', $seededRosterIds)
+            ->whereNotNull('released_at')
+            ->sole();
         $this->assertSame('89.8000', $releasedRow->computed_average);
         $this->assertSame('1.75', $releasedRow->current_outcome_code);
         $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-WITHDRAWAL')->count());
@@ -196,10 +215,19 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->assertNotSame($sourceProgramId, $programShift->target_program_id);
         $this->assertTrue($programShift->term->starts_on->isFuture());
         $this->assertSame(1, $programShift->programShiftCredits()->count());
-        $this->assertSame(1, GraduationReviewBatch::query()->where('name', TAL96D4BAcceptanceStateSeeder::BatchName)->count());
-        $this->assertSame(2, GraduationSnapshot::query()->where('generated_by', $seededRegistrarId)->count());
+        $batch = GraduationReviewBatch::query()
+            ->where('name', TAL96D4BAcceptanceStateSeeder::BatchName)
+            ->sole();
+        $this->assertSame(
+            2,
+            GraduationSnapshot::query()
+                ->whereHas('member', fn ($query) => $query->where('graduation_review_batch_id', $batch->id))
+                ->where('generated_by', $seededRegistrarId)
+                ->count(),
+        );
         $blockedSnapshot = GraduationSnapshot::query()
             ->where('result_status', GraduationEligibilitySnapshotService::ResultBlockedHoldOrClearance)
+            ->whereHas('member', fn ($query) => $query->where('graduation_review_batch_id', $batch->id))
             ->with('member')
             ->sole();
         $this->assertTrue(Hold::query()

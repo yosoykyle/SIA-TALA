@@ -7,14 +7,14 @@ use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class StaffNavigationVisibilityTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -87,25 +87,22 @@ class StaffNavigationVisibilityTest extends TestCase
                 ->get($path)
                 ->assertOk();
         }
+    }
+
+    #[DataProvider('nonSystemAdministratorRoles')]
+    public function test_other_staff_roles_cannot_access_system_administration(string $role): void
+    {
+        $user = User::role($role)->firstOrFail();
 
         foreach ([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
-            User::StaffRoleFaculty,
-            User::StaffRoleAcademicHead,
-        ] as $role) {
-            $user = User::role($role)->firstOrFail();
-
-            foreach ([
-                '/admin/users',
-                '/admin/roles',
-                '/admin/activities',
-                '/admin/system-settings',
-            ] as $path) {
-                $this->actingAs($user)
-                    ->get($path)
-                    ->assertForbidden();
-            }
+            '/admin/users',
+            '/admin/roles',
+            '/admin/activities',
+            '/admin/system-settings',
+        ] as $path) {
+            $this->actingAs($user)
+                ->get($path)
+                ->assertForbidden();
         }
     }
 
@@ -159,6 +156,19 @@ class StaffNavigationVisibilityTest extends TestCase
                 'forbiddenGroups' => ['Accounting', 'Faculty', 'System Administration', 'Academic Head'],
                 'forbiddenLabels' => ['Payment Queue', 'Confirmed Payments', 'Assigned Schedule', 'Users', 'Audit Logs'],
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, array{role: string}>
+     */
+    public static function nonSystemAdministratorRoles(): array
+    {
+        return [
+            'registrar' => ['role' => User::StaffRoleRegistrar],
+            'accounting' => ['role' => User::StaffRoleAccounting],
+            'faculty' => ['role' => User::StaffRoleFaculty],
+            'academic head' => ['role' => User::StaffRoleAcademicHead],
         ];
     }
 

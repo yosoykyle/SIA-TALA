@@ -44,21 +44,35 @@ class OperationalEventsTable
             ->modifyQueryUsing(fn (Builder $query) => $query->with('user'))
             ->columns([
                 TextColumn::make('event_domain')
+                    ->label('Area')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'System')
                     ->badge()
                     ->searchable(),
                 TextColumn::make('integration')
+                    ->label('Service')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'Internal')
                     ->searchable()
-                    ->placeholder('-'),
+                    ->placeholder('Internal'),
                 TextColumn::make('channel')
                     ->searchable()
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('event_type')
+                    ->label('Event')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'Recorded event')
                     ->searchable(),
                 TextColumn::make('status')
+                    ->formatStateUsing(fn (?string $state): string => self::statusOptions()[$state] ?? str((string) $state)->headline()->toString())
                     ->badge()
                     ->color(fn (?string $state): string => self::statusColors()[$state] ?? 'gray'),
                 TextColumn::make('occurred_at')
+                    ->label('Occurred at')
                     ->dateTime()
                     ->sortable(),
                 TextColumn::make('failed_at')
@@ -91,6 +105,9 @@ class OperationalEventsTable
                 ViewAction::make(),
             ])
             ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No operational events')
+            ->emptyStateDescription('Integration and delivery events appear here when the system records them.')
             ->defaultSort('occurred_at', 'desc');
     }
 

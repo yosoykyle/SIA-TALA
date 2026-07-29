@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
@@ -11,11 +12,12 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationBuilder;
+use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -60,10 +62,13 @@ class ApplicantPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
+            ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
+                $this->navigationItem(Dashboard::class, 'Home'),
+                $this->navigationItem(Application::class, 'Application'),
+            ]))
             ->discoverWidgets(in: app_path('Filament/Applicant/Widgets'), for: 'App\Filament\Applicant\Widgets')
             ->widgets([
                 AccountWidget::class,
-                FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -79,5 +84,16 @@ class ApplicantPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    /**
+     * @param  class-string  $component
+     */
+    private function navigationItem(string $component, string $label): NavigationItem
+    {
+        /** @var NavigationItem $item */
+        $item = $component::getNavigationItems()[0];
+
+        return $item->label($label);
     }
 }

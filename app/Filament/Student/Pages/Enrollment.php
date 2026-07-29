@@ -11,6 +11,7 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -37,6 +38,23 @@ class Enrollment extends Page implements HasTable
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('student') ?? false;
+    }
+
+    /**
+     * @return list<Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('viewClassSchedule')
+                ->label('Class Schedule')
+                ->icon('heroicon-o-calendar-days')
+                ->url(ScheduleView::getUrl(panel: 'student')),
+            Action::make('viewCor')
+                ->label('Current COR')
+                ->icon('heroicon-o-document-text')
+                ->url(CorView::getUrl(panel: 'student')),
+        ];
     }
 
     public function getSubheading(): ?string

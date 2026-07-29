@@ -1836,3 +1836,68 @@ The overlay is idempotent and creates no schedule run, candidate assignment, off
 #### 9.14.6 Evidence boundary
 
 The focused D5E1C matrix passed **96 tests with 1,292 assertions**. It covers the task-centered navigation, account-summary and detail parity, business labels and filters, immutable adjustment/reversal behavior, manual-payment duplicate protection, OR mapping, accommodation effects, Finance Gate behavior, Student Finance outputs, signed and idempotent PayMongo processing, exception presentation and decisions, fixture idempotency, and the absence of scheduling side effects. These are local programmatic findings. No PayMongo request, webhook registration, credential change, deployment, destructive database rebuild, schema change, source-record merge, or visual acceptance is claimed. Consolidated human acceptance remains owned by TAL-96D5E1E.
+
+### 9.15 TAL-96D5E1D lean-MVP authority and workflow consolidation
+
+TAL-96D5E1D separates capability ownership from menu placement. The PRD capability lists remain valid responsibility inventories, but they no longer imply one peer sidebar destination per record type. Existing authoritative records, services, state machines, transactions, and policies remain intact. Primary navigation now names role-owned operating stages; supporting records remain contextual, technical proof remains investigator evidence, future work remains deferred, and framework-only presentation is retired.
+
+#### 9.15.1 Eight-role capability disposition
+
+| User category | Understandable task entry and retained capability | Authoritative result or consumer | D5E1D disposition |
+| --- | --- | --- | --- |
+| Public visitor | Public landing explains Applicant, Student, and Staff workspaces, admission availability, FAQs, and safe error recovery. | Published FAQs and the configured admissions window determine what is shown; authenticated records remain private. | `Aligned`; retain the D4D and D5B implementation and evidence. |
+| Applicant | **Home** and **Application** are primary. Requirements, evidence, and Registrar feedback remain contextual to the current or historical Application. | Applicant Intake, Checklist Items, and private Document Evidence remain authoritative until explicit Registrar handover. | `Gap corrected`: Requirements no longer competes as a peer task, while direct authorized access and correction links remain. |
+| Student | **Home**, **Enrollment**, **Academics**, **Finance**, and **Profile** are primary. COR, Class Schedule, Grades, Holds, Academic Status, and Completion remain contextual read-only projections. | Official Enrollment, published meetings, Ledger, released Grades, Holds, and lifecycle/graduation records remain staff-owned sources. | `Gap corrected`: nine peer destinations became five understandable task entries without deleting a projection. |
+| Faculty | **My Faculty Work** links Assigned Schedule, Grade Rosters, and **My Unavailable Times**. Draft/Returned/Late rosters are editable; Submitted/Released rosters remain visible as read-only history. | Published Section Meetings, Grade Rosters, Grade Roster Rows, and Faculty-scoped Calendar Events remain authoritative. | `Gap corrected`: availability became discoverable and completed roster history no longer disappeared. |
+| Registrar | **Home**, **Academic Readiness**, **Admissions**, **Class Planning**, **Students & Enrollment**, **Grades & Completion**, and **Reports** are primary. | Existing academic, admissions, scheduling, enrollment, and student-record services retain ownership. | `Gap corrected`: source records remain contextual; Grades and Completion now share a truthful task center. |
+| Accounting | **Home**, **Student Accounts**, **Payment Exceptions**, **Fee Setup**, and **Reports** are primary. | Assessment, Payment Attempt, Payment, immutable Ledger Entry, Adjustment, Accommodation, and provider evidence remain distinct sources. | `Aligned`; reuse independently verified D5E1C behavior and present its three-stage operating model directly. |
+| Academic Head | **Home**, **Academic Oversight**, **Approvals**, and **Reports** are primary. Approvals opens only policy-authorized evidence and never transfers Registrar or Faculty ownership. | The owning Registrar or Faculty records remain authoritative; only PRD-approved review/correction actions are exposed. | `Gap corrected`: a combined Approvals task center replaces unexplained peer resources. |
+| System Super Admin | **Home**, **Users & Access**, **Public Content**, **System Health**, and **Governance & Audit** are primary. | Users/Roles, FAQ Entries, settings dispositions, Output Access Logs, Activity Logs, Operational Events, and Disposal Reviews retain separate purposes. | `Gap corrected`: investigator evidence remains available but no longer leads routine system administration. |
+
+#### 9.15.2 Corrected findings and preserved boundaries
+
+| Finding | Classification | Correction | Preserved behavior |
+| --- | --- | --- | --- |
+| Faculty-owned unavailability existed in policy, schema, forms, and source scoping but was omitted from the custom Staff navigation. | `Defect / real gap` | Added the existing Calendar Event Resource to Offerings & Scheduling and labeled its Faculty projection **My Unavailable Times**. | Same `calendar_events` source, term scope, Faculty ownership, policy, validation, and Registrar/Academic Head review boundaries. |
+| Faculty Grade Roster selection hid Submitted and Released records even though the PRD requires submission history. | `Defect / real gap` | Kept every assigned roster selectable, made non-encoding states read-only, hid submit outside editable states, and explained historical state. | Same grade formula, save/submit actions, roster states, authorization, review/release flow, and Student released-only projection. |
+| Accounting, Faculty, Academic Head, and System Super Admin landed on a generic Dashboard containing framework information rather than institutional work orientation. | `Defect / real gap` | Replaced the framework-information widget with small role-owned task summaries over existing counts and authorized URLs. | No chart, duplicate task record, new permission, office-ownership change, or automated domain action. |
+| Audit and operational-event lists exposed technical-first labels and did not use the native narrow-screen stack. | `Defect / real gap` | Added business labels, human-readable stored-code formatting, explicit empty states, and native mobile stacking. | Audit and operational evidence remain separate, read-only, policy-protected sources; technical provenance remains available in detail. |
+| Registered capabilities were presented as peer navigation even when they were supporting records or investigator evidence. | `Defect / real gap` | Applied the PRD/blueprint disposition contract and exact role-owned navigation. Added only the Academics, Grades & Completion, and Academic Approvals task centers needed to make combined labels truthful. | Existing authorized routes, records, services, schemas, state machines, and direct links remain stable. |
+| Applicant Requirements and Student COR/Schedule/Grades/Holds/Lifecycle/Completion needed to remain reachable after navigation consolidation. | `Defect / real gap` | Kept every page registered and policy-protected. Applicant correction guidance links Requirements; Student Enrollment links COR and Class Schedule; Student Academics links the academic projections. | No output, evidence, or historical record was removed. |
+
+#### 9.15.3 First-time operating cues
+
+1. Start from **Home** for orientation, then choose the named operating stage; Home does not perform an official decision.
+2. Follow the owning task entry and read identity/scope, current status, blocker or next action, and responsible office before opening supporting evidence.
+3. Faculty records unavailability before timetable generation, reads only published assignments, edits only open rosters, and uses completed rosters as history.
+4. Academic Head uses Academic Oversight for readiness and Approvals for assigned decisions without silently assuming Registrar or Faculty ownership.
+5. System Super Admin uses Users & Access, Public Content, System Health, and Governance & Audit. Audit Logs answer actor/record change questions; Operational Events answer integration/delivery questions. Neither replaces the owning transaction record.
+
+#### 9.15.4 Programmatic and runtime evidence boundary
+
+`TAL96D5E1DRemainingRoleCapabilityClosureTest` proves exact primary navigation for every staff role, Applicant and Student consolidation, contextual-page registration, Student Academics orientation, Student Enrollment links to COR and Class Schedule, truthful Registrar and Academic Head task centers, Faculty availability and roster history, role-owned Dashboard summaries, retirement of generic framework-information widgets, and business-readable Audit Log and Operational Event tables. It runs against process-scoped `APP_ENV=testing`, MySQL, `test_tala_db`. Existing transaction-safe Applicant, Student, authorization, report, integration, grade, Registrar, and Accounting tests remain attributable evidence for retained capabilities.
+
+The focused six-journey implementation matrix passed **98 tests with 817 assertions**. Blade compilation, changed-PHP Pint formatting, scoped PHPStan, route registration review, and `git diff --check` also passed. This is programmatic implementation evidence, not visual client acceptance. TAL-96D5E1E still owns the concise phone/tablet/desktop walkthrough. D5E1D did not rebuild, reseed, or delete rows from the preserved MIDDLE fixture and did not invoke the solver, Cloud Run, PayMongo, email, or another provider.
+
+#### 9.15.5 Six-journey evidence handoff
+
+| Journey | Programmatic owner reused by D5E1D | Concise D5E1E human check |
+| --- | --- | --- |
+| Applicant to student | Admissions Work Queue, applicant handover, and Applicant Workspace tests | Applicant submits/corrects; Registrar decides/hands over; resulting Student Profile is understandable |
+| Timetable publication | Class Planning, solver-dispatch boundary, publication, and projection tests | Registrar follows readiness to publication; Faculty and Student see the official result |
+| Enrollment and COR | Regular/irregular proposal, gate, placement, official-enrollment, COR, and lifecycle tests | Registrar and Student can identify current state, blocker, next action, and official COR |
+| Finance clearance | Accounting recovery, provider evidence, posting, finance gate, and Student Finance tests | Accounting follows account/exception work; Student sees due status and authorized output |
+| Grades | Faculty roster and grade lifecycle tests | Faculty identifies editable versus historical roster; Registrar reviews/releases; Student sees released grades only |
+| Lifecycle and completion | Student lifecycle preview/apply, history, and graduation-review tests | Registrar sees impact before confirmation; Student sees the authorized status/history projection |
+
+The human pass uses the preserved MIDDLE personas and checks changed navigation, terminology, information hierarchy, and responsive action reachability. It does not repeat every programmatic state transition.
+
+#### 9.15.6 Likely panel questions
+
+| Question | Defense answer |
+| --- | --- |
+| Why did you keep separate operational Resources? | They represent different authoritative facts and permissions. TALA makes them understandable through role-owned task summaries and contextual links instead of merging records or weakening auditability. |
+| How does Faculty availability affect scheduling? | Faculty records term-scoped recurring unavailable blocks in My Unavailable Times. The same Calendar Event records are hard scheduling inputs and are reviewable by authorized Registrar or Academic Head users. |
+| Can Faculty change a submitted or released roster? | No. It remains visible as submission history, but its grade cells and submit action are read-only. Corrections continue through the authorized grade workflow. |
+| What is the difference between Audit Logs and Operational Events? | Audit Logs answer who changed which institutional record and when. Operational Events answer what an integration, notification, or delivery service reported. |
+| Do the Dashboard cards create or approve records? | No. They are orientation links and factual counts over existing sources. The destination policy and action service still enforce every decision. |

@@ -368,4 +368,24 @@ Rules:
 
 Workspace dashboards may summarize counts and alerts, but official entry and decisions occur through the interaction form owned by the corresponding module.
 
+#### 2.8.1 Task-Centered Navigation and Contextual Records
+
+The role queues in Sections 2.4 through 2.7 are capability and responsibility inventories. They do not require one peer page, resource, or sidebar item per numbered capability. Primary navigation names the role's operating stages; source records and evidence remain policy-protected and are opened contextually from the task or person they support.
+
+Approved primary navigation:
+
+| Workspace or role | Primary navigation |
+| --- | --- |
+| Applicant | Home; Application |
+| Student | Home; Enrollment; Academics; Finance; Profile |
+| Registrar | Home; Academic Readiness; Admissions; Class Planning; Students & Enrollment; Grades & Completion; Reports |
+| Accounting | Home; Student Accounts; Payment Exceptions; Fee Setup; Reports |
+| Faculty | Home; My Schedule; Grade Rosters; My Unavailable Times |
+| Academic Head | Home; Academic Oversight; Approvals; Reports |
+| System Super Admin | Home; Users & Access; Public Content; System Health; Governance & Audit |
+
+Supporting routes may remain directly addressable for authorized users, but the owning primary task must provide the normal entry point and return path. A retained task or record must lead with its identity, current plain-language state, work requiring attention, responsible role or office, blocker, and one primary next action. Completed history follows; technical evidence is secondary. Tables lead with the business columns needed for the current decision, and filters answer named operating questions rather than exposing unexplained storage fields.
+
+Applicant Requirements are contextual to the current or historical Application record. Student Class Schedule, COR, Grades, Holds, Academic Status, and Completion remain authorized projections but are reached from Enrollment, Academics, or Profile rather than competing as equal operating stages. Registrar, Accounting, Faculty, Academic Head, and System Super Admin source-record resources retain their module ownership and authorization even when removed from primary navigation.
+
 ---

@@ -2,10 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
@@ -48,6 +50,8 @@ use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\Users\UserResource;
+use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
+use App\Models\User;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -56,14 +60,12 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationBuilder;
-use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -143,10 +145,12 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Dashboard::class,
+                AcademicApprovals::class,
                 AcademicReadiness::class,
                 ClassPlanning::class,
                 FacultyGradeRoster::class,
                 FacultySchedule::class,
+                GradesAndCompletion::class,
                 ReportsAudit::class,
                 IntegrationStatus::class,
                 PayMongoReconciliation::class,
@@ -155,7 +159,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
-                FilamentInfoWidget::class,
+                StaffRoleWorkspaceOverviewWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -175,72 +179,70 @@ class AdminPanelProvider extends PanelProvider
 
     private function staffNavigation(NavigationBuilder $builder): NavigationBuilder
     {
-        return $builder
-            ->items($this->navigationItems([Dashboard::class]))
-            ->groups([
-                NavigationGroup::make('Admissions')
-                    ->items($this->navigationItems([
-                        ApplicantIntakeResource::class,
-                        AdmissionRequirementPolicyResource::class,
-                        DuplicateProfileResolutionResource::class,
-                    ])),
-                NavigationGroup::make('Academic Setup')
-                    ->items($this->navigationItems([
-                        AcademicReadiness::class,
-                    ])),
-                NavigationGroup::make('Offerings & Scheduling')
-                    ->items($this->navigationItems([
-                        ClassPlanning::class,
-                        FacultySchedule::class,
-                    ])),
-                NavigationGroup::make('Enrollment')
-                    ->items($this->navigationItems([
-                        EnrollmentResource::class,
-                    ])),
-                NavigationGroup::make('Finance')
-                    ->items($this->navigationItems([
-                        FeeRuleResource::class,
-                        AssessmentResource::class,
-                        PayMongoReconciliation::class,
-                    ])),
-                NavigationGroup::make('Grades')
-                    ->items($this->navigationItems([
-                        GradeRosterResource::class,
-                        FacultyGradeRoster::class,
-                    ])),
-                NavigationGroup::make('Student Records')
-                    ->items($this->navigationItems([
-                        StudentProfileResource::class,
-                        StudentLifecycleChangeResource::class,
-                        GraduationReviewBatchResource::class,
-                    ])),
-                NavigationGroup::make('Reports & Audit')
-                    ->items($this->navigationItems([
-                        ReportsAudit::class,
-                        ActivityResource::class,
-                        OperationalEventResource::class,
-                    ])),
-                NavigationGroup::make('System')
-                    ->items($this->navigationItems([
-                        UserResource::class,
-                        RoleResource::class,
-                        SystemSettingResource::class,
-                        FaqEntryResource::class,
-                        DisposalReviewResource::class,
-                        IntegrationStatus::class,
-                    ])),
-            ]);
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return $builder;
+        }
+
+        $components = match (true) {
+            $user->hasRole(User::StaffRoleRegistrar) => [
+                'Home' => Dashboard::class,
+                'Academic Readiness' => AcademicReadiness::class,
+                'Admissions' => ApplicantIntakeResource::class,
+                'Class Planning' => ClassPlanning::class,
+                'Students & Enrollment' => EnrollmentResource::class,
+                'Grades & Completion' => GradesAndCompletion::class,
+                'Reports' => ReportsAudit::class,
+            ],
+            $user->hasRole(User::StaffRoleAccounting) => [
+                'Home' => Dashboard::class,
+                'Student Accounts' => AssessmentResource::class,
+                'Payment Exceptions' => PayMongoReconciliation::class,
+                'Fee Setup' => FeeRuleResource::class,
+                'Reports' => ReportsAudit::class,
+            ],
+            $user->hasRole(User::StaffRoleFaculty) => [
+                'Home' => Dashboard::class,
+                'My Schedule' => FacultySchedule::class,
+                'Grade Rosters' => FacultyGradeRoster::class,
+                'My Unavailable Times' => CalendarEventResource::class,
+            ],
+            $user->hasRole(User::StaffRoleAcademicHead) => [
+                'Home' => Dashboard::class,
+                'Academic Oversight' => AcademicReadiness::class,
+                'Approvals' => AcademicApprovals::class,
+                'Reports' => ReportsAudit::class,
+            ],
+            $user->hasRole(User::StaffRoleSystemSuperAdmin) => [
+                'Home' => Dashboard::class,
+                'Users & Access' => UserResource::class,
+                'Public Content' => FaqEntryResource::class,
+                'System Health' => IntegrationStatus::class,
+                'Governance & Audit' => ReportsAudit::class,
+            ],
+            default => [],
+        };
+
+        return $builder->items($this->labeledNavigationItems($components));
     }
 
     /**
-     * @param  list<class-string>  $components
+     * @param  array<string, class-string>  $components
      * @return list<NavigationItem>
      */
-    private function navigationItems(array $components): array
+    private function labeledNavigationItems(array $components): array
     {
         return collect($components)
-            ->filter(fn (string $component): bool => $component::shouldRegisterNavigation() && $component::canAccess())
-            ->flatMap(fn (string $component): array => $component::getNavigationItems())
+            ->flatMap(function (string $component, string $label): array {
+                if (! $component::canAccess()) {
+                    return [];
+                }
+
+                return collect($component::getNavigationItems())
+                    ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))
+                    ->all();
+            })
             ->values()
             ->all();
     }

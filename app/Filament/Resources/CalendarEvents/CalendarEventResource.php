@@ -25,9 +25,33 @@ class CalendarEventResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Scheduling Blocks';
-
     protected static ?int $navigationSort = 29;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return self::isFacultyWorkspace();
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return self::isFacultyWorkspace()
+            ? 'My Unavailable Times'
+            : 'Scheduling Blocks';
+    }
+
+    public static function getModelLabel(): string
+    {
+        return self::isFacultyWorkspace()
+            ? 'unavailable time'
+            : 'scheduling block';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return self::isFacultyWorkspace()
+            ? 'unavailable times'
+            : 'scheduling blocks';
+    }
 
     public static function getNavigationGroup(): string|UnitEnum|null
     {
@@ -90,5 +114,10 @@ class CalendarEventResource extends Resource
             'create' => CreateCalendarEvent::route('/create'),
             'edit' => EditCalendarEvent::route('/{record}/edit'),
         ];
+    }
+
+    private static function isFacultyWorkspace(): bool
+    {
+        return auth()->user()?->hasRole(User::StaffRoleFaculty) ?? false;
     }
 }

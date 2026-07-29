@@ -14,17 +14,28 @@ class ActivitiesTable
         return $table
             ->columns([
                 TextColumn::make('log_name')
-                    ->label('Log')
+                    ->label('Audit area')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'General')
                     ->badge()
                     ->searchable(),
                 TextColumn::make('event')
+                    ->label('Change')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str((string) $state)->headline()->toString()
+                        : 'Recorded')
                     ->badge()
                     ->searchable(),
                 TextColumn::make('description')
+                    ->label('Recorded action')
                     ->searchable()
                     ->limit(80),
                 TextColumn::make('subject_type')
-                    ->label('Subject')
+                    ->label('Record type')
+                    ->formatStateUsing(fn (?string $state): string => filled($state)
+                        ? str(class_basename((string) $state))->headline()->toString()
+                        : 'Not linked')
                     ->searchable()
                     ->toggleable(),
                 TextColumn::make('causer.email')
@@ -32,6 +43,7 @@ class ActivitiesTable
                     ->searchable()
                     ->placeholder('System'),
                 TextColumn::make('created_at')
+                    ->label('Recorded at')
                     ->dateTime()
                     ->sortable(),
             ])
@@ -43,6 +55,9 @@ class ActivitiesTable
                 ViewAction::make(),
             ])
             ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No audit records')
+            ->emptyStateDescription('Recorded staff and system changes appear here.')
             ->defaultSort('created_at', 'desc');
     }
 

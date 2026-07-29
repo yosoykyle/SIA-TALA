@@ -4,6 +4,9 @@ namespace App\Filament\Pages;
 
 use App\Actions\Reports\ExportOperationalReport;
 use App\Actions\Reports\OperationalReportService;
+use App\Filament\Resources\Activities\ActivityResource;
+use App\Filament\Resources\DisposalReviews\DisposalReviewResource;
+use App\Filament\Resources\OperationalEvents\OperationalEventResource;
 use App\Models\AcademicYear;
 use App\Models\Program;
 use App\Models\Section;
@@ -13,6 +16,7 @@ use App\Models\User;
 use App\Policies\OperationalReportPolicy;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -99,10 +103,27 @@ class ReportsAudit extends Page implements HasTable
             ->emptyStateDescription('Change the controlled filters or select another authorized fixed report.');
     }
 
-    /** @return list<Action> */
+    /** @return list<Action|ActionGroup> */
     protected function getHeaderActions(): array
     {
         return [
+            ActionGroup::make([
+                Action::make('auditLogs')
+                    ->label('Audit logs')
+                    ->url(ActivityResource::getUrl('index'))
+                    ->visible(fn (): bool => ActivityResource::canAccess()),
+                Action::make('operationalEvents')
+                    ->label('Operational events')
+                    ->url(OperationalEventResource::getUrl('index'))
+                    ->visible(fn (): bool => OperationalEventResource::canAccess()),
+                Action::make('disposalReviews')
+                    ->label('Disposal reviews')
+                    ->url(DisposalReviewResource::getUrl('index'))
+                    ->visible(fn (): bool => DisposalReviewResource::canAccess()),
+            ])
+                ->label('Evidence sources')
+                ->icon(Heroicon::OutlinedCircleStack)
+                ->color('gray'),
             Action::make('selectReport')
                 ->label('Change report')
                 ->icon(Heroicon::OutlinedListBullet)

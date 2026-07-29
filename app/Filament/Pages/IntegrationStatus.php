@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
+use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Mail\TestConnectionMail;
 use App\Models\OperationalEvent;
 use App\Models\User;
@@ -75,6 +76,12 @@ class IntegrationStatus extends Page
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('systemSettings')
+                ->label('System settings')
+                ->icon(Heroicon::OutlinedCog6Tooth)
+                ->color('gray')
+                ->url(SystemSettingResource::getUrl('index'))
+                ->visible(fn (): bool => SystemSettingResource::canAccess()),
             Action::make('sendTestEmail')
                 ->label('Send test email')
                 ->icon(Heroicon::OutlinedPaperAirplane)

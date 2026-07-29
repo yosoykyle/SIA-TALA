@@ -26,6 +26,10 @@ class ActivityResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
+    protected static ?string $modelLabel = 'audit log';
+
+    protected static ?string $pluralModelLabel = 'audit logs';
+
     public static function canCreate(): bool
     {
         return false;
