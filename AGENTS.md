@@ -460,11 +460,12 @@ Owners: Boost and official docs own framework use; PRD owns product behavior; bl
 
 - Plan first. Do not implement or delegate until the user accepts the plan. The only exception is a small docs-only protocol fix the user explicitly requests.
 - After approval, record the complete active slice contract in `TALA-Rescue-Next-Steps.md` before proceeding or delegating. Keep only one active contract and compact it during Cleanup; never rely on conversation or memory as its sole copy.
-- Run the Ground-Truth Gate before every plan, handoff, or code change: verify both what exists (DB, migration, registration, live references on `test_tala_db`) and what the authority requires. Never trust issue or Next-Steps framing over verified reality; on conflict, stop and re-surface.
+- Run the full Ground-Truth Gate during planning. Before proceed, handoff, verification, and Cleanup, run the master protocol's delta check against facts that could have changed; repeat the full gate after compaction, interruption, scope or authority change, changed runtime premises, or contradiction. Reuse attributable evidence while it remains valid. Never trust issue or Next-Steps framing over verified reality; on conflict, stop and re-surface.
 - Commit only on an explicit `Cleanup TAL-XX`, and only as one bounded local commit. Never push, deploy, open a PR, or mutate Linear without an explicit command. `finish`, `close`, `cleanup`, `commit`, or `proceed` never authorize a Linear sync.
 - Target `test_tala_db` for DB-backed checks (`APP_ENV=testing`, `DB_CONNECTION=mysql`); never `tala_db` or `tala_test_codex`.
-- Passing tests are not acceptance; the primary independently verifies before cleanup.
+- Passing tests are not acceptance; the primary independently verifies in proportion to risk before Cleanup. Verification does not repeat unchanged successful checks unless their evidence was invalidated.
 - Preserve aligned code and unrelated worktree changes; patch proven gaps; never broad-restart.
+- Mandatory tools and domain skills proven for an uninterrupted slice may be reused; recheck them after compaction, interruption, failure, domain expansion, or evidence of disconnection.
 - On primary activation and Cleanup, run the master protocol's Memory Freshness Check. Audit Serena and any available agent-native memory against Git authorities; correct only stale durable guidance or expired carry-ins through supported interfaces. Never persist volatile task state.
 
 ### Commands
@@ -477,4 +478,6 @@ Activation triggers: `Act as the TALA primary orchestrator`, `Resume TALA orches
 - `Verify TAL-XX` — independently inspect the result and the live repo.
 - `Cleanup TAL-XX` — update the tracker and make one bounded local commit whose message records the delivered detail.
 - `Sync TAL-XX to Linear` — the only command that authorizes Linear mutation.
+
+The user may explicitly authorize `Primary proceed`, automatic in-scope remediation, `Verify`, and `Cleanup` as one compound lifecycle for one approved slice. This preserves every internal phase and human gate and never authorizes another slice, destructive database work, credentials, external cost or mutation, deployment, dependency or material scope expansion, subagent use, push, PR, or Linear sync.
 </TALA-Orchestrator-Protocol>

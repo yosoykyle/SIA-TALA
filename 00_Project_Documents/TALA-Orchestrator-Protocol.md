@@ -8,6 +8,8 @@ The goal is never a restart. Work in small vertical slices, keep aligned impleme
 
 The `AGENTS.md` router carries the always-loaded summary (intake chain, non-negotiables, commands). This file is the single home for every detailed rule below. If the router and this file ever differ, this file wins and the router must be corrected.
 
+The efficiency rules in this protocol adapt the official Codex guidance to keep repository instructions practical, plan complex work, preserve explicit constraints, and verify through relevant checks plus diff review: [Codex best practices](https://learn.chatgpt.com/guides/best-practices.md) and [long-running work](https://learn.chatgpt.com/docs/long-running-work.md).
+
 ## 2. Intake and authority
 
 Read in this order before planning a slice:
@@ -29,7 +31,7 @@ Owners: Boost and official docs own framework use; PRD owns product; blueprint o
 Every slice plan follows these steps in order. Each named gate is defined once in Section 4. Do not begin research (steps 4-5) before the slice's domain shape is established (steps 2-3).
 
 1. **Intake** — read the authorities above for the slice's domain.
-2. **Ground-Truth Gate** — verify what exists and what the authority requires for every in-scope surface, then assign a verdict.
+2. **Full Ground-Truth Gate** — establish what exists and what the authority requires for every in-scope surface, assign a verdict, and record the evidence boundary and invalidation conditions.
 3. **Slice Clarity Gate** — fix the domain shape: office owner, manual step, TALA responsibility, feature category, and purposeful simplification.
 4. **Benchmark Gate** — when triggered, run a bounded reality-check benchmark and record the result.
 5. **Qualified-Reference Gate** — assess reference overlap at the minimum useful depth and decide the implementation source.
@@ -40,15 +42,17 @@ Use Boost `search-docs`, Context7, plugin catalogs, and available MCPs during st
 
 Sources: use Laravel Boost first for the Laravel ecosystem, especially version-specific `search-docs`; Context7 for focused, version-specific library, plugin, SDK, or API docs when Boost is insufficient — treat it as technical context only, never product, benchmark, or reference authority; authoritative internet or primary sources for policy, integration contracts, or mature-SIS behavior, preferring local Philippine campus and SIS context when credibility is uncertain; and installed skills or plugins for generic process, which never override TALA authorities. Use official sources for missing, conflicting, security-critical, or contractual details. If deep research is not needed, state why — internal cleanup, native or framework implementation, or direct alignment to a recently accepted benchmark.
 
+Mandatory tools and domain skills need to be activated and proven available once per uninterrupted slice, then may be reused through implementation, verification, and Cleanup. Recheck them after compaction, interruption, tool failure, a newly introduced domain, or evidence that the connection or installed-version context changed. Reuse never waives a mandatory-tool failure gate.
+
 ## 4. Gates
 
 Each gate uses the same shape: **When**, **Do**, **Block**, and **Skip** where applicable.
 
 ### 4.1 Ground-Truth Gate
 
-**When:** Before every plan, before proceeding (re-confirm the exact files about to change), and when orchestrating (carried in the handoff packet and re-confirmed in the worker handshake). The trigger "GTG" invokes it explicitly, but it always applies.
+**When:** Run a **full** gate before every plan. Run a **delta** gate before proceeding, handoff, verification, and Cleanup while the planning evidence remains fresh. Repeat the full gate after compaction or interruption, a scope or authority change, a different worktree or commit, changed runtime or database premises, an unresolved contradiction, or any other invalidation listed below. The trigger "GTG" invokes the applicable form explicitly, but the gate always applies.
 
-**Do:** Read each in-scope file in full — never a partial grep. For every model, table, resource, service, or column in scope, verify both sides with cited evidence: (1) what exists in the running system — `Schema::hasTable` on `test_tala_db`, `AdminPanelProvider` registration, the creating migration, and live references or passing tests; and (2) what the PRD, blueprint, or architecture requires. Then assign one verdict per surface:
+**Do — full gate:** Read each in-scope authority and implementation file at the depth necessary to understand the complete contract; do not infer whole-file meaning from an isolated match. For every model, table, resource, service, or column in scope, verify both sides with cited evidence: (1) what exists in the running system — `Schema::hasTable` on `test_tala_db`, `AdminPanelProvider` registration, the creating migration, and live references or passing tests; and (2) what the PRD, blueprint, or architecture requires. Then assign one verdict per surface:
 
 - **Aligned** — exists and matches the authority. Keep it; cite it as accepted evidence.
 - **Gap** — exists but the required behavior is missing or incomplete. Patch it as a focused addition; never rewrite what is aligned.
@@ -57,6 +61,10 @@ Each gate uses the same shape: **When**, **Do**, **Block**, and **Skip** where a
 - **Conflict** — code and authority disagree, or the authority's own design is wrong or infeasible. Route it to the Authority Document Correction rule (Section 9); never silently patch code to a possibly-wrong authority, and never silently rewrite an authority to match code.
 
 "Does not exist" alone never decides an action: the existence check chooses write-versus-delete, and the authority check decides whether the action is warranted. Cite the verdict and evidence per surface, not as a blanket "existing code accepted."
+
+**Do — delta gate:** Reconfirm only the premises that could have changed since the last valid full gate: current commit and dirty state; the active contract; changed files and their direct authorities; affected schema, registration, configuration, runtime, or external facts; failed or incomplete evidence; and any newly reported behavior. Reuse unchanged cited evidence instead of automatically rereading documents, rerunning identical probes, or repeating accepted research. Record the delta and whether it leaves the prior verdicts valid.
+
+**Evidence invalidation:** Prior evidence is stale when relevant executable code, dependency, configuration, schema, fixture, environment, external state, authority, or approved scope changes; the worktree or commit differs without attribution; the prior check failed or was incomplete; Cleanup changes behavior; or a new finding contradicts the premise. Time-sensitive external evidence must be refreshed when its age could affect the decision.
 
 **Block:** Never trust an issue's or Next Steps' framing over this check. If reality differs from the framing, stop and re-surface to the user before acting.
 
@@ -131,7 +139,7 @@ Before any implementation, delegation, tracker change, or commit, the primary re
 4. Primary-versus-worker decision.
 5. Proposed slice plan and exclusions.
 
-After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: load the accepted plan from the active contract in Next Steps, then restate the issue, authority evidence, exclusions, dirty state, verification state, and next action. Never reconstruct the accepted plan from conversation or memory.
+After compaction, interruption, rejected worker output, an unclear handoff, or stale state, run a resume checkpoint: load the accepted plan from the active contract in Next Steps, run the full Ground-Truth Gate, then restate the issue, authority evidence, exclusions, dirty state, verification state, and next action. Never reconstruct the accepted plan from conversation or memory.
 
 ### Durable active plan contract
 
@@ -139,7 +147,7 @@ After the user approves a slice plan, the primary must record the complete accep
 
 The active contract contains the Section 5 plan fields, accepted implementation checklist, authority corrections, exclusions, expected verification, and human-only steps. Keep it concise: cite authority paths and accepted benchmark/reference conclusions instead of copying source text, transcripts, code, test results, volatile counters, or delivered-work history.
 
-An approved revision replaces the active contract in place; do not retain stale versions. After compaction or interruption, read this section, re-run the Ground-Truth Gate, and stop if repository reality differs. If the slice is canceled or replaced, remove or replace the contract only after the user approves that disposition.
+An approved revision replaces the active contract in place; do not retain stale versions. After compaction or interruption, read this section, run the full Ground-Truth Gate, and stop if repository reality differs. If the slice is canceled or replaced, remove or replace the contract only after the user approves that disposition.
 
 After a worker launch succeeds, mark the roadmap row and active contract `In progress` and change the Next Boundary to `Verify TAL-XX`. If launch fails, leave the contract `Approved; awaiting orchestration`. These Git-tracked states are the only durable execution marker; do not create a separate handoff file or memory entry.
 
@@ -161,6 +169,8 @@ Commands:
 - `Verify TAL-XX` — independently inspect the worker result and the live repo.
 - `Cleanup TAL-XX` — local tracker update plus one bounded local commit only.
 - `Sync TAL-XX to Linear` — the only command that authorizes Linear mutation. `finish`, `close`, `cleanup`, `commit`, or `proceed` never authorize a Linear sync.
+
+The user may explicitly combine the normal phases for one approved slice, for example: `Primary proceed TAL-XX, automatically remediate in-scope defects, Verify, and Cleanup after verification passes. Stop only at a protocol human gate.` This is advance authorization for the named slice's implementation, verification, and Cleanup phases; the primary must still preserve their internal boundaries, run the applicable delta gates, and stop rather than commit when verification fails. Compound authorization never applies to a different or next slice and never authorizes destructive database work, unresolved product authority, credentials, cost-bearing or external mutation, deployment, dependency or material scope expansion, subagent use, push, PR, or Linear mutation unless the user separately grants the corresponding gate.
 
 ### Slice contract
 
@@ -205,7 +215,7 @@ The worker's final report must include:
 8. Ground-truth re-check for the surfaces touched — evidence that existence and authority alignment were re-confirmed, not passing tests alone.
 9. Next boundary.
 
-Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance.
+Primary acceptance requires independent inspection and proportionate verification; passing tests alone is not acceptance. Independent verification means a fresh judgment against the approved contract, authority, diff, state transitions, authorization, and cross-role effects. It does not require an automatic identical rerun of every successful command when the evidence remains attributable and uninvalidated.
 
 High-risk deletion slices need one independent re-check before cleanup. Orchestrated work already has two reviewers — the worker's ground-truth re-check plus the primary's verification — so it never adds a **cold audit**. A primary-direct deletion adds a cold audit only when the change is hard to reverse *and* not fully test-provable — it drops a table, column, or migration; removes a live-referenced model, service, or policy that registered surfaces depend on; or spans a large file set — *and* the primary still holds residual doubt; behavior-neutral retires, additive/verification/docs slices, and small deletions fully covered by a reference sweep and green suite skip it with a one-line reason. When invoked, a fresh read-only reviewer is given only the diff, deletion list, and safety checklist (no repo re-exploration) and returns `JUSTIFIED` / `NOT JUSTIFIED` with evidence; `NOT JUSTIFIED` blocks cleanup, and the user may request or waive it for any slice.
 
@@ -215,13 +225,21 @@ Before cleanup or commit, the primary reports: authority alignment, accepted sco
 
 - Preserve user-owned and unrelated changes.
 - DB-backed checks require proof of target: `APP_ENV=testing`, `DB_CONNECTION=mysql`, `DB_DATABASE=test_tala_db` — never `tala_db` or `tala_test_codex`.
-- Run focused PHPUnit for changed behavior.
+- Match verification to change risk:
+  - documentation-only changes require authority consistency, reference and contradiction review, and `git diff --check`;
+  - local additive behavior requires focused positive, negative, authorization, state, and regression tests appropriate to the changed path;
+  - cross-role, destructive, schema, external, deployment, security, or cost-bearing work keeps its stronger existing tests and human gates.
+- Run focused PHPUnit for changed behavior. Reuse a successful attributable run until an invalidation condition in Section 4.1 occurs; rerun when evidence is missing, failed, incomplete, stale, or when independent inspection identifies a different case that must be proved.
 - Run `vendor/bin/pint --dirty --format agent` after PHP changes.
 - Run focused PHPStan or Larastan when typed PHP paths or tests change.
 - Run `git diff --check` before any handoff or commit.
+- Use browser or rendered acceptance only when visual, responsive, accessibility, or interaction behavior cannot be established reliably from code and programmatic evidence. Repeat only changed, failed, newly high-risk, or cross-role-dependent journeys; keep the consolidated role-organized human pass in the slice that owns final acceptance.
+- Cleanup invalidates prior verification only to the extent Cleanup changes its evidence boundary. Documentation, tracker compaction, or removal of temporary evidence needs documentation and diff checks; executable code, configuration, schema, fixture, or behavior changes require the affected verification to run again.
 - After primary acceptance, make one bounded local Git commit whose message is the canonical record of what the slice delivered and why: scope, key changes, verification evidence, and any routed deferrals.
-- Keep delivered detail in the commit message, not the roadmap or tracker. While a slice is active, Next Steps also holds its approved plan contract; at Cleanup that section is removed. Otherwise Next Steps holds scope, order, and the sub-slice map; the tracker holds ID, status, and title/domain; the commit message — and, once synced, Linear — holds the delivered detail. Never paste verification results or evidence blocks into Next Steps or the tracker.
+- Keep each kind of evidence under one owner: PRD owns product behavior; the UI blueprint owns surface mapping; architecture owns integration and deployment boundaries; this protocol and the `AGENTS.md` router own process; Next Steps owns order and the active contract; the tracker owns local/Linear status; the bounded commit owns delivered implementation detail and verification; the Operations and Defense Guide owns consolidated operator and defense claims; and volatile execution state belongs in no durable memory. Link to the owner instead of duplicating its content.
+- While a slice is active, Next Steps holds its approved plan contract; at Cleanup that section is removed. Otherwise Next Steps holds scope, order, and the sub-slice map; the tracker holds ID, status, and title/domain; the commit message — and, once synced, Linear — holds the delivered detail. Never paste verification results or evidence blocks into Next Steps or the tracker.
 - Then record a lean tracker row (`Done locally; pending explicit Linear sync`, title/domain only), and either remove the completed active-planning entry or trim its sub-slice map row to a one-line status stub.
+- A standalone governance amendment without a TAL issue ID does not create an artificial tracker or Linear row; its bounded local commit is the canonical delivery record.
 - A local commit never authorizes push, deploy, PR, or Linear mutation.
 - Keep the tracker row pending until the user says `Sync TAL-XX to Linear`; after sync, move it to compact synced history.
 - Give the user a post-commit checklist: pages, actions, expected results, and failure signs.

@@ -174,6 +174,16 @@ The shared recovery contract is:
 - true timestamps use UTC storage and Asia/Manila presentation, while recurring institutional wall-clock values are not timezone-shifted; and
 - programmatic evidence precedes the smallest representative human acceptance pass.
 
+### 4.5 Remaining-Work Efficiency and Acceptance Timing
+
+The remaining recovery uses the master protocol's full-versus-delta Ground-Truth and evidence-invalidation rules. Each slice establishes its complete authority and implementation baseline during planning, then rechecks only changed premises before implementation, verification, and Cleanup. Unchanged findings, accepted benchmarks, programmatic results, fixture fingerprints, and role contracts are cited and reused rather than recreated.
+
+`TAL-96D5E1B2B` begins with a concise reconciliation of the remaining Registrar-centered and affected-role coverage against the D5E1A inventory. Later slices inherit that map and add only their changed producer-consumer paths. This prevents the recovery from silently cherry-picking one role while also avoiding a whole-system reread in every sub-slice.
+
+Programmatic behavior and code-derived information architecture are stabilized before browser acceptance. A changed slice may use one representative rendered check when responsive, accessibility, information-hierarchy, or interaction behavior remains uncertain. The consolidated first-time, role-organized human acceptance belongs to `TAL-96D5E1E` after the implementation slices are stable. That pass does not repeat every historical case: it covers the representative end-to-end journeys and repeats only a journey that changed, failed, became newly high-risk, or depends on a changed cross-role contract.
+
+The user may authorize implementation, in-scope remediation, verification, and Cleanup as one compound lifecycle under the master protocol. Compound authorization reduces command handoffs but does not combine the evidentiary judgments or waive any human gate in Section 13. Every role, state, journey, operating-order question, and completion criterion in this charter remains mandatory.
+
 ## 5. Required Coverage
 
 The complete TAL-96D chain must cover the roles and states that materially alter behavior, including:
@@ -415,7 +425,7 @@ These measures answer whether the timetable is complete, valid, repeatable, effi
 | TAL-96D5E1E | Exploration evidence, first-time guide, and concise human acceptance over the stable MIDDLE fixture | No capacity study; repeat only failed or corrected representative journeys |
 | TAL-96D5E2 | Final evidence consolidation, deployment-readiness disposition, TAL-97 handoff, and charter retirement after D5E1 verification and Cleanup | No implementation or external run unless a newly proven material gap receives an approved plan revision |
 
-Each slice must inherit this charter but receive its own Ground-Truth Gate, approved contract, focused verification, maintained acceptance scenarios, and Cleanup. TAL-96D5B proves scenarios programmatically wherever possible and routes only genuinely visual, policy-authority, destructive, credentialed, cost-bearing, or external-provider interactions to a human gate. TAL-96D5E1 performs code-first and programmatic preflight before the user follows the guide as a first-time operator; it classifies and corrects only evidence-backed defects or real gaps and repeats only failed or corrected journeys. TAL-96D5E2 cannot consolidate or retire this charter while a material D5E1 finding remains unresolved.
+Each slice must inherit this charter, establish a full Ground-Truth Gate during planning, receive an approved contract, use delta checks while the evidence remains fresh, run focused verification, maintain acceptance scenarios, and complete Cleanup. TAL-96D5B proves scenarios programmatically wherever possible and routes only genuinely visual, policy-authority, destructive, credentialed, cost-bearing, or external-provider interactions to a human gate. TAL-96D5E1 performs code-first and programmatic preflight before the user follows the guide as a first-time operator; it classifies and corrects only evidence-backed defects or real gaps and repeats only changed, failed, corrected, or newly high-risk journeys. TAL-96D5E2 cannot consolidate or retire this charter while a material D5E1 finding remains unresolved.
 
 ## 11. Documentation Ownership
 
@@ -449,6 +459,8 @@ Each TAL-96D slice must produce:
 11. exact documentation updates warranted by verified results; and
 12. for TAL-96D5C, a complete role/surface inventory and producer-consumer traceability matrix with an explicit purpose and disposition for Settings and other unclear administrative surfaces; and
 13. for TAL-96D5E1A, a corrected system-truth report that distinguishes registered purpose and backend correctness from proven workflow comprehensibility, then routes every material finding to D5E1B–E.
+
+Per-slice deliverables may cite an unchanged canonical finding, scenario, benchmark, matrix, or verification artifact owned by an earlier accepted slice. They must not duplicate that evidence merely to satisfy the list above. The current slice records only its delta, the reused owner's path or commit, and whether any invalidation condition was checked.
 
 ## 13. Safety and Human Gates
 
