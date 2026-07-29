@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Enrollments\Tables;
 use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Models\Enrollment;
+use App\Models\EnrollmentSeatReservation;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -108,6 +109,7 @@ class EnrollmentsTable
                 ActionGroup::make([
                     ViewAction::make(),
                     self::confirmPlacementAction(),
+                    self::replacePlacementAction(),
                     self::cancelPlacementAction(),
                 ])
                     ->tooltip('Enrollment actions'),
@@ -119,7 +121,7 @@ class EnrollmentsTable
     public static function confirmPlacementAction(): Action
     {
         return Action::make('confirmPlacement')
-            ->label('Confirm / Replace Placement')
+            ->label('Confirm Placement')
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->schema([
@@ -144,18 +146,6 @@ class EnrollmentsTable
                     ->helperText('Every eligible published subject in this cohort is confirmed atomically.')
                     ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
                         && $record->student_type !== 'irregular'),
-                Select::make('section_id')
-                    ->label('Replacement published section')
-                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
-                        ? app(EnrollmentPlacementService::class)->replacementOptions($record)
-                        : [])
-                    ->required()
-                    ->searchable()
-                    ->native(false)
-                    ->helperText('Use this only to replace one already-confirmed irregular subject placement.')
-                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
-                        && $record->student_type === 'irregular'
-                        && $record->courseEnrollments()->whereNotNull('proposed_section_id')->doesntExist()),
             ])
             ->modalHeading('Confirm enrollment placement')
             ->modalSubmitActionLabel('Confirm Placement')
@@ -163,7 +153,7 @@ class EnrollmentsTable
                 $actorMayConfirm = auth()->user()?->can('confirmPlacement', $record) ?? false;
                 $service = app(EnrollmentPlacementService::class);
 
-                if (! $actorMayConfirm || ! $service->placementIsMutable($record)) {
+                if (! $actorMayConfirm || ! $service->placementIsMutable($record) || self::hasActivePlacement($record)) {
                     return false;
                 }
 
@@ -171,8 +161,7 @@ class EnrollmentsTable
                     return $service->regularCohortOptions($record) !== [];
                 }
 
-                return $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists()
-                    || $service->replacementOptions($record) !== [];
+                return $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists();
             })
             ->action(function (Enrollment $record, array $data): void {
                 $actor = auth()->user();
@@ -183,12 +172,8 @@ class EnrollmentsTable
 
                 try {
                     $service = app(EnrollmentPlacementService::class);
-                    $hasProposal = $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists();
-
-                    if ($record->student_type === 'irregular' && $hasProposal) {
+                    if ($record->student_type === 'irregular') {
                         $summary = $service->confirmComplete($record, $actor);
-                    } elseif ($record->student_type === 'irregular') {
-                        $summary = $service->replace($record, (int) $data['section_id'], $actor);
                     } else {
                         $summary = $service->confirmRegularCohort($record, (string) $data['cohort_code'], $actor);
                     }
@@ -201,6 +186,58 @@ class EnrollmentsTable
                 } catch (Throwable $exception) {
                     Notification::make()
                         ->title('Placement confirmation failed')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    public static function replacePlacementAction(): Action
+    {
+        return Action::make('replacePlacement')
+            ->label('Replace Confirmed Section')
+            ->icon(Heroicon::OutlinedArrowsRightLeft)
+            ->schema([
+                Select::make('section_id')
+                    ->label('Replacement published section')
+                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
+                        ? app(EnrollmentPlacementService::class)->replacementOptions($record)
+                        : [])
+                    ->required()
+                    ->searchable()
+                    ->native(false)
+                    ->helperText('The replacement is revalidated before the previous reservation and schedule binding are released.'),
+            ])
+            ->modalHeading('Replace one confirmed irregular section')
+            ->modalSubmitActionLabel('Replace Section')
+            ->visible(function (Enrollment $record): bool {
+                $service = app(EnrollmentPlacementService::class);
+
+                return $record->student_type === 'irregular'
+                    && self::hasActivePlacement($record)
+                    && $service->placementIsMutable($record)
+                    && $service->replacementOptions($record) !== []
+                    && (auth()->user()?->can('confirmPlacement', $record) ?? false);
+            })
+            ->action(function (Enrollment $record, array $data): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    return;
+                }
+
+                try {
+                    app(EnrollmentPlacementService::class)->replace($record, (int) $data['section_id'], $actor);
+
+                    Notification::make()
+                        ->title('Confirmed section replaced')
+                        ->body('The previous reservation and schedule binding were released after the replacement passed validation.')
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    Notification::make()
+                        ->title('Section replacement failed')
                         ->body($exception->getMessage())
                         ->danger()
                         ->send();
@@ -252,5 +289,12 @@ class EnrollmentsTable
                         ->send();
                 }
             });
+    }
+
+    private static function hasActivePlacement(Enrollment $enrollment): bool
+    {
+        return $enrollment->seatReservations()
+            ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
+            ->exists();
     }
 }

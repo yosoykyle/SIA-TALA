@@ -984,6 +984,42 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->assertActionHidden(TestAction::make('proposeSections')->table()->bulk());
     }
 
+    public function test_student_enrollment_table_prioritizes_decision_fields_and_stacks_on_mobile(): void
+    {
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $student = User::factory()->create(['status' => User::StatusActive]);
+        $student->assignRole('student');
+        $profile = StudentProfile::factory()->for($student)->create([
+            'academic_standing' => StudentProfile::StandingIrregular,
+        ]);
+        Enrollment::factory()
+            ->for($profile)
+            ->for($term)
+            ->create([
+                'student_type' => 'irregular',
+                'status' => 'pending_review',
+            ]);
+        $this->publishedSectionFor($term, $profile);
+        $this->openEnrollmentWindow($term);
+
+        $page = $this->studentEnrollmentComponent($student)->instance();
+        $table = $page->getTable();
+        $columns = $table->getColumns();
+
+        $this->assertTrue($table->isStackedOnMobile());
+        $this->assertSame(
+            ['subject', 'code', 'schedule', 'remaining_capacity', 'section_status'],
+            collect($columns)
+                ->reject(fn ($column): bool => $column->isToggledHiddenByDefault())
+                ->keys()
+                ->values()
+                ->all(),
+        );
+        $this->assertTrue($columns['description']->isToggledHiddenByDefault());
+        $this->assertTrue($columns['termOffering.modality']->isToggledHiddenByDefault());
+        $this->assertTrue($columns['credit_units']->isToggledHiddenByDefault());
+    }
+
     public function test_irregular_proposal_rejects_conflicts_within_the_submitted_set_but_allows_replacing_the_previous_set(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
@@ -1167,12 +1203,74 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertCount(1, $recordActions);
         $this->assertInstanceOf(ActionGroup::class, $recordActions[0]);
         $this->assertSame(
-            ['view', 'confirmPlacement', 'cancelPlacement'],
+            ['view', 'confirmPlacement', 'replacePlacement', 'cancelPlacement'],
             array_keys($recordActions[0]->getFlatActions()),
         );
         $this->assertNotNull($startAction);
         $this->assertSame('md', $startAction->getLabeledFromBreakpoint());
         $this->assertSame('Start continuing enrollment', $startAction->getTooltip());
+    }
+
+    public function test_enrollment_record_exposes_one_primary_path_and_groups_supporting_actions(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $enrollment = Enrollment::factory()->create([
+            'student_type' => 'regular',
+            'status' => 'pending_review',
+        ]);
+
+        $page = Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->instance();
+        $this->assertInstanceOf(ViewEnrollment::class, $page);
+        $actions = collect($page->getCachedHeaderActions());
+        $supporting = $actions->first(
+            fn ($action): bool => $action instanceof ActionGroup && $action->getLabel() === 'More actions',
+        );
+
+        $this->assertNotNull($supporting);
+        $this->assertSame(
+            ['cancelPlacement', 'replacePlacement', 'refreshGateResults', 'academicException', 'unitLoadException', 'printCor'],
+            array_keys($supporting->getFlatActions()),
+        );
+        $this->assertSame(
+            ['confirmPlacement', 'recordOfficialEnrollment'],
+            $actions
+                ->reject(fn ($action): bool => $action instanceof ActionGroup)
+                ->map(fn ($action): string => $action->getName())
+                ->values()
+                ->all(),
+        );
+    }
+
+    public function test_enrollment_record_never_exposes_placement_and_officialization_as_simultaneous_primary_actions(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $profile = StudentProfile::factory()->create([
+            'academic_standing' => StudentProfile::StandingRegular,
+        ]);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'student_type' => 'regular',
+            'status' => 'pre_enrolled',
+        ]);
+        $this->publishedSectionFor($term, $profile, cohortCode: 'DIT-1A');
+        $this->openEnrollmentWindow($term);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->assertActionVisible('confirmPlacement')
+            ->assertActionHidden('recordOfficialEnrollment');
+
+        app(EnrollmentPlacementService::class)->confirmRegularCohort($enrollment, 'DIT-1A', $registrar);
+        $enrollment->update(['status' => 'ready_for_official_enrollment']);
+
+        Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->assertActionHidden('confirmPlacement')
+            ->assertActionVisible('recordOfficialEnrollment');
     }
 
     public function test_expired_reservation_recovery_command_is_available_to_operations(): void

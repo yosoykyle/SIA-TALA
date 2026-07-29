@@ -38,7 +38,20 @@ class StudentLifecycleChangeInfolist
                     ->schema([
                         TextEntry::make('impact_snapshot.course_enrollment_ids')
                             ->label('Affected subjects')
-                            ->state(fn (StudentLifecycleChange $record): string => count((array) data_get($record->impact_snapshot, 'course_enrollment_ids', [])).' subject enrollment(s)'),
+                            ->state(function (StudentLifecycleChange $record): string {
+                                $subjects = collect((array) data_get($record->impact_snapshot, 'affected_subjects', []))
+                                    ->map(fn (array $subject): string => collect([
+                                        $subject['code'] ?? null,
+                                        $subject['title'] ?? null,
+                                    ])->filter()->implode(' — '))
+                                    ->filter()
+                                    ->implode(', ');
+                                $count = count((array) data_get($record->impact_snapshot, 'course_enrollment_ids', []));
+
+                                return $subjects !== ''
+                                    ? "{$count} subject enrollment(s): {$subjects}"
+                                    : "{$count} subject enrollment(s)";
+                            }),
                         TextEntry::make('impact_snapshot.binding_ids')
                             ->label('Schedule assignments released')
                             ->state(fn (StudentLifecycleChange $record): string => count((array) data_get($record->impact_snapshot, 'binding_ids', [])).' assignment(s)'),
@@ -48,9 +61,24 @@ class StudentLifecycleChangeInfolist
                         TextEntry::make('impact_snapshot.profile_status_after')
                             ->label('Student status after action')
                             ->formatStateUsing(fn (?string $state): string => filled($state) ? str((string) $state)->headline()->toString() : 'Unchanged'),
-                        TextEntry::make('impact_snapshot.finance_adjustment')
-                            ->label('Recorded finance adjustment')
-                            ->money('PHP'),
+                        TextEntry::make('impact_program')
+                            ->label('Program before and after')
+                            ->state(fn (StudentLifecycleChange $record): string => collect([
+                                data_get($record->impact_snapshot, 'program_before.name'),
+                                data_get($record->impact_snapshot, 'program_after.name'),
+                            ])->filter()->implode(' → ') ?: 'Not recorded'),
+                        TextEntry::make('impact_curriculum')
+                            ->label('Curriculum before and after')
+                            ->state(fn (StudentLifecycleChange $record): string => collect([
+                                data_get($record->impact_snapshot, 'curriculum_version_before.name'),
+                                data_get($record->impact_snapshot, 'curriculum_version_after.name'),
+                            ])->filter()->implode(' → ') ?: 'Not recorded'),
+                        TextEntry::make('impact_snapshot.active_hold_count')
+                            ->label('Active holds retained')
+                            ->formatStateUsing(fn (mixed $state): string => ((int) $state).' hold(s)'),
+                        TextEntry::make('impact_snapshot.finance_effect.message')
+                            ->label('Assessment / ledger effect')
+                            ->placeholder('No automatic finance effect was recorded.'),
                         TextEntry::make('impact_snapshot.cor_available_after')
                             ->label('COR availability after action')
                             ->formatStateUsing(fn (mixed $state): string => (bool) $state ? 'Available' : 'Unavailable'),

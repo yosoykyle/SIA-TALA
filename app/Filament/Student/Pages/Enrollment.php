@@ -69,55 +69,48 @@ class Enrollment extends Page implements HasTable
         return $table
             ->query($this->eligibleSectionsQuery($enrollment))
             ->columns([
-                TextColumn::make('termOffering.curriculumEntry.courseSpecification.course.code')
+                TextColumn::make('subject')
                     ->label('Subject')
-                    ->searchable(),
-                TextColumn::make('termOffering.curriculumEntry.courseSpecification.title')
-                    ->label('Description')
+                    ->state(fn (Section $record): string => collect([
+                        $record->termOffering?->course()?->code,
+                        $record->termOffering?->courseSpecification()?->title,
+                    ])->filter()->implode(' — '))
+                    ->weight('bold')
                     ->wrap(),
+                TextColumn::make('description')
+                    ->label('Description')
+                    ->state(fn (Section $record): ?string => $record->termOffering?->courseSpecification()?->title)
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('code')
                     ->label('Section')
                     ->searchable(),
-                TextColumn::make('deliveryGroups.name')
+                TextColumn::make('cohort')
                     ->label('Cohort')
-                    ->badge(),
+                    ->state(fn (Section $record): string => $record->deliveryGroups->pluck('name')->filter()->implode(', '))
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('termOffering.modality')
                     ->label('Modality')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->headline()->toString()),
-                TextColumn::make('termOffering.curriculumEntry.courseSpecification.credit_units')
-                    ->label('Units'),
+                    ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->headline()->toString())
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('credit_units')
+                    ->label('Units')
+                    ->state(fn (Section $record): mixed => $record->termOffering?->courseSpecification()?->credit_units)
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('schedule')
                     ->state(fn (Section $record): string => $this->sectionSummary($enrollment, $record)['schedule'] ?? 'Unpublished')
                     ->wrap(),
                 TextColumn::make('remaining_capacity')
-                    ->label('Remaining')
+                    ->label('Seats Left')
                     ->state(fn (Section $record): string => (string) ($this->sectionSummary($enrollment, $record)['remaining'] ?? 0)),
-                TextColumn::make('eligibility')
-                    ->label('Eligibility / Blocker')
-                    ->state(fn (Section $record): string => $this->eligibilityMessage($enrollment, $record))
+                TextColumn::make('section_status')
+                    ->label('Status / Next Step')
+                    ->state(fn (Section $record): string => $this->sectionStatus($enrollment, $record))
                     ->badge()
-                    ->color(fn (string $state): string => $state === 'Eligible' ? 'success' : 'danger')
+                    ->color(fn (string $state): string => $this->sectionStatusColor($state))
                     ->wrap(),
-                TextColumn::make('conflict_result')
-                    ->label('Capacity / Conflict')
-                    ->state(fn (Section $record): string => $this->selectionBlocker($enrollment, $record) ?? 'Available')
-                    ->badge()
-                    ->color(fn (string $state): string => $state === 'Available' ? 'success' : 'danger')
-                    ->wrap(),
-                TextColumn::make('proposal_status')
-                    ->label('Selection')
-                    ->state(fn (Section $record): string => $enrollment?->student_type !== 'irregular'
-                        ? 'Proposed cohort'
-                        : (CourseEnrollment::query()
-                            ->where('enrollment_id', $enrollment->id)
-                            ->where('proposed_section_id', $record->id)
-                            ->where('status', CourseEnrollment::StatusActive)
-                            ->exists()
-                            ? 'Proposed'
-                            : 'Available'))
-                    ->badge()
-                    ->color(fn (string $state): string => $state === 'Available' ? 'success' : 'warning'),
             ])
             ->toolbarActions([
                 BulkAction::make('proposeSections')
@@ -169,7 +162,8 @@ class Enrollment extends Page implements HasTable
             ->emptyStateDescription($enrollment instanceof EnrollmentRecord
                 ? 'Your curriculum, academic progression, or the published schedule currently has no selectable sections. Contact the Registrar if this is unexpected.'
                 : 'The Registrar must start an enrollment record before sections can be displayed.')
-            ->emptyStateIcon('heroicon-o-clipboard-document-list');
+            ->emptyStateIcon('heroicon-o-clipboard-document-list')
+            ->stackedOnMobile();
     }
 
     private function currentEnrollment(): ?EnrollmentRecord
@@ -282,6 +276,44 @@ class Enrollment extends Page implements HasTable
             ->implode('; ');
 
         return $setupBlockers !== '' ? $setupBlockers : 'Not eligible for current progression';
+    }
+
+    private function sectionStatus(?EnrollmentRecord $enrollment, Section $section): string
+    {
+        if (! $enrollment instanceof EnrollmentRecord) {
+            return 'Enrollment has not started';
+        }
+
+        if ($enrollment->student_type !== 'irregular') {
+            return 'Registrar confirmation pending';
+        }
+
+        $eligibility = $this->eligibilityMessage($enrollment, $section);
+
+        if ($eligibility !== 'Eligible') {
+            return $eligibility;
+        }
+
+        if ($blocker = $this->selectionBlocker($enrollment, $section)) {
+            return $blocker;
+        }
+
+        $isProposed = CourseEnrollment::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('proposed_section_id', $section->id)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->exists();
+
+        return $isProposed ? 'Included in your proposal' : 'Available to select';
+    }
+
+    private function sectionStatusColor(string $status): string
+    {
+        return match ($status) {
+            'Available to select' => 'success',
+            'Included in your proposal', 'Registrar confirmation pending' => 'warning',
+            default => 'danger',
+        };
     }
 
     private function selectionBlocker(?EnrollmentRecord $enrollment, Section $section): ?string

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Enrollments\Schemas;
 
 use App\Actions\Enrollment\EnrollmentGateReviewSummary;
+use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
@@ -59,7 +60,8 @@ class EnrollmentInfolist
                         Grid::make(3)
                             ->schema([
                                 TextEntry::make('studentProfile.student_number')
-                                    ->label('Student No.'),
+                                    ->label('Student Number')
+                                    ->url(fn (Enrollment $record): string => StudentProfileResource::getUrl('view', ['record' => $record->student_profile_id])),
                                 TextEntry::make('studentProfile.last_name')
                                     ->label('Name')
                                     ->state(fn (Enrollment $record): string => collect([
@@ -197,13 +199,13 @@ class EnrollmentInfolist
                                 TextEntry::make('office_label')
                                     ->label('Office'),
                                 TextEntry::make('blocker_code')
-                                    ->label('Blocker Code')
+                                    ->label('Technical Blocker Code')
                                     ->placeholder('-'),
                                 TextEntry::make('blocker_message')
                                     ->label('Blocker / Message')
                                     ->placeholder('-'),
                                 TextEntry::make('source_reference')
-                                    ->label('Source')
+                                    ->label('Evidence Source')
                                     ->placeholder('-'),
                                 TextEntry::make('checked_at')
                                     ->label('Checked At')

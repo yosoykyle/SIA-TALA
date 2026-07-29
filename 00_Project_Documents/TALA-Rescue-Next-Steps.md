@@ -45,8 +45,8 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B2A | Done locally; pending explicit Linear sync | Academic Readiness and Curriculum Workbench. |
 | TAL-96D5E1B2B | Done locally; pending explicit Linear sync | Admissions Work Queue and Applicant Record with contextual requirements, evidence, decision, duplicate-resolution, handover, history, and applicant projection. |
 | TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
-| TAL-96D5E1B3 | Planned; blocked on verified and cleaned TAL-96D5E1B2C | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
-| TAL-96D5E1C | Planned; blocked on verified and cleaned TAL-96D5E1B3 | Accounting and PayMongo Operational Recovery across assessments, account activity, payments, ledger, reconciliation, fallbacks, gates, and generated outputs. |
+| TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
+| TAL-96D5E1C | Planned; next after cleaned TAL-96D5E1B3 | Accounting and PayMongo Operational Recovery across assessments, account activity, payments, ledger, reconciliation, fallbacks, gates, and generated outputs. |
 | TAL-96D5E1D | Planned; blocked on verified and cleaned TAL-96D5E1C | Remaining-Role and Shared UI Contract Closure across Academic Head, Faculty, Student, Applicant, System Administration, Reports/Audit, Settings, and integrations. |
 | TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the preserved `MIDDLE` fixtures and only required persona overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
@@ -57,10 +57,6 @@ Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-
 The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
 
 Approved compact dispositions: preserve aligned implementation; fix only evidence-backed defects or real gaps; leave cosmetic preferences unchanged or optional. The product supports only `FACE_TO_FACE` and `ONLINE` per offering. D2B stabilizes three-year academic inputs. D2C owns the 21:00 operating grid, realistic offering/resource readiness, and executable `MIN`/`MIDDLE`/`MAX` fixtures without invoking Cloud capacity tests. Its approved standalone correction must distinguish client-reported faculty headcount from generated synthetic scheduling capacity and must not treat demographic status or student modality counts as equivalent to TALA academic-standing or per-offering modality dimensions. D3 and D4 use the stable scenarios for functional and cross-role hardening. D5 owns the targeted population/configuration and cost study after workload manifests are final. Earlier Profile A/B/C and proportional experiments remain historical solver-scaling evidence rather than population tiers. Shared cross-program common classes remain routed to TAL-175. Any solver-contract or constraint-model change is a human-gated plan revision.
-
-## Active Approved Plan Contract
-
-No active approved contract. TAL-96D5E1B2C is complete locally; its bounded commit is the canonical delivery and verification record. The next planning boundary is TAL-96D5E1B3.
 
 ## Post-MVP Deferrals
 
@@ -78,4 +74,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: **Plan TAL-96D5E1B3**. Stop at every human-only gate.
+Next boundary: **Plan TAL-96D5E1C** under the full Ground-Truth Gate. Stop at every human-only gate.

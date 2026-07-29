@@ -10,10 +10,16 @@ use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Student\Pages\LifecycleView;
+use App\Models\Assessment;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\GradeRoster;
+use App\Models\GradeRosterRow;
+use App\Models\Hold;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -128,6 +134,90 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
             ->assertActionVisible('confirmStanding');
         Livewire::test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->assertActionVisible('unitLoadException');
+    }
+
+    #[Test]
+    public function student_record_separates_confirmed_standing_and_recommendation_with_history_and_holds(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $profile = StudentProfile::factory()->create([
+            'academic_standing' => StudentProfile::StandingProbationary,
+        ]);
+        $priorTerm = Term::factory()->create(['label' => 'AY 2025-2026 First Semester']);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $priorTerm->id,
+            'status' => 'officially_enrolled',
+            'student_type' => 'irregular',
+        ]);
+        $lifecycleChange = StudentLifecycleChange::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $priorTerm->id,
+            'type' => StudentLifecycleChange::TypeLeaveOfAbsence,
+            'state' => StudentLifecycleChange::StateApplied,
+            'reason' => 'Approved temporary leave.',
+        ]);
+        Hold::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $priorTerm->id,
+            'status' => Hold::StatusActive,
+            'hold_type' => Hold::TypeAcademicDeficit,
+            'blocking_level' => Hold::BlockingEnrollment,
+            'reason' => 'Academic review required.',
+            'resolution_requirement' => 'Meet the Academic Head.',
+        ]);
+        $offering = TermOffering::factory()->create(['term_id' => $priorTerm->id]);
+        $courseEnrollment = CourseEnrollment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_offering_id' => $offering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'units_snapshot' => 3,
+            'added_at' => now(),
+        ]);
+        $roster = GradeRoster::factory()->create([
+            'term_offering_id' => $offering->id,
+            'state' => GradeRoster::StateReleased,
+            'released_at' => now(),
+        ]);
+        GradeRosterRow::factory()->create([
+            'grade_roster_id' => $roster->id,
+            'course_enrollment_id' => $courseEnrollment->id,
+            'current_outcome_code' => '2.25',
+            'current_outcome_category' => GradeRosterRow::CategoryPassing,
+            'released_at' => now(),
+        ]);
+        Assessment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'state' => Assessment::StateActive,
+            'currency' => 'PHP',
+            'subtotal' => 15000,
+            'discount_total' => 0,
+            'total' => 15000,
+            'required_downpayment' => 5000,
+        ]);
+
+        $this->actingAs($registrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
+            ->assertSee('Confirmed Academic Standing')
+            ->assertSee('System Recommendation')
+            ->assertSee('AY 2025-2026 First Semester')
+            ->assertSee('Officially Enrolled')
+            ->assertSee('Released Academic History')
+            ->assertSee('2.25')
+            ->assertSee('Financial History')
+            ->assertSee('PHP 15,000.00')
+            ->assertSee('Open Enrollment')
+            ->assertSee('Open Grade Roster')
+            ->assertSee('Open Assessment')
+            ->assertSee('Open Lifecycle Record')
+            ->assertSee('Approved temporary leave.')
+            ->assertSee('Academic review required.')
+            ->assertSee('Academic Head Office');
+
+        $this->assertNotNull($lifecycleChange->getKey());
     }
 
     #[Test]

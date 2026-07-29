@@ -645,12 +645,12 @@ Use only the disposable `test_tala_db` acceptance environment. Enter Pass or Fai
 |---|---|---|---|---|---|---|---|---|
 | D3B-M01 | Registrar — `registrar.demo@example.test` | Active Student Profile, active Term, open enrollment window | Open Enrollments, select **Start Continuing Enrollment**, choose Student, Term, and Regular; repeat with the same Student and Term | The first action says **Enrollment started**. The repeat says **Enrollment already exists** and directs staff to the existing record instead of claiming another start. | One pending Enrollment is created; repeating the action creates no duplicate or status change. | Close or remove the window and retry; the message must distinguish closed from not configured. |  |  |
 | D3B-M02 | Regular Student — a verified seeded regular account | Started Enrollment and complete published cohort | Open Student **Enrollment** | Overall status and one named proposed logical cohort block are readable; only that block's published Sections appear and no proposal action is offered | None | Another cohort, candidate-only Section, or cancelled Section must not appear in the proposed block |  |  |
-| D3B-M03 | Registrar — same account | D3B-M02 Enrollment | Open the Enrollment and select **Confirm / Replace Placement**; choose the logical cohort | The option states how many published subjects it contains; success states that reservations and bindings were recorded | One active Course Enrollment, reservation with deadline, and official meeting binding per cohort subject | Deliberately make one Section full or conflicting; the entire cohort confirmation must fail without partial placement |  |  |
+| D3B-M03 | Registrar — same account | D3B-M02 Enrollment | Open the Enrollment and select **Confirm Placement**; choose the logical cohort | The option states how many published subjects it contains; success states that reservations and bindings were recorded | One active Course Enrollment, reservation with deadline, and official meeting binding per cohort subject | Deliberately make one Section full or conflicting; the entire cohort confirmation must fail without partial placement |  |  |
 | D3B-M04 | Irregular Student — a verified seeded irregular account | Started irregular Enrollment, open window, eligible published Sections | Open Student **Enrollment**, select every Section to retain, then run **Replace complete proposal** | Table shows subject, description, Section, cohort, modality, units, schedule, remaining seats, eligibility, capacity/conflict result, and Proposed status; the confirmation explains that the selected set replaces the previous proposal | Proposal Section and timestamp are recorded per selected Course Enrollment; an omitted previous proposal is dropped; no reservation or binding exists | Select two Sections for one subject, overlapping Sections, an incompatible Section, a full Section, or a blocked subject; the complete replacement must fail clearly without changing the previous valid set |  |  |
-| D3B-M05 | Registrar — same account | D3B-M04 proposal | Open the Enrollment and select **Confirm / Replace Placement** | Modal states that all proposed subject Sections will be confirmed together | Proposals clear; one reservation and all official meeting bindings are created per selected subject | Introduce a time conflict or full Section; confirmation rolls back every selected course |  |  |
+| D3B-M05 | Registrar — same account | D3B-M04 proposal | Open the Enrollment and select **Confirm Placement** | Modal states that all proposed subject Sections will be confirmed together | Proposals clear; one reservation and all official meeting bindings are created per selected subject | Introduce a time conflict or full Section; confirmation rolls back every selected course |  |  |
 | D3B-M06 | Irregular Student — same account | Prerequisite-blocked subject in the seeded progression evidence | Open Student **Enrollment** and inspect published curriculum Sections | The blocked Section remains visible for explanation, its exact academic blocker is shown, and its selection checkbox is disabled | None | Direct or crafted submission of the blocked Section is rejected |  |  |
 | D3B-M07 | Irregular Student and Registrar | Selected units exceed the normal limit without an active approved exception | Propose and attempt confirmation | The action states the requested and allowed unit totals | No proposal or placement mutation survives the failed action | Record an approved scoped unit-load exception, retry, and confirm only within the approved limit |  |  |
-| D3B-M08 | Registrar — same account | Confirmed irregular placement, open enrollment window, and another compatible Section for the same subject | Run **Confirm / Replace Placement** and choose the replacement | The selector lists only alternative Sections for already-confirmed subjects; success distinguishes replacement from a new Student proposal | Old reservation is Released; old bindings are inactive; the new reservation and bindings are active with the enrollment-window deadline; unrelated courses remain unchanged | With no confirmed placement, or with a Section for a different subject, the action is absent or rejected and the old valid placement remains |  |  |
+| D3B-M08 | Registrar — same account | Confirmed irregular placement, open enrollment window, and another compatible Section for the same subject | Open **More actions**, run **Replace Confirmed Section**, and choose the replacement | The selector lists only alternative Sections for already-confirmed subjects; success distinguishes replacement from a new Student proposal | Old reservation is Released; old bindings are inactive; the new reservation and bindings are active with the enrollment-window deadline; unrelated courses remain unchanged | With no confirmed placement, or with a Section for a different subject, the action is absent or rejected and the old valid placement remains |  |  |
 | D3B-M09 | Registrar — same account | Pending confirmed placement | Run **Cancel Enrollment**, enter a reason, and confirm | Success states that pending reservations and bindings were released | Enrollment becomes Cancelled with actor-supplied reason; reservations are Released; bindings are inactive | Try as Academic Head or Student; the action is absent or denied and no record changes |  |  |
 | D3B-M10 | Registrar / operator | Pending reservation with a known enrollment-window deadline | Let the reservation deadline pass, then run `php artisan enrollment:release-expired-reservations --no-interaction`; production scheduling invokes the same command hourly | Command reports the released count; Enrollment returns to an actionable placement/capacity state rather than silently retaining a seat | Expired reservation is Released, bindings are inactive, and gates are recalculated | A reservation with a future or null deadline must not be released |  |  |
 | D3B-M11 | Student — same account | Missing or closed enrollment window | Open Student **Enrollment** and attempt a proposal | Existing status remains visible; proposal failure clearly says whether the window is missing or outside its dates | No Course Enrollment proposal, reservation, or binding changes | Reopen the canonical window and retry without changing the Student account |  |  |
@@ -1693,3 +1693,79 @@ One verification-harness incident changed the persistent state: the first curric
 The separately approved recovery-and-corrected-rebuild gate has now passed. A rollback-only phase profile first proved that the apparent stall was synthetic password-hashing cost, not curriculum, offering, demand-generation, scheduling-readiness, or solver behavior: creating the 270 student users at standalone bcrypt work factor 12 consumed 85.589 seconds, whereas all phases after student creation completed in about 9.5 seconds. The guarded retry used `BCRYPT_ROUNDS=4` only in the testing process, matching PHPUnit's existing work factor without changing production configuration. It completed the corrected foundation in 15.269 seconds and then loaded the exploration overlay.
 
 The current persistent `test_tala_db` passes the non-writing exploration check with 270 students, nine cohorts, fourteen synthetic faculty, 77 active Second Semester offerings, 77 ready demands, 158 three-year curriculum entries, 26 exploration personas, and one denied-login persona. Twelve additional offerings exist only in the closed First Semester to support prior-term enrollment and grade history, so the all-term database total is 89 while the active scheduling fingerprint remains 77. Schedule runs, candidate rows, official meetings, queued jobs, and failed jobs are zero. No solver or external provider was invoked.
+
+### 9.13 TAL-96D5E1B3 enrollment, student record, and lifecycle operating flow
+
+TAL-96D5E1B3 preserves the existing enrollment, placement, exception, lifecycle, and history records. It corrects how those records are presented and how a consequential lifecycle decision is confirmed.
+
+#### 9.13.1 Registrar operating sequence
+
+1. Open **Enrollments** and identify the Student, Term, current Enrollment Status, Enrollment Type, Next Step, and responsible office.
+2. Open the Enrollment record. The Student Number links to the canonical Student Profile.
+3. Use the one state-appropriate primary action:
+   - **Confirm Placement** when no confirmed placement exists; or
+   - **Record Official Enrollment** only after a confirmed placement and finance/academic clearance.
+4. Use **More actions** only for authorized supporting work: cancel placement, replace one confirmed irregular section, refresh gate results, record an academic exception, record a unit-load exception, or print an available COR.
+5. Read plain-language gate findings first. Technical blocker codes and evidence sources remain available for diagnosis and defense but do not lead the decision.
+
+This action hierarchy does not bypass policies or collapse transactions. The existing services remain authoritative for enrollment creation/reuse, gate evaluation, proposal, capacity reservation, placement, exception recording, officialization, and cancellation.
+
+#### 9.13.2 Regular and irregular Student Hub truth
+
+The Student Hub Enrollment table answers five immediate questions: which Subject, which Section, when it meets, how many seats remain, and what the student can or must do next. Secondary description, cohort, delivery modality, and unit fields remain optional.
+
+- A regular student is informed that the Registrar confirms the cohort placement.
+- An irregular student may see a compatible published section as available to select.
+- A submitted proposal is labeled as proposed, not reserved or official.
+- Academic prerequisites, full capacity, and schedule conflicts are named as blockers.
+- The mobile table stacks rather than clipping decision columns.
+
+The student-facing table does not expose Registrar exception actions and does not reinterpret a proposal as a confirmed seat.
+
+#### 9.13.3 Canonical Student Profile reading order
+
+The Student Profile detail is the staff-facing explanation of the student's institutional history:
+
+1. current official identity, Program, Curriculum Version, and lifecycle state;
+2. **Confirmed Academic Standing**, which is the official stored result;
+3. **System Recommendation**, which remains computed decision support until authorized confirmation;
+4. unresolved holds, including what each hold blocks, the responsible office, reason, and resolution step;
+5. term-by-term enrollment history with status, type, office, next step, and links to the owning Enrollment and published Schedule when available;
+6. released academic history linked to the owning Grade Roster;
+7. term assessment history linked to the owning Assessment; and
+8. approved lifecycle history linked to the owning Lifecycle record.
+
+The summary is read-only aggregation. Enrollments, holds, checklist evidence, grades, assessments, schedules, and lifecycle changes retain their existing authoritative owners and audit histories.
+
+#### 9.13.4 Lifecycle impact review and confirmation
+
+Creating a lifecycle change now separates data entry from consequence confirmation:
+
+1. Select the Student, Term, approved change, effective date, authority, and reason.
+2. For enrollment- or subject-specific changes, select the affected Enrollment and Course Enrollment.
+3. Review the read-only impact preview. It reports affected subjects, bindings released, reservations released, lifecycle state, Program and Curriculum before and after, active holds that remain, the exact assessment-or-ledger consequence, COR effect, and whether the published master schedule changes.
+4. Confirm the impact statement.
+5. Select **Confirm and Record Approved Result**.
+
+No lifecycle record is written before the explicit confirmation passes. An unavailable preview disables confirmation, and the server rejects a crafted submission with a field-level explanation instead of exposing an exception page. `StudentLifecycleService::record()` remains the transactional writer and retains the final immutable `impact_snapshot`. The preview uses the same service's read-only `preview()` path; it does not invoke scheduling, alter a timetable, or write provisional records.
+
+#### 9.13.5 Focused evidence and deferred human gate
+
+The affected regression check passed 61 focused tests with 568 assertions across enrollment windows/proposals/placement, Student Hub academic-status projection, Student Profile progression/history, and lifecycle changes. The B3 regression set specifically proves:
+
+- decision-focused, mobile-stacked Student Hub enrollment columns;
+- mutually exclusive placement and officialization primary actions, with replacement and COR retained as supporting actions;
+- separate confirmed standing and system recommendation plus enrollment, released-grade, assessment, lifecycle, hold, and source-record history; and
+- no lifecycle write until a valid impact is reviewed and confirmed, field-level rejection of an unavailable preview, confirmation invalidation when an impact-driving value changes, and an immutable cross-module snapshot after creation.
+
+This is programmatic evidence, not visual acceptance. The concise cross-role browser check remains owned by TAL-96D5E1E after the remaining D5E1 remediation slices. No database rebuild, solver run, provider call, schema change, dependency, deployment, push, pull request, or Linear mutation belongs to B3.
+
+#### 9.13.6 Likely panel questions
+
+| Question | Defense answer |
+|---|---|
+| Why are enrollment actions not all shown at once? | Enrollment is stateful. TALA exposes the one valid next decision and groups authorized supporting actions so staff cannot mistake an exception or refresh for the normal path. |
+| Does an irregular student's proposal reserve a seat? | No. The proposal records preference only. The authorized placement transaction rechecks gates and capacity before creating the reservation and binding. |
+| Which academic standing is official? | Confirmed Academic Standing is the institution's stored result. System Recommendation is computed decision support and is labeled separately. |
+| Does recording a withdrawal or program shift rebuild the published timetable? | No. The preview explains affected enrollment bindings and reservations, while the published master schedule remains unchanged. Later enrollment placement uses the already published compatible offerings. |
+| Can lifecycle staff save a consequential change without seeing its effects? | No. The create flow requires a read-only impact review and explicit confirmation before the transactional writer runs. |
