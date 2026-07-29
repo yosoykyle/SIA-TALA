@@ -393,6 +393,8 @@ The final staged-search image retained 8 vCPU, 16 GiB, eight workers, concurrenc
 
 The staged-search implementation changes only search control. The hard model is searched first, its complete assignment is supplied to the unchanged optimization model as a solution hint, and Laravel accepts the hard-valid schedule even when the optimization proof does not finish. No scheduling equation, hard rule, objective term, fixture, schema, or publication authority changed. A bounded report correction now preserves validated stage-source and stage-result telemetry in future evidence files; the immutable accepted MAX report predates that correction, so its missing nested stage values are not reconstructed.
 
+The later TAL-96D5E1B1 curriculum-authority reconciliation establishes a corrected current fixture generation: 77 distinct `MIDDLE` offerings/demands and 172 `MAX` section demands, derived from the 23 actual Third Year / Second Semester source rows. It records the DBM 25-versus-28 and DTHM 29-versus-23 source subtotal discrepancies and does not invent a course to make either subtotal match. This is a fixture-input correction, not a solver-contract change. The 80-demand and 178-demand TAL-96D5D measurements above remain explicitly historical synthetic V1 evidence and must not be attributed to the corrected fixture without a new authorized study.
+
 ### 9.2 PayMongo
 
 TALA creates a checkout session only from an authoritative local assessment or payable item. The browser redirect is informational; it is not payment proof. A signed PayMongo webhook is persisted and processed idempotently before TALA records verified payment evidence and posts the corresponding ledger result.
@@ -575,7 +577,7 @@ Mobile-responsive styling does not by itself prove mobile usability. Before publ
 | PHP application | PHP 8.2 or later with Ctype, cURL, DOM, Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session, Tokenizer, and XML extensions | Laravel 12 framework minimum |
 | Operating system and web server | Supported 64-bit Linux environment with Nginx and PHP-FPM, or a documented equivalent; only the Laravel `public/` directory is web-accessible | TALA deployment design and Laravel security requirement |
 | Database | MySQL 8.4 baseline with InnoDB, transactional storage, and tested migrations | Project-selected and documented database baseline, not merely Laravel's lowest theoretical database version |
-| Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories | Current application configuration and Laravel runtime requirement |
+| Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories; client-owned four-bay ORICO 9548U3 enclosure initially populated with two independent 4 TB CMR NAS HDDs for encrypted offline backup rotation | Current application configuration, Laravel runtime requirement, and client-confirmed physical-backup choice |
 | Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | Current asynchronous execution contract |
 | Initial web host | 1 vCPU, 2 GiB RAM, 50 GiB SSD, and 2,000 GiB transfer | Selected DigitalOcean starting topology; not a load-tested universal minimum |
 | Scheduling service | Python 3.12 container. Current serving revision: 2 vCPU, 4 GiB, concurrency 1, two solver workers, 300-second request timeout, and 30-second client-production solver limit. Verified unpromoted MIDDLE candidate: 4 vCPU, 8 GiB, concurrency 1, four workers, and a 120-second solver limit. Verified one-run MAX research configuration: 8 vCPU, 16 GiB, concurrency 1, eight workers, 300-second solver limit, and staged search | TAL-96B4 corrected live production evidence plus TAL-96D5D: `MIN` and `MIDDLE` each accepted 3/3 on the smaller private candidate; corrected `MAX` returned one complete hard-valid `FEASIBLE` schedule on the higher research configuration; neither private candidate was promoted |
@@ -625,6 +627,7 @@ flowchart LR
     W --> SMTP["Transactional SMTP provider"]
     B["Automated encrypted backup process"] --> DB
     B --> SP["DigitalOcean Spaces off-server copies"]
+    B --> OH["ORICO 9548U3 four-bay enclosure<br/>encrypted Drive A / Drive B"]
 ```
 
 A single 2 GiB Droplet is a lean starting topology, not a highly available one. Nginx terminates web traffic, PHP-FPM runs Laravel, MySQL holds authoritative data, and a supervised queue worker processes asynchronous work. This design minimizes fixed cost and operational surfaces for the initial institutional scale, but the application and database share a failure domain.
@@ -633,6 +636,9 @@ The minimum production operating controls are:
 
 - automated Droplet backups;
 - automated, encrypted, off-server MySQL dumps with stated retention;
+- two independently recoverable 4 TB CMR NAS HDDs, labeled Drive A and Drive B, initially installed in Bays 1 and 2 of the client-owned ORICO 9548U3; Bays 3 and 4 remain reserved for measured capacity growth or additional approved backup generations;
+- independent-disk operation for the initial backup pair, without combining their capacities or assuming RAID; after each backup window, the drives must be safely unmounted, the enclosure powered off and disconnected, and at least one verified drive stored separately from the enclosure;
+- encryption before personal data is written to either removable drive, checksum verification after every copy, separate recovery-key custody, and a recorded restore test at least quarterly;
 - documented and tested restore procedures;
 - TLS renewal, host patching, least-privilege credentials, and firewall controls;
 - queue, disk, database, HTTP, and solver-integration monitoring;
@@ -640,7 +646,13 @@ The minimum production operating controls are:
 - recovery ownership and escalation procedures; and
 - a measured trigger for resizing the Droplet or separating the database and workers.
 
-DigitalOcean Spaces is object storage, not a complete backup system. TALA's operations process must create a consistent export, encrypt it, transfer it, retain versions, monitor failures, and regularly prove restoration. Cloud Run is selected for the solver because optimization is intermittent and independently resource-intensive; it can scale separately from PHP. The tradeoffs are cold-start latency, usage-based cost, provider dependence, identity configuration, and the need for retry-safe requests.
+DigitalOcean Spaces is object storage, not a complete backup system. TALA's operations process must create a consistent export, encrypt it, transfer it, retain versions, monitor failures, and regularly prove restoration. The ORICO-attached HDDs are additional offline disaster-recovery copies of the database and private application files, including permanent graduation and academic records; they do not replace the live MySQL system of record, make the application offline-first, or remove retained records from authorized system access. Each 4 TB drive holds its own complete backup set, so the initial two-drive configuration provides two media copies rather than one combined 8 TB volume.
+
+The client-supplied enclosure is the **ORICO 9548U3** four-bay 3.5-inch hard-drive enclosure. Its host connection is USB 3.0 Type-B with a maximum interface rate of 5 Gbps; internally it uses a SATA 3.0 bridging scheme for compatible SATA HDDs. ORICO specifies push-pull installation, Windows/macOS/Linux compatibility, a built-in 150 W power supply for the four-bay version, and a maximum supported capacity of 64 TB. The starting deployment uses only two 4 TB drives. The remaining two bays are expansion positions and do not authorize unmeasured capacity purchases or an undocumented RAID conversion. Sources: [ORICO 9548U3 product specification](https://www.orico.cc/index/product/detail/2056.html?mtpl=1) and [ORICO 95U3 series manual](https://orico.cc/storage/attachments/20250415/f593f8ef0bbef6c65c90e7a9b049dc36.pdf).
+
+Removable-media use, encryption, custody, and disposal must follow the institution's privacy and security policy and [NPC Circular No. 2023-06](https://privacy.gov.ph/wp-content/uploads/2024/03/NPC-Circular-Repeal-16-01-Signed.pdf).
+
+Cloud Run is selected for the solver because optimization is intermittent and independently resource-intensive; it can scale separately from PHP. The tradeoffs are cold-start latency, usage-based cost, provider dependence, identity configuration, and the need for retry-safe requests.
 
 ### 12.1 Degraded and Failure Behavior
 
@@ -652,12 +664,13 @@ DigitalOcean Spaces is object storage, not a complete backup system. TALA's oper
 | SMTP provider | The underlying institutional transaction remains valid. Delivery is retried or recorded as failed for operational follow-up. |
 | Droplet or MySQL | Web workspaces are unavailable. Recovery uses infrastructure backup and the latest valid off-server database copy according to the recovery procedure. |
 | Spaces | The application may continue temporarily, but off-server backup transfer and any objects served from that store are impaired; operations must restore redundancy promptly. |
+| ORICO enclosure or one rotation HDD | The live system and Spaces copy remain authoritative and available. Quarantine the failed component, keep the other verified rotation drive offline, procure a compatible replacement, recreate the encrypted copy, verify its checksum, and record a restore test before returning to normal rotation. |
 
 TALA is a centralized web system, not an offline-first application. Loss of campus internet, the application host, or the primary database therefore requires institutional contingency procedures. The system must never portray cached, redirected, emailed, or solver-produced information as authoritative when the corresponding server-side transaction was not completed.
 
 ---
 
-## 13. Estimated Operating Costs in Philippine Peso
+## 13. Estimated Deployment and Operating Costs in Philippine Peso
 
 ### 13.1 Pricing Basis and Assumptions
 
@@ -665,7 +678,7 @@ This estimate is a procurement snapshot **as of Tuesday, July 14, 2026, Philippi
 
 Exchange-rate source: [Bangko Sentral ng Pilipinas, Financial Markets Reference Exchange Rate Bulletin, July 3, 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2306/03Jul2026.pdf).
 
-The baseline assumes one production institution, one 2 GiB DigitalOcean Basic Droplet, weekly automated Droplet backup, one DigitalOcean Spaces subscription for off-server copies, an eligible `.edu.ph` domain renewed through PHNET, database-backed queue/cache, a transactional-email free allowance that is sufficient for measured use, and Cloud Run use within available allowance. Taxes, payment-processor fees, overages, and foreign-exchange spreads are added when incurred.
+The baseline assumes one production institution, one 2 GiB DigitalOcean Basic Droplet, weekly automated Droplet backup, one DigitalOcean Spaces subscription for off-server copies, the client-owned four-bay ORICO 9548U3 with two newly procured 4 TB CMR NAS HDDs, an eligible `.edu.ph` domain renewed through PHNET, database-backed queue/cache, a transactional-email free allowance that is sufficient for measured use, and Cloud Run use within available allowance. Taxes, payment-processor fees, overages, foreign-exchange spreads, shipping, and future replacement or expansion media are added when incurred.
 
 ### 13.2 Lean Fixed-Cost Baseline
 
@@ -681,7 +694,21 @@ The monthly total is the annual total divided by 12 and is not a promise that ev
 
 Fixed-price sources: [DigitalOcean Droplets and backup percentages](https://www.digitalocean.com/pricing/droplets), [DigitalOcean Spaces](https://docs.digitalocean.com/products/spaces/details/pricing/), and [PHNET education-domain fees](https://services.ph.net/payment.html).
 
-### 13.3 Operating Scenarios
+### 13.3 One-Time Client Backup Hardware
+
+The physical-backup estimate below is a Philippine procurement snapshot checked on **Tuesday, July 28, 2026, Philippine Time**. The four-bay ORICO 9548U3 is already owned by the client and therefore adds no new enclosure cash requirement, but its current Philippine reference price is retained as replacement-value and total-system-cost evidence. The selected starting capacity is two independent 4 TB drives in Bays 1 and 2: one Drive A copy and one Drive B copy, not a combined 8 TB array. Bays 3 and 4 remain empty until measured growth justifies another matched pair or an approved additional-generation design.
+
+| Cost item | Quantity | Published Philippine unit price | Replacement / acquisition value | New project cash requirement | Why it is included |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Client-owned ORICO 9548U3 four-bay 3.5-inch SATA enclosure | 1 | ₱6,999 | ₱6,999 | **₱0** | Already supplied by the client; provides four push-pull SATA HDD bays, USB 3.0 Type-B output at up to 5 Gbps, and up to 64 TB manufacturer-specified total capacity |
+| 4 TB 3.5-inch CMR NAS HDDs | 2 | ₱6,250–₱7,280 each | ₱12,500–₱14,560 | **₱12,500–₱14,560** | New procurement providing separately encrypted Drive A and Drive B copies so one verified backup remains offline while the other is refreshed |
+| **Initial physical-backup hardware total** |  |  | **₱19,499–₱21,559** | **₱12,500–₱14,560** | Distinguishes the complete hardware value from the remaining cash needed because the enclosure is already client-owned |
+
+The ORICO enclosure reference is the exact 9548U3 Philippine listing from Asianic at ₱6,999. This is recorded as replacement value because the client already owns the unit. For the new drives, the lower reference is the listed Philippine price for a Seagate IronWolf 4 TB NAS HDD; the upper reference is the listed Philippine price for a WD Red Plus 4 TB CMR NAS HDD. Both cited drive listings showed limited or unavailable stock when checked, so the range is a budget basis rather than a supplier commitment. Procurement must confirm a brand-new 3.5-inch SATA **CMR** model, warranty, stock, shipping, and final tax-inclusive price. Sources: [Asianic — ORICO 9548U3 at ₱6,999](https://asianic.com.ph/product/orico-aluminum-4-bay-35-inch-sata-drive-enclosure-9548u3), [Bermor Techzone — Seagate IronWolf 4 TB](https://bermorzone.com.ph/shop/storage-devices/hard-drives/seagate-ironwolf-4tb-nas-hard-drive-5900-rpm-64mb-cache-sata-6-0gbs-3-5/), [DynaQuest PC — WD Red Plus 4 TB](https://dynaquestpc.com/products/western-digital-wd-red-plus-4tb-256mb-5400rpm-wd40efpx-hard-drive-for-nas), [Seagate IronWolf CMR specification](https://www.seagate.com/content/dam/seagate/en_as/content-fragments/products/datasheets/ironwolf-12tb/ironwolf-16tb-DS1904-22-2404US-en_AS.pdf), [ORICO 9548U3 product specification](https://www.orico.cc/index/product/detail/2056.html?mtpl=1), and [ORICO 95U3 series manual](https://orico.cc/storage/attachments/20250415/f593f8ef0bbef6c65c90e7a9b049dc36.pdf).
+
+The 4 TB selection is the starting deployment capacity, not an unmeasured lifetime ceiling. Before purchase and at each annual capacity review, the institution must measure the full encrypted database-and-private-file backup, retained generations, monthly growth, and restore-test workspace. Each drive must retain at least 25% free capacity after the required backup generations are written; otherwise both rotation drives must be replaced with a verified higher-capacity pair.
+
+### 13.4 Operating Scenarios
 
 | Scenario | Estimated monthly equivalent | Estimated annual total | Change and rationale |
 | --- | ---: | ---: | --- |
@@ -695,7 +722,7 @@ The managed-database scenario is an alternative topology, not part of the lean b
 
 Scenario sources: [DigitalOcean managed database pricing](https://www.digitalocean.com/pricing/managed-databases) and [Brevo plan documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans).
 
-### 13.4 Variable and Conditional Charges
+### 13.5 Variable and Conditional Charges
 
 | Service | Published basis used | Treatment in estimate |
 | --- | --- | --- |
@@ -964,4 +991,4 @@ Sources were checked for this revision on **July 14, 2026**, unless a separate p
 
 ---
 
-**Cost refresh rule:** Before procurement, deployment, or publication of a final financial claim, recheck every provider price, tax treatment, exchange rate, expected workload, storage/egress volume, payment-channel mix, email volume, enrollment assumption, support requirement, and recovery objective. Recalculate from the formulas above and retain the dated source evidence used.
+**Cost refresh rule:** Before procurement, deployment, or publication of a final financial claim, recheck every provider price, tax treatment, exchange rate, expected workload, storage/egress volume, backup-media model and capacity, Philippine stock and warranty quotation, payment-channel mix, email volume, enrollment assumption, support requirement, and recovery objective. Recalculate from the formulas above and retain the dated source evidence used.

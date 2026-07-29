@@ -264,6 +264,14 @@ Rules:
 10. Ambiguous separators such as `/`, unknown course codes, circular rules, or unclear minimum-grade text block curriculum approval until staff resolves them; TALA must not guess their meaning.
 11. Existing curriculum documents are copied into the current TALA template or encoded through the manual table.
 
+**TAL-96D5E1B1 client-curriculum authority correction (2026-07-29):**
+
+1. The ordered course blocks after Second Year in the DBM and DTHM client evaluations are treated as Third Year / First Semester and Third Year / Second Semester.
+2. The current Second Semester acceptance curriculum uses the 23 actual third-year rows: eight DBM, seven DIT, and eight DTHM.
+3. Individual course-row units remain authoritative. DBM computes to 25 units although its printed subtotal says 28; DTHM computes to 29 although its printed subtotal says 23. Both are recorded as source discrepancies for institutional correction.
+4. TALA does not fabricate a missing three-unit DBM course merely to reconcile the printed subtotal.
+5. With the stabilized 54 first- and second-year rows, the client-aligned `MIDDLE` fixture contains 77 current offerings and scheduling demands. The completed 80-demand TAL-96D5D fixture remains historical synthetic V1 research evidence and is not the current curriculum authority.
+
 Course Specification revisions are the source of truth for what a course is. Curriculum Versions are the source of truth for which Course Specification revision belongs to a program, year level, term, sequence, and graduation path.
 
 Curriculum Version structure rules:

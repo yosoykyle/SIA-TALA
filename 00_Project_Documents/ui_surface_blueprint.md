@@ -161,6 +161,10 @@ Student Hub is a read-mostly workspace. Use focused custom Filament Pages rather
 
 Use navigation groups to prevent the existing resource inventory from becoming one long menu:
 
+The Staff Dashboard begins with a Registrar-only **Registrar Operating Order** widget. It presents six numbered, linked readiness stages over existing source records: Academic Period; Active Curricula; Offerings & Sections; Teaching Resources; Scheduling Demands; and Published Timetable. Each stage shows the current authoritative count or blocked state, states the next check in plain language, and opens its owning Filament Resource. It does not merge records, run scheduling, publish a timetable, or expose Registrar workflow to Accounting and other roles.
+
+The Curriculum Version view presents its entries as an ordered read-only table: Year Level, Term, Sequence, Course Code, Course Title, Units, and Requirement. This is the staff review surface for confirming the complete three-year curriculum before offerings are built; it does not duplicate or merge the underlying curriculum-entry and course-specification records.
+
 | Group | Primary roles | Contents |
 | --- | --- | --- |
 | Admissions | Registrar | Applicant queue, checklist review, handover, manual student profile updates (Admin Override), duplicate-profile resolution |

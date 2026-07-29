@@ -7,6 +7,7 @@ use App\Actions\Registrar\BuildTermOfferings;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
+use App\Actions\SystemAdministration\ClientCurriculumFixtureCatalog;
 use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Actions\SystemAdministration\SchedulingFacultyCapacityAssessment;
 use App\Models\AcademicYear;
@@ -66,6 +67,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         private readonly SectionDeliveryGroupService $deliveryGroupService,
         private readonly GenerateSchedulingDemand $demandGenerator,
         private readonly TermSchedulingReadinessService $readinessService,
+        private readonly ClientCurriculumFixtureCatalog $curriculumFixtureCatalog,
         private readonly SchedulingAcceptanceScenarioCatalog $scenarioCatalog,
         private readonly SchedulingFacultyCapacityAssessment $facultyCapacityAssessment,
     ) {}
@@ -100,9 +102,9 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $this->databaseSeeder->run();
             $this->admissionRequirementPolicySeeder->seedBaseline();
 
-            [$term, $registrar, $faculty] = $this->createTermAndAccounts();
+            [$term, $priorTerm, $registrar, $faculty] = $this->createTermAndAccounts();
             $programs = $this->createPrograms();
-            $specifications = $this->createCourseCatalog($term);
+            $specifications = $this->createCourseCatalog($term, $priorTerm);
             $curricula = $this->createCurricula($term, $registrar, $programs, $specifications);
 
             $this->createStudents($programs, $curricula);
@@ -268,7 +270,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         ];
     }
 
-    /** @return array{Term, User, list<User>} */
+    /** @return array{Term, Term, User, list<User>} */
     private function createTermAndAccounts(): array
     {
         $academicYear = AcademicYear::query()->create([
@@ -276,6 +278,19 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'starts_on' => '2025-06-01',
             'ends_on' => '2026-05-31',
             'state' => AcademicYear::StateActive,
+        ]);
+        $priorTerm = Term::query()->create([
+            'academic_year_id' => $academicYear->id,
+            'type' => Term::TypeFirstSemester,
+            'label' => 'First Semester',
+            'starts_on' => '2025-06-02',
+            'ends_on' => '2025-10-31',
+            'state' => Term::StateClosed,
+            'scheduling_slot_minutes' => 30,
+            'scheduling_days' => [1, 2, 3, 4, 5, 6],
+            'scheduling_day_starts_at' => '07:00:00',
+            'scheduling_day_ends_at' => '21:00:00',
+            'default_max_units' => 21,
         ]);
         $term = Term::query()->create([
             'academic_year_id' => $academicYear->id,
@@ -306,7 +321,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $faculty[] = $this->createUser('Faculty', sprintf('%02d', $number), $email, User::StaffRoleFaculty);
         }
 
-        return [$term, $registrar, $faculty];
+        return [$term, $priorTerm, $registrar, $faculty];
     }
 
     /** @return array<string, Program> */
@@ -327,15 +342,24 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     }
 
     /** @return array<string, CourseSpecification> */
-    private function createCourseCatalog(Term $term): array
+    private function createCourseCatalog(Term $term, Term $priorTerm): array
     {
         $specifications = [];
+        $programSpecificCourseCodes = collect($this->thirdYearCourseDefinitions())
+            ->flatMap(fn (array $definitions): array => array_keys($definitions))
+            ->unique()
+            ->all();
 
         foreach ($this->courseCatalog() as $code => $definition) {
             $course = Course::query()->create([
                 'code' => $code,
                 'state' => Course::StateActive,
             ]);
+
+            if (in_array($code, $programSpecificCourseCodes, true)) {
+                continue;
+            }
+
             $specifications[$code] = $this->createCourseSpecification(
                 $course,
                 $term,
@@ -353,10 +377,54 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $dbmNstpDefinition,
         );
 
+        foreach ($this->thirdYearCourseDefinitions() as $programCode => $definitions) {
+            foreach ($definitions as $courseCode => $definition) {
+                $specification = $this->createCourseSpecification(
+                    Course::query()->where('code', $courseCode)->sole(),
+                    $term,
+                    $this->specificationRevisionCode($programCode, $courseCode),
+                    $definition,
+                );
+                $specifications[$this->specificationKey($programCode, $courseCode)] = $specification;
+                $specifications[$courseCode] ??= $specification;
+            }
+        }
+
+        foreach ($this->curriculumFixtureCatalog->firstSemesterRows() as $programCode => $yearRows) {
+            foreach ($yearRows as $yearLevel => $rows) {
+                foreach ($rows as $row) {
+                    $course = Course::query()->firstOrCreate(
+                        ['code' => $row['code']],
+                        ['state' => Course::StateActive],
+                    );
+                    $definition = $this->firstSemesterCourseDefinition($row);
+                    $specifications[$this->firstSemesterSpecificationKey(
+                        $programCode,
+                        $yearLevel,
+                        $row['code'],
+                    )] = $this->createCourseSpecification(
+                        $course,
+                        $priorTerm,
+                        $this->firstSemesterRevisionCode($programCode, $yearLevel),
+                        $definition,
+                    );
+                }
+            }
+        }
+
         return $specifications;
     }
 
-    /** @param array{title:string,units:float,modality:string,room_type:string} $definition */
+    /**
+     * @param array{
+     *     title:string,
+     *     units:float,
+     *     modality:string,
+     *     room_type:string,
+     *     source_code?:string,
+     *     prerequisite_source?:string
+     * } $definition
+     */
     private function createCourseSpecification(
         Course $course,
         Term $term,
@@ -367,7 +435,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'course_id' => $course->id,
             'revision_code' => $revisionCode,
             'title' => $definition['title'],
-            'description' => 'Synthetic acceptance specification aligned to the supplied curriculum evidence.',
+            'description' => $this->courseSpecificationDescription($definition),
             'credit_units' => $definition['units'],
             'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
             'grading_profile_version' => 1,
@@ -394,6 +462,25 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     }
 
     /**
+     * @param array{
+     *     source_code?:string,
+     *     prerequisite_source?:string
+     * } $definition
+     */
+    private function courseSpecificationDescription(array $definition): string
+    {
+        if (! isset($definition['source_code'])) {
+            return 'Synthetic acceptance specification aligned to the supplied curriculum evidence.';
+        }
+
+        return sprintf(
+            'Synthetic acceptance specification aligned to client source code %s; prerequisite source: %s.',
+            $definition['source_code'],
+            $definition['prerequisite_source'] ?? 'None',
+        );
+    }
+
+    /**
      * @param  array<string, Program>  $programs
      * @param  array<string, CourseSpecification>  $specifications
      * @return array<string, CurriculumVersion>
@@ -415,24 +502,16 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ]);
             $sequence = 1;
 
-            foreach ($this->academicScopes() as $scope) {
-                if ($scope['program'] !== $programCode) {
-                    continue;
-                }
-
-                foreach ($scope['courses'] as $courseCode) {
-                    CurriculumEntry::query()->create([
-                        'curriculum_version_id' => $curriculum->id,
-                        'course_specification_id' => $specifications[
-                            $this->specificationKey($programCode, $courseCode)
-                        ]->id,
-                        'year_level' => $scope['year'],
-                        'term_label' => 'Second Semester',
-                        'term_type' => Term::TypeSecondSemester,
-                        'sequence' => $sequence++,
-                        'requirement_group' => CurriculumEntry::RequirementGroupRequired,
-                    ]);
-                }
+            foreach ($this->curriculumPlacements($programCode) as $placement) {
+                CurriculumEntry::query()->create([
+                    'curriculum_version_id' => $curriculum->id,
+                    'course_specification_id' => $specifications[$placement['specification_key']]->id,
+                    'year_level' => $placement['year_level'],
+                    'term_label' => $placement['term_label'],
+                    'term_type' => $placement['term_type'],
+                    'sequence' => $sequence++,
+                    'requirement_group' => CurriculumEntry::RequirementGroupRequired,
+                ]);
             }
 
             $curricula[$programCode] = $curriculum;
@@ -720,6 +799,27 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'count',
             $this->facultyQualificationCourseMap(),
         ));
+        $firstSemesterRows = collect($this->curriculumFixtureCatalog->firstSemesterRows())
+            ->flatMap(fn (array $yearRows): array => array_values($yearRows))
+            ->flatten(1);
+        $firstSemesterRowCount = $firstSemesterRows->count();
+        $currentCourseCount = count($this->courseCatalog());
+        $courseCount = collect(array_keys($this->courseCatalog()))
+            ->merge($firstSemesterRows->pluck('code'))
+            ->unique()
+            ->count();
+        $programSpecificSpecificationCount = collect($this->thirdYearCourseDefinitions())
+            ->sum(fn (array $definitions): int => count($definitions));
+        $programSpecificCourseCount = collect($this->thirdYearCourseDefinitions())
+            ->flatMap(fn (array $definitions): array => array_keys($definitions))
+            ->unique()
+            ->count();
+        $specificationCount = $currentCourseCount
+            + 1
+            + $programSpecificSpecificationCount
+            - $programSpecificCourseCount
+            + $firstSemesterRowCount;
+        $curriculumEntryCount = $counts['offerings'] + $firstSemesterRowCount;
         $academicYear = $this->exactAcademicYear();
 
         if (! $academicYear instanceof AcademicYear) {
@@ -727,8 +827,9 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         $term = $this->exactTerm($academicYear);
+        $priorTerm = $this->exactPriorTerm($academicYear);
 
-        if (! $term instanceof Term) {
+        if (! $term instanceof Term || ! $priorTerm instanceof Term) {
             return false;
         }
 
@@ -738,14 +839,14 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && User::query()->whereNull('email_verified_at')->doesntExist()
             && User::query()->where('email', 'not like', '%@example.test')->doesntExist()
             && StudentProfile::query()->count() === $counts['students']
-            && Course::query()->count() === 40
-            && Course::query()->where('state', Course::StateActive)->count() === 40
-            && CourseSpecification::query()->count() === 41
-            && CourseSpecification::query()->where('state', CourseSpecification::StateActive)->count() === 41
-            && CourseComponent::query()->count() === 41
+            && Course::query()->count() === $courseCount
+            && Course::query()->where('state', Course::StateActive)->count() === $courseCount
+            && CourseSpecification::query()->count() === $specificationCount
+            && CourseSpecification::query()->where('state', CourseSpecification::StateActive)->count() === $specificationCount
+            && CourseComponent::query()->count() === $specificationCount
             && CurriculumVersion::query()->count() === 3
             && CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->count() === 3
-            && CurriculumEntry::query()->count() === $counts['offerings']
+            && CurriculumEntry::query()->count() === $curriculumEntryCount
             && Room::query()->count() === 6
             && Room::query()->where('is_active', true)->count() === 6
             && FacultyQualification::query()->count() === $qualificationCount
@@ -759,7 +860,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && SchedulingDemand::query()->count() === $counts['scheduling_demands']
             && SchedulingDemand::query()->where('validation_state', SchedulingDemand::ValidationReadyForReview)->count() === $counts['scheduling_demands']
             && $this->downpaymentRulesAreComplete($term)
-            && $this->courseCatalogIsComplete($term)
+            && $this->courseCatalogIsComplete($term, $priorTerm)
             && $this->curriculaAndEntriesAreComplete($term)
             && $this->offeringStructureIsComplete($term)
             && $this->studentCohortsAreComplete()
@@ -794,7 +895,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     private function exactTerm(AcademicYear $academicYear): ?Term
     {
-        if (Term::query()->count() !== 1) {
+        if (Term::query()->count() !== 2) {
             return null;
         }
 
@@ -805,6 +906,28 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('starts_on', '2026-01-05')
             ->where('ends_on', '2026-05-30')
             ->where('state', Term::StateActive)
+            ->where('scheduling_slot_minutes', 30)
+            ->where('scheduling_day_starts_at', '07:00:00')
+            ->where('scheduling_day_ends_at', '21:00:00')
+            ->where('default_max_units', 21)
+            ->first();
+
+        if (! $term instanceof Term || $term->getAttribute('scheduling_days') !== [1, 2, 3, 4, 5, 6]) {
+            return null;
+        }
+
+        return $term;
+    }
+
+    private function exactPriorTerm(AcademicYear $academicYear): ?Term
+    {
+        $term = Term::query()
+            ->whereBelongsTo($academicYear)
+            ->where('type', Term::TypeFirstSemester)
+            ->where('label', 'First Semester')
+            ->where('starts_on', '2025-06-02')
+            ->where('ends_on', '2025-10-31')
+            ->where('state', Term::StateClosed)
             ->where('scheduling_slot_minutes', 30)
             ->where('scheduling_day_starts_at', '07:00:00')
             ->where('scheduling_day_ends_at', '21:00:00')
@@ -911,8 +1034,13 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         return $this->readinessService->evaluateTerm($term)['is_ready'];
     }
 
-    private function courseCatalogIsComplete(Term $term): bool
+    private function courseCatalogIsComplete(Term $term, Term $priorTerm): bool
     {
+        $programSpecificCourseCodes = collect($this->thirdYearCourseDefinitions())
+            ->flatMap(fn (array $definitions): array => array_keys($definitions))
+            ->unique()
+            ->all();
+
         foreach ($this->courseCatalog() as $code => $definition) {
             $course = Course::query()
                 ->where('code', $code)
@@ -921,6 +1049,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
             if (! $course instanceof Course) {
                 return false;
+            }
+
+            if (in_array($code, $programSpecificCourseCodes, true)) {
+                continue;
             }
 
             if (! $this->courseSpecificationIsComplete($term, $course, 'AY2025-2026', $definition)) {
@@ -932,13 +1064,51 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         $dbmNstpDefinition = $this->courseCatalog()['NSTP02'];
         $dbmNstpDefinition['units'] = 2;
 
-        return $nstpCourse instanceof Course
-            && $this->courseSpecificationIsComplete(
+        if (! $nstpCourse instanceof Course
+            || ! $this->courseSpecificationIsComplete(
                 $term,
                 $nstpCourse,
                 $this->specificationRevisionCode('DBM', 'NSTP02'),
                 $dbmNstpDefinition,
-            );
+            )) {
+            return false;
+        }
+
+        foreach ($this->thirdYearCourseDefinitions() as $programCode => $definitions) {
+            foreach ($definitions as $courseCode => $definition) {
+                $course = Course::query()->where('code', $courseCode)->first();
+
+                if (! $course instanceof Course
+                    || ! $this->courseSpecificationIsComplete(
+                        $term,
+                        $course,
+                        $this->specificationRevisionCode($programCode, $courseCode),
+                        $definition,
+                    )) {
+                    return false;
+                }
+            }
+        }
+
+        foreach ($this->curriculumFixtureCatalog->firstSemesterRows() as $programCode => $yearRows) {
+            foreach ($yearRows as $yearLevel => $rows) {
+                foreach ($rows as $row) {
+                    $course = Course::query()->where('code', $row['code'])->first();
+
+                    if (! $course instanceof Course
+                        || ! $this->courseSpecificationIsComplete(
+                            $priorTerm,
+                            $course,
+                            $this->firstSemesterRevisionCode($programCode, $yearLevel),
+                            $this->firstSemesterCourseDefinition($row),
+                        )) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     /** @param array{title:string,units:float,modality:string,room_type:string} $definition */
@@ -953,7 +1123,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->whereBelongsTo($term, 'effectiveTerm')
             ->where('revision_code', $revisionCode)
             ->where('title', $definition['title'])
-            ->where('description', 'Synthetic acceptance specification aligned to the supplied curriculum evidence.')
+            ->where('description', $this->courseSpecificationDescription($definition))
             ->where('credit_units', $definition['units'])
             ->where('grading_profile_key', CourseSpecification::GradingProfileCollegeStandard)
             ->where('grading_profile_version', 1)
@@ -1021,17 +1191,13 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $curricula[$programCode] = $curriculum;
         }
 
-        $sequences = array_fill_keys(array_keys($this->programDefinitions()), 1);
-
-        foreach ($this->academicScopes() as $scope) {
-            $curriculum = $curricula[$scope['program']];
-
-            foreach ($scope['courses'] as $courseCode) {
-                $course = Course::query()->where('code', $courseCode)->first();
+        foreach ($curricula as $programCode => $curriculum) {
+            foreach ($this->curriculumPlacements($programCode) as $index => $placement) {
+                $course = Course::query()->where('code', $placement['course_code'])->first();
                 $specification = $course instanceof Course
                     ? CourseSpecification::query()
                         ->whereBelongsTo($course)
-                        ->where('revision_code', $this->specificationRevisionCode($scope['program'], $courseCode))
+                        ->where('revision_code', $placement['revision_code'])
                         ->first()
                     : null;
 
@@ -1039,10 +1205,10 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     || ! CurriculumEntry::query()
                         ->whereBelongsTo($curriculum)
                         ->whereBelongsTo($specification)
-                        ->where('year_level', $scope['year'])
-                        ->where('term_label', 'Second Semester')
-                        ->where('term_type', Term::TypeSecondSemester)
-                        ->where('sequence', $sequences[$scope['program']]++)
+                        ->where('year_level', $placement['year_level'])
+                        ->where('term_label', $placement['term_label'])
+                        ->where('term_type', $placement['term_type'])
+                        ->where('sequence', $index + 1)
                         ->where('requirement_group', CurriculumEntry::RequirementGroupRequired)
                         ->exists()) {
                     return false;
@@ -1476,16 +1642,150 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     private function specificationKey(string $programCode, string $courseCode): string
     {
-        return $programCode === 'DBM' && $courseCode === 'NSTP02'
-            ? 'DBM:NSTP02'
-            : $courseCode;
+        if ($programCode === 'DBM' && $courseCode === 'NSTP02') {
+            return 'DBM:NSTP02';
+        }
+
+        if (isset($this->thirdYearCourseDefinitions()[$programCode][$courseCode])) {
+            return $programCode.':'.$courseCode;
+        }
+
+        return $courseCode;
     }
 
     private function specificationRevisionCode(string $programCode, string $courseCode): string
     {
-        return $programCode === 'DBM' && $courseCode === 'NSTP02'
-            ? 'AY2025-2026-DBM'
-            : 'AY2025-2026';
+        if ($programCode === 'DBM' && $courseCode === 'NSTP02') {
+            return 'AY2025-2026-DBM';
+        }
+
+        if (isset($this->thirdYearCourseDefinitions()[$programCode][$courseCode])) {
+            return 'AY2025-2026-'.$programCode;
+        }
+
+        return 'AY2025-2026';
+    }
+
+    private function firstSemesterSpecificationKey(
+        string $programCode,
+        string $yearLevel,
+        string $courseCode,
+    ): string {
+        return implode(':', ['FIRST_SEMESTER', $programCode, $yearLevel, $courseCode]);
+    }
+
+    private function firstSemesterRevisionCode(string $programCode, string $yearLevel): string
+    {
+        $yearCode = match ($yearLevel) {
+            'First Year' => 'Y1',
+            'Second Year' => 'Y2',
+            'Third Year' => 'Y3',
+            default => throw new RuntimeException("Unknown curriculum year level [{$yearLevel}]."),
+        };
+
+        return "AY2025-2026-{$programCode}-{$yearCode}-S1";
+    }
+
+    /**
+     * @param array{
+     *     source_code:string,
+     *     code:string,
+     *     title:string,
+     *     units:float,
+     *     prerequisite_source:string
+     * } $row
+     * @return array{
+     *     title:string,
+     *     units:float,
+     *     modality:string,
+     *     room_type:string,
+     *     source_code:string,
+     *     prerequisite_source:string
+     * }
+     */
+    private function firstSemesterCourseDefinition(array $row): array
+    {
+        $online = str_starts_with($row['code'], 'GE')
+            || str_starts_with($row['code'], 'NSTP')
+            || str_starts_with($row['code'], 'PE')
+            || str_starts_with($row['code'], 'NIHONGO');
+        $computer = collect([
+            'CC',
+            'CSS',
+            'NET',
+            'IM',
+            'IPT',
+            'SA',
+            'CAP',
+            'MS',
+            'WEB',
+            'SP',
+            'IS',
+            'ANIM',
+        ])->contains(fn (string $prefix): bool => str_starts_with($row['code'], $prefix));
+
+        return [
+            'title' => $row['title'],
+            'units' => $row['units'],
+            'modality' => $online
+                ? TermOffering::ModalityOnline
+                : TermOffering::ModalityFaceToFace,
+            'room_type' => $computer
+                ? Room::TypeComputerLaboratory
+                : ($row['units'] >= 4 ? Room::TypeLaboratory : Room::TypeLectureRoom),
+            'source_code' => $row['source_code'],
+            'prerequisite_source' => $row['prerequisite_source'],
+        ];
+    }
+
+    /**
+     * @return list<array{
+     *     year_level:string,
+     *     term_label:string,
+     *     term_type:string,
+     *     specification_key:string,
+     *     course_code:string,
+     *     revision_code:string
+     * }>
+     */
+    private function curriculumPlacements(string $programCode): array
+    {
+        $placements = [];
+        $firstSemesterRows = $this->curriculumFixtureCatalog->firstSemesterRows()[$programCode] ?? null;
+
+        if (! is_array($firstSemesterRows)) {
+            throw new RuntimeException("Missing first-semester curriculum rows for [{$programCode}].");
+        }
+
+        foreach (['First Year', 'Second Year', 'Third Year'] as $yearLevel) {
+            foreach ($firstSemesterRows[$yearLevel] ?? [] as $row) {
+                $placements[] = [
+                    'year_level' => $yearLevel,
+                    'term_label' => 'First Semester',
+                    'term_type' => Term::TypeFirstSemester,
+                    'specification_key' => $this->firstSemesterSpecificationKey(
+                        $programCode,
+                        $yearLevel,
+                        $row['code'],
+                    ),
+                    'course_code' => $row['code'],
+                    'revision_code' => $this->firstSemesterRevisionCode($programCode, $yearLevel),
+                ];
+            }
+
+            foreach ($this->scenarioCatalog->courseCodes($programCode, $yearLevel) as $courseCode) {
+                $placements[] = [
+                    'year_level' => $yearLevel,
+                    'term_label' => 'Second Semester',
+                    'term_type' => Term::TypeSecondSemester,
+                    'specification_key' => $this->specificationKey($programCode, $courseCode),
+                    'course_code' => $courseCode,
+                    'revision_code' => $this->specificationRevisionCode($programCode, $courseCode),
+                ];
+            }
+        }
+
+        return $placements;
     }
 
     /** @return array<string, string> */
@@ -1593,6 +1893,68 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'BME01' => ['title' => 'Operations Management in the Tourism and Hospitality Industry', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $laboratory],
             'HPC13EMS' => ['title' => 'Introduction to MICE / Events Management Services NC III', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
             'THC06' => ['title' => 'Philippine Tourism, Geography and Culture', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'THC09' => ['title' => 'Program-specific Third-Year THC 9', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'THC10' => ['title' => 'Program-specific Third-Year THC 10', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'HMPRAC03' => ['title' => 'Program-specific Third-Year Practicum 3', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'HPC22' => ['title' => 'Program-specific Third-Year HPC 22', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'COOPMM' => ['title' => 'Cooperative Marketing / Cooperative Development and Management NC IV', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            'BME20' => ['title' => 'Business Research', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'BME21' => ['title' => 'E-Commerce and Internet Marketing', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'BME16' => ['title' => 'Cost Accounting and Control', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            'SIA101' => ['title' => 'System Integration and Architecture 1', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'SF101' => ['title' => 'System Fundamentals', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'PD101' => ['title' => 'Parallel and Distributed Computing', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'CAP102' => ['title' => 'Research 2', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+            'WEBNCIII2' => ['title' => 'Web Development NC III - 2 (Cascading Style Sheets)', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $computer],
+            'NIHONGO02' => ['title' => 'Foreign Language / Japanese Language 2', 'units' => 3, 'modality' => $online, 'room_type' => $lecture],
+            'HMPRAC02' => ['title' => 'Program-specific Work-Related Training / Internship', 'units' => 6, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            'HPC23' => ['title' => 'Gastronomy (Food and Culture)', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            'HPC24' => ['title' => 'Recreation and Leisure Management / Tourism Promotion Services NC II', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            'HPC20' => ['title' => 'Ergonomics and Facilities Planning for the Hospitality Industry / Housekeeping NC IV', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, array{title:string,units:float,modality:string,room_type:string}>>
+     */
+    private function thirdYearCourseDefinitions(): array
+    {
+        $online = TermOffering::ModalityOnline;
+        $faceToFace = TermOffering::ModalityFaceToFace;
+        $lecture = Room::TypeLectureRoom;
+        $laboratory = Room::TypeLaboratory;
+        $computer = Room::TypeComputerLaboratory;
+
+        return [
+            'DBM' => [
+                'THC09' => ['title' => 'International Business and Trade', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'THC10' => ['title' => 'Feasibility Study', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'HMPRAC03' => ['title' => 'IT Application Tools in Business', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'HPC22' => ['title' => 'Strategic Management', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'COOPMM' => ['title' => 'Cooperative Marketing / Cooperative Development and Management NC IV', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+                'BME20' => ['title' => 'Business Research', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'BME21' => ['title' => 'E-Commerce and Internet Marketing', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'BME16' => ['title' => 'Cost Accounting and Control', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+            ],
+            'DIT' => [
+                'SIA101' => ['title' => 'System Integration and Architecture 1', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'SF101' => ['title' => 'System Fundamentals', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'PD101' => ['title' => 'Parallel and Distributed Computing', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'CAP102' => ['title' => 'Research 2', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $computer],
+                'WEBNCIII2' => ['title' => 'Web Development NC III - 2 (Cascading Style Sheets)', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $computer],
+                'NIHONGO02' => ['title' => 'Foreign Language / Japanese Language 2', 'units' => 3, 'modality' => $online, 'room_type' => $lecture],
+                'HMPRAC02' => ['title' => 'Work-Related Training - Internship (600 Hours)', 'units' => 6, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            ],
+            'DTHM' => [
+                'THC09' => ['title' => 'Multi-Cultural Diversity in the Workplace for the Tourism Professional', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'THC10' => ['title' => 'Entrepreneurship in Tourism and Hospitality', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $lecture],
+                'HMPRAC03' => ['title' => 'Work-Related Training (Travel Agency / Hotel)', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $laboratory],
+                'HPC22' => ['title' => 'Foreign Language / Japanese Language', 'units' => 3, 'modality' => $online, 'room_type' => $lecture],
+                'HPC23' => ['title' => 'Gastronomy (Food and Culture)', 'units' => 3, 'modality' => $faceToFace, 'room_type' => $laboratory],
+                'HPC24' => ['title' => 'Recreation and Leisure Management / Tourism Promotion Services NC II', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+                'HPC20' => ['title' => 'Ergonomics and Facilities Planning for the Hospitality Industry / Housekeeping NC IV', 'units' => 4, 'modality' => $faceToFace, 'room_type' => $laboratory],
+                'HMPRAC02' => ['title' => 'Work-Related Training - Internship (600 Hours)', 'units' => 6, 'modality' => $faceToFace, 'room_type' => $laboratory],
+            ],
         ];
     }
 }

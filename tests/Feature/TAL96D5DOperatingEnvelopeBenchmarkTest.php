@@ -35,7 +35,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertSame(270, DB::table('student_profiles')->count());
-        $this->assertSame(80, SchedulingDemand::query()->count());
+        $this->assertSame(77, SchedulingDemand::query()->count());
         $this->assertSame(0, ScheduleGenerationRun::query()->count());
         $this->assertSame(0, CandidateScheduleRow::query()->count());
         $this->assertSame(0, SectionMeeting::query()->count());
@@ -90,7 +90,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             ->assertLocalReplaySafe('MIDDLE');
 
         $this->assertSame('MIDDLE', $manifest['scenario']);
-        $this->assertSame(80, data_get($manifest, 'counts.scheduling_demands'));
+        $this->assertSame(77, data_get($manifest, 'counts.scheduling_demands'));
     }
 
     public function test_local_parity_command_writes_replayable_private_evidence_without_cloud_or_official_writes(): void
@@ -114,8 +114,8 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('tal96d5d-parity-v2', $artifact['evidence_version']);
         $this->assertSame('MIDDLE', $artifact['scenario']);
         $this->assertTrue(data_get($artifact, 'laravel_validation.passes'));
-        $this->assertSame(80, data_get($artifact, 'laravel_validation.assignment_count'));
-        $this->assertCount(80, $artifact['assignments']);
+        $this->assertSame(77, data_get($artifact, 'laravel_validation.assignment_count'));
+        $this->assertCount(77, $artifact['assignments']);
         $this->assertSame(
             ['ok'],
             array_values(array_unique(array_column($artifact['assignments'], 'assignment_status'))),
@@ -193,8 +193,8 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('tal94-demand-v2', $report['contract_version']);
         $this->assertSame('MIDDLE', $report['scenario']);
         $this->assertSame(270, data_get($report, 'manifest.counts.students'));
-        $this->assertSame(80, data_get($report, 'manifest.counts.scheduling_demands'));
-        $this->assertSame(80, data_get($report, 'composition.demands'));
+        $this->assertSame(77, data_get($report, 'manifest.counts.scheduling_demands'));
+        $this->assertSame(77, data_get($report, 'composition.demands'));
         $this->assertSame('FINAL-CFG-02-MEM', data_get($report, 'target.configuration_id'));
         $this->assertSame(16, data_get($report, 'target.memory_gib'));
         $this->assertSame('solver.example.test', data_get($report, 'target.url_host'));
@@ -227,7 +227,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('optimal', data_get($report, 'runs.0.solver_statistics.search_stages.optimization.status'));
         $this->assertEquals(0.0, data_get($report, 'runs.0.solver_statistics.search_stages.feasibility.wall_time_seconds'));
         $this->assertEquals(0.0, data_get($report, 'runs.0.solver_statistics.search_stages.optimization.wall_time_seconds'));
-        $this->assertSame(80, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
+        $this->assertSame(77, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
         $this->assertIsArray(data_get($report, 'runs.0.assignment_evidence.section_timetables'));
         $this->assertIsArray(data_get($report, 'scenario_feasibility_audit.room_type_capacity'));
         $this->assertIsString($report['snapshot_sha256']);
@@ -324,7 +324,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame(Command::SUCCESS, $exitCode, Artisan::output());
         $this->assertSame('unknown_timed_out', data_get($report, 'runs.0.result_classification'));
         $this->assertSame(0, data_get($report, 'runs.0.assigned_count'));
-        $this->assertSame(80, data_get($report, 'runs.0.unassigned_count'));
+        $this->assertSame(77, data_get($report, 'runs.0.unassigned_count'));
         $this->assertSame(0, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
         $this->assertSame([], data_get($report, 'runs.0.assignment_evidence.section_timetables'));
         $this->assertSame([], data_get($report, 'runs.0.assignment_evidence.faculty_timetables'));
@@ -339,7 +339,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $second = $capture->capture('MIDDLE');
 
         $this->assertSame('MIDDLE', $first['manifest']['scenario']);
-        $this->assertSame(80, $first['composition']['demands']);
+        $this->assertSame(77, $first['composition']['demands']);
         $this->assertSame($first['composition'], $second['composition']);
         $this->assertSame($first['snapshot_sha256'], $second['snapshot_sha256']);
         $this->assertSame($before, $this->officialRecordCounts());

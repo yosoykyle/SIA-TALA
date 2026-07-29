@@ -48,10 +48,10 @@ final class TAL96D5BStateCoverageMatrix
             'academic' => [
                 'persona' => 'AY 2025-2026 / Second Semester',
                 'disposition' => 'fixture_record',
-                'evidence' => 'MIDDLE contains 80 offerings and 80 ready scheduling demands.',
+                'evidence' => 'Corrected MIDDLE contains 77 offerings and 77 ready scheduling demands.',
                 'represented' => SchedulingDemand::query()
                     ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
-                    ->count() === 80,
+                    ->count() === 77,
             ],
             'document' => [
                 'persona' => 'applicant.demo@example.test',
@@ -82,10 +82,10 @@ final class TAL96D5BStateCoverageMatrix
                 'represented' => true,
             ],
             'scheduling' => [
-                'persona' => 'MIDDLE 80-demand workload',
+                'persona' => 'Corrected MIDDLE 77-demand workload',
                 'disposition' => 'human_gate',
                 'evidence' => 'All inputs are ready; candidate generation and publication require the separately approved one-time Cloud Run functional solve.',
-                'represented' => SchedulingDemand::query()->count() === 80,
+                'represented' => SchedulingDemand::query()->count() === 77,
             ],
             'grade' => [
                 'persona' => 'DBM-1A-001 through DBM-1A-004',

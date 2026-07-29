@@ -41,6 +41,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5D | Done locally; pending explicit Linear sync | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization |
 | TAL-96D5E applicant-modality correction | Done locally; pending explicit Linear sync | Applicant Modality Removal and Per-Offering Delivery Alignment |
 | TAL-96D5E1A | Done locally; pending explicit Linear sync | System Truth and Workflow Reconciliation |
+| TAL-96D5E1B1 | Done locally; pending explicit Linear sync | Fixture Truth and Academic Operating Foundation |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

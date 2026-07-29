@@ -57,8 +57,8 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
 
         $this->assertSame($firstCounts, $this->overlayCounts());
         $this->assertSame($before, $this->schedulingFingerprint($term));
-        $this->assertSame(80, TermOffering::query()->whereBelongsTo($term)->count());
-        $this->assertSame(80, SchedulingDemand::query()->whereHas(
+        $this->assertSame(77, TermOffering::query()->whereBelongsTo($term)->count());
+        $this->assertSame(77, SchedulingDemand::query()->whereHas(
             'termOffering',
             fn ($query) => $query->whereBelongsTo($term),
         )->count());
@@ -76,7 +76,14 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
             ->whereBelongsTo($reviewApplicant)
             ->where('status', ApplicantIntake::StatusPending)
             ->sole();
-        $this->assertSame(2, ChecklistItem::query()->whereBelongsTo($reviewIntake)->count());
+        $this->assertEqualsCanonicalizing(
+            ['FORM_137', 'IDENTITY_DOCUMENT'],
+            ChecklistItem::query()
+                ->whereBelongsTo($reviewIntake)
+                ->whereIn('requirement_type', ['FORM_137', 'IDENTITY_DOCUMENT'])
+                ->pluck('requirement_type')
+                ->all(),
+        );
     }
 
     #[Test]

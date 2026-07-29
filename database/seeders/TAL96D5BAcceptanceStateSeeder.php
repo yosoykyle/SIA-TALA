@@ -261,11 +261,11 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             ->count();
 
         if (StudentProfile::query()->count() !== 270
-            || TermOffering::query()->whereBelongsTo($term)->count() !== 80
-            || $demandCount !== 80
+            || TermOffering::query()->whereBelongsTo($term)->count() !== 77
+            || $demandCount !== 77
             || $facultyCount !== 14) {
             throw new RuntimeException(
-                'TAL-96D5B operational states require the verified MIDDLE fixture: 270 students, 80 offerings, 80 scheduling demands, and 14 faculty.',
+                'TAL-96D5B operational states require the corrected MIDDLE fixture: 270 students, 77 offerings, 77 scheduling demands, and 14 faculty.',
             );
         }
     }

@@ -352,20 +352,20 @@ The three scenarios are replaceable acceptance starting states, not three popula
 | Scenario | Evidence basis | Students | Logical cohorts | Reported / generated faculty | Course-specific offerings | Section/group/demand rows | What the scenario proves |
 |---|---|---:|---:|---:|---:|---:|---|
 | `MIN` | Current client-reported population and faculty count | 47 | 6 | 9 / 9 | 54 | 54 | The current six first-/second-year cohorts and nine-faculty evidence can be represented with complete scheduling-readiness inputs. |
-| `MIDDLE` | Synthetic representative three-year operating load | 270 | 9 | Not reported / 14 | 80 | 80 | One 30-student cohort for every combination of three Programs and three year levels can be constructed deterministically with a synthetic roster that includes load headroom. |
-| `MAX` | Client-reported historical population and faculty count | 600 | 20 | 14 / 26 | 80 | 178 | Twenty 30-student logical cohorts can be represented across the nine Program/year scopes; the generated roster is separate from the insufficient historical headcount. |
+| `MIDDLE` | Synthetic representative three-year operating load | 270 | 9 | Not reported / 14 | 77 | 77 | One 30-student cohort for every combination of three Programs and three year levels can be constructed deterministically with a synthetic roster that includes load headroom. |
+| `MAX` | Client-reported historical population and faculty count | 600 | 20 | 14 / 26 | 77 | 172 | Twenty 30-student logical cohorts can be represented across the nine Program/year scopes; the generated roster is separate from the insufficient historical headcount. |
 
 The MAX cohort allocation starts with two cohorts in every Program/year scope, then assigns the remaining two cohorts deterministically to `DBM` First Year and `DIT` First Year. This is a balanced synthetic distribution, not a claim about the client's historical year-level distribution.
 
-The MIDDLE and MAX third-year scope uses a load-equivalent synthetic placement from the existing acceptance course catalogue where confirmed client third-year operational rows are incomplete. It is suitable for exercising relationships, forms, readiness, and later controlled capacity experiments; it must not be presented as the client's official third-year curriculum. Real deployment data must come through the approved curriculum recording and activation workflow.
+The corrected current fixture uses the 23 actual Third Year / Second Semester source rows: eight DBM, seven DIT, and eight DTHM. Course-row units are authoritative, so DBM computes to 25 units against a printed subtotal of 28 and DTHM computes to 29 against a printed subtotal of 23. Both discrepancies are recorded, and no course is invented to force a match. The completed 80-demand MIDDLE and 178-demand MAX TAL-96D5D experiment remains historical synthetic V1 evidence; its solver measurements do not describe the corrected fixture.
 
 The faculty count is derived and reported separately from timetable solving:
 
 | Scenario | Teaching units | Arithmetic lower bound | Generated faculty | Maximum constructed load | Interpretation |
 |---|---:|---:|---:|---:|---|
 | `MIN` | 162 | 8 | 9 | 19 | The client-reported nine faculty pass the bounded qualification-and-load construction. |
-| `MIDDLE` | 240 | 12 | 14 | 18 | Fourteen provide synthetic operating headroom; twelve is only arithmetic and is not claimed as the proven minimum. |
-| `MAX` | 532 | 26 | 26 | 21 | The reported fourteen can carry only 294 units at 21 units each, so the fixture uses a separately disclosed sufficient synthetic roster. |
+| `MIDDLE` | 241 | 12 | 14 | 18 | Fourteen provide synthetic operating headroom; twelve is only arithmetic and is not claimed as the proven minimum. |
+| `MAX` | 534 | 26 | 26 | 21 | The reported fourteen can carry only 294 units at 21 units each, so the fixture uses a separately disclosed sufficient synthetic roster. |
 
 The arithmetic lower bound is `ceil(total teaching units / 21)`. The bounded construction assigns each fixture workload only to qualified synthetic faculty without exceeding 21 units. No faculty-specific unavailability rows are seeded, so every synthetic faculty record is assumed available across the full Monday-to-Saturday operating grid. `PASS` proves this disclosed load-and-qualification input condition only; it does not consider rooms, meeting times, conflicts, or CP-SAT feasibility. The generated MAX count of 26 is sufficient for this deterministic construction, not a universal or mathematically proven minimum. Real availability restrictions can increase the required roster.
 
@@ -442,7 +442,7 @@ Neither command truncates, switches, or repairs an occupied database automatical
 | Why are Section codes course-specific if students think of `DIT-1A` as one section? | The database stores a Section under one course-specific Term Offering, so each source row needs a Term-unique code. The delivery-group name keeps `DIT-1A` as the shared logical cohort identity across subjects for conflict protection and presentation. |
 | Does readiness PASS mean the solver will find a timetable? | No. It means the required source records pass the Laravel readiness checks. Feasibility and optimality require an actual solver run and are reported separately. |
 | Are MIN, MIDDLE, and MAX actual client distributions? | MIN uses the current client-reported cohort and nine-faculty counts. MIDDLE is a representative synthetic operating load. MAX preserves the client-reported historical 600 students and fourteen faculty but uses a transparent deterministic cohort distribution and a separate 26-faculty synthetic scheduling roster. |
-| Why does MAX generate 26 faculty if the historical evidence says 14? | At the configured 21-unit ceiling, fourteen faculty can carry 294 units, which is less than the constructed MAX workload of 532. Twenty-six pass the bounded deterministic construction. This does not claim the client historically scheduled the same 532-unit workload or employed 26 faculty. |
+| Why does MAX generate 26 faculty if the historical evidence says 14? | At the configured 21-unit ceiling, fourteen faculty can carry 294 units, which is less than the corrected MAX workload of 534. Twenty-six pass the bounded deterministic construction. This does not claim the client historically scheduled the same workload or employed 26 faculty. |
 | Does bounded faculty readiness mean CP-SAT can solve the timetable? | No. It proves only that the fixture has a qualification-aware assignment within faculty load ceilings. Rooms, times, conflicts, and solver feasibility remain separate. |
 | Why not keep all three scenarios in one database? | They are alternative starting states. Combining them would inflate counts and make acceptance results ambiguous. Guarded replacement keeps each run reproducible. |
 | Can the system exceed 600 students? | The schema has no universal institution ceiling. Six hundred is an evidence-based evaluation tier, not a coded maximum. Actual capacity depends on offerings, sections, rooms, faculty, time, and later measured solver behavior. |
@@ -1054,7 +1054,7 @@ The D5A read-only inspection found no active acceptance scenario in `test_tala_d
 
 The D5B operator must first prove `APP_ENV=testing`, MySQL, and `test_tala_db`, receive approval for the snapshot/rebuild operation, create exactly one `MIDDLE` scenario, rerun its `--check`, and stop if the command reports conflict before acceptance work begins. Once bounded operational records exist, the scenario command correctly reports `conflict`; that later result means the pristine population fixture is no longer empty of downstream evidence, not that its scheduling inputs were resized.
 
-The guarded `php artisan acceptance:seed-tal96d5b-states --no-interaction` command adds deterministic operational states to the verified `MIDDLE` fixture. It reuses the D4B grade/lifecycle overlay and adds irregular-waiting, cancelled, assessment-due, partial-payment, finance-cleared, and local pending/failed payment-attempt examples. It is idempotent, never runs CP-SAT, and preserves the 270 students, 80 offerings, 80 scheduling demands, and 14-faculty scheduling input. Its local payment attempts are explicitly synthetic projection evidence; they do not claim PayMongo provider acceptance.
+The following is historical TAL-96D5B synthetic V1 evidence. The guarded `php artisan acceptance:seed-tal96d5b-states --no-interaction` command added deterministic operational states to the then-verified `MIDDLE` fixture. It reused the D4B grade/lifecycle overlay and added irregular-waiting, cancelled, assessment-due, partial-payment, finance-cleared, and local pending/failed payment-attempt examples. It was idempotent, never ran CP-SAT, and preserved the historical 270 students, 80 offerings, 80 scheduling demands, and 14-faculty scheduling input. Its local payment attempts were explicitly synthetic projection evidence; they did not claim PayMongo provider acceptance. TAL-96D5E1B1 supersedes this fixture as the current curriculum authority with 77 offerings and demands; it does not rewrite the completed D5B evidence below.
 
 | State family | Named synthetic evidence | Disposition before final smoke |
 |---|---|---|
@@ -1344,11 +1344,135 @@ Do not resize from student count alone. Reassess the solver configuration when o
 
 The corrected request-based proxy uses the 27 July 2026 Singapore rates of US$0.000011244 per vCPU-second, US$0.000001235 per GiB-second, US$0.40 per million requests, and 100-millisecond rounding. It estimates `MIN` at US$0.0067038032–US$0.0067367168 per run and `MIDDLE` at US$0.0070000256–US$0.0070987664 per run. The retained eight-run exploratory series totals US$0.0624073856. Recalculation gives US$0.0203565448 for the `FINAL-CFG-01` probe plus failed request, US$0.0378624112 for the earlier `FINAL-CFG-02-MEM` probe plus request, and US$0.03593148 for the accepted staged-search probe plus request. The earlier immutable reports retain their embedded US$0.06051832 and US$0.11208928 fields as superseded evidence. All figures are before free tier and excluded platform charges; solver results and timings were unaffected.
 
-#### 9.9.4 Current operator state and defense answer
+#### 9.9.4 TAL-96D5D post-study operator state and defense answer (historical synthetic V1)
 
-The demonstration database is restored to the deterministic `MIDDLE` fixture: 270 students, 9 cohorts, 14 synthetic scheduling faculty, and 80/80 ready demands on the Monday–Saturday 07:00–21:00 Asia/Manila grid. It contains no schedule run, candidate row, official meeting, or queued job from the study.
+At TAL-96D5D cleanup, the demonstration database was restored to the then-deterministic `MIDDLE` fixture: 270 students, 9 cohorts, 14 synthetic scheduling faculty, and 80/80 ready demands on the Monday–Saturday 07:00–21:00 Asia/Manila grid. It contained no schedule run, candidate row, official meeting, or queued job from the study. This statement records that dated restore; the current TAL-96D5E1B1 authority is 77/77 and remains pending its separately approved persistent rebuild.
 
-**Panel answer:** TALA does not claim a universal maximum population. The current production profile is verified for the client's 54-demand baseline. A private 4-vCPU/8-GiB candidate repeatedly solved both the `MIN` and `MIDDLE` fixtures, so it is the evidence-based review configuration when workload grows toward 80 demands and the disclosed MIDDLE model scale. For the corrected 178-demand MAX fixture, the final private 8-vCPU/16-GiB staged-search configuration returned one complete `FEASIBLE` schedule with zero hard-constraint violations in 307.819849 seconds. This verifies an operational point through the disclosed MAX workload, but the 100% relative gap means optimality was not proved, and one run is not a repeatability or universal-capacity claim. The CP-SAT equations, constraints, objective, fixtures, Laravel validation contract, and publication workflow did not change.
+**Historical-study panel answer:** TALA does not claim a universal maximum population. The production profile was verified for the client's 54-demand baseline. A private 4-vCPU/8-GiB candidate repeatedly solved both the historical `MIN` and synthetic V1 `MIDDLE` fixtures, establishing an evidence-based review configuration as workload approached the disclosed 80-demand V1 model scale. For the synthetic V1 178-demand MAX fixture, the final private 8-vCPU/16-GiB staged-search configuration returned one complete `FEASIBLE` schedule with zero hard-constraint violations in 307.819849 seconds. This verified an operational point through that disclosed V1 workload, but the 100% relative gap meant optimality was not proved, and one run was not a repeatability or universal-capacity claim. The CP-SAT equations, constraints, objective, Laravel validation contract, and publication workflow did not change. The later 77/172 curriculum correction is a new fixture-input authority and must not inherit these measured results without a separately authorized study.
+
+### 9.10 TAL-96D5E1 first-time exploration environment
+
+#### 9.10.1 Purpose, verified foundation, and limits
+
+TAL-96D5E1 turns the verified `MIDDLE` database into a safe learning environment for a first-time operator. It is intended for exploring how one role creates information and how another role receives or acts on it. It is also an acceptance pass: when the visible result differs from the expected result below, record the mismatch before changing the system.
+
+The overlay preserves the scheduling foundation exactly:
+
+| Foundation fact | Required value |
+| --- | ---: |
+| Student profiles | 270 |
+| Cohorts | 9 |
+| Active-term offerings | 77 |
+| Ready scheduling demands | 77 |
+| Synthetic scheduling faculty | 14 |
+| Schedule runs, candidate rows, official meetings, queued jobs, and failed jobs | 0 |
+
+The overlay adds synthetic accounts and operational states only. It does not alter CP-SAT equations, resize a fixture, call Cloud Run, publish a timetable, contact SMTP, contact PayMongo, change schemas, or affect production seed behavior. Because there is no official `MIDDLE` publication, Schedule and COR pages must truthfully explain that prerequisite instead of displaying a fabricated timetable.
+
+#### 9.10.2 Safe preparation and startup
+
+Use a dedicated PowerShell session:
+
+```powershell
+$env:APP_ENV="testing"
+$env:DB_CONNECTION="mysql"
+$env:DB_DATABASE="test_tala_db"
+
+php artisan config:clear
+php artisan tinker --execute 'echo app()->environment()."|".DB::connection()->getDriverName()."|".DB::connection()->getDatabaseName();'
+php artisan acceptance:seed-tal96d5e1-exploration --check --no-interaction
+composer dev
+```
+
+The environment proof must be `testing|mysql|test_tala_db`; the D5E1 check must pass with `coverage_state=PASS`. Stop on any other value. Do not use `migrate:fresh`, restore a snapshot, replace a scenario, or rerun a seeder over an unknown database without its destructive database gate.
+
+Before the exploration overlay exists, prove the pristine MIDDLE fixture with `php artisan acceptance:seed-scheduling-scenario MIDDLE --check --no-interaction` after the separately approved corrected-fixture rebuild; it must report `scenario_state=complete` and `readiness=PASS`. After the overlay exists, the exploration check is the authoritative non-writing inspection because it verifies the same 270-student / 9-cohort / 77-offering / 77-demand / 14-faculty fingerprint together with the added operational personas. The older scenario checker then deliberately fails closed on those additional records; that expected conflict is not evidence that the scheduling inputs changed.
+
+Open `http://127.0.0.1:8000/`. The three authenticated workspaces are `/applicant`, `/student`, and `/admin`. Every account below is synthetic and uses the local password `password`.
+
+#### 9.10.3 Sign-in persona catalogue
+
+The catalogue has 26 exploration or verification personas, one separate denied-login persona, and the public visitor. One persona may carry several compatible states; incompatible states use separate accounts.
+
+| Workspace | Email | State or responsibility | What this persona is for |
+| --- | --- | --- | --- |
+| Public | No account | Visitor | Landing page, admission availability, workspace guidance, login and error boundaries |
+| Staff | `registrar.demo@example.test` | Active Registrar | Applicant review, requirements, academic setup, enrollment, official-record and audit projections |
+| Staff | `accounting.demo@example.test` | Active Accounting | Assessments, payments, ledger, finance gate, reconciliation, and financial outputs |
+| Staff | `faculty.demo@example.test` | Active Faculty | Assigned teaching work and draft/submitted grade workflows |
+| Staff | `academic-head.demo@example.test` | Active Academic Head | Academic oversight, scheduling review, and grade review boundaries |
+| Staff | `system-admin.demo@example.test` | Active System Super Admin | Accounts, system settings, integrations, reports, audit, and authorization boundaries |
+| Staff | `registrar.unverified.demo@example.test` | Unverified Registrar | Email-verification boundary before protected staff work |
+| Applicant | `applicant.demo@example.test` | First-time; editable draft | Save/resume, validation, current application, and retained prior withdrawn history |
+| Applicant | `applicant.review.demo@example.test` | Pending Registrar review | Submitted digital evidence and a pending physical-copy requirement |
+| Applicant | `applicant.action-required.demo@example.test` | Action required | Rejected digital evidence, visible reason, and replacement-file path |
+| Applicant | `applicant.evaluation.demo@example.test` | For evaluation | Requirements resolved and ready for an admission decision |
+| Applicant | `applicant.approved.demo@example.test` | Approved | Controlled handover readiness; approval alone must not fabricate enrollment |
+| Applicant | `applicant.withdrawn.demo@example.test` | Withdrawn | Terminal history, reason traceability, and truthful next-step guidance |
+| Applicant | `applicant.transfer.demo@example.test` | Transferee draft | Transfer category and transfer-credential requirement resolution |
+| Applicant | `applicant.returning.demo@example.test` | Returning draft | Returning category and prior-student-record requirement resolution |
+| Student | `student.demo@example.test` | DBM-1A-001; Regular | General Student Hub and one of the deterministic grade-state anchors |
+| Student | `student.dbm-2a.002@example.test` | DBM-2A-002; Regular | Second-year released-grade history and progression projection |
+| Student | `student.dbm-3a.001@example.test` | DBM-3A-001; Regular | Third-year released-grade history and three-year curriculum projection |
+| Student | `student.dbm-2a.001@example.test` | DBM-2A-001; Irregular | Irregular enrollment waiting for compatible published sections |
+| Student | `student.dit-1a.001@example.test` | DIT-1A-001; Probationary | Active amount due and a synthetic failed payment attempt |
+| Student | `student.dit-1a.002@example.test` | DIT-1A-002; Deficient | Partial payment, remaining balance, and synthetic pending attempt |
+| Student | `student.dit-2a.001@example.test` | DIT-2A-001; Blocked by prerequisite | Cleared finance example while an academic prerequisite still blocks progress |
+| Student | `student.dthm-1a.001@example.test` | DTHM-1A-001; Must repeat year level | Cancelled-enrollment history and restart guidance |
+| Student | `student.dthm-1a.002@example.test` | DTHM-1A-002; Completion candidate | Completion review and outstanding-condition visibility |
+| Student | `student.dthm-2a.001@example.test` | DTHM-2A-001; Graduation candidate | Graduation review and official-record boundary |
+| Student | `student.dthm-2a.002@example.test` | DTHM-2A-002; Not yet evaluated | Clear not-yet-evaluated state and next action |
+| Student | `student.dbm-1a.002@example.test` | DBM-1A-002; Irregular and unverified | Student email-verification boundary; not an active exploration login |
+| Staff | `staff.inactive.demo@example.test` | Inactive Registrar | Denied authentication; the account remains as an audit-safe negative case |
+
+#### 9.10.4 Recommended first-time journey order
+
+Use this order so that prerequisites and producer-consumer relationships remain understandable:
+
+| Order | Roles and surfaces | Action or question | Expected visible and record result | Result |
+| ---: | --- | --- | --- | --- |
+| 1 | Public; landing, workspace entry, login, 403/404 | Can a new visitor tell which workspace to use? Try one valid route and one unauthorized direct route. | Clear role guidance; branded error; no protected data; no state change. | PASS / PARTIAL / FAIL |
+| 2 | Applicant draft, transfer, and returning personas | Open the current application, inspect required fields, save a valid change, and try one invalid value. | Draft persists only valid data; the error names the field and correction; category-specific requirements are understandable. | PASS / PARTIAL / FAIL |
+| 3 | Pending, action-required, evaluation, approved, and withdrawn applicants | Compare Dashboard, My Application, and Requirements for each terminal or review state. | All surfaces show the same status, one truthful next step, requirement method, staff feedback, and terminal-state restrictions. | PASS / PARTIAL / FAIL |
+| 4 | Registrar; Applicant Intakes | Inspect the same applicant records and requirement items. | Configured digital, physical-copy, and metadata requirements match the applicant projection; each review action identifies its consequence. | PASS / PARTIAL / FAIL |
+| 5 | Registrar and Academic Head; academic setup and scheduling | Follow the configured order: academic year and term, curriculum, sections, offerings, faculty/rooms, demands, then runs. | Readiness explains every missing prerequisite. The current database has ready demands but no official timetable; no candidate is described as published. | PASS / PARTIAL / FAIL |
+| 6 | Regular and irregular students; Registrar Enrollment | Compare regular, irregular-awaiting-publication, and cancelled records. | Student and Registrar see the same enrollment status and blocker; an irregular student is not silently assigned an invented schedule. | PASS / PARTIAL / FAIL |
+| 7 | Due, partial, and cleared students; Accounting | Compare assessment, balance, payment attempt, ledger, finance gate, and reconciliation. | The amount due, partial posting, cleared state, failed/pending attempt, and next action agree across roles. | PASS / PARTIAL / FAIL |
+| 8 | Faculty, Academic Head, Registrar, and Student; Grades | Inspect the four deterministic Draft, Submitted, Returned, and Released rosters. | Edit/review/release authority changes by state; only a released grade is an official student projection. | PASS / PARTIAL / FAIL |
+| 9 | Completion and graduation personas; Registrar | Inspect holds, lifecycle history, completion, graduation review, and generated-output prerequisites. | The state, blocker, responsible office, and next action are explicit; no missing prerequisite is presented as completed. | PASS / PARTIAL / FAIL |
+| 10 | System Super Admin; settings, integration status, reports/audit | Determine which settings are operational, superseded, or informational; inspect authorization and audit sources. | Purpose and consumer are explained; secrets are absent; forbidden academic actions remain unavailable. | PASS / PARTIAL / FAIL |
+
+For each non-pass, record: persona and role, page or route, prerequisite state, exact action and input, expected result, observed result, screenshot or error text, downstream role affected, and whether the finding is an aligned behavior, defect/real gap, cosmetic preference, or unresolved authority question. Repeat only the failed or corrected journey.
+
+#### 9.10.5 Email and PayMongo boundaries
+
+The 26 committed personas do not require 26 real inboxes. A provider-backed rehearsal needs only three human-supplied inboxes or alias families:
+
+1. Applicant — registration and applicant verification link.
+2. Student — Student Hub verification or notification delivery.
+3. Staff — staff verification and operational notification delivery.
+
+The addresses and credentials remain untracked. Actual SMTP delivery is a human gate. When authorized, configure the real testing mailer and run `php artisan integrations:verify-mail-connection <applicant-alias>,<student-alias>,<staff-alias>`, then verify receipt and link behavior. Local `Mail::fake()` tests remain the programmatic proof for message dispatch and recipient boundaries.
+
+PayMongo exploration starts with the due student `student.dit-1a.001@example.test`. The partial and cleared personas provide comparison states without unnecessary provider charges. Creating a Checkout Session, opening the hosted payment page, exposing or registering a webhook endpoint, processing a signed event, and deliberately redelivering one duplicate event remain the separately approved PayMongo test-mode gate. A checkout return is not payment proof; acceptance requires one Payment, one payment-sourced ledger entry, an updated finance gate, Accounting reconciliation visibility, and idempotent duplicate handling.
+
+#### 9.10.6 Current D5E1 programmatic evidence
+
+The guarded command is `acceptance:seed-tal96d5e1-exploration`. It is restricted to `APP_ENV=testing`, MySQL, and `test_tala_db`; it is transactional and repeatable. `--check` performs no writes. The focused test proves:
+
+- exactly 26 unique exploration or verification personas and one denied-login persona;
+- all staff roles, applicant categories and states, student standings, and verification boundaries;
+- source-backed prior-term enrollments and owner-correct Faculty grade / Registrar release evidence for regular first-, second-, and third-year students plus irregular, probationary, deficient, held, repeat, completion, graduation, and not-yet-evaluated states;
+- rejected digital evidence, resolved requirement checklists, and withdrawn-reason audit evidence;
+- repeatable overlay behavior;
+- corrected 270-student, 77-offering, 77-demand, 14-faculty MIDDLE scheduling contract; and
+- no schedule run, official meeting, queued job, CP-SAT invocation, SMTP call, or PayMongo call.
+
+The final overlay-compatible matrix passed **87 tests with 1,104 assertions**. It covered the D5E1 catalogue, retained D5B operational states, applicant validation and status mail, checkout reliability, PayMongo signature and provider-contract boundaries, idempotent webhook posting, Accounting observability, and Student delivery. A first broad attempt also included the historical TAL-69 class, whose assertions deliberately require globally empty Payment and Ledger tables; those assertions are incompatible with a persistent exploration database that intentionally contains partial and cleared finance examples. They were not relabelled as product failures or weakened. Equivalent record-scoped PayMongo contracts passed in the overlay-compatible matrix, while the complete clean-baseline suite remains the independently verified D5C2 evidence.
+
+The landing-navigation acceptance regression also passed independently. Real-browser inspection at 929 by 818 pixels proved the mixed overlap that the old navbar-wide switch could not represent: the TALA brand and menu icon remained literal white over the dark hero while each expanded menu item became literal black over the white portal card. No opaque navbar background or replacement visual system was added.
+
+Provider-backed email and PayMongo acceptance, an official MIDDLE Schedule/COR projection, deployment, and final charter retirement are not claimed by this local overlay. They remain explicit later or human-gated boundaries.
 
 ### 9.11 TAL-96D5E1A system truth and workflow reconciliation
 
@@ -1472,3 +1596,25 @@ D5E1A makes no structural choice on the user's behalf. It therefore stops before
 - The D5E1 personas and MIDDLE scheduling fingerprint remain preserved.
 
 Current status: D5E1A is independently verified and cleaned locally as a reconciliation and recovery map only. It does not certify that the routed surfaces are already understandable. `Plan TAL-96D5E1B` is the next boundary.
+
+### 9.12 TAL-96D5E1B1 fixture truth and academic operating foundation
+
+TAL-96D5E1B1 corrects the exploration foundation before later Registrar workflow remediation:
+
+- the complete three-year curricula retain all 158 First- and Second-Semester source placements;
+- the current Second Semester uses 77 offerings and demands from 54 first-/second-year rows plus the 23 actual third-year rows;
+- DBM's 25-versus-28 and DTHM's 29-versus-23 printed-subtotal discrepancies remain visible authority findings, and no missing DBM course is fabricated;
+- the prior closed First Semester supplies owner-correct enrollments, Faculty-owned grades, Registrar-confirmed releases, holds, and completion/graduation snapshots for the named exploration personas;
+- the catalogue now includes regular first-, second-, and third-year students in addition to the non-regular and terminal-state cases; and
+- the Registrar Dashboard exposes a native Filament **Registrar Operating Order** widget with six linked stages: Academic Period, Active Curricula, Offerings & Sections, Teaching Resources, Scheduling Demands, and Published Timetable; and
+- each Curriculum Version now exposes an ordered read-only curriculum table with Year Level, Term, Sequence, Course Code, Course Title, Units, and Requirement so staff can review the three-year source facts without decoding a concatenated text block.
+
+The widget is guidance over existing records. It does not combine tables, change office ownership, create records, invoke CP-SAT, or publish a schedule. The 80-demand/178-demand TAL-96D5D study remains historical synthetic V1 and is not reinterpreted as evidence for the corrected fixture.
+
+Programmatic construction has been proven inside rolled-back `DatabaseTransactions`. The focused pre-rebuild gate passed 10 tests with 318 assertions, covering the corrected curriculum authority, deterministic scenario construction, source-backed personas, operating-order widget, and ordered curriculum review.
+
+One verification-harness incident changed the persistent state: the first curriculum-view regression was placed in a pre-existing `RefreshDatabase` test class, and its isolated execution rebuilt `test_tala_db` to an empty migrated schema. A read-only fingerprint then proved 0 students, 0 sections, 0 offerings, 0 demands, 0 users, 0 roles, and 0 curriculum entries. The regression was moved to the transaction-safe D2C fixture test and passed there with 46 assertions. Do not run a `RefreshDatabase` suite against a preserved acceptance fixture without an approved snapshot/rebuild lane.
+
+The separately approved recovery-and-corrected-rebuild gate has now passed. A rollback-only phase profile first proved that the apparent stall was synthetic password-hashing cost, not curriculum, offering, demand-generation, scheduling-readiness, or solver behavior: creating the 270 student users at standalone bcrypt work factor 12 consumed 85.589 seconds, whereas all phases after student creation completed in about 9.5 seconds. The guarded retry used `BCRYPT_ROUNDS=4` only in the testing process, matching PHPUnit's existing work factor without changing production configuration. It completed the corrected foundation in 15.269 seconds and then loaded the exploration overlay.
+
+The current persistent `test_tala_db` passes the non-writing exploration check with 270 students, nine cohorts, fourteen synthetic faculty, 77 active Second Semester offerings, 77 ready demands, 158 three-year curriculum entries, 26 exploration personas, and one denied-login persona. Twelve additional offerings exist only in the closed First Semester to support prior-term enrollment and grade history, so the all-term database total is 89 while the active scheduling fingerprint remains 77. Schedule runs, candidate rows, official meetings, queued jobs, and failed jobs are zero. No solver or external provider was invoked.

@@ -63,6 +63,21 @@ final class SchedulingAcceptanceScenarioCatalog
      *         unassignable_workloads:list<string>,
      *         interpretation:string
      *     },
+     *     curriculum_evidence:array{
+     *         total_authority:'COURSE_ROWS',
+     *         missing_course_policy:'DO_NOT_INVENT',
+     *         third_year_second_semester:array<string,array{
+     *             source_rows:int,
+     *             computed_units:int,
+     *             printed_subtotal:int,
+     *             disposition:'ALIGNED'|'SOURCE_SUBTOTAL_DISCREPANCY'
+     *         }>,
+     *         historical_fixture:array{
+     *             version:'TAL96D5D_SYNTHETIC_V1',
+     *             scheduling_demands:80,
+     *             status:'HISTORICAL_ONLY'
+     *         }
+     *     },
      *     operating_grid:array{days:list<int>,starts_at:string,ends_at:string,slot_minutes:int},
      *     solver_feasibility:'NOT_EVALUATED',
      *     solver_optimality:'NOT_EVALUATED'
@@ -94,6 +109,7 @@ final class SchedulingAcceptanceScenarioCatalog
                 'scheduling_demands' => $sectionCount,
             ],
             'faculty_evidence' => $facultyEvidence,
+            'curriculum_evidence' => $this->curriculumEvidence(),
             'operating_grid' => [
                 'days' => [1, 2, 3, 4, 5, 6],
                 'starts_at' => '07:00:00',
@@ -195,23 +211,22 @@ final class SchedulingAcceptanceScenarioCatalog
             'DBM' => [
                 'First Year' => ['GE04', 'GE05', 'BME05', 'BME04', 'CSNCII', 'GE06', 'PE02', 'FOSNCII', 'NSTP02', 'BME06'],
                 'Second Year' => ['AGRONCIII', 'GE10', 'GE09', 'BME09', 'BME10', 'BME11', 'BME12', 'BME13', 'PE04'],
+                'Third Year' => ['THC09', 'THC10', 'HMPRAC03', 'HPC22', 'COOPMM', 'BME20', 'BME21', 'BME16'],
             ],
             'DIT' => [
                 'First Year' => ['GE04', 'GE05', 'GE06', 'CC102', 'PHY101', 'CC103', 'NSTP02', 'PE02'],
                 'Second Year' => ['TECH001', 'NET102', 'VGDNCIII', 'IAS101', 'DM101', 'PE04', 'HCI101', 'IAS102'],
+                'Third Year' => ['SIA101', 'SF101', 'PD101', 'CAP102', 'WEBNCIII2', 'NIHONGO02', 'HMPRAC02'],
             ],
             'DTHM' => [
                 'First Year' => ['HSKPNCII', 'THC05', 'THC04', 'GE04', 'GE05', 'GE06', 'THC03', 'HPC07', 'PE02', 'NSTP02'],
                 'Second Year' => ['THC07', 'HPC11EMS', 'THC08', 'BME01', 'HPC13EMS', 'GE10', 'GE09', 'PE04', 'THC06'],
+                'Third Year' => ['THC09', 'THC10', 'HMPRAC03', 'HPC22', 'HPC23', 'HPC24', 'HPC20', 'HMPRAC02'],
             ],
         ];
 
         if (! isset($courses[$program])) {
             throw new InvalidArgumentException("Unknown scenario program [{$program}].");
-        }
-
-        if ($year === 'Third Year') {
-            return $courses[$program]['Second Year'];
         }
 
         if (! isset($courses[$program][$year])) {
@@ -269,10 +284,60 @@ final class SchedulingAcceptanceScenarioCatalog
     {
         return match ($scenario) {
             self::Min => 'Uses the client-reported 47 students and nine-faculty count; identities, faculty records, rooms, qualifications, and operational availability remain synthetic.',
-            self::Middle => 'The 270-student population, fourteen-faculty operating roster, and third-year subject placement are synthetic acceptance inputs, not client historical claims.',
-            self::Max => 'The 600-student total and fourteen-faculty count are client-reported. Fourteen faculty cannot carry 532 teaching units under the configured 21-unit ceiling, so the acceptance fixture uses a separate sufficient synthetic scheduling roster.',
+            self::Middle => 'The 270-student population and fourteen-faculty operating roster are synthetic acceptance inputs. Current-term course rows follow the approved client-aligned curriculum disposition; identities and operational assignments remain synthetic.',
+            self::Max => 'The 600-student total and fourteen-faculty count are client-reported. Fourteen faculty cannot carry 534 teaching units under the configured 21-unit ceiling, so the acceptance fixture uses a separate sufficient synthetic scheduling roster.',
             default => throw new InvalidArgumentException("Unknown scheduling acceptance scenario [{$scenario}]."),
         };
+    }
+
+    /**
+     * @return array{
+     *     total_authority:'COURSE_ROWS',
+     *     missing_course_policy:'DO_NOT_INVENT',
+     *     third_year_second_semester:array<string,array{
+     *         source_rows:int,
+     *         computed_units:int,
+     *         printed_subtotal:int,
+     *         disposition:'ALIGNED'|'SOURCE_SUBTOTAL_DISCREPANCY'
+     *     }>,
+     *     historical_fixture:array{
+     *         version:'TAL96D5D_SYNTHETIC_V1',
+     *         scheduling_demands:80,
+     *         status:'HISTORICAL_ONLY'
+     *     }
+     * }
+     */
+    private function curriculumEvidence(): array
+    {
+        return [
+            'total_authority' => 'COURSE_ROWS',
+            'missing_course_policy' => 'DO_NOT_INVENT',
+            'third_year_second_semester' => [
+                'DBM' => [
+                    'source_rows' => 8,
+                    'computed_units' => 25,
+                    'printed_subtotal' => 28,
+                    'disposition' => 'SOURCE_SUBTOTAL_DISCREPANCY',
+                ],
+                'DIT' => [
+                    'source_rows' => 7,
+                    'computed_units' => 25,
+                    'printed_subtotal' => 25,
+                    'disposition' => 'ALIGNED',
+                ],
+                'DTHM' => [
+                    'source_rows' => 8,
+                    'computed_units' => 29,
+                    'printed_subtotal' => 23,
+                    'disposition' => 'SOURCE_SUBTOTAL_DISCREPANCY',
+                ],
+            ],
+            'historical_fixture' => [
+                'version' => 'TAL96D5D_SYNTHETIC_V1',
+                'scheduling_demands' => 80,
+                'status' => 'HISTORICAL_ONLY',
+            ],
+        ];
     }
 
     /**
@@ -310,7 +375,7 @@ final class SchedulingAcceptanceScenarioCatalog
             self::Middle => [
                 'client_reported_faculty' => null,
                 'synthetic_scheduling_faculty' => 14,
-                'total_teaching_units' => 240.0,
+                'total_teaching_units' => 241.0,
                 'arithmetic_faculty_lower_bound' => 12,
                 'max_units_per_faculty' => 21.0,
                 'maximum_constructed_load' => 18.0,
@@ -322,14 +387,14 @@ final class SchedulingAcceptanceScenarioCatalog
             self::Max => [
                 'client_reported_faculty' => 14,
                 'synthetic_scheduling_faculty' => 26,
-                'total_teaching_units' => 532.0,
+                'total_teaching_units' => 534.0,
                 'arithmetic_faculty_lower_bound' => 26,
                 'max_units_per_faculty' => 21.0,
                 'maximum_constructed_load' => 21.0,
                 'availability_assumption' => 'FULL_OPERATING_GRID',
                 'bounded_readiness' => 'PASS',
                 'unassignable_workloads' => [],
-                'interpretation' => 'The historical fourteen-faculty count is preserved as evidence but is insufficient for 532 teaching units. Twenty-six is a sufficient synthetic construction, not a proven institutional minimum.',
+                'interpretation' => 'The historical fourteen-faculty count is preserved as evidence but is insufficient for 534 teaching units. Twenty-six is a sufficient synthetic construction, not a proven institutional minimum.',
             ],
             default => throw new InvalidArgumentException("Unknown scheduling acceptance scenario [{$scenario}]."),
         };
