@@ -69,6 +69,11 @@ class ScheduleGenerationRunsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('term_id')
+                    ->label('Term')
+                    ->relationship('term', 'label')
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('status')
                     ->options(ScheduleGenerationRun::statusOptions()),
             ])

@@ -69,8 +69,8 @@ final class TAL85BResourceReadinessSurfacesTest extends TestCase
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $accounting = $this->staff(User::StaffRoleAccounting);
         $room = Room::factory()->create([
-            'code' => 'LAB-101',
-            'name' => 'Computer Laboratory 101',
+            'code' => 'TAL85-LAB-101',
+            'name' => 'TAL-85 Computer Laboratory',
             'building' => 'Main',
             'room_type' => Room::TypeComputerLaboratory,
             'capacity' => 36,

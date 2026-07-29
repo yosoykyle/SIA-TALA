@@ -47,10 +47,10 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
 | TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
 | TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
-| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1 done locally and D5E1D2 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
+| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D2 done locally and D5E1D3 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
 | TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
-| TAL-96D5E1D2 | Next planning boundary; unblocked by cleaned D5E1D1 | Timetabling Operating-Journey Recovery from readiness through solve, review, publication, revision, and student/faculty projection. |
-| TAL-96D5E1D3 | Planned; blocked on D5E1D2 | Enrollment, Irregular Placement, Student Record, History, and COR Recovery. |
+| TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery from readiness through solve, review, publication, revision, and student/faculty projection. |
+| TAL-96D5E1D3 | Next; ready for planning | Enrollment, Irregular Placement, Student Record, History, and COR Recovery. |
 | TAL-96D5E1D4 | Planned; blocked on D5E1D3 | Admissions, Evidence Verification, Decision, Duplicate Handling, Handover, and Applicant/Student Projection Recovery. |
 | TAL-96D5E1D5 | Planned; blocked on D5E1D4 | Assessment, PayMongo and Manual Payment, Ledger, Exception, Clearance, Receipt, and Finance-Output Recovery. |
 | TAL-96D5E1D6 | Planned; blocked on D5E1D5 | Grades, Lifecycle, Completion, and Remaining Faculty, Academic Head, and System Super Admin Capability Recovery. |
@@ -64,10 +64,6 @@ Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-
 The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
 
 Approved compact dispositions: preserve aligned implementation; fix only evidence-backed defects or real gaps; leave cosmetic preferences unchanged or optional. The product supports only `FACE_TO_FACE` and `ONLINE` per offering. D2B stabilizes three-year academic inputs. D2C owns the 21:00 operating grid, realistic offering/resource readiness, and executable `MIN`/`MIDDLE`/`MAX` fixtures without invoking Cloud capacity tests. Its approved standalone correction must distinguish client-reported faculty headcount from generated synthetic scheduling capacity and must not treat demographic status or student modality counts as equivalent to TALA academic-standing or per-offering modality dimensions. D3 and D4 use the stable scenarios for functional and cross-role hardening. D5 owns the targeted population/configuration and cost study after workload manifests are final. Earlier Profile A/B/C and proportional experiments remain historical solver-scaling evidence rather than population tiers. Shared cross-program common classes remain routed to TAL-175. Any solver-contract or constraint-model change is a human-gated plan revision.
-
-## Active Approved Plan Contract
-
-No active contract. The next boundary is `Plan TAL-96D5E1D2`.
 
 ## Post-MVP Deferrals
 
@@ -85,4 +81,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: `Plan TAL-96D5E1D2`.
+Next boundary: `Plan TAL-96D5E1D3`.

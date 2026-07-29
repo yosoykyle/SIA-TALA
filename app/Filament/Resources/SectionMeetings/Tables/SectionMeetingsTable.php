@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\SectionMeetings\Tables;
 
+use App\Models\Section;
 use App\Models\SectionMeeting;
+use App\Models\Term;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class SectionMeetingsTable
 {
@@ -76,6 +79,38 @@ class SectionMeetingsTable
             ])
             ->defaultSort('published_at', 'desc')
             ->filters([
+                SelectFilter::make('term_id')
+                    ->label('Term')
+                    ->options(fn (): array => Term::query()
+                        ->orderByDesc('starts_on')
+                        ->orderByDesc('id')
+                        ->pluck('label', 'id')
+                        ->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $meetings): Builder => $meetings->whereHas(
+                            'scheduleRun',
+                            fn (Builder $runs): Builder => $runs->where('term_id', (int) $data['value']),
+                        ),
+                    ))
+                    ->searchable(),
+                SelectFilter::make('day_of_week')
+                    ->label('Day')
+                    ->options(SectionMeeting::dayOptions()),
+                SelectFilter::make('section_id')
+                    ->label('Section')
+                    ->options(fn (): array => Section::query()
+                        ->orderBy('code')
+                        ->pluck('code', 'id')
+                        ->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $meetings): Builder => $meetings->whereHas(
+                            'schedulingDemand.sectionDeliveryGroup',
+                            fn (Builder $groups): Builder => $groups->where('section_id', (int) $data['value']),
+                        ),
+                    ))
+                    ->searchable(),
                 SelectFilter::make('modality')
                     ->options(SectionMeeting::modalityOptions()),
             ])

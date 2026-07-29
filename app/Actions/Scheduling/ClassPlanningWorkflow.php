@@ -90,7 +90,9 @@ class ClassPlanningWorkflow
                         $readiness['delivery_group_issues'],
                     ),
                     actionLabel: 'Review offerings and sections',
-                    actionUrl: TermOfferingResource::getUrl('index'),
+                    actionUrl: TermOfferingResource::getUrl('index', [
+                        'filters' => ['term' => ['value' => $term->getKey()]],
+                    ]),
                 ),
                 $this->stage(
                     key: 'resources',
@@ -114,9 +116,11 @@ class ClassPlanningWorkflow
                     summary: "{$counts['ready_requirements']} of {$counts['requirements']} schedule requirements are ready.",
                     blocker: $this->requirementsBlocker($counts, $resourcesReady),
                     actionLabel: 'Review schedule requirements',
-                    actionUrl: SchedulingDemandResource::getUrl('index'),
+                    actionUrl: SchedulingDemandResource::getUrl('index', [
+                        'filters' => ['term_id' => ['value' => $term->getKey()]],
+                    ]),
                 ),
-                $this->generatedStage($latestRun, $requirementsReady),
+                $this->generatedStage($latestRun, $requirementsReady, (int) $term->getKey()),
                 $this->stage(
                     key: 'published',
                     title: 'Published Timetable',
@@ -129,7 +133,9 @@ class ClassPlanningWorkflow
                         ? 'None. Future changes must use the controlled revision workflow.'
                         : 'A validated candidate must be reviewed and explicitly published by the Registrar.',
                     actionLabel: 'View published timetable',
-                    actionUrl: SectionMeetingResource::getUrl('index'),
+                    actionUrl: SectionMeetingResource::getUrl('index', [
+                        'filters' => ['term_id' => ['value' => $term->getKey()]],
+                    ]),
                 ),
             ],
         ];
@@ -292,8 +298,11 @@ class ClassPlanningWorkflow
     /**
      * @return array{key:string,title:string,description:string,status:string,color:string,summary:string,blocker:string,owner:string,action_label:string,action_url:string}
      */
-    private function generatedStage(?ScheduleGenerationRun $run, bool $requirementsReady): array
-    {
+    private function generatedStage(
+        ?ScheduleGenerationRun $run,
+        bool $requirementsReady,
+        int $termId,
+    ): array {
         if (! $run instanceof ScheduleGenerationRun) {
             return $this->stage(
                 key: 'generated',
@@ -305,7 +314,9 @@ class ClassPlanningWorkflow
                     ? 'None. The Registrar may request timetable generation.'
                     : 'All schedule requirements must be ready before generation.',
                 actionLabel: 'Generate timetable',
-                actionUrl: ScheduleGenerationRunResource::getUrl('index'),
+                actionUrl: ScheduleGenerationRunResource::getUrl('index', [
+                    'filters' => ['term_id' => ['value' => $termId]],
+                ]),
             );
         }
 

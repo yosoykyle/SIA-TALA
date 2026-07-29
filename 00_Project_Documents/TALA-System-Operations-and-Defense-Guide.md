@@ -594,6 +594,37 @@ Likely panel questions:
 | Can the Academic Head or System Admin publish? | No. The approved responsibility model makes the Registrar the operational publisher; Academic Head review is read-only and System Admin authority is infrastructural, not academic. |
 | Did this change the equations or CP-SAT contract? | No. B2C changed operating order, labels, responsive presentation, and one proven policy defect. The solver request, equations, validation, candidate records, publication service, and official projections were preserved. |
 
+#### 5.5.8 TAL-96D5E1D2 Timetabling operating-journey closure
+
+TAL-96D5E1D2 preserves the B2C six-stage Class Planning workflow and closes three operating-presentation gaps without changing scheduling equations, requests, validation, publication, revision, schema, or fixtures:
+
+1. **The selected Term remains selected.** Opening Term Offerings, Schedule Requirements, Generated Timetables, or the Published Timetable from Class Planning carries the selected Term into the destination's native table filter. Staff no longer have to remember and reselect the operating context after every transition.
+2. **An active request explains and refreshes itself.** A queued or dispatching Generated Timetable review shows a plain next-step message and refreshes every five seconds while the summary is visible. Polling stops when the request reaches review or another terminal operating state; no WebSocket or new dependency is required.
+3. **Operational lists expose bounded native filters.** Generated Timetables can be filtered by Term and result status. The Published Timetable can be filtered by Term, day, Section, and teaching mode. These filters change only the visible query; authorization and official-record scoping remain enforced by the Resource.
+
+| Run state | What the operator should understand | Next action |
+|---|---|---|
+| Queued | The immutable request is waiting for the configured timetable worker. | Keep the review open or return to the polling list; do not create a duplicate request for the same Term. |
+| Dispatching | The worker is processing the request. | Wait for automatic refresh; System administration may inspect integration evidence, but cannot make the academic publication decision. |
+| Failed | The request did not produce a candidate. | Review Operations and Diagnostics, then retry only when the recorded classification and Registrar policy permit it. |
+| Blocked | A candidate or response failed the required validation/publication conditions. | Follow the retained validation finding to its owning source record, correct the input or candidate, and revalidate. |
+| Under Review | Candidate assignments exist for human and Laravel review. | Inspect coverage, hard-rule evidence, warnings, and solution quality; correct when warranted; publish only after validation passes. |
+| Published | The Registrar explicitly made the validated version official. | Use the Published Timetable; later changes require the controlled revision workflow and a reason. |
+| Superseded | A newer official version replaced this publication. | Treat the record as retained history, not the timetable projected to Faculty or Students. |
+
+The UI-specific comparison used the official UniTime solver manual/screen and Oracle PeopleSoft Student Records process reference only as interaction evidence: prerequisites should be validated before solving; live status and candidate quality must be understandable; correction remains under operator control; and saved candidate work must be distinct from institutional publication. TALA retains its approved Registrar ownership, Laravel revalidation, candidate-versus-official boundary, and native Filament presentation rather than copying another product's information architecture.
+
+**Programmatic evidence:** `TAL96D5E1D2TimetablingOperatingJourneyTest` covers selected-Term continuity, active-detail refresh, and Term/day/Section filtering. Together with the reused readiness, duplicate-active-run, failure/retry, assignment-validation, candidate-review, publication, revision, notification, authorization, and Student/Faculty projection suites, the bounded implementation pass covered 123 tests and 1,753 assertions. A pre-existing TAL-85 test collision with the preserved `LAB-101` MIDDLE room was corrected by giving that test its own unique room code; production data and the MIDDLE fixture were not changed. The final changed-surface rerun passed 14 tests and 256 assertions after formatting. Scoped PHPStan reported no errors. The D2 execution invoked no solver, Cloud service, external provider, reseed, or destructive database operation. Rendered responsive and first-time acceptance remains consolidated under TAL-96D5E1E.
+
+Likely panel questions:
+
+| Question | Defensible answer |
+|---|---|
+| Does automatic refresh start another solve? | No. It only reloads the existing Schedule Run record while its state is queued or dispatching. |
+| Why does the Published Timetable need separate filters? | Publication is Term-wide, but staff commonly inspect a particular day, Section, or teaching mode. Native filters reduce noise without changing the official records. |
+| Can a filtered table expose a record the role is not allowed to see? | No. Filters narrow the Resource's already-authorized base query; they are not an authorization mechanism and cannot widen it. |
+| Did D2 change feasibility, optimization, or solver runtime? | No. D2 changed only operating context and presentation. Solver behavior and capacity evidence remain governed by the approved scheduling contract and completed D5D study. |
+
 ### 5.6 Enrollment window, proposal, and placement hardening
 
 #### 5.6.1 Operating contract

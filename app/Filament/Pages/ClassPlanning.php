@@ -127,7 +127,9 @@ class ClassPlanning extends Page
             ActionGroup::make([
                 Action::make('termOfferings')
                     ->label('Term offerings')
-                    ->url(TermOfferingResource::getUrl('index')),
+                    ->url(fn (): string => TermOfferingResource::getUrl('index', [
+                        'filters' => ['term' => ['value' => $this->termId]],
+                    ])),
                 Action::make('sections')
                     ->label('Sections and delivery groups')
                     ->url(SectionResource::getUrl('index'))
@@ -146,13 +148,19 @@ class ClassPlanning extends Page
                     ->url(CalendarEventResource::getUrl('index')),
                 Action::make('requirements')
                     ->label('Schedule requirements')
-                    ->url(SchedulingDemandResource::getUrl('index')),
+                    ->url(fn (): string => SchedulingDemandResource::getUrl('index', [
+                        'filters' => ['term_id' => ['value' => $this->termId]],
+                    ])),
                 Action::make('generatedTimetables')
                     ->label('Generated timetables')
-                    ->url(ScheduleGenerationRunResource::getUrl('index')),
+                    ->url(fn (): string => ScheduleGenerationRunResource::getUrl('index', [
+                        'filters' => ['term_id' => ['value' => $this->termId]],
+                    ])),
                 Action::make('publishedTimetable')
                     ->label('Published timetable')
-                    ->url(SectionMeetingResource::getUrl('index')),
+                    ->url(fn (): string => SectionMeetingResource::getUrl('index', [
+                        'filters' => ['term_id' => ['value' => $this->termId]],
+                    ])),
             ])
                 ->label('Source records')
                 ->icon(Heroicon::OutlinedCircleStack)

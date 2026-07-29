@@ -33,19 +33,36 @@ class ScheduleGenerationRunInfolist
         return $schema
             ->components([
                 Section::make('Generated Timetable Summary')
+                    ->extraAttributes(fn (ScheduleGenerationRun $record): array => in_array($record->status, [
+                        ScheduleGenerationRun::StatusQueued,
+                        ScheduleGenerationRun::StatusDispatching,
+                    ], true) ? [
+                        'wire:poll.5s.visible' => 'refreshScheduleRun',
+                    ] : [])
                     ->schema([
                         TextEntry::make('term.label')
                             ->label('Term'),
                         TextEntry::make('status')
                             ->badge()
+                            ->formatStateUsing(fn (string $state): string => ScheduleGenerationRun::statusOptions()[$state] ?? Str::headline($state))
                             ->color(fn (string $state): string => ScheduleGenerationRun::statusColors()[$state] ?? 'gray'),
                         TextEntry::make('requester.name')
                             ->label('Requested By')
                             ->placeholder('-'),
+                        TextEntry::make('live_status_guidance')
+                            ->label('What happens next')
+                            ->state(fn (ScheduleGenerationRun $record): string => $record->status === ScheduleGenerationRun::StatusQueued
+                                ? 'The request is waiting for the timetable worker. This page refreshes automatically while it is active.'
+                                : 'The timetable worker is processing this request. Keep this page open; its status refreshes automatically.')
+                            ->visible(fn (ScheduleGenerationRun $record): bool => in_array($record->status, [
+                                ScheduleGenerationRun::StatusQueued,
+                                ScheduleGenerationRun::StatusDispatching,
+                            ], true))
+                            ->columnSpanFull(),
                     ])
                     ->columns(3),
-                Section::make('Technical Run Details')
-                    ->description('Diagnostic provenance for troubleshooting and defense evidence. These fields do not determine whether the timetable is official.')
+                Section::make('Operations and Diagnostics')
+                    ->description('Worker attempts and technical provenance for troubleshooting. These fields do not make the timetable official.')
                     ->schema([
                         TextEntry::make('dispatch_cycle')
                             ->label('Dispatch Cycle')
