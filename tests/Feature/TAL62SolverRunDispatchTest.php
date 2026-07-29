@@ -574,8 +574,8 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $component->assertNotified(
             Notification::make()
-                ->title('Solver run queued')
-                ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch. Status refreshes automatically every five seconds.")
+                ->title('Timetable generation requested')
+                ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically every five seconds.")
                 ->success(),
         );
     }

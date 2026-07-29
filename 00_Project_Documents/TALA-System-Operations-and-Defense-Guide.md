@@ -541,6 +541,59 @@ These are optimization-quality measures. TALA does not present a machine-learnin
 | Does `Feasible` mean incorrect? | No. It means all validated hard constraints pass, but the solver did not prove that no better objective value exists within the time limit. |
 | Do printed schedules come from a separate file? | No. The browser-ready output is built from the same active official records as the on-screen Faculty or Student schedule and is owner-scoped and audited. |
 
+#### 5.5.7 TAL-96D5E1B2C Class Planning operating workflow
+
+TAL-96D5E1B2C turns the previously fragmented scheduling navigation into one Registrar-centered operating sequence without merging or deleting the authoritative records:
+
+1. **Prerequisites** — confirm the selected Term, operating calendar, active curricula, and academic source records.
+2. **Offerings and Sections** — prepare the courses taught in the Term, their Sections, capacities, and delivery groups.
+3. **Teaching Resources** — confirm qualified Faculty, approved load limits, active Rooms, and recurring availability.
+4. **Schedule Requirements** — generate and correct the required class components. The canonical persisted record remains a Scheduling Demand.
+5. **Generated Timetables** — request generation only after readiness passes, then review assignment coverage, hard-rule validation, warnings, and solution quality.
+6. **Published Timetable** — explicitly publish a validated candidate. Only active official Section Meetings project to Students and Faculty.
+
+The **Class Planning** page is the primary navigation entry for this workflow. It is a read-only presenter over existing readiness and scheduling services: it shows the current state, blocker, owner, and one next action for each stage. Existing Resources remain available as contextual **Source records** at their established, policy-protected URLs; a link is hidden when that Resource denies the current role. Teaching Resources directs the Registrar to Faculty Qualifications, Faculty Term Loads, or Rooms according to the retained blocker evidence instead of always opening one generic source. No stage silently creates a source record, invokes CP-SAT, corrects a candidate, or publishes a timetable.
+
+| Role | Class Planning access and responsibility |
+| --- | --- |
+| Registrar | Owns source preparation, Schedule Requirement generation, bounded timetable requests, candidate review/correction, and explicit publication. |
+| Academic Head | May inspect the Class Planning flow and authorized exception evidence read-only; cannot create or edit Term Offerings or publish. |
+| System Super Admin | Has no academic Class Planning or Term Offering authority; integration and runtime diagnosis remain separate System responsibilities. |
+| Faculty | Does not operate Class Planning; receives only the authorized official assigned-schedule projection. |
+| Student | Does not operate Class Planning; receives only the official timetable rows bound through enrollment. |
+
+Failure and blocked states remain specific:
+
+- missing academic or Term prerequisites block Offerings and Sections;
+- missing Sections, delivery groups, Faculty inputs, Room inputs, or availability keep the responsible source stage blocked;
+- absent or invalid Schedule Requirements block timetable generation;
+- a queued or dispatching request is shown as in progress, while failed or validation-blocked results direct the Registrar to the retained findings;
+- a generated candidate is never described as official; publication remains an explicit Registrar action; and
+- no published meetings means Faculty and Student schedule projections truthfully remain unavailable.
+
+The Tables below the workflow lead with human-identifiable course, Section, Term, time, Faculty, Room, teaching mode, state, and next-action information. Internal demand keys, solver/model identifiers, publication versions, meeting sequence values, and similar provenance remain available as toggle-hidden or collapsed evidence. Secondary row and candidate actions are grouped so narrow viewports retain one clear action entry.
+
+**Deferred concise manual acceptance — owned by TAL-96D5E1E**
+
+| ID | Role | Starting state | Check | Expected result |
+| --- | --- | --- | --- | --- |
+| B2C-M01 | Registrar | Term missing one prerequisite | Open Class Planning and select the Term | The first failed stage names the prerequisite; later generation remains blocked without mutation. |
+| B2C-M02 | Registrar | Complete source records and ready Schedule Requirements | Follow the six stages without invoking an external solve | Each stage links to the correct existing source; readiness and candidate-versus-official wording remain distinct. |
+| B2C-M03 | Academic Head | Existing Term and scheduling evidence | Open Class Planning and source records | The flow and permitted evidence are readable; create, edit, correction, generation, and publication controls are absent or denied. |
+| B2C-M04 | System Super Admin | Valid System account | Attempt Class Planning and Term Offering routes | Access is denied; no academic mutation is possible. |
+| B2C-M05 | Registrar, Faculty, Student | A separately approved official timetable exists | Publish through the controlled gate, then inspect projections | Registrar sees active official meetings; Faculty and Student see only their authorized published rows. |
+| B2C-M06 | Any affected role | Narrow viewport | Inspect workflow, Tables, and candidate actions | Primary content remains readable; technical columns do not dominate; secondary actions remain grouped and reachable. |
+
+Likely panel questions:
+
+| Question | Defensible answer |
+| --- | --- |
+| Why is Class Planning one page if the data remains in several tables? | The page is the operator's workflow and readiness map; Term Offerings, Sections, requirements, runs, candidates, and official meetings remain separate authoritative records with different lifecycle and audit duties. |
+| Does opening Class Planning run the solver? | No. It performs read-only readiness presentation. Generation requires a separate authorized and confirmed action after prerequisites pass. |
+| Why preserve both a Generated Timetable and a Published Timetable? | The generated candidate is optimization output under review. Only the Registrar's explicitly published, Laravel-validated version becomes official. |
+| Can the Academic Head or System Admin publish? | No. The approved responsibility model makes the Registrar the operational publisher; Academic Head review is read-only and System Admin authority is infrastructural, not academic. |
+| Did this change the equations or CP-SAT contract? | No. B2C changed operating order, labels, responsive presentation, and one proven policy defect. The solver request, equations, validation, candidate records, publication service, and official projections were preserved. |
+
 ### 5.6 Enrollment window, proposal, and placement hardening
 
 #### 5.6.1 Operating contract

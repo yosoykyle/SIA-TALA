@@ -23,7 +23,7 @@ class SchedulingDemandResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Scheduling Demand';
+    protected static ?string $navigationLabel = 'Schedule Requirements';
 
     protected static ?int $navigationSort = 29;
 

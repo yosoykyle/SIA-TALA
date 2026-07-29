@@ -33,34 +33,40 @@ class ScheduleGenerationRunsTable
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('status')
+                TextColumn::make('result_summary')
+                    ->label('Result')
+                    ->state(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusOptions()[$record->status] ?? str($record->status)->headline())
                     ->badge()
-                    ->color(fn (string $state): string => ScheduleGenerationRun::statusColors()[$state] ?? 'gray')
+                    ->color(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusColors()[$record->status] ?? 'gray')
                     ->searchable(),
-                TextColumn::make('candidate_rows_count')
-                    ->label('Candidate Rows')
-                    ->numeric()
-                    ->sortable(),
+                TextColumn::make('assignment_summary')
+                    ->label('Assignments')
+                    ->state(fn (ScheduleGenerationRun $record): string => "{$record->candidate_rows_count} candidate assignments"),
                 TextColumn::make('requester.name')
                     ->label('Requested By')
                     ->placeholder('-'),
+                TextColumn::make('created_at')
+                    ->label('Requested at')
+                    ->dateTime()
+                    ->sortable(),
                 TextColumn::make('solver_version')
+                    ->label('Solver version')
                     ->placeholder('-')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('model_version')
+                    ->label('Model version')
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('runtime_ms')
                     ->label('Runtime ms')
                     ->numeric()
                     ->placeholder('-')
-                    ->toggleable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
+                    ->label('Last updated')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('status')
@@ -68,8 +74,12 @@ class ScheduleGenerationRunsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()
+                    ->label('Review timetable'),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No generated timetables are recorded')
+            ->emptyStateDescription('Resolve every schedule requirement first, then request timetable generation from Class Planning.');
     }
 }

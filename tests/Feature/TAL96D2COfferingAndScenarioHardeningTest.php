@@ -310,7 +310,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             ->assertSee('77 offerings / 77 sections')
             ->assertSee('4. Teaching Resources')
             ->assertSee('14 faculty / 6 rooms')
-            ->assertSee('5. Scheduling Demands')
+            ->assertSee('5. Schedule Requirements')
             ->assertSee('77 ready for review')
             ->assertSee('6. Published Timetable')
             ->assertSee('Not published');

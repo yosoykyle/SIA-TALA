@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\AcademicReadiness;
+use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
@@ -143,6 +144,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 AcademicReadiness::class,
+                ClassPlanning::class,
                 FacultyGradeRoster::class,
                 FacultySchedule::class,
                 ReportsAudit::class,
@@ -188,15 +190,7 @@ class AdminPanelProvider extends PanelProvider
                     ])),
                 NavigationGroup::make('Offerings & Scheduling')
                     ->items($this->navigationItems([
-                        CalendarEventResource::class,
-                        RoomResource::class,
-                        FacultyQualificationResource::class,
-                        FacultyTermLoadOverrideResource::class,
-                        TermOfferingResource::class,
-                        SectionResource::class,
-                        SchedulingDemandResource::class,
-                        ScheduleGenerationRunResource::class,
-                        SectionMeetingResource::class,
+                        ClassPlanning::class,
                         FacultySchedule::class,
                     ])),
                 NavigationGroup::make('Enrollment')

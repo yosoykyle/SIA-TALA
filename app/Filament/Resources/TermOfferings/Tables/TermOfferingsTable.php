@@ -13,19 +13,35 @@ class TermOfferingsTable
     {
         return $table
             ->columns([
-                TextColumn::make('term.label')->searchable()->sortable(),
                 TextColumn::make('curriculumEntry.courseSpecification.course.code')
-                    ->label('Subject Code')
-                    ->searchable(),
-                TextColumn::make('curriculumEntry.courseSpecification.title')
-                    ->label('Subject Title')
-                    ->searchable(),
-                TextColumn::make('category')->badge(),
-                TextColumn::make('delivery_variant')->label('Delivery')->badge(),
-                TextColumn::make('modality')->badge(),
-                TextColumn::make('expected_count')->label('Expected')->numeric(),
-                TextColumn::make('sections_count')->counts('sections')->label('Sections'),
-                TextColumn::make('state')->badge(),
+                    ->label('Course')
+                    ->description(fn (TermOffering $record): string => $record->curriculumEntry?->courseSpecification->title ?? 'Title not recorded')
+                    ->searchable()
+                    ->weight('bold'),
+                TextColumn::make('term.label')
+                    ->label('Term')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('modality')
+                    ->label('Teaching mode')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (TermOffering::modalityOptions()[$state] ?? str($state)->headline()->toString())),
+                TextColumn::make('expected_count')
+                    ->label('Planned class size')
+                    ->numeric(),
+                TextColumn::make('sections_count')
+                    ->counts('sections')
+                    ->label('Sections'),
+                TextColumn::make('state')
+                    ->label('Planning state')
+                    ->badge(),
+                TextColumn::make('category')
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('delivery_variant')
+                    ->label('Delivery rule')
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('term')->relationship('term', 'label'),
@@ -38,6 +54,9 @@ class TermOfferingsTable
                     TermOffering::StateScheduled => 'Scheduled',
                     TermOffering::StateCancelled => 'Cancelled',
                 ]),
-            ]);
+            ])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No term offerings are recorded')
+            ->emptyStateDescription('Open Class Planning and create the term offerings before sections or schedule requirements can be prepared.');
     }
 }

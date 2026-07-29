@@ -19,11 +19,21 @@ class ListScheduleGenerationRuns extends ListRecords
 {
     protected static string $resource = ScheduleGenerationRunResource::class;
 
+    public function getTitle(): string
+    {
+        return 'Generated Timetables';
+    }
+
+    public function getSubheading(): string
+    {
+        return 'Review every generation request and open its assignments, validation evidence, solution quality, and publication controls.';
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             Action::make('dispatchSolverRun')
-                ->label('Dispatch Solver Run')
+                ->label('Generate Timetable')
                 ->icon(Heroicon::OutlinedPaperAirplane)
                 ->color('primary')
                 ->visible(fn (): bool => auth()->user()?->can('create', ScheduleGenerationRun::class) ?? false)
@@ -37,11 +47,11 @@ class ListScheduleGenerationRuns extends ListRecords
                             ->all())
                         ->searchable()
                         ->required()
-                        ->helperText('Dispatch uses only READY_FOR_REVIEW Scheduling Demand rows and blocks if any demand for the term still needs action.'),
+                        ->helperText('Only ready Schedule Requirements are included. Generation is blocked while any requirement for the term still needs correction.'),
                 ])
-                ->modalHeading('Dispatch Solver Run')
-                ->modalDescription('Creates an immutable TAL-61 demand payload and queues the configured scheduling solver client.')
-                ->modalSubmitActionLabel('Dispatch')
+                ->modalHeading('Generate Timetable')
+                ->modalDescription('Captures the current ready requirements as one protected request, then sends it to the configured timetable generator. Nothing becomes official until Registrar review and publication.')
+                ->modalSubmitActionLabel('Generate Timetable')
                 ->action(function (array $data): void {
                     $actor = auth()->user();
 
@@ -56,16 +66,16 @@ class ListScheduleGenerationRuns extends ListRecords
                         );
 
                         Notification::make()
-                            ->title('Solver run queued')
-                            ->body("Run #{$run->id} captured READY_FOR_REVIEW demand rows for dispatch. Status refreshes automatically every five seconds.")
+                            ->title('Timetable generation requested')
+                            ->body("Request #{$run->id} captured the current ready requirements. Its status refreshes automatically every five seconds.")
                             ->success()
                             ->send();
                     } catch (ValidationException $exception) {
                         $message = collect($exception->errors())->flatten()->first();
 
                         Notification::make()
-                            ->title('Solver run blocked')
-                            ->body(is_string($message) ? $message : 'Review the scheduling demand readiness findings and try again.')
+                            ->title('Timetable generation blocked')
+                            ->body(is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.')
                             ->danger()
                             ->persistent()
                             ->send();
@@ -73,8 +83,8 @@ class ListScheduleGenerationRuns extends ListRecords
                         report($exception);
 
                         Notification::make()
-                            ->title('Solver run failed')
-                            ->body('TALA could not queue the solver run. Try again or ask the System Administrator to review the application log.')
+                            ->title('Timetable generation failed')
+                            ->body('TALA could not queue the timetable request. Try again or ask the System Administrator to review the application log.')
                             ->danger()
                             ->persistent()
                             ->send();

@@ -9,6 +9,7 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
@@ -29,7 +30,7 @@ class CandidateRowsRelationManager extends RelationManager
 {
     protected static string $relationship = 'candidateRows';
 
-    protected static ?string $title = 'Candidate Rows Review';
+    protected static ?string $title = 'Candidate Assignments';
 
     public function infolist(Schema $schema): Schema
     {
@@ -167,17 +168,22 @@ class CandidateRowsRelationManager extends RelationManager
             ])
             ->defaultSort('day_of_week')
             ->recordActions([
-                ViewAction::make()
-                    ->label('Details'),
-                $this->correctAssignmentAction(),
+                ActionGroup::make([
+                    ViewAction::make()
+                        ->label('Review evidence'),
+                    $this->correctAssignmentAction(),
+                ]),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No candidate assignments are available')
+            ->emptyStateDescription('The timetable request has not returned any assignments to review.');
     }
 
     private function correctAssignmentAction(): Action
     {
         return Action::make('correctAssignment')
-            ->label('Correct Assignment')
+            ->label('Correct assignment')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->modalHeading('Correct Candidate Assignment')
             ->modalDescription('TALA revalidates the complete candidate schedule before saving this correction.')

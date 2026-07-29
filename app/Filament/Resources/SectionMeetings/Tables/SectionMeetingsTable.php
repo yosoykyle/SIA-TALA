@@ -15,35 +15,34 @@ class SectionMeetingsTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with([
                 'scheduleRun.term',
-                'schedulingDemand.courseComponent',
+                'schedulingDemand.courseComponent.courseSpecification.course',
                 'schedulingDemand.sectionDeliveryGroup.section',
                 'faculty',
                 'room',
             ]))
             ->columns([
+                TextColumn::make('course_and_section')
+                    ->label('Class')
+                    ->state(fn (SectionMeeting $record): string => collect([
+                        $record->schedulingDemand?->courseComponent?->courseSpecification?->course?->code,
+                        $record->schedulingDemand?->sectionDeliveryGroup?->section?->code,
+                    ])->filter()->implode(' · '))
+                    ->description(fn (SectionMeeting $record): string => $record->schedulingDemand?->courseComponent?->courseSpecification->title ?? 'Course title not recorded')
+                    ->weight('bold')
+                    ->wrap(),
+                TextColumn::make('meeting_time')
+                    ->label('Meeting time')
+                    ->state(fn (SectionMeeting $record): string => collect([
+                        SectionMeeting::dayOptions()[$record->day_of_week] ?? null,
+                        filled($record->starts_at) && filled($record->ends_at)
+                            ? mb_substr((string) $record->starts_at, 0, 5).' - '.mb_substr((string) $record->ends_at, 0, 5)
+                            : null,
+                    ])->filter()->implode(' · '))
+                    ->wrap(),
                 TextColumn::make('scheduleRun.term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('scheduleRun.publication_version')
-                    ->label('Version')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('schedulingDemand.demand_key')
-                    ->label('Demand')
-                    ->searchable()
-                    ->wrap(),
-                TextColumn::make('schedulingDemand.sectionDeliveryGroup.section.code')
-                    ->label('Section')
-                    ->searchable()
-                    ->placeholder('-'),
-                TextColumn::make('schedulingDemand.courseComponent.component_type')
-                    ->label('Component')
-                    ->badge()
-                    ->placeholder('-'),
-                TextColumn::make('meeting_sequence')
-                    ->label('Meeting')
-                    ->numeric(),
                 TextColumn::make('faculty.name')
                     ->label('Faculty')
                     ->searchable(),
@@ -51,20 +50,29 @@ class SectionMeetingsTable
                     ->label('Room')
                     ->searchable()
                     ->placeholder('-'),
-                TextColumn::make('day_of_week')
-                    ->label('Day')
-                    ->formatStateUsing(fn (int $state): string => SectionMeeting::dayOptions()[$state] ?? '-'),
-                TextColumn::make('starts_at')
-                    ->label('Start'),
-                TextColumn::make('ends_at')
-                    ->label('End'),
                 TextColumn::make('modality')
+                    ->label('Teaching mode')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => SectionMeeting::modalityOptions()[$state] ?? str($state)->headline()->toString()),
+                TextColumn::make('scheduleRun.publication_version')
+                    ->label('Published version')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('schedulingDemand.demand_key')
+                    ->label('Technical requirement key')
+                    ->searchable()
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('meeting_sequence')
+                    ->label('Meeting sequence')
+                    ->numeric()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('published_at')
-                    ->label('Published At')
+                    ->label('Published at')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('published_at', 'desc')
             ->filters([
@@ -74,6 +82,9 @@ class SectionMeetingsTable
             ->recordActions([
                 ViewAction::make(),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No published timetable is available')
+            ->emptyStateDescription('A generated timetable becomes official only after Registrar review, validation, and explicit publication.');
     }
 }

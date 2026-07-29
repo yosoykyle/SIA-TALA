@@ -4,7 +4,7 @@
 
 **Applies to remaining work:** `TAL-96D5E1` through `TAL-96D5E2`
 
-**Next execution boundary:** TAL-96D5E1A, TAL-96D5E1B1, and TAL-96D5E1B2A are independently verified and cleaned locally. B2A delivered Academic Readiness and the combined curriculum encoding/import-review interaction while preserving authoritative records and the corrected B1 fixture. `Plan TAL-96D5E1B2B` is next for the Admissions Work Queue and contextual Applicant Record. No capacity rerun, deployment, database scenario switch, production promotion, equation, fixture, schema, external-provider action, or live-surface deletion or merge is implied.
+**Next execution boundary:** TAL-96D5E1A, TAL-96D5E1B1, TAL-96D5E1B2A, TAL-96D5E1B2B, and TAL-96D5E1B2C are independently verified and cleaned locally. B2A delivered Academic Readiness and the combined curriculum encoding/import-review interaction; B2B delivered the Admissions Work Queue and contextual Applicant Record while preserving authoritative records; B2C delivered the Class Planning operating sequence with role-safe contextual source links and blocker-owned remediation routes. The corrected 77-demand MIDDLE foundation remains intact. The next boundary is `Plan TAL-96D5E1B3`; consolidated visual/manual acceptance remains owned by TAL-96D5E1E. No capacity rerun, deployment, production promotion, equation, fixture definition, schema, external-provider action, or live-surface deletion or merge is implied.
 
 ## 1. Purpose
 

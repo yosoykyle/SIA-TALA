@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sections\Tables;
 
 use App\Models\Section;
 use App\Models\TermOffering;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -17,24 +18,29 @@ class SectionsTable
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course']))
             ->columns([
+                TextColumn::make('code')
+                    ->label('Section')
+                    ->description(fn (Section $record): string => collect([
+                        $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+                        $record->termOffering?->curriculumEntry?->courseSpecification?->title,
+                    ])->filter()->implode(' · '))
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold'),
                 TextColumn::make('termOffering.term.label')
                     ->label('Term')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('termOffering.curriculumEntry.courseSpecification.course.code')
                     ->label('Course')
-                    ->searchable(),
-                TextColumn::make('termOffering.curriculumEntry.courseSpecification.title')
-                    ->label('Course Title')
-                    ->searchable(),
-                TextColumn::make('code')
-                    ->label('Section Code')
                     ->searchable()
-                    ->sortable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('capacity')
+                    ->label('Seat capacity')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('state')
+                    ->label('Planning state')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Section::stateOptions()[$state] ?? str($state)->headline()->toString())),
             ])
@@ -49,10 +55,15 @@ class SectionsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                ]),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No sections are recorded')
+            ->emptyStateDescription('Create an offering first, then add the regular section and its delivery groups.');
     }
 
     /**

@@ -25,7 +25,7 @@ class ScheduleGenerationRunResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Solver Runs';
+    protected static ?string $navigationLabel = 'Generated Timetables';
 
     protected static ?int $navigationSort = 30;
 

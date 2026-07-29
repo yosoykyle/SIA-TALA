@@ -24,7 +24,7 @@ class SectionMeetingResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Registrar';
 
-    protected static ?string $navigationLabel = 'Official Schedules';
+    protected static ?string $navigationLabel = 'Published Timetable';
 
     protected static ?int $navigationSort = 31;
 

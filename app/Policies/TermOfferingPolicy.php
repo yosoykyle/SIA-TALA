@@ -9,12 +9,12 @@ class TermOfferingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->canManage($user);
+        return $this->canReview($user);
     }
 
     public function view(User $user, TermOffering $termOffering): bool
     {
-        return $this->canManage($user);
+        return $this->canReview($user);
     }
 
     public function create(User $user): bool
@@ -44,6 +44,14 @@ class TermOfferingPolicy
 
     private function canManage(User $user): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]);
+        return $user->hasRole(User::StaffRoleRegistrar);
+    }
+
+    private function canReview(User $user): bool
+    {
+        return $user->hasAnyRole([
+            User::StaffRoleRegistrar,
+            User::StaffRoleAcademicHead,
+        ]);
     }
 }

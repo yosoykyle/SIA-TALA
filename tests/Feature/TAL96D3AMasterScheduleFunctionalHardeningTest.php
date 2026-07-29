@@ -111,8 +111,8 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->callAction(TestAction::make('generateForTerm')->table(), ['term_id' => $term->id])
             ->assertNotified(
                 Notification::make()
-                    ->title('Scheduling demand generation failed')
-                    ->body('TALA could not generate scheduling demand. Try again or ask the System Administrator to review the application log.')
+                    ->title('Schedule requirement generation failed')
+                    ->body('TALA could not generate the schedule requirements. Try again or ask the System Administrator to review the application log.')
                     ->danger()
                     ->persistent(),
             )
@@ -134,8 +134,8 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->callAction('dispatchSolverRun', data: ['term_id' => $term->id])
             ->assertNotified(
                 Notification::make()
-                    ->title('Solver run failed')
-                    ->body('TALA could not queue the solver run. Try again or ask the System Administrator to review the application log.')
+                    ->title('Timetable generation failed')
+                    ->body('TALA could not queue the timetable request. Try again or ask the System Administrator to review the application log.')
                     ->danger()
                     ->persistent(),
             )
@@ -163,7 +163,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->callAction(TestAction::make('generateForTerm')->table(), ['term_id' => $term->id])
             ->assertNotified(
                 Notification::make()
-                    ->title('Scheduling demand generation blocked')
+                    ->title('Schedule requirement generation blocked')
                     ->body('Complete the Term scheduling window before generating demand.')
                     ->danger()
                     ->persistent(),
@@ -187,7 +187,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             ->callAction('dispatchSolverRun', data: ['term_id' => $term->id])
             ->assertNotified(
                 Notification::make()
-                    ->title('Solver run blocked')
+                    ->title('Timetable generation blocked')
                     ->body('Another queued or dispatching solver run already exists for this term.')
                     ->danger()
                     ->persistent(),

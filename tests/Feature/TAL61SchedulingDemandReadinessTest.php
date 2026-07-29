@@ -67,7 +67,9 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
         $this->assertSame(2, $first['ready']);
         $this->assertSame(0, $first['action_required']);
         $this->assertSame(2, $second['total']);
-        $this->assertSame(2, SchedulingDemand::query()->count());
+        $this->assertSame(2, SchedulingDemand::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $source['term']->id))
+            ->count());
 
         $lectureDemand = SchedulingDemand::query()
             ->with([
@@ -75,6 +77,7 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
                 'courseComponent',
                 'sectionDeliveryGroup.section',
             ])
+            ->where('term_offering_id', $source['offering']->id)
             ->where('course_component_id', $source['lecture']->id)
             ->firstOrFail();
 
@@ -115,9 +118,12 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
 
         $this->assertSame(1, $summary['created']);
         $this->assertSame(1, $summary['updated']);
-        $this->assertSame(2, SchedulingDemand::query()->count());
+        $this->assertSame(2, SchedulingDemand::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $source['term']->id))
+            ->count());
 
         $lectureDemand = SchedulingDemand::query()
+            ->where('term_offering_id', $source['offering']->id)
             ->where('course_component_id', $source['lecture']->id)
             ->sole();
 
@@ -137,12 +143,14 @@ final class TAL61SchedulingDemandReadinessTest extends TestCase
             withRooms: false,
             termState: Term::StateDraft,
             groupState: SectionDeliveryGroup::StatePlanned,
-            sectionCapacity: 30,
-            groupExpectedCount: 31,
+            sectionCapacity: 10_000,
+            groupExpectedCount: 10_001,
         );
 
         $summary = $this->generator->forTerm($this->staff(User::StaffRoleRegistrar), $source['term']);
-        $demand = SchedulingDemand::query()->firstOrFail();
+        $demand = SchedulingDemand::query()
+            ->where('term_offering_id', $source['offering']->id)
+            ->firstOrFail();
         $findingKeys = $demand->readinessFindingKeys();
 
         $this->assertSame(1, $summary['action_required']);

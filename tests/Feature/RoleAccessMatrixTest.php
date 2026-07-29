@@ -14,7 +14,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -27,7 +27,10 @@ use Tests\TestCase;
  */
 class RoleAccessMatrixTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    /**
+     * Transaction-only isolation preserves the persistent TAL-96 acceptance fixture.
+     */
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

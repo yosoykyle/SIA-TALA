@@ -15,6 +15,7 @@ use App\Models\ScheduleRevisionEvent;
 use App\Models\SectionMeeting;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -31,28 +32,43 @@ class ViewScheduleGenerationRun extends ViewRecord
     protected static string $resource = ScheduleGenerationRunResource::class;
 
     /**
-     * @return list<Action>
+     * @return list<Action|ActionGroup>
      */
     protected function getHeaderActions(): array
     {
         return [
-            $this->retrySolverRunAction(),
-            $this->revisePublishedScheduleAction(),
-            $this->manualScheduleOverrideAction(),
             $this->publishScheduleAction(),
+            ActionGroup::make([
+                $this->retrySolverRunAction(),
+                $this->revisePublishedScheduleAction(),
+                $this->manualScheduleOverrideAction(),
+            ])
+                ->label('More timetable actions')
+                ->icon(Heroicon::OutlinedEllipsisVertical)
+                ->color('gray'),
         ];
+    }
+
+    public function getTitle(): string
+    {
+        return 'Generated Timetable Review';
+    }
+
+    public function getSubheading(): string
+    {
+        return 'Review assignments and validation evidence first. Publishing is a separate Registrar decision that makes the timetable official.';
     }
 
     public function retrySolverRunAction(): Action
     {
         return Action::make('retrySolverRun')
-            ->label('Retry Solver Run')
+            ->label('Retry timetable generation')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('warning')
             ->requiresConfirmation()
-            ->modalHeading('Retry Solver Run')
-            ->modalDescription('Requeue this same immutable run. Prior solver attempts remain available in Operational Events.')
-            ->modalSubmitActionLabel('Retry Solver Run')
+            ->modalHeading('Retry Timetable Generation')
+            ->modalDescription('Retry this same protected request. Earlier technical attempts remain available in Operational Events.')
+            ->modalSubmitActionLabel('Retry Generation')
             ->visible(fn (): bool => $this->canRetrySolver())
             ->action(function (): void {
                 $actor = auth()->user();
@@ -94,10 +110,10 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function revisePublishedScheduleAction(): Action
     {
         return Action::make('revisePublishedSchedule')
-            ->label('Revise Published Schedule')
+            ->label('Revise published timetable')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('warning')
-            ->modalHeading('Revise Published Schedule')
+            ->modalHeading('Revise Published Timetable')
             ->modalDescription('Preview one controlled live revision. TALA locks and revalidates the complete published schedule before applying any change.')
             ->modalSubmitActionLabel('Validate and Apply Revision')
             ->modalWidth(Width::SevenExtraLarge)
@@ -170,12 +186,12 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function manualScheduleOverrideAction(): Action
     {
         return Action::make('manualScheduleOverride')
-            ->label('Manual Schedule Override')
+            ->label('Enter complete timetable')
             ->icon(Heroicon::OutlinedWrenchScrewdriver)
             ->color('warning')
-            ->modalHeading('Manual Schedule Override')
-            ->modalDescription('Provide one complete replacement assignment set. TALA saves nothing unless every current hard constraint passes.')
-            ->modalSubmitActionLabel('Validate Complete Schedule')
+            ->modalHeading('Enter Complete Timetable')
+            ->modalDescription('This is the controlled Manual Schedule Override. Provide one complete replacement assignment set; TALA saves nothing unless every current hard constraint passes.')
+            ->modalSubmitActionLabel('Validate Complete Timetable')
             ->modalWidth(Width::SevenExtraLarge)
             ->fillForm(fn (): array => [
                 'assignments' => CandidateScheduleReviewForm::replacementRows($this->run()),
@@ -238,13 +254,13 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function publishScheduleAction(): Action
     {
         return Action::make('publishSchedule')
-            ->label('Publish Schedule')
+            ->label('Publish Timetable')
             ->icon(Heroicon::OutlinedCheckCircle)
             ->color('success')
             ->requiresConfirmation()
-            ->modalHeading('Publish Schedule')
+            ->modalHeading('Publish Timetable')
             ->modalDescription(fn (): string => $this->publicationConfirmationDescription())
-            ->modalSubmitActionLabel('Publish Schedule')
+            ->modalSubmitActionLabel('Publish Timetable')
             ->schema([
                 Toggle::make('accept_lower_quality')
                     ->label('Accept lower soft-quality result')
@@ -279,7 +295,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                     );
 
                     Notification::make()
-                        ->title('Schedule published')
+                        ->title('Timetable published')
                         ->success()
                         ->send();
                 } catch (ValidationException $exception) {

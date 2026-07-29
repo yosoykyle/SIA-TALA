@@ -214,7 +214,7 @@ final class TAL66SchedulePublicationTest extends TestCase
         $component = Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->assertActionVisible('publishSchedule')
-            ->assertActionHasLabel('publishSchedule', 'Publish Schedule');
+            ->assertActionHasLabel('publishSchedule', 'Publish Timetable');
 
         $page = $component->instance();
         $this->assertInstanceOf(ViewScheduleGenerationRun::class, $page);
@@ -231,7 +231,7 @@ final class TAL66SchedulePublicationTest extends TestCase
             ->data(['publication_note' => 'Accepted advisory scheduling warning.'])
             ->call();
 
-        $component->assertNotified('Schedule published');
+        $component->assertNotified('Timetable published');
 
         $run->refresh();
 

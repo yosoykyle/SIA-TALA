@@ -32,7 +32,7 @@ class ScheduleGenerationRunInfolist
     {
         return $schema
             ->components([
-                Section::make('Run')
+                Section::make('Generated Timetable Summary')
                     ->schema([
                         TextEntry::make('term.label')
                             ->label('Term'),
@@ -42,22 +42,10 @@ class ScheduleGenerationRunInfolist
                         TextEntry::make('requester.name')
                             ->label('Requested By')
                             ->placeholder('-'),
-                        TextEntry::make('solver_version')
-                            ->placeholder('-'),
-                        TextEntry::make('model_version')
-                            ->placeholder('-'),
-                        TextEntry::make('runtime_ms')
-                            ->numeric()
-                            ->placeholder('-'),
-                        TextEntry::make('objective_value')
-                            ->label('Original Solver Score')
-                            ->numeric()
-                            ->placeholder('-'),
-                        TextEntry::make('candidate_key')
-                            ->placeholder('-'),
                     ])
-                    ->columns(2),
-                Section::make('Operations')
+                    ->columns(3),
+                Section::make('Technical Run Details')
+                    ->description('Diagnostic provenance for troubleshooting and defense evidence. These fields do not determine whether the timetable is official.')
                     ->schema([
                         TextEntry::make('dispatch_cycle')
                             ->label('Dispatch Cycle')
@@ -93,16 +81,37 @@ class ScheduleGenerationRunInfolist
                             ->state(fn (ScheduleGenerationRun $record): string => (string) ($record->finalSolverFailure()['message'] ?? '-'))
                             ->visible(fn (ScheduleGenerationRun $record): bool => $record->finalSolverFailure() !== [])
                             ->columnSpanFull(),
+                        TextEntry::make('solver_version')
+                            ->label('Solver Version')
+                            ->placeholder('-'),
+                        TextEntry::make('model_version')
+                            ->label('Model Version')
+                            ->placeholder('-'),
+                        TextEntry::make('runtime_ms')
+                            ->label('Runtime (ms)')
+                            ->numeric()
+                            ->placeholder('-'),
+                        TextEntry::make('objective_value')
+                            ->label('Original Solver Score')
+                            ->numeric()
+                            ->placeholder('-'),
+                        TextEntry::make('candidate_key')
+                            ->label('Candidate Key')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
                     ])
                     ->columns([
                         'default' => 1,
                         'md' => 2,
                         'xl' => 4,
-                    ]),
-                Section::make('Candidate Review')
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+                Section::make('Assignment Review')
+                    ->description('Review assignment coverage, warnings, and conflicts before considering publication.')
                     ->schema([
                         TextEntry::make('candidate_row_total')
-                            ->label('Candidate Rows')
+                            ->label('Candidate Assignments')
                             ->state(fn (ScheduleGenerationRun $record): int => $record->candidateRows()->count())
                             ->numeric(),
                         TextEntry::make('candidate_row_conflicts')
@@ -117,7 +126,8 @@ class ScheduleGenerationRunInfolist
                             ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
                     ])
                     ->columns(3),
-                Section::make('Publication')
+                Section::make('Publication Status')
+                    ->description('A generated timetable remains a proposal until the Registrar explicitly publishes it.')
                     ->schema([
                         TextEntry::make('publication_version')
                             ->label('Version')
@@ -227,6 +237,7 @@ class ScheduleGenerationRunInfolist
                     ])
                     ->visible(fn (ScheduleGenerationRun $record): bool => self::solverResult($record) !== []),
                 Section::make('Original Solver Result')
+                    ->description('Original provider response retained for technical comparison with current Laravel validation.')
                     ->schema([
                         TextEntry::make('solver_result_status')
                             ->label('Result')
@@ -256,7 +267,9 @@ class ScheduleGenerationRunInfolist
                         'default' => 1,
                         'md' => 3,
                         'xl' => 5,
-                    ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
                 Section::make('Hard Constraint Checklist')
                     ->description('Each listed rule comes from this run\'s captured solver input. Passed means Laravel revalidated the complete candidate and found no violation for that rule.')
                     ->schema([

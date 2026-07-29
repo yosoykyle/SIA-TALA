@@ -3,10 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Pages\AcademicReadiness;
-use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
-use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Filament\Resources\TermOfferings\TermOfferingResource;
+use App\Filament\Pages\ClassPlanning;
 use App\Filament\Resources\Terms\TermResource;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
@@ -106,7 +103,7 @@ class RegistrarOperationalReadinessWidget extends StatsOverviewWidget
                 ->description('Build term offerings first, then confirm their section-planning records.')
                 ->descriptionIcon(Heroicon::OutlinedArrowTopRightOnSquare)
                 ->color($offeringCount > 0 && $sectionCount >= $offeringCount ? 'success' : 'warning')
-                ->url(TermOfferingResource::getUrl('index')),
+                ->url(ClassPlanning::getUrl()),
             Stat::make(
                 '4. Teaching Resources',
                 "{$facultyCount} faculty / {$roomCount} rooms",
@@ -114,17 +111,17 @@ class RegistrarOperationalReadinessWidget extends StatsOverviewWidget
                 ->description('Confirm qualifications, load limits, rooms, and unavailability before demand review.')
                 ->descriptionIcon(Heroicon::OutlinedArrowTopRightOnSquare)
                 ->color($facultyCount > 0 && $roomCount > 0 ? 'success' : 'warning')
-                ->url(FacultyQualificationResource::getUrl('index')),
+                ->url(ClassPlanning::getUrl()),
             Stat::make(
-                '5. Scheduling Demands',
+                '5. Schedule Requirements',
                 $actionRequiredDemandCount > 0
                     ? "{$readyDemandCount} ready / {$actionRequiredDemandCount} need action"
                     : "{$readyDemandCount} ready for review",
             )
-                ->description('Resolve every readiness finding before starting a solver run.')
+                ->description('Resolve every readiness finding before generating a timetable.')
                 ->descriptionIcon(Heroicon::OutlinedArrowTopRightOnSquare)
                 ->color($readyDemandCount > 0 && $actionRequiredDemandCount === 0 ? 'success' : 'warning')
-                ->url(SchedulingDemandResource::getUrl('index')),
+                ->url(ClassPlanning::getUrl()),
             Stat::make(
                 '6. Published Timetable',
                 $publishedMeetingCount > 0
@@ -136,7 +133,7 @@ class RegistrarOperationalReadinessWidget extends StatsOverviewWidget
                     : 'Review a solver candidate and publish it before enrollment schedule projection.')
                 ->descriptionIcon(Heroicon::OutlinedArrowTopRightOnSquare)
                 ->color($publishedMeetingCount > 0 ? 'success' : 'gray')
-                ->url(ScheduleGenerationRunResource::getUrl('index')),
+                ->url(ClassPlanning::getUrl()),
         ];
     }
 

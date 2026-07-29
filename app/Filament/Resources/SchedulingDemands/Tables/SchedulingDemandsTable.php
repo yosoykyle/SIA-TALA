@@ -32,32 +32,35 @@ class SchedulingDemandsTable
                 'fixedRoom',
             ]))
             ->columns([
+                TextColumn::make('course_and_section')
+                    ->label('Class requirement')
+                    ->state(fn (SchedulingDemand $record): string => collect([
+                        $record->courseComponent?->courseSpecification?->course?->code,
+                        $record->sectionDeliveryGroup?->section?->code,
+                    ])->filter()->implode(' · '))
+                    ->description(fn (SchedulingDemand $record): string => collect([
+                        $record->courseComponent?->courseSpecification?->title,
+                        $record->sectionDeliveryGroup?->name,
+                    ])->filter()->implode(' · '))
+                    ->searchable([
+                        'courseComponent.courseSpecification.course.code',
+                        'sectionDeliveryGroup.section.code',
+                    ])
+                    ->weight('bold')
+                    ->wrap(),
+                TextColumn::make('requirement_summary')
+                    ->label('Meeting requirement')
+                    ->state(fn (SchedulingDemand $record): string => collect([
+                        filled($record->courseComponent?->component_type)
+                            ? str($record->courseComponent->component_type)->headline()
+                            : null,
+                        "{$record->required_duration_minutes} minutes",
+                        TermOffering::modalityOptions()[$record->modality] ?? str($record->modality)->headline(),
+                    ])->filter()->implode(' · '))
+                    ->wrap(),
                 TextColumn::make('termOffering.term.label')
                     ->label('Term')
                     ->searchable()
-                    ->sortable(),
-                TextColumn::make('sectionDeliveryGroup.section.code')
-                    ->label('Section')
-                    ->searchable(),
-                TextColumn::make('sectionDeliveryGroup.name')
-                    ->label('Delivery Group')
-                    ->searchable(),
-                TextColumn::make('courseComponent.courseSpecification.course.code')
-                    ->label('Subject')
-                    ->searchable(),
-                TextColumn::make('courseComponent.courseSpecification.title')
-                    ->label('Title')
-                    ->searchable()
-                    ->wrap(),
-                TextColumn::make('courseComponent.component_type')
-                    ->label('Component')
-                    ->badge(),
-                TextColumn::make('modality')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (TermOffering::modalityOptions()[$state] ?? str($state)->replace('_', ' ')->headline()->toString())),
-                TextColumn::make('required_duration_minutes')
-                    ->label('Minutes')
-                    ->numeric()
                     ->sortable(),
                 TextColumn::make('validation_state')
                     ->label('Readiness')
@@ -72,7 +75,11 @@ class SchedulingDemandsTable
                 TextColumn::make('readiness_checked_at')
                     ->label('Checked')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('demand_key')
+                    ->label('Technical requirement key')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('term_id')
@@ -98,13 +105,16 @@ class SchedulingDemandsTable
             ->recordActions([
                 ViewAction::make(),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile()
+            ->emptyStateHeading('No schedule requirements are recorded')
+            ->emptyStateDescription('Complete offerings, sections, delivery groups, rooms, and faculty inputs, then generate the term schedule requirements.');
     }
 
     private static function generateForTermAction(): Action
     {
         return Action::make('generateForTerm')
-            ->label('Generate for Term')
+            ->label('Generate Schedule Requirements')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('primary')
             ->schema([
@@ -133,15 +143,15 @@ class SchedulingDemandsTable
                     $summary = app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
 
                     Notification::make()
-                        ->title('Scheduling demand generated')
-                        ->body("{$summary['total']} demand rows checked; {$summary['ready']} ready, {$summary['action_required']} need source review.")
+                        ->title('Schedule requirements generated')
+                        ->body("{$summary['total']} requirements checked; {$summary['ready']} ready, {$summary['action_required']} need source review.")
                         ->success()
                         ->send();
                 } catch (ValidationException $exception) {
                     $message = collect($exception->errors())->flatten()->first();
 
                     Notification::make()
-                        ->title('Scheduling demand generation blocked')
+                        ->title('Schedule requirement generation blocked')
                         ->body(is_string($message) ? $message : 'Review the scheduling source data and try again.')
                         ->danger()
                         ->persistent()
@@ -150,8 +160,8 @@ class SchedulingDemandsTable
                     report($exception);
 
                     Notification::make()
-                        ->title('Scheduling demand generation failed')
-                        ->body('TALA could not generate scheduling demand. Try again or ask the System Administrator to review the application log.')
+                        ->title('Schedule requirement generation failed')
+                        ->body('TALA could not generate the schedule requirements. Try again or ask the System Administrator to review the application log.')
                         ->danger()
                         ->persistent()
                         ->send();
