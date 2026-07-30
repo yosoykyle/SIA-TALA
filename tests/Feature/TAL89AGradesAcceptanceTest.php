@@ -6,6 +6,7 @@ use App\Actions\Grades\PostAndReleaseGradeRoster;
 use App\Actions\Grades\ReturnGradeRoster;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
+use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
@@ -66,6 +67,83 @@ class TAL89AGradesAcceptanceTest extends TestCase
             ->assertHasNoTableActionErrors()
             ->assertCanSeeTableRecords([$firstRow])
             ->assertCanNotSeeTableRecords([$secondRow]);
+    }
+
+    #[Test]
+    public function faculty_roster_exposes_controlled_marks_and_plain_submission_readiness(): void
+    {
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $roster = $this->rosterWithRow($faculty, GradeRoster::StateDraft);
+        $row = $roster->rows()->sole();
+        CalendarEvent::factory()->create([
+            'term_id' => $roster->termOffering->term_id,
+            'event_type' => CalendarEvent::TypeWindow,
+            'scope_type' => CalendarEvent::ScopeInstitution,
+            'process_key' => 'grade_encoding_final',
+            'start_at' => now()->subDay(),
+            'end_at' => now()->addDay(),
+            'state' => CalendarEvent::StateActive,
+        ]);
+
+        Livewire::actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertCanSeeTableRecords([$row])
+            ->assertTableActionVisible('setControlledOutcome', $row)
+            ->assertSee('1 of 1 rows ready')
+            ->assertSee('All rows are ready. Review and submit for Registrar review.')
+            ->assertSee('Draft')
+            ->assertSee('Numeric result ready')
+            ->assertSee('Set P / INC')
+            ->callTableAction('setControlledOutcome', $row, data: [
+                'controlled_outcome' => 'INC',
+            ])
+            ->assertHasNoTableActionErrors()
+            ->assertNotified('Controlled final mark saved');
+
+        $row->refresh();
+
+        $this->assertSame('INC', $row->current_outcome_code);
+        $this->assertSame(GradeRosterRow::CategoryIncomplete, $row->current_outcome_category);
+        $this->assertNull($row->final_equivalent);
+        $this->assertNull($row->computed_average);
+    }
+
+    #[Test]
+    public function faculty_roster_disables_closed_period_entry_and_explains_the_next_action(): void
+    {
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $roster = $this->rosterWithRow($faculty, GradeRoster::StateReturned);
+        $row = $roster->rows()->sole();
+
+        Livewire::actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertCanSeeTableRecords([$row])
+            ->assertTableActionDisabled('setControlledOutcome', $row)
+            ->assertSee('Final closed')
+            ->assertSee('Final locked')
+            ->assertSee('Request late authorization before changing a closed period.');
+    }
+
+    #[Test]
+    public function faculty_receives_a_plain_readiness_message_instead_of_submitting_an_incomplete_roster(): void
+    {
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $roster = $this->rosterWithRow($faculty, GradeRoster::StateDraft);
+        $row = $roster->rows()->sole();
+        $row->update([
+            'final_equivalent' => null,
+            'computed_average' => null,
+        ]);
+
+        Livewire::actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertSee('0 of 1 rows ready')
+            ->assertSee('Complete 1 remaining row.')
+            ->callTableAction('submit')
+            ->assertHasNoTableActionErrors()
+            ->assertNotified('Roster is not ready');
+
+        $this->assertSame(GradeRoster::StateDraft, $roster->fresh()->state);
     }
 
     #[Test]

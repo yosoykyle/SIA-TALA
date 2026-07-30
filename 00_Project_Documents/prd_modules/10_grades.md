@@ -52,7 +52,7 @@ Rules:
 6. Blank grade cells remain internal incomplete roster state. They are not released to the student as official grade marks.
 7. Faculty may submit `INC` as a controlled roster outcome according to institutional rules. Registrar still controls Post & Release and records approved corrections after posting.
 8. `DRP` is a controlled non-numeric dropped outcome used when the official lifecycle record produces a dropped result; it is not a faculty-entered numeric grade.
-9. `W` is not a faculty-entered grade mark by default. If Servitech formally uses `W` as a printed grade mark, System Super Admin enables it as a controlled Grade Outcome label mapped to the lifecycle-derived withdrawn category.
+9. `W` is not a faculty-entered grade mark in v1. If Servitech formally adopts `W` as a printed grade mark, it requires an approved versioned policy change that maps the controlled display label to the lifecycle-derived withdrawn category; it is not enabled through runtime administration.
 10. School-specific unresolved marks such as `Not S` require formal adoption as controlled Grade Outcomes before use.
 
 ---

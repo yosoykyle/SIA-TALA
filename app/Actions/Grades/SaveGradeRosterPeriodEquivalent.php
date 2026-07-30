@@ -43,6 +43,11 @@ class SaveGradeRosterPeriodEquivalent
 
         $row->{$column} = $value;
 
+        if ($period === 'final' && $value !== null) {
+            $row->current_outcome_code = null;
+            $row->current_outcome_category = null;
+        }
+
         if ($row->prelim_equivalent !== null && $row->midterm_equivalent !== null && $row->final_equivalent !== null) {
             $row->computed_average = $this->policy->computedAverage($row->prelim_equivalent, $row->midterm_equivalent, $row->final_equivalent);
         } else {

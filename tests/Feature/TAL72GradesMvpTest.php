@@ -8,6 +8,7 @@ use App\Actions\Grades\GradePolicyService;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
 use App\Actions\Grades\RecordApprovedGradeCorrection;
 use App\Actions\Grades\RecordIncResolution;
+use App\Actions\Grades\SaveGradeRosterControlledOutcome;
 use App\Actions\Grades\SaveGradeRosterPeriodEquivalent;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Models\CalendarEvent;
@@ -98,6 +99,80 @@ class TAL72GradesMvpTest extends TestCase
         $this->expectException(RuntimeException::class);
 
         app(SaveGradeRosterPeriodEquivalent::class)->execute($row->fresh(), 'midterm', 91, $fixture['faculty']);
+    }
+
+    #[Test]
+    public function faculty_can_submit_and_registrar_can_release_a_controlled_inc_outcome(): void
+    {
+        $fixture = $this->gradeFixture();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $roster = app(GenerateGradeRoster::class)->execute($fixture['termOffering'], $fixture['section'], $fixture['faculty']);
+        $row = $roster->rows()->firstOrFail();
+
+        $saved = app(SaveGradeRosterControlledOutcome::class)->execute($row, 'INC', $fixture['faculty']);
+
+        $this->assertNull($saved->final_equivalent);
+        $this->assertNull($saved->computed_average);
+        $this->assertSame('INC', $saved->current_outcome_code);
+        $this->assertSame(GradeRosterRow::CategoryIncomplete, $saved->current_outcome_category);
+
+        app(SubmitGradeRoster::class)->execute($roster->fresh(), $fixture['faculty']);
+        app(PostAndReleaseGradeRoster::class)->execute($roster->fresh(), $registrar);
+
+        $this->assertSame(GradeRoster::StateReleased, $roster->fresh()->state);
+        $this->assertSame('INC', $row->fresh()->current_outcome_code);
+        $this->assertNotNull($row->fresh()->released_at);
+    }
+
+    #[Test]
+    public function numeric_final_entry_replaces_a_draft_controlled_outcome(): void
+    {
+        $fixture = $this->gradeFixture();
+        $roster = app(GenerateGradeRoster::class)->execute($fixture['termOffering'], $fixture['section'], $fixture['faculty']);
+        $row = $roster->rows()->firstOrFail();
+
+        app(SaveGradeRosterPeriodEquivalent::class)->execute($row, 'prelim', 90, $fixture['faculty']);
+        app(SaveGradeRosterPeriodEquivalent::class)->execute($row->fresh(), 'midterm', 91, $fixture['faculty']);
+        app(SaveGradeRosterControlledOutcome::class)->execute($row->fresh(), 'P', $fixture['faculty']);
+        $saved = app(SaveGradeRosterPeriodEquivalent::class)->execute($row->fresh(), 'final', 94, $fixture['faculty']);
+
+        $this->assertSame('94.0000', $saved->final_equivalent);
+        $this->assertSame('91.9000', $saved->computed_average);
+        $this->assertNull($saved->current_outcome_code);
+        $this->assertNull($saved->current_outcome_category);
+    }
+
+    #[Test]
+    public function controlled_outcome_entry_enforces_faculty_state_and_final_window(): void
+    {
+        $fixture = $this->gradeFixture();
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
+        $roster = app(GenerateGradeRoster::class)->execute($fixture['termOffering'], $fixture['section'], $fixture['faculty']);
+        $row = $roster->rows()->firstOrFail();
+
+        try {
+            app(SaveGradeRosterControlledOutcome::class)->execute($row, 'P', $otherFaculty);
+            $this->fail('A faculty member must not encode another faculty member\'s roster.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Only the designated faculty member can encode this roster.', $exception->getMessage());
+        }
+
+        $roster->update(['state' => GradeRoster::StateSubmitted]);
+
+        try {
+            app(SaveGradeRosterControlledOutcome::class)->execute($row->fresh(), 'P', $fixture['faculty']);
+            $this->fail('A submitted roster must not accept controlled outcomes.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Only draft, returned, or late-not-submitted rosters can be edited.', $exception->getMessage());
+        }
+
+        $roster->update(['state' => GradeRoster::StateDraft]);
+        CalendarEvent::query()->delete();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The grade encoding window is closed for the final period.');
+
+        app(SaveGradeRosterControlledOutcome::class)->execute($row->fresh(), 'INC', $fixture['faculty']);
     }
 
     #[Test]

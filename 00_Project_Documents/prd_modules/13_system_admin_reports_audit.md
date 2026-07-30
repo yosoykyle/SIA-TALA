@@ -61,7 +61,7 @@ Rules:
 8. Each configured document requirement must designate whether it blocks Handover (blocks Applicant -> Student transition) or blocks official Enrollment.
 9. The system protects fixed hard scheduling constraints through validation. Physical capacity, double-booking, required contact hours, missing qualification, and blocked-calendar or break-block violations are corrected through authoritative source records.
 10. Finance-related holds state the exact blocking effect. Pending OR mapping is treated as reconciliation status unless authorized administration configures a separate enrollment-blocking hold.
-11. Faculty grade-entry marks use the active Grade Outcome policy. The Servitech v1 policy uses 30% Preliminary + 30% Midterm + 40% Final, the approved numeric conversion scale, `3.00` / 75% as the passing threshold, and controlled non-numeric outcomes including `P`, `INC`, and lifecycle-derived dropped or withdrawn labels. If the institution prints `W`, it is configured as a controlled display label mapped to a lifecycle-derived withdrawn outcome.
+11. Faculty grade-entry marks use the active Grade Outcome policy. The Servitech v1 policy uses 30% Preliminary + 30% Midterm + 40% Final, the approved numeric conversion scale, `3.00` / 75% as the passing threshold, and controlled non-numeric outcomes including `P`, `INC`, and lifecycle-derived dropped or withdrawn labels. If the institution formally adopts `W`, an approved versioned policy change maps it as a controlled display label to a lifecycle-derived withdrawn outcome; it is not runtime-configurable in v1.
 12. Graduation Eligibility Snapshot visibility defaults to staff-only. Student-facing visibility requires an explicit Registrar action.
 13. Student Unit Load Exception policy defaults to Academic Head approval and Registrar recording unless the institution configures a different authorized workflow.
 
@@ -422,7 +422,7 @@ TALA must support retention categories and disposal controls.
 | Repeated configuration such as fees, holds, requirements, policies, or authorities | Editable Table opening a Record Form per row; active historical values are preserved |
 | Date-based policy windows | Calendar / Date-Range Input linked to the relevant Term or policy scope |
 | Scheduling policy and Institutional Break Blocks | Generated Read-Only View for the versioned code-defined constraint profile plus Calendar / Date-Range Input for break blocks and blocked periods |
-| Grade Outcome policy | Editable Table defining allowed mark, category, finality, prerequisite effect, GWA effect, student-facing label, active status, formula/version reference, numeric conversion range, passing threshold, submission authority, INC deadline rule, and lapsed-INC behavior |
+| Grade Outcome policy | Generated Read-Only View of the seeded/versioned v1 policy: allowed marks, categories, finality, prerequisite and GWA effects, student-facing labels, formula/version reference, numeric conversion range, passing threshold, submission authority, INC deadline rule, and lapsed-INC behavior |
 | Late grade authorization authority | Editable Table or Record Form defining authorized approvers, scope, deadline rule, and audit requirement |
 | Student Unit Load Exception policy | Editable Table defining normal max units, excess-unit cap, allowed standing/scope, authority, and active status |
 | Graduation Review Batch | Operational Review Table where Registrar selects academic year, term, optional filters, and included students; snapshot results are generated read-only |
