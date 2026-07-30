@@ -45,10 +45,10 @@ class StudentProfileOverviewWidget extends BaseWidget
                     StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
-            Stat::make('Academic Standing', str((string) $profile->academic_standing)->headline()->toString())
+            Stat::make('Official Academic Standing', AcademicProgressionService::standingLabel($profile->academic_standing))
                 ->description($this->academicStandingGuidance(
                     (string) $profile->academic_standing,
-                    (string) $progression['standing'],
+                    $progression['recommendation'],
                     count($progression['blockers']),
                 ))
                 ->color('info'),
@@ -63,28 +63,35 @@ class StudentProfileOverviewWidget extends BaseWidget
             $stats[] = Stat::make(
                 'Academic action needed',
                 $blocker['course_code'] ?? 'Curriculum requirement',
-            )->description(collect([
-                $blocker['rule'] ?? $blocker['reason'] ?? null,
-                'Contact the Registrar Office for guidance.',
-            ])->filter()->implode(' '))->color('warning');
+            )->description(
+                AcademicProgressionService::blockerMessage($blocker)
+                .' Contact the Registrar Office; it will route Academic Head review when required.',
+            )->color('warning');
         }
 
         return $stats;
     }
 
+    /**
+     * @param  array{available: bool, standing: ?string, label: string, explanation: string}  $recommendation
+     */
     private function academicStandingGuidance(
         string $officialStanding,
-        string $recommendedStanding,
+        array $recommendation,
         int $blockerCount,
     ): string {
-        if ($recommendedStanding !== '' && $recommendedStanding !== $officialStanding) {
-            return 'System review suggests '.str($recommendedStanding)->headline()->toString().'. Registrar Office must confirm any change.';
+        if (! $recommendation['available']) {
+            return $recommendation['label'].'. '.$recommendation['explanation'].' Contact the Registrar Office if review is needed.';
+        }
+
+        if (filled($recommendation['standing']) && $recommendation['standing'] !== $officialStanding) {
+            return 'System review suggests '.AcademicProgressionService::standingLabel($recommendation['standing']).'. Registrar Office must confirm any change.';
         }
 
         if ($blockerCount > 0) {
             return "Review {$blockerCount} academic requirement(s) with the Registrar Office.";
         }
 
-        return 'No academic progression issue is currently recorded.';
+        return 'System review currently supports this standing. The Registrar-recorded value remains official.';
     }
 }

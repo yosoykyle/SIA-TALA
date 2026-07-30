@@ -33,7 +33,7 @@ class StudentLifecycleChangePolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     /**

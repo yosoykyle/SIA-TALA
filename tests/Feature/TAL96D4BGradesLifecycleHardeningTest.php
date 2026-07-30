@@ -145,7 +145,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $student = $this->staff('student');
         StudentProfile::factory()->create([
             'user_id' => $student->id,
-            'academic_standing' => 'good_standing',
+            'academic_standing' => StudentProfile::StandingRegular,
         ]);
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
@@ -157,7 +157,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $studentLifecyclePage = $lifecycle->instance();
         $this->assertInstanceOf(LifecycleView::class, $studentLifecyclePage);
         $this->assertTrue($studentLifecyclePage->getTable()->isStackedOnMobile());
-        $lifecycle->assertSee('Good Standing');
+        $lifecycle->assertSee('Official academic standing: Regular');
     }
 
     #[Test]

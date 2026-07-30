@@ -118,6 +118,7 @@ class AcademicProgressionService
         }
 
         $standing = $this->recommendedStanding($studentProfile, $entries, $completed, $backSubjects, $blockers, $currentCourseIds);
+        $recommendation = $this->recommendationResult($studentProfile, $standing);
 
         return [
             'student_profile_id' => (int) $studentProfile->id,
@@ -125,6 +126,7 @@ class AcademicProgressionService
             'curriculum_length' => $entries->pluck('year_level')->unique()->count(),
             'standing' => $standing,
             'authorized_standing' => $studentProfile->academic_standing,
+            'recommendation' => $recommendation,
             'completed' => $completed,
             'back_subjects' => $backSubjects,
             'blockers' => collect($blockers)->unique(fn (array $item): string => $item['key'])->values()->all(),
@@ -142,7 +144,7 @@ class AcademicProgressionService
 
     public function confirmStanding(StudentProfile $studentProfile, string $standing, User $actor, string $reason): StudentProfile
     {
-        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only an authorized Registrar may confirm academic standing.');
         }
 
@@ -182,6 +184,51 @@ class AcademicProgressionService
             StudentProfile::StandingCompletionCandidate, StudentProfile::StandingGraduationCandidate,
             StudentProfile::StandingNotYetEvaluated,
         ];
+    }
+
+    /** @return array<string, string> */
+    public static function standingOptions(): array
+    {
+        return collect(self::standingValues())
+            ->mapWithKeys(fn (string $standing): array => [$standing => self::standingLabel($standing)])
+            ->all();
+    }
+
+    public static function standingLabel(?string $standing): string
+    {
+        return filled($standing)
+            ? str((string) $standing)->headline()->toString()
+            : StudentProfile::StandingNotYetEvaluated;
+    }
+
+    /** @param array<string, mixed> $blocker */
+    public static function blockerMessage(array $blocker): string
+    {
+        if (($blocker['key'] ?? null) === 'missing_curriculum_baseline') {
+            return 'The curriculum baseline is unavailable, so academic progression cannot be evaluated yet.';
+        }
+
+        $course = filled($blocker['course_code'] ?? null)
+            ? (string) $blocker['course_code']
+            : 'A curriculum requirement';
+
+        if (($blocker['kind'] ?? null) === 'prerequisite') {
+            $alternatives = collect((array) ($blocker['alternatives'] ?? []))
+                ->filter()
+                ->implode(' or ');
+
+            return $alternatives !== ''
+                ? "{$course} requires {$alternatives} before enrollment."
+                : "{$course} has an unresolved prerequisite.";
+        }
+
+        return match ($blocker['reason'] ?? null) {
+            'active_inc' => "{$course} has an unresolved incomplete grade.",
+            'pending_grade' => "{$course} is waiting for an official released grade.",
+            'failed' => "{$course} has a failed prerequisite that requires academic review.",
+            'missing_history' => "{$course} is missing the required released academic history.",
+            default => "{$course} requires Registrar academic review.",
+        };
     }
 
     /** @return Collection<int, GradeRosterRow> */
@@ -479,6 +526,44 @@ class AcademicProgressionService
         return StudentProfile::StandingRegular;
     }
 
+    /**
+     * @return array{available: bool, standing: ?string, label: string, explanation: string}
+     */
+    private function recommendationResult(StudentProfile $studentProfile, string $standing, bool $hasCurriculumBaseline = true): array
+    {
+        if (! $hasCurriculumBaseline) {
+            return [
+                'available' => false,
+                'standing' => null,
+                'label' => StudentProfile::StandingNotYetEvaluated,
+                'explanation' => 'The system cannot evaluate progression until the curriculum baseline is available.',
+            ];
+        }
+
+        $institutionalDecisionStandings = [
+            StudentProfile::StandingGraduationCandidate,
+            StudentProfile::StandingCompletionCandidate,
+            StudentProfile::StandingMustRepeatYear,
+            StudentProfile::StandingProbationary,
+        ];
+
+        if (in_array($studentProfile->academic_standing, $institutionalDecisionStandings, true)) {
+            return [
+                'available' => false,
+                'standing' => null,
+                'label' => 'Institutional review required',
+                'explanation' => 'This official standing depends on an institutional decision, so the system does not present it as an independent recommendation.',
+            ];
+        }
+
+        return [
+            'available' => true,
+            'standing' => $standing,
+            'label' => self::standingLabel($standing),
+            'explanation' => 'This system review is derived from released grades, curriculum requirements, and current academic blockers. It is not official until the Registrar records a decision.',
+        ];
+    }
+
     /** @return array<string,mixed> */
     private function missingBaselineResult(StudentProfile $studentProfile): array
     {
@@ -488,6 +573,11 @@ class AcademicProgressionService
             'curriculum_length' => 0,
             'standing' => StudentProfile::StandingNotYetEvaluated,
             'authorized_standing' => $studentProfile->academic_standing,
+            'recommendation' => $this->recommendationResult(
+                $studentProfile,
+                StudentProfile::StandingNotYetEvaluated,
+                hasCurriculumBaseline: false,
+            ),
             'completed' => [], 'back_subjects' => [], 'blockers' => [['key' => 'missing_curriculum_baseline']],
             'suggestions' => [], 'current_course_ids' => [],
             'gwa' => null,

@@ -530,7 +530,7 @@ class StudentLifecycleService
 
     private function authorizeRegistrar(User $actor): void
     {
-        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only an authorized Registrar may record lifecycle results.');
         }
     }

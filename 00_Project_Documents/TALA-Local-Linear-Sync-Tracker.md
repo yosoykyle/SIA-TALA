@@ -53,6 +53,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Closure |
 | TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure |
 | TAL-96D5E1D6A | Done locally; pending explicit Linear sync | Faculty Grade Entry to Registrar Release |
+| TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

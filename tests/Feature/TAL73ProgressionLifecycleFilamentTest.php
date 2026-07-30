@@ -201,8 +201,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertSee('Confirmed Academic Standing')
-            ->assertSee('System Recommendation')
+            ->assertSee('Official Academic Standing')
+            ->assertSee('System Review')
             ->assertSee('AY 2025-2026 First Semester')
             ->assertSee('Officially Enrolled')
             ->assertSee('Released Academic History')

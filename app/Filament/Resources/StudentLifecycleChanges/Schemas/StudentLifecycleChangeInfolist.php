@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\StudentLifecycleChanges\Schemas;
 
 use App\Models\StudentLifecycleChange;
+use App\Models\StudentProfile;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
@@ -15,13 +16,44 @@ class StudentLifecycleChangeInfolist
         return $schema
             ->components([
                 Section::make('Lifecycle Result')->schema([
+                    TextEntry::make('student_name')
+                        ->label('Student')
+                        ->state(function (StudentLifecycleChange $record): string {
+                            $profile = $record->studentProfile;
+
+                            if (! $profile instanceof StudentProfile) {
+                                return 'Student record unavailable';
+                            }
+
+                            return collect([
+                                $profile->last_name,
+                                $profile->first_name,
+                                $profile->middle_name,
+                            ])->filter()->implode(', ');
+                        }),
                     TextEntry::make('studentProfile.student_number')->label('Student Number'),
-                    TextEntry::make('type')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                    TextEntry::make('studentProfile.program.name')->label('Program'),
+                    TextEntry::make('type')
+                        ->label('Recorded Change')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state): string => StudentLifecycleChange::typeOptions()[$state] ?? str($state)->headline()->toString()),
                     TextEntry::make('term.label')->label('Effective Term'),
-                    TextEntry::make('effective_on')->date(),
-                    TextEntry::make('state')->badge(),
-                    TextEntry::make('authority'),
-                    TextEntry::make('reason')->columnSpanFull(),
+                    TextEntry::make('effective_on')->label('Effective Date')->date(),
+                    TextEntry::make('decided_on')->label('Decision Date')->date(),
+                    TextEntry::make('state')
+                        ->label('Recorded Result')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state): string => match ($state) {
+                            StudentLifecycleChange::StateRecordedApproved => 'Approved — pending application',
+                            StudentLifecycleChange::StateApplied => 'Applied to official record',
+                            StudentLifecycleChange::StateCancelled => 'Cancelled before application',
+                            default => str($state)->headline()->toString(),
+                        }),
+                    TextEntry::make('authority')->label('Decision Authority'),
+                    TextEntry::make('recorder.name')->label('Recorded By')->placeholder('System'),
+                    TextEntry::make('responsible_office')->label('Responsible Office')->state('Registrar Office'),
+                    TextEntry::make('reason')->label('Recorded Reason')->columnSpanFull(),
+                    TextEntry::make('private_source_reference')->label('Office Reference')->placeholder('Not recorded')->columnSpanFull(),
                 ])->columns(3),
                 Section::make('Program Shift Assignment')->schema([
                     TextEntry::make('old_program')->label('Old / Current Program')
