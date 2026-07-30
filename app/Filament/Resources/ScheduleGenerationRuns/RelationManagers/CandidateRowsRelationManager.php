@@ -21,6 +21,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -49,6 +50,11 @@ class CandidateRowsRelationManager extends RelationManager
                         TextEntry::make('schedulingDemand.courseComponent.component_type')
                             ->label('Component')
                             ->formatStateUsing(fn (?string $state): string => self::headline($state))
+                            ->placeholder('-'),
+                        TextEntry::make('schedulingDemand.modality')
+                            ->label('Teaching mode')
+                            ->badge()
+                            ->formatStateUsing(fn (?string $state): string => self::modalityLabel($state))
                             ->placeholder('-'),
                         TextEntry::make('faculty.name')
                             ->label('Faculty')
@@ -132,6 +138,11 @@ class CandidateRowsRelationManager extends RelationManager
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => self::headline($state))
                     ->placeholder('-'),
+                TextColumn::make('schedulingDemand.modality')
+                    ->label('Teaching mode')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => self::modalityLabel($state))
+                    ->placeholder('-'),
                 TextColumn::make('faculty.name')
                     ->label('Faculty')
                     ->placeholder('-')
@@ -165,6 +176,16 @@ class CandidateRowsRelationManager extends RelationManager
                 SelectFilter::make('day_of_week')
                     ->label('Day')
                     ->options(SectionMeeting::dayOptions()),
+                SelectFilter::make('teaching_mode')
+                    ->label('Teaching mode')
+                    ->options(SectionMeeting::modalityOptions())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $candidateRows): Builder => $candidateRows->whereHas(
+                            'schedulingDemand',
+                            fn (Builder $demands): Builder => $demands->where('modality', $data['value']),
+                        ),
+                    )),
             ])
             ->defaultSort('day_of_week')
             ->recordActions([
@@ -305,6 +326,11 @@ class CandidateRowsRelationManager extends RelationManager
     private static function headline(?string $value): string
     {
         return filled($value) ? Str::headline(Str::lower($value)) : '-';
+    }
+
+    private static function modalityLabel(?string $modality): string
+    {
+        return SectionMeeting::modalityOptions()[$modality] ?? self::headline($modality);
     }
 
     /** @return list<string> */

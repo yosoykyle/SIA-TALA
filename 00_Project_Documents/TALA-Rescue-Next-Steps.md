@@ -49,7 +49,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
 | TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D5, D6A-D6C, and D6D1 done locally; D6D2 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
 | TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
-| TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery from readiness through solve, review, publication, revision, and student/faculty projection. |
+| TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery, including visible teaching mode in candidate review. |
 | TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR operating-journey completeness and presentation closure across regular and irregular placement, Student Record context/history, and source-derived COR. |
 | TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Completeness, Consistency, and Lean Presentation Closure. |
 | TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure. |

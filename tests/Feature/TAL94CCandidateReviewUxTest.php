@@ -102,6 +102,42 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         $this->assertFalse(Gate::forUser($faculty)->allows('reviewCandidates', $context['run']));
     }
 
+    public function test_candidate_review_shows_and_filters_online_and_face_to_face_teaching_modes(): void
+    {
+        $context = $this->context(demandCount: 2);
+        $faceToFaceCandidate = $this->candidate($context);
+        $onlineDemand = $context['demands'][1];
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $onlineDemand->termOffering()->update(['modality' => TermOffering::ModalityOnline]);
+        $onlineDemand->sectionDeliveryGroup()->update(['modality' => TermOffering::ModalityOnline]);
+        $onlineDemand->update(['modality' => TermOffering::ModalityOnline]);
+
+        $onlineCandidate = CandidateScheduleRow::query()->create([
+            'schedule_run_id' => $context['run']->id,
+            ...$this->assignment($context, 1, dayOfWeek: 2),
+            'room_id' => null,
+            'status' => CandidateScheduleRow::StatusOk,
+            'scores' => ['objective' => 43.5],
+            'warnings' => [],
+            'violations' => [],
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(CandidateRowsRelationManager::class, [
+                'ownerRecord' => $context['run'],
+                'pageClass' => ViewScheduleGenerationRun::class,
+            ])
+            ->assertCanSeeTableRecords([$faceToFaceCandidate, $onlineCandidate])
+            ->assertTableColumnExists('schedulingDemand.modality')
+            ->assertTableFilterExists('teaching_mode')
+            ->assertSchemaComponentExists('schedulingDemand.modality', 'infolist')
+            ->filterTable('teaching_mode', TermOffering::ModalityOnline)
+            ->assertCanSeeTableRecords([$onlineCandidate])
+            ->assertCanNotSeeTableRecords([$faceToFaceCandidate])
+            ->assertSee('Online');
+    }
+
     public function test_registrar_can_submit_a_valid_candidate_correction_through_the_relation_action(): void
     {
         $context = $this->context();
@@ -163,7 +199,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ])
             ->assertNotified('Candidate correction blocked');
 
-        $preserved = CandidateScheduleRow::query()->sole();
+        $preserved = $context['run']->candidateRows()->sole();
         $diagnostics = $context['run']->fresh()->getAttribute('diagnostics');
 
         $this->assertSame($candidate->id, $preserved->id);
