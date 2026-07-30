@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Actions\SystemAdministration\IntegrationHealthPresenter;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\FacultyGradeRoster;
@@ -150,11 +151,13 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
     {
         $activeAccounts = User::query()->where('status', User::StatusActive)->count();
         $publishedFaqs = FaqEntry::query()->where('is_published', true)->count();
+        $health = app(IntegrationHealthPresenter::class)->summary();
 
         return [
             $this->stat('1. Users & Access', "{$activeAccounts} active", 'Manage user identities and canonical role assignments.', UserResource::getUrl('index')),
             $this->stat('2. Public Content', "{$publishedFaqs} FAQs published", 'Curate the categorized guidance shown on the public site.', FaqEntryResource::getUrl('index')),
-            $this->stat('3. System Health', 'Safe readiness', 'Inspect local integration configuration without revealing credentials.', IntegrationStatus::getUrl()),
+            $this->stat('3. System Health', $health['label'], $health['description'], IntegrationStatus::getUrl())
+                ->color($health['color']),
             $this->stat('4. Governance & Audit', 'Read-only evidence', 'Review settings dispositions, reports, audit logs, and operational events.', ReportsAudit::getUrl()),
         ];
     }

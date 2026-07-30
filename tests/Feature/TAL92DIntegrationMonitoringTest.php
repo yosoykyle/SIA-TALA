@@ -200,6 +200,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     #[Test]
     public function integration_status_page_never_renders_a_configured_secret_value(): void
     {
+        Config::set('app.url', 'https://tala-demo.example.com');
         Config::set('tala_integrations.payments.driver', 'paymongo');
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_ABSOLUTELY_SECRET_VALUE');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_PUBLIC_BUT_NOT_RENDERED');
@@ -220,12 +221,13 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->assertStringNotContainsString('sk_test_ABSOLUTELY_SECRET_VALUE', $html);
         $this->assertStringNotContainsString('pk_test_PUBLIC_BUT_NOT_RENDERED', $html);
         $this->assertStringNotContainsString('whsec_ABSOLUTELY_SECRET_VALUE', $html);
-        $this->assertStringContainsString('Configured ✓', $html);
+        $this->assertStringContainsString('Local configuration complete', $html);
     }
 
     #[Test]
     public function paymongo_status_reports_local_readiness_and_observed_webhook_health_without_claiming_provider_status(): void
     {
+        Config::set('app.url', 'https://tala-demo.example.com');
         Config::set('tala_integrations.payments.driver', 'paymongo');
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
@@ -260,14 +262,15 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $component->assertOk();
         $html = $component->html();
 
-        $this->assertStringContainsString('Local PayMongo readiness', $html);
-        $this->assertStringContainsString('Ready', $html);
-        $this->assertStringContainsString('Open local exceptions', $html);
-        $this->assertStringContainsString('1', $html);
-        $this->assertStringContainsString('Provider dashboard state', $html);
+        $this->assertStringContainsString('Test mode', $html);
+        $this->assertStringContainsString('Local configuration complete', $html);
+        $this->assertStringContainsString('Evidence: Attention required', $html);
+        $this->assertStringContainsString('Open exceptions', $html);
+        $this->assertStringContainsString('PayMongo dashboard registration', $html);
         $this->assertStringContainsString('Not checked by TALA', $html);
         $this->assertStringNotContainsString('must-not-render', $html);
         $this->assertStringNotContainsString('Enabled in PayMongo', $html);
+        $this->assertStringNotContainsString('Practice / mock mode', $html);
     }
 
     #[Test]
@@ -277,6 +280,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
+        Config::set('app.url', 'https://tala-demo.example.com');
         Config::set('tala_integrations.payments.driver', 'paymongo');
         Config::set('tala_integrations.payments.paymongo.secret_key', null);
         Config::set('tala_integrations.payments.paymongo.public_key', null);
@@ -286,7 +290,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $unconfiguredComponent->assertOk();
         $unconfiguredHtml = $unconfiguredComponent->html();
-        $this->assertStringContainsString('Not configured ✗', $unconfiguredHtml);
+        $this->assertStringContainsString('Local configuration incomplete', $unconfiguredHtml);
 
         Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
         Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
@@ -296,7 +300,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $configuredComponent->assertOk();
         $configuredHtml = $configuredComponent->html();
-        $this->assertStringContainsString('Configured ✓', $configuredHtml);
+        $this->assertStringContainsString('Local configuration complete', $configuredHtml);
         $this->assertStringNotContainsString('sk_test_present', $configuredHtml);
     }
 
@@ -313,8 +317,8 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $stubComponent->assertOk();
         $stubHtml = $stubComponent->html();
-        $this->assertStringContainsString('Stub', $stubHtml);
-        $this->assertStringContainsString('Configured ✓', $stubHtml);
+        $this->assertStringContainsString('Deterministic stub', $stubHtml);
+        $this->assertStringContainsString('Local configuration complete', $stubHtml);
 
         Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
         Config::set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
@@ -326,7 +330,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $localHtml = $localComponent->html();
         $this->assertStringContainsString('Local CP-SAT', $localHtml);
         $this->assertStringContainsString('http://127.0.0.1:8080', $localHtml);
-        $this->assertStringContainsString('Configured ✓', $localHtml);
+        $this->assertStringContainsString('Local configuration complete', $localHtml);
 
         Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
         Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
@@ -337,7 +341,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $cloudComponent->assertOk();
         $cloudHtml = $cloudComponent->html();
         $this->assertStringContainsString('Private Cloud Run', $cloudHtml);
-        $this->assertStringContainsString('Configured ✓', $cloudHtml);
+        $this->assertStringContainsString('Local configuration complete', $cloudHtml);
         $this->assertStringNotContainsString(__FILE__, $cloudHtml);
     }
 
@@ -354,7 +358,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $remoteLocalComponent->assertOk();
         $remoteLocalHtml = $remoteLocalComponent->html();
-        $this->assertStringContainsString('Not configured ✗', $remoteLocalHtml);
+        $this->assertStringContainsString('Local configuration incomplete', $remoteLocalHtml);
 
         Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
         Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
@@ -364,7 +368,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $missingCredentialsComponent->assertOk();
         $missingCredentialsHtml = $missingCredentialsComponent->html();
-        $this->assertStringContainsString('Not configured ✗', $missingCredentialsHtml);
+        $this->assertStringContainsString('Local configuration incomplete', $missingCredentialsHtml);
     }
 
     #[Test]
@@ -376,7 +380,7 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertSame(0, OperationalEvent::query()->count());
+        $eventCountBefore = OperationalEvent::query()->count();
 
         $component = Livewire::test(IntegrationStatus::class);
 
@@ -390,9 +394,12 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
             return $mailable->hasTo($superAdmin->email);
         });
 
-        $this->assertSame(1, OperationalEvent::query()->count());
+        $this->assertSame($eventCountBefore + 1, OperationalEvent::query()->count());
 
-        $event = OperationalEvent::query()->sole();
+        $event = OperationalEvent::query()
+            ->where('user_id', $superAdmin->id)
+            ->where('event_type', 'test_email_sent')
+            ->sole();
         $this->assertSame($superAdmin->id, $event->user_id);
         $this->assertSame('notifications', $event->event_domain);
         $this->assertSame('mail', $event->integration);

@@ -2,19 +2,17 @@
 
 namespace App\Filament\Pages;
 
-use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
+use App\Actions\SystemAdministration\IntegrationHealthPresenter;
 use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Mail\TestConnectionMail;
 use App\Models\OperationalEvent;
 use App\Models\User;
-use App\Support\DisplayDateTime;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Route;
 use Throwable;
 use UnitEnum;
 
@@ -60,16 +58,10 @@ class IntegrationStatus extends Page
         return static::canAccess();
     }
 
-    /**
-     * @return list<array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label?: string}>
-     */
+    /** @return list<array<string, mixed>> */
     public function getIntegrationsProperty(): array
     {
-        return [
-            $this->emailStatus(),
-            $this->paymentsStatus(),
-            $this->schedulerStatus(),
-        ];
+        return $this->health()->integrations();
     }
 
     /** @return list<Action> */
@@ -136,169 +128,9 @@ class IntegrationStatus extends Page
         }
     }
 
-    /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>} */
-    private function emailStatus(): array
+    private function health(): IntegrationHealthPresenter
     {
-        $mailer = (string) config('mail.default');
-        $isLive = ! in_array($mailer, ['log', 'array'], true);
-        $configuredDriverKeys = match ($mailer) {
-            'smtp' => [config('mail.mailers.smtp.host'), config('mail.mailers.smtp.username')],
-            'postmark' => [config('services.postmark.token')],
-            'ses', 'ses-v2' => [config('services.ses.key')],
-            'resend' => [config('services.resend.key')],
-            default => [],
-        };
-
-        return [
-            'name' => 'Email',
-            'driver' => $mailer,
-            'live_mode' => $isLive,
-            'configured' => ! $isLive || collect($configuredDriverKeys)->every(fn (mixed $value): bool => filled($value)),
-            'reference' => [
-                'From address' => (string) config('mail.from.address'),
-                'From name' => (string) config('mail.from.name'),
-            ],
-        ];
-    }
-
-    /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>} */
-    private function paymentsStatus(): array
-    {
-        $driver = (string) config('tala_integrations.payments.driver');
-        $isPaymongo = $driver === 'paymongo';
-        $hasApiKeys = filled(config('tala_integrations.payments.paymongo.secret_key'))
-            && filled(config('tala_integrations.payments.paymongo.public_key'));
-        $hasWebhookSecret = filled(config('tala_integrations.payments.paymongo.webhook_signature'));
-        $hasWebhookRoute = Route::has('webhooks.paymongo');
-        $localReady = $isPaymongo && $hasApiKeys && $hasWebhookSecret && $hasWebhookRoute;
-
-        $webhookEvents = OperationalEvent::query()
-            ->where('event_domain', OperationalEvent::DomainIntegration)
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->where('channel', OperationalEvent::ChannelWebhook)
-            ->where('direction', OperationalEvent::DirectionInbound);
-        $lastProcessed = (clone $webhookEvents)
-            ->where('status', OperationalEvent::StatusProcessed)
-            ->latest('processed_at')
-            ->first(['processed_at']);
-        $lastFailed = (clone $webhookEvents)
-            ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
-            ->latest('occurred_at')
-            ->first(['occurred_at', 'failed_at']);
-        $openExceptions = OperationalEvent::query()
-            ->where('event_domain', OperationalEvent::DomainIntegration)
-            ->where('integration', OperationalEvent::IntegrationPayMongo)
-            ->whereIn('channel', [OperationalEvent::ChannelWebhook, OperationalEvent::ChannelProviderApi])
-            ->whereIn('status', [OperationalEvent::StatusFailed, OperationalEvent::StatusReviewRequired])
-            ->count();
-
-        return [
-            'name' => 'Payments (PayMongo)',
-            'driver' => $driver,
-            'live_mode' => $isPaymongo && (bool) config('tala_integrations.payments.paymongo.livemode'),
-            'configured' => $isPaymongo
-                ? $localReady
-                : filled(config('tala_integrations.payments.mock.provider')),
-            'reference' => $isPaymongo ? [
-                'Mode' => (bool) config('tala_integrations.payments.paymongo.livemode') ? 'Live' : 'Test',
-                'Base URL' => (string) config('tala_integrations.payments.paymongo.base_url'),
-                'Payment method types' => implode(', ', (array) config('tala_integrations.payments.paymongo.payment_method_types')),
-                'API key references' => $hasApiKeys ? 'Configured' : 'Missing',
-                'Webhook signing secret' => $hasWebhookSecret ? 'Configured' : 'Missing',
-                'Local webhook route' => $hasWebhookRoute ? 'Registered' : 'Missing',
-                'Local PayMongo readiness' => $localReady ? 'Ready' : 'Incomplete',
-                'Recent verified webhook' => $this->eventTimestamp($lastProcessed?->processed_at),
-                'Recent failed/review webhook' => $this->eventTimestamp($lastFailed->failed_at ?? $lastFailed->occurred_at ?? null),
-                'Open local exceptions' => (string) $openExceptions,
-                'Provider dashboard state' => 'Not checked by TALA',
-            ] : [
-                'Mock checkout URL' => (string) config('tala_integrations.payments.mock.checkout_base_url'),
-            ],
-        ];
-    }
-
-    private function eventTimestamp(mixed $timestamp): string
-    {
-        return $timestamp === null
-            ? 'None observed'
-            : DisplayDateTime::format($timestamp, 'Y-m-d H:i');
-    }
-
-    /** @return array{name: string, driver: string, live_mode: bool, configured: bool, reference: array<string, string>, mode_label: string} */
-    private function schedulerStatus(): array
-    {
-        $driver = (string) config('tala_integrations.scheduling_solver.driver');
-        $url = config('tala_integrations.scheduling_solver.url') !== null
-            ? (string) config('tala_integrations.scheduling_solver.url')
-            : null;
-        $audience = config('tala_integrations.scheduling_solver.audience') !== null
-            ? (string) config('tala_integrations.scheduling_solver.audience')
-            : null;
-        $credentialsPath = config('tala_integrations.scheduling_solver.credentials_path') !== null
-            ? (string) config('tala_integrations.scheduling_solver.credentials_path')
-            : null;
-
-        $configured = match ($driver) {
-            'local_stub' => true,
-            'local_http' => LocalHttpSchedulingSolverClient::supportsEnvironment(app()->environment())
-                && LocalHttpSchedulingSolverClient::supportsBaseUrl($url),
-            'cloud_run' => $this->isHttpsBaseUrl($url)
-                && $this->isHttpsBaseUrl($audience)
-                && filled($credentialsPath)
-                && is_readable((string) $credentialsPath),
-            default => false,
-        };
-
-        $modeLabel = match ($driver) {
-            'local_stub' => 'Stub',
-            'local_http' => 'Local CP-SAT',
-            'cloud_run' => 'Private Cloud Run',
-            default => 'Unsupported',
-        };
-
-        $reference = match ($driver) {
-            'local_stub' => [
-                'Transport' => 'In-process deterministic test double',
-                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
-            ],
-            'local_http' => [
-                'URL' => (string) $url,
-                'Health endpoint' => rtrim((string) $url, '/').'/health',
-                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
-            ],
-            'cloud_run' => [
-                'URL' => (string) $url,
-                'Audience' => (string) $audience,
-                'Timeout (seconds)' => (string) config('tala_integrations.scheduling_solver.timeout_seconds'),
-            ],
-            default => [
-                'Transport' => 'Unsupported driver configuration',
-            ],
-        };
-
-        return [
-            'name' => 'Scheduler (CP-SAT solver)',
-            'driver' => $driver,
-            'live_mode' => $driver === 'cloud_run',
-            'configured' => $configured,
-            'mode_label' => $modeLabel,
-            'reference' => $reference,
-        ];
-    }
-
-    private function isHttpsBaseUrl(?string $url): bool
-    {
-        $parts = parse_url(trim((string) $url));
-        $path = is_array($parts) ? (string) ($parts['path'] ?? '') : '';
-
-        return is_array($parts)
-            && ($parts['scheme'] ?? null) === 'https'
-            && filled($parts['host'] ?? null)
-            && ! array_key_exists('user', $parts)
-            && ! array_key_exists('pass', $parts)
-            && ! array_key_exists('query', $parts)
-            && ! array_key_exists('fragment', $parts)
-            && in_array($path, ['', '/'], true);
+        return app(IntegrationHealthPresenter::class);
     }
 
     private function actor(): User

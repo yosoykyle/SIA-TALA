@@ -47,20 +47,20 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
 | TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
 | TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
-| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D5, D6A-D6C, and D6D1 done locally; D6D2 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
+| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D6 done locally; D7 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
 | TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
 | TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery, including visible teaching mode in candidate review. |
 | TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR operating-journey completeness and presentation closure across regular and irregular placement, Student Record context/history, and source-derived COR. |
 | TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Completeness, Consistency, and Lean Presentation Closure. |
 | TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure. |
-| TAL-96D5E1D6 | Approved revised four-slice split; D6A-D6C and D6D1 done locally; D6D2 next | Grades, lifecycle, completion, presentation-fixture readiness, and remaining role recovery through sequential task-centered slices. |
+| TAL-96D5E1D6 | Done locally; four-slice map complete | Grades, lifecycle, completion, presentation-fixture readiness, and remaining role recovery through sequential task-centered slices. |
 | TAL-96D5E1D6A | Done locally; pending explicit Linear sync | Faculty Grade Entry to Registrar Release. |
 | TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results. |
 | TAL-96D5E1D6C | Done locally; pending explicit Linear sync | Completion Eligibility Review and Student-Visible Review Result. |
-| TAL-96D5E1D6D | Approved two-slice split; D6D1 done locally; D6D2 next | Presentation-data readiness followed by System Administration boundary and health presentation. |
+| TAL-96D5E1D6D | Done locally; two-slice map complete | Presentation-data readiness followed by System Administration boundary and health presentation. |
 | TAL-96D5E1D6D1 | Done locally; pending explicit Linear sync | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline. |
-| TAL-96D5E1D6D2 | Planned; next planning boundary | System Administration Boundary and Health Presentation. |
-| TAL-96D5E1D7 | Planned; blocked on D5E1D6D2 | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
+| TAL-96D5E1D6D2 | Done locally; pending explicit Linear sync | System Administration Boundary and Health Presentation. |
+| TAL-96D5E1D7 | Planned; next | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
 | TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the frozen client-aligned `MIN` presentation fixture and only required case overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
@@ -87,4 +87,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Active boundary: `Plan TAL-96D5E1D6D2`.
+Active boundary: `Plan TAL-96D5E1D7`.

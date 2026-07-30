@@ -56,6 +56,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results |
 | TAL-96D5E1D6C | Done locally; pending explicit Linear sync | Completion Eligibility Review and Student-Visible Review Result |
 | TAL-96D5E1D6D1 | Done locally; pending explicit Linear sync | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline |
+| TAL-96D5E1D6D2 | Done locally; pending explicit Linear sync | System Administration Boundary and Health Presentation |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

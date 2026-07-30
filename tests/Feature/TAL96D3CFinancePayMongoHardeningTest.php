@@ -356,10 +356,10 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $this->actingAs($fixture['systemAdmin']);
 
         Livewire::test(IntegrationStatus::class)
-            ->assertSee('Local PayMongo readiness')
-            ->assertSee('Recent verified webhook')
-            ->assertSee('Open local exceptions')
-            ->assertSee('Provider dashboard state')
+            ->assertSee('Local configuration')
+            ->assertSee('Last verified webhook')
+            ->assertSee('Open exceptions')
+            ->assertSee('PayMongo dashboard registration')
             ->assertSee('Not checked by TALA')
             ->assertDontSee('sk_test_tal96d3c_not_real')
             ->assertDontSee('whsk_tal96d3c_not_real');
