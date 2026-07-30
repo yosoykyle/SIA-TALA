@@ -3,6 +3,7 @@
 namespace App\Actions\Cor;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
+use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Finance\PaymentStatusResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Assessment;
@@ -46,6 +47,7 @@ class BuildCorOutput
         private readonly PaymentStatusResolver $paymentStatusResolver,
         private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
         private readonly HoldEvaluationService $holdEvaluation,
+        private readonly EnrollmentAcademicContextResolver $academicContextResolver,
     ) {}
 
     /**
@@ -124,12 +126,13 @@ class BuildCorOutput
             ->reduce(fn (string $carry, array $row): string => $this->money->add($carry, (string) $row['units']), '0.00');
         $studentName = $this->studentName($enrollment->studentProfile);
         $program = $enrollment->studentProfile->program->code ?: $enrollment->studentProfile->program->name;
-        $yearLevel = $this->yearLevel($enrollment);
+        $academicContext = $this->academicContextResolver->forEnrollment($enrollment);
+        $curriculumLevel = $academicContext['curriculum_level_label'];
         $term = $enrollment->term->label;
         $registrationDate = $enrollment->officially_enrolled_at?->toFormattedDateString()
             ?? $enrollment->registered_at?->toFormattedDateString()
             ?? 'Not recorded';
-        $deliveryModality = $this->deliveryModality($enrollment);
+        $courseDeliveryMix = $academicContext['course_delivery_mix'];
 
         return [
             'available' => true,
@@ -150,11 +153,11 @@ class BuildCorOutput
                 'student_name' => $studentName,
                 'prior_identifier' => $enrollment->studentProfile->prior_identifier,
                 'program' => $program,
-                'year_level' => $yearLevel,
+                'curriculum_level' => $curriculumLevel,
                 'term' => $term,
                 'registration_date' => $registrationDate,
                 'payment_status' => $finance['payment_status'],
-                'delivery_modality' => $deliveryModality,
+                'course_delivery_mix' => $courseDeliveryMix,
                 'total_units' => $totalUnits,
                 'balance' => $finance['balance'],
                 'status' => 'Available',
@@ -166,11 +169,11 @@ class BuildCorOutput
                 'student_number' => $enrollment->studentProfile->student_number,
                 'student_name' => $studentName,
                 'program' => $program,
-                'year_level' => $yearLevel,
+                'curriculum_level' => $curriculumLevel,
                 'term' => $term,
                 'registration_date' => $registrationDate,
                 'payment_status' => $finance['payment_status'],
-                'delivery_modality' => $deliveryModality,
+                'course_delivery_mix' => $courseDeliveryMix,
                 'total_units' => $totalUnits,
                 'balance' => 'PHP '.$finance['balance'],
                 'subjects' => $subjects,
@@ -558,34 +561,6 @@ class BuildCorOutput
         };
     }
 
-    private function deliveryModality(Enrollment $enrollment): string
-    {
-        $modalities = $enrollment->courseEnrollments
-            ->filter(fn (CourseEnrollment $courseEnrollment): bool => $courseEnrollment->status === CourseEnrollment::StatusActive)
-            ->map(fn (CourseEnrollment $courseEnrollment): string => $courseEnrollment->termOffering->modality)
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($modalities->count() > 1) {
-            return 'Mixed';
-        }
-
-        $modality = $modalities->first();
-
-        return TermOffering::modalityOptions()[$modality] ?? 'Not recorded';
-    }
-
-    private function yearLevel(Enrollment $enrollment): string
-    {
-        $yearLevel = $enrollment->courseEnrollments
-            ->map(fn (CourseEnrollment $courseEnrollment): string => $courseEnrollment->termOffering->curriculumEntry->year_level)
-            ->filter()
-            ->first();
-
-        return $yearLevel ?? 'Not recorded';
-    }
-
     private function studentName(StudentProfile $studentProfile): string
     {
         if ($studentProfile->user instanceof User && filled($studentProfile->user->name)) {
@@ -631,11 +606,11 @@ class BuildCorOutput
                 'student_number' => 'Not available',
                 'student_name' => 'Not available',
                 'program' => 'Not available',
-                'year_level' => 'Not available',
+                'curriculum_level' => 'Not available',
                 'term' => 'Not available',
                 'registration_date' => 'Not available',
                 'payment_status' => 'Not available',
-                'delivery_modality' => 'Not available',
+                'course_delivery_mix' => 'Not available',
                 'total_units' => '0.00',
                 'balance' => 'PHP 0.00',
                 'subjects' => [],

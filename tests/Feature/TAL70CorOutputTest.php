@@ -222,7 +222,7 @@ final class TAL70CorOutputTest extends TestCase
 
         $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
-        $this->assertSame('Mixed', $output['state']['delivery_modality']);
+        $this->assertSame('Mixed', $output['state']['course_delivery_mix']);
         $this->assertEqualsCanonicalizing(
             ['Face-to-Face', 'Online'],
             collect($output['subjects'])->pluck('modality')->unique()->values()->all(),

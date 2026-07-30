@@ -153,6 +153,7 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
+            ->filterTable('term', $enrollment->term_id)
             ->assertSee('Next Step')
             ->assertSee('Finance: Payment still requires Accounting confirmation.');
     }

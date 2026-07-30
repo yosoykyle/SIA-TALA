@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Enrollment\EnrollmentProposalService;
 use App\Actions\Enrollment\SubjectSuggestionService;
@@ -10,6 +11,7 @@ use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionMeeting;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -65,13 +67,20 @@ class Enrollment extends Page implements HasTable
             return 'No enrollment record is active. Contact the Registrar when the enrollment period opens.';
         }
 
+        $context = app(EnrollmentAcademicContextResolver::class)->forEnrollment($enrollment);
         $cohortCode = $enrollment->student_type === 'irregular'
             ? null
             : app(EnrollmentPlacementService::class)->recommendedRegularCohortCode($enrollment);
 
         return collect([
-            str((string) $enrollment->status)->replace('_', ' ')->headline()->toString(),
-            $enrollment->status_reason,
+            'Current Term: '.($context['term_label'] ?? 'Not recorded'),
+            'Enrollment Status: '.$context['enrollment_status_label'],
+            'Enrollment Type: '.$context['enrollment_type_label'],
+            'Curriculum Level: '.$context['curriculum_level_label'],
+            'Course Delivery Mix: '.$context['course_delivery_mix'],
+            $enrollment->status_reason !== null ? 'Reason: '.$enrollment->status_reason : null,
+            'Responsible Office: '.$context['responsible_office'],
+            'Next Action: '.$context['next_action'],
             $enrollment->student_type === 'irregular'
                 ? 'Your selections are proposals until the Registrar confirms capacity.'
                 : ($cohortCode !== null
@@ -192,12 +201,13 @@ class Enrollment extends Page implements HasTable
             return null;
         }
 
-        return EnrollmentRecord::query()
-            ->with(['studentProfile', 'term'])
-            ->whereHas('studentProfile', fn (Builder $query) => $query->where('user_id', $user->id))
-            ->whereNotIn('status', ['cancelled', 'dropped', 'withdrawn'])
-            ->latest('id')
+        $profile = StudentProfile::query()
+            ->where('user_id', $user->id)
             ->first();
+
+        return $profile instanceof StudentProfile
+            ? app(EnrollmentAcademicContextResolver::class)->currentEnrollmentForProfile($profile)
+            : null;
     }
 
     private function eligibleSectionsQuery(?EnrollmentRecord $enrollment): Builder

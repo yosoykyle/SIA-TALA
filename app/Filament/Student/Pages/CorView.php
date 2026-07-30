@@ -60,9 +60,9 @@ class CorView extends Page
                         TextEntry::make('student_number')->label('Student No.'),
                         TextEntry::make('student_name')->label('Full Name'),
                         TextEntry::make('program')->label('Program'),
-                        TextEntry::make('year_level')->label('Year Level'),
+                        TextEntry::make('curriculum_level')->label('Curriculum Level'),
                         TextEntry::make('registration_date')->label('Registration Date'),
-                        TextEntry::make('delivery_modality')->label('Course Delivery Mix'),
+                        TextEntry::make('course_delivery_mix')->label('Course Delivery Mix'),
                         TextEntry::make('payment_status')->label('Payment Status'),
                         TextEntry::make('balance')->label('Balance'),
                     ])

@@ -27,7 +27,7 @@ Required fields:
 2. LRN / Prior-Education Identifier, if available
 3. Full Name
 4. Program
-5. Year Level
+5. Curriculum Level
 6. Section
 7. Registration Date
 8. Payment Type / Payment Status
@@ -49,6 +49,8 @@ Course delivery values:
 2. Face-to-Face
 
 Delivery modality belongs to each enrolled subject offering, not to the student as a whole. The student-level **Course Delivery Mix** is derived from the current official subject rows and is displayed as Online, Face-to-Face, or Mixed when both occur. Payment status and course delivery must remain separate fields.
+
+Curriculum Level is also source-derived from the current active enrolled subject rows. A regular enrollment whose active subjects belong to one curriculum level may display that level. An irregular enrollment spanning more than one curriculum level must display a truthful mixed-level label containing the represented levels; it must not copy the first subject's level and present it as the whole enrollment.
 
 #### 9.1.3 Class Schedule / Subjects
 
@@ -152,7 +154,7 @@ The legacy COR headers are supported as generated fields. Staff must correct the
 | Student No. | Student master record |
 | Program | Student program assignment |
 | Full Name | Student master record |
-| Yr/Gr Level | Student academic profile / assigned Curriculum Version placement label |
+| Yr/Gr Level | Unique curriculum levels represented by the current active enrolled subject rows; one level when uniform, otherwise a truthful mixed-level label |
 | LRN | Prior-education identifier, when available in the student profile |
 | Registration Date | Official enrollment timestamp or Registrar-confirmed registration date |
 | Tuition Fee | Active assessment charge line |

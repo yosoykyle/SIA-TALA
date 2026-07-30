@@ -3,6 +3,7 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
+use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
@@ -28,6 +29,7 @@ class StudentDashboardService
         private readonly HoldEvaluationService $holds,
         private readonly StudentGradeLabelFormatter $gradeLabels,
         private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
+        private readonly EnrollmentAcademicContextResolver $academicContextResolver,
     ) {}
 
     /**
@@ -48,7 +50,7 @@ class StudentDashboardService
         $studentProfile->load(['user', 'program']);
 
         $enrollments = $this->enrollmentsFor($studentProfile);
-        $currentEnrollment = $enrollments->first();
+        $currentEnrollment = $this->academicContextResolver->currentEnrollmentForProfile($studentProfile);
         $currentOfficialEnrollment = $this->currentEnrollmentResolver->forProfile($studentProfile);
         $holds = $this->holds($studentProfile, $currentEnrollment);
 
@@ -83,7 +85,15 @@ class StudentDashboardService
     private function enrollmentsFor(StudentProfile $studentProfile): EloquentCollection
     {
         return Enrollment::query()
-            ->with('term')
+            ->with([
+                'term',
+                'studentProfile.program',
+                'studentProfile.curriculumVersion',
+                'courseEnrollments.termOffering.curriculumEntry',
+                'courseEnrollments.proposedSection.deliveryGroups',
+                'courseEnrollments.seatReservations.section.deliveryGroups',
+                'gateResults',
+            ])
             ->where('student_profile_id', $studentProfile->id)
             ->orderByDesc('id')
             ->get();
@@ -102,8 +112,6 @@ class StudentDashboardService
             'program_id' => (int) $studentProfile->program_id,
             'program_code' => $studentProfile->program?->code,
             'program_name' => $studentProfile->program?->name,
-            'year_level' => null,
-            'modality' => null,
             'operational_status' => $this->stringAttribute($studentProfile, 'lifecycle_status'),
             'academic_standing' => $studentProfile->academic_standing,
             'user_status' => $studentProfile->user?->status,
@@ -116,20 +124,20 @@ class StudentDashboardService
      */
     private function enrollmentItem(Enrollment $enrollment): array
     {
+        $context = $this->academicContextResolver->forEnrollment($enrollment);
+
         return [
             'enrollment_id' => (int) $enrollment->id,
             'term_id' => (int) $enrollment->term_id,
             'term_name' => $enrollment->term?->label,
-            'section_id' => null,
-            'section_name' => null,
-            'section_delivery_group_id' => null,
-            'section_delivery_group_name' => null,
             'status' => $enrollment->status,
             'student_type' => $enrollment->student_type,
-            'year_level' => null,
-            'modality' => null,
-            'lis_status' => null,
-            'is_late_enrollment' => false,
+            'curriculum_level' => $context['curriculum_level_label'],
+            'curriculum_levels' => $context['curriculum_levels'],
+            'sections' => $context['section_labels'],
+            'cohorts' => $context['cohort_labels'],
+            'course_delivery_mix' => $context['course_delivery_mix'],
+            'responsible_office' => $context['responsible_office'],
             'enrolled_at' => $this->dateTimeString($enrollment->officially_enrolled_at),
             'pre_enrolled_at' => $this->dateTimeString($enrollment->registered_at),
             'officially_enrolled_at' => $this->dateTimeString($enrollment->officially_enrolled_at),

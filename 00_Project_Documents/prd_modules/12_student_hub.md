@@ -21,7 +21,7 @@ Student Hub v1 includes:
 9. Grades after posting and release, including student-facing labels for `INC`, `P`, withdrawn lifecycle outcomes, and `TC` when applicable.
 10. Holds and missing requirements.
 11. Academic deficiency or irregular status summary if approved.
-12. Delivery modality.
+12. Course Delivery Mix derived from the current enrolled offerings.
 13. Account and workflow notices.
 14. Student-facing Financial Accommodation status and next due date when an active arrangement exists; certification details, evidence, internal reasons, and staff notes remain hidden.
 15. Student-facing graduation or completion review summary when Registrar makes it visible.
@@ -76,7 +76,7 @@ Rules:
 3. Student Hub must show the required action where safe.
 4. Student Hub distinguishes enrollment status from COR availability.
 5. Student Hub must distinguish “officially enrolled” from “COR downloadable.”
-6. Student Hub must display modality separately from payment.
+6. Student Hub must display Course Delivery Mix separately from payment and must not present modality as a personal Student preference.
 7. Capacity Pending tells the student that section placement is awaiting Registrar action.
 8. When Enrollment Status is Pending Review, Student Hub uses the highest-priority pending gate to show the student-facing reason, required action, and office to contact.
 9. Student Hub must distinguish payment checkout status, payment evidence review, ledger-posted payment, and OR mapping status.
@@ -91,7 +91,7 @@ Rules:
 Example:
 
 Enrollment Status: Officially Enrolled
-Delivery Modality: Online
+Course Delivery Mix: Online
 Payment Status: Installment
 COR Status: Available
 
@@ -141,5 +141,7 @@ Rules:
 | Resolve a hold or lifecycle issue | Read-only instruction identifying the responsible office or permitted evidence action |
 
 Student Hub exposes student-authorized summaries, outputs, and allowed evidence actions. Staff queues, approval forms, private notes, draft schedules, unposted grades, ledger posting controls, and source-record editors remain in staff workspaces.
+
+An irregular Student may have an account and a visible pending Enrollment before compatible published sections exist. In that state, Student Hub identifies the current Term, Enrollment Status and Type, responsible office, and safe next step without claiming that a proposal, reservation, official placement, or personal solver run exists. When active enrolled subjects span multiple curriculum levels, Student Hub and COR show a mixed-level curriculum label derived from those subjects.
 
 ---

@@ -6,6 +6,7 @@ use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\Program;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -18,6 +19,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -84,6 +86,25 @@ class EnrollmentsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('term')
+                    ->relationship('term', 'label')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('program')
+                    ->label('Program')
+                    ->options(fn (): array => Program::query()
+                        ->orderBy('code')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $query, mixed $programId): Builder => $query->whereHas(
+                            'studentProfile',
+                            fn (Builder $profileQuery): Builder => $profileQuery->where('program_id', $programId),
+                        ),
+                    )),
                 SelectFilter::make('status')
                     ->options([
                         'not_started' => 'Not Started',

@@ -29,6 +29,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\ActionGroup;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
@@ -139,6 +140,7 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
         $this->assertInstanceOf(ViewEnrollment::class, $page);
 
         $officializeAction = collect($page->getCachedHeaderActions())
+            ->reject(fn ($action): bool => $action instanceof ActionGroup)
             ->first(fn ($action): bool => $action->getName() === 'recordOfficialEnrollment');
 
         $this->assertNotNull($officializeAction);

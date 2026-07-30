@@ -183,6 +183,8 @@ Irregular flow:
 
 Academic history review → failed or missing Curriculum Entry detection → effective Prerequisite Rule Set evaluation → corequisite evaluation → approved equivalency and credit evaluation → eligible subject list → offering match → unit-limit and conflict checks → scoped Academic Exception check when needed → Registrar placement confirmation → Enrollment Seat Reservation and enrollment binding.
 
+An admitted learner remains an authenticated Student with an auditable term Enrollment while waiting for compatible published offerings. A missing or unpublished schedule blocks section proposal and placement; it does not undo the Student account or require TALA to hide the pending Enrollment record. Individual irregular placement uses already published sections and never reruns the scheduling solver. If no compatible published section exists, the Registrar keeps the Enrollment in its truthful pending or capacity-pending state until the institution publishes an applicable regular or approved special offering.
+
 Rules:
 
 1. Unsatisfied prerequisite groups block downstream subjects unless a valid scoped Academic Exception exists.

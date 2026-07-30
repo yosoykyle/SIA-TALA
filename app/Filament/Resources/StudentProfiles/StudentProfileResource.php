@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\StudentProfiles;
 
 use App\Actions\Enrollment\AcademicProgressionService;
+use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\StudentHub\StudentGradeLabelFormatter;
 use App\Filament\Resources\Assessments\AssessmentResource;
@@ -39,6 +40,8 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use UnitEnum;
 
 class StudentProfileResource extends Resource
@@ -89,6 +92,39 @@ class StudentProfileResource extends Resource
                         ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state)),
                 ])
                 ->columns(2)
+                ->columnSpanFull(),
+            Section::make('Current Enrollment Context')
+                ->description('Current active-term facts are derived from the Enrollment and its active subject records; they are not duplicate Student Profile fields.')
+                ->schema([
+                    RepeatableEntry::make('current_enrollment_context')
+                        ->label('Active-Term Enrollment')
+                        ->state(function (StudentProfile $record): array {
+                            $context = app(EnrollmentAcademicContextResolver::class)->currentForProfile($record);
+
+                            if ($context === null) {
+                                return [];
+                            }
+
+                            return [[
+                                'term' => $context['term_label'],
+                                'status' => $context['enrollment_status_label'],
+                                'type' => $context['enrollment_type_label'],
+                                'curriculum_level' => $context['curriculum_level_label'],
+                                'course_delivery_mix' => $context['course_delivery_mix'],
+                                'responsible_office' => $context['responsible_office'],
+                            ]];
+                        })
+                        ->schema([
+                            TextEntry::make('term')->label('Current Term')->weight('bold'),
+                            TextEntry::make('status')->label('Enrollment Status')->badge(),
+                            TextEntry::make('type')->label('Enrollment Type')->badge(),
+                            TextEntry::make('curriculum_level')->label('Curriculum Level'),
+                            TextEntry::make('course_delivery_mix')->label('Course Delivery Mix'),
+                            TextEntry::make('responsible_office')->label('Responsible Office'),
+                        ])
+                        ->columns(2)
+                        ->columnSpanFull(),
+                ])
                 ->columnSpanFull(),
             Section::make('Academic Standing and Progression')
                 ->description('Confirmed standing is the official record. The system recommendation is decision support until an authorized user confirms it.')
@@ -313,32 +349,87 @@ class StudentProfileResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table->columns([
-            TextColumn::make('student_number')->searchable()->sortable(),
-            TextColumn::make('last_name')->label('Student')->formatStateUsing(fn (StudentProfile $record): string => $record->last_name.', '.$record->first_name)->searchable(['last_name', 'first_name'])->sortable(),
-            TextColumn::make('program.name')->searchable()->sortable(),
-            TextColumn::make('curriculumVersion.name')->label('Curriculum')->sortable(),
-            TextColumn::make('lifecycle_status')
-                ->label('Lifecycle Status')
-                ->badge()
-                ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
-                ->sortable(),
-            TextColumn::make('academic_standing')
-                ->label('Confirmed Standing')
-                ->badge()
-                ->formatStateUsing(fn (?string $state): string => str((string) $state)->headline()->toString())
-                ->sortable(),
-        ])->filters([
-            SelectFilter::make('lifecycle_status')->options([
-                StudentProfile::LifecycleActive => 'Active',
-                StudentProfile::LifecycleLeaveOfAbsence => 'Leave of Absence',
-                StudentProfile::LifecycleWithdrawn => 'Withdrawn',
-                StudentProfile::LifecycleTransferredOut => 'Transferred Out',
-                StudentProfile::LifecycleInactive => 'Inactive',
-                StudentProfile::LifecycleArchived => 'Archived',
-            ]),
-            SelectFilter::make('academic_standing')->options(array_combine(AcademicProgressionService::standingValues(), AcademicProgressionService::standingValues())),
-        ])
+        return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'program',
+                'curriculumVersion',
+                'enrollments' => function (Relation $relation): void {
+                    $relation->getQuery()
+                        ->whereHas('term', fn (Builder $termQuery): Builder => $termQuery->where('state', Term::StateActive))
+                        ->with([
+                            'term',
+                            'studentProfile.program',
+                            'studentProfile.curriculumVersion',
+                            'courseEnrollments.termOffering.curriculumEntry',
+                            'courseEnrollments.proposedSection.deliveryGroups',
+                            'courseEnrollments.seatReservations.section.deliveryGroups',
+                            'gateResults',
+                        ]);
+                },
+            ]))
+            ->columns([
+                TextColumn::make('student_number')->searchable()->sortable(),
+                TextColumn::make('last_name')->label('Student')->formatStateUsing(fn (StudentProfile $record): string => $record->last_name.', '.$record->first_name)->searchable(['last_name', 'first_name'])->sortable(),
+                TextColumn::make('program.name')->searchable()->sortable(),
+                TextColumn::make('curriculumVersion.name')->label('Curriculum')->sortable(),
+                TextColumn::make('current_term')
+                    ->label('Current Term')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['term_label'] ?? 'No active-term enrollment')
+                    ->wrap(),
+                TextColumn::make('current_enrollment_status')
+                    ->label('Enrollment Status')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_status_label'] ?? 'Not started')
+                    ->badge(),
+                TextColumn::make('current_enrollment_type')
+                    ->label('Enrollment Type')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_type_label'] ?? 'Not recorded')
+                    ->badge(),
+                TextColumn::make('curriculum_level')
+                    ->label('Curriculum Level')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded'),
+                TextColumn::make('lifecycle_status')
+                    ->label('Lifecycle Status')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
+                    ->sortable(),
+                TextColumn::make('academic_standing')
+                    ->label('Confirmed Standing')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => str((string) $state)->headline()->toString())
+                    ->sortable(),
+            ])->filters([
+                SelectFilter::make('program')
+                    ->relationship('program', 'name')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('current_enrollment_status')
+                    ->label('Current Enrollment Status')
+                    ->options([
+                        'not_started' => 'Not Started',
+                        'pending_review' => 'Pending Review',
+                        'capacity_pending' => 'Capacity Pending',
+                        'pending_payment' => 'Payment Pending',
+                        'ready_for_official_enrollment' => 'Ready for Official Enrollment',
+                        'officially_enrolled' => 'Officially Enrolled',
+                        'cancelled' => 'Cancelled',
+                        'dropped' => 'Dropped',
+                        'withdrawn' => 'Withdrawn',
+                    ])
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $query, mixed $status): Builder => app(EnrollmentAcademicContextResolver::class)
+                            ->applyCurrentEnrollmentStatusFilter($query, (string) $status),
+                    )),
+                SelectFilter::make('lifecycle_status')->options([
+                    StudentProfile::LifecycleActive => 'Active',
+                    StudentProfile::LifecycleLeaveOfAbsence => 'Leave of Absence',
+                    StudentProfile::LifecycleWithdrawn => 'Withdrawn',
+                    StudentProfile::LifecycleTransferredOut => 'Transferred Out',
+                    StudentProfile::LifecycleInactive => 'Inactive',
+                    StudentProfile::LifecycleArchived => 'Archived',
+                ]),
+                SelectFilter::make('academic_standing')->options(array_combine(AcademicProgressionService::standingValues(), AcademicProgressionService::standingValues())),
+            ])
             ->recordActions([ViewAction::make(), EditAction::make()])
             ->defaultSort('student_number')
             ->stackedOnMobile();

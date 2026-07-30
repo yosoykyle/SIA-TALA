@@ -1932,3 +1932,35 @@ The human pass uses the preserved MIDDLE personas and checks changed navigation,
 | Can Faculty change a submitted or released roster? | No. It remains visible as submission history, but its grade cells and submit action are read-only. Corrections continue through the authorized grade workflow. |
 | What is the difference between Audit Logs and Operational Events? | Audit Logs answer who changed which institutional record and when. Operational Events answer what an integration, notification, or delivery service reported. |
 | Do the Dashboard cards create or approve records? | No. They are orientation links and factual counts over existing sources. The destination policy and action service still enforce every decision. |
+
+### 9.16 TAL-96D5E1D3 Enrollment-to-COR operating flow
+
+#### 9.16.1 Regular and irregular operating order
+
+1. The institution first configures the active academic period, curriculum, offerings and sections, resources, and published timetable. An admitted learner may already have a Student account and an auditable pending Enrollment; publication controls placement, not account existence.
+2. A regular Enrollment uses the complete published cohort block. An irregular Enrollment shows only compatible published sections and records the learner's complete proposal without reserving capacity.
+3. If no compatible published section exists, the irregular learner waits in the visible pending or capacity-pending Enrollment. The Registrar either waits for the next applicable offering or follows the institution's approved additional-offering process. One learner's placement never reruns the solver.
+4. Registrar confirmation rechecks the open window, publication, prerequisite, unit-limit, time-conflict, and remaining-capacity rules atomically. Only successful confirmation creates or replaces the seat reservation and official schedule binding; a proposal alone consumes no capacity.
+5. Assessment and payment follow confirmed placement. Accounting-owned ledger evidence determines the Finance Gate. The Registrar records official enrollment only after every required gate is satisfied.
+6. Student Hub then projects the same current Enrollment, published bindings, responsible office, source-derived curriculum-level context, and Course Delivery Mix. COR is generated from that official record; an effective COR hold or blocking lifecycle state may still prevent Student printing.
+
+#### 9.16.2 Source records and views
+
+| Surface | What it answers | Authority boundary |
+| --- | --- | --- |
+| Enrollment | What is the current term decision, blocker, next action, and responsible office? | Term-specific source record; placement and officialization remain transactional Registrar actions. |
+| Student Profile | Who is the learner and what is their cross-term institutional history? | Canonical person record with source-derived current Enrollment context and contextual history links. |
+| Published Schedule | Which section meetings are official and available for placement or projection? | Registrar-published timetable; candidate or unpublished rows are never Student assignments. |
+| COR | What subjects, sections, meeting details, curriculum levels, delivery mix, and finance summary are officially registered now? | Read-only output from the current official Enrollment and its owned source records; corrections happen in the sources. |
+
+Curriculum level is not a persisted Student attribute. TALA derives the unique levels represented by the current active enrolled subjects: one level is shown when uniform, while an irregular mixed-level load is labeled with every represented level. Course Delivery Mix is similarly derived from per-offering Online and Face-to-Face values and is never a personal Student modality.
+
+#### 9.16.3 Likely panel questions
+
+| Question | Defense answer |
+| --- | --- |
+| Where is an irregular learner before sections are published? | The learner remains an admitted Student with a visible pending Enrollment. The system explains that the Registrar is waiting for compatible published sections; it does not invent a proposal, seat, or schedule. |
+| Does selecting or proposing a section reduce capacity? | No. Capacity changes only inside successful Registrar placement confirmation, which rechecks every section and writes the reservation and binding atomically. |
+| When should another offering and schedule run be considered? | Only when the institution approves an additional regular or special offering because no suitable published capacity exists. Individual placement consumes an existing published section and does not invoke CP-SAT. |
+| Why can one Student show Mixed Levels? | Irregular loads may contain courses from several curriculum levels. TALA lists the represented levels instead of mislabeling the whole enrollment from the first course. |
+| Are Enrollment, Student Profile, Published Schedule, and COR duplicate records? | No. Enrollment is the term decision; Student Profile is the person and history; Published Schedule is the official timetable; COR is a generated current-registration output from those sources. |
