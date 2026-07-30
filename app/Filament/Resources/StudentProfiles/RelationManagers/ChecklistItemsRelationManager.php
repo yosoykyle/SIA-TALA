@@ -154,7 +154,7 @@ class ChecklistItemsRelationManager extends RelationManager
                             reference: $data['receipt_reference'] ?? null,
                         )),
                     Action::make('verifyDocument')
-                        ->label('Verify Document')
+                        ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Verify'))
                         ->icon(Heroicon::OutlinedCheckCircle)
                         ->color('success')
                         ->requiresConfirmation()
@@ -162,7 +162,7 @@ class ChecklistItemsRelationManager extends RelationManager
                         ->action(fn (ChecklistItem $record): mixed => $this->runReview(
                             item: $record,
                             decision: ApplicantEvidenceService::DecisionAccept,
-                            successTitle: 'Document verified successfully',
+                            successTitle: "{$this->evidenceActionLabel($record, 'Verify')} recorded",
                         )),
                     Action::make('downloadEvidence')
                         ->label('Download Evidence')
@@ -170,26 +170,60 @@ class ChecklistItemsRelationManager extends RelationManager
                         ->visible(fn (ChecklistItem $record): bool => $this->canDownload($record))
                         ->action(fn (ChecklistItem $record): mixed => $this->downloadEvidence($record)),
                     Action::make('rejectDocument')
-                        ->label('Reject Document')
+                        ->label(fn (ChecklistItem $record): string => $this->evidenceActionLabel($record, 'Reject'))
                         ->icon(Heroicon::OutlinedXCircle)
                         ->color('danger')
                         ->visible(fn (ChecklistItem $record): bool => $this->canReview($record))
                         ->schema([
                             Textarea::make('notes')
-                                ->label('Rejection Notes')
+                                ->label('Correction Instruction')
+                                ->helperText('Explain what is wrong and what the applicant or Registrar must do next.')
                                 ->required()
                                 ->maxLength(500),
                         ])
                         ->action(fn (ChecklistItem $record, array $data): mixed => $this->runReview(
                             item: $record,
                             decision: ApplicantEvidenceService::DecisionReject,
-                            successTitle: 'Document rejected successfully',
+                            successTitle: "{$this->evidenceActionLabel($record, 'Reject')} recorded",
                             reason: (string) $data['notes'],
+                        )),
+                    Action::make('waiveRequirement')
+                        ->label('Waive Requirement')
+                        ->icon(Heroicon::OutlinedShieldCheck)
+                        ->color('warning')
+                        ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
+                        ->schema([
+                            Textarea::make('waiver_reason')
+                                ->label('Waiver Reason')
+                                ->helperText('Record the policy exception or verified basis for waiving this requirement.')
+                                ->required()
+                                ->maxLength(1000),
+                        ])
+                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->waiveRequirement(
+                            item: $record,
+                            reason: (string) $data['waiver_reason'],
+                        )),
+                    Action::make('approveUndertaking')
+                        ->label('Approve Undertaking')
+                        ->icon(Heroicon::OutlinedDocumentCheck)
+                        ->color('info')
+                        ->visible(fn (ChecklistItem $record): bool => $this->canResolveByAuthority($record))
+                        ->schema([
+                            Textarea::make('undertaking_terms')
+                                ->label('Undertaking Terms')
+                                ->helperText('State what must be provided, to whom, and by what deadline or lifecycle point.')
+                                ->required()
+                                ->maxLength(1000),
+                        ])
+                        ->action(fn (ChecklistItem $record, array $data): mixed => $this->approveUndertaking(
+                            item: $record,
+                            terms: (string) $data['undertaking_terms'],
                         )),
                 ])
                     ->label('Review Actions')
                     ->icon(Heroicon::OutlinedEllipsisVertical),
-            ]);
+            ])
+            ->stackedOnMobile();
     }
 
     private function canReview(ChecklistItem $item): bool
@@ -217,6 +251,18 @@ class ChecklistItemsRelationManager extends RelationManager
             && $item->evidence_method === ChecklistItem::EvidenceMethodPhysicalCopy
             && ! $item->isResolved()
             && $item->status !== ChecklistItem::StatusReceivedPhysical
+            && ($item->owner_type !== ChecklistItem::OwnerApplicant
+                || ($item->applicantIntake !== null && $user->can('review', $item->applicantIntake)));
+    }
+
+    private function canResolveByAuthority(ChecklistItem $item): bool
+    {
+        $user = auth()->user();
+
+        return $user instanceof User
+            && $user->hasRole(User::StaffRoleRegistrar)
+            && $user->can('approve-documents')
+            && ! $item->isResolved()
             && ($item->owner_type !== ChecklistItem::OwnerApplicant
                 || ($item->applicantIntake !== null && $user->can('review', $item->applicantIntake)));
     }
@@ -257,6 +303,64 @@ class ChecklistItemsRelationManager extends RelationManager
         } catch (ValidationException $exception) {
             Notification::make()
                 ->title('Document review blocked')
+                ->body($exception->validator->errors()->first())
+                ->danger()
+                ->send();
+        }
+
+        return null;
+    }
+
+    private function evidenceActionLabel(ChecklistItem $item, string $verb): string
+    {
+        $evidenceLabel = match ($item->evidence_method) {
+            ChecklistItem::EvidenceMethodDigitalUpload => 'Digital Evidence',
+            ChecklistItem::EvidenceMethodPhysicalCopy => 'Physical Requirement',
+            ChecklistItem::EvidenceMethodMetadataOnly => 'Staff-Tracked Requirement',
+            default => 'Requirement',
+        };
+
+        return "{$verb} {$evidenceLabel}";
+    }
+
+    private function waiveRequirement(ChecklistItem $item, string $reason): mixed
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        try {
+            app(ApplicantEvidenceService::class)->waive($item, $actor, $reason);
+
+            Notification::make()
+                ->title('Requirement waived')
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Requirement cannot be waived')
+                ->body($exception->validator->errors()->first())
+                ->danger()
+                ->send();
+        }
+
+        return null;
+    }
+
+    private function approveUndertaking(ChecklistItem $item, string $terms): mixed
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        try {
+            app(ApplicantEvidenceService::class)->approveUndertaking($item, $actor, $terms);
+
+            Notification::make()
+                ->title('Undertaking approved')
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Undertaking cannot be approved')
                 ->body($exception->validator->errors()->first())
                 ->danger()
                 ->send();

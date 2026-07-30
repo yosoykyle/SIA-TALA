@@ -3,10 +3,12 @@
 namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Applicants\ApplicantEvidenceService;
+use App\Actions\Applicants\ApplicantIntakeWorkflowPresenter;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
 use App\Models\User;
 use BackedEnum;
+use Carbon\CarbonInterface;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
@@ -145,6 +147,25 @@ class Requirements extends Page
             ->orderByRaw('status != ? desc', [ApplicantIntake::StatusWithdrawn])
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * @return array{
+     *     stage:string,
+     *     responsible_party:string,
+     *     next_action:string,
+     *     handover_blocker_count:int,
+     *     requirement_count:int,
+     *     resolved_requirement_count:int,
+     *     outstanding_requirement_count:int,
+     *     requirements_summary:string,
+     *     ready_for_handover:bool,
+     *     last_activity_at:?CarbonInterface
+     * }
+     */
+    public function workflowSummary(ApplicantIntake $intake): array
+    {
+        return app(ApplicantIntakeWorkflowPresenter::class)->present($intake);
     }
 
     /** @return array<int, string> */

@@ -58,7 +58,12 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
         $this->assertSame('Registrar', $summary['responsible_party']);
         $this->assertSame('Review submitted requirements', $summary['next_action']);
         $this->assertSame(1, $summary['handover_blocker_count']);
-        $this->assertSame('1 of 2 requirements still blocks handover', $summary['requirements_summary']);
+        $this->assertSame(1, $summary['resolved_requirement_count']);
+        $this->assertSame(1, $summary['outstanding_requirement_count']);
+        $this->assertSame(
+            '1 of 2 requirements resolved; 1 outstanding; 1 blocks handover',
+            $summary['requirements_summary'],
+        );
         $this->assertFalse($summary['ready_for_handover']);
     }
 
@@ -164,7 +169,7 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
             $this->fail('The handover should stop when an exact official identity already exists.');
         } catch (ValidationException $exception) {
             $this->assertSame(
-                'An existing official student record matches this applicant. Investigate the match before handover; a new profile was not created.',
+                'An active official student record exactly matches this applicant. Stop handover and review the match in the Applicant Record. Reuse is available only for a confirmed Returning Student; confirmed duplicate official profiles must be resolved in Duplicate Profile Resolution. No new profile was created.',
                 $exception->validator->errors()->first('student_profile'),
             );
         }

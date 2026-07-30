@@ -139,7 +139,7 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertDontSee('No requirements are recorded yet.');
     }
 
-    public function test_applicant_with_intake_displays_status_and_checklist(): void
+    public function test_applicant_home_stays_compact_and_requirements_displays_checklist_detail(): void
     {
         $user = User::factory()->create([
             'status' => User::StatusApplicantPending,
@@ -200,21 +200,24 @@ class ApplicantWorkspaceTest extends TestCase
             ->assertSee('Pending Review')
             ->assertSee('First Semester 2026-2027')
             ->assertSee('Bachelor of Science in Information Technology')
-            ->assertSee('Birth certificate')
-            ->assertSee('Blocks Handover')
-            ->assertSee('Submit original copy')
-            ->assertSee('Birth certificate')
-            ->assertSee('id.pdf')
-            ->assertSee('Submitted')
+            ->assertSee('0 of 1 requirement resolved; 1 outstanding; 1 blocks handover')
+            ->assertSee('Review Requirements')
+            ->assertDontSee('Birth Certificate')
+            ->assertDontSee('Submit original copy')
+            ->assertDontSee('id.pdf')
+            ->assertDontSee('Submitted Digital Documents')
             ->assertDontSee('Start Your Application');
 
         $this->actingAs($user)
             ->get('/applicant/requirements')
             ->assertOk()
-            ->assertSee('Requirement Status and Instructions')
-            ->assertSeeHtml('class="tala-table-scroll"')
-            ->assertSeeHtml('class="tala-data-table"')
+            ->assertSee('Your Requirements')
+            ->assertSeeHtml('class="tala-requirements-list"')
             ->assertSee('Birth Certificate')
-            ->assertSee('Submit original copy');
+            ->assertSee('Blocks Handover')
+            ->assertSee('Submit original copy')
+            ->assertSee('Upload Online')
+            ->assertSee('Latest evidence')
+            ->assertSee('File submitted');
     }
 }

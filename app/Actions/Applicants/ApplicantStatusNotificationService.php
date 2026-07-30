@@ -5,6 +5,8 @@ namespace App\Actions\Applicants;
 use App\Mail\ApplicantStatusChangedMail;
 use App\Models\ApplicantIntake;
 use App\Models\OperationalEvent;
+use App\Models\Program;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -25,6 +27,7 @@ final class ApplicantStatusNotificationService
                 'event_type' => OperationalEvent::TypeApplicantActionRequiredEmail,
                 'status_label' => 'Action Required',
                 'guidance' => 'The Registrar found a requirement that needs correction. Open your Requirements page to review the feedback and upload a replacement where requested.',
+                'next_action' => 'Review the Registrar instruction and replace each rejected digital item from Requirements.',
                 'action_url' => route('filament.applicant.pages.requirements'),
                 'transition_at' => $intake->reviewed_at,
             ],
@@ -32,6 +35,7 @@ final class ApplicantStatusNotificationService
                 'event_type' => OperationalEvent::TypeApplicantApprovedEmail,
                 'status_label' => 'Approved for Handover',
                 'guidance' => 'The Registrar approved your application for handover to the student-record process. Monitor your Applicant Dashboard for the next recorded step.',
+                'next_action' => 'Wait for the Registrar to complete handover, then sign in to Student Hub with your activated student access.',
                 'action_url' => route('filament.applicant.pages.dashboard'),
                 'transition_at' => $intake->approved_at,
             ],
@@ -42,6 +46,10 @@ final class ApplicantStatusNotificationService
             return;
         }
 
+        $program = Program::query()->find($intake->program_id);
+        $term = Term::query()->find($intake->term_id);
+        $programLabel = $program instanceof Program ? $program->name : 'Not assigned';
+        $termLabel = $term instanceof Term ? $term->label : 'Not assigned';
         $transitionAt = $notification['transition_at'] ?? now();
         $transitionKey = hash('sha256', (string) $transitionAt);
         $deliveryEvent = OperationalEvent::query()->firstOrCreate(
@@ -71,6 +79,10 @@ final class ApplicantStatusNotificationService
                 'payload' => [
                     'status' => $intake->status,
                     'status_label' => $notification['status_label'],
+                    'program_label' => $programLabel,
+                    'term_label' => $termLabel,
+                    'responsible_office' => 'Registrar',
+                    'next_action' => $notification['next_action'],
                 ],
             ],
         );
@@ -97,6 +109,10 @@ final class ApplicantStatusNotificationService
                 guidance: (string) $notification['guidance'],
                 actionUrl: (string) $notification['action_url'],
                 operationalEventType: (string) $notification['event_type'],
+                programLabel: $programLabel,
+                termLabel: $termLabel,
+                responsibleOffice: 'Registrar',
+                nextAction: (string) $notification['next_action'],
             ));
         } catch (Throwable $exception) {
             $this->markFailed($deliveryEvent, 'Mail could not be queued.', $exception);

@@ -115,6 +115,8 @@ class ApplicantIntakesTable
      *     next_action:string,
      *     handover_blocker_count:int,
      *     requirement_count:int,
+     *     resolved_requirement_count:int,
+     *     outstanding_requirement_count:int,
      *     requirements_summary:string,
      *     ready_for_handover:bool,
      *     last_activity_at:mixed

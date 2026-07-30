@@ -206,7 +206,7 @@ class TAL96D5BApplicantLifecycleHistoryTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(Requirements::class)
             ->assertSee('Withdrawn before submission')
-            ->assertSee('No Registrar checklist was created')
+            ->assertSee('no checklist was created')
             ->assertDontSee('Your application has been submitted');
     }
 

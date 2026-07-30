@@ -30,6 +30,10 @@ class ApplicantStatusChangedMail extends Mailable implements ShouldQueue
         public string $guidance,
         public string $actionUrl,
         public string $operationalEventType,
+        public string $programLabel,
+        public string $termLabel,
+        public string $responsibleOffice,
+        public string $nextAction,
     ) {
         $this->afterCommit();
     }

@@ -310,7 +310,7 @@ class ApplicantIntakeService
 
         if ($studentMatch || $applicantMatch) {
             throw ValidationException::withMessages([
-                'duplicate' => 'A matching applicant or student record already exists.',
+                'duplicate' => 'An applicant or official student record exactly matches this identity. Returning Students should select Returning Student so the Registrar can confirm profile reuse. First-Time or Transfer applicants must contact the Registrar for identity review before submitting again.',
             ]);
         }
     }

@@ -109,6 +109,30 @@ class ApplicantEvidenceService
         }, attempts: 3);
     }
 
+    public function waive(ChecklistItem $checklistItem, User $actor, string $reason): ChecklistItem
+    {
+        return $this->recordAuthorityResolution(
+            checklistItem: $checklistItem,
+            actor: $actor,
+            status: ChecklistItem::StatusWaived,
+            detail: $reason,
+            detailField: 'waiver_reason',
+            event: 'applicant_requirement_waived',
+        );
+    }
+
+    public function approveUndertaking(ChecklistItem $checklistItem, User $actor, string $terms): ChecklistItem
+    {
+        return $this->recordAuthorityResolution(
+            checklistItem: $checklistItem,
+            actor: $actor,
+            status: ChecklistItem::StatusUndertakingApproved,
+            detail: $terms,
+            detailField: 'undertaking_terms',
+            event: 'applicant_undertaking_approved',
+        );
+    }
+
     public function recordPhysicalReceipt(
         ChecklistItem $checklistItem,
         User $actor,
@@ -392,6 +416,84 @@ class ApplicantEvidenceService
             || ! $actor->canAuthenticate()) {
             throw new AuthorizationException('Only Registrar staff with document-approval permission may review private evidence.');
         }
+    }
+
+    /**
+     * @param  ChecklistItem::StatusWaived|ChecklistItem::StatusUndertakingApproved  $status
+     * @param  'waiver_reason'|'undertaking_terms'  $detailField
+     */
+    private function recordAuthorityResolution(
+        ChecklistItem $checklistItem,
+        User $actor,
+        string $status,
+        string $detail,
+        string $detailField,
+        string $event,
+    ): ChecklistItem {
+        $this->authorizeRegistrar($actor);
+
+        $trimmedDetail = trim($detail);
+
+        if ($trimmedDetail === '') {
+            $message = $detailField === 'waiver_reason'
+                ? 'Explain why the Registrar is waiving this requirement.'
+                : 'Record the approved undertaking terms.';
+
+            throw ValidationException::withMessages([$detailField => $message]);
+        }
+
+        if (mb_strlen($trimmedDetail) > 1000) {
+            throw ValidationException::withMessages([
+                $detailField => 'Keep the recorded reason or terms to 1,000 characters or fewer.',
+            ]);
+        }
+
+        return DB::transaction(function () use (
+            $checklistItem,
+            $actor,
+            $status,
+            $trimmedDetail,
+            $detailField,
+            $event,
+        ): ChecklistItem {
+            $item = ChecklistItem::query()->lockForUpdate()->findOrFail($checklistItem->id);
+
+            if ($item->isResolved()) {
+                throw ValidationException::withMessages([
+                    'status' => 'This requirement is already resolved. Refresh before taking another action.',
+                ]);
+            }
+
+            $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $item->forceFill([
+                'status' => $status,
+                'reviewed_by' => $actor->id,
+                'reviewed_at' => $timestamp,
+                'waiver_reason' => $detailField === 'waiver_reason' ? $trimmedDetail : null,
+                'undertaking_terms' => $detailField === 'undertaking_terms' ? $trimmedDetail : null,
+            ])->save();
+
+            $statusChangedIntake = $this->synchronizeApplicantAfterReview(
+                $item,
+                $actor,
+                accepted: true,
+                timestamp: $timestamp,
+            );
+            $this->recordActivity(
+                intakeId: $item->applicant_intake_id,
+                subjectId: $item->id,
+                actor: $actor,
+                event: $event,
+                properties: [$detailField => $trimmedDetail],
+                timestamp: $timestamp,
+            );
+
+            if ($statusChangedIntake instanceof ApplicantIntake) {
+                $this->statusNotifications->record($statusChangedIntake);
+            }
+
+            return $item->refresh()->load(['documentEvidence', 'applicantIntake.user']);
+        }, attempts: 3);
     }
 
     private function synchronizeApplicantAfterReview(

@@ -19,6 +19,8 @@ class ApplicantIntakeWorkflowPresenter
      *     next_action:string,
      *     handover_blocker_count:int,
      *     requirement_count:int,
+     *     resolved_requirement_count:int,
+     *     outstanding_requirement_count:int,
      *     requirements_summary:string,
      *     ready_for_handover:bool,
      *     last_activity_at:?CarbonInterface
@@ -29,6 +31,10 @@ class ApplicantIntakeWorkflowPresenter
         $intake->loadMissing('checklistItems');
 
         $requirementCount = $intake->checklistItems->count();
+        $resolvedRequirementCount = $intake->checklistItems
+            ->filter(fn (ChecklistItem $item): bool => $item->isResolved())
+            ->count();
+        $outstandingRequirementCount = $requirementCount - $resolvedRequirementCount;
         $handoverBlockerCount = $intake->checklistItems
             ->filter(fn (ChecklistItem $item): bool => $item->blocking_level === ChecklistItem::BlockingHandover)
             ->reject(fn (ChecklistItem $item): bool => $item->isResolved())
@@ -44,7 +50,14 @@ class ApplicantIntakeWorkflowPresenter
             'next_action' => $nextAction,
             'handover_blocker_count' => $handoverBlockerCount,
             'requirement_count' => $requirementCount,
-            'requirements_summary' => $this->requirementsSummary($requirementCount, $handoverBlockerCount),
+            'resolved_requirement_count' => $resolvedRequirementCount,
+            'outstanding_requirement_count' => $outstandingRequirementCount,
+            'requirements_summary' => $this->requirementsSummary(
+                $requirementCount,
+                $resolvedRequirementCount,
+                $outstandingRequirementCount,
+                $handoverBlockerCount,
+            ),
             'ready_for_handover' => $intake->status === ApplicantIntake::StatusApproved
                 && $intake->handed_over_at === null
                 && $handoverBlockerCount === 0
@@ -113,18 +126,22 @@ class ApplicantIntakeWorkflowPresenter
         };
     }
 
-    private function requirementsSummary(int $requirementCount, int $handoverBlockerCount): string
-    {
+    private function requirementsSummary(
+        int $requirementCount,
+        int $resolvedRequirementCount,
+        int $outstandingRequirementCount,
+        int $handoverBlockerCount,
+    ): string {
         if ($requirementCount === 0) {
             return 'No requirement checklist is recorded';
         }
 
-        if ($handoverBlockerCount === 0) {
-            return "{$requirementCount} requirements recorded; none blocks handover";
-        }
+        $requirementNoun = $requirementCount === 1 ? 'requirement' : 'requirements';
+        $blockerSummary = $handoverBlockerCount === 0
+            ? 'none blocks handover'
+            : "{$handoverBlockerCount} blocks handover";
 
-        $noun = $requirementCount === 1 ? 'requirement' : 'requirements';
-
-        return "{$handoverBlockerCount} of {$requirementCount} {$noun} still blocks handover";
+        return "{$resolvedRequirementCount} of {$requirementCount} {$requirementNoun} resolved; "
+            ."{$outstandingRequirementCount} outstanding; {$blockerSummary}";
     }
 }

@@ -299,6 +299,7 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ListApplicantIntakes::class)
+            ->set('activeTab', 'completed_history')
             ->assertCanSeeTableRecords([$intake->fresh()])
             ->assertSee('Withdrawn')
             ->assertDontSee($reason);

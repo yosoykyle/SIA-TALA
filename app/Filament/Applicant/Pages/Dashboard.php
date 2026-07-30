@@ -3,10 +3,12 @@
 namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Applicants\AdmissionWindowService;
+use App\Actions\Applicants\ApplicantIntakeWorkflowPresenter;
 use App\Actions\Applicants\WithdrawApplicantIntake;
 use App\Models\ApplicantIntake;
 use App\Models\User;
 use App\Support\DisplayDateTime;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\TextEntry;
@@ -174,8 +176,7 @@ class Dashboard extends BaseDashboard implements HasTable
 
         return ApplicantIntake::query()
             ->with([
-                'checklistItems.reviewer',
-                'checklistItems.documentEvidence.reviewer',
+                'checklistItems',
                 'program',
                 'term',
                 'withdrawalActivity.causer',
@@ -184,6 +185,25 @@ class Dashboard extends BaseDashboard implements HasTable
             ->where('status', '!=', ApplicantIntake::StatusWithdrawn)
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * @return array{
+     *     stage:string,
+     *     responsible_party:string,
+     *     next_action:string,
+     *     handover_blocker_count:int,
+     *     requirement_count:int,
+     *     resolved_requirement_count:int,
+     *     outstanding_requirement_count:int,
+     *     requirements_summary:string,
+     *     ready_for_handover:bool,
+     *     last_activity_at:?CarbonInterface
+     * }
+     */
+    public function workflowSummary(ApplicantIntake $intake): array
+    {
+        return app(ApplicantIntakeWorkflowPresenter::class)->present($intake);
     }
 
     public function admissionsAreOpen(): bool
@@ -201,7 +221,7 @@ class Dashboard extends BaseDashboard implements HasTable
             && $intake->handed_over_at === null;
     }
 
-    private function statusLabel(string $status): string
+    public function statusLabel(string $status): string
     {
         return match ($status) {
             ApplicantIntake::StatusDraft => 'Draft',
@@ -214,7 +234,7 @@ class Dashboard extends BaseDashboard implements HasTable
         };
     }
 
-    private function statusColor(string $status): string
+    public function statusColor(string $status): string
     {
         return match ($status) {
             ApplicantIntake::StatusPending => 'warning',

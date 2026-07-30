@@ -227,7 +227,7 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $draft = app(ApplicantIntakeService::class)->saveDraft($applicant, $this->completeIntakeData($applicant, $term, $program));
 
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('A matching applicant or student record already exists.');
+        $this->expectExceptionMessage('An applicant or official student record exactly matches this identity.');
         app(ApplicantIntakeService::class)->submit($draft, true);
     }
 

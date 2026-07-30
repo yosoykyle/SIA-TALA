@@ -50,6 +50,7 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure |
 | TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery |
 | TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR Operating-Journey Closure |
+| TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Closure |
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 

@@ -110,7 +110,7 @@ class HandOverApprovedApplicant
 
         if ($this->duplicateCandidateFinder->find($intake)->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'student_profile' => 'An existing official student record matches this applicant. Investigate the match before handover; a new profile was not created.',
+                'student_profile' => 'An active official student record exactly matches this applicant. Stop handover and review the match in the Applicant Record. Reuse is available only for a confirmed Returning Student; confirmed duplicate official profiles must be resolved in Duplicate Profile Resolution. No new profile was created.',
             ]);
         }
     }
