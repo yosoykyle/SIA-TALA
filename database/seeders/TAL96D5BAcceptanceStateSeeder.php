@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -26,25 +27,26 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * Adds deterministic TAL-96D5B operational states to the existing MIDDLE fixture.
+ * Adds deterministic operational presentation cases to the client-aligned MIN fixture.
  *
  * This opt-in test-only overlay is never called by DatabaseSeeder. It does not
  * create, replace, or resize MIN, MIDDLE, or MAX, and it never invokes CP-SAT.
  */
 final class TAL96D5BAcceptanceStateSeeder extends Seeder
 {
-    public const ChargeRuleCode = 'TAL96D5B-OPERATING-TUITION';
+    public const ChargeRuleCode = 'PRESENTATION-TUITION';
 
     public function __construct(
         private readonly TAL96D4BAcceptanceStateSeeder $gradeAndLifecycleStates,
         private readonly EnrollmentAssessmentService $assessmentService,
         private readonly PaymentConfirmationService $paymentConfirmationService,
+        private readonly SchedulingAcceptanceScenarioCatalog $scenarios,
     ) {}
 
     public function run(): void
     {
-        $term = $this->middleTerm();
-        $this->assertMiddleSchedulingBaseline($term);
+        $term = $this->presentationTerm();
+        $this->assertMinSchedulingBaseline($term);
 
         $this->gradeAndLifecycleStates->run();
 
@@ -59,26 +61,26 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         $partialAssessment = $this->ensureActiveAssessment($partial, $term);
         $clearedAssessment = $this->ensureActiveAssessment($cleared, $term);
 
-        $this->ensureSyntheticPaymentAttempt(
+        $this->ensurePaymentAttemptCase(
             assessment: $dueAssessment,
-            internalReference: 'TAL96D5B-SYNTHETIC-FAILED',
+            internalReference: 'CHECKOUT-FAILED-001',
             status: 'failed',
         );
-        $this->ensureSyntheticPaymentAttempt(
+        $this->ensurePaymentAttemptCase(
             assessment: $partialAssessment,
-            internalReference: 'TAL96D5B-SYNTHETIC-PENDING',
+            internalReference: 'CHECKOUT-PENDING-001',
             status: 'pending',
         );
 
         $this->ensureManualPayment(
             assessment: $partialAssessment,
             amount: '1000.00',
-            reference: 'TAL96D5B-MANUAL-PARTIAL',
+            reference: 'PAYMENT-PARTIAL-001',
         );
         $this->ensureManualPayment(
             assessment: $clearedAssessment,
             amount: '2000.00',
-            reference: 'TAL96D5B-MANUAL-CLEARED',
+            reference: 'PAYMENT-CLEARED-001',
         );
     }
 
@@ -90,7 +92,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             [
                 'academic_year_id' => $term->academic_year_id,
                 'type' => Term::TypeFirstSemester,
-                'label' => 'TAL-96D5B Admissions History',
+                'label' => 'First Semester Admissions History',
             ],
             [
                 'starts_on' => '2025-06-02',
@@ -125,9 +127,9 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         $reviewApplicant = User::query()->firstOrCreate(
             ['email' => 'applicant.review.demo@example.test'],
             [
-                'first_name' => 'Review',
+                'first_name' => 'Bianca',
                 'middle_name' => null,
-                'last_name' => 'Applicant',
+                'last_name' => 'Mendoza',
                 'username' => 'applicant-review-demo',
                 'password' => 'password',
                 'status' => User::StatusApplicantPending,
@@ -188,7 +190,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         );
 
         $path = 'tal96d5b-acceptance/applicant-review-identity.pdf';
-        $contents = "%PDF-1.4\n% TALA synthetic acceptance evidence\n%%EOF\n";
+        $contents = "%PDF-1.4\n% TALA applicant identity evidence\n%%EOF\n";
         Storage::disk('local')->put($path, $contents);
         DocumentEvidence::query()->updateOrCreate(
             ['checklist_item_id' => $digitalItem->id, 'path' => $path],
@@ -228,24 +230,24 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             'birth_date' => '2007-01-15',
             'gender' => 'FEMALE',
             'civil_status' => 'SINGLE',
-            'birth_place' => 'Synthetic City, Laguna',
+            'birth_place' => 'San Pedro, Laguna',
             'email' => $applicant->email,
             'phone' => '09171234567',
-            'address_barangay' => 'Synthetic Barangay',
+            'address_barangay' => 'San Antonio',
             'address_street' => '100 Acceptance Street',
-            'address_city' => 'Synthetic City',
+            'address_city' => 'San Pedro',
             'address_province' => 'Laguna',
-            'prior_school' => 'Synthetic Senior High School',
-            'guardian_name' => 'Synthetic Guardian',
+            'prior_school' => 'Laguna Community Senior High School',
+            'guardian_name' => 'Ramon Mercado',
             'guardian_phone' => '09179876543',
-            'guardian_address' => '100 Acceptance Street, Synthetic Barangay, Synthetic City, Laguna',
+            'guardian_address' => 'San Pedro, Laguna',
             'status' => $status,
             'submitted_at' => $submittedAt,
             'archived_at' => $archivedAt,
         ];
     }
 
-    private function middleTerm(): Term
+    private function presentationTerm(): Term
     {
         return Term::query()
             ->where('label', 'Second Semester')
@@ -253,19 +255,24 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             ->sole();
     }
 
-    private function assertMiddleSchedulingBaseline(Term $term): void
+    private function assertMinSchedulingBaseline(Term $term): void
     {
         $facultyCount = User::role(User::StaffRoleFaculty)->count();
+        $currentStudentCount = collect(array_keys(
+            $this->scenarios->cohorts(SchedulingAcceptanceScenarioCatalog::Min),
+        ))->sum(fn (string $cohortCode): int => StudentProfile::query()
+            ->where('student_number', 'like', $cohortCode.'-%')
+            ->count());
         $demandCount = SchedulingDemand::query()
             ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
             ->count();
 
-        if (StudentProfile::query()->count() !== 270
-            || TermOffering::query()->whereBelongsTo($term)->count() !== 77
-            || $demandCount !== 77
-            || $facultyCount !== 14) {
+        if ($currentStudentCount !== 47
+            || TermOffering::query()->whereBelongsTo($term)->count() !== 54
+            || $demandCount !== 54
+            || $facultyCount !== 9) {
             throw new RuntimeException(
-                'TAL-96D5B operational states require the corrected MIDDLE fixture: 270 students, 77 offerings, 77 scheduling demands, and 14 faculty.',
+                'Presentation cases require the client-aligned MIN fixture: 47 current students, 54 offerings, 54 scheduling demands, and 9 faculty.',
             );
         }
     }
@@ -304,7 +311,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'status' => 'pending_payment',
                 'student_type' => 'regular',
                 'registered_at' => CarbonImmutable::parse($term->starts_on)->startOfDay(),
-                'status_reason' => 'TAL-96D5B deterministic finance acceptance state.',
+                'status_reason' => 'Enrollment is awaiting the required payment.',
             ],
         );
 
@@ -316,7 +323,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'cancelled_at' => null,
                 'dropped_at' => null,
                 'withdrawn_at' => null,
-                'status_reason' => 'TAL-96D5B deterministic finance acceptance state.',
+                'status_reason' => 'Enrollment is awaiting the required payment.',
             ])->save();
         }
 
@@ -332,7 +339,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         $specification = $offering->curriculumEntry?->courseSpecification;
 
         if ($specification === null) {
-            throw new RuntimeException("{$studentNumber} has no matching MIDDLE course specification.");
+            throw new RuntimeException("{$studentNumber} has no matching current-term course specification.");
         }
 
         CourseEnrollment::query()->updateOrCreate(
@@ -348,7 +355,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'added_at' => CarbonImmutable::parse($term->starts_on)->startOfDay(),
                 'dropped_at' => null,
                 'withdrawn_at' => null,
-                'status_reason' => 'TAL-96D5B deterministic finance acceptance state.',
+                'status_reason' => 'Current-term enrollment retained for account assessment.',
             ],
         );
 
@@ -373,7 +380,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'cancelled_at' => $cancelledAt,
                 'dropped_at' => null,
                 'withdrawn_at' => null,
-                'status_reason' => 'Synthetic terminal enrollment used to verify restart guidance.',
+                'status_reason' => 'Enrollment was cancelled before final confirmation. Start a new request to continue.',
             ],
         );
     }
@@ -397,7 +404,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'term_id' => $term->id,
             ],
             [
-                'name' => 'TAL-96D5B '.$program->code.' Operating Tuition',
+                'name' => $program->code.' Second Semester Tuition',
                 'ledger_category' => FeeRule::LedgerCategoryCharge,
                 'display_category' => FeeRule::DisplayCategoryTuition,
                 'program_id' => $program->id,
@@ -407,7 +414,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'effective_from' => $term->starts_on,
                 'effective_until' => $term->ends_on,
                 'is_active' => true,
-                'authority' => 'TAL-96D5B synthetic operational-state overlay.',
+                'authority' => 'Accounting-approved Second Semester fee schedule.',
             ],
         );
 
@@ -420,7 +427,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         return $this->assessmentService->activate($assessment, $accounting, $effectiveAt);
     }
 
-    private function ensureSyntheticPaymentAttempt(
+    private function ensurePaymentAttemptCase(
         Assessment $assessment,
         string $internalReference,
         string $status,
@@ -430,8 +437,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             [
                 'assessment_id' => $assessment->id,
                 'student_profile_id' => $assessment->enrollment->student_profile_id,
-                'channel' => 'synthetic_acceptance',
-                'provider' => 'synthetic_acceptance',
+                'channel' => 'online',
+                'provider' => 'paymongo',
                 'provider_checkout_id' => null,
                 'provider_intent_id' => null,
                 'amount' => $assessment->required_downpayment,
@@ -440,8 +447,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 'expires_at' => null,
                 'paid_at' => null,
                 'metadata' => [
-                    'purpose' => 'TAL-96D5B local state projection only',
-                    'provider_evidence' => 'not evaluated',
+                    'purpose' => 'Presentation case for payment status and recovery guidance',
+                    'provider_evidence' => 'sandbox confirmation required',
                 ],
             ],
         );

@@ -31,7 +31,7 @@ use RuntimeException;
  */
 final class TAL96D4BAcceptanceStateSeeder extends Seeder
 {
-    public const BatchName = 'TAL-96D4B Completion Acceptance';
+    public const BatchName = 'Second Semester Completion Review';
 
     public function run(): void
     {
@@ -127,7 +127,7 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
                 'hold_type' => Hold::TypeFinancial,
                 'blocking_level' => Hold::BlockingGraduationEligibility,
                 'status' => Hold::StatusActive,
-                'reason' => 'Acceptance fixture: outstanding assessed balance.',
+                'reason' => 'Outstanding assessed balance requires Accounting clearance.',
                 'student_message' => 'Please coordinate with the Accounting Office to settle or arrange the assessed balance.',
                 'created_by' => $registrar->id,
                 'effective_at' => now(),
@@ -141,7 +141,7 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
                 'hold_type' => Hold::TypeDocumentary,
                 'blocking_level' => Hold::BlockingRecordRelease,
                 'status' => Hold::StatusResolved,
-                'reason' => 'Acceptance fixture: documentary requirement completed.',
+                'reason' => 'The required document has been reviewed and cleared.',
                 'student_message' => 'Your documentary requirement has been cleared.',
                 'created_by' => $registrar->id,
                 'effective_at' => now()->subDays(2),
@@ -154,22 +154,23 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
 
     private function seedLifecycleChanges(StudentProfile $withdrawn, StudentProfile $shift, Term $term, User $registrar): void
     {
-        StudentLifecycleChange::query()->updateOrCreate(
-            ['private_source_reference' => 'TAL-96D4B-WITHDRAWAL'],
-            [
-                'student_profile_id' => $withdrawn->id,
-                'term_id' => $term->id,
-                'type' => StudentLifecycleChange::TypeWithdrawal,
-                'requested_on' => today(),
-                'effective_on' => today(),
-                'decided_on' => today(),
-                'authority' => 'Registrar acceptance fixture',
-                'reason' => 'Representative approved withdrawal for cross-role acceptance.',
-                'impact_snapshot' => $this->impactSnapshot('withdrawn', false, 0),
-                'recorded_by' => $registrar->id,
-                'state' => StudentLifecycleChange::StateApplied,
-            ],
-        );
+        $withdrawalChange = StudentLifecycleChange::query()
+            ->whereIn('private_source_reference', ['TAL-96D4B-WITHDRAWAL', 'LIFECYCLE-WITHDRAWAL-001'])
+            ->firstOrNew();
+        $withdrawalChange->forceFill([
+            'student_profile_id' => $withdrawn->id,
+            'term_id' => $term->id,
+            'type' => StudentLifecycleChange::TypeWithdrawal,
+            'requested_on' => today(),
+            'effective_on' => today(),
+            'decided_on' => today(),
+            'authority' => 'Registrar-approved withdrawal record',
+            'private_source_reference' => 'LIFECYCLE-WITHDRAWAL-001',
+            'reason' => 'Student requested withdrawal for personal reasons.',
+            'impact_snapshot' => $this->impactSnapshot('withdrawn', false, 0),
+            'recorded_by' => $registrar->id,
+            'state' => StudentLifecycleChange::StateApplied,
+        ])->save();
         $targetCurriculum = CurriculumVersion::query()
             ->where('program_id', '!=', $shift->program_id)
             ->whereHas('entries')
@@ -178,33 +179,34 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
             ->first();
 
         if (! $targetCurriculum instanceof CurriculumVersion) {
-            throw new RuntimeException('The TAL-96D4B Program Shift example requires a different target program with at least one curriculum entry.');
+            throw new RuntimeException('The program-shift example requires a different target program with at least one curriculum entry.');
         }
 
         $futureTerm = $this->futureProgramShiftTerm($term);
-        $programShift = StudentLifecycleChange::query()->updateOrCreate(
-            ['private_source_reference' => 'TAL-96D4B-PROGRAM-SHIFT'],
-            [
-                'student_profile_id' => $shift->id,
-                'term_id' => $futureTerm->id,
-                'target_program_id' => $targetCurriculum->program_id,
-                'target_curriculum_version_id' => $targetCurriculum->id,
-                'type' => StudentLifecycleChange::TypeProgramShift,
-                'requested_on' => today(),
-                'effective_on' => $futureTerm->starts_on,
-                'decided_on' => today(),
-                'authority' => 'Registrar acceptance fixture',
-                'reason' => 'Representative recorded-approved program-shift review.',
-                'impact_snapshot' => $this->impactSnapshot($shift->lifecycle_status, true, 500),
-                'recorded_by' => $registrar->id,
-                'state' => StudentLifecycleChange::StateRecordedApproved,
-            ],
-        );
+        $programShift = StudentLifecycleChange::query()
+            ->whereIn('private_source_reference', ['TAL-96D4B-PROGRAM-SHIFT', 'LIFECYCLE-PROGRAM-SHIFT-001'])
+            ->firstOrNew();
+        $programShift->forceFill([
+            'student_profile_id' => $shift->id,
+            'term_id' => $futureTerm->id,
+            'target_program_id' => $targetCurriculum->program_id,
+            'target_curriculum_version_id' => $targetCurriculum->id,
+            'type' => StudentLifecycleChange::TypeProgramShift,
+            'requested_on' => today(),
+            'effective_on' => $futureTerm->starts_on,
+            'decided_on' => today(),
+            'authority' => 'Registrar-approved program change record',
+            'private_source_reference' => 'LIFECYCLE-PROGRAM-SHIFT-001',
+            'reason' => 'Student requested a program change effective next term.',
+            'impact_snapshot' => $this->impactSnapshot($shift->lifecycle_status, true, 500),
+            'recorded_by' => $registrar->id,
+            'state' => StudentLifecycleChange::StateRecordedApproved,
+        ])->save();
 
         $targetEntry = $targetCurriculum->entries->sortBy('id')->first();
 
         if (! $targetEntry instanceof CurriculumEntry) {
-            throw new RuntimeException('The TAL-96D4B Program Shift target curriculum requires at least one credit-checklist row.');
+            throw new RuntimeException('The program-shift target curriculum requires at least one credit-checklist row.');
         }
 
         ProgramShiftCreditEntry::query()->updateOrCreate(
@@ -223,32 +225,36 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
     {
         $startsOn = today()->addYear()->startOfMonth();
         $endsOn = $startsOn->copy()->addMonths(4)->endOfMonth();
-        $academicYear = AcademicYear::query()->updateOrCreate(
-            ['label' => 'TAL-96D4B Acceptance Future Academic Year'],
-            [
-                'starts_on' => $startsOn,
-                'ends_on' => $endsOn,
-                'state' => AcademicYear::StateDraft,
-            ],
-        );
+        $academicYear = AcademicYear::query()
+            ->whereIn('label', ['TAL-96D4B Acceptance Future Academic Year', 'Future Academic Year'])
+            ->firstOrNew();
+        $academicYear->forceFill([
+            'label' => 'Future Academic Year',
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
+            'state' => AcademicYear::StateDraft,
+        ])->save();
 
-        return Term::query()->updateOrCreate(
-            [
-                'academic_year_id' => $academicYear->id,
-                'type' => Term::TypeFirstSemester,
-                'label' => 'TAL-96D4B Future Program Shift Term',
-            ],
-            [
-                'starts_on' => $startsOn,
-                'ends_on' => $endsOn,
-                'state' => Term::StateDraft,
-                'scheduling_slot_minutes' => $sourceTerm->scheduling_slot_minutes,
-                'scheduling_days' => $sourceTerm->scheduling_days,
-                'scheduling_day_starts_at' => $sourceTerm->scheduling_day_starts_at,
-                'scheduling_day_ends_at' => $sourceTerm->scheduling_day_ends_at,
-                'default_max_units' => $sourceTerm->default_max_units,
-            ],
-        );
+        $futureTerm = Term::query()
+            ->where('academic_year_id', $academicYear->id)
+            ->where('type', Term::TypeFirstSemester)
+            ->whereIn('label', ['TAL-96D4B Future Program Shift Term', 'Future Program Shift Term'])
+            ->firstOrNew();
+        $futureTerm->forceFill([
+            'academic_year_id' => $academicYear->id,
+            'type' => Term::TypeFirstSemester,
+            'label' => 'Future Program Shift Term',
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
+            'state' => Term::StateDraft,
+            'scheduling_slot_minutes' => $sourceTerm->scheduling_slot_minutes,
+            'scheduling_days' => $sourceTerm->scheduling_days,
+            'scheduling_day_starts_at' => $sourceTerm->scheduling_day_starts_at,
+            'scheduling_day_ends_at' => $sourceTerm->scheduling_day_ends_at,
+            'default_max_units' => $sourceTerm->default_max_units,
+        ])->save();
+
+        return $futureTerm;
     }
 
     /** @return array<string, mixed> */
@@ -267,16 +273,31 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
 
     private function seedGraduationReviews(StudentProfile $complete, StudentProfile $blocked, Term $term, User $registrar): void
     {
-        $batch = GraduationReviewBatch::query()->firstOrCreate(
-            ['name' => self::BatchName],
-            [
-                'academic_year_id' => $term->academic_year_id,
-                'term_id' => $term->id,
-                'state' => GraduationReviewBatch::StateOpen,
-                'created_by' => $registrar->id,
-                'filter_summary' => ['purpose' => 'TAL-96D4B cross-role acceptance'],
-            ],
-        );
+        $batch = GraduationReviewBatch::query()
+            ->whereIn('name', ['TAL-96D4B Completion Acceptance', self::BatchName])
+            ->firstOrNew();
+        $batch->forceFill([
+            'name' => self::BatchName,
+            'academic_year_id' => $term->academic_year_id,
+            'term_id' => $term->id,
+            'state' => GraduationReviewBatch::StateOpen,
+            'created_by' => $registrar->id,
+            'filter_summary' => ['purpose' => 'Cross-role completion review'],
+        ])->save();
+
+        $staleMemberIds = GraduationReviewMember::query()
+            ->where('graduation_review_batch_id', $batch->id)
+            ->whereNotIn('student_profile_id', [$complete->id, $blocked->id])
+            ->pluck('id');
+
+        if ($staleMemberIds->isNotEmpty()) {
+            GraduationSnapshot::query()
+                ->whereIn('graduation_review_member_id', $staleMemberIds)
+                ->delete();
+            GraduationReviewMember::query()
+                ->whereIn('id', $staleMemberIds)
+                ->delete();
+        }
 
         foreach ([
             [$complete, GraduationEligibilitySnapshotService::ResultComplete, [], 'No further action is required.'],
@@ -305,7 +326,7 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
                     'generated_at' => now(),
                     'made_visible_by' => $registrar->id,
                     'made_visible_at' => now(),
-                    'visibility_reason' => 'TAL-96D4B acceptance projection.',
+                    'visibility_reason' => 'Registrar published the completion review result.',
                 ],
             );
         }

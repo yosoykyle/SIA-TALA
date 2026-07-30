@@ -13,7 +13,7 @@ use App\Models\User;
 /**
  * Builds the test-only TAL-96D5B state-coverage report.
  *
- * This report distinguishes persistent synthetic records, focused programmatic
+ * This report distinguishes persistent presentation records, focused programmatic
  * proof, and human-only external gates. It does not change application data.
  */
 final class TAL96D5BStateCoverageMatrix
@@ -48,10 +48,10 @@ final class TAL96D5BStateCoverageMatrix
             'academic' => [
                 'persona' => 'AY 2025-2026 / Second Semester',
                 'disposition' => 'fixture_record',
-                'evidence' => 'Corrected MIDDLE contains 77 offerings and 77 ready scheduling demands.',
+                'evidence' => 'Client-aligned MIN contains 54 offerings and 54 ready scheduling demands.',
                 'represented' => SchedulingDemand::query()
                     ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
-                    ->count() === 77,
+                    ->count() === 54,
             ],
             'document' => [
                 'persona' => 'applicant.demo@example.test',
@@ -72,20 +72,20 @@ final class TAL96D5BStateCoverageMatrix
                 'disposition' => 'fixture_record',
                 'evidence' => 'Active due, partial-payment, and finance-cleared assessment states use real ledger services.',
                 'represented' => Assessment::query()->where('state', Assessment::StateActive)->count() >= 3
-                    && Payment::query()->where('provider_reference', 'TAL96D5B-MANUAL-PARTIAL')->exists()
-                    && Payment::query()->where('provider_reference', 'TAL96D5B-MANUAL-CLEARED')->exists(),
+                    && Payment::query()->where('provider_reference', 'PAYMENT-PARTIAL-001')->exists()
+                    && Payment::query()->where('provider_reference', 'PAYMENT-CLEARED-001')->exists(),
             ],
             'payment' => [
                 'persona' => 'DIT-1A-001 and DIT-1A-002',
                 'disposition' => 'human_gate',
-                'evidence' => 'Local synthetic pending and failed attempts exercise projections; this does not claim PayMongo provider acceptance, which remains separately authorized.',
+                'evidence' => 'Prepared pending and failed attempts exercise recovery projections; this does not claim PayMongo provider acceptance, which remains separately authorized.',
                 'represented' => true,
             ],
             'scheduling' => [
-                'persona' => 'Corrected MIDDLE 77-demand workload',
+                'persona' => 'Client-aligned MIN 54-demand workload',
                 'disposition' => 'human_gate',
                 'evidence' => 'All inputs are ready; candidate generation and publication require the separately approved one-time Cloud Run functional solve.',
-                'represented' => SchedulingDemand::query()->count() === 77,
+                'represented' => SchedulingDemand::query()->count() === 54,
             ],
             'grade' => [
                 'persona' => 'DBM-1A-001 through DBM-1A-004',
@@ -94,13 +94,13 @@ final class TAL96D5BStateCoverageMatrix
                 'represented' => GradeRoster::query()->distinct()->count('state') === 4,
             ],
             'lifecycle' => [
-                'persona' => 'TAL-96D4B withdrawal, program-shift, hold, and graduation personas',
+                'persona' => 'Withdrawal, program-change, hold, and completion-review personas',
                 'disposition' => 'fixture_record',
                 'evidence' => 'Lifecycle changes, active holds, and graduation snapshots are deterministic D4B overlay records.',
                 'represented' => StudentLifecycleChange::query()
                     ->whereIn('private_source_reference', [
-                        'TAL-96D4B-WITHDRAWAL',
-                        'TAL-96D4B-PROGRAM-SHIFT',
+                        'LIFECYCLE-WITHDRAWAL-001',
+                        'LIFECYCLE-PROGRAM-SHIFT-001',
                     ])
                     ->count() === 2,
             ],

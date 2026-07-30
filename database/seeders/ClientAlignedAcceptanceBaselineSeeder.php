@@ -306,11 +306,16 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'default_max_units' => 21,
         ]);
 
-        $this->createUser('Applicant', 'Demo', 'applicant.demo@example.test', 'applicant', User::StatusApplicantPending);
-        $registrar = $this->createUser('Registrar', 'Demo', 'registrar.demo@example.test', User::StaffRoleRegistrar);
-        $this->createUser('Accounting', 'Demo', 'accounting.demo@example.test', User::StaffRoleAccounting);
-        $this->createUser('Academic Head', 'Demo', 'academic-head.demo@example.test', User::StaffRoleAcademicHead);
-        $this->createUser('System Admin', 'Demo', 'system-admin.demo@example.test', User::StaffRoleSystemSuperAdmin);
+        [$applicantFirstName, $applicantLastName] = $this->staffIdentity('applicant.demo@example.test');
+        $this->createUser($applicantFirstName, $applicantLastName, 'applicant.demo@example.test', 'applicant', User::StatusApplicantPending);
+        [$registrarFirstName, $registrarLastName] = $this->staffIdentity('registrar.demo@example.test');
+        $registrar = $this->createUser($registrarFirstName, $registrarLastName, 'registrar.demo@example.test', User::StaffRoleRegistrar);
+        [$accountingFirstName, $accountingLastName] = $this->staffIdentity('accounting.demo@example.test');
+        $this->createUser($accountingFirstName, $accountingLastName, 'accounting.demo@example.test', User::StaffRoleAccounting);
+        [$academicHeadFirstName, $academicHeadLastName] = $this->staffIdentity('academic-head.demo@example.test');
+        $this->createUser($academicHeadFirstName, $academicHeadLastName, 'academic-head.demo@example.test', User::StaffRoleAcademicHead);
+        [$systemAdminFirstName, $systemAdminLastName] = $this->staffIdentity('system-admin.demo@example.test');
+        $this->createUser($systemAdminFirstName, $systemAdminLastName, 'system-admin.demo@example.test', User::StaffRoleSystemSuperAdmin);
 
         $faculty = [];
 
@@ -318,7 +323,8 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $email = $number === 1
                 ? 'faculty.demo@example.test'
                 : sprintf('faculty%02d.demo@example.test', $number);
-            $faculty[] = $this->createUser('Faculty', sprintf('%02d', $number), $email, User::StaffRoleFaculty);
+            [$firstName, $lastName] = $this->facultyIdentity($number);
+            $faculty[] = $this->createUser($firstName, $lastName, $email, User::StaffRoleFaculty);
         }
 
         return [$term, $priorTerm, $registrar, $faculty];
@@ -470,11 +476,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     private function courseSpecificationDescription(array $definition): string
     {
         if (! isset($definition['source_code'])) {
-            return 'Synthetic acceptance specification aligned to the supplied curriculum evidence.';
+            return 'Course specification encoded from the approved curriculum evidence.';
         }
 
         return sprintf(
-            'Synthetic acceptance specification aligned to client source code %s; prerequisite source: %s.',
+            'Course specification encoded from client source code %s; prerequisite source: %s.',
             $definition['source_code'],
             $definition['prerequisite_source'] ?? 'None',
         );
@@ -496,7 +502,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'name' => $programCode.' AY 2025-2026 Curriculum',
                 'effective_entry_term_id' => $term->id,
                 'state' => CurriculumVersion::StateActive,
-                'approval_reference' => 'TAL-96B1 synthetic acceptance baseline',
+                'approval_reference' => 'Registrar-approved client curriculum encoding',
                 'approved_by' => $registrar->id,
                 'approved_at' => '2025-12-01 08:00:00',
             ]);
@@ -533,8 +539,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 $email = $globalNumber === 1
                     ? 'student.demo@example.test'
                     : sprintf('student.%s.%03d@example.test', strtolower($cohortCode), $number);
-                $firstName = 'Tala';
-                $lastName = sprintf('Student %03d', $globalNumber);
+                [$firstName, $middleName, $lastName] = $this->studentIdentity($globalNumber);
                 $user = $this->createUser($firstName, $lastName, $email, 'student');
 
                 $studentNumber = sprintf('%s-%03d', $cohortCode, $number);
@@ -543,7 +548,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     'user_id' => $user->id,
                     'student_number' => $studentNumber,
                     'first_name' => $firstName,
-                    'middle_name' => null,
+                    'middle_name' => $middleName,
                     'last_name' => $lastName,
                     'birth_date' => sprintf('2005-%02d-%02d', (($globalNumber - 1) % 12) + 1, (($globalNumber - 1) % 27) + 1),
                     'program_id' => $programs[$cohort['program']]->id,
@@ -552,8 +557,8 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                     'academic_standing' => $this->expectedAcademicStanding($studentNumber),
                     'email' => $email,
                     'phone' => null,
-                    'address' => 'Synthetic acceptance address',
-                    'emergency_contact_name' => 'Synthetic Contact',
+                    'address' => 'San Pedro, Laguna',
+                    'emergency_contact_name' => 'Designated family contact',
                     'emergency_contact_phone' => null,
                 ]);
 
@@ -568,11 +573,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             Room::query()->create([
                 'code' => $code,
                 'name' => $name,
-                'building' => 'Synthetic Main Building',
+                'building' => 'Main Academic Building',
                 'room_type' => $type,
                 'capacity' => 40,
                 'is_active' => true,
-                'notes' => 'Fictional TAL-96B1 acceptance resource.',
+                'notes' => 'Teaching space available for the current term.',
             ]);
         }
     }
@@ -593,8 +598,8 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'term_id' => $term->id,
                 'default_max_units_snapshot' => 21,
                 'approved_overload_units' => 0,
-                'authority' => 'TAL-96B1 synthetic acceptance baseline',
-                'reason' => 'Deterministic acceptance load ceiling.',
+                'authority' => 'Academic Head-approved current-term faculty load',
+                'reason' => 'Current-term teaching-load ceiling.',
                 'is_active' => true,
             ]);
         }
@@ -621,7 +626,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'is_active' => true,
             'recorded_by' => $registrar->id,
             'recorded_at' => '2025-12-01 08:00:00',
-            'notes' => 'Synthetic qualification for scheduling acceptance.',
+            'notes' => 'Verified qualification for current-term scheduling.',
         ]);
     }
 
@@ -636,7 +641,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'end_at' => '2026-05-30 21:00:00',
             'blocks_scheduling' => false,
             'state' => CalendarEvent::StateActive,
-            'authority' => 'TAL-96B1 synthetic acceptance baseline',
+            'authority' => 'Registrar-approved current-term scheduling window',
         ]);
     }
 
@@ -656,7 +661,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'end_at' => '2026-08-31 23:59:59',
             'blocks_scheduling' => false,
             'state' => CalendarEvent::StateActive,
-            'authority' => 'TAL-96D5B synthetic admissions acceptance window',
+            'authority' => 'Registrar-approved admissions period',
         ]);
     }
 
@@ -764,7 +769,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'effective_from' => '2026-01-05',
                 'effective_until' => '2026-05-30',
                 'is_active' => true,
-                'authority' => 'Client-reported PHP 2,000 downpayment; TAL-96B1 acceptance baseline.',
+                'authority' => 'Client-reported PHP 2,000 required downpayment.',
             ]);
         }
     }
@@ -789,6 +794,98 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         $user->syncRoles([$role]);
 
         return $user;
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function staffIdentity(string $email): array
+    {
+        return match ($email) {
+            'applicant.demo@example.test' => ['Andrea', 'Marquez'],
+            'registrar.demo@example.test' => ['Maribel', 'Dizon'],
+            'accounting.demo@example.test' => ['Renato', 'Salcedo'],
+            'academic-head.demo@example.test' => ['Lourdes', 'Alvarado'],
+            'system-admin.demo@example.test' => ['Miguel', 'Serrano'],
+            default => ['Tala', 'Operator'],
+        };
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function facultyIdentity(int $number): array
+    {
+        return match ($number) {
+            1 => ['Teresa', 'Villanueva'],
+            2 => ['Noel', 'Bautista'],
+            3 => ['Caroline', 'Mendoza'],
+            4 => ['Dennis', 'Garcia'],
+            5 => ['Ramon', 'Flores'],
+            6 => ['Irene', 'Aquino'],
+            7 => ['Victor', 'Reyes'],
+            8 => ['Jocelyn', 'Castillo'],
+            9 => ['Edgar', 'Morales'],
+            default => ['Faculty', sprintf('%02d', $number)],
+        };
+    }
+
+    /**
+     * @return array{string, string|null, string}
+     */
+    private function studentIdentity(int $number): array
+    {
+        $identities = [
+            ['Alyssa', 'Mae', 'Cruz'],
+            ['John Paolo', null, 'Garcia'],
+            ['Mikaela', 'Anne', 'Reyes'],
+            ['Joshua', 'Miguel', 'Santos'],
+            ['Angela', 'Marie', 'Flores'],
+            ['Nathaniel', null, 'Ramos'],
+            ['Patricia', 'Mae', 'Mendoza'],
+            ['Mark Anthony', null, 'Bautista'],
+            ['Camille', 'Joy', 'Navarro'],
+            ['Christian', 'Luis', 'Aquino'],
+            ['Bea', 'Nicole', 'Castillo'],
+            ['Jericho', 'Paul', 'Villanueva'],
+            ['Sofia', 'Isabel', 'Dela Cruz'],
+            ['Rafael', 'Andre', 'Torres'],
+            ['Trisha', 'Mae', 'Morales'],
+            ['Vince', 'Carlo', 'Mercado'],
+            ['Janine', 'Grace', 'Herrera'],
+            ['Gabriel', 'Jose', 'Salazar'],
+            ['Kyla', 'Marie', 'Domingo'],
+            ['Adrian', 'Matthew', 'Fernandez'],
+            ['Clarisse', 'Anne', 'Rivera'],
+            ['Daniel', 'Paolo', 'Santiago'],
+            ['Hannah', 'Louise', 'Manalo'],
+            ['Jomar', 'Vincent', 'Soriano'],
+            ['Princess', 'Mae', 'Valdez'],
+            ['Luis', 'Miguel', 'Padilla'],
+            ['Nicole', 'Andrea', 'Castro'],
+            ['Sean', 'Patrick', 'Lim'],
+            ['Rhea', 'Mae', 'Macapagal'],
+            ['Francis', 'Xavier', 'Natividad'],
+            ['Ella', 'Christine', 'Evangelista'],
+            ['Marco', 'Antonio', 'De Guzman'],
+            ['Julia', 'Francesca', 'Cabrera'],
+            ['Kenneth', 'John', 'Pascual'],
+            ['Bianca', 'Louise', 'Alonzo'],
+            ['Aaron', 'James', 'Sarmiento'],
+            ['Mary', 'Grace', 'Abad'],
+            ['Paolo', 'Miguel', 'Angeles'],
+            ['Rica', 'Mae', 'Agustin'],
+            ['Carl', 'Vincent', 'Rosales'],
+            ['Denise', 'Marie', 'Yambao'],
+            ['Ethan', 'Gabriel', 'Lacsamana'],
+            ['Kristine', 'Joy', 'Arellano'],
+            ['Angelo', 'Rafael', 'Beltran'],
+            ['Mae Ann', null, 'Robles'],
+            ['Jayson', 'Carlo', 'Ocampo'],
+            ['Lara', 'Nicole', 'Gonzales'],
+        ];
+
+        return $identities[$number - 1] ?? ['Tala', null, sprintf('Learner %03d', $number)];
     }
 
     private function isComplete(): bool
@@ -819,7 +916,8 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             + $programSpecificSpecificationCount
             - $programSpecificCourseCount
             + $firstSemesterRowCount;
-        $curriculumEntryCount = $counts['offerings'] + $firstSemesterRowCount;
+        $curriculumEntryCount = collect(array_keys($this->programDefinitions()))
+            ->sum(fn (string $programCode): int => count($this->curriculumPlacements($programCode)));
         $academicYear = $this->exactAcademicYear();
 
         if (! $academicYear instanceof AcademicYear) {
@@ -978,7 +1076,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('end_at', '2026-05-30 21:00:00')
             ->where('blocks_scheduling', false)
             ->where('state', CalendarEvent::StateActive)
-            ->where('authority', 'TAL-96B1 synthetic acceptance baseline')
+            ->where('authority', 'Registrar-approved current-term scheduling window')
             ->exists();
 
         $admissionsWindowExists = CalendarEvent::query()
@@ -990,7 +1088,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('end_at', '2026-08-31 23:59:59')
             ->where('blocks_scheduling', false)
             ->where('state', CalendarEvent::StateActive)
-            ->where('authority', 'TAL-96D5B synthetic admissions acceptance window')
+            ->where('authority', 'Registrar-approved admissions period')
             ->exists();
 
         return $schedulingWindowExists && $admissionsWindowExists;
@@ -1180,7 +1278,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 ->where('version_code', $programCode.'-AY2025-2026')
                 ->where('name', $programCode.' AY 2025-2026 Curriculum')
                 ->where('state', CurriculumVersion::StateActive)
-                ->where('approval_reference', 'TAL-96B1 synthetic acceptance baseline')
+                ->where('approval_reference', 'Registrar-approved client curriculum encoding')
                 ->where('approved_at', '2025-12-01 08:00:00')
                 ->first();
 
@@ -1243,11 +1341,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 $email = $globalNumber === 1
                     ? 'student.demo@example.test'
                     : sprintf('student.%s.%03d@example.test', strtolower($cohortCode), $number);
-                $lastName = sprintf('Student %03d', $globalNumber);
+                [$firstName, $middleName, $lastName] = $this->studentIdentity($globalNumber);
                 $user = User::query()->where('email', $email)->first();
 
                 if (! $user instanceof User
-                    || $user->first_name !== 'Tala'
+                    || $user->first_name !== $firstName
                     || $user->last_name !== $lastName
                     || $user->status !== User::StatusActive
                     || $user->roles()->orderBy('name')->pluck('name')->all() !== ['student']
@@ -1257,15 +1355,15 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                         ->whereBelongsTo($program)
                         ->whereBelongsTo($curriculum, 'curriculumVersion')
                         ->where('student_number', sprintf('%s-%03d', $cohortCode, $number))
-                        ->where('first_name', 'Tala')
+                        ->where('first_name', $firstName)
+                        ->where('middle_name', $middleName)
                         ->where('last_name', $lastName)
                         ->where('birth_date', sprintf('2005-%02d-%02d', (($globalNumber - 1) % 12) + 1, (($globalNumber - 1) % 27) + 1))
                         ->where('lifecycle_status', StudentProfile::LifecycleActive)
                         ->where('academic_standing', $this->expectedAcademicStanding(sprintf('%s-%03d', $cohortCode, $number)))
                         ->where('email', $email)
-                        ->where('address', 'Synthetic acceptance address')
-                        ->where('emergency_contact_name', 'Synthetic Contact')
-                        ->whereNull('middle_name')
+                        ->where('address', 'San Pedro, Laguna')
+                        ->where('emergency_contact_name', 'Designated family contact')
                         ->whereNull('phone')
                         ->whereNull('emergency_contact_phone')
                         ->exists()) {
@@ -1368,11 +1466,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             if (! Room::query()
                 ->where('code', $code)
                 ->where('name', $name)
-                ->where('building', 'Synthetic Main Building')
+                ->where('building', 'Main Academic Building')
                 ->where('room_type', $type)
                 ->where('capacity', 40)
                 ->where('is_active', true)
-                ->where('notes', 'Fictional TAL-96B1 acceptance resource.')
+                ->where('notes', 'Teaching space available for the current term.')
                 ->exists()) {
                 return false;
             }
@@ -1507,12 +1605,12 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'purpose' => 'Repeat-year progression review.',
             ],
             'DTHM-1A-002' => [
-                'academic_standing' => StudentProfile::StandingCompletionCandidate,
-                'purpose' => 'Completion review journey.',
+                'academic_standing' => StudentProfile::StandingRegular,
+                'purpose' => 'Regular first-year hospitality journey.',
             ],
             'DTHM-2A-001' => [
-                'academic_standing' => StudentProfile::StandingGraduationCandidate,
-                'purpose' => 'Graduation review journey.',
+                'academic_standing' => StudentProfile::StandingRegular,
+                'purpose' => 'Regular continuing hospitality journey.',
             ],
             'DTHM-2A-002' => [
                 'academic_standing' => StudentProfile::StandingNotYetEvaluated,

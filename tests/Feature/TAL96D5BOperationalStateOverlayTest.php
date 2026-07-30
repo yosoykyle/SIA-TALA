@@ -39,9 +39,9 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
     }
 
     #[Test]
-    public function middle_operational_overlay_is_guarded_idempotent_and_preserves_scheduling_inputs(): void
+    public function min_operational_overlay_is_guarded_idempotent_and_preserves_scheduling_inputs(): void
     {
-        $term = $this->middleTerm();
+        $term = $this->presentationTerm();
         $before = $this->schedulingFingerprint($term);
         $scheduleRunCount = ScheduleGenerationRun::query()->count();
         $sectionMeetingCount = SectionMeeting::query()->count();
@@ -57,8 +57,8 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
 
         $this->assertSame($firstCounts, $this->overlayCounts());
         $this->assertSame($before, $this->schedulingFingerprint($term));
-        $this->assertSame(77, TermOffering::query()->whereBelongsTo($term)->count());
-        $this->assertSame(77, SchedulingDemand::query()->whereHas(
+        $this->assertSame(54, TermOffering::query()->whereBelongsTo($term)->count());
+        $this->assertSame(54, SchedulingDemand::query()->whereHas(
             'termOffering',
             fn ($query) => $query->whereBelongsTo($term),
         )->count());
@@ -87,7 +87,7 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
     }
 
     #[Test]
-    public function middle_overlay_exposes_named_enrollment_finance_grade_and_lifecycle_states(): void
+    public function min_overlay_exposes_named_enrollment_finance_grade_and_lifecycle_states(): void
     {
         $this->artisan('acceptance:seed-tal96d5b-states')->assertSuccessful();
 
@@ -114,19 +114,19 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
             'The due persona may have one retained provider-gate payment after PayMongo acceptance.',
         );
         $this->assertSame('1000.00', Payment::query()
-            ->where('provider_reference', 'TAL96D5B-MANUAL-PARTIAL')
+            ->where('provider_reference', 'PAYMENT-PARTIAL-001')
             ->sole()
             ->amount);
         $this->assertSame('2000.00', Payment::query()
-            ->where('provider_reference', 'TAL96D5B-MANUAL-CLEARED')
+            ->where('provider_reference', 'PAYMENT-CLEARED-001')
             ->sole()
             ->amount);
         $this->assertSame('failed', PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5B-SYNTHETIC-FAILED')
+            ->where('internal_reference', 'CHECKOUT-FAILED-001')
             ->sole()
             ->status);
         $this->assertSame('pending', PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5B-SYNTHETIC-PENDING')
+            ->where('internal_reference', 'CHECKOUT-PENDING-001')
             ->sole()
             ->status);
 
@@ -141,8 +141,8 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         );
         $this->assertSame(2, StudentLifecycleChange::query()
             ->whereIn('private_source_reference', [
-                'TAL-96D4B-WITHDRAWAL',
-                'TAL-96D4B-PROGRAM-SHIFT',
+                'LIFECYCLE-WITHDRAWAL-001',
+                'LIFECYCLE-PROGRAM-SHIFT-001',
             ])
             ->count());
     }
@@ -201,9 +201,9 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         );
     }
 
-    private function middleTerm(): Term
+    private function presentationTerm(): Term
     {
-        $this->assertSame(270, StudentProfile::query()->count());
+        $this->assertSame(49, StudentProfile::query()->count());
 
         return Term::query()
             ->where('label', 'Second Semester')
@@ -267,7 +267,7 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
     {
         return Enrollment::query()
             ->whereHas('studentProfile', fn ($query) => $query->where('student_number', $studentNumber))
-            ->whereBelongsTo($this->middleTerm(), 'term')
+            ->whereBelongsTo($this->presentationTerm(), 'term')
             ->sole();
     }
 }

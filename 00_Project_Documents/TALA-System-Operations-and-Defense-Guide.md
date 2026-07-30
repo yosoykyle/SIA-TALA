@@ -1460,45 +1460,92 @@ At TAL-96D5D cleanup, the demonstration database was restored to the then-determ
 
 #### 9.10.1 Purpose, verified foundation, and limits
 
-TAL-96D5E1 turns the verified `MIDDLE` database into a safe learning environment for a first-time operator. It is intended for exploring how one role creates information and how another role receives or acts on it. It is also an acceptance pass: when the visible result differs from the expected result below, record the mismatch before changing the system.
+TAL-96D5E1 turns the client-aligned `MIN` database into a safe presentation and learning environment. It is intended for demonstrating how one role creates information and how another role receives or acts on it. It is also an acceptance pass: when the visible result differs from the expected result below, record the mismatch before changing the system.
 
 The overlay preserves the scheduling foundation exactly:
 
 | Foundation fact | Required value |
 | --- | ---: |
-| Student profiles | 270 |
-| Cohorts | 9 |
-| Active-term offerings | 77 |
-| Ready scheduling demands | 77 |
-| Synthetic scheduling faculty | 14 |
+| Current client-aligned student profiles | 47 |
+| Inactive historical completion/graduation case profiles | 2 |
+| Current first-/second-year cohorts | 6 |
+| Active-term offerings | 54 |
+| Ready scheduling demands | 54 |
+| Faculty | 9 |
 | Schedule runs, candidate rows, official meetings, queued jobs, and failed jobs | 0 |
 
-The overlay adds synthetic accounts and operational states only. It does not alter CP-SAT equations, resize a fixture, call Cloud Run, publish a timetable, contact SMTP, contact PayMongo, change schemas, or affect production seed behavior. Because there is no official `MIDDLE` publication, Schedule and COR pages must truthfully explain that prerequisite instead of displaying a fabricated timetable.
+The fixture uses fictional Filipino-sounding names and operational case states only; none are real client identities. The three curricula retain all 158 documented first-, second-, and third-year placements, but the current client population remains limited to the six reported first-/second-year cohorts. The two inactive third-year profiles exist only for completion and graduation demonstrations and do not create an active third-year cohort. The overlay does not alter CP-SAT equations, call Cloud Run, publish a timetable, contact SMTP, contact PayMongo, change schemas, or affect production seed behavior. Because there is no official `MIN` publication, Schedule and COR pages must truthfully explain that prerequisite instead of displaying a fabricated timetable.
 
 #### 9.10.2 Safe preparation and startup
 
-Use a dedicated PowerShell session:
+Use this presentation-day sequence exactly. It is designed for the already-prepared `test_tala_db`; it is not a rebuild procedure.
+
+1. Open a new PowerShell window in the repository root. Stop any old `composer dev` or `php artisan serve` terminal with `Ctrl+C`, then check for a stale listener:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
+```
+
+If this prints a listener, stop the old development terminal before continuing. Do not start a second server on another port and assume it represents the presentation runtime.
+
+2. Confirm the untracked `.env` selects `APP_ENV=local`, MySQL `test_tala_db`, the `paymongo` driver, and `PAYMONGO_LIVEMODE=false`. Confirm key presence without printing key values.
+
+3. Temporarily select the testing environment for the guarded read-only fixture inspection:
 
 ```powershell
 $env:APP_ENV="testing"
-$env:DB_CONNECTION="mysql"
-$env:DB_DATABASE="test_tala_db"
-
 php artisan config:clear
 php artisan tinker --execute 'echo app()->environment()."|".DB::connection()->getDriverName()."|".DB::connection()->getDatabaseName();'
 php artisan acceptance:seed-tal96d5e1-exploration --check --no-interaction
+Remove-Item Env:APP_ENV
+php artisan config:clear
+```
+
+The environment proof must be `testing|mysql|test_tala_db`. The inspection must report `coverage_state=PASS`, 28 personas, 47 current students, two inactive historical case profiles, six cohorts, 54 offerings, 54 scheduling demands, nine faculty, `presentation_fixture_ready=yes`, `scheduling_outputs_empty=yes`, `solver_invoked=no`, and `external_provider_called=no`. Stop on any other value.
+
+4. Prove that the normal application process will use the local presentation configuration:
+
+```powershell
+php artisan tinker --execute 'echo app()->environment()."|".DB::connection()->getDriverName()."|".DB::connection()->getDatabaseName()."|".config("tala_integrations.payments.driver")."|".(config("tala_integrations.payments.paymongo.livemode") ? "live" : "test");'
+```
+
+The exact result must be `local|mysql|test_tala_db|paymongo|test`.
+
+5. Start the complete application stack:
+
+```powershell
 composer dev
 ```
 
-The environment proof must be `testing|mysql|test_tala_db`; the D5E1 check must pass with `coverage_state=PASS`. Stop on any other value. Do not use `migrate:fresh`, restore a snapshot, replace a scenario, or rerun a seeder over an unknown database without its destructive database gate.
+This starts the web server, the `scheduling,default` database-queue listener, application logs, and Vite. Wait until all four processes are running, then open `http://127.0.0.1:8000/`.
 
-Before the exploration overlay exists, prove the pristine MIDDLE fixture with `php artisan acceptance:seed-scheduling-scenario MIDDLE --check --no-interaction` after the separately approved corrected-fixture rebuild; it must report `scenario_state=complete` and `readiness=PASS`. After the overlay exists, the exploration check is the authoritative non-writing inspection because it verifies the same 270-student / 9-cohort / 77-offering / 77-demand / 14-faculty fingerprint together with the added operational personas. The older scenario checker then deliberately fails closed on those additional records; that expected conflict is not evidence that the scheduling inputs changed.
+6. Before inviting the panel, perform this no-write smoke:
 
-Open `http://127.0.0.1:8000/`. The three authenticated workspaces are `/applicant`, `/student`, and `/admin`. Every account below is synthetic and uses the local password `password`.
+| Check | Expected result |
+| --- | --- |
+| Public landing | Three workspace choices and three complete FAQ questions; no placeholder row |
+| Registrar dashboard | Maribel Dizon; 54 offerings, 54 schedule requirements, 9 faculty, 6 rooms, and no published timetable |
+| Accounting dashboard | Renato Salcedo; 3 active student accounts and a Payment Exceptions review queue |
+| Applicant | `applicant.demo@example.test`; Andrea Marquez; Draft application |
+| Student | `student.demo@example.test`; Alyssa Cruz; Student Hub opens |
+
+All presentation accounts use the local password `password`. Do not click **Generate timetable**, start a PayMongo checkout, replay a webhook, or process an external queue result unless the corresponding separately approved human gate is active.
+
+#### 9.10.2.1 Stop and recovery rules
+
+- If port 8000 was already occupied, stop the old development session and restart; do not continue on an unverified stale process.
+- If the guarded inspection fails, stop. Do not run a seeder over the database to make the check pass.
+- Do not run `migrate:fresh` during presentation setup.
+- Restore only after explicit recovery approval, using the newest `test_tala_db-presentation-ready-*.sql` in `%LOCALAPPDATA%\Temp\tala-fixture-backups` and verifying it against its adjacent `.manifest.json`.
+- The preserved `test_tala_db-middle-*.sql` snapshot is rollback evidence for the replaced historical fixture, not the presentation database.
+
+Before the presentation overlay exists, prove the pristine MIN fixture with `php artisan acceptance:seed-scheduling-scenario MIN --check --no-interaction` after the separately approved guarded rebuild; it must report `scenario_state=complete` and `readiness=PASS`. After the overlay exists, the exploration check is the authoritative non-writing inspection because it verifies 47 current students, two inactive historical case profiles, six current cohorts, 54 active-term offerings and demands, nine faculty, and 28 sign-in personas. The pristine-scenario checker then deliberately fails closed on the added operational records; that expected conflict is not evidence that the scheduling inputs changed.
+
+The three authenticated workspaces are `/applicant`, `/student`, and `/admin`. Every account below is fictional and uses a Filipino-sounding display name.
 
 #### 9.10.3 Sign-in persona catalogue
 
-The catalogue has 26 exploration or verification personas, one separate denied-login persona, and the public visitor. One persona may carry several compatible states; incompatible states use separate accounts.
+The catalogue has 28 exploration or verification personas, one separate denied-login persona, and the public visitor. One persona may carry several compatible states; incompatible states use separate accounts.
 
 | Workspace | Email | State or responsibility | What this persona is for |
 | --- | --- | --- | --- |
@@ -1519,15 +1566,17 @@ The catalogue has 26 exploration or verification personas, one separate denied-l
 | Applicant | `applicant.returning.demo@example.test` | Returning draft | Returning category and prior-student-record requirement resolution |
 | Student | `student.demo@example.test` | DBM-1A-001; Regular | General Student Hub and one of the deterministic grade-state anchors |
 | Student | `student.dbm-2a.002@example.test` | DBM-2A-002; Regular | Second-year released-grade history and progression projection |
-| Student | `student.dbm-3a.001@example.test` | DBM-3A-001; Regular | Third-year released-grade history and three-year curriculum projection |
+| Student | `student.dit-2a.002@example.test` | DIT-2A-002; Regular | Second-year released-grade history and progression projection |
 | Student | `student.dbm-2a.001@example.test` | DBM-2A-001; Irregular | Irregular enrollment waiting for compatible published sections |
-| Student | `student.dit-1a.001@example.test` | DIT-1A-001; Probationary | Active amount due and a synthetic failed payment attempt |
-| Student | `student.dit-1a.002@example.test` | DIT-1A-002; Deficient | Partial payment, remaining balance, and synthetic pending attempt |
+| Student | `student.dit-1a.001@example.test` | DIT-1A-001; Probationary | Active amount due and a failed checkout-attempt case |
+| Student | `student.dit-1a.002@example.test` | DIT-1A-002; Deficient | Partial payment, remaining balance, and a pending checkout-attempt case |
 | Student | `student.dit-2a.001@example.test` | DIT-2A-001; Blocked by prerequisite | Cleared finance example while an academic prerequisite still blocks progress |
 | Student | `student.dthm-1a.001@example.test` | DTHM-1A-001; Must repeat year level | Cancelled-enrollment history and restart guidance |
-| Student | `student.dthm-1a.002@example.test` | DTHM-1A-002; Completion candidate | Completion review and outstanding-condition visibility |
-| Student | `student.dthm-2a.001@example.test` | DTHM-2A-001; Graduation candidate | Graduation review and official-record boundary |
+| Student | `student.dthm-1a.002@example.test` | DTHM-1A-002; Regular | Current first-year regular-student case |
+| Student | `student.dthm-2a.001@example.test` | DTHM-2A-001; Regular | Current second-year regular-student case |
 | Student | `student.dthm-2a.002@example.test` | DTHM-2A-002; Not yet evaluated | Clear not-yet-evaluated state and next action |
+| Student | `student.completion.demo@example.test` | DTHM-3A-001; inactive historical case; Completion candidate | Completion review and outstanding-condition visibility without fabricating a current third-year cohort |
+| Student | `student.graduation.demo@example.test` | DIT-3A-001; inactive historical case; Graduation candidate | Graduation review and official-record boundary without fabricating a current third-year cohort |
 | Student | `student.dbm-1a.002@example.test` | DBM-1A-002; Irregular and unverified | Student email-verification boundary; not an active exploration login |
 | Staff | `staff.inactive.demo@example.test` | Inactive Registrar | Denied authentication; the account remains as an audit-safe negative case |
 
@@ -1723,7 +1772,7 @@ One verification-harness incident changed the persistent state: the first curric
 
 The separately approved recovery-and-corrected-rebuild gate has now passed. A rollback-only phase profile first proved that the apparent stall was synthetic password-hashing cost, not curriculum, offering, demand-generation, scheduling-readiness, or solver behavior: creating the 270 student users at standalone bcrypt work factor 12 consumed 85.589 seconds, whereas all phases after student creation completed in about 9.5 seconds. The guarded retry used `BCRYPT_ROUNDS=4` only in the testing process, matching PHPUnit's existing work factor without changing production configuration. It completed the corrected foundation in 15.269 seconds and then loaded the exploration overlay.
 
-The current persistent `test_tala_db` passes the non-writing exploration check with 270 students, nine cohorts, fourteen synthetic faculty, 77 active Second Semester offerings, 77 ready demands, 158 three-year curriculum entries, 26 exploration personas, and one denied-login persona. Twelve additional offerings exist only in the closed First Semester to support prior-term enrollment and grade history, so the all-term database total is 89 while the active scheduling fingerprint remains 77. Schedule runs, candidate rows, official meetings, queued jobs, and failed jobs are zero. No solver or external provider was invoked.
+At the D5E1B1 checkpoint, the then-persistent `test_tala_db` passed the non-writing exploration check with 270 students, nine cohorts, fourteen synthetic faculty, 77 active Second Semester offerings, 77 ready demands, 158 three-year curriculum entries, 26 exploration personas, and one denied-login persona. Twelve additional offerings existed only in the closed First Semester to support prior-term enrollment and grade history, so the all-term database total was 89 while the active scheduling fingerprint remained 77. This is retained as dated verification history; TAL-96D5E1D6D1 supersedes it as the presentation-database state.
 
 ### 9.13 TAL-96D5E1B3 enrollment, student record, and lifecycle operating flow
 
@@ -1831,7 +1880,7 @@ TAL-96D5E1C changes the Accounting mental model without changing the normalized 
 | Financial Accommodation | An approved institutional result and its explicit gate effects | It does not pretend that TALA authored the external promissory document. |
 | Payment Exception | Operational evidence that Accounting must investigate or decide | It is not automatically a posted payment. |
 
-#### 9.14.3 Exploration states in the corrected MIDDLE fixture
+#### 9.14.3 Exploration states in the client-aligned MIN presentation fixture
 
 The deterministic D5E1 overlay makes the finance workflow explorable without contacting PayMongo:
 

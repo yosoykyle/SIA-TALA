@@ -356,7 +356,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_exploration_personas_are_grounded_in_owner_correct_prior_term_records(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 77);
+        $this->assertScenarioCreatesExpectedWorkload('MIN', 47, 6, 9, 54, 54);
 
         $exitCode = Artisan::call('acceptance:seed-tal96d5e1-exploration');
         $output = Artisan::output();
@@ -374,11 +374,14 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         foreach ([
             'student.demo@example.test',
             'student.dbm-2a.002@example.test',
-            'student.dbm-3a.001@example.test',
+            'student.dit-2a.002@example.test',
+            'student.dthm-1a.002@example.test',
+            'student.dthm-2a.001@example.test',
+            'student.completion.demo@example.test',
+            'student.graduation.demo@example.test',
         ] as $email) {
             $profile = User::query()->where('email', $email)->sole()->studentProfile()->sole();
 
-            $this->assertSame(StudentProfile::StandingRegular, $profile->academic_standing);
             $this->assertTrue($this->priorReleasedOutcomeExists(
                 $profile,
                 $priorTerm,
@@ -441,8 +444,8 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         ));
 
         foreach ([
-            'student.dthm-1a.002@example.test' => 'Ready for Registrar Review',
-            'student.dthm-2a.001@example.test' => 'Complete',
+            'student.completion.demo@example.test' => 'Ready for Registrar Review',
+            'student.graduation.demo@example.test' => 'Complete',
         ] as $email => $resultStatus) {
             $profile = User::query()->where('email', $email)->sole()->studentProfile()->sole();
 

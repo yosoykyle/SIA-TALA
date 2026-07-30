@@ -20,7 +20,7 @@ final class SeedTAL96D5E1Exploration extends Command
     protected $signature = 'acceptance:seed-tal96d5e1-exploration
         {--check : Inspect the exploration catalogue without writing}';
 
-    protected $description = 'Prepare deterministic TAL-96D5E1 personas on the verified MIDDLE test fixture.';
+    protected $description = 'Prepare deterministic defense personas on the verified client-aligned MIN fixture.';
 
     public function handle(
         AcceptanceBaselineEnvironmentGuard $environmentGuard,
@@ -46,15 +46,17 @@ final class SeedTAL96D5E1Exploration extends Command
         $this->line('coverage_state='.$report['coverage_state']);
         $this->line('personas='.$report['personas']);
         $this->line('denied_login_personas='.$report['denied_login_personas']);
-        $this->line('students='.$report['students']);
+        $this->line('student_profiles='.$report['student_profiles']);
+        $this->line('current_students='.$report['current_students']);
+        $this->line('historical_case_profiles='.$report['historical_case_profiles']);
         $this->line('cohorts='.$report['cohorts']);
         $this->line('term_offerings='.$report['term_offerings']);
         $this->line('scheduling_demands='.$report['scheduling_demands']);
-        $this->line('synthetic_scheduling_faculty='.$report['synthetic_scheduling_faculty']);
+        $this->line('faculty='.$report['faculty']);
         $this->line('staff_ready='.($report['staff_ready'] ? 'yes' : 'no'));
         $this->line('applicants_ready='.($report['applicants_ready'] ? 'yes' : 'no'));
         $this->line('students_ready='.($report['students_ready'] ? 'yes' : 'no'));
-        $this->line('middle_fingerprint_ready='.($report['middle_fingerprint_ready'] ? 'yes' : 'no'));
+        $this->line('presentation_fixture_ready='.($report['presentation_fixture_ready'] ? 'yes' : 'no'));
         $this->line('scheduling_outputs_empty='.($report['scheduling_outputs_empty'] ? 'yes' : 'no'));
         $this->line('solver_invoked=no');
         $this->line('external_provider_called=no');
@@ -65,7 +67,7 @@ final class SeedTAL96D5E1Exploration extends Command
             return self::FAILURE;
         }
 
-        $this->info('TAL-96D5E1 MIDDLE exploration personas are ready.');
+        $this->info('The client-aligned presentation personas are ready.');
 
         return self::SUCCESS;
     }

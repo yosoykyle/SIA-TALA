@@ -127,15 +127,17 @@ final class TAL96D5E1ExplorationPersonaCatalog
         return [
             'student.demo@example.test' => StudentProfile::StandingRegular,
             'student.dbm-2a.002@example.test' => StudentProfile::StandingRegular,
-            'student.dbm-3a.001@example.test' => StudentProfile::StandingRegular,
+            'student.dit-2a.002@example.test' => StudentProfile::StandingRegular,
             'student.dbm-2a.001@example.test' => StudentProfile::StandingIrregular,
             'student.dit-1a.001@example.test' => StudentProfile::StandingProbationary,
             'student.dit-1a.002@example.test' => StudentProfile::StandingDeficient,
             'student.dit-2a.001@example.test' => StudentProfile::StandingBlockedByPrerequisite,
             'student.dthm-1a.001@example.test' => StudentProfile::StandingMustRepeatYear,
-            'student.dthm-1a.002@example.test' => StudentProfile::StandingCompletionCandidate,
-            'student.dthm-2a.001@example.test' => StudentProfile::StandingGraduationCandidate,
+            'student.dthm-1a.002@example.test' => StudentProfile::StandingRegular,
+            'student.dthm-2a.001@example.test' => StudentProfile::StandingRegular,
             'student.dthm-2a.002@example.test' => StudentProfile::StandingNotYetEvaluated,
+            'student.completion.demo@example.test' => StudentProfile::StandingCompletionCandidate,
+            'student.graduation.demo@example.test' => StudentProfile::StandingGraduationCandidate,
         ];
     }
 
@@ -181,29 +183,46 @@ final class TAL96D5E1ExplorationPersonaCatalog
      *     coverage_state:'PASS'|'FAIL',
      *     personas:int,
      *     denied_login_personas:int,
-     *     students:int,
+     *     student_profiles:int,
+     *     current_students:int,
+     *     historical_case_profiles:int,
      *     cohorts:int,
      *     term_offerings:int,
      *     scheduling_demands:int,
-     *     synthetic_scheduling_faculty:int,
+     *     faculty:int,
      *     staff_ready:bool,
      *     applicants_ready:bool,
      *     students_ready:bool,
      *     denied_login_ready:bool,
-     *     middle_fingerprint_ready:bool,
+     *     presentation_fixture_ready:bool,
      *     scheduling_outputs_empty:bool
      * }
      */
     public function report(): array
     {
-        $term = $this->middleTerm();
+        $term = $this->presentationTerm();
         $personaEmails = $this->personaEmails();
         $staffReady = $this->staffAreReady();
         $applicantsReady = $this->applicantsAreReady($term);
         $studentsReady = $this->studentsAreReady();
         $deniedLoginReady = $this->deniedLoginIsReady();
-        $students = StudentProfile::query()->count();
-        $cohorts = collect(array_keys($this->scenarios->cohorts(SchedulingAcceptanceScenarioCatalog::Middle)))
+        $studentProfiles = StudentProfile::query()->count();
+        $currentStudents = StudentProfile::query()
+            ->where(function ($query): void {
+                $query
+                    ->where('student_number', 'like', 'DBM-1A-%')
+                    ->orWhere('student_number', 'like', 'DBM-2A-%')
+                    ->orWhere('student_number', 'like', 'DIT-1A-%')
+                    ->orWhere('student_number', 'like', 'DIT-2A-%')
+                    ->orWhere('student_number', 'like', 'DTHM-1A-%')
+                    ->orWhere('student_number', 'like', 'DTHM-2A-%');
+            })
+            ->count();
+        $historicalCaseProfiles = StudentProfile::query()
+            ->whereIn('student_number', ['DTHM-3A-001', 'DIT-3A-001'])
+            ->where('lifecycle_status', StudentProfile::LifecycleInactive)
+            ->count();
+        $cohorts = collect(array_keys($this->scenarios->cohorts(SchedulingAcceptanceScenarioCatalog::Min)))
             ->filter(fn (string $cohortCode): bool => StudentProfile::query()
                 ->where('student_number', 'like', $cohortCode.'-%')
                 ->exists())
@@ -212,41 +231,45 @@ final class TAL96D5E1ExplorationPersonaCatalog
         $schedulingDemands = SchedulingDemand::query()
             ->whereHas('termOffering', fn ($query) => $query->whereBelongsTo($term))
             ->count();
-        $syntheticSchedulingFaculty = User::role(User::StaffRoleFaculty)->count();
-        $middleFingerprintReady = $students === 270
-            && $cohorts === 9
-            && $termOfferings === 77
-            && $schedulingDemands === 77
-            && $syntheticSchedulingFaculty === 14;
+        $faculty = User::role(User::StaffRoleFaculty)->count();
+        $presentationFixtureReady = $studentProfiles === 49
+            && $currentStudents === 47
+            && $historicalCaseProfiles === 2
+            && $cohorts === 6
+            && $termOfferings === 54
+            && $schedulingDemands === 54
+            && $faculty === 9;
         $schedulingOutputsEmpty = ScheduleGenerationRun::query()->doesntExist()
             && SectionMeeting::query()->doesntExist()
             && DB::table('candidate_schedule_rows')->doesntExist()
             && DB::table('schedule_revision_events')->doesntExist()
             && DB::table('jobs')->doesntExist()
             && DB::table('failed_jobs')->doesntExist();
-        $passes = count($personaEmails) === 26
-            && count(array_unique($personaEmails)) === 26
+        $passes = count($personaEmails) === 28
+            && count(array_unique($personaEmails)) === 28
             && $staffReady
             && $applicantsReady
             && $studentsReady
             && $deniedLoginReady
-            && $middleFingerprintReady
+            && $presentationFixtureReady
             && $schedulingOutputsEmpty;
 
         return [
             'coverage_state' => $passes ? 'PASS' : 'FAIL',
             'personas' => count($personaEmails),
             'denied_login_personas' => 1,
-            'students' => $students,
+            'student_profiles' => $studentProfiles,
+            'current_students' => $currentStudents,
+            'historical_case_profiles' => $historicalCaseProfiles,
             'cohorts' => $cohorts,
             'term_offerings' => $termOfferings,
             'scheduling_demands' => $schedulingDemands,
-            'synthetic_scheduling_faculty' => $syntheticSchedulingFaculty,
+            'faculty' => $faculty,
             'staff_ready' => $staffReady,
             'applicants_ready' => $applicantsReady,
             'students_ready' => $studentsReady,
             'denied_login_ready' => $deniedLoginReady,
-            'middle_fingerprint_ready' => $middleFingerprintReady,
+            'presentation_fixture_ready' => $presentationFixtureReady,
             'scheduling_outputs_empty' => $schedulingOutputsEmpty,
         ];
     }
@@ -353,9 +376,11 @@ final class TAL96D5E1ExplorationPersonaCatalog
         if (in_array($email, [
             'student.demo@example.test',
             'student.dbm-2a.002@example.test',
-            'student.dbm-3a.001@example.test',
+            'student.dit-2a.002@example.test',
             'student.dthm-1a.002@example.test',
             'student.dthm-2a.001@example.test',
+            'student.completion.demo@example.test',
+            'student.graduation.demo@example.test',
         ], true) && ! $this->priorOutcomeExists($profile, $priorTerm, GradeRosterRow::CategoryPassing)) {
             return false;
         }
@@ -403,8 +428,8 @@ final class TAL96D5E1ExplorationPersonaCatalog
         }
 
         $graduationStatus = match ($email) {
-            'student.dthm-1a.002@example.test' => 'Ready for Registrar Review',
-            'student.dthm-2a.001@example.test' => 'Complete',
+            'student.completion.demo@example.test' => 'Ready for Registrar Review',
+            'student.graduation.demo@example.test' => 'Complete',
             default => null,
         };
 
@@ -450,7 +475,7 @@ final class TAL96D5E1ExplorationPersonaCatalog
             && ! $user->canAuthenticate();
     }
 
-    private function middleTerm(): Term
+    private function presentationTerm(): Term
     {
         return Term::query()
             ->where('label', 'Second Semester')

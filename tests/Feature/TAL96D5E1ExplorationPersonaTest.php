@@ -39,13 +39,16 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         try {
             $this->artisan('acceptance:seed-tal96d5e1-exploration')
                 ->expectsOutputToContain('coverage_state=PASS')
-                ->expectsOutputToContain('personas=26')
+                ->expectsOutputToContain('personas=28')
                 ->expectsOutputToContain('denied_login_personas=1')
-                ->expectsOutputToContain('students=270')
-                ->expectsOutputToContain('cohorts=9')
-                ->expectsOutputToContain('term_offerings=77')
-                ->expectsOutputToContain('scheduling_demands=77')
-                ->expectsOutputToContain('synthetic_scheduling_faculty=14')
+                ->expectsOutputToContain('student_profiles=49')
+                ->expectsOutputToContain('current_students=47')
+                ->expectsOutputToContain('historical_case_profiles=2')
+                ->expectsOutputToContain('cohorts=6')
+                ->expectsOutputToContain('term_offerings=54')
+                ->expectsOutputToContain('scheduling_demands=54')
+                ->expectsOutputToContain('faculty=9')
+                ->expectsOutputToContain('presentation_fixture_ready=yes')
                 ->assertSuccessful();
         } catch (Throwable $exception) {
             $this->fail('The guarded D5E1 exploration command must exist and succeed: '.$exception->getMessage());
@@ -72,15 +75,17 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $activeStudents = [
             'student.demo@example.test' => StudentProfile::StandingRegular,
             'student.dbm-2a.002@example.test' => StudentProfile::StandingRegular,
-            'student.dbm-3a.001@example.test' => StudentProfile::StandingRegular,
+            'student.dit-2a.002@example.test' => StudentProfile::StandingRegular,
             'student.dbm-2a.001@example.test' => StudentProfile::StandingIrregular,
             'student.dit-1a.001@example.test' => StudentProfile::StandingProbationary,
             'student.dit-1a.002@example.test' => StudentProfile::StandingDeficient,
             'student.dit-2a.001@example.test' => StudentProfile::StandingBlockedByPrerequisite,
             'student.dthm-1a.001@example.test' => StudentProfile::StandingMustRepeatYear,
-            'student.dthm-1a.002@example.test' => StudentProfile::StandingCompletionCandidate,
-            'student.dthm-2a.001@example.test' => StudentProfile::StandingGraduationCandidate,
+            'student.dthm-1a.002@example.test' => StudentProfile::StandingRegular,
+            'student.dthm-2a.001@example.test' => StudentProfile::StandingRegular,
             'student.dthm-2a.002@example.test' => StudentProfile::StandingNotYetEvaluated,
+            'student.completion.demo@example.test' => StudentProfile::StandingCompletionCandidate,
+            'student.graduation.demo@example.test' => StudentProfile::StandingGraduationCandidate,
         ];
         $unverifiedStudent = 'student.dbm-1a.002@example.test';
         $deniedStaff = 'staff.inactive.demo@example.test';
@@ -92,7 +97,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
             ...array_keys($activeStudents),
             $unverifiedStudent,
         ];
-        $this->assertCount(26, array_unique($personaEmails));
+        $this->assertCount(28, array_unique($personaEmails));
 
         foreach ($activeStaff as $email) {
             $staff = User::query()->where('email', $email)->sole();
@@ -107,7 +112,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
         foreach ($applicants as $email => [$intakeStatus, $category, $basis, $userStatus]) {
             $applicant = User::query()->where('email', $email)->sole();
-            $intake = ApplicantIntake::query()->whereBelongsTo($applicant)->whereBelongsTo($this->middleTerm())->sole();
+            $intake = ApplicantIntake::query()->whereBelongsTo($applicant)->whereBelongsTo($this->presentationTerm())->sole();
 
             $this->assertNotNull($applicant->email_verified_at);
             $this->assertTrue($applicant->hasRole('applicant'));
@@ -120,7 +125,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
         $actionRequiredIntake = ApplicantIntake::query()
             ->whereBelongsTo(User::query()->where('email', 'applicant.action-required.demo@example.test')->sole())
-            ->whereBelongsTo($this->middleTerm())
+            ->whereBelongsTo($this->presentationTerm())
             ->sole();
         $this->assertTrue($actionRequiredIntake->checklistItems()
             ->where('verification_status', ChecklistItem::VerificationRejected)
@@ -136,7 +141,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         foreach (['applicant.evaluation.demo@example.test', 'applicant.approved.demo@example.test'] as $email) {
             $resolvedIntake = ApplicantIntake::query()
                 ->whereBelongsTo(User::query()->where('email', $email)->sole())
-                ->whereBelongsTo($this->middleTerm())
+                ->whereBelongsTo($this->presentationTerm())
                 ->sole();
 
             $this->assertGreaterThan(0, $resolvedIntake->checklistItems()->count());
@@ -150,7 +155,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
         $withdrawnIntake = ApplicantIntake::query()
             ->whereBelongsTo(User::query()->where('email', 'applicant.withdrawn.demo@example.test')->sole())
-            ->whereBelongsTo($this->middleTerm())
+            ->whereBelongsTo($this->presentationTerm())
             ->sole();
         $this->assertTrue(DB::table('activity_log')
             ->where('subject_type', ApplicantIntake::class)
@@ -179,9 +184,9 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
     }
 
     #[Test]
-    public function exploration_overlay_is_idempotent_and_preserves_the_middle_scheduling_contract(): void
+    public function exploration_overlay_is_idempotent_and_preserves_the_min_scheduling_contract(): void
     {
-        $term = $this->middleTerm();
+        $term = $this->presentationTerm();
         $beforeFingerprint = $this->schedulingFingerprint($term);
         $beforeScheduleRuns = ScheduleGenerationRun::query()->count();
         $beforeMeetings = SectionMeeting::query()->count();
@@ -193,9 +198,9 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
         $this->assertSame($firstCounts, $this->explorationCounts());
         $this->assertSame($beforeFingerprint, $this->schedulingFingerprint($term));
-        $this->assertSame(270, StudentProfile::query()->count());
-        $this->assertSame(77, TermOffering::query()->whereBelongsTo($term)->count());
-        $this->assertSame(77, SchedulingDemand::query()->whereHas(
+        $this->assertSame(49, StudentProfile::query()->count());
+        $this->assertSame(54, TermOffering::query()->whereBelongsTo($term)->count());
+        $this->assertSame(54, SchedulingDemand::query()->whereHas(
             'termOffering',
             fn ($query) => $query->whereBelongsTo($term),
         )->count());
@@ -257,7 +262,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
     }
 
     #[Test]
-    public function first_time_documentation_distinguishes_the_pristine_middle_check_from_overlay_inspection(): void
+    public function first_time_documentation_distinguishes_the_pristine_min_check_from_overlay_inspection(): void
     {
         $readme = file_get_contents(base_path('README.md'));
         $guide = file_get_contents(base_path('00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md'));
@@ -265,7 +270,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertIsString($readme);
         $this->assertIsString($guide);
         $this->assertStringContainsString(
-            'Before the D5E1 overlay exists, the MIDDLE scenario check must report',
+            'Before the presentation overlay exists, the MIN scenario check must report',
             $readme,
         );
         $this->assertStringContainsString(
@@ -273,7 +278,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
             $readme,
         );
         $this->assertStringContainsString(
-            'Before the exploration overlay exists, prove the pristine MIDDLE fixture',
+            'Before the presentation overlay exists, prove the pristine MIN fixture',
             $guide,
         );
         $this->assertStringContainsString(
@@ -308,9 +313,9 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         ];
     }
 
-    private function middleTerm(): Term
+    private function presentationTerm(): Term
     {
-        $this->assertSame(270, StudentProfile::query()->count());
+        $this->assertSame(49, StudentProfile::query()->count());
 
         return Term::query()
             ->where('label', 'Second Semester')

@@ -19,7 +19,7 @@ final class SeedTAL96D5BAcceptanceState extends Command
 {
     protected $signature = 'acceptance:seed-tal96d5b-states';
 
-    protected $description = 'Add deterministic TAL-96D5B operational states to the verified MIDDLE test fixture.';
+    protected $description = 'Add deterministic operational cases to the verified client-aligned MIN fixture.';
 
     public function handle(
         AcceptanceBaselineEnvironmentGuard $environmentGuard,
@@ -44,7 +44,7 @@ final class SeedTAL96D5BAcceptanceState extends Command
             ->where('disposition', 'human_gate')
             ->count();
 
-        $this->info('TAL-96D5B MIDDLE operational states are ready.');
+        $this->info('The client-aligned operational presentation cases are ready.');
         $this->line('outcome=created_or_refreshed');
         $this->line('database='.DB::connection()->getDatabaseName());
         $this->line('coverage_state='.$report['coverage_state']);

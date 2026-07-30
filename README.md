@@ -108,29 +108,96 @@ php artisan test --compact
 
 ## 6. First-Time System Exploration (Testing Only)
 
-TAL-96D5E1 provides a deterministic exploration environment for learning the system before the defense rehearsal. It uses the verified `MIDDLE` fixture and adds synthetic applicant, student, staff, enrollment, finance, grade, and lifecycle states. It is not a production seeder and must never target `tala_db`.
+TAL-96D5E1 provides a deterministic presentation and exploration environment for learning the system before the defense rehearsal. It uses the client-aligned `MIN` fixture and adds only the operational applicant, student, staff, enrollment, finance, grade, and lifecycle cases needed for the demonstration. The names are fictional and Filipino-sounding; they are not real client identities. This is not a production seeder and must never target `tala_db`.
 
-In PowerShell, set and prove the isolated runtime:
+### Presentation-day quick start
+
+Use a new PowerShell window in the repository root. Do not reuse a terminal that may still have old `APP_ENV` or database variables.
+
+1. Stop the old development session with `Ctrl+C`. Confirm that port 8000 is free before starting another copy:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
+```
+
+If this prints a listener, return to the terminal that started the old `composer dev` or `php artisan serve` process and stop it. Do not run two application servers.
+
+2. Confirm these untracked `.env` selections without printing any PayMongo key:
+
+```env
+APP_ENV=local
+DB_CONNECTION=mysql
+DB_DATABASE=test_tala_db
+TALA_PAYMENT_GATEWAY_DRIVER=paymongo
+PAYMONGO_LIVEMODE=false
+```
+
+3. Run the guarded, read-only fixture inspection. `APP_ENV=testing` is temporary and exists only because presentation-fixture commands fail closed outside the testing environment:
 
 ```powershell
 $env:APP_ENV="testing"
-$env:DB_CONNECTION="mysql"
-$env:DB_DATABASE="test_tala_db"
-
 php artisan config:clear
 php artisan tinker --execute 'echo app()->environment()."|".DB::connection()->getDriverName()."|".DB::connection()->getDatabaseName();'
+php artisan acceptance:seed-tal96d5e1-exploration --check --no-interaction
+Remove-Item Env:APP_ENV
+php artisan config:clear
 ```
 
-The proof must print exactly:
+The runtime proof must print `testing|mysql|test_tala_db`. The exploration check must report:
 
 ```text
-testing|mysql|test_tala_db
+coverage_state=PASS
+personas=28
+current_students=47
+historical_case_profiles=2
+cohorts=6
+term_offerings=54
+scheduling_demands=54
+faculty=9
+presentation_fixture_ready=yes
+scheduling_outputs_empty=yes
+solver_invoked=no
+external_provider_called=no
 ```
 
-Before the D5E1 overlay exists, the MIDDLE scenario check must report `scenario_state=complete`, `readiness=PASS`, and the expected 270-student / 9-cohort / 77-offering / 77-demand / 14-faculty fingerprint after the separately approved corrected-fixture rebuild:
+Stop if any value differs. Do not reseed, restore, or run `migrate:fresh` during presentation setup.
+
+4. Prove the normal application runtime after removing the temporary override:
 
 ```powershell
-php artisan acceptance:seed-scheduling-scenario MIDDLE --check --no-interaction
+php artisan tinker --execute 'echo app()->environment()."|".DB::connection()->getDriverName()."|".DB::connection()->getDatabaseName()."|".config("tala_integrations.payments.driver")."|".(config("tala_integrations.payments.paymongo.livemode") ? "live" : "test");'
+```
+
+It must print exactly:
+
+```text
+local|mysql|test_tala_db|paymongo|test
+```
+
+5. Start the complete local stack. This one command starts the application server, the `scheduling,default` queue listener, logs, and Vite:
+
+```powershell
+composer dev
+```
+
+Wait until the server, queue, logs, and Vite processes are all running. Open `http://127.0.0.1:8000/`, then use `/applicant`, `/student`, or `/admin`. All presentation accounts use the local password `password`.
+
+6. Perform a no-write smoke check before presenting:
+
+- Public landing page shows the three workspaces and three complete FAQ questions.
+- Registrar dashboard shows 54 offerings, 54 schedule requirements, 9 faculty, 6 rooms, and no published timetable.
+- Accounting dashboard shows 3 active student accounts and the Payment Exceptions queue.
+- Applicant `applicant.demo@example.test` opens a Draft application under Andrea Marquez.
+- Student `student.demo@example.test` opens the Student Hub under Alyssa Cruz.
+
+Do not click **Generate timetable** or initiate a PayMongo checkout unless the separate external-action gate has been approved and the operator is ready to supervise the queue/provider result.
+
+### Guarded rebuild only
+
+Before the presentation overlay exists, the MIN scenario check must report `scenario_state=complete`, `readiness=PASS`, and the expected 47-current-student / 6-cohort / 54-offering / 54-demand / 9-faculty fingerprint after an approved guarded rebuild:
+
+```powershell
+php artisan acceptance:seed-scheduling-scenario MIN --check --no-interaction
 ```
 
 Once the D5E1 overlay exists, use the D5E1 command as the authoritative read-only check:
@@ -139,26 +206,16 @@ Once the D5E1 overlay exists, use the D5E1 command as the authoritative read-onl
 php artisan acceptance:seed-tal96d5e1-exploration --check --no-interaction
 ```
 
-It must report that same fingerprint and `coverage_state=PASS`. The older pristine-scenario checker deliberately reports a conflict after the exploration overlay adds applicant, enrollment, finance, grade, and lifecycle records; do not interpret that expected fail-closed result as a changed scheduling fingerprint. The earlier 80-demand MIDDLE fixture belongs to the completed TAL-96D5D study and remains historical synthetic V1 evidence; it is not the current curriculum authority. If the D5E1 check fails, stop and do not reseed over an unknown database.
-
-Only when `test_tala_db` is a newly migrated, empty database, or after a separately approved snapshot-and-rebuild gate, prepare it in this order:
+Only when `test_tala_db` is newly migrated and empty, or after a separately approved snapshot-and-rebuild gate, prepare it in this order:
 
 ```powershell
-php artisan acceptance:seed-scheduling-scenario MIDDLE --no-interaction
-php artisan acceptance:seed-scheduling-scenario MIDDLE --check --no-interaction
+php artisan acceptance:seed-scheduling-scenario MIN --no-interaction
+php artisan acceptance:seed-scheduling-scenario MIN --check --no-interaction
 php artisan acceptance:seed-tal96d5e1-exploration --no-interaction
 php artisan acceptance:seed-tal96d5e1-exploration --check --no-interaction
 ```
 
-Start the application from the same PowerShell session so every child process inherits the testing database:
-
-```powershell
-composer dev
-```
-
-Open `http://127.0.0.1:8000/`, then use `/applicant`, `/student`, or `/admin` for the appropriate workspace. All committed exploration accounts use synthetic `@example.test` addresses and the local password `password`. The complete persona catalogue, journey order, expected results, and observation table are in `00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md`.
-
-The exploration command never runs CP-SAT, creates an official timetable, calls SMTP, or contacts PayMongo. Those activities remain separately authorized human gates.
+The complete persona catalogue, journey order, expected results, recovery rules, and observation table are in `00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md`. The fixture commands never run CP-SAT, create an official timetable, call SMTP, or contact PayMongo.
 
 ---
 

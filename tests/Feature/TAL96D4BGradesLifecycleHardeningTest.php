@@ -208,9 +208,9 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
             ->sole();
         $this->assertSame('89.8000', $releasedRow->computed_average);
         $this->assertSame('1.75', $releasedRow->current_outcome_code);
-        $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-WITHDRAWAL')->count());
-        $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-PROGRAM-SHIFT')->count());
-        $programShift = StudentLifecycleChange::query()->where('private_source_reference', 'TAL-96D4B-PROGRAM-SHIFT')->sole();
+        $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'LIFECYCLE-WITHDRAWAL-001')->count());
+        $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'LIFECYCLE-PROGRAM-SHIFT-001')->count());
+        $programShift = StudentLifecycleChange::query()->where('private_source_reference', 'LIFECYCLE-PROGRAM-SHIFT-001')->sole();
         $sourceProgramId = StudentProfile::query()->findOrFail($programShift->student_profile_id)->program_id;
         $this->assertNotSame($sourceProgramId, $programShift->target_program_id);
         $this->assertTrue($programShift->term->starts_on->isFuture());

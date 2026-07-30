@@ -136,7 +136,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
 
         $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
         $adjustment = AccountingAdjustment::query()
-            ->where('evidence_reference', 'TAL96D5E1C-CREDIT')
+            ->where('evidence_reference', 'ADJUSTMENT-CREDIT-001')
             ->sole();
         $activity = LedgerEntry::query()->findOrFail($adjustment->ledger_entry_id);
 
@@ -174,32 +174,35 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
 
         $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
         $payment = Payment::query()
-            ->where('provider_reference', 'TAL96D5E1C-PENDING-OR')
+            ->where('provider_reference', 'PAYMENT-OR-PENDING-001')
             ->sole();
         $attempt = PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-UNDER-REVIEW')
+            ->where('internal_reference', 'CHECKOUT-REVIEW-001')
             ->sole();
         $syntheticAttempt = PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-EXPIRED')
+            ->where('internal_reference', 'CHECKOUT-EXPIRED-001')
             ->sole();
         $syntheticAttempt->forceFill([
             'channel' => 'synthetic_acceptance',
             'provider' => 'synthetic_acceptance',
         ])->save();
         $paymentEnrollment = app(PaymentAcademicContextResolver::class)->enrollment($payment);
-        $attemptEnrollment = $attempt->assessment?->enrollment;
+        $attemptEnrollment = Assessment::query()
+            ->with('enrollment.term')
+            ->findOrFail($attempt->assessment_id)
+            ->enrollment;
 
         $this->assertNotNull($paymentEnrollment);
         $this->assertNotNull($attemptEnrollment);
 
         $formattedPaymentEnrollment = collect([
             "#{$paymentEnrollment->id}",
-            $paymentEnrollment->term?->label ?? 'No term',
+            $paymentEnrollment->term->label,
             'Pending Payment',
         ])->implode(' - ');
         $formattedAttemptEnrollment = collect([
             "#{$attemptEnrollment->id}",
-            $attemptEnrollment->term?->label ?? 'No term',
+            $attemptEnrollment->term->label,
             str($attemptEnrollment->status)->headline()->toString(),
         ])->implode(' - ');
 
@@ -268,31 +271,31 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             'meetings' => SectionMeeting::query()->count(),
             'jobs' => DB::table('jobs')->count(),
         ]);
-        $this->assertSame(270, StudentProfile::query()->count());
+        $this->assertSame(49, StudentProfile::query()->count());
         $this->assertSame('expired', PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-EXPIRED')
+            ->where('internal_reference', 'CHECKOUT-EXPIRED-001')
             ->sole()
             ->status);
         $this->assertSame('under_review', PaymentAttempt::query()
-            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-UNDER-REVIEW')
+            ->where('internal_reference', 'CHECKOUT-REVIEW-001')
             ->sole()
             ->status);
         $this->assertNull(Payment::query()
-            ->where('provider_reference', 'TAL96D5E1C-PENDING-OR')
+            ->where('provider_reference', 'PAYMENT-OR-PENDING-001')
             ->sole()
             ->or_number);
         $this->assertSame(2, AccountingAdjustment::query()
             ->whereIn('evidence_reference', [
-                'TAL96D5E1C-CREDIT',
-                'TAL96D5E1C-REVERSAL',
+                'ADJUSTMENT-CREDIT-001',
+                'ADJUSTMENT-REVERSAL-001',
             ])
             ->count());
         $this->assertEqualsCanonicalizing(
             [FinancialAccommodation::StatusActive, FinancialAccommodation::StatusExpired],
             FinancialAccommodation::query()
                 ->whereIn('certification_reference', [
-                    'TAL96D5E1C-ACTIVE',
-                    'TAL96D5E1C-EXPIRED',
+                    'ACCOMMODATION-ACTIVE-001',
+                    'ACCOMMODATION-EXPIRED-001',
                 ])
                 ->pluck('status')
                 ->all(),

@@ -13,6 +13,7 @@ use App\Models\Assessment;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
@@ -40,7 +41,7 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * Adds deterministic, test-only exploration personas to the verified MIDDLE fixture.
+ * Adds deterministic presentation personas to the verified client-aligned MIN fixture.
  *
  * This seeder has no application UI and never invokes CP-SAT or an external
  * provider. Its command guard limits execution to testing/MySQL/test_tala_db.
@@ -57,9 +58,10 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
 
     public function run(): void
     {
+        $term = $this->presentationTerm();
+        $this->ensureHistoricalCompletionPersonas();
         $this->operationalStates->run();
 
-        $term = $this->middleTerm();
         $program = Program::query()->where('code', 'DBM')->sole();
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
 
@@ -68,6 +70,69 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $this->ensurePriorTermStudentHistories($term, $registrar);
         $this->ensureApplicantPersonas($term, $program, $registrar);
         $this->ensureFinanceExplorationStates($term);
+    }
+
+    private function ensureHistoricalCompletionPersonas(): void
+    {
+        $definitions = [
+            'student.completion.demo@example.test' => [
+                'student_number' => 'DTHM-3A-001',
+                'first_name' => 'Clarissa',
+                'middle_name' => 'Mae',
+                'last_name' => 'Dela Peña',
+                'program' => 'DTHM',
+                'standing' => StudentProfile::StandingCompletionCandidate,
+                'birth_date' => '2003-04-18',
+            ],
+            'student.graduation.demo@example.test' => [
+                'student_number' => 'DIT-3A-001',
+                'first_name' => 'Roberto',
+                'middle_name' => 'Luis',
+                'last_name' => 'Magbanua',
+                'program' => 'DIT',
+                'standing' => StudentProfile::StandingGraduationCandidate,
+                'birth_date' => '2003-09-07',
+            ],
+        ];
+
+        foreach ($definitions as $email => $definition) {
+            $program = Program::query()->where('code', $definition['program'])->sole();
+            $curriculum = CurriculumVersion::query()
+                ->whereBelongsTo($program)
+                ->where('state', CurriculumVersion::StateActive)
+                ->sole();
+            $user = $this->ensureUser(
+                email: $email,
+                firstName: $definition['first_name'],
+                lastName: $definition['last_name'],
+                status: User::StatusActive,
+                verified: true,
+            );
+            $user->forceFill(['middle_name' => $definition['middle_name']])->save();
+            $user->syncRoles(['student']);
+
+            StudentProfile::query()->updateOrCreate(
+                ['student_number' => $definition['student_number']],
+                [
+                    'user_id' => $user->id,
+                    'first_name' => $definition['first_name'],
+                    'middle_name' => $definition['middle_name'],
+                    'last_name' => $definition['last_name'],
+                    'birth_date' => $definition['birth_date'],
+                    'program_id' => $program->id,
+                    'curriculum_version_id' => $curriculum->id,
+                    'lifecycle_status' => StudentProfile::LifecycleInactive,
+                    'academic_standing' => $definition['standing'],
+                    'email' => $email,
+                    'phone' => null,
+                    'address' => 'San Pedro, Laguna',
+                    'emergency_contact_name' => 'Designated family contact',
+                    'emergency_contact_phone' => null,
+                    'archived_at' => null,
+                    'merged_into_id' => null,
+                ],
+            );
+        }
     }
 
     private function ensureFinanceExplorationStates(Term $term): void
@@ -79,13 +144,13 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
 
         $expiredAttempt = $this->ensurePaymentAttempt(
             assessment: $dueAssessment,
-            reference: 'TAL96D5E1C-SYNTHETIC-EXPIRED',
+            reference: 'CHECKOUT-EXPIRED-001',
             status: 'expired',
             timestamp: CarbonImmutable::parse($term->starts_on)->addDays(3),
         );
         $reviewAttempt = $this->ensurePaymentAttempt(
             assessment: $clearedAssessment,
-            reference: 'TAL96D5E1C-SYNTHETIC-UNDER-REVIEW',
+            reference: 'CHECKOUT-REVIEW-001',
             status: 'under_review',
             timestamp: CarbonImmutable::parse($term->starts_on)->addDays(4),
         );
@@ -117,7 +182,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'expires_at' => $status === 'expired' ? $timestamp : $timestamp->addDay(),
                 'paid_at' => null,
                 'metadata' => [
-                    'synthetic_fixture' => 'TAL-96D5E1C',
+                    'presentation_case' => 'payment_status_recovery',
                     'purpose' => 'Accounting and PayMongo first-time exploration',
                 ],
                 'created_at' => $timestamp,
@@ -128,7 +193,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
 
     private function ensurePendingOfficialReceiptPayment(Assessment $assessment, User $accounting): void
     {
-        if (Payment::query()->where('provider_reference', 'TAL96D5E1C-PENDING-OR')->exists()) {
+        if (Payment::query()->where('provider_reference', 'PAYMENT-OR-PENDING-001')->exists()) {
             return;
         }
 
@@ -136,7 +201,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
             enrollmentId: $assessment->enrollment_id,
             amount: '125.00',
             channel: 'bank_transfer',
-            paymentReference: 'TAL96D5E1C-PENDING-OR',
+            paymentReference: 'PAYMENT-OR-PENDING-001',
             actor: $accounting,
             confirmedAt: CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(5),
         );
@@ -154,10 +219,10 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $reversalSource = $charges->skip(1)->first() ?? $creditSource;
 
         if (! $creditSource instanceof LedgerEntry || ! $reversalSource instanceof LedgerEntry) {
-            throw new RuntimeException('TAL-96D5E1C requires a posted assessment charge.');
+            throw new RuntimeException('The presentation account requires a posted assessment charge.');
         }
 
-        if (! AccountingAdjustment::query()->where('evidence_reference', 'TAL96D5E1C-CREDIT')->exists()) {
+        if (! AccountingAdjustment::query()->where('evidence_reference', 'ADJUSTMENT-CREDIT-001')->exists()) {
             $this->accountingAdjustments->post([
                 'student_profile_id' => $assessment->enrollment->student_profile_id,
                 'term_id' => $assessment->enrollment->term_id,
@@ -165,20 +230,20 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'source_ledger_entry_id' => $creditSource->id,
                 'adjustment_type' => AccountingAdjustment::TypeStudentAccountCredit,
                 'amount' => '25.00',
-                'reason' => 'Synthetic approved credit for Accounting account-history exploration.',
-                'evidence_reference' => 'TAL96D5E1C-CREDIT',
+                'reason' => 'Approved credit applied after Accounting reviewed the supporting record.',
+                'evidence_reference' => 'ADJUSTMENT-CREDIT-001',
             ], $accounting, CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(6));
         }
 
-        if (! AccountingAdjustment::query()->where('evidence_reference', 'TAL96D5E1C-REVERSAL')->exists()) {
+        if (! AccountingAdjustment::query()->where('evidence_reference', 'ADJUSTMENT-REVERSAL-001')->exists()) {
             $this->accountingAdjustments->post([
                 'student_profile_id' => $assessment->enrollment->student_profile_id,
                 'term_id' => $assessment->enrollment->term_id,
                 'enrollment_id' => $assessment->enrollment_id,
                 'source_ledger_entry_id' => $reversalSource->id,
                 'adjustment_type' => AccountingAdjustment::TypeLedgerEntryReversal,
-                'reason' => 'Synthetic approved reversal for append-only correction exploration.',
-                'evidence_reference' => 'TAL96D5E1C-REVERSAL',
+                'reason' => 'Approved reversal preserving the original account entry and correction history.',
+                'evidence_reference' => 'ADJUSTMENT-REVERSAL-001',
             ], $accounting, CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(7));
         }
     }
@@ -190,7 +255,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         Term $term,
     ): void {
         FinancialAccommodation::query()->updateOrCreate(
-            ['certification_reference' => 'TAL96D5E1C-ACTIVE'],
+            ['certification_reference' => 'ACCOMMODATION-ACTIVE-001'],
             [
                 'student_profile_id' => $activeAssessment->enrollment->student_profile_id,
                 'term_id' => $term->id,
@@ -199,13 +264,13 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'basis' => FinancialAccommodation::BasisInstitutionalAccommodation,
                 'private_evidence_reference' => 'private://tal96d5e1c/active-accommodation',
                 'promissory_required' => true,
-                'promissory_maker' => 'Synthetic Student',
+                'promissory_maker' => 'Student account holder',
                 'allows_finance_gate' => true,
                 'allows_next_term_enrollment' => false,
                 'allows_reactivation' => false,
                 'allows_record_release' => false,
                 'waives_downpayment' => false,
-                'authority' => 'Synthetic Accounting approval for TAL-96D5E1C exploration',
+                'authority' => 'Accounting-approved payment accommodation',
                 'recorded_by' => $accounting->id,
                 'status' => FinancialAccommodation::StatusActive,
                 'effective_from' => CarbonImmutable::parse($term->starts_on)->toDateString(),
@@ -214,7 +279,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         );
 
         FinancialAccommodation::query()->updateOrCreate(
-            ['certification_reference' => 'TAL96D5E1C-EXPIRED'],
+            ['certification_reference' => 'ACCOMMODATION-EXPIRED-001'],
             [
                 'student_profile_id' => $expiredAssessment->enrollment->student_profile_id,
                 'term_id' => $term->id,
@@ -229,7 +294,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'allows_reactivation' => false,
                 'allows_record_release' => false,
                 'waives_downpayment' => false,
-                'authority' => 'Synthetic expired accommodation for TAL-96D5E1C exploration',
+                'authority' => 'Expired Accounting payment accommodation',
                 'recorded_by' => $accounting->id,
                 'status' => FinancialAccommodation::StatusExpired,
                 'effective_from' => CarbonImmutable::parse($term->starts_on)->subYear()->toDateString(),
@@ -264,7 +329,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'related_record_id' => $reviewAttempt->id,
                 'diagnostics' => [
                     'reason' => 'unknown_reference',
-                    'synthetic_fixture' => 'TAL-96D5E1C',
+                    'presentation_case' => 'payment_status_recovery',
                 ],
                 'payload' => [
                     'livemode' => false,
@@ -293,7 +358,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'diagnostics' => [
                     'reason' => 'recovered_paid_without_webhook',
                     'decision' => 'confirmed',
-                    'synthetic_fixture' => 'TAL-96D5E1C',
+                    'presentation_case' => 'payment_status_recovery',
                 ],
                 'payload' => [
                     'livemode' => false,
@@ -320,8 +385,8 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $unverified = $this->catalog->unverifiedStaff();
         $unverifiedUser = $this->ensureUser(
             email: $unverified['email'],
-            firstName: 'Unverified',
-            lastName: 'Registrar',
+            firstName: 'Cecilia',
+            lastName: 'Navarro',
             status: User::StatusActive,
             verified: false,
         );
@@ -330,8 +395,8 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $denied = $this->catalog->deniedLoginPersona();
         $deniedUser = $this->ensureUser(
             email: $denied['email'],
-            firstName: 'Inactive',
-            lastName: 'Staff',
+            firstName: 'Arturo',
+            lastName: 'Salcedo',
             status: $denied['status'],
             verified: true,
         );
@@ -352,10 +417,11 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
             $applicant = User::query()->where('email', $email)->first();
 
             if (! $applicant instanceof User) {
+                [$firstName, $lastName] = $this->applicantIdentity($email);
                 $applicant = $this->ensureUser(
                     email: $email,
-                    firstName: $this->applicantFirstName($email),
-                    lastName: 'Applicant',
+                    firstName: $firstName,
+                    lastName: $lastName,
                     status: $definition['user_status'],
                     verified: true,
                 );
@@ -432,17 +498,17 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
             'birth_date' => '2007-01-15',
             'gender' => 'FEMALE',
             'civil_status' => 'SINGLE',
-            'birth_place' => 'Synthetic City, Laguna',
+            'birth_place' => 'San Pedro, Laguna',
             'email' => $applicant->email,
             'phone' => '09171234567',
-            'address_barangay' => 'Synthetic Barangay',
+            'address_barangay' => 'San Antonio',
             'address_street' => '100 Exploration Street',
-            'address_city' => 'Synthetic City',
+            'address_city' => 'San Pedro',
             'address_province' => 'Laguna',
-            'prior_school' => 'Synthetic Prior School',
-            'guardian_name' => 'Synthetic Guardian',
+            'prior_school' => 'Laguna Community Senior High School',
+            'guardian_name' => 'Ramon Mercado',
             'guardian_phone' => '09179876543',
-            'guardian_address' => '100 Exploration Street, Synthetic Barangay, Synthetic City, Laguna',
+            'guardian_address' => 'San Pedro, Laguna',
             'status' => $definition['intake_status'],
             'submitted_at' => $submittedAt,
             'reviewed_at' => $reviewedAt,
@@ -470,7 +536,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $applicant = $intake->user;
 
         if (! $applicant instanceof User) {
-            throw new RuntimeException('A TAL-96D5E1 applicant intake must belong to a User.');
+            throw new RuntimeException('A presentation applicant intake must belong to a user account.');
         }
 
         $rejectionAssigned = false;
@@ -540,7 +606,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
 
         if (! $evidence instanceof DocumentEvidence) {
             $path = 'tal96d5e1-acceptance/'.$applicant->username.'/'.strtolower($item->requirement_type).'.pdf';
-            $contents = "%PDF-1.4\n% TALA synthetic D5E1 exploration evidence\n%%EOF\n";
+            $contents = "%PDF-1.4\n% TALA applicant requirement evidence\n%%EOF\n";
             Storage::disk('local')->put($path, $contents);
             $evidence = DocumentEvidence::query()->create([
                 'checklist_item_id' => $item->id,
@@ -620,7 +686,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'student_type' => 'regular',
                 'category' => GradeRosterRow::CategoryPassing,
             ],
-            'student.dbm-3a.001@example.test' => [
+            'student.dit-2a.002@example.test' => [
                 'course_indexes' => [0],
                 'student_type' => 'regular',
                 'category' => GradeRosterRow::CategoryPassing,
@@ -656,18 +722,28 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'course_indexes' => [2],
                 'student_type' => 'regular',
                 'category' => GradeRosterRow::CategoryPassing,
-                'graduation_status' => GraduationEligibilitySnapshotService::ResultReadyForRegistrarReview,
             ],
             'student.dthm-2a.001@example.test' => [
                 'course_indexes' => [0],
                 'student_type' => 'regular',
                 'category' => GradeRosterRow::CategoryPassing,
-                'graduation_status' => GraduationEligibilitySnapshotService::ResultComplete,
             ],
             'student.dthm-2a.002@example.test' => [
                 'course_indexes' => [1],
                 'student_type' => 'regular',
                 'category' => GradeRosterRow::CategoryPending,
+            ],
+            'student.completion.demo@example.test' => [
+                'course_indexes' => [0],
+                'student_type' => 'regular',
+                'category' => GradeRosterRow::CategoryPassing,
+                'graduation_status' => GraduationEligibilitySnapshotService::ResultReadyForRegistrarReview,
+            ],
+            'student.graduation.demo@example.test' => [
+                'course_indexes' => [0],
+                'student_type' => 'regular',
+                'category' => GradeRosterRow::CategoryPassing,
+                'graduation_status' => GraduationEligibilitySnapshotService::ResultComplete,
             ],
         ];
 
@@ -791,7 +867,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'student_type' => $studentType,
                 'registered_at' => $timestamp->subMonths(4),
                 'officially_enrolled_at' => $timestamp->subMonths(4)->addDay(),
-                'status_reason' => 'TAL-96D5E1B1 source-derived prior-term history.',
+                'status_reason' => 'Recorded result from the previous academic term.',
             ],
         );
         $courseEnrollment = CourseEnrollment::query()->updateOrCreate(
@@ -803,7 +879,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'status' => CourseEnrollment::StatusActive,
                 'units_snapshot' => $specification->credit_units,
                 'added_at' => $timestamp->subMonths(4)->addDay(),
-                'status_reason' => 'TAL-96D5E1B1 source-derived prior-term history.',
+                'status_reason' => 'Recorded result from the previous academic term.',
             ],
         );
         $roster = GradeRoster::query()->updateOrCreate(
@@ -849,7 +925,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 [
                     'grade_roster_row_id' => $row->id,
                     'event_type' => GradeOutcomeEvent::TypeInitialRelease,
-                    'evidence_reference' => "TAL-96D5E1B1-{$profile->student_number}-{$course->code}",
+                    'evidence_reference' => "ACADEMIC-HISTORY-{$profile->student_number}-{$course->code}",
                 ],
                 [
                     'previous_value' => null,
@@ -860,7 +936,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                         ? $timestamp->addMonths(1)->toDateString()
                         : null,
                     'authority' => 'Registrar-confirmed release of Faculty-owned grade evidence.',
-                    'reason' => 'TAL-96D5E1B1 source-derived prior-term persona evidence.',
+                    'reason' => 'Recorded previous-term academic outcome.',
                     'recorded_by' => $registrar->id,
                 ],
             );
@@ -879,7 +955,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                 'student_profile_id' => $profile->id,
                 'term_id' => $priorTerm->id,
                 'hold_type' => $holdType,
-                'reason' => 'TAL-96D5E1B1 source-derived academic-state evidence.',
+                'reason' => 'Academic review requires Registrar action before enrollment.',
             ],
             [
                 'enrollment_id' => Enrollment::query()
@@ -888,7 +964,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                     ->value('id'),
                 'blocking_level' => Hold::BlockingEnrollment,
                 'status' => Hold::StatusActive,
-                'staff_only_reason' => 'Synthetic acceptance evidence only.',
+                'staff_only_reason' => 'This hold is retained for Registrar review.',
                 'student_message' => $holdType === Hold::TypePrerequisite
                     ? 'A prerequisite course must be completed before enrollment can continue.'
                     : 'Meet the Academic Head or Registrar to review the failed prior-term courses.',
@@ -909,13 +985,13 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         $batch = GraduationReviewBatch::query()->firstOrCreate(
             [
                 'term_id' => $currentTerm->id,
-                'name' => 'TAL-96D5E1B1 Source-Derived Review',
+                'name' => 'Completion Eligibility Review',
             ],
             [
                 'academic_year_id' => $currentTerm->academic_year_id,
                 'state' => GraduationReviewBatch::StateOpen,
                 'created_by' => $registrar->id,
-                'filter_summary' => ['purpose' => 'TAL-96D5E1B1 source-derived persona evidence'],
+                'filter_summary' => ['purpose' => 'Completion eligibility review'],
             ],
         );
         $member = GraduationReviewMember::query()->firstOrCreate(
@@ -952,13 +1028,13 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
                             : 'Complete the listed requirements before final review.',
                         'office_to_contact' => 'Registrar Office',
                     ],
-                    'fixture_authority' => 'TAL-96D5E1B1 source-derived synthetic evidence',
+                    'review_authority' => 'Registrar completion review',
                 ],
                 'generated_by' => $registrar->id,
                 'generated_at' => $timestamp,
                 'made_visible_by' => $registrar->id,
                 'made_visible_at' => $timestamp,
-                'visibility_reason' => 'TAL-96D5E1B1 exploration projection.',
+                'visibility_reason' => 'Result released for student review.',
             ],
         );
     }
@@ -966,14 +1042,14 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
     private function yearLevelFromStudentNumber(string $studentNumber): string
     {
         if (! preg_match('/^[A-Z]+-(\d)A-\d{3}$/', $studentNumber, $matches)) {
-            throw new RuntimeException("Student number [{$studentNumber}] does not identify a fixture year level.");
+            throw new RuntimeException("Student number [{$studentNumber}] does not identify a supported year level.");
         }
 
         return match ((int) $matches[1]) {
             1 => 'First Year',
             2 => 'Second Year',
             3 => 'Third Year',
-            default => throw new RuntimeException("Unsupported fixture year in student number [{$studentNumber}]."),
+            default => throw new RuntimeException("Unsupported year level in student number [{$studentNumber}]."),
         };
     }
 
@@ -1003,18 +1079,24 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
         return $user;
     }
 
-    private function applicantFirstName(string $email): string
+    /**
+     * @return array{string, string}
+     */
+    private function applicantIdentity(string $email): array
     {
-        return str($email)
-            ->before('@')
-            ->after('applicant.')
-            ->before('.demo')
-            ->replace('-', ' ')
-            ->headline()
-            ->toString();
+        return match ($email) {
+            'applicant.review.demo@example.test' => ['Bianca', 'Mendoza'],
+            'applicant.action-required.demo@example.test' => ['Carlo', 'Reyes'],
+            'applicant.evaluation.demo@example.test' => ['Denise', 'Garcia'],
+            'applicant.approved.demo@example.test' => ['Enrique', 'Santos'],
+            'applicant.withdrawn.demo@example.test' => ['Fiona', 'Bautista'],
+            'applicant.transfer.demo@example.test' => ['Gabriel', 'Flores'],
+            'applicant.returning.demo@example.test' => ['Hazel', 'Aquino'],
+            default => ['Andrea', 'Marquez'],
+        };
     }
 
-    private function middleTerm(): Term
+    private function presentationTerm(): Term
     {
         return Term::query()
             ->where('label', 'Second Semester')
