@@ -44,6 +44,33 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
     }
 
     #[Test]
+    public function test_student_finance_without_an_active_assessment_does_not_offer_payment(): void
+    {
+        $student = $this->studentUser();
+        $program = Program::factory()->create();
+
+        StudentProfile::factory()
+            ->for($student)
+            ->for($program)
+            ->create();
+
+        $finance = app(FinanceEvidenceService::class)->studentFinance($student);
+
+        $this->assertFalse($finance['available']);
+        $this->assertSame('No active assessment is available for finance viewing.', $finance['reason']);
+        $this->assertSame('Finance Not Available', $finance['state']['payment_evidence']['headline']);
+        $this->assertSame(
+            'Wait for Accounting to publish your assessment. Contact Accounting if you expected one already.',
+            $finance['state']['payment_evidence']['required_action'],
+        );
+        $this->assertSame('Accounting', $finance['state']['payment_evidence']['responsible_office']);
+        $this->assertStringNotContainsString(
+            'Pay Current Due',
+            $finance['state']['payment_evidence']['required_action'],
+        );
+    }
+
+    #[Test]
     public function test_student_finance_page_hides_accommodation_staff_only_fields(): void
     {
         $fixture = $this->financeFixture();

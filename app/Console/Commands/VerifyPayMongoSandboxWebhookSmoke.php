@@ -62,8 +62,7 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
             ? LedgerEntry::query()
                 ->where('payment_id', $payment->id)
                 ->where('direction', LedgerEntry::DirectionPayment)
-                ->where('source_type', Payment::class)
-                ->where('source_id', $payment->id)
+                ->whereNotNull('payment_allocation_id')
                 ->first()
             : null;
         $providerEvent = $payment instanceof Payment

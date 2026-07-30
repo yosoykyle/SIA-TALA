@@ -243,8 +243,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             $this->assertSame('review_required', $result['status'], $label);
             $this->assertSame($expectedReason, $result['reason'], $label);
             $this->assertSame(0, LedgerEntry::query()
-                ->where('source_type', Payment::class)
-                ->whereIn('source_id', $paymentIds)
+                ->whereIn('payment_id', $paymentIds)
                 ->where('direction', LedgerEntry::DirectionPayment)
                 ->count(), $label);
         }
@@ -443,8 +442,8 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame('paymongo:pay_tal95d1_retry', $payment->provider_reference);
         $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
         $this->assertSame(1, LedgerEntry::query()
-            ->where('source_type', Payment::class)
-            ->where('source_id', $payment->id)
+            ->where('payment_id', $payment->id)
+            ->whereNotNull('payment_allocation_id')
             ->where('direction', LedgerEntry::DirectionPayment)
             ->count());
     }

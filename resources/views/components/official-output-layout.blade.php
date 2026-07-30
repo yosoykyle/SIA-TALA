@@ -165,6 +165,49 @@
                 overflow-x: auto;
             }
 
+            .finance-responsive-table thead {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                padding: 0;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0, 0, 0, 0);
+                white-space: nowrap;
+                border: 0;
+            }
+
+            .finance-responsive-table table,
+            .finance-responsive-table tbody,
+            .finance-responsive-table tr,
+            .finance-responsive-table td {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .finance-responsive-table tr {
+                border: 1px solid #d1d5db;
+                margin-bottom: 12px;
+            }
+
+            .finance-responsive-table td {
+                display: grid;
+                grid-template-columns: minmax(96px, 40%) minmax(0, 1fr);
+                gap: 12px;
+                border: 0;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .finance-responsive-table td:last-child {
+                border-bottom: 0;
+            }
+
+            .finance-responsive-table td::before {
+                content: attr(data-label);
+                font-weight: 700;
+            }
+
             .finance-grid {
                 grid-template-columns: 1fr;
             }

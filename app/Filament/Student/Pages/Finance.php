@@ -98,6 +98,8 @@ class Finance extends Page
                         TextEntry::make('student_number')->label('Student No.'),
                         TextEntry::make('student_name')->label('Full Name'),
                         TextEntry::make('program')->label('Program'),
+                        TextEntry::make('year_level')->label('Year Level'),
+                        TextEntry::make('section')->label('Section'),
                         TextEntry::make('assessment_total')->label('Assessment Total'),
                         TextEntry::make('required_downpayment')->label('Required Downpayment'),
                         TextEntry::make('posted_payments')->label('Posted Payments'),
@@ -198,6 +200,15 @@ class Finance extends Page
                                 TextEntry::make('or_mapping')->label('OR Mapping'),
                             ])
                             ->columns(4)
+                            ->columnSpanFull(),
+                        RepeatableEntry::make('allocation_rows')
+                            ->label('Payment Allocations')
+                            ->schema([
+                                TextEntry::make('payment_reference')->label('Payment Reference'),
+                                TextEntry::make('target')->label('Applied To'),
+                                TextEntry::make('amount')->label('Amount'),
+                            ])
+                            ->columns(3)
                             ->columnSpanFull(),
                     ])
                     ->collapsible()

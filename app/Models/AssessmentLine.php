@@ -58,4 +58,10 @@ class AssessmentLine extends Model
     {
         return $this->hasMany(LedgerEntry::class, 'source_id')->where('source_type', self::class);
     }
+
+    /** @return HasMany<PaymentAllocation, $this> */
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
+    }
 }

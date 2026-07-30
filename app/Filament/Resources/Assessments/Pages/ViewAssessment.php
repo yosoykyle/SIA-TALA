@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Assessments\Pages;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
+use App\Actions\Finance\PaymentAllocationService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
@@ -11,16 +12,20 @@ use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Models\Assessment;
+use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use RuntimeException;
 
@@ -40,11 +45,17 @@ class ViewAssessment extends ViewRecord
                         ->label('Amount Received')
                         ->numeric()
                         ->minValue(0.01)
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn (mixed $state, Set $set) => $set(
+                            'allocations',
+                            $this->allocationPreview((string) $state),
+                        ))
                         ->required(),
                     Select::make('channel')
                         ->label('Payment Method')
                         ->options(Payment::manualConfirmationChannelOptions())
                         ->default('cash')
+                        ->live()
                         ->required(),
                     TextInput::make('payment_reference')
                         ->label('Payment / Evidence Reference')
@@ -52,8 +63,30 @@ class ViewAssessment extends ViewRecord
                         ->maxLength(255),
                     TextInput::make('or_number')
                         ->label('OR Number')
-                        ->required()
+                        ->helperText(fn (Get $get): string => $get('channel') === 'cash'
+                            ? 'Required for cash because the physical OR is issued at payment.'
+                            : 'Optional now. Accounting may map the physical OR later.')
+                        ->required(fn (Get $get): bool => $get('channel') === 'cash')
                         ->maxLength(255),
+                    Repeater::make('allocations')
+                        ->label('Payment Allocation')
+                        ->helperText('The suggested split applies the current due first. Adjust amounts only when the payment must cover different eligible account items.')
+                        ->schema([
+                            Select::make('target')
+                                ->label('Account Item')
+                                ->options(fn (): array => $this->allocationTargetOptions())
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                ->required(),
+                            TextInput::make('amount')
+                                ->label('Allocated Amount')
+                                ->numeric()
+                                ->minValue(0.01)
+                                ->required(),
+                        ])
+                        ->columns(2)
+                        ->minItems(1)
+                        ->reorderable(false)
+                        ->visible(fn (): bool => count($this->allocationTargetOptions()) > 1),
                     DateTimePicker::make('paid_at')
                         ->label('Paid At')
                         ->default(now())
@@ -79,7 +112,10 @@ class ViewAssessment extends ViewRecord
                             paymentReference: (string) $data['payment_reference'],
                             actor: $actor,
                             confirmedAt: CarbonImmutable::parse((string) $data['paid_at'], config('app.timezone')),
-                            orNumber: (string) $data['or_number'],
+                            allocations: $this->submittedAllocations($data['allocations'] ?? null),
+                            orNumber: filled($data['or_number'] ?? null)
+                                ? (string) $data['or_number']
+                                : null,
                         );
 
                         $this->record = $assessment->refresh();
@@ -131,7 +167,7 @@ class ViewAssessment extends ViewRecord
                         'tableSearch' => $this->studentSearch(),
                     ], panel: 'admin')),
                 Action::make('openPayments')
-                    ->label('Payments and Official Receipts')
+                    ->label('Payments and OR Reconciliation')
                     ->icon(Heroicon::OutlinedReceiptPercent)
                     ->url(fn (): string => PaymentResource::getUrl('index', [
                         'tableSearch' => $this->studentSearch(),
@@ -184,5 +220,74 @@ class ViewAssessment extends ViewRecord
             && $assessment instanceof Assessment
             && $assessment->state === Assessment::StateActive
             && $user->canProcessPayments();
+    }
+
+    /** @return array<string, string> */
+    private function allocationTargetOptions(): array
+    {
+        $enrollment = $this->allocationEnrollment();
+
+        if (! $enrollment instanceof Enrollment) {
+            return [];
+        }
+
+        return collect(app(PaymentAllocationService::class)->eligibleTargets($enrollment))
+            ->mapWithKeys(fn (array $target): array => [
+                $target['target_type'].'|'.$target['target_id'] => $target['description']
+                    .' - PHP '.number_format((float) $target['amount'], 2),
+            ])
+            ->all();
+    }
+
+    /** @return list<array{target:string,amount:string}> */
+    private function allocationPreview(string $amount): array
+    {
+        $enrollment = $this->allocationEnrollment();
+
+        if (! $enrollment instanceof Enrollment || blank($amount)) {
+            return [];
+        }
+
+        try {
+            return collect(app(PaymentAllocationService::class)->preview($enrollment, $amount))
+                ->map(fn (array $target): array => [
+                    'target' => $target['target_type'].'|'.$target['target_id'],
+                    'amount' => $target['amount'],
+                ])
+                ->all();
+        } catch (RuntimeException) {
+            return [];
+        }
+    }
+
+    /**
+     * @return list<array{target_type:string,target_id:int,amount:string}>|null
+     */
+    private function submittedAllocations(mixed $submitted): ?array
+    {
+        if (! is_array($submitted) || $submitted === []) {
+            return null;
+        }
+
+        return collect($submitted)
+            ->map(function (array $allocation): array {
+                [$type, $id] = array_pad(explode('|', (string) ($allocation['target'] ?? ''), 2), 2, null);
+
+                return [
+                    'target_type' => (string) $type,
+                    'target_id' => (int) $id,
+                    'amount' => (string) ($allocation['amount'] ?? ''),
+                ];
+            })
+            ->all();
+    }
+
+    private function allocationEnrollment(): ?Enrollment
+    {
+        $assessment = $this->getRecord();
+
+        return $assessment instanceof Assessment
+            ? $assessment->enrollment
+            : null;
     }
 }

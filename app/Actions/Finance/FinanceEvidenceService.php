@@ -2,11 +2,13 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\StudentProfile;
@@ -42,6 +44,9 @@ class FinanceEvidenceService
         private readonly DecimalMoney $money,
         private readonly PaymentStatusResolver $paymentStatusResolver,
         private readonly StudentPaymentEvidencePresenter $paymentEvidencePresenter,
+        private readonly EnrollmentAcademicContextResolver $academicContextResolver,
+        private readonly PaymentAcademicContextResolver $paymentAcademicContextResolver,
+        private readonly PaymentAllocationService $paymentAllocationService,
     ) {}
 
     /**
@@ -105,6 +110,9 @@ class FinanceEvidenceService
             ->values();
         $accommodation = $this->activeAccommodation($assessment);
         $studentName = $this->studentName($enrollment->studentProfile);
+        $academicContext = $this->academicContextResolver->forEnrollment($enrollment);
+        $yearLevel = (string) $academicContext['curriculum_level_label'];
+        $section = collect($academicContext['section_labels'])->implode(', ') ?: 'Not assigned';
 
         return [
             'available' => true,
@@ -131,6 +139,8 @@ class FinanceEvidenceService
                 'student_number' => $enrollment->studentProfile->student_number,
                 'student_name' => $studentName,
                 'program' => $enrollment->studentProfile->program?->code ?: $enrollment->studentProfile->program?->name,
+                'year_level' => $yearLevel,
+                'section' => $section,
                 'term' => $this->termLabel($enrollment->term),
                 'total' => $this->money->normalize((string) $assessment->total),
                 'required_downpayment' => $this->money->normalize((string) $assessment->required_downpayment),
@@ -148,6 +158,8 @@ class FinanceEvidenceService
                 'student_number' => $enrollment->studentProfile->student_number,
                 'student_name' => $studentName,
                 'program' => $enrollment->studentProfile->program?->code ?: $enrollment->studentProfile->program?->name ?: 'Not recorded',
+                'year_level' => $yearLevel,
+                'section' => $section,
                 'term' => $this->termLabel($enrollment->term),
                 'assessment_total' => $this->formatPeso((string) $assessment->total),
                 'required_downpayment' => $this->formatPeso((string) $assessment->required_downpayment),
@@ -164,6 +176,7 @@ class FinanceEvidenceService
                 'schedule_rows' => $this->scheduleRows($assessment->paymentScheduleRows),
                 'attempt_rows' => $this->attemptRows($paymentAttempts),
                 'acknowledgement_rows' => $this->acknowledgementRows($availableAcknowledgements),
+                'allocation_rows' => $this->allocationRows($availableAcknowledgements),
                 'payment_evidence' => $this->paymentEvidencePresenter->present(
                     $paymentAttempts,
                     $payments,
@@ -205,7 +218,10 @@ class FinanceEvidenceService
             'studentProfile.program',
             'term',
             'paymentAttempt.assessment.enrollment.term',
-            'ledgerEntry.enrollment.term',
+            'ledgerEntry',
+            'allocations.assessmentLine',
+            'allocations.paymentScheduleRow',
+            'allocations.priorBalanceLedgerEntry',
         ]);
 
         abort_unless($this->hasPostedPaymentLedgerEntry($payment), 403);
@@ -217,6 +233,7 @@ class FinanceEvidenceService
 
         abort_unless($profile instanceof StudentProfile, 403);
         abort_unless($ledgerEntry instanceof LedgerEntry, 403);
+        $academicContext = $this->paymentAcademicContextResolver->forPayment($payment);
 
         return [
             'available' => true,
@@ -232,6 +249,8 @@ class FinanceEvidenceService
                 'student_number' => $profile->student_number,
                 'student_name' => $this->studentName($profile),
                 'program' => $profile->program?->code ?: $profile->program?->name,
+                'year_level' => (string) ($academicContext['curriculum_level_label'] ?? 'Not recorded'),
+                'section' => collect($academicContext['section_labels'] ?? [])->implode(', ') ?: 'Not assigned',
                 'term' => $term instanceof Term ? $this->termLabel($term) : 'Not recorded',
                 'amount' => $this->money->normalize((string) $payment->amount),
                 'method' => $payment->method,
@@ -241,6 +260,7 @@ class FinanceEvidenceService
                 'paid_at' => $payment->paid_at,
                 'verified_at' => $payment->verified_at,
                 'or_mapping_state' => filled($payment->or_number) ? (string) $payment->or_number : 'Pending OR Mapping',
+                'allocation_rows' => $this->paymentAllocationRows($payment),
             ],
         ];
     }
@@ -325,7 +345,13 @@ class FinanceEvidenceService
     private function payments(Assessment $assessment): Collection
     {
         return Payment::query()
-            ->with(['ledgerEntry', 'paymentAttempt'])
+            ->with([
+                'ledgerEntry',
+                'paymentAttempt',
+                'allocations.assessmentLine',
+                'allocations.paymentScheduleRow',
+                'allocations.priorBalanceLedgerEntry',
+            ])
             ->where('student_profile_id', $assessment->enrollment->student_profile_id)
             ->where('term_id', $assessment->enrollment->term_id)
             ->latest('paid_at')
@@ -370,20 +396,22 @@ class FinanceEvidenceService
      */
     private function currentDue(Assessment $assessment, string $balance): array
     {
-        $dueRow = $assessment->paymentScheduleRows
-            ->where('state', PaymentScheduleRow::StateDue)
-            ->sortBy('due_date')
+        $outstandingScheduleRow = $this->paymentAllocationService
+            ->outstandingScheduleRows($assessment)
             ->first();
 
-        if ($dueRow instanceof PaymentScheduleRow && $this->money->greaterThanZero((string) $dueRow->amount)) {
+        if (is_array($outstandingScheduleRow)) {
+            $dueRow = $outstandingScheduleRow['row'];
+
             return [
-                'amount' => $this->money->min((string) $dueRow->amount, $balance),
+                'amount' => $this->money->min($outstandingScheduleRow['amount'], $balance),
                 'label' => str((string) $dueRow->category)->headline()->toString(),
                 'source' => $dueRow,
             ];
         }
 
-        if ($this->money->greaterThanZero((string) $assessment->required_downpayment)) {
+        if ($assessment->paymentScheduleRows->isEmpty()
+            && $this->money->greaterThanZero((string) $assessment->required_downpayment)) {
             return [
                 'amount' => $this->money->min((string) $assessment->required_downpayment, $balance),
                 'label' => 'Required Downpayment',
@@ -516,6 +544,31 @@ class FinanceEvidenceService
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  Collection<int, Payment>  $payments
+     * @return list<array<string, mixed>>
+     */
+    private function allocationRows(Collection $payments): array
+    {
+        return $payments
+            ->flatMap(fn (Payment $payment): array => $this->paymentAllocationRows($payment))
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function paymentAllocationRows(Payment $payment): array
+    {
+        return $payment->allocations
+            ->map(fn (PaymentAllocation $allocation): array => [
+                'payment_reference' => $payment->provider_reference ?? 'Manual payment',
+                'target' => $allocation->targetLabel(),
+                'amount' => $this->formatPeso((string) $allocation->amount),
+            ])
+            ->values()
+            ->all();
     }
 
     /** @return array<string, mixed> */
@@ -652,6 +705,14 @@ class FinanceEvidenceService
      */
     private function unavailable(string $reason, ?StudentProfile $profile = null): array
     {
+        $responsibleOffice = 'Registrar';
+        $requiredAction = 'Contact the Registrar to link your student profile before using Finance.';
+
+        if ($profile instanceof StudentProfile) {
+            $responsibleOffice = 'Accounting';
+            $requiredAction = 'Wait for Accounting to publish your assessment. Contact Accounting if you expected one already.';
+        }
+
         return [
             'available' => false,
             'reason' => $reason,
@@ -662,6 +723,8 @@ class FinanceEvidenceService
                 'student_number' => $profile instanceof StudentProfile ? $profile->student_number : 'Not available',
                 'student_name' => $profile instanceof StudentProfile ? $this->studentName($profile) : 'Not available',
                 'program' => $profile instanceof StudentProfile && $profile->program !== null ? $profile->program->code : 'Not available',
+                'year_level' => 'Not available',
+                'section' => 'Not available',
                 'term' => 'Not available',
                 'assessment_total' => 'PHP 0.00',
                 'required_downpayment' => 'PHP 0.00',
@@ -678,7 +741,15 @@ class FinanceEvidenceService
                 'schedule_rows' => [],
                 'attempt_rows' => [],
                 'acknowledgement_rows' => [],
-                'payment_evidence' => $this->paymentEvidencePresenter->present(collect(), collect(), collect()),
+                'allocation_rows' => [],
+                'payment_evidence' => [
+                    'headline' => 'Finance Not Available',
+                    'explanation' => $reason,
+                    'required_action' => $requiredAction,
+                    'responsible_office' => $responsibleOffice,
+                    'ledger_state' => 'Not available',
+                    'or_mapping_state' => 'Not available',
+                ],
                 'accommodation_summary' => [
                     'status' => 'No active Financial Accommodation',
                     'basis' => '-',

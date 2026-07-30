@@ -99,6 +99,32 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             ->assertSee('123 Servitech Ave, Metro Manila');
     }
 
+    public function test_payment_acknowledgement_humanizes_and_deduplicates_method_and_channel(): void
+    {
+        $fixture = $this->financeFixture();
+
+        $this->actingAs($fixture['student'])
+            ->get(route('finance.payments.acknowledgement', $fixture['payment']))
+            ->assertOk()
+            ->assertSee('PayMongo')
+            ->assertDontSee('PayMongo / PayMongo')
+            ->assertDontSee('paymongo / paymongo')
+            ->assertSee(FinanceEvidenceService::EVIDENCE_DISCLAIMER);
+
+        $fixture['payment']->update([
+            'method' => 'cash',
+            'channel' => 'cash',
+        ]);
+
+        $this->actingAs($fixture['student'])
+            ->get(route('finance.payments.acknowledgement', $fixture['payment']))
+            ->assertOk()
+            ->assertSee('Cash')
+            ->assertDontSee('Cash / Cash')
+            ->assertDontSee('cash / cash')
+            ->assertSee(FinanceEvidenceService::EVIDENCE_DISCLAIMER);
+    }
+
     public function test_student_blocked_from_superseded_soa_but_accounting_allowed(): void
     {
         $fixture = $this->financeFixture(['assessment_state' => Assessment::StateSuperseded]);

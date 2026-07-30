@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\Payments\Schemas;
 
+use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class PaymentInfolist
@@ -20,17 +24,21 @@ class PaymentInfolist
                 TextEntry::make('studentProfile.user.name')
                     ->label('Student')
                     ->placeholder('-'),
+                TextEntry::make('studentProfile.program.code')
+                    ->label('Program')
+                    ->placeholder('-'),
+                TextEntry::make('year_level')
+                    ->label('Year Level')
+                    ->state(fn (Payment $record): string => (string) (self::academicContext($record)['curriculum_level_label'] ?? 'Not recorded')),
+                TextEntry::make('section')
+                    ->label('Section')
+                    ->state(fn (Payment $record): string => collect(self::academicContext($record)['section_labels'] ?? [])->implode(', ') ?: 'Not assigned'),
                 TextEntry::make('term.label')
                     ->label('Term')
                     ->placeholder('-'),
-                TextEntry::make('ledgerEntry.enrollment.id')
+                TextEntry::make('academic_enrollment')
                     ->label('Enrollment')
-                    ->formatStateUsing(function (?int $state, Payment $record): string {
-                        $ledgerEntry = $record->ledgerEntry;
-                        $enrollment = $ledgerEntry instanceof LedgerEntry ? $ledgerEntry->enrollment : null;
-
-                        return $enrollment instanceof Enrollment ? $enrollment->displayLabel() : '-';
-                    })
+                    ->state(fn (Payment $record): string => self::academicEnrollment($record)?->displayLabel() ?? '-')
                     ->placeholder('-'),
                 TextEntry::make('paymentAttempt.id')
                     ->label('Payment Attempt')
@@ -40,12 +48,28 @@ class PaymentInfolist
                         return $attempt instanceof PaymentAttempt ? $attempt->displayLabel() : '-';
                     })
                     ->placeholder('-'),
-                TextEntry::make('ledgerEntry.id')
-                    ->label('Ledger entry')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry instanceof LedgerEntry
-                        ? $record->ledgerEntry->displayLabel()
-                        : '-')
-                    ->placeholder('-'),
+                Section::make('Allocation-Linked Ledger Postings')
+                    ->description('One verified payment may be split across several eligible account items while retaining one payment reference and one optional OR number.')
+                    ->schema([
+                        RepeatableEntry::make('allocations')
+                            ->hiddenLabel()
+                            ->schema([
+                                TextEntry::make('target')
+                                    ->label('Applied To')
+                                    ->state(fn (PaymentAllocation $record): string => $record->targetLabel()),
+                                TextEntry::make('amount')
+                                    ->label('Amount')
+                                    ->money('PHP'),
+                                TextEntry::make('ledgerEntry.id')
+                                    ->label('Ledger Posting')
+                                    ->formatStateUsing(fn (?int $state, PaymentAllocation $record): string => $record->ledgerEntry instanceof LedgerEntry
+                                        ? '#'.$record->ledgerEntry->id.' - Posted'
+                                        : 'Not posted'),
+                            ])
+                            ->columns(3)
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
                 TextEntry::make('provider_reference')
                     ->placeholder('-'),
                 TextEntry::make('or_number')
@@ -68,5 +92,16 @@ class PaymentInfolist
                     ->dateTime()
                     ->placeholder('-'),
             ]);
+    }
+
+    /** @return array<string, mixed> */
+    private static function academicContext(Payment $payment): array
+    {
+        return app(PaymentAcademicContextResolver::class)->forPayment($payment);
+    }
+
+    private static function academicEnrollment(Payment $payment): ?Enrollment
+    {
+        return app(PaymentAcademicContextResolver::class)->enrollment($payment);
     }
 }

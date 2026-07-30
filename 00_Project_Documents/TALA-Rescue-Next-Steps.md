@@ -47,13 +47,13 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
 | TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
 | TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
-| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D4 done locally and D5E1D5 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
+| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D5 done locally and D5E1D6 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
 | TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
 | TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery from readiness through solve, review, publication, revision, and student/faculty projection. |
 | TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR operating-journey completeness and presentation closure across regular and irregular placement, Student Record context/history, and source-derived COR. |
 | TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Completeness, Consistency, and Lean Presentation Closure. |
-| TAL-96D5E1D5 | Planned; next | Assessment, PayMongo and Manual Payment, Ledger, Exception, Clearance, Receipt, and Finance-Output Recovery. |
-| TAL-96D5E1D6 | Planned; blocked on D5E1D5 | Grades, Lifecycle, Completion, and Remaining Faculty, Academic Head, and System Super Admin Capability Recovery. |
+| TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure. |
+| TAL-96D5E1D6 | Planned; next | Grades, Lifecycle, Completion, and Remaining Faculty, Academic Head, and System Super Admin Capability Recovery. |
 | TAL-96D5E1D7 | Planned; blocked on D5E1D6 | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
 | TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the preserved `MIDDLE` fixtures and only required persona overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
@@ -81,4 +81,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: `Plan TAL-96D5E1D5`.
+Next boundary: `Plan TAL-96D5E1D6`.

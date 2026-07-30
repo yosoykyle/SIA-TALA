@@ -34,6 +34,15 @@ class AssessmentsTable
                             ->where('first_name', 'like', "%{$search}%")
                             ->orWhere('last_name', 'like', "%{$search}%")))
                     ->wrap(),
+                TextColumn::make('program')
+                    ->label('Program')
+                    ->state(fn (Assessment $record): string => self::account($record)['program']),
+                TextColumn::make('year_level')
+                    ->label('Year Level')
+                    ->state(fn (Assessment $record): string => self::account($record)['year_level']),
+                TextColumn::make('section')
+                    ->label('Section')
+                    ->state(fn (Assessment $record): string => self::account($record)['section']),
                 TextColumn::make('enrollment.term.label')
                     ->label('Term')
                     ->description(fn (Assessment $record): ?string => $record->enrollment?->term?->academicYear?->label)

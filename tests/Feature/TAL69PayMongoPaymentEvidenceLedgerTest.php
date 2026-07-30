@@ -14,6 +14,7 @@ use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\StudentProfile;
@@ -88,8 +89,8 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('verified', $payment->evidence_status);
         $this->assertSame('paymongo:cs_tal69_paid', $payment->provider_reference);
         $this->assertSame($payment->id, $ledgerEntry->payment_id);
-        $this->assertSame(Payment::class, $ledgerEntry->source_type);
-        $this->assertSame($payment->id, $ledgerEntry->source_id);
+        $this->assertSame(PaymentAllocation::class, $ledgerEntry->source_type);
+        $this->assertSame($ledgerEntry->payment_allocation_id, $ledgerEntry->source_id);
         $this->assertSame('1000.00', (string) $ledgerEntry->amount);
         $this->assertSame('paid', $attempt->fresh()->status);
         $this->assertSame('4800.00', $this->ledgerBalanceFor($assessment->enrollment->studentProfile));

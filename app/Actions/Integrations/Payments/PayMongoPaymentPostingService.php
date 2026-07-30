@@ -3,6 +3,7 @@
 namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Actions\Finance\PaymentAllocationService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -19,6 +20,7 @@ final class PayMongoPaymentPostingService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+        private readonly PaymentAllocationService $paymentAllocationService,
         private readonly PaymentPostedNotificationService $paymentPostedNotificationService,
     ) {}
 
@@ -90,28 +92,22 @@ final class PayMongoPaymentPostingService
             ],
         );
 
-        $ledgerEntry = LedgerEntry::query()->firstOrCreate(
-            [
-                'source_type' => Payment::class,
-                'source_id' => $payment->id,
-                'direction' => LedgerEntry::DirectionPayment,
-            ],
-            [
-                'student_profile_id' => $attempt->student_profile_id,
-                'term_id' => $enrollment->term_id,
-                'enrollment_id' => $enrollment->id,
-                'category' => 'payment',
-                'amount' => $normalizedAmount,
-                'payment_id' => $payment->id,
-                'payment_allocation_id' => null,
-                'reverses_entry_id' => null,
-                'adjusts_entry_id' => null,
-                'description' => $description,
-                'posted_by' => $actor?->id,
-                'posted_at' => $timestamp,
-                'state' => 'posted',
-            ],
-        );
+        $ledgerEntries = $wasPosted
+            ? $payment->ledgerEntries()->where('direction', LedgerEntry::DirectionPayment)->get()
+            : $this->paymentAllocationService->post(
+                payment: $payment,
+                enrollment: $enrollment,
+                amount: $normalizedAmount,
+                requested: null,
+                actor: $actor,
+                timestamp: $timestamp,
+                description: $description,
+            );
+        $ledgerEntry = $ledgerEntries->first();
+
+        if (! $ledgerEntry instanceof LedgerEntry) {
+            throw new RuntimeException('Verified payment did not produce a ledger posting.');
+        }
 
         $attempt->forceFill(['status' => 'paid', 'paid_at' => $timestamp])->save();
         $clearance = $this->financeClearanceService->clearIfEligible(
@@ -122,7 +118,7 @@ final class PayMongoPaymentPostingService
             timestamp: $timestamp,
         );
 
-        if ($ledgerEntry->wasRecentlyCreated) {
+        if ($ledgerEntries->contains(fn (LedgerEntry $entry): bool => $entry->wasRecentlyCreated)) {
             $this->paymentPostedNotificationService->record($payment);
         }
 

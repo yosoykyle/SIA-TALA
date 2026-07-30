@@ -120,6 +120,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
         $fixture = $this->financeFixture();
         $other = $this->studentUser();
         StudentProfile::factory()->for($other)->create();
+        $accessLogCountBefore = DB::table('output_access_logs')->count();
 
         $this->actingAs($other)
             ->get(route('finance.statement', $fixture['assessment']))
@@ -133,7 +134,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertForbidden();
 
-        $this->assertSame(0, DB::table('output_access_logs')->count());
+        $this->assertSame($accessLogCountBefore, DB::table('output_access_logs')->count());
     }
 
     public function test_billing_slip_and_acknowledgement_are_unavailable_without_required_source_state(): void

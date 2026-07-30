@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentScheduleRow extends Model
 {
@@ -47,5 +48,11 @@ class PaymentScheduleRow extends Model
     public function financialAccommodation(): BelongsTo
     {
         return $this->belongsTo(FinancialAccommodation::class);
+    }
+
+    /** @return HasMany<PaymentAllocation, $this> */
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
     }
 }

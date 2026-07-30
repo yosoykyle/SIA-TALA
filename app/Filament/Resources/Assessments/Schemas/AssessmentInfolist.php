@@ -29,6 +29,12 @@ class AssessmentInfolist
                         TextEntry::make('account_program')
                             ->label('Program')
                             ->state(fn (Assessment $record): string => self::account($record)['program']),
+                        TextEntry::make('account_year_level')
+                            ->label('Year Level')
+                            ->state(fn (Assessment $record): string => self::account($record)['year_level']),
+                        TextEntry::make('account_section')
+                            ->label('Section')
+                            ->state(fn (Assessment $record): string => self::account($record)['section']),
                         TextEntry::make('account_term')
                             ->label('Term')
                             ->state(fn (Assessment $record): string => self::account($record)['term']),
@@ -37,7 +43,7 @@ class AssessmentInfolist
                             ->state(fn (Assessment $record): string => self::account($record)['assessment_state'])
                             ->badge(),
                     ])
-                    ->columns(5),
+                    ->columns(4),
                 Section::make('Current Position')
                     ->description('Assessment is the approved charge calculation. Account Activity is the append-only posting history that changes the balance.')
                     ->schema([
@@ -151,7 +157,7 @@ class AssessmentInfolist
                     ])
                     ->collapsible()
                     ->collapsed(),
-                Section::make('Payments and Official Receipts')
+                Section::make('Payments and OR Reconciliation')
                     ->description('Only verified payments with posted account activity are listed. An acknowledgement is not an official receipt.')
                     ->schema([
                         RepeatableEntry::make('account_acknowledgement_rows')
@@ -164,6 +170,22 @@ class AssessmentInfolist
                                 TextEntry::make('or_mapping')->label('OR Mapping'),
                             ])
                             ->columns(4)
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+                Section::make('Payment Allocations')
+                    ->description('How each verified payment was applied to eligible account items. One payment may create several allocation-linked ledger postings.')
+                    ->schema([
+                        RepeatableEntry::make('account_allocation_rows')
+                            ->hiddenLabel()
+                            ->state(fn (Assessment $record): mixed => self::account($record)['allocation_rows'])
+                            ->schema([
+                                TextEntry::make('payment_reference')->label('Payment Reference'),
+                                TextEntry::make('target')->label('Applied To'),
+                                TextEntry::make('amount')->label('Amount'),
+                            ])
+                            ->columns(3)
                             ->columnSpanFull(),
                     ])
                     ->collapsible()

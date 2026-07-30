@@ -10,6 +10,7 @@ use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -82,8 +83,8 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $this->assertSame('cash', $payment->channel);
         $this->assertSame($accounting->id, $payment->verified_by);
         $this->assertSame($payment->id, $ledgerEntry->payment_id);
-        $this->assertSame(Payment::class, $ledgerEntry->source_type);
-        $this->assertSame($payment->id, $ledgerEntry->source_id);
+        $this->assertSame(PaymentAllocation::class, $ledgerEntry->source_type);
+        $this->assertSame($ledgerEntry->payment_allocation_id, $ledgerEntry->source_id);
         $this->assertSame('posted', $ledgerEntry->state);
         $this->assertSame('500.00', (string) $ledgerEntry->amount);
         $this->assertSame(1, LedgerEntry::query()

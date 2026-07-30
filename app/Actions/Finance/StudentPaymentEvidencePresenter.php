@@ -24,10 +24,16 @@ class StudentPaymentEvidencePresenter
 
         if ($postedPayments->isNotEmpty()) {
             if ($hasCurrentDue) {
+                $requiredAction = 'Use Pay Current Due for the remaining amount.';
+
+                if ($orMappingState === 'Pending OR Mapping') {
+                    $requiredAction .= ' Accounting is also completing the pending OR mapping.';
+                }
+
                 return [
                     'headline' => 'Payment Partially Posted',
                     'explanation' => 'A verified payment is recorded in your student ledger, but the active assessment still has a remaining amount due.',
-                    'required_action' => 'Use Pay Current Due for the remaining amount. Accounting is also completing any pending OR mapping.',
+                    'required_action' => $requiredAction,
                     'responsible_office' => 'Accounting',
                     'ledger_state' => 'Partially posted',
                     'or_mapping_state' => $orMappingState,

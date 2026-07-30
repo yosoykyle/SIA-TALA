@@ -95,6 +95,12 @@ class LedgerEntry extends Model
         return $this->belongsTo(Payment::class);
     }
 
+    /** @return BelongsTo<PaymentAllocation, $this> */
+    public function paymentAllocation(): BelongsTo
+    {
+        return $this->belongsTo(PaymentAllocation::class);
+    }
+
     public function reversedEntry(): BelongsTo
     {
         return $this->belongsTo(self::class, 'reverses_entry_id');
@@ -121,6 +127,7 @@ class LedgerEntry extends Model
         return match ($this->source_type) {
             AssessmentLine::class => 'Assessment charge',
             Payment::class => 'Verified payment',
+            PaymentAllocation::class => 'Allocated payment',
             AccountingAdjustment::class => $this->direction === self::DirectionReversal
                 ? 'Accounting reversal'
                 : 'Accounting adjustment',

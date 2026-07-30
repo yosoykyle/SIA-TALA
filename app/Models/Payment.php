@@ -87,6 +87,12 @@ class Payment extends Model
         return $this->hasMany(LedgerEntry::class);
     }
 
+    /** @return HasMany<PaymentAllocation, $this> */
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
+    }
+
     public function verifier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');

@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Actions\Finance\StudentAccountPresenter;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Resources\Assessments\Pages\ViewAssessment;
 use App\Filament\Resources\LedgerEntries\Pages\ListLedgerEntries;
 use App\Filament\Resources\LedgerEntries\Pages\ViewLedgerEntry;
+use App\Filament\Resources\PaymentAttempts\Pages\ListPaymentAttempts;
+use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
 use App\Models\CandidateScheduleRow;
@@ -95,7 +98,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->assertSee('Next Action')
             ->assertSee('Account Activity')
             ->assertSee('Payment Attempts')
-            ->assertSee('Payments and Official Receipts')
+            ->assertSee('Payments and OR Reconciliation')
             ->assertSee('Adjustments and Reversals')
             ->assertSee('Financial Accommodation');
     }
@@ -162,6 +165,88 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->assertSee('Accounting adjustment')
             ->assertSee('Posted By')
             ->assertSee('Technical Trace');
+    }
+
+    #[Test]
+    public function accounting_payment_tables_format_internal_codes_without_changing_raw_state_or_filters(): void
+    {
+        $this->seed(TAL96D5E1ExplorationPersonaSeeder::class);
+
+        $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
+        $payment = Payment::query()
+            ->where('provider_reference', 'TAL96D5E1C-PENDING-OR')
+            ->sole();
+        $attempt = PaymentAttempt::query()
+            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-UNDER-REVIEW')
+            ->sole();
+        $syntheticAttempt = PaymentAttempt::query()
+            ->where('internal_reference', 'TAL96D5E1C-SYNTHETIC-EXPIRED')
+            ->sole();
+        $syntheticAttempt->forceFill([
+            'channel' => 'synthetic_acceptance',
+            'provider' => 'synthetic_acceptance',
+        ])->save();
+        $paymentEnrollment = app(PaymentAcademicContextResolver::class)->enrollment($payment);
+        $attemptEnrollment = $attempt->assessment?->enrollment;
+
+        $this->assertNotNull($paymentEnrollment);
+        $this->assertNotNull($attemptEnrollment);
+
+        $formattedPaymentEnrollment = collect([
+            "#{$paymentEnrollment->id}",
+            $paymentEnrollment->term?->label ?? 'No term',
+            'Pending Payment',
+        ])->implode(' - ');
+        $formattedAttemptEnrollment = collect([
+            "#{$attemptEnrollment->id}",
+            $attemptEnrollment->term?->label ?? 'No term',
+            str($attemptEnrollment->status)->headline()->toString(),
+        ])->implode(' - ');
+
+        $this->actingAs($accounting);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ListPayments::class)
+            ->assertCanSeeTableRecords([$payment])
+            ->assertTableColumnStateSet('channel', 'bank_transfer', record: $payment)
+            ->assertTableColumnFormattedStateSet('channel', 'Bank Transfer', record: $payment)
+            ->assertTableColumnStateSet('evidence_status', 'verified', record: $payment)
+            ->assertTableColumnFormattedStateSet('evidence_status', 'Verified', record: $payment)
+            ->assertTableColumnStateSet('academic_enrollment', $paymentEnrollment->displayLabel(), record: $payment)
+            ->assertTableColumnFormattedStateSet('academic_enrollment', $formattedPaymentEnrollment, record: $payment)
+            ->filterTable('channel', 'bank_transfer')
+            ->assertCanSeeTableRecords([$payment])
+            ->filterTable('evidence_status', 'verified')
+            ->assertCanSeeTableRecords([$payment]);
+
+        Livewire::test(ListPaymentAttempts::class)
+            ->assertCanSeeTableRecords([$attempt, $syntheticAttempt])
+            ->assertTableColumnStateSet('channel', 'online_checkout', record: $attempt)
+            ->assertTableColumnFormattedStateSet('channel', 'Online Checkout', record: $attempt)
+            ->assertTableColumnStateSet('status', 'under_review', record: $attempt)
+            ->assertTableColumnFormattedStateSet('status', 'Under Review', record: $attempt)
+            ->assertTableColumnStateSet('provider', 'paymongo', record: $attempt)
+            ->assertTableColumnFormattedStateSet('provider', 'PayMongo', record: $attempt)
+            ->assertTableColumnStateSet('assessment.enrollment.id', $attemptEnrollment->id, record: $attempt)
+            ->assertTableColumnFormattedStateSet('assessment.enrollment.id', $formattedAttemptEnrollment, record: $attempt)
+            ->assertTableColumnStateSet('channel', 'synthetic_acceptance', record: $syntheticAttempt)
+            ->assertTableColumnFormattedStateSet('channel', 'Acceptance Fixture', record: $syntheticAttempt)
+            ->assertTableColumnStateSet('provider', 'synthetic_acceptance', record: $syntheticAttempt)
+            ->assertTableColumnFormattedStateSet('provider', 'Acceptance Fixture', record: $syntheticAttempt)
+            ->filterTable('channel', 'online_checkout')
+            ->assertCanSeeTableRecords([$attempt])
+            ->filterTable('status', 'under_review')
+            ->assertCanSeeTableRecords([$attempt])
+            ->filterTable('provider', 'paymongo')
+            ->assertCanSeeTableRecords([$attempt]);
+
+        $this->assertSame('bank_transfer', $payment->fresh()->channel);
+        $this->assertSame('verified', $payment->fresh()->evidence_status);
+        $this->assertSame('online_checkout', $attempt->fresh()->channel);
+        $this->assertSame('under_review', $attempt->fresh()->status);
+        $this->assertSame('paymongo', $attempt->fresh()->provider);
+        $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->channel);
+        $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->provider);
     }
 
     #[Test]

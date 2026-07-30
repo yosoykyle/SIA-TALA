@@ -8,12 +8,15 @@
         <div><strong>Student Number:</strong> {{ $statement['summary']['student_number'] }}</div>
         <div><strong>Student Name:</strong> {{ $statement['summary']['student_name'] }}</div>
         <div><strong>Program:</strong> {{ $statement['summary']['program'] }}</div>
+        <div><strong>Year Level:</strong> {{ $statement['summary']['year_level'] }}</div>
+        <div><strong>Section:</strong> {{ $statement['summary']['section'] }}</div>
+        <div><strong>Term:</strong> {{ $statement['summary']['term'] }}</div>
         <div><strong>Payment Status:</strong> {{ $statement['state']['payment_status'] }}</div>
     </section>
 
     <section>
         <h2 class="finance-heading">Assessment Charges</h2>
-        <div class="official-output-table">
+        <div class="official-output-table finance-responsive-table">
             <table>
                 <thead>
                     <tr>
@@ -26,13 +29,13 @@
                 <tbody>
                     @forelse ($statement['state']['charge_lines'] as $line)
                         <tr>
-                            <td>{{ $line['description'] }}</td>
-                            <td>{{ $line['quantity'] }}</td>
-                            <td>{{ $line['rate'] }}</td>
-                            <td>{{ $line['amount'] }}</td>
+                            <td data-label="Charge">{{ $line['description'] }}</td>
+                            <td data-label="Quantity">{{ $line['quantity'] }}</td>
+                            <td data-label="Rate">{{ $line['rate'] }}</td>
+                            <td data-label="Amount">{{ $line['amount'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="4">No assessment charges are recorded.</td></tr>
+                        <tr><td colspan="4" data-label="Status">No assessment charges are recorded.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -41,7 +44,7 @@
 
     <section>
         <h2 class="finance-heading">Posted Account Activity</h2>
-        <div class="official-output-table">
+        <div class="official-output-table finance-responsive-table">
             <table>
                 <thead>
                     <tr>
@@ -55,14 +58,14 @@
                 <tbody>
                     @forelse ($statement['state']['ledger_rows'] as $entry)
                         <tr>
-                            <td>{{ $entry['posted_at'] }}</td>
-                            <td>{{ $entry['direction'] }}</td>
-                            <td>{{ $entry['category'] }}</td>
-                            <td>{{ $entry['description'] }}</td>
-                            <td>{{ $entry['amount'] }}</td>
+                            <td data-label="Date Posted">{{ $entry['posted_at'] }}</td>
+                            <td data-label="Entry Type">{{ $entry['direction'] }}</td>
+                            <td data-label="Category">{{ $entry['category'] }}</td>
+                            <td data-label="Description">{{ $entry['description'] }}</td>
+                            <td data-label="Amount">{{ $entry['amount'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5">No posted account activity is recorded.</td></tr>
+                        <tr><td colspan="5" data-label="Status">No posted account activity is recorded.</td></tr>
                     @endforelse
                 </tbody>
             </table>

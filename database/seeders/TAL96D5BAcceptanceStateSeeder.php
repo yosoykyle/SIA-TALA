@@ -464,6 +464,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             paymentReference: $reference,
             actor: $accounting,
             confirmedAt: CarbonImmutable::parse($assessment->enrollment->term->starts_on)->addDays(2),
+            orNumber: 'OR-'.$reference,
         );
     }
 

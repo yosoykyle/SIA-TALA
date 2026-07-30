@@ -363,8 +363,8 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
     private function paymentLedgerCount(Payment $payment): int
     {
         return LedgerEntry::query()
-            ->where('source_type', Payment::class)
-            ->where('source_id', $payment->id)
+            ->where('payment_id', $payment->id)
+            ->whereNotNull('payment_allocation_id')
             ->where('direction', LedgerEntry::DirectionPayment)
             ->count();
     }

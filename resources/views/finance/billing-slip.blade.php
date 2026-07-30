@@ -14,6 +14,8 @@
                 <tr><th>Student Number</th><td>{{ $slip['summary']['student_number'] }}</td></tr>
                 <tr><th>Student Name</th><td>{{ $slip['summary']['student_name'] }}</td></tr>
                 <tr><th>Program</th><td>{{ $slip['summary']['program'] }}</td></tr>
+                <tr><th>Year Level</th><td>{{ $slip['summary']['year_level'] }}</td></tr>
+                <tr><th>Section</th><td>{{ $slip['summary']['section'] }}</td></tr>
                 <tr><th>Term</th><td>{{ $slip['summary']['term'] }}</td></tr>
                 <tr><th>Payment Stage</th><td>{{ $slip['state']['current_due_source'] }}</td></tr>
                 <tr><th>Amount Currently Due</th><td>{{ $slip['state']['current_due'] }}</td></tr>

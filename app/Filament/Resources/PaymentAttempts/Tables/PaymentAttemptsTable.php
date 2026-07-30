@@ -9,6 +9,7 @@ use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 
 class PaymentAttemptsTable
 {
@@ -35,16 +36,19 @@ class PaymentAttemptsTable
                         $assessment = $record->assessment;
                         $enrollment = $assessment instanceof Assessment ? $assessment->enrollment : null;
 
-                        return $enrollment instanceof Enrollment ? $enrollment->displayLabel() : '-';
+                        return $enrollment instanceof Enrollment ? self::enrollmentLabel($enrollment) : '-';
                     })
                     ->placeholder('-'),
                 TextColumn::make('channel')
+                    ->formatStateUsing(fn (?string $state): string => self::paymentChannelLabel($state))
                     ->badge()
                     ->searchable(),
                 TextColumn::make('status')
+                    ->formatStateUsing(fn (?string $state): string => self::humanizeCode($state))
                     ->badge()
                     ->searchable(),
                 TextColumn::make('provider')
+                    ->formatStateUsing(fn (?string $state): string => self::paymentProviderLabel($state))
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('internal_reference')
@@ -92,16 +96,52 @@ class PaymentAttemptsTable
                         'gcash' => 'GCash',
                         'card' => 'Card',
                         'cash' => 'Cash',
+                        'online_checkout' => 'Online Checkout',
+                        'synthetic_acceptance' => 'Acceptance Fixture',
                     ]),
                 SelectFilter::make('provider')
                     ->options([
                         'mock' => 'Mock',
                         'paymongo' => 'PayMongo',
+                        'synthetic_acceptance' => 'Acceptance Fixture',
                     ]),
             ])
             ->recordActions([
                 ViewAction::make(),
             ])
             ->toolbarActions([]);
+    }
+
+    private static function enrollmentLabel(Enrollment $enrollment): string
+    {
+        $enrollment->loadMissing('term');
+
+        return collect([
+            "#{$enrollment->id}",
+            $enrollment->term->label,
+            self::humanizeCode($enrollment->status),
+        ])->implode(' - ');
+    }
+
+    private static function paymentChannelLabel(?string $channel): string
+    {
+        return [
+            'gcash' => 'GCash',
+            'online_checkout' => 'Online Checkout',
+            'synthetic_acceptance' => 'Acceptance Fixture',
+        ][$channel] ?? self::humanizeCode($channel);
+    }
+
+    private static function paymentProviderLabel(?string $provider): string
+    {
+        return [
+            'paymongo' => 'PayMongo',
+            'synthetic_acceptance' => 'Acceptance Fixture',
+        ][$provider] ?? self::humanizeCode($provider);
+    }
+
+    private static function humanizeCode(?string $code): string
+    {
+        return filled($code) ? Str::headline($code) : '-';
     }
 }

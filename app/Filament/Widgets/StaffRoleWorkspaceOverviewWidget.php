@@ -60,6 +60,15 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
         };
     }
 
+    protected function getColumns(): int|array|null
+    {
+        if (count($this->getCachedStats()) === 4) {
+            return ['@xl' => 2, '!@lg' => 2];
+        }
+
+        return parent::getColumns();
+    }
+
     protected function getStats(): array
     {
         return match (true) {

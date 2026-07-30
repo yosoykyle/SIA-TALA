@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\Payments\Tables;
 
 use App\Actions\Finance\MapOfficialReceiptToPayment;
+use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Models\Enrollment;
-use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\User;
@@ -16,13 +16,30 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class PaymentsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.user', 'term', 'paymentAttempt', 'ledgerEntry.enrollment', 'verifier']))
+            ->modifyQueryUsing(fn ($query) => $query
+                ->with([
+                    'studentProfile.user',
+                    'studentProfile.program',
+                    'studentProfile.curriculumVersion',
+                    'studentProfile.enrollments.term',
+                    'studentProfile.enrollments.courseEnrollments.termOffering.curriculumEntry',
+                    'studentProfile.enrollments.courseEnrollments.proposedSection.deliveryGroups',
+                    'studentProfile.enrollments.courseEnrollments.seatReservations.section.deliveryGroups',
+                    'studentProfile.enrollments.gateResults',
+                    'term',
+                    'paymentAttempt.assessment.enrollment',
+                    'ledgerEntry',
+                    'verifier',
+                ])
+                ->withCount('ledgerEntries'))
             ->columns([
                 TextColumn::make('studentProfile.student_number')
                     ->label('Student ID')
@@ -32,17 +49,26 @@ class PaymentsTable
                     ->label('Student')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('studentProfile.program.code')
+                    ->label('Program')
+                    ->placeholder('-'),
+                TextColumn::make('year_level')
+                    ->label('Year Level')
+                    ->state(fn (Payment $record): string => (string) (self::academicContext($record)['curriculum_level_label'] ?? 'Not recorded')),
+                TextColumn::make('section')
+                    ->label('Section')
+                    ->state(fn (Payment $record): string => collect(self::academicContext($record)['section_labels'] ?? [])->implode(', ') ?: 'Not assigned'),
                 TextColumn::make('term.label')
                     ->label('Term')
                     ->placeholder('-')
                     ->searchable(),
-                TextColumn::make('ledgerEntry.enrollment.id')
+                TextColumn::make('academic_enrollment')
                     ->label('Enrollment')
-                    ->formatStateUsing(function (?int $state, Payment $record): string {
-                        $ledgerEntry = $record->ledgerEntry;
-                        $enrollment = $ledgerEntry instanceof LedgerEntry ? $ledgerEntry->enrollment : null;
+                    ->state(fn (Payment $record): string => self::academicEnrollment($record)?->displayLabel() ?? '-')
+                    ->formatStateUsing(function (?string $state, Payment $record): string {
+                        $enrollment = self::academicEnrollment($record);
 
-                        return $enrollment instanceof Enrollment ? $enrollment->displayLabel() : '-';
+                        return $enrollment instanceof Enrollment ? self::enrollmentLabel($enrollment) : '-';
                     })
                     ->placeholder('-'),
                 TextColumn::make('paymentAttempt.id')
@@ -50,15 +76,15 @@ class PaymentsTable
                     ->formatStateUsing(function (?int $state, Payment $record): string {
                         $attempt = $record->paymentAttempt;
 
-                        return $attempt instanceof PaymentAttempt ? $attempt->displayLabel() : '-';
+                        return $attempt instanceof PaymentAttempt ? self::paymentAttemptLabel($attempt) : '-';
                     })
                     ->placeholder('-'),
-                TextColumn::make('ledgerEntry.id')
-                    ->label('Ledger Entry')
-                    ->formatStateUsing(fn (?int $state, Payment $record): string => $record->ledgerEntry instanceof LedgerEntry
-                        ? $record->ledgerEntry->displayLabel()
-                        : '-')
-                    ->placeholder('-'),
+                TextColumn::make('ledger_entries_count')
+                    ->label('Ledger Postings')
+                    ->formatStateUsing(fn (int|string|null $state): string => ((int) $state) > 0
+                        ? ((int) $state).' posted'
+                        : 'Not posted')
+                    ->badge(),
                 TextColumn::make('provider_reference')
                     ->label('Reference')
                     ->placeholder('-')
@@ -69,12 +95,14 @@ class PaymentsTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('channel')
+                    ->formatStateUsing(fn (?string $state): string => self::paymentChannelLabel($state))
                     ->badge()
                     ->searchable(),
                 TextColumn::make('amount')
                     ->money('PHP')
                     ->sortable(),
                 TextColumn::make('evidence_status')
+                    ->formatStateUsing(fn (?string $state): string => self::humanizeCode($state))
                     ->badge()
                     ->searchable(),
                 TextColumn::make('verified_at')
@@ -108,6 +136,7 @@ class PaymentsTable
                         'bank_transfer' => 'Bank Transfer',
                         'paymongo' => 'PayMongo',
                         'paymongo_reconciled' => 'PayMongo Reconciled',
+                        'synthetic_acceptance' => 'Acceptance Fixture',
                     ]),
             ])
             ->recordActions([
@@ -117,7 +146,7 @@ class PaymentsTable
                     ->icon(Heroicon::OutlinedDocumentText)
                     ->url(fn (Payment $record): string => route('finance.payments.acknowledgement', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn (Payment $record): bool => auth()->user()?->can('viewAcknowledgement', $record) ?? false),
+                    ->visible(fn (Payment $record): bool => self::currentUser()?->can('viewAcknowledgement', $record) ?? false),
                 Action::make('mapOr')
                     ->label('Map OR')
                     ->icon(Heroicon::OutlinedClipboardDocument)
@@ -129,7 +158,7 @@ class PaymentsTable
                             ->maxLength(255),
                     ])
                     ->action(function (Payment $record, array $data): void {
-                        $actor = auth()->user();
+                        $actor = Auth::user();
 
                         if (! $actor instanceof User) {
                             abort(403);
@@ -154,8 +183,74 @@ class PaymentsTable
                                 ->send();
                         }
                     })
-                    ->visible(fn (Payment $record): bool => auth()->user()?->can('mapOfficialReceipt', $record) ?? false),
+                    ->visible(fn (Payment $record): bool => self::currentUser()?->can('mapOfficialReceipt', $record) ?? false),
             ])
             ->toolbarActions([]);
+    }
+
+    private static function currentUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
+    }
+
+    /** @return array<string, mixed> */
+    private static function academicContext(Payment $payment): array
+    {
+        return app(PaymentAcademicContextResolver::class)->forPayment($payment);
+    }
+
+    private static function academicEnrollment(Payment $payment): ?Enrollment
+    {
+        return app(PaymentAcademicContextResolver::class)->enrollment($payment);
+    }
+
+    private static function enrollmentLabel(Enrollment $enrollment): string
+    {
+        $enrollment->loadMissing('term');
+
+        return collect([
+            "#{$enrollment->id}",
+            $enrollment->term->label,
+            self::humanizeCode($enrollment->status),
+        ])->implode(' - ');
+    }
+
+    private static function paymentAttemptLabel(PaymentAttempt $attempt): string
+    {
+        return collect([
+            "#{$attempt->id}",
+            self::paymentProviderLabel($attempt->provider),
+            self::paymentChannelLabel($attempt->channel),
+            self::humanizeCode($attempt->status),
+            'Amount: '.number_format((float) $attempt->amount, 2),
+        ])->implode(' - ');
+    }
+
+    private static function paymentChannelLabel(?string $channel): string
+    {
+        return [
+            'cash' => 'Cash',
+            'gcash_manual' => 'GCash Manual',
+            'bank_transfer' => 'Bank Transfer',
+            'paymongo' => 'PayMongo',
+            'paymongo_reconciled' => 'PayMongo Reconciled',
+            'online_checkout' => 'Online Checkout',
+            'synthetic_acceptance' => 'Acceptance Fixture',
+        ][$channel] ?? self::humanizeCode($channel);
+    }
+
+    private static function paymentProviderLabel(?string $provider): string
+    {
+        return [
+            'paymongo' => 'PayMongo',
+            'synthetic_acceptance' => 'Acceptance Fixture',
+        ][$provider] ?? self::humanizeCode($provider);
+    }
+
+    private static function humanizeCode(?string $code): string
+    {
+        return filled($code) ? Str::headline($code) : '-';
     }
 }

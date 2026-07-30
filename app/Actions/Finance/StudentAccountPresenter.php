@@ -26,6 +26,8 @@ final class StudentAccountPresenter
      *     student_number:string,
      *     student_name:string,
      *     program:string,
+     *     year_level:string,
+     *     section:string,
      *     term:string,
      *     assessment_state:string,
      *     assessment_total:string,
@@ -44,6 +46,7 @@ final class StudentAccountPresenter
      *     schedule_rows:mixed,
      *     attempt_rows:mixed,
      *     acknowledgement_rows:mixed,
+     *     allocation_rows:mixed,
      *     ledger_rows:mixed,
      *     adjustment_rows:mixed,
      *     accommodation_summary:mixed
@@ -88,6 +91,8 @@ final class StudentAccountPresenter
             'student_number' => (string) $summary['student_number'],
             'student_name' => (string) $summary['student_name'],
             'program' => (string) ($summary['program'] ?? 'Not recorded'),
+            'year_level' => (string) ($summary['year_level'] ?? 'Not recorded'),
+            'section' => (string) ($summary['section'] ?? 'Not assigned'),
             'term' => (string) $summary['term'],
             'assessment_state' => str((string) $assessment->state)->replace('_', ' ')->headline()->toString(),
             'assessment_total' => (string) $state['assessment_total'],
@@ -106,6 +111,7 @@ final class StudentAccountPresenter
             'schedule_rows' => $state['schedule_rows'],
             'attempt_rows' => $state['attempt_rows'],
             'acknowledgement_rows' => $state['acknowledgement_rows'],
+            'allocation_rows' => $state['allocation_rows'],
             'ledger_rows' => $ledgerRows->all(),
             'adjustment_rows' => $ledgerRows
                 ->filter(fn (array $row): bool => in_array($row['direction'], ['Adjustment', 'Reversal'], true))
