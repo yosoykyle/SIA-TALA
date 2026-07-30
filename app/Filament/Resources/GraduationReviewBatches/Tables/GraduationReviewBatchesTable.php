@@ -16,14 +16,30 @@ class GraduationReviewBatchesTable
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('academicYear.label')->label('Academic Year')->sortable(),
-                TextColumn::make('term.label')->label('Term')->sortable(),
+                TextColumn::make('name')
+                    ->label('Review')
+                    ->description(fn (GraduationReviewBatch $record): string => "{$record->academicYear?->label} · {$record->term?->label}")
+                    ->searchable()
+                    ->sortable()
+                    ->wrap(),
                 TextColumn::make('state')->badge()->sortable(),
-                TextColumn::make('members_count')->counts('members')->label('Members')->sortable(),
-                TextColumn::make('creator.name')->label('Created By')->placeholder('System'),
-                TextColumn::make('created_at')->dateTime()->sortable(),
-                TextColumn::make('closed_at')->dateTime()->placeholder('Open')->toggleable(),
+                TextColumn::make('active_members_count')->label('Students')->numeric()->sortable(),
+                TextColumn::make('awaiting_evaluation_count')->label('Awaiting')->numeric()->sortable(),
+                TextColumn::make('blocked_members_count')->label('Blocked')->numeric()->sortable(),
+                TextColumn::make('ready_members_count')->label('Ready')->numeric()->sortable(),
+                TextColumn::make('complete_members_count')->label('Req. complete')->numeric()->sortable(),
+                TextColumn::make('creator.name')
+                    ->label('Created By')
+                    ->placeholder('System')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('closed_at')
+                    ->dateTime()
+                    ->placeholder('Open')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
@@ -36,8 +52,11 @@ class GraduationReviewBatchesTable
             ])
             ->recordActions([
                 ActionGroup::make([
-                    ViewAction::make(),
-                    EditAction::make(),
+                    ViewAction::make()
+                        ->label('View summary'),
+                    EditAction::make()
+                        ->label('Review students')
+                        ->visible(fn (GraduationReviewBatch $record): bool => $record->state === GraduationReviewBatch::StateOpen),
                 ])->tooltip('Completion review batch actions'),
             ])
             ->stackedOnMobile();

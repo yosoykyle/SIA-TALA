@@ -36,9 +36,9 @@ class GradesAndCompletion extends Page
                 'icon' => 'heroicon-o-document-check',
             ],
             [
-                'title' => 'Completion and Graduation Review',
-                'description' => 'Evaluate completion evidence in review batches and keep the resulting student-visible snapshot traceable.',
-                'action' => 'Open completion reviews',
+                'title' => 'Completion Eligibility Review',
+                'description' => 'Evaluate completion evidence, resolve blockers, and share a traceable result with the student. This review does not confer a degree.',
+                'action' => 'Open eligibility reviews',
                 'url' => GraduationReviewBatchResource::getUrl('index'),
                 'icon' => 'heroicon-o-trophy',
             ],

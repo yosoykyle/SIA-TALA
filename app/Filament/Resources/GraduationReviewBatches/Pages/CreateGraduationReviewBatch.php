@@ -14,6 +14,9 @@ class CreateGraduationReviewBatch extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
+        $data['state'] = GraduationReviewBatch::StateOpen;
+        $data['filter_summary'] = null;
+        $data['closed_at'] = null;
 
         return $data;
     }

@@ -23,12 +23,13 @@ class GraduationReviewBatchPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function update(User $user, GraduationReviewBatch $graduationReviewBatch): bool
     {
-        return $this->create($user);
+        return $this->create($user)
+            && $graduationReviewBatch->state === GraduationReviewBatch::StateOpen;
     }
 
     public function delete(User $user, GraduationReviewBatch $graduationReviewBatch): bool

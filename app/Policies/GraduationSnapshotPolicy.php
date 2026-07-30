@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\GraduationReviewBatch;
 use App\Models\GraduationSnapshot;
 use App\Models\User;
 
@@ -28,7 +29,7 @@ class GraduationSnapshotPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     public function update(User $user, GraduationSnapshot $graduationSnapshot): bool
@@ -43,6 +44,7 @@ class GraduationSnapshotPolicy
 
     public function updateVisibility(User $user, GraduationSnapshot $graduationSnapshot): bool
     {
-        return $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin]);
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $graduationSnapshot->member?->batch?->state === GraduationReviewBatch::StateOpen;
     }
 }

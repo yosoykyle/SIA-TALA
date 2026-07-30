@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\GraduationReviewBatches;
 
+use App\Actions\Graduation\GraduationEligibilitySnapshotService;
 use App\Filament\Resources\GraduationReviewBatches\Pages\CreateGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\Pages\EditGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ListGraduationReviewBatches;
@@ -15,6 +16,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class GraduationReviewBatchResource extends Resource
@@ -25,7 +27,11 @@ class GraduationReviewBatchResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Student Records';
 
-    protected static ?string $navigationLabel = 'Graduation Review Batches';
+    protected static ?string $navigationLabel = 'Completion Eligibility Reviews';
+
+    protected static ?string $modelLabel = 'completion eligibility review';
+
+    protected static ?string $pluralModelLabel = 'completion eligibility reviews';
 
     protected static ?int $navigationSort = 30;
 
@@ -42,6 +48,30 @@ class GraduationReviewBatchResource extends Resource
     public static function table(Table $table): Table
     {
         return GraduationReviewBatchesTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->withCount([
+                'members as active_members_count' => fn (Builder $query): Builder => $query
+                    ->where('is_active', true),
+                'members as awaiting_evaluation_count' => fn (Builder $query): Builder => $query
+                    ->where('is_active', true)
+                    ->whereDoesntHave('snapshots'),
+                'members as blocked_members_count' => fn (Builder $query): Builder => $query
+                    ->where('is_active', true)
+                    ->whereHas('latestSnapshot', fn (Builder $snapshotQuery): Builder => $snapshotQuery
+                        ->where('result_status', 'like', 'Blocked:%')),
+                'members as ready_members_count' => fn (Builder $query): Builder => $query
+                    ->where('is_active', true)
+                    ->whereHas('latestSnapshot', fn (Builder $snapshotQuery): Builder => $snapshotQuery
+                        ->where('result_status', GraduationEligibilitySnapshotService::ResultReadyForRegistrarReview)),
+                'members as complete_members_count' => fn (Builder $query): Builder => $query
+                    ->where('is_active', true)
+                    ->whereHas('latestSnapshot', fn (Builder $snapshotQuery): Builder => $snapshotQuery
+                        ->where('result_status', GraduationEligibilitySnapshotService::ResultComplete)),
+            ]);
     }
 
     public static function getRelations(): array

@@ -9,9 +9,9 @@ class Completion extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-check';
 
-    protected static ?string $navigationLabel = 'Completion';
+    protected static ?string $navigationLabel = 'Completion Review';
 
-    protected static ?string $title = 'Completion Review';
+    protected static ?string $title = 'Completion Eligibility Review';
 
     protected string $view = 'filament.student.pages.completion';
 

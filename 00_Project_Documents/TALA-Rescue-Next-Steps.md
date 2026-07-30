@@ -53,11 +53,11 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR operating-journey completeness and presentation closure across regular and irregular placement, Student Record context/history, and source-derived COR. |
 | TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Completeness, Consistency, and Lean Presentation Closure. |
 | TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure. |
-| TAL-96D5E1D6 | Approved revised four-slice split; D6A-D6B done locally and D6C next | Grades, lifecycle, completion, and remaining role recovery through four sequential task-centered slices. |
+| TAL-96D5E1D6 | Approved revised four-slice split; D6A-D6C done locally and D6D next | Grades, lifecycle, completion, and remaining role recovery through four sequential task-centered slices. |
 | TAL-96D5E1D6A | Done locally; pending explicit Linear sync | Faculty Grade Entry to Registrar Release. |
 | TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results. |
-| TAL-96D5E1D6C | Planned; next | Completion Review and Final Completion Result. |
-| TAL-96D5E1D6D | Planned; blocked on verified and cleaned TAL-96D5E1D6C | System Administration Boundary and Health Presentation. |
+| TAL-96D5E1D6C | Done locally; pending explicit Linear sync | Completion Eligibility Review and Student-Visible Review Result. |
+| TAL-96D5E1D6D | Planned; unblocked and next | System Administration Boundary and Health Presentation. |
 | TAL-96D5E1D7 | Planned; blocked on D5E1D6 | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
 | TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the preserved `MIDDLE` fixtures and only required persona overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
@@ -85,4 +85,4 @@ No work outside the listed issues is approved or implied. Any additional institu
 
 ## Next Planning Boundary
 
-Next boundary: `Plan TAL-96D5E1D6C`.
+Active boundary: `Plan TAL-96D5E1D6D`.

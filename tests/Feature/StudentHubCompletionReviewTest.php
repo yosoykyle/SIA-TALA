@@ -48,7 +48,7 @@ final class StudentHubCompletionReviewTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
         Livewire::test(Completion::class)
-            ->assertSee('No completion review is visible yet')
+            ->assertSee('No completion eligibility review has been shared')
             ->assertDontSee('Blocked: Missing Requirement');
     }
 
@@ -134,12 +134,18 @@ final class StudentHubCompletionReviewTest extends TestCase
             'source_references' => [['type' => 'private_note', 'label' => $privateEvidence]],
             'student_projection' => [
                 'result_status' => $status,
+                'status_label' => $status,
+                'remaining_units' => 3.0,
                 'remaining_requirements' => ['CAP-101 Capstone 1'],
+                'failed_requirements' => [],
+                'in_progress_requirements' => [],
                 'pending_grade_blockers' => ['CAP-102 Capstone 2'],
                 'inc_blockers' => [],
                 'hold_or_clearance_labels' => ['Registrar Hold'],
+                'hold_or_clearance_items' => [],
                 'required_action' => 'Please contact the Registrar',
                 'office_to_contact' => 'Registrar Office',
+                'offices_to_contact' => ['Registrar Office'],
             ],
         ];
     }

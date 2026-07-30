@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class GraduationEligibilitySnapshotService
 {
@@ -55,6 +56,8 @@ class GraduationEligibilitySnapshotService
 
     public function generate(GraduationReviewMember $member, User $actor): GraduationSnapshot
     {
+        Gate::forUser($actor)->authorize('refreshSnapshot', $member);
+
         return DB::transaction(function () use ($member, $actor): GraduationSnapshot {
             $locked = GraduationReviewMember::query()
                 ->with(['studentProfile.program', 'studentProfile.curriculumVersion', 'latestSnapshot'])
@@ -211,7 +214,6 @@ class GraduationEligibilitySnapshotService
             $sourceReferences[] = $this->reference('hold', (int) $hold->id, $hold->blocking_level);
         }
 
-        $currentFinalized = array_values(array_filter($current, static fn (array $item): bool => (bool) ($item['finalized'] ?? false)));
         $currentPending = array_values(array_filter($current, static fn (array $item): bool => ! ($item['finalized'] ?? false)));
 
         $blockerGroups = $this->blockerGroups($activeHolds, $clearanceBlockers, $currentPending, $pending, $inc, $failed, $missing, $withdrawn);
@@ -252,7 +254,7 @@ class GraduationEligibilitySnapshotService
             'clearance_blockers' => $clearanceBlockers,
             'remaining_units' => (float) $remainingUnits,
             'source_references' => collect($sourceReferences)->unique(fn (array $reference): string => $reference['type'].':'.$reference['id'])->values()->all(),
-            'student_projection' => $this->studentProjection($result, $missing, $withdrawn, $pending, $inc, $currentFinalized, $activeHolds, $clearanceBlockers, $remainingUnits),
+            'student_projection' => $this->studentProjection($result, $missing, $withdrawn, $failed, $pending, $inc, $current, $activeHolds, $clearanceBlockers, $remainingUnits),
         ];
     }
 
@@ -347,7 +349,7 @@ class GraduationEligibilitySnapshotService
             'label' => str($hold->hold_type)->headline()->toString(),
             'blocking_level' => $hold->blocking_level,
             'student_message' => $hold->studentFacingMessage(),
-            'office_to_contact' => $hold->blocking_level === Hold::BlockingClearance ? 'Registrar Office' : 'Registrar Office',
+            'office_to_contact' => $hold->studentFacingOfficeLabel(),
         ];
     }
 
@@ -421,28 +423,59 @@ class GraduationEligibilitySnapshotService
     /**
      * @param  list<array<string, mixed>>  $missing
      * @param  list<array<string, mixed>>  $withdrawn
+     * @param  list<array<string, mixed>>  $failed
      * @param  list<array<string, mixed>>  $pending
      * @param  list<array<string, mixed>>  $inc
-     * @param  list<array<string, mixed>>  $currentFinalized
+     * @param  list<array<string, mixed>>  $currentRequirements
      * @param  list<array<string, mixed>>  $activeHolds
      * @param  list<array<string, mixed>>  $clearanceBlockers
      * @return array<string, mixed>
      */
-    private function studentProjection(string $result, array $missing, array $withdrawn, array $pending, array $inc, array $currentFinalized, array $activeHolds, array $clearanceBlockers, float $remainingUnits): array
+    private function studentProjection(string $result, array $missing, array $withdrawn, array $failed, array $pending, array $inc, array $currentRequirements, array $activeHolds, array $clearanceBlockers, float $remainingUnits): array
     {
-        $holdLabels = collect([...$activeHolds, ...$clearanceBlockers])->pluck('label')->values()->all();
+        $holdOrClearanceItems = collect([...$activeHolds, ...$clearanceBlockers])
+            ->map(fn (array $item): array => [
+                'label' => $item['label'],
+                'message' => $item['student_message'],
+                'office' => $item['office_to_contact'],
+            ])
+            ->values();
         $label = static fn (array $item): string => $item['course_code'].' '.$item['title'];
+        $statusLabel = match ($result) {
+            self::ResultComplete => 'Requirements complete for Registrar review',
+            self::ResultReadyForRegistrarReview => 'Current requirements in progress',
+            default => str($result)->after('Blocked: ')->prepend('Review blocked: ')->toString(),
+        };
+        $requiredAction = match (true) {
+            $result === self::ResultComplete => 'No action is required for this review. Wait for the Registrar to complete the official graduation process.',
+            $holdOrClearanceItems->isNotEmpty() => 'Follow the listed hold or clearance instructions before asking the Registrar to refresh this review.',
+            $currentRequirements !== [] && $pending === [] && $inc === [] && $failed === [] && $missing === [] && $withdrawn === [] => 'Continue the listed in-progress subjects and wait for their final grades.',
+            default => 'Review the listed requirements and contact the Registrar if you need help with the next step.',
+        };
+        $officesToContact = $holdOrClearanceItems
+            ->pluck('office')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($officesToContact->isEmpty()) {
+            $officesToContact->push('Registrar Office');
+        }
 
         return [
             'result_status' => $result,
+            'status_label' => $statusLabel,
             'remaining_units' => $remainingUnits,
             'remaining_requirements' => collect([...$missing, ...$withdrawn])->map($label)->values()->all(),
-            'in_progress_requirements' => collect($currentFinalized)->map($label)->values()->all(),
+            'failed_requirements' => collect($failed)->map($label)->values()->all(),
+            'in_progress_requirements' => collect($currentRequirements)->map($label)->values()->all(),
             'pending_grade_blockers' => collect($pending)->map($label)->values()->all(),
             'inc_blockers' => collect($inc)->map($label)->values()->all(),
-            'hold_or_clearance_labels' => $holdLabels,
-            'required_action' => 'Please contact the Registrar',
-            'office_to_contact' => 'Registrar Office',
+            'hold_or_clearance_items' => $holdOrClearanceItems->all(),
+            'hold_or_clearance_labels' => $holdOrClearanceItems->pluck('label')->all(),
+            'required_action' => $requiredAction,
+            'offices_to_contact' => $officesToContact->all(),
+            'office_to_contact' => $officesToContact->implode(', '),
         ];
     }
 }

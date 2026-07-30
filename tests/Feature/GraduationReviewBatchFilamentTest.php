@@ -56,6 +56,11 @@ final class GraduationReviewBatchFilamentTest extends TestCase
         $this->assertTrue(GraduationReviewBatchResource::canAccess());
         $this->assertFalse(GraduationReviewBatchResource::canCreate());
 
+        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($superAdmin);
+        $this->assertTrue(GraduationReviewBatchResource::canAccess());
+        $this->assertFalse(GraduationReviewBatchResource::canCreate());
+
         $student = $this->staff('student');
         $this->actingAs($student);
         $this->assertFalse(GraduationReviewBatchResource::canAccess());
@@ -80,14 +85,14 @@ final class GraduationReviewBatchFilamentTest extends TestCase
                 'academic_year_id' => $year->id,
                 'term_id' => $term->id,
                 'name' => 'March 2027 Completion Review',
-                'state' => 'open',
-                'filter_summary' => ['program' => 'BSIT'],
             ])
             ->call('create')
             ->assertHasNoFormErrors();
 
         $batch = GraduationReviewBatch::query()->where('name', 'March 2027 Completion Review')->firstOrFail();
         $this->assertSame($registrar->id, $batch->created_by);
+        $this->assertSame(GraduationReviewBatch::StateOpen, $batch->state);
+        $this->assertNull($batch->filter_summary);
 
         Livewire::test(ListGraduationReviewBatches::class)
             ->filterTable('state', 'open')
@@ -114,8 +119,9 @@ final class GraduationReviewBatchFilamentTest extends TestCase
             'ownerRecord' => $batch,
             'pageClass' => ViewGraduationReviewBatch::class,
         ])
-            ->callTableAction('refreshSnapshot', $member)
-            ->assertNotified('Snapshot refreshed');
+            ->mountTableAction('refreshSnapshot', $member)
+            ->callMountedTableAction()
+            ->assertNotified('Eligibility review refreshed');
 
         $snapshot = GraduationSnapshot::query()->where('graduation_review_member_id', $member->id)->firstOrFail();
         $this->assertContains($snapshot->result_status, GraduationEligibilitySnapshotService::resultStatuses());
@@ -125,7 +131,7 @@ final class GraduationReviewBatchFilamentTest extends TestCase
             'pageClass' => ViewGraduationReviewBatch::class,
         ])
             ->callTableAction('makeVisible', $member, data: ['visibility_reason' => 'Registrar approved student-facing release.'])
-            ->assertNotified('Snapshot visibility updated');
+            ->assertNotified('Eligibility review shared with student');
 
         $this->assertSame($registrar->id, $snapshot->fresh()->made_visible_by);
         $this->assertNotNull($snapshot->fresh()->made_visible_at);
@@ -136,7 +142,7 @@ final class GraduationReviewBatchFilamentTest extends TestCase
             'pageClass' => ViewGraduationReviewBatch::class,
         ])
             ->callTableAction('hideVisible', $member)
-            ->assertNotified('Snapshot hidden from Student Hub');
+            ->assertNotified('Eligibility review is no longer shared');
 
         $this->assertSame($registrar->id, $snapshot->fresh()->made_visible_by);
         $this->assertNull($snapshot->fresh()->made_visible_at);
@@ -146,8 +152,9 @@ final class GraduationReviewBatchFilamentTest extends TestCase
             'ownerRecord' => $batch,
             'pageClass' => ViewGraduationReviewBatch::class,
         ])
-            ->callTableBulkAction('refreshSelectedSnapshots', [$member])
-            ->assertNotified('Selected snapshots refreshed');
+            ->mountTableBulkAction('refreshSelectedSnapshots', [$member])
+            ->callMountedTableBulkAction()
+            ->assertNotified('Selected eligibility reviews refreshed');
 
         $this->assertSame(2, $member->snapshots()->count());
     }
@@ -192,7 +199,7 @@ final class GraduationReviewBatchFilamentTest extends TestCase
     }
 
     #[Test]
-    public function system_super_admin_can_manage_member_snapshots_and_visibility(): void
+    public function system_super_admin_can_view_but_cannot_manage_member_snapshots_or_visibility(): void
     {
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $batch = GraduationReviewBatch::factory()->create(['created_by' => $superAdmin->id]);
@@ -207,26 +214,14 @@ final class GraduationReviewBatchFilamentTest extends TestCase
             'ownerRecord' => $batch,
             'pageClass' => ViewGraduationReviewBatch::class,
         ])
-            ->assertTableActionVisible('refreshSnapshot', $member)
-            ->assertTableBulkActionVisible('refreshSelectedSnapshots')
-            ->callTableAction('refreshSnapshot', $member)
-            ->assertNotified('Snapshot refreshed');
+            ->assertCanSeeTableRecords([$member])
+            ->assertTableActionHidden('refreshSnapshot', $member)
+            ->assertTableActionHidden('makeVisible', $member)
+            ->assertTableActionHidden('hideVisible', $member)
+            ->assertTableBulkActionHidden('refreshSelectedSnapshots');
 
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->assertTableActionVisible('makeVisible', $member)
-            ->callTableAction('makeVisible', $member, data: ['visibility_reason' => 'System Super Admin approved release.'])
-            ->assertNotified('Snapshot visibility updated');
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->assertTableActionVisible('hideVisible', $member)
-            ->callTableAction('hideVisible', $member)
-            ->assertNotified('Snapshot hidden from Student Hub');
+        $this->assertFalse($superAdmin->can('refreshSnapshot', $member));
+        $this->assertFalse($superAdmin->can('refreshAnySnapshot', GraduationReviewMember::class));
     }
 
     #[Test]

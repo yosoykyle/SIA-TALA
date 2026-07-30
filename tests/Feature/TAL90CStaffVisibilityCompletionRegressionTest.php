@@ -122,7 +122,9 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         Livewire::test(MembersRelationManager::class, [
             'ownerRecord' => $batch,
             'pageClass' => ViewGraduationReviewBatch::class,
-        ])->callTableBulkAction('refreshSelectedSnapshots', [$active, $inactive]);
+        ])
+            ->mountTableBulkAction('refreshSelectedSnapshots', [$active, $inactive])
+            ->callMountedTableBulkAction();
 
         $this->assertSame(2, $active->snapshots()->count());
         $this->assertSame(1, $inactive->snapshots()->count());
@@ -148,7 +150,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
         Livewire::test(Completion::class)
-            ->assertSee('No completion review is visible yet')
+            ->assertSee('No completion eligibility review has been shared')
             ->assertDontSee('Blocked: Pending Grade')
             ->assertDontSee('Please contact the Registrar');
     }
@@ -172,7 +174,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
         Livewire::test(Completion::class)
-            ->assertSee('Blocked: Pending Grade')
+            ->assertSee('Review blocked: Pending Grade')
             ->assertSee('Please contact the Registrar')
             ->assertSee('Registrar Office')
             ->assertDontSee('Private staff evidence');

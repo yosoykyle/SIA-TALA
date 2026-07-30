@@ -54,9 +54,9 @@ class Academics extends Page
                 'icon' => 'heroicon-o-exclamation-triangle',
             ],
             [
-                'title' => 'Completion Review',
-                'description' => 'See the latest graduation or completion review that the Registrar has made visible to you.',
-                'action' => 'View completion review',
+                'title' => 'Completion Eligibility Review',
+                'description' => 'See the latest eligibility result shared by the Registrar, the evidence behind it, and your next step. This does not confer a degree.',
+                'action' => 'View eligibility review',
                 'url' => Completion::getUrl(panel: 'student'),
                 'icon' => 'heroicon-o-trophy',
             ],

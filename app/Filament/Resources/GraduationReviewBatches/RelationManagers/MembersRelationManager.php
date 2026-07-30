@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GraduationReviewBatches\RelationManagers;
 
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
+use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\StudentProfile;
@@ -19,6 +20,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -63,19 +65,48 @@ class MembersRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'studentProfile.program',
+                'latestSnapshot',
+            ]))
             ->columns([
-                TextColumn::make('studentProfile.student_number')->label('Student No.')->searchable(),
-                TextColumn::make('studentProfile.last_name')->label('Last Name')->searchable(),
-                TextColumn::make('studentProfile.program.code')->label('Program'),
+                TextColumn::make('student_name')
+                    ->label('Student')
+                    ->state(fn (GraduationReviewMember $record): string => self::studentName($record))
+                    ->description(fn (GraduationReviewMember $record): string => collect([
+                        $record->studentProfile?->student_number,
+                        $record->studentProfile?->program?->code,
+                    ])->filter()->join(' · '))
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereHas(
+                        'studentProfile',
+                        fn (Builder $profileQuery): Builder => $profileQuery
+                            ->where('student_number', 'like', "%{$search}%")
+                            ->orWhere('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%"),
+                    ))
+                    ->wrap(),
                 IconColumn::make('is_active')->boolean()->label('Active'),
-                TextColumn::make('latestSnapshot.result_status')->label('Latest Result')->badge()->placeholder('No snapshot'),
-                TextColumn::make('latestSnapshot.version')->label('Version')->placeholder('-'),
-                TextColumn::make('latestSnapshot.generated_at')->label('Generated')->dateTime()->placeholder('-'),
-                TextColumn::make('latestSnapshot.made_visible_at')->label('Visible Since')->dateTime()->placeholder('Staff only'),
+                TextColumn::make('latestSnapshot.result_status')
+                    ->label('Review result')
+                    ->formatStateUsing(fn (?string $state): string => self::resultLabel($state))
+                    ->description(fn (GraduationReviewMember $record): ?string => self::resultDescription($record))
+                    ->badge()
+                    ->placeholder('Awaiting evaluation')
+                    ->wrap(),
+                TextColumn::make('latestSnapshot.generated_at')
+                    ->label('Last evaluated')
+                    ->dateTime()
+                    ->placeholder('Not evaluated'),
+                TextColumn::make('latestSnapshot.made_visible_at')
+                    ->label('Shared with student')
+                    ->dateTime()
+                    ->placeholder('Not shared'),
             ])
             ->defaultSort('added_at', 'desc')
             ->headerActions([
                 CreateAction::make()
+                    ->label('Add student to review')
+                    ->visible(fn (): bool => $this->reviewIsOpen())
                     ->mutateFormDataUsing(fn (array $data): array => [
                         ...$data,
                         'added_by' => auth()->id(),
@@ -97,17 +128,25 @@ class MembersRelationManager extends RelationManager
             ->recordActions([
                 ActionGroup::make([
                     Action::make('refreshSnapshot')
-                        ->label('Refresh Snapshot')
+                        ->label('Refresh eligibility review')
                         ->authorize('refreshSnapshot')
+                        ->requiresConfirmation()
+                        ->modalHeading('Refresh this eligibility review?')
+                        ->modalDescription('This creates a new immutable eligibility snapshot from the latest authoritative records. The existing review history is retained.')
+                        ->modalSubmitActionLabel('Refresh review')
                         ->action(function (GraduationReviewMember $record): void {
                             app(GraduationEligibilitySnapshotService::class)->generate($record, auth()->user());
-                            Notification::make()->title('Snapshot refreshed')->success()->send();
+                            Notification::make()->title('Eligibility review refreshed')->success()->send();
                         }),
                     Action::make('makeVisible')
-                        ->label('Expose to Student')
+                        ->label('Share review with student')
                         ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
+                        ->modalHeading('Share this eligibility review with the student?')
+                        ->modalDescription('The student will see the result, evidence summary, next step, and offices to contact. This does not confer a degree.')
+                        ->modalSubmitActionLabel('Share review')
                         ->schema([
                             Textarea::make('visibility_reason')
+                                ->label('Reason for sharing')
                                 ->required()
                                 ->maxLength(2000),
                         ])
@@ -134,12 +173,15 @@ class MembersRelationManager extends RelationManager
                                 ])
                                 ->log('Graduation Eligibility Snapshot made visible to student');
 
-                            Notification::make()->title('Snapshot visibility updated')->success()->send();
+                            Notification::make()->title('Eligibility review shared with student')->success()->send();
                         }),
                     Action::make('hideVisible')
-                        ->label('Hide from Student')
+                        ->label('Stop sharing with student')
                         ->authorize(fn (GraduationReviewMember $record): bool => $this->canUpdateLatestSnapshotVisibility($record))
                         ->requiresConfirmation()
+                        ->modalHeading('Stop sharing this review?')
+                        ->modalDescription('The student will no longer see this eligibility review. The staff audit record remains available.')
+                        ->modalSubmitActionLabel('Stop sharing')
                         ->visible(fn (GraduationReviewMember $record): bool => $record->latestSnapshot?->made_visible_at !== null)
                         ->action(function (GraduationReviewMember $record): void {
                             $snapshot = $this->latestSnapshot($record);
@@ -164,9 +206,13 @@ class MembersRelationManager extends RelationManager
                                 ])
                                 ->log('Graduation Eligibility Snapshot hidden from student');
 
-                            Notification::make()->title('Snapshot hidden from Student Hub')->success()->send();
+                            Notification::make()->title('Eligibility review is no longer shared')->success()->send();
                         }),
                     DeleteAction::make()
+                        ->label('Remove from review list')
+                        ->modalHeading('Remove this student from the review list?')
+                        ->modalDescription('The student is marked inactive in this review. Existing snapshots remain in the audit history.')
+                        ->modalSubmitActionLabel('Remove student')
                         ->action(function (GraduationReviewMember $record): bool {
                             $updated = $record->update(['is_active' => false]);
 
@@ -188,9 +234,14 @@ class MembersRelationManager extends RelationManager
             ->stackedOnMobile()
             ->toolbarActions([
                 BulkAction::make('refreshSelectedSnapshots')
-                    ->label('Refresh Selected Snapshots')
-                    ->authorize(fn (): bool => auth()->user()?->can('refreshAnySnapshot', GraduationReviewMember::class) ?? false)
+                    ->label('Refresh selected eligibility reviews')
+                    ->authorize(fn (): bool => $this->reviewIsOpen()
+                        && (auth()->user()?->can('refreshAnySnapshot', GraduationReviewMember::class) ?? false))
                     ->authorizeIndividualRecords('refreshSnapshot')
+                    ->requiresConfirmation()
+                    ->modalHeading('Refresh selected eligibility reviews?')
+                    ->modalDescription('This creates a new immutable snapshot for every authorized active student selected. Existing review history is retained.')
+                    ->modalSubmitActionLabel('Refresh selected reviews')
                     ->action(function (Collection $records): void {
                         $records
                             ->filter(fn (Model $record): bool => $record instanceof GraduationReviewMember && $record->is_active)
@@ -199,7 +250,7 @@ class MembersRelationManager extends RelationManager
 
                                 app(GraduationEligibilitySnapshotService::class)->generate($record, auth()->user());
                             });
-                        Notification::make()->title('Selected snapshots refreshed')->success()->send();
+                        Notification::make()->title('Selected eligibility reviews refreshed')->success()->send();
                     })
                     ->deselectRecordsAfterCompletion(),
             ]);
@@ -219,6 +270,60 @@ class MembersRelationManager extends RelationManager
         }
 
         return auth()->user()?->can('updateVisibility', $snapshot) ?? false;
+    }
+
+    private function reviewIsOpen(): bool
+    {
+        $batch = $this->getOwnerRecord();
+
+        return $batch instanceof GraduationReviewBatch
+            && $batch->state === GraduationReviewBatch::StateOpen;
+    }
+
+    private static function studentName(GraduationReviewMember $member): string
+    {
+        $profile = $member->studentProfile;
+
+        if (! $profile instanceof StudentProfile) {
+            return 'Student record unavailable';
+        }
+
+        return collect([$profile->first_name, $profile->middle_name, $profile->last_name])
+            ->filter()
+            ->join(' ');
+    }
+
+    private static function resultLabel(?string $resultStatus): string
+    {
+        return match ($resultStatus) {
+            GraduationEligibilitySnapshotService::ResultComplete => 'Requirements complete',
+            GraduationEligibilitySnapshotService::ResultReadyForRegistrarReview => 'Ready for Registrar review',
+            GraduationEligibilitySnapshotService::ResultBlockedMissingRequirement => 'Missing requirement',
+            GraduationEligibilitySnapshotService::ResultBlockedFailedRequirement => 'Failed requirement',
+            GraduationEligibilitySnapshotService::ResultBlockedPendingGrade => 'Pending grade',
+            GraduationEligibilitySnapshotService::ResultBlockedInc => 'Incomplete grade',
+            GraduationEligibilitySnapshotService::ResultBlockedHoldOrClearance => 'Hold or clearance block',
+            GraduationEligibilitySnapshotService::ResultBlockedCurrentEnrollmentNotFinalized => 'Current enrollment in progress',
+            null, '' => 'Awaiting evaluation',
+            default => str($resultStatus)->headline()->toString(),
+        };
+    }
+
+    private static function resultDescription(GraduationReviewMember $member): ?string
+    {
+        $snapshot = $member->latestSnapshot;
+
+        if (! $snapshot instanceof GraduationSnapshot) {
+            return null;
+        }
+
+        $remainingUnits = (float) data_get($snapshot->evaluation_snapshot, 'student_projection.remaining_units', 0);
+        $blocker = data_get($snapshot->evaluation_snapshot, 'blocker_groups.0.label');
+
+        return collect([
+            $remainingUnits > 0 ? number_format($remainingUnits, 1).' units remaining' : null,
+            is_string($blocker) ? $blocker : null,
+        ])->filter()->join(' · ') ?: null;
     }
 
     private static function studentOptionLabel(StudentProfile $profile): string

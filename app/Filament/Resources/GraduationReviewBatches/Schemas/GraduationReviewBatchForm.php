@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\GraduationReviewBatches\Schemas;
 
-use App\Models\GraduationReviewBatch;
-use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -14,7 +12,8 @@ class GraduationReviewBatchForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Batch Details')
+            Section::make('Completion eligibility review')
+                ->description('Create one Registrar review list for an academic year and term. New reviews remain open until explicitly closed.')
                 ->schema([
                     Select::make('academic_year_id')
                         ->relationship('academicYear', 'label')
@@ -27,18 +26,9 @@ class GraduationReviewBatchForm
                         ->searchable()
                         ->preload(),
                     TextInput::make('name')
+                        ->helperText('Use a name staff can recognize in the review queue.')
                         ->required()
                         ->maxLength(255),
-                    Select::make('state')
-                        ->options([
-                            GraduationReviewBatch::StateOpen => 'Open',
-                            GraduationReviewBatch::StateClosed => 'Closed',
-                        ])
-                        ->default(GraduationReviewBatch::StateOpen)
-                        ->required(),
-                    KeyValue::make('filter_summary')
-                        ->label('Filter Summary')
-                        ->columnSpanFull(),
                 ])
                 ->columns(2),
         ]);

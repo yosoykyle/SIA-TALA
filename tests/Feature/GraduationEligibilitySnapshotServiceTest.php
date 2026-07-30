@@ -103,6 +103,14 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
             'reason' => 'Registrar clearance review is open.',
             'student_message' => 'Please contact the Registrar.',
         ]);
+        Hold::factory()->create([
+            'student_profile_id' => $profile->id,
+            'hold_type' => Hold::TypeFinancial,
+            'blocking_level' => Hold::BlockingClearance,
+            'status' => Hold::StatusActive,
+            'reason' => 'Account balance requires review.',
+            'student_message' => 'Please review your account balance.',
+        ]);
 
         $snapshot = app(GraduationEligibilitySnapshotService::class)->generate($member, $registrar);
 
@@ -121,6 +129,12 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
         $this->assertSame([$inc->id], collect($snapshot->evaluation_snapshot['inc_requirements'])->pluck('curriculum_entry_id')->all());
         $this->assertSame([$withdrawn->id], collect($snapshot->evaluation_snapshot['withdrawn_or_dropped_requirements'])->pluck('curriculum_entry_id')->all());
         $this->assertSame([$current->id], collect($snapshot->evaluation_snapshot['current_enrollments'])->pluck('curriculum_entry_id')->all());
+        $this->assertContains('FAIL-102 FAIL-102', $snapshot->evaluation_snapshot['student_projection']['failed_requirements']);
+        $this->assertContains('CUR-106 CUR-106', $snapshot->evaluation_snapshot['student_projection']['in_progress_requirements']);
+        $this->assertContains('Accounting Office', $snapshot->evaluation_snapshot['student_projection']['offices_to_contact']);
+        $this->assertTrue(collect($snapshot->evaluation_snapshot['student_projection']['hold_or_clearance_items'])
+            ->contains(fn (array $item): bool => $item['office'] === 'Accounting Office'
+                && $item['message'] === 'Please review your account balance.'));
     }
 
     #[Test]
