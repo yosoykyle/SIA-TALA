@@ -10,11 +10,14 @@
 
 **Consistency revision date:** 28 July 2026 — shared-cohort terminology, benchmark-profile rationale, role-specific timetable interpretation, and reader-facing identifier conventions aligned with the verified implementation; solver equations remain unchanged
 
+**Operator-navigation revision date:** 31 July 2026 — exact Registrar UI path, seeded presentation-checkpoint expectations, status-dependent actions, and recovery guidance added; solver equations and historical benchmark evidence are unchanged
+
 ## Contents
 
 1. [Technical summary](#1-technical-summary)
 2. [Scope and delimitations](#2-scope-and-delimitations)
 3. [End-to-end system pipeline](#3-end-to-end-system-pipeline)
+   - [Clear UI navigation for timetable generation and publication](#31-clear-ui-navigation-for-timetable-generation-and-publication)
 4. [Contract, profile, and data representation](#4-contract-profile-and-data-representation)
 5. [Mathematical formulation](#5-mathematical-formulation)
 6. [Implemented objective function](#6-implemented-objective-function)
@@ -41,7 +44,7 @@ Every displayed equation includes an **Interpretation** defining its symbols and
 | Scheduling Demand | One required course component, such as one lecture or laboratory, for one offering and one student group. It is the unit assigned by the solver. |
 | Offering | A course made available for a particular academic term. |
 | Course-specific delivery group | The database record connecting one course offering to the section that receives it. Different subjects for the same students have different delivery-group records so each assignment remains traceable. |
-| Logical cohort | The students who attend all subjects together, such as `DTBM-1A`. Every course-specific delivery group for that cohort shares one conflict identity so its subjects cannot overlap. |
+| Logical cohort | The students who attend all subjects together, such as the current seeded cohort `DBM-1A`. Every course-specific delivery group for that cohort shares one conflict identity so its subjects cannot overlap. |
 | Faculty eligibility | Evidence that a faculty member is qualified and permitted to teach the demand. |
 | Candidate assignment | One allowed combination of a demand, faculty member, room or no-room option, day, and start time. |
 | Hard constraint | A mandatory rule. A timetable violating it is rejected. |
@@ -307,6 +310,322 @@ The integration follows a controlled pipeline rather than a single “run solver
 
 This separation preserves a practical middle ground between automation and institutional control: CP-SAT handles the combinatorial search, while Laravel and authorized personnel retain validation and approval authority.
 
+### 3.1 Clear UI navigation for timetable generation and publication
+
+This subsection translates the technical pipeline into the exact screens and actions used by the current TALA interface. It is written for one presenter operating the Registrar workspace. The normal presentation should use the prepared published timetable instead of consuming presentation time by waiting for a new solver request. A new generation request is a separate, optional integration demonstration and should be attempted only when the scheduling queue and private solver service are known to be available.
+
+#### 3.1.1 Current presentation checkpoint
+
+Use the Registrar login page at `http://127.0.0.1:8000/admin/login` and sign in with the local seeded Registrar account `registrar.demo@example.test`. Use the locally controlled seeded password recorded in the [local seeded credential sheet](seeded_credentials.md); do not publish that password in a public copy of this technical specification.
+
+The prepared client-aligned `MIN` presentation checkpoint is expected to show the following current application records:
+
+| Presentation item | Expected current value | What it means |
+| --- | ---: | --- |
+| Academic term | Second Semester | All scheduling screens must be filtered to the same term. |
+| Current students | 47 | Student population context; the solver does not create one decision variable per student. |
+| Logical cohorts | 6 | One cohort for each program and year-level combination. |
+| Faculty | 9 | Current client-aligned synthetic scheduling roster. |
+| Active rooms | 6 | Physical rooms available to room-requiring demands. |
+| Term offerings | 54 | Fifty-four course-and-cohort requirements are offered in the term. |
+| Course-specific sections | 54 | Each offering has one traceable course-specific section in this fixture. |
+| Schedule Requirements | 54 | Each ready subject delivery becomes one solver demand. |
+| Candidate Assignments | 54 | The accepted candidate contains exactly one assignment per demand. |
+| Official meetings | 54 | Publication copied the validated candidate into the official timetable. |
+
+The current seeded Business Management cohort code is `DBM-1A`. Some historical Cloud benchmark tables in Section 11 retain `DTBM-1A` because they describe an earlier immutable experiment. Do not search for `DTBM-1A` in the current presentation UI, and do not rewrite the historical tables as though they were produced by the current nine-faculty fixture.
+
+#### 3.1.2 The complete click path
+
+The complete Registrar navigation path is:
+
+`Admin login` → `Offerings & Scheduling` → `Class Planning` → `Choose term` → `Second Semester`
+
+The `Class Planning` page is the operating map. It displays four headline counts—Offerings, Sections, Schedule requirements, and Official meetings—and six ordered workflow stages:
+
+1. Prerequisites
+2. Offerings and Sections
+3. Teaching Resources
+4. Schedule Requirements
+5. Generated Timetables
+6. Published Timetable
+
+Each stage shows its current status, current-state summary, blocker, responsible role, and next-action button. Follow the stages from top to bottom. Do not jump directly to `Generate Timetable` if an earlier stage is blocked.
+
+##### Step 1 — Select the term
+
+1. In the left navigation, expand `Offerings & Scheduling`.
+2. Select `Class Planning`.
+3. Select `Choose term` at the top of the page.
+4. In `Academic term`, select `Second Semester`.
+5. Confirm the dialog.
+6. Check that the page heading and all stage counts now refer to `Second Semester`.
+
+What to say:
+
+> “Scheduling is term-scoped. The Registrar first selects one academic term so the source records, requirements, solver request, candidate review, and official meetings remain part of the same controlled workflow.”
+
+If the page shows another term, stop and select `Second Semester` before continuing. Counts from different terms must not be combined.
+
+##### Step 2 — Explain offerings, sections, delivery groups, and cohorts
+
+From `Class Planning`, open `Source records`, then select `Term offerings`.
+
+1. Confirm that the `Term` filter is `Second Semester`.
+2. Explain that an Offering means a subject is available in this term.
+3. Return to `Class Planning`.
+4. Open `Source records` → `Sections and delivery groups`.
+5. Search for a current section such as `DBM-1A-BME04`.
+6. Open the section record.
+7. Locate its `Delivery Groups` relation table.
+
+Use this wording:
+
+> “The offering identifies the subject made available in the term. The course-specific section and delivery group preserve the exact source record used for scheduling and publication. The shared cohort code, such as DBM-1A, tells TALA that the same students attend multiple subjects and therefore those subjects cannot overlap.”
+
+The two state fields are different:
+
+| Screen or record | Available state values | Scheduling meaning |
+| --- | --- | --- |
+| Section | Planned, Open, Closed, Cancelled | Controls whether the class section is planned, enrollable, closed, or cancelled. |
+| Delivery Group inside the Section | Planned, Ready, Closed, Cancelled | Controls whether that course-specific student group is ready to become a Schedule Requirement. |
+| Schedule Requirement | Ready for review or Action required | Reports whether the complete generated demand passed source-data readiness checks. |
+| Generated Timetable | Queued, Dispatching, Under Review, Blocked, Failed, Published, or Superseded | Reports the solver and publication workflow state. |
+
+If the State selector shows `Open` but not `Ready`, you are editing the **Section**, not its Delivery Group. Return to the section record, open the `Delivery Groups` relation, select `Edit` for the delivery group, and inspect its State field. The prepared checkpoint should already have the delivery groups ready; do not edit them during the normal presentation.
+
+After timetable publication, TALA advances applicable planned sections to `Open` and pending-scheduling offerings to their scheduled state. This is why `Open` is a correct post-publication Section state; it is not a replacement label for Delivery Group readiness.
+
+##### Step 3 — Review teaching resources
+
+Return to `Class Planning`. Under `Teaching Resources`, use the stage action or open `Source records` and review:
+
+1. `Faculty qualifications`
+2. `Faculty term loads`
+3. `Rooms`
+4. `Scheduling availability`
+
+Explain the dependency:
+
+> “The solver does not invent faculty eligibility, load limits, room suitability, or blocked time. Laravel prepares those authoritative inputs first. CP-SAT can choose only from the combinations that remain admissible.”
+
+For the current `MIN` checkpoint, the Class Planning summary should report nine qualified faculty and six active rooms. Online requirements do not consume a physical room. A blank or dash in the Room column is therefore correct for an online assignment and is not automatically a missing-data defect.
+
+If Teaching Resources is blocked, use its displayed next-action button. Correct faculty qualifications before faculty loads, and correct faculty inputs before rooms when the page directs you in that order. Do not generate Schedule Requirements until the stage reports no blocker.
+
+##### Step 4 — Review or generate Schedule Requirements
+
+From `Class Planning`, select the `Schedule Requirements` stage action, or open `Source records` → `Schedule requirements`.
+
+1. Filter `Term` to `Second Semester`.
+2. Confirm that the current checkpoint contains 54 rows.
+3. Inspect the `Readiness` column.
+4. Confirm that all 54 rows show `Ready for review`.
+5. Confirm that `Findings` is zero for every ready requirement.
+6. Use the `Teaching mode` filter to show that both Online and Face-to-Face requirements are present.
+
+What to say:
+
+> “A Schedule Requirement is the solver’s unit of work. Each row states one class component, its duration, teaching mode, source section, and validated scheduling inputs. The solver is allowed to run only after every requirement for the term is ready.”
+
+If the table is empty:
+
+1. Select `Generate Schedule Requirements`.
+2. Select `Second Semester`.
+3. Confirm the action.
+4. Wait for the success notification.
+5. Recheck the total, readiness states, and findings.
+
+`Generate Schedule Requirements` is a Laravel preparation step. It is not the CP-SAT solve.
+
+If any row shows `Action required`, open that row and read its readiness findings. Correct the named source record—offering, section, delivery group, faculty evidence, room, duration, or calendar input—then run `Generate Schedule Requirements` again. Do not continue to timetable generation while even one requirement remains action-required.
+
+##### Step 5 — Open the prepared timetable result
+
+Return to `Class Planning` and select the `Generated Timetables` stage action, or open `Offerings & Scheduling` → `Generated Timetables`.
+
+For the normal prepared demonstration:
+
+1. Keep the `Term` filter on `Second Semester`.
+2. Locate the newest row whose `Result` is `Published`.
+3. Confirm that `Assignments` is 54.
+4. Select the row action `Review timetable`.
+
+Do not select `Generate Timetable` during the normal prepared demonstration. The existing published result already proves the candidate-review-to-publication path and avoids adding an unnecessary external request.
+
+For an explicitly approved live solver demonstration:
+
+1. Confirm beforehand that the dedicated `scheduling` queue listener is running.
+2. Confirm that the configured private solver service is reachable and authorized.
+3. Confirm that all 54 Schedule Requirements are still `Ready for review`.
+4. On `Generated Timetables`, select `Generate Timetable`.
+5. Select `Second Semester`.
+6. Read the dialog: it captures the current ready requirements as one protected request, and nothing becomes official automatically.
+7. Select `Generate Timetable` in the dialog.
+8. Watch the new row. The table refreshes automatically every five seconds.
+9. Wait for `Under Review`, `Blocked`, or `Failed`; do not repeatedly submit additional runs.
+
+The initial run statuses mean:
+
+| Status | Meaning | Presenter action |
+| --- | --- | --- |
+| Queued | Laravel captured the protected request and queued it. | Wait; confirm the scheduling worker is running if it does not advance. |
+| Dispatching | The worker is sending or processing the solver request. | Wait; do not create another run. |
+| Under Review | A complete candidate passed ingestion and is available for Registrar review. | Open `Review timetable`, inspect validation and assignments, then decide whether to publish. |
+| Published | The Registrar already published this candidate as the official timetable. | Use it for the prepared demo; verify it in `Published Timetable`. |
+| Blocked | A response was received but Laravel found a contract, assignment, or hard-constraint problem. | Open `Validation Findings`; correct the identified source or integration defect before another retry. |
+| Failed | The request could not complete because of an operational problem such as queue, authentication, network, service, timeout, or runtime failure. | Read `Final Failure` and `Operational Events`; restore the failed dependency, then use the guarded retry action once. |
+| Superseded | A later timetable version replaced this published version. | Use the current Published version, not this historical one. |
+
+`Blocked` and `Failed` are not interchangeable. `Blocked` means Laravel deliberately rejected an unacceptable result. `Failed` means the operational processing path did not complete reliably enough to provide an acceptable result.
+
+##### Step 6 — Review validation and solution quality
+
+On `Generated Timetable Review`, move through the page in this order:
+
+1. `Generated Timetable Summary`
+2. `Operations and Diagnostics`
+3. `Assignment Review`
+4. `Current Validation`
+5. `Solution Quality`
+6. `Original Solver Result`
+7. `Hard Constraint Checklist`
+8. `Soft Objective Evidence`
+9. `Validation Findings`
+10. `Candidate Assignments`
+
+For a valid 54-demand result, point out:
+
+- `Candidate Assignments`: 54
+- `Assigned`: 54
+- `Unassigned`: 0
+- `Hard Violations` or `Hard Conflicts`: 0
+- `Demand Coverage`: 54 of 54
+- `Solver Status`: `Feasible` or `Optimal`
+- `Validation Findings`: no blocking finding
+
+Use this wording:
+
+> “Correctness is complete demand coverage plus zero hard-constraint violations after Laravel’s independent validation. Feasible does not mean failed or inaccurate. It means CP-SAT found a valid timetable but did not finish proving that no better soft-objective score exists within the search limit.”
+
+The Relative Gap and Objective Value describe optimization quality, not predictive accuracy. The `Hard Constraint Checklist` is pass/fail evidence. `Soft Objective Evidence` explains how otherwise valid schedules were ranked.
+
+If `Validation Findings` contains a blocking Solver Response Contract finding, the candidate must not be published. Missing typed statistics, `result_source`, or `search_stages` are integration-contract defects, not scheduling-demand infeasibility.
+
+##### Step 7 — Inspect Candidate Assignments
+
+Scroll to `Candidate Assignments`.
+
+1. Confirm that the table contains 54 assignments.
+2. Search for `DBM-1A` to show the Business Management first-year cohort.
+3. Review the visible columns: Validation, Course, Section, Component, Teaching mode, Faculty, Room, Day, Time, Violations, and Warnings.
+4. Use the `Teaching mode` filter to show Online assignments.
+5. Select `Review evidence` on one row to show its source requirement, chosen faculty, room or no-room result, time block, original solver scores, warnings, and violations.
+
+Explain:
+
+> “Every row remains traceable to one Schedule Requirement. Different subjects have different course-specific records, but rows sharing the DBM-1A logical cohort cannot overlap.”
+
+The action `Correct assignment` appears only while the run is `Under Review` and the authenticated role has review authority. It is intentionally absent after publication. A correction revalidates the complete candidate schedule; it is not an unchecked edit to one row.
+
+##### Step 8 — Publish an under-review candidate
+
+Perform this step only on an `Under Review` run that has complete coverage and no conflicts.
+
+1. Confirm `Assigned` equals the Schedule Requirement count.
+2. Confirm `Unassigned` is zero.
+3. Confirm `Hard Violations` and `Hard Conflicts` are zero.
+4. Confirm there are no blocking Validation Findings.
+5. Select `Publish Timetable`.
+6. If you intentionally accept advisory warnings or a lower soft-quality result, enable `Accept lower soft-quality result`.
+7. Enter a `Publication note` when accepting warnings or a lower soft-quality result. For example: `All 54 demands passed current hard-constraint validation; feasible result accepted for the Second Semester operating timetable.`
+8. Select `Publish Timetable` in the confirmation dialog.
+9. Wait for the `Timetable published` notification.
+
+Publication performs another live-record validation. If mutable source data changed after the snapshot, publication can still be blocked even though the original result was valid.
+
+After success:
+
+- the run status becomes `Published`;
+- 54 official meetings are available for the prepared `MIN` fixture;
+- applicable offerings advance to scheduled;
+- applicable planned Sections advance to `Open`;
+- faculty and students can consume only the official meetings relevant to them; and
+- later changes must use `Revise published timetable`, not a silent candidate-row edit.
+
+If the current run already shows `Published`, the `Publish Timetable` button is correctly absent. Do not attempt to publish it again.
+
+##### Step 9 — Verify the official timetable
+
+Return to `Class Planning` and select `Published Timetable`, or open `Offerings & Scheduling` → `Published Timetable`.
+
+1. Filter `Term` to `Second Semester`.
+2. Confirm that the current checkpoint contains 54 official meetings.
+3. Filter `Section` to a cohort-specific class such as a `DBM-1A` section.
+4. Review Class, Meeting time, Faculty, Room, and Teaching mode.
+5. Use the `Teaching mode` filter to show Online and Face-to-Face meetings.
+
+What to say:
+
+> “This is the official institutional timetable. Candidate rows remain review evidence, but only these published meetings are consumed by enrollment bindings, faculty schedules, and student class schedules.”
+
+For Online meetings, Room may display a dash because no physical room is required. For Face-to-Face meetings, the assigned suitable room must be visible.
+
+##### Step 10 — Show the role-specific result
+
+To demonstrate that publication reaches the correct consumers:
+
+1. Sign out of the Registrar workspace.
+2. Sign in at the same staff login page with `faculty.demo@example.test`.
+3. Open `Assigned Schedule`.
+4. Explain that the Faculty view contains only meetings assigned to that faculty account, not all 54 institutional meetings.
+5. Sign out.
+6. Open the Student login page at `http://127.0.0.1:8000/student/login`.
+7. Sign in with the prepared officially enrolled student `student.dit-1a.005@example.test`.
+8. Open `Class Schedule`.
+9. Confirm that the student sees the eight official meetings bound to the `DIT-1A` enrollment, including each row’s Teaching mode.
+10. Open `COR` to connect the same official enrollment and schedule to the student’s registration output.
+
+Use this closing explanation:
+
+> “The solve is term-wide, but the published result is projected by role. The Registrar sees the institutional master timetable, each faculty member sees only assigned meetings, and each officially enrolled student sees only the meetings bound to that student’s enrollment.”
+
+#### 3.1.3 Recovery guide
+
+| What is visible | Likely reason | What to do next |
+| --- | --- | --- |
+| Section State has Open but no Ready | You are editing the Section record. | Open the Section’s `Delivery Groups` relation and edit the delivery-group State there. |
+| No Schedule Requirements | They have not been generated for the selected term. | Select `Generate Schedule Requirements`, choose `Second Semester`, and review the results. |
+| One or more requirements show Action required | A source record is missing or contradictory. | Open the requirement, read the finding, correct its named source, then regenerate requirements. |
+| Generate Timetable is blocked | Not every requirement is ready, or another active run exists. | Resolve the displayed blocker; do not create parallel runs. |
+| Run stays Queued | The scheduling queue is not being processed. | Start or restore the dedicated scheduling queue listener, then allow the existing run to continue. |
+| Run is Failed | An operational dependency failed. | Review `Final Failure` and `Operational Events`, restore the dependency, then use `Retry timetable generation`. |
+| Run is Blocked | Laravel rejected the returned result. | Read `Validation Findings`; correct the contract or assignment defect before retrying. |
+| Solver status is Unknown | The solver stopped without a timetable and without proving infeasibility. | Treat it as inconclusive; use a separately approved retry or resource/time adjustment. |
+| Candidate has 54 rows but Publish Timetable is absent | The run is already Published, has a non-publishable status, contains a conflict, or the signed-in role lacks publication authority. | Check Result, conflicts, Validation Findings, and the authenticated role. |
+| Published Timetable is empty | No run has been explicitly published for the selected term. | Return to the valid Under Review run and complete authorized publication. |
+| Online row has no room | Online delivery does not consume a physical room. | Treat the blank or dash as correct when Teaching mode is Online. |
+| Faculty or Student schedule is empty after publication | The account has no official assignment or active enrollment binding for those meetings. | Use the prepared faculty or officially enrolled student persona and verify the selected term/enrollment. |
+
+#### 3.1.4 Safe one-presenter demonstration order
+
+Use this order to avoid changing the prepared checkpoint:
+
+1. Registrar → `Class Planning`
+2. Show the six workflow stages and the four current counts
+3. Show `Term offerings`
+4. Show one Section and its nested Delivery Group
+5. Show `Faculty qualifications`, `Faculty term loads`, and `Rooms`
+6. Show 54 `Schedule Requirements` with `Ready for review`
+7. Open the existing Published row in `Generated Timetables`
+8. Explain Current Validation, Solution Quality, Hard Constraint Checklist, and Validation Findings
+9. Filter `Candidate Assignments` by `DBM-1A` and Teaching mode
+10. Show 54 rows in `Published Timetable`
+11. Sign in as Faculty and open `Assigned Schedule`
+12. Sign in as the prepared Student and open `Class Schedule` and `COR`
+
+Do not modify delivery-group states, generate a second timetable, retry a successful request, correct a published candidate row, or revise the published timetable during the normal presentation. Explain those controls from their state-dependent UI and use the prepared evidence. Only perform a new solver request when the live integration demonstration has been explicitly chosen and its queue, solver authentication, timeout, and recovery path have been checked beforehand.
+
 ## 4. Contract, profile, and data representation
 
 ### 4.1 Scheduling Demand as the schedulable unit
@@ -315,7 +634,7 @@ A Scheduling Demand represents one required course component for one term offeri
 
 The course-specific delivery-group identifier preserves the exact source record used for publication. A second field, `cohort_or_student_group_id`, identifies the logical attendance cohort across subjects. Laravel builds that mapping from the exact term, program, curriculum year level, and cohort code.
 
-For example, ten different first-year Business Management subjects may have ten delivery-group records, but all ten map to the single logical cohort `DTBM-1A`. This distinction preserves traceability without weakening the rule that the same students cannot attend overlapping classes.
+For example, ten different first-year Business Management subjects may have ten delivery-group records, but all ten map to the single current seeded logical cohort `DBM-1A`. This distinction preserves traceability without weakening the rule that the same students cannot attend overlapping classes.
 
 The solver receives stable TALA identifiers rather than re-deriving institutional meaning. This allows Laravel to reconcile every returned row with its source demand and preserves auditability from input through publication.
 
@@ -1087,7 +1406,7 @@ The representative baseline is structurally complete scheduling input stored thr
 | Solver candidate output | One assignment per demand containing the subject and section identifiers, selected eligible faculty, weekday, start and end time, and room when required | Forms a complete proposed timetable. Laravel rejects missing, duplicate, overlapping, or otherwise invalid assignments. |
 | Published application output | Validated candidate assignments copied into official meeting records after authorized review | Produces the normal user-facing timetable by subject and section, with faculty, day, time, and room information. |
 
-For example, first-year Business Management cohort `DTBM-1A` contains 10 students and 10 curriculum-derived course requirements. Each requirement becomes a term offering, course-specific section, course-specific delivery group with expected count 10, and Scheduling Demand. Those ten delivery groups share the logical cohort identity `DTBM-1A`.
+For example, the current first-year Business Management cohort `DBM-1A` contains 10 students and 10 curriculum-derived course requirements. Each requirement becomes a term offering, course-specific section, course-specific delivery group with expected count 10, and Scheduling Demand. Those ten delivery groups share the logical cohort identity `DBM-1A`.
 
 For BME05 (Retail Management), the seed supplies the course, cohort, duration, modality, eligible faculty qualification, room type, expected count, and permissible time grid. CP-SAT supplies the selected faculty, room, weekday, and start and end times. The same process applies to other subjects, producing a conventional timetable rather than an aggregate workload count.
 

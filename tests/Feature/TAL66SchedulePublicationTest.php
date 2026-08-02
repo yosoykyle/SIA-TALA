@@ -104,6 +104,14 @@ final class TAL66SchedulePublicationTest extends TestCase
             $this->assertSame(SectionMeeting::StateActive, $meeting->state);
             $this->assertTrue($this->carbonAttribute($meeting, 'published_at')->equalTo($publishedAt));
             $this->assertSame(1, $run->candidateRows()->count());
+            $this->assertSame(
+                TermOffering::StateScheduled,
+                $demand->termOffering()->value('state'),
+            );
+            $this->assertSame(
+                Section::StateOpen,
+                $demand->sectionDeliveryGroup()->firstOrFail()->section()->value('state'),
+            );
 
             $activity = DB::table('activity_log')
                 ->where('subject_type', ScheduleGenerationRun::class)

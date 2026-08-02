@@ -336,6 +336,35 @@ final class TAL67EnrollmentPlacementTest extends TestCase
             ->assertActionHidden('confirmPlacement');
     }
 
+    public function test_regular_cohort_options_keep_multi_year_term_offerings_in_the_earliest_eligible_year(): void
+    {
+        $term = Term::factory()->create();
+        $enrollment = Enrollment::factory()->for($term)->create();
+        $firstYear = $this->publishedPlacement($term);
+        $secondYear = $this->publishedPlacement($term);
+
+        $firstYear['offering']->curriculumEntry->update([
+            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
+            'year_level' => 'First Year',
+            'term_label' => $term->label,
+            'term_type' => $term->type,
+        ]);
+        $secondYear['offering']->curriculumEntry->update([
+            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
+            'year_level' => 'Second Year',
+            'term_label' => $term->label,
+            'term_type' => $term->type,
+        ]);
+        $firstYear['section']->deliveryGroups()->update(['name' => 'DBM-1A']);
+        $secondYear['section']->deliveryGroups()->update(['name' => 'DBM-2A']);
+
+        $this->assertSame(
+            ['DBM-1A' => 'DBM-1A (1 published subjects)'],
+            $this->placement->regularCohortOptions($enrollment),
+        );
+        $this->assertSame('DBM-1A', $this->placement->recommendedRegularCohortCode($enrollment));
+    }
+
     /**
      * @return array{section:Section,offering:TermOffering,demand:SchedulingDemand,run:ScheduleGenerationRun,meetings:Collection<int, SectionMeeting>}
      */

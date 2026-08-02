@@ -18,7 +18,8 @@ use Throwable;
 final class SeedTAL96D5E1Exploration extends Command
 {
     protected $signature = 'acceptance:seed-tal96d5e1-exploration
-        {--check : Inspect the exploration catalogue without writing}';
+        {--check : Inspect the exploration catalogue without writing}
+        {--checkpoint=auto : Expected checkpoint: auto, pristine, accepted-candidate, or published}';
 
     protected $description = 'Prepare deterministic defense personas on the verified client-aligned MIN fixture.';
 
@@ -34,7 +35,7 @@ final class SeedTAL96D5E1Exploration extends Command
                 DB::transaction(fn () => $seeder->run(), attempts: 3);
             }
 
-            $report = $catalog->report();
+            $report = $catalog->report((string) $this->option('checkpoint'));
         } catch (Throwable $exception) {
             $this->error($exception->getMessage());
 
@@ -57,6 +58,18 @@ final class SeedTAL96D5E1Exploration extends Command
         $this->line('applicants_ready='.($report['applicants_ready'] ? 'yes' : 'no'));
         $this->line('students_ready='.($report['students_ready'] ? 'yes' : 'no'));
         $this->line('presentation_fixture_ready='.($report['presentation_fixture_ready'] ? 'yes' : 'no'));
+        $this->line('checkpoint_expected='.$report['checkpoint_expected']);
+        $this->line('checkpoint_detected='.$report['checkpoint_detected']);
+        $this->line('checkpoint_ready='.($report['checkpoint_ready'] ? 'yes' : 'no'));
+        $this->line('schedule_runs='.$report['schedule_runs']);
+        $this->line('candidate_rows='.$report['candidate_rows']);
+        $this->line('section_meetings='.$report['section_meetings']);
+        $this->line('scheduled_offerings='.$report['scheduled_offerings']);
+        $this->line('open_sections='.$report['open_sections']);
+        $this->line('representative_official_courses='.$report['representative_official_courses']);
+        $this->line('representative_active_bindings='.$report['representative_active_bindings']);
+        $this->line('accepted_candidate_ready='.($report['accepted_candidate_ready'] ? 'yes' : 'no'));
+        $this->line('published_checkpoint_ready='.($report['published_checkpoint_ready'] ? 'yes' : 'no'));
         $this->line('scheduling_outputs_empty='.($report['scheduling_outputs_empty'] ? 'yes' : 'no'));
         $this->line('solver_invoked=no');
         $this->line('external_provider_called=no');

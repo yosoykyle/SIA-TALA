@@ -162,7 +162,6 @@ class EnrollmentPlacementService
      */
     public function regularCohortOptions(Enrollment $enrollment): array
     {
-        $sectionIds = $this->placementSummaries($enrollment)->pluck('section_id');
         $eligibleOfferingIds = $this->eligibleOfferingIds($enrollment)
             ->sort()
             ->values()
@@ -172,6 +171,25 @@ class EnrollmentPlacementService
         if ($eligibleOfferingIds === []) {
             return [];
         }
+
+        $eligibleOfferings = TermOffering::query()
+            ->whereKey($eligibleOfferingIds)
+            ->with('curriculumEntry:id,year_level')
+            ->get();
+        $targetYearLevel = $eligibleOfferings
+            ->pluck('curriculumEntry.year_level')
+            ->filter(fn (mixed $yearLevel): bool => filled($yearLevel))
+            ->sort()
+            ->first();
+        $targetOfferingIds = $eligibleOfferings
+            ->filter(fn (TermOffering $offering): bool => $targetYearLevel === null
+                || $offering->curriculumEntry?->year_level === $targetYearLevel)
+            ->modelKeys();
+        sort($targetOfferingIds);
+
+        $sectionIds = $this->placementSummaries($enrollment)
+            ->whereIn('term_offering_id', $targetOfferingIds)
+            ->pluck('section_id');
 
         $sections = Section::query()
             ->whereIn('id', $sectionIds)
@@ -197,7 +215,7 @@ class EnrollmentPlacementService
             $publishedOfferingIds = array_map('intval', array_keys($offeringIds));
             sort($publishedOfferingIds);
 
-            if ($publishedOfferingIds !== $eligibleOfferingIds) {
+            if ($publishedOfferingIds !== $targetOfferingIds) {
                 continue;
             }
 

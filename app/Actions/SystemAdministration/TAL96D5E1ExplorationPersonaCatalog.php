@@ -14,6 +14,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use InvalidArgumentException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -25,6 +26,14 @@ use Illuminate\Support\Facades\Hash;
  */
 final class TAL96D5E1ExplorationPersonaCatalog
 {
+    public const CheckpointAuto = 'auto';
+
+    public const CheckpointPristine = 'pristine';
+
+    public const CheckpointAcceptedCandidate = 'accepted-candidate';
+
+    public const CheckpointPublished = 'published';
+
     public function __construct(
         private readonly SchedulingAcceptanceScenarioCatalog $scenarios,
     ) {}
@@ -178,28 +187,22 @@ final class TAL96D5E1ExplorationPersonaCatalog
         ];
     }
 
-    /**
-     * @return array{
-     *     coverage_state:'PASS'|'FAIL',
-     *     personas:int,
-     *     denied_login_personas:int,
-     *     student_profiles:int,
-     *     current_students:int,
-     *     historical_case_profiles:int,
-     *     cohorts:int,
-     *     term_offerings:int,
-     *     scheduling_demands:int,
-     *     faculty:int,
-     *     staff_ready:bool,
-     *     applicants_ready:bool,
-     *     students_ready:bool,
-     *     denied_login_ready:bool,
-     *     presentation_fixture_ready:bool,
-     *     scheduling_outputs_empty:bool
-     * }
-     */
-    public function report(): array
+    /** @return array<string, mixed> */
+    public function report(string $expectedCheckpoint = self::CheckpointAuto): array
     {
+        $expectedCheckpoint = strtolower(trim($expectedCheckpoint));
+
+        if (! in_array($expectedCheckpoint, [
+            self::CheckpointAuto,
+            self::CheckpointPristine,
+            self::CheckpointAcceptedCandidate,
+            self::CheckpointPublished,
+        ], true)) {
+            throw new InvalidArgumentException(
+                'Checkpoint must be auto, pristine, accepted-candidate, or published.',
+            );
+        }
+
         $term = $this->presentationTerm();
         $personaEmails = $this->personaEmails();
         $staffReady = $this->staffAreReady();
@@ -239,12 +242,85 @@ final class TAL96D5E1ExplorationPersonaCatalog
             && $termOfferings === 54
             && $schedulingDemands === 54
             && $faculty === 9;
-        $schedulingOutputsEmpty = ScheduleGenerationRun::query()->doesntExist()
-            && SectionMeeting::query()->doesntExist()
-            && DB::table('candidate_schedule_rows')->doesntExist()
-            && DB::table('schedule_revision_events')->doesntExist()
-            && DB::table('jobs')->doesntExist()
+        $termRuns = ScheduleGenerationRun::query()
+            ->whereBelongsTo($term)
+            ->withCount(['candidateRows', 'sectionMeetings'])
+            ->get();
+        $termRunIds = $termRuns->modelKeys();
+        $candidateRows = DB::table('candidate_schedule_rows')
+            ->whereIn('schedule_run_id', $termRunIds)
+            ->count();
+        $sectionMeetings = SectionMeeting::query()
+            ->whereIn('schedule_run_id', $termRunIds)
+            ->count();
+        $scheduledOfferings = TermOffering::query()
+            ->whereBelongsTo($term)
+            ->where('state', TermOffering::StateScheduled)
+            ->count();
+        $termSections = DB::table('sections')
+            ->join('term_offerings', 'term_offerings.id', '=', 'sections.term_offering_id')
+            ->where('term_offerings.term_id', $term->id);
+        $sections = (clone $termSections)->count('sections.id');
+        $openSections = (clone $termSections)
+            ->where('sections.state', 'OPEN')
+            ->count('sections.id');
+        $jobsEmpty = DB::table('jobs')->doesntExist()
             && DB::table('failed_jobs')->doesntExist();
+        $schedulingOutputsEmpty = $termRuns->isEmpty()
+            && $candidateRows === 0
+            && $sectionMeetings === 0
+            && DB::table('schedule_revision_events')->doesntExist()
+            && $jobsEmpty;
+        $acceptedCandidateRun = $termRuns
+            ->where('status', ScheduleGenerationRun::StatusUnderReview)
+            ->first(fn (ScheduleGenerationRun $run): bool => (int) $run->candidate_rows_count === $schedulingDemands
+                && $run->canBePublished());
+        $acceptedCandidateReady = $acceptedCandidateRun instanceof ScheduleGenerationRun
+            && $candidateRows === $schedulingDemands
+            && $sectionMeetings === 0
+            && $termRuns->where('status', ScheduleGenerationRun::StatusPublished)->isEmpty()
+            && $jobsEmpty;
+        $officialEnrollment = Enrollment::query()
+            ->whereBelongsTo($term)
+            ->where('status', 'officially_enrolled')
+            ->whereHas('studentProfile.user', fn ($query) => $query
+                ->where('email', 'student.dit-1a.005@example.test'))
+            ->withCount('courseEnrollments')
+            ->first();
+        $activeBindings = $officialEnrollment instanceof Enrollment
+            ? DB::table('student_schedule_bindings')
+                ->join(
+                    'course_enrollments',
+                    'course_enrollments.id',
+                    '=',
+                    'student_schedule_bindings.course_enrollment_id',
+                )
+                ->where('course_enrollments.enrollment_id', $officialEnrollment->id)
+                ->where('student_schedule_bindings.is_active', true)
+                ->count()
+            : 0;
+        $publishedRun = $termRuns
+            ->where('status', ScheduleGenerationRun::StatusPublished)
+            ->first(fn (ScheduleGenerationRun $run): bool => (int) $run->candidate_rows_count === $schedulingDemands
+                && (int) $run->section_meetings_count === $schedulingDemands);
+        $publishedCheckpointReady = $publishedRun instanceof ScheduleGenerationRun
+            && $candidateRows === $schedulingDemands
+            && $sectionMeetings === $schedulingDemands
+            && $scheduledOfferings === $termOfferings
+            && $openSections === $sections
+            && $officialEnrollment instanceof Enrollment
+            && (int) $officialEnrollment->course_enrollments_count === 8
+            && $activeBindings === 8
+            && $jobsEmpty;
+        $detectedCheckpoint = match (true) {
+            $publishedCheckpointReady => self::CheckpointPublished,
+            $acceptedCandidateReady => self::CheckpointAcceptedCandidate,
+            $schedulingOutputsEmpty => self::CheckpointPristine,
+            default => 'invalid',
+        };
+        $checkpointReady = $detectedCheckpoint !== 'invalid'
+            && ($expectedCheckpoint === self::CheckpointAuto
+                || $expectedCheckpoint === $detectedCheckpoint);
         $passes = count($personaEmails) === 28
             && count(array_unique($personaEmails)) === 28
             && $staffReady
@@ -252,7 +328,7 @@ final class TAL96D5E1ExplorationPersonaCatalog
             && $studentsReady
             && $deniedLoginReady
             && $presentationFixtureReady
-            && $schedulingOutputsEmpty;
+            && $checkpointReady;
 
         return [
             'coverage_state' => $passes ? 'PASS' : 'FAIL',
@@ -270,6 +346,18 @@ final class TAL96D5E1ExplorationPersonaCatalog
             'students_ready' => $studentsReady,
             'denied_login_ready' => $deniedLoginReady,
             'presentation_fixture_ready' => $presentationFixtureReady,
+            'checkpoint_expected' => $expectedCheckpoint,
+            'checkpoint_detected' => $detectedCheckpoint,
+            'checkpoint_ready' => $checkpointReady,
+            'schedule_runs' => $termRuns->count(),
+            'candidate_rows' => $candidateRows,
+            'section_meetings' => $sectionMeetings,
+            'scheduled_offerings' => $scheduledOfferings,
+            'open_sections' => $openSections,
+            'representative_official_courses' => $officialEnrollment?->course_enrollments_count ?? 0,
+            'representative_active_bindings' => $activeBindings,
+            'accepted_candidate_ready' => $acceptedCandidateReady,
+            'published_checkpoint_ready' => $publishedCheckpointReady,
             'scheduling_outputs_empty' => $schedulingOutputsEmpty,
         ];
     }

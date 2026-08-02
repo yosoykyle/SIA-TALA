@@ -1928,7 +1928,7 @@ TAL-96D5E1D separates capability ownership from menu placement. The PRD capabili
 | Public visitor | Public landing explains Applicant, Student, and Staff workspaces, admission availability, FAQs, and safe error recovery. | Published FAQs and the configured admissions window determine what is shown; authenticated records remain private. | `Aligned`; retain the D4D and D5B implementation and evidence. |
 | Applicant | **Home** and **Application** are primary. Requirements, evidence, and Registrar feedback remain contextual to the current or historical Application. | Applicant Intake, Checklist Items, and private Document Evidence remain authoritative until explicit Registrar handover. | `Gap corrected`: Requirements no longer competes as a peer task, while direct authorized access and correction links remain. |
 | Student | **Home**, **Enrollment**, **Academics**, **Finance**, and **Profile** are primary. COR, Class Schedule, Grades, Holds, Academic Status, and Completion remain contextual read-only projections. | Official Enrollment, published meetings, Ledger, released Grades, Holds, and lifecycle/graduation records remain staff-owned sources. | `Gap corrected`: nine peer destinations became five understandable task entries without deleting a projection. |
-| Faculty | **My Faculty Work** links Assigned Schedule, Grade Rosters, and **My Unavailable Times**. Draft/Returned/Late rosters are editable; Submitted/Released rosters remain visible as read-only history. | Published Section Meetings, Grade Rosters, Grade Roster Rows, and Faculty-scoped Calendar Events remain authoritative. | `Gap corrected`: availability became discoverable and completed roster history no longer disappeared. |
+| Faculty | **Home**, **My Schedule**, **Grade Rosters**, and **My Unavailable Times** are the primary destinations. Draft/Returned/Late rosters are editable; Submitted/Released rosters remain visible as read-only history. | Published Section Meetings, Grade Rosters, Grade Roster Rows, and Faculty-scoped Calendar Events remain authoritative. | `Gap corrected`: availability became discoverable and completed roster history no longer disappeared. |
 | Registrar | **Home**, **Academic Readiness**, **Admissions**, **Class Planning**, **Students & Enrollment**, **Grades & Completion**, and **Reports** are primary. | Existing academic, admissions, scheduling, enrollment, and student-record services retain ownership. | `Gap corrected`: source records remain contextual; Grades and Completion now share a truthful task center. |
 | Accounting | **Home**, **Student Accounts**, **Payment Exceptions**, **Fee Setup**, and **Reports** are primary. | Assessment, Payment Attempt, Payment, immutable Ledger Entry, Adjustment, Accommodation, and provider evidence remain distinct sources. | `Aligned`; reuse independently verified D5E1C behavior and present its three-stage operating model directly. |
 | Academic Head | **Home**, **Academic Oversight**, **Approvals**, and **Reports** are primary. Approvals opens only policy-authorized evidence and never transfers Registrar or Faculty ownership. | The owning Registrar or Faculty records remain authoritative; only PRD-approved review/correction actions are exposed. | `Gap corrected`: a combined Approvals task center replaces unexplained peer resources. |
@@ -2013,3 +2013,660 @@ Curriculum level is not a persisted Student attribute. TALA derives the unique l
 | When should another offering and schedule run be considered? | Only when the institution approves an additional regular or special offering because no suitable published capacity exists. Individual placement consumes an existing published section and does not invoke CP-SAT. |
 | Why can one Student show Mixed Levels? | Irregular loads may contain courses from several curriculum levels. TALA lists the represented levels instead of mislabeling the whole enrollment from the first course. |
 | Are Enrollment, Student Profile, Published Schedule, and COR duplicate records? | No. Enrollment is the term decision; Student Profile is the person and history; Published Schedule is the official timetable; COR is a generated current-registration output from those sources. |
+
+## 10. End-to-End Demonstration Navigation: Prepared and Manual Paths
+
+This section separates two different operating goals:
+
+1. **Prepared presentation path:** use the seeded personas and completed states to demonstrate the complete system reliably. Do not rebuild the institution during a timed presentation.
+2. **Manual creation path:** create a new, uniquely named record and advance it through every operator-facing action that currently exists.
+
+The prepared path proves breadth. The manual path proves how records are created and why each stage depends on the previous one. They must not be mixed accidentally: never overwrite a seeded persona, Run #10, or another prepared acceptance record merely to demonstrate data entry.
+
+### 10.1 Access points and session setup
+
+All prepared local accounts use password `password`.
+
+| Workspace | Local entry | Who uses it |
+| --- | --- | --- |
+| Public landing | `http://127.0.0.1:8000` | Public visitor choosing the correct workspace |
+| Applicant Workspace | `http://127.0.0.1:8000/applicant/login` | Applicant registration, draft, submission, requirements, and corrections |
+| Student Hub | `http://127.0.0.1:8000/student/login` | Official enrollment, schedule, COR, finance, academics, and released results |
+| Staff Workspace | `http://127.0.0.1:8000/admin/login` | Registrar, Accounting, Faculty, Academic Head, and System Super Admin |
+
+Use separate browser profiles for Applicant, Student, and Staff. Only one staff role should use the Staff profile at a time; sign out before changing roles.
+
+The current navigation is task-centered. Applicant primary navigation contains **Home** and **Application**; **Requirements** is opened contextually from Home. Student primary navigation contains **Home**, **Enrollment**, **Academics**, **Finance**, and **Profile**; COR and Class Schedule open from Enrollment, while Grades, Holds, Academic Status, and Completion open from Academics. Faculty primary navigation contains **Home**, **My Schedule**, **Grade Rosters**, and **My Unavailable Times**.
+
+For a manual trial, use unique values such as:
+
+- applicant email: `applicant.manual.20260731@example.test`;
+- academic code suffix: `MANUAL-20260731`;
+- payment reference: `MANUAL-PAY-20260731-001`; and
+- reason or note: `Manual UI walkthrough — 31 July 2026`.
+
+Do not reuse an existing student number, section code, payment reference, OR number, or applicant email.
+
+### 10.2 What can currently be created entirely through the UI
+
+The following capability map prevents the guide from inventing actions that do not exist.
+
+| Transition | Current UI status | Verified entry or action |
+| --- | --- | --- |
+| Applicant account and application draft | Available | Applicant sign-in page → **Apply Online**; Applicant → **Application** → **Save Draft** |
+| Applicant submission and correction | Available | **Submit Application**; Applicant → **Home** → **Review Requirements** → **Submit Corrected Evidence** |
+| Registrar evidence review, evaluation, approval, and handover | Available | Registrar → **Admissions** → **Admissions Work Queue** → **Open Review** |
+| Admission Requirement Policy maintenance | Available only through a contextual link after a non-Draft Applicant record can be opened | Applicant review → **Requirement Policies**; no first-time primary-navigation link exists on an empty setup |
+| Academic year, term, program, curriculum, courses, rooms, and qualifications | Available | Registrar → **Academic Readiness** and its **Source records** menu |
+| Offerings, sections, and delivery groups | Available | Registrar → **Class Planning** → **Term Offerings** → **Build Regular Offerings** |
+| Scheduling-demand creation, solver request, review, and publication | Available | Registrar → **Class Planning** → **Schedule Requirements** / **Generated Timetables** |
+| Continuing Enrollment and placement | Available | Registrar → **Students & Enrollment** → **Enrollments** |
+| First draft Assessment for a brand-new Enrollment | **No operator-facing creation action currently exists** | `Student Accounts` lists existing assessments; it has no Create or Generate Assessment action |
+| Activation and manual payment for an existing draft Assessment | Available | Accounting → **Student Accounts** → open record → **Activate Assessment** / **Record Manual Payment** |
+| PayMongo checkout for an existing active account | Available when configured and authorized | Student → **Finance** → **Pay Current Due** |
+| Official enrollment after all gates pass | Available | Registrar → open Enrollment → **Record Official Enrollment** |
+| First Grade Roster for a newly published section | **No operator-facing creation action currently exists** | The grade-roster generation service exists, but no Registrar or Faculty button invokes it |
+| Faculty encoding and submission of an existing roster | Available | Faculty → **Grade Rosters** → **Select Roster** |
+| Registrar return or release of an existing submitted roster | Available | Registrar → **Grades & Completion** → **Grade Rosters** |
+| Lifecycle and completion review records | Available where the applicable source record and authority exist | Registrar → **Students & Enrollment** / **Grades & Completion** |
+
+Therefore, the application does **not yet support a completely blank-database-to-released-grade journey using only visible UI actions**. The seeded baseline supplies Admission Requirement Policies. With those policies present, a new manual Applicant can advance through timetable publication and placement, but the journey must stop before a new assessment is needed. It may resume with an existing seeded assessment. The same boundary applies before first-time Grade Roster creation.
+
+Do not bypass these boundaries with direct database editing or an improvised production command. For the present demonstration, use the seeded Admission Requirement Policies and prepared Assessment and Grade Roster records. A truly complete UI-only manual journey requires three separately planned product corrections:
+
+1. a discoverable first-time **Admission Requirements** entry for authorized Registrar setup;
+2. an Accounting-owned **Generate Draft Assessment** action on an eligible placed Enrollment; and
+3. an authorized **Generate Grade Roster** action for a published section with active enrolled students and assigned Faculty.
+
+### 10.3 Prepared-data presentation path
+
+For a timed defense, use the existing prepared records. The purpose is to show one correct state per stage without changing the baseline.
+
+| Stage | Account or record | Navigation |
+| --- | --- | --- |
+| Editable applicant | `applicant.demo@example.test` | Applicant → **Home** → **Application** |
+| Submitted applicant | `applicant.review.demo@example.test` | Applicant → **Home** → **Application** |
+| Correction required | `applicant.action-required.demo@example.test` | Applicant → **Home** → **Review Requirements** |
+| Evaluation | `applicant.evaluation.demo@example.test` | Applicant → **Home** |
+| Approved | `applicant.approved.demo@example.test` | Applicant → **Home** |
+| Admissions review | `registrar.demo@example.test` | Registrar → **Admissions**; this opens the Admissions Work Queue |
+| Academic preparation | same Registrar | Registrar → **Academic Readiness** |
+| Class preparation | same Registrar | Registrar → **Class Planning** → **Source records** |
+| Published timetable | Run #10 at the prepared checkpoint | **Class Planning** → **Source records** → **Generated timetables** → Run #10; then **Published timetable** |
+| Official regular enrollment | student linked to `student.dit-1a.005@example.test` | Registrar → **Students & Enrollment**; this opens Enrollments |
+| Student projection | `student.dit-1a.005@example.test` | Student → **Enrollment** → **Class Schedule** / **Current COR** |
+| Student account | same student | Accounting → **Student Accounts** |
+| Payment exceptions | `student.dit-1a.001@example.test` and `student.dit-1a.002@example.test` | Accounting → **Payment Exceptions** |
+| Faculty schedule and roster | `faculty.demo@example.test` | Faculty → **My Schedule** / **Grade Rosters** |
+| Released Student grade | `student.demo@example.test` | Student → **Academics** → **Released Grades** |
+| Health and audit | `system-admin.demo@example.test` | System Super Admin → **System Health** / **Governance & Audit** |
+
+Run #10 is the current prepared checkpoint, not a permanent semantic identifier. After a deliberate restore or reseed, use the newest run whose visible status is **Published** and verify that its candidate and official-meeting counts match the intended fixture.
+
+### 10.4 Manual preflight
+
+Complete these checks before creating anything.
+
+1. Open the public landing page and confirm that Applications are open. If registration redirects back with “Applications are currently closed,” the Registrar must configure an effective Admissions window before a new account can apply.
+2. Sign in as Registrar and open **Academic Readiness**. Select the target Program and confirm that an active Curriculum exists.
+3. Open **Class Planning**, select the target Term, and check every stage in order.
+4. Confirm that the target Term is active, its date range is inside its Academic Year, and its scheduling days and hours are correct.
+5. Confirm that at least one suitable active room and one active qualified Faculty record exist for each face-to-face course.
+6. Confirm that the solver integration is available before selecting **Generate Timetable**.
+7. If the goal begins from an empty database, acknowledge the first-time Admission Requirement Policy navigation boundary.
+8. If the goal includes payment or grades, acknowledge the two downstream creation boundaries in Section 10.2 and decide which seeded Assessment and Grade Roster will be used after the manual portion stops.
+
+### 10.5 Manual Stage A — Create the academic period
+
+**Role:** Registrar
+
+**Path:** Staff Workspace → **Academic Readiness** → **Source records**
+
+#### A1. Create the Academic Year
+
+1. Select **Academic years**.
+2. Select the visible Create action.
+3. Enter:
+   - **Academic Year**, for example `2026-2027`;
+   - **School Year Start**;
+   - **School Year End**; and
+   - **State**.
+4. Save.
+
+Expected result: one Academic Year parent record exists. A Term cannot be valid outside this date range.
+
+#### A2. Create the Term
+
+1. Return to **Academic Readiness** → **Source records** → **Terms**.
+2. Select the visible Create action.
+3. Enter:
+   - **Term Name**;
+   - **Academic Year**;
+   - **Term Type**;
+   - **State**;
+   - start and end dates;
+   - **Scheduling Slot Minutes**;
+   - **Scheduling Days**;
+   - **Scheduling Day Starts At**;
+   - **Scheduling Day Ends At**; and
+   - optional **Default Faculty Max Units**.
+4. Save.
+
+Expected result: the Term becomes the common scope for admissions, offerings, scheduling, enrollment, assessment, grading, and reports.
+
+Recovery:
+
+- If the Term dates are rejected, keep both dates inside the selected Academic Year.
+- If later menus appear empty, confirm this Term is selected and in the state required by that workflow.
+- Do not create a second Term merely to work around a state or filter problem.
+
+### 10.6 Manual Stage B — Create the academic structure
+
+**Role:** Registrar
+
+**Path:** Staff Workspace → **Academic Readiness**
+
+#### B1. Create or select the Program
+
+1. Open **Source records** → **Programs**.
+2. Select the visible Create action.
+3. Enter a unique Program code, Program name, Program length, and **Active** state.
+4. Save.
+
+#### B2. Create Courses and a Curriculum draft
+
+1. Open **Course catalog** and create the required subject codes.
+2. Return to **Academic Readiness**.
+3. Select **Create curriculum draft** for the Program.
+4. Open the draft's review table.
+5. Select **Add curriculum row** for each subject.
+6. For each row, enter:
+   - **Course Specification**;
+   - **Year Level**;
+   - **Term Type** and **Term Label**;
+   - **Display Sequence**; and
+   - **Requirement Group**.
+7. If a row shows an incomplete Specification, select **Complete specification**.
+8. Enter:
+   - **Subject Title**;
+   - **Credit Units**;
+   - grading profile and version;
+   - allowed delivery modalities;
+   - whether linked components use the same Faculty; and
+   - each Course Component's type, weekly contact hours, room type, required features, modality, consecutive-block rule, and same-Faculty rule.
+9. Use **Edit placement** if the year or term position is wrong.
+10. When all rows are ready, select **Record external approval**, enter the approval reference, then select **Activate complete curriculum** and **Confirm activation**.
+
+Expected result: the Program has one active, complete Curriculum that can support Applicant handover and Term Offering generation.
+
+Recovery:
+
+- If activation is absent or blocked, read **What blocks progress** and **Next action** on the curriculum review table.
+- Do not mark an incomplete Curriculum active by editing its state outside the authorized action.
+- A newly created Applicant cannot be handed over until the selected Program has a compatible active Curriculum.
+
+### 10.7 Manual Stage C — Configure admissions prerequisites
+
+**Role:** Registrar
+
+**Path:** **Academic Readiness** and **Admissions**
+
+1. Under Academic Readiness source records, open **Academic calendar windows**.
+2. Create an effective Admissions window. Enter the Term, **Process**, **Opens At**, **Closes At**, State, and **Authority / Reference**.
+3. Confirm that the seeded baseline already contains the policies needed for the intended Applicant. A normal Registrar reaches policy maintenance by opening a non-Draft Applicant in **Admissions**, then selecting **Requirement Policies**.
+4. If a non-Draft Applicant can be opened, use **Requirement Policies** to create or maintain the required policies. Enter the admission category, credential basis, requirement type, evidence method, blocking level, State, effective dates, and authority.
+5. Confirm whether each requirement is:
+   - uploaded online;
+   - brought physically to the Registrar; or
+   - recorded by staff without a file.
+
+Expected result: a new Applicant may register, select the intended Term and Program, and receive the correct checklist after submission.
+
+Recovery:
+
+- If **Apply Online** redirects away, the Admissions window is not currently effective.
+- If My Application says no admission requirements are configured, correct the policy scope instead of submitting a requirement-free application.
+- On a truly empty installation with no policy and no non-Draft Applicant, the current task navigation exposes no first-time **Admission Requirements** link. Stop and record the UI gap; do not invent a policy through direct database editing.
+
+### 10.8 Manual Stage D — Create and submit a new Applicant
+
+**Role:** Applicant
+
+**Path:** Public landing → Applicant Workspace → **Apply Online**
+
+1. On Applicant login, select **Apply Online**.
+2. On **Create Applicant Account**, enter a unique email and the requested account fields.
+3. Complete registration and sign in.
+4. Open **Application**.
+5. In the wizard, complete:
+   - admission Term and preferred Program;
+   - admission category and credential basis;
+   - legal name and identity information;
+   - birth information;
+   - email and contact number;
+   - address;
+   - parent or guardian details;
+   - most recent school;
+   - each required digital upload; and
+   - the final accuracy confirmation.
+6. Select **Save Draft** at any point to preserve a partial record.
+7. Review the final step.
+8. Select **Submit Application**.
+
+Expected result: the private Draft becomes a submitted application visible in the Registrar's Admissions Work Queue. The Applicant Dashboard should show Registrar review in progress.
+
+Recovery:
+
+- If submission is disabled, complete the required final confirmation and every required field.
+- If the Application may be saved but not submitted, check the Admissions window and matching requirement policies.
+- If the email already exists, choose another manual-test email; do not reuse or edit a seeded account.
+
+### 10.9 Manual Stage E — Review requirements and create a correction loop
+
+**Role:** Registrar, then Applicant
+
+**Registrar path:** **Admissions** (opens the Admissions Work Queue) → **Open Review**
+
+1. Search by the new Applicant email.
+2. Open the record and read:
+   - **Current Stage**;
+   - **Responsible Party**;
+   - **Next Action**;
+   - **Requirement Readiness**; and
+   - **Official Student Record Check**.
+3. In the requirements table, open **Review Actions**.
+4. For a physical requirement, select **Record Physical Receipt** first.
+5. For acceptable evidence, select the visible **Verify Digital Evidence**, **Verify Physical Requirement**, or **Verify Staff-Tracked Requirement** action.
+6. To demonstrate correction, select the corresponding Reject action and enter a specific **Correction Instruction**.
+
+Expected result after rejection: the application becomes Action Required and the Applicant sees the exact correction instruction.
+
+**Applicant correction path:** Applicant → **Home** → **Review Requirements**
+
+1. Open **Submit Corrected Evidence**.
+2. Select **Requirement to Correct**.
+3. upload the **Corrected File**.
+4. Submit it.
+
+Expected result: the new evidence becomes available to the Registrar; the previous rejected evidence remains in history.
+
+Return to the Registrar review, verify the corrected evidence, then continue.
+
+Do not use **Waive Requirement** or **Approve Undertaking** merely to make the demonstration faster. Those actions require a real approved basis and recorded reason or terms.
+
+### 10.10 Manual Stage F — Evaluate, approve, and hand over
+
+**Role:** Registrar
+
+**Path:** **Admissions** → open the Applicant from the Admissions Work Queue
+
+1. Confirm that all handover-blocking requirements are resolved.
+2. Select **Mark for Evaluation**.
+3. Confirm the action.
+4. Recheck the application and select **Approve Application**.
+5. Confirm the approval.
+6. Select **Hand Over to Student**.
+7. Read the handover preview:
+   - Applicant identity;
+   - selected Program;
+   - active Curriculum;
+   - requirement state; and
+   - possible duplicate Student Profile matches.
+8. For a returning applicant, explicitly choose whether to create a new profile or reuse a confirmed matching profile.
+9. Select **Confirm Hand Over**.
+10. Use **View Student Profile** from the success notification.
+
+Expected result: the system creates or reuses one official Student Profile and changes the person's workspace boundary. It does not create a duplicate profile, official enrollment, payment, timetable, or grade.
+
+Recovery:
+
+- If **Mark for Evaluation** is blocked, resolve submitted evidence first.
+- If **Approve Application** is absent, the record is not in For Evaluation.
+- If **Hand Over to Student** is absent or blocked, inspect handover blockers, duplicate identity findings, and the Program's active Curriculum.
+
+### 10.11 Manual Stage G — Prepare Faculty, rooms, and delivery records
+
+**Roles:** System Super Admin for staff account/role setup; Registrar for academic source records
+
+**Paths:** System Super Admin → **Users & Access**; Registrar → **Class Planning** → **Source records**
+
+#### G1. Faculty account and qualification
+
+1. If a new Faculty account is required, the System Super Admin creates the User and grants only the Faculty role and required permissions.
+2. Registrar opens **Class Planning** → **Source records** → **Faculty qualifications**.
+3. Select Create.
+4. Choose **Faculty**, **Course**, **Active Qualification**, and **Recorded By**.
+5. Save.
+6. Configure any applicable Faculty Term Load Override.
+7. Faculty opens **My Unavailable Times** and records any recurring term-scoped unavailable blocks.
+
+#### G2. Room
+
+1. Registrar opens **Class Planning** → **Source records** → **Rooms**.
+2. Select Create.
+3. Enter code, name, building, room type, capacity, **Active Room**, and notes.
+4. Save.
+5. Open the Room and add required features when the Course Specification requires them.
+
+Expected result: scheduling readiness can prove Faculty qualification/load and room capacity/type/features.
+
+### 10.12 Manual Stage H — Build offerings, sections, and logical cohorts
+
+**Role:** Registrar
+
+**Path:** **Class Planning** → **Source records** → **Term offerings**
+
+1. Select **Build Regular Offerings**.
+2. Under **Offering Scope**, choose:
+   - **Target Term**;
+   - Program;
+   - **Active Curriculum Version**; and
+   - Year Level.
+3. Review **Eligible Curriculum Entries**.
+4. For each included row, confirm:
+   - modality;
+   - expected count;
+   - optional authorized room-type or same-Faculty override;
+   - **Confirmed Section Code**;
+   - section capacity; and
+   - **Planned Delivery Groups** with group name, expected count, and modality.
+5. Use one common logical-cohort name, such as `DIT-1A`, across the different subject-specific sections attended by the same students.
+6. Submit the builder.
+7. Return to **Class Planning** → **Source records** → **Sections and delivery groups**. This opens Section Planning.
+8. Open each applicable Section, find its Delivery Groups, select Edit, and change the group state from **Planned** to **Ready** only after its expected count, modality, and source relationships are complete.
+
+Expected result: each curriculum subject has its own Term Offering and Section, while the shared logical-cohort identity prevents the same students' subjects from overlapping.
+
+For an institutionally approved extra subject outside the regular builder, use **Record Approved Special Offering** and supply the required approval reason. Do not use it as a shortcut around an incomplete Curriculum.
+
+State boundary:
+
+- Section **Planned** means it is not yet enrollable.
+- Delivery Group **Ready** means its scheduling source record is complete.
+- Publication later changes eligible planned Sections to **Open**.
+
+### 10.13 Manual Stage I — Generate Schedule Requirements
+
+**Role:** Registrar
+
+**Path:** **Class Planning** → **Source records** → **Schedule requirements**
+
+1. Select the target Term.
+2. Select **Generate Schedule Requirements**.
+3. Review the generated rows.
+4. Resolve every row marked **Action required**.
+5. Confirm that the intended rows are **Ready for review**.
+
+Check these sources when a demand is blocked:
+
+- Course component duration and consecutive-block requirement;
+- Delivery Group expected count and modality;
+- eligible Faculty and term load;
+- suitable active room;
+- room features and capacity;
+- schedule grid;
+- fixed assignments; and
+- recurring unavailable blocks.
+
+Expected result: one ready Scheduling Demand exists per required course component and delivery group. Generating requirements does not call CP-SAT and does not publish a timetable.
+
+### 10.14 Manual Stage J — Generate and review a candidate timetable
+
+**Role:** Registrar
+
+**Path:** **Class Planning** → **Source records** → **Generated timetables**
+
+1. Confirm that there is no competing active run for the Term.
+2. Select **Generate Timetable**.
+3. Choose the target Term and submit.
+4. Wait for the queue and private solver request to complete.
+5. Open the resulting row with **Review timetable**.
+6. On **Generated Timetable Review**, inspect:
+   - Generated Timetable Summary;
+   - Operations and Diagnostics;
+   - Current Validation;
+   - Solution Quality;
+   - Original Solver Result;
+   - Hard Constraint Checklist;
+   - Soft Objective Evidence;
+   - Validation Findings; and
+   - Candidate Assignments.
+7. Use **Review evidence** for the detailed solver and Laravel evidence.
+8. If an institutionally justified row must change, use **Correct assignment**, enter the replacement, and let Laravel revalidate the complete candidate set.
+
+Expected result: a candidate timetable is Under Review. It is not yet an official Student or Faculty schedule.
+
+Recovery:
+
+- **Unknown** is inconclusive, not infeasible.
+- **Infeasible** applies only to the exact tested input.
+- Authentication, queue, HTTP, timeout, service, and memory failures are operational failures, not CP-SAT conclusions.
+- Use **Retry timetable generation** only after the retry reason is understood.
+- Use **Enter complete timetable** only for the authorized complete-manual replacement path; do not enter a partial schedule.
+
+### 10.15 Manual Stage K — Publish the timetable
+
+**Role:** Registrar
+
+**Path:** open the validated Generated Timetable Review
+
+1. Confirm exact demand coverage and zero hard violations.
+2. If the result is Feasible rather than Optimal, inspect the relative gap and institutional acceptability.
+3. Select **Publish Timetable**.
+4. If shown, deliberately choose whether to **Accept lower soft-quality result**.
+5. Enter the required **Publication note**.
+6. Confirm publication.
+7. Return to **Class Planning** → **Source records** → **Published timetable**.
+
+Expected result:
+
+- Candidate Assignments are copied into official meetings.
+- The run becomes **Published**.
+- affected offerings become Scheduled.
+- eligible planned Sections become **Open**.
+- Faculty Assigned Schedule and later Student bindings may project these official meetings.
+
+Do not republish the same run or publish a candidate merely because the solver returned `optimal`; Laravel validation and Registrar authority still apply.
+
+### 10.16 Manual Stage L — Start and confirm Enrollment placement
+
+**Role:** Registrar
+
+**Path:** **Students & Enrollment**; this opens Enrollments
+
+1. Select **Start Continuing Enrollment**.
+2. Choose:
+   - **Student**;
+   - **Enrollment term**; and
+   - **Enrollment type**.
+3. Submit.
+4. Open the Enrollment.
+5. For a regular learner, select **Confirm Placement**, choose the **Published logical cohort**, and confirm.
+6. For an irregular learner:
+   - the Student may open Student → **Enrollment** and use **Replace complete proposal** to choose the complete intended set;
+   - the Registrar then opens the Enrollment and selects **Confirm Placement**.
+7. Review:
+   - Course Enrollments;
+   - seat reservations;
+   - published schedule bindings;
+   - Current Status;
+   - Next Step; and
+   - Responsible Office.
+
+Expected result: successful confirmation atomically records the eligible subject placement, capacity-holding reservation, and published schedule bindings. The enrollment normally proceeds to the assessment/payment stage.
+
+Recovery:
+
+- If **Confirm Placement** is absent, confirm that compatible published Sections exist and that the enrollment remains mutable.
+- A proposal does not reserve a seat.
+- Do not use an unpublished Section.
+- Use **Replace Confirmed Section** only for an eligible irregular replacement.
+- **Cancel Enrollment** requires a reason and releases pending reservations/bindings; it is not a reset button.
+
+### 10.17 Manual Stage M — Assessment and payment
+
+**Current UI stop:** after confirming a brand-new manual Enrollment, there is no visible action that invokes first-time draft-assessment generation.
+
+At this point:
+
+1. Record the Enrollment ID and visible Next Step.
+2. Do not insert an Assessment directly in the database.
+3. For the presentation, switch to a prepared student whose Assessment already exists.
+4. If full UI-only creation is required, stop and plan the missing Accounting-owned action identified in Section 10.2.
+
+For an **existing draft Assessment**, continue as Accounting:
+
+1. Open **Student Accounts**.
+2. Search by student number or name.
+3. Open the account.
+4. Review charges, schedule, remaining balance, current amount due, and Finance Gate.
+5. Select **Activate Assessment**.
+6. To demonstrate authorized cashier evidence, select **Record Manual Payment**.
+7. Enter:
+   - **Amount Received**;
+   - **Payment Method**;
+   - **Payment / Evidence Reference**;
+   - **OR Number** when required;
+   - **Payment Allocation**; and
+   - **Paid At**.
+8. Select **Record payment**.
+9. Confirm that one Payment and corresponding Ledger posting exist.
+10. If an OR is added later, open **Payments and OR Reconciliation** and use **Map OR** on the existing Payment.
+
+Expected result: the immutable ledger reflects the verified payment, and the Finance Gate is recomputed. A duplicate reference or OR number must be rejected without creating a second payment.
+
+### 10.18 Manual Stage N — PayMongo checkout
+
+**Role:** Student, then Accounting for exceptions
+
+**Student path:** **Finance** → **Pay Current Due**
+
+Use this only when the current ngrok URL, PayMongo test credentials, webhook, and queue worker are authorized and running.
+
+1. Student selects **Pay Current Due**.
+2. TALA creates a local Payment Attempt.
+3. Student completes or cancels the hosted test checkout.
+4. Treat the return page as informational.
+5. Wait for the signed webhook.
+6. Accounting checks **Payment Exceptions** when evidence is missing, unmatched, duplicated, failed, or review-required.
+7. Use only the action that matches the evidence:
+   - **Recover a PayMongo checkout**;
+   - **Link and Reprocess**;
+   - **Reprocess**;
+   - **Confirm Payment**; or
+   - **Reject Evidence**.
+
+Expected result: verified, idempotently processed provider evidence creates at most one Payment and one ledger effect.
+
+If external payment is not authorized, do not click **Pay Current Due**. Show the seeded attempt, exception, Operational Event, and Integration Status instead.
+
+### 10.19 Manual Stage O — Record official enrollment
+
+**Role:** Registrar
+
+**Path:** **Students & Enrollment** → open the Enrollment
+
+1. Select **Refresh Gate Results**.
+2. Read every failed or passed gate and its responsible office.
+3. Resolve only through the owning workflow; payment does not override an academic blocker.
+4. When the status becomes Ready for Official Enrollment and capacity is held, select **Record Official Enrollment**.
+5. Enter an optional Registrar remark.
+6. Confirm **Record Official Enrollment**.
+7. Open **Print COR** if it is available.
+
+Expected result:
+
+- Enrollment becomes Officially Enrolled.
+- seat reservation and published schedule bindings become official;
+- Student → Enrollment shows the official subjects;
+- **Current COR** and **Class Schedule** become available when their current-record and hold checks pass.
+
+### 10.20 Manual Stage P — Grade encoding and release
+
+**Current UI stop:** no visible action creates the first Grade Roster for a newly published section.
+
+For a prepared existing Grade Roster:
+
+1. Sign in as the assigned Faculty.
+2. Open **Grade Rosters**.
+3. Select **Select Roster** and choose the assigned Draft or Returned roster.
+4. Enter the permitted grade components and final values.
+5. Resolve any controlled final mark through **Set controlled final mark** when the policy requires it.
+6. Confirm that every row is ready.
+7. Select **Submit for Registrar Review**.
+8. Sign out and return as Registrar.
+9. Open **Grades & Completion** → **Grade Rosters**.
+10. Open the submitted roster.
+11. Choose:
+    - **Return** and enter the correction reason; or
+    - **Post & Release**.
+12. Sign in as the affected Student and open **Academics** → **Grades**.
+
+Expected result: only Posted & Released grades appear in Student Hub. Draft, Returned, Submitted, or Late / Not Submitted values remain hidden from the Student.
+
+### 10.21 Manual Stage Q — Lifecycle, completion, reports, and audit
+
+#### Lifecycle
+
+1. Registrar opens **Students & Enrollment** → the Student Profile or Lifecycle records.
+2. Start the applicable approved lifecycle change.
+3. Read the impact preview.
+4. Confirm the reviewed result only when the preview is valid and institutional approval exists.
+5. Apply or cancel the recorded approved action according to its state.
+
+The preview must not silently alter Enrollment, schedule, seat, finance, or lifecycle records before confirmation.
+
+#### Completion and graduation
+
+1. Registrar opens **Grades & Completion**.
+2. Open **Completion Eligibility Reviews** or the applicable Graduation Review Batch.
+3. Create or open the review.
+4. inspect curriculum completion, grades, holds, finance, and unresolved requirements.
+5. Record the authorized result and evidence.
+
+These reviews support the institutional decision; they do not independently confer a degree.
+
+#### Reports and audit
+
+Use the owning role:
+
+- Registrar → **Reports** for enrollment, sections, lifecycle, and completion;
+- Accounting → **Reports** for ledger, collections, fee, and reconciliation;
+- Academic Head → **Reports** for Faculty load, schedule exceptions, grade review, and progression;
+- System Super Admin → **Governance & Audit** for User/Role reports, Activity Log, output access, export audit, integration events, and PayMongo webhook events.
+
+CSV export and generated-output access are auditable. Reports do not create a second source of truth.
+
+### 10.22 Manual-flow recovery rules
+
+| Symptom | Check first | Correct response |
+| --- | --- | --- |
+| A menu or action is missing | Signed-in role and record state | Use the owning role and open the record in the state that permits the action; do not change roles merely to bypass policy |
+| Applicant cannot register | Effective Admissions window | Configure the authorized window or use an existing Applicant account |
+| Applicant cannot submit | Required fields, confirmation, and policy scope | Complete the missing source; do not remove the requirement |
+| Handover is blocked | unresolved requirement, duplicate candidate, active Curriculum | Resolve the identified evidence or identity decision |
+| Builder shows no Curriculum entries | Program, active Curriculum, year, term type | Correct Academic Readiness before creating an Offering |
+| Scheduling Demand says Action required | Faculty, room, duration, grid, group, or availability source | Correct the named source and regenerate requirements |
+| Generate Timetable is unavailable | ready demands, active competing run, authorization, solver configuration | Resolve the specific prerequisite; do not create duplicate runs |
+| Placement has no cohort options | published Sections and logical-cohort mapping | Publish compatible Sections or use the approved special-offering process |
+| New Student Account is missing | current UI has no Generate Draft Assessment action | Stop the manual path and use a prepared Assessment; log the UI gap |
+| New Grade Roster is missing | current UI has no Generate Grade Roster action | Stop the manual path and use a prepared roster; log the UI gap |
+| COR or schedule is empty | official Enrollment, active bindings, Published run, holds/current-record checks | Correct the owning source; do not manufacture an output |
+| PayMongo return shows success but no Payment exists | signed webhook and persisted provider event | Treat the return as informational and use Accounting exception handling |
+
+### 10.23 Recommended one-presenter order
+
+For a clear defense, do not execute the entire manual build. Use this order:
+
+1. Show the prepared Applicant states.
+2. Perform one small manual Applicant action, such as Save Draft or one correction upload.
+3. Show Registrar requirement review and explain the handover preview without confirming it.
+4. Show Academic Readiness and the **Build Regular Offerings** form without submitting.
+5. Show ready Schedule Requirements, Run #10 candidate evidence, and Published Timetable.
+6. Show the prepared official Enrollment and explain **Confirm Placement** and **Record Official Enrollment**.
+7. Show the prepared Student Account, one manual-payment form without submitting, and the PayMongo exception boundary.
+8. Show an existing Faculty roster and the Registrar's **Post & Release** boundary.
+9. End with Student COR, schedule, released grade, reports, Integration Status, Operational Events, and Audit Logs.
+10. State the three current first-time UI gaps openly: initial Admission Requirement Policy navigation on an empty setup, first draft Assessment generation, and first Grade Roster generation.
+
+This order proves that TALA supports real operator actions while preserving the prepared end-to-end evidence and avoiding an unreliable live rebuild during the presentation.

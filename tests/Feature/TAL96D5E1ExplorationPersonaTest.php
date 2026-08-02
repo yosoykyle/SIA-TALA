@@ -230,6 +230,27 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
     }
 
     #[Test]
+    public function check_mode_rejects_an_unknown_or_mismatched_checkpoint_without_writing(): void
+    {
+        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
+        $before = $this->explorationCounts();
+
+        $this->artisan('acceptance:seed-tal96d5e1-exploration --check --checkpoint=unknown')
+            ->expectsOutputToContain('Checkpoint must be auto, pristine, accepted-candidate, or published.')
+            ->assertFailed();
+
+        $detected = app(\App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog::class)
+            ->report()['checkpoint_detected'];
+        $mismatched = $detected === 'pristine' ? 'published' : 'pristine';
+
+        $this->artisan("acceptance:seed-tal96d5e1-exploration --check --checkpoint={$mismatched}")
+            ->expectsOutputToContain('checkpoint_ready=no')
+            ->assertFailed();
+
+        $this->assertSame($before, $this->explorationCounts());
+    }
+
+    #[Test]
     public function check_mode_rejects_a_persona_whose_documented_local_password_changed(): void
     {
         $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();

@@ -67,7 +67,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         Livewire::test(StudentProfileOverviewWidget::class)
             ->assertSee('This is your official Student Profile status.')
-            ->assertSee('Registrar Office must confirm any change.')
+            ->assertSee('Contact the Registrar Office if review is needed.')
             ->assertSee('No outstanding posted balance.')
             ->assertDontSee('Source #')
             ->assertDontSee('blockers:');

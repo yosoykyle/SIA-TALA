@@ -4,8 +4,10 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
+use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
@@ -127,6 +129,8 @@ class SchedulePublishService
                 ]);
             }
 
+            $this->activatePublishedSources($candidateRows);
+
             $lockedRun->forceFill([
                 'status' => ScheduleGenerationRun::StatusPublished,
                 'published_by' => $publisher->id,
@@ -166,6 +170,35 @@ class SchedulePublishService
         $this->releaseNotifications->recordPublishedRun($publishedRun);
 
         return $publishedRun;
+    }
+
+    /**
+     * @param  Collection<int, CandidateScheduleRow>  $candidateRows
+     */
+    private function activatePublishedSources(Collection $candidateRows): void
+    {
+        $termOfferingIds = $candidateRows
+            ->pluck('schedulingDemand.term_offering_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $sectionIds = $candidateRows
+            ->pluck('schedulingDemand.sectionDeliveryGroup.section_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        TermOffering::query()
+            ->whereKey($termOfferingIds)
+            ->where('state', TermOffering::StatePendingScheduling)
+            ->update(['state' => TermOffering::StateScheduled]);
+
+        Section::query()
+            ->whereKey($sectionIds)
+            ->where('state', Section::StatePlanned)
+            ->update(['state' => Section::StateOpen]);
     }
 
     /**

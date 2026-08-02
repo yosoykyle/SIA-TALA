@@ -60,7 +60,7 @@ Remaining dependency chain: complete cross-role UAT, regression, UI/UX correctio
 | TAL-96D5E1D6D | Done locally; two-slice map complete | Presentation-data readiness followed by System Administration boundary and health presentation. |
 | TAL-96D5E1D6D1 | Done locally; pending explicit Linear sync | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline. |
 | TAL-96D5E1D6D2 | Done locally; pending explicit Linear sync | System Administration Boundary and Health Presentation. |
-| TAL-96D5E1D7 | Planned; next | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
+| TAL-96D5E1D7 | In progress; primary execution | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
 | TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the frozen client-aligned `MIN` presentation fixture and only required case overlays. |
 | TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
 | TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
@@ -85,6 +85,32 @@ Approved compact dispositions: preserve aligned implementation; fix only evidenc
 
 No work outside the listed issues is approved or implied. Any additional institutional feature, UI plugin, or infrastructure enhancement must pass the protocol gates and receive an explicit Next Steps issue before implementation.
 
+## Active Approved Plan Contract
+
+### TAL-96D5E1D7 — Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure
+
+**Status:** In progress through approved `Primary proceed`.
+
+**Purpose and ownership:** Close the remaining presentation contract across source-derived outputs, queued notifications, role-authorized reports, producer-consumer consistency, and the one-presenter D5E1E acceptance script. The Registrar remains master-schedule and official-enrollment owner; Accounting owns finance posting and reconciliation; Faculty, Registrar, and Academic Head retain the approved grade-state authorities; System Super Admin owns safe integration and audit visibility. TALA presents source records, generated read-only outputs, integration evidence, and office results without automating institutional judgment.
+
+**Implementation checklist:**
+
+1. Preserve and verify the current `test_tala_db` accepted-candidate checkpoint before any database mutation; retain the existing pristine MIN snapshot as independent recovery evidence.
+2. Revalidate the accepted 54-demand candidate without invoking CP-SAT or another external service.
+3. Map and programmatically prove the shared COR, student/faculty schedule, finance-output, output-access, notification, report/export, audit, and cross-role authorization contracts.
+4. Patch only evidence-backed fixture, presentation, or implementation gaps, using existing services, policies, routes, native Laravel/Filament v5 patterns, and the stable client-aligned MIN personas.
+5. Prepare a guarded post-publication presentation checkpoint in `test_tala_db`, including only the representative official meetings and enrollment bindings required for truthful schedule/COR demonstrations, then preserve and verify that checkpoint.
+6. Rewrite the consolidated Operations and Defense Guide as an ordered one-presenter flow with account, workspace, prerequisite, live versus prepared action, reason, expected visible result, evidence, and recovery.
+7. Update the Git-ignored local credential inventory with the ordered integral presenter accounts while keeping credential values out of newly added tracked guidance.
+
+**Authority correction:** Replace the tracked guide's single blank-scheduling presentation assumption with explicit pristine-MIN, accepted-candidate, and post-publication checkpoint meanings. The accepted Run #10 is real solver evidence, but a candidate is not official until Laravel revalidation and Registrar publication succeed. D5E1E still owns the external provider and rendered human acceptance evidence.
+
+**Benchmark and reference disposition:** Reuse the accepted TAL-96D3A/D3D/D4C/D5B/D5E1D2-D6 benchmarks because no role, source record, integration boundary, official-output class, exposed-data class, or manual-office authority changes. The TALA-specific source-derived output and cross-role workflow has no useful Academico business-logic or implementation-pattern overlap at this closure depth; keep TALA's existing services and native Filament v5 presentation.
+
+**Exclusions:** No solver invocation, Cloud Run call, SMTP delivery, PayMongo request or webhook mutation, ngrok change, production database access, schema or dependency change, real identity, destructive rebuild, deployment, push, pull request, Linear mutation, or Cleanup commit. No active third-year cohort or fabricated official result.
+
+**Expected verification:** Prove `testing|mysql|test_tala_db`; run focused PHPUnit for positive, blocked, duplicate/idempotent, role-authorization, shared-output, notification, report/export, and checkpoint cases; run changed-PHP Pint and scoped PHPStan/Larastan; run the guarded no-external presentation inspection; verify snapshot manifests and hashes; and run `git diff --check`. Browser-family, SMTP, and PayMongo test-mode acceptance remain human-only D5E1E gates.
+
 ## Next Planning Boundary
 
-Active boundary: `Plan TAL-96D5E1D7`.
+Active boundary: `Verify TAL-96D5E1D7` after primary execution completes.
