@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This protocol controls how TALA MVP work is planned, delegated, verified, tracked, and committed. Its authority, database, preservation, verification, and external-mutation rails apply to all TALA work. Its full orchestrated-slice lifecycle applies only when the user invokes an orchestration command or continues an active approved contract. A clear direct request to implement, fix, review, or update authorizes that bounded local work without manufacturing a second approval or temporary governance-file churn; material human gates below still apply.
+This protocol controls how TALA MVP work is planned, delegated, verified, tracked, and committed. Its authority, database, preservation, verification, and external-mutation rails apply to all TALA work. Its full orchestrated-slice lifecycle applies only when the user invokes an orchestration command or continues an active approved contract. Outside Plan mode, a clear direct request to implement, fix, review, or update authorizes that bounded local work without manufacturing a second approval or temporary governance-file churn; material human gates below still apply.
 
 It stays compact and TALA-specific: generic planning, debugging, TDD, verification, review, and subagent technique belongs to installed skills and plugins, not here.
 
@@ -39,8 +39,8 @@ Every orchestrated or separately requested slice plan follows these steps in ord
 3. **Slice Clarity Gate** — when triggered, fix the domain shape: office owner, manual step, TALA responsibility, feature category, and purposeful simplification.
 4. **Benchmark Gate** — when triggered, run a bounded reality-check benchmark and record the result.
 5. **Qualified-Reference Gate** — when triggered, assess reference overlap at the minimum useful depth and decide the implementation source.
-6. **Write the plan contract when Section 5 requires durable state**, then report it.
-7. **User approval when needed** — a `Plan TAL-XX` request remains read-only until accepted. A clear request to implement, fix, change, proceed, or update is already authorization for bounded local implementation. Stop for approval only when a material choice, authority correction, destructive action, dependency, cost, deployment, external mutation, credential, or scope expansion is unresolved. A small docs-only protocol fix explicitly requested by the user may proceed directly.
+6. **Prepare the plan contract when Section 5 requires durable state** — include its complete proposed contents in the final plan, but persist it only on the first authorized execution turn.
+7. **User approval when needed** — a `Plan TAL-XX` request remains read-only until accepted. Outside Plan mode, a clear request to implement, fix, change, proceed, or update is already authorization for bounded local implementation. Stop for approval only when a material choice, authority correction, destructive action, dependency, cost, deployment, external mutation, credential, or scope expansion is unresolved. A small docs-only protocol fix explicitly requested by the user may proceed directly.
 
 Use Boost `search-docs`, Context7, plugin catalogs, and available MCPs when their context can materially change the plan, especially to confirm that proposed patterns, packages, or integrations exist and are version-compatible. Do not invoke external research or tooling merely to satisfy ceremony. Activate the installed skills that match the slice's domain so their conventions shape the work.
 
@@ -137,6 +137,20 @@ Activation prompts include `Act as the TALA primary orchestrator`, `Resume TALA 
 
 The full lifecycle in this section applies after one of those activation prompts or while an active approved contract is being continued. A clear direct request outside that lifecycle uses the core safety rails and proportionate gates without creating an active contract or tracker churn unless the user asks for orchestration, the work must be split or delegated, or its risk and duration require durable coordination.
 
+### Codex Plan Mode bridge
+
+When the Codex runtime declares Plan mode or the user invokes `/plan`, treat the turn as `Plan TAL-XX` when the target issue or slice is identifiable. If the target is not identifiable, ask for it rather than inventing one. The runtime mode is the signal; do not create or depend on a repository flag to detect it.
+
+While Plan mode is active, stay read-only. The primary may inspect Git and authorities, run non-mutating discovery and verification, ask clarifying questions, apply the planning gates, and draft or revise the plan. It must not edit code or documentation, persist the active contract, delegate a worker, commit, push, deploy, open a PR, mutate Linear or another external system, or perform another write. This runtime restriction takes precedence over general words such as `proceed`, `implement`, or `fix` while the mode remains active.
+
+The final plan must state its execution boundary. By default, accepting that plan and explicitly choosing **Implement** or otherwise requesting execution authorizes `Primary proceed`, automatic remediation of in-scope defects, and proportionate verification only. It does not authorize Cleanup or a commit, orchestration or subagent use, push, PR, deployment, Linear or other external mutation, dependency changes, destructive database work, credentials, cost-bearing action, or material scope expansion unless the plan and approval explicitly include the applicable permission.
+
+Approval while Plan mode remains active accepts the current final plan but does not start execution. Map the transition to `Primary proceed` only when all three facts are present: the current final plan was accepted; the user or Codex UI explicitly requests **Implement**, execute, or an unambiguous equivalent; and the runtime is no longer in Plan mode. Merely leaving or toggling out of Plan mode, restarting a session, or sending an unrelated prompt is not execution authorization. If the plan changes materially after approval, invalidate that approval and present the revised plan again.
+
+On the first authorized execution turn, run the resume delta, persist the accepted contract when the durable-contract rule applies, and then implement and verify within the accepted boundary. If the runtime still reports Plan mode, remain read-only and explain that an explicit implementation transition is still required; never fight the host mode. Cleanup, delegation, and every external effect retain their separate gates.
+
+Source boundary: [official Codex Plan mode guidance](https://learn.chatgpt.com/guides/best-practices.md) and the [`/plan` command reference](https://learn.chatgpt.com/docs/developer-commands?surface=cli#switch-to-plan-mode-with-plan).
+
 Before orchestrated implementation, delegation, tracker change, or commit, the primary reports:
 
 1. Git and dirty state.
@@ -149,7 +163,7 @@ After compaction, interruption, rejected worker output, an unclear handoff, or s
 
 ### Durable active plan contract
 
-After the user approves a long-running, delegated, high-risk, or split orchestration plan, the primary must record the complete accepted contract under one `Active Approved Plan Contract` section in `TALA-Rescue-Next-Steps.md` before `Primary proceed` or `Orchestrate TAL-XX`. The compact parent/sub-slice table remains the roadmap; the active section is the temporary Git-tracked execution authority. Exactly one active contract may exist. A small direct slice does not edit Next Steps merely to create temporary execution state.
+After the user approves a long-running, delegated, high-risk, or split orchestration plan, the primary must record the complete accepted contract under one `Active Approved Plan Contract` section in `TALA-Rescue-Next-Steps.md` on the first authorized execution turn after Plan mode, or immediately after approval in a non-Plan workflow, and before implementation or `Orchestrate TAL-XX`. The compact parent/sub-slice table remains the roadmap; the active section is the temporary Git-tracked execution authority. Exactly one active contract may exist. A small direct slice does not edit Next Steps merely to create temporary execution state.
 
 The active contract contains the Section 5 plan fields, accepted implementation checklist, authority corrections, exclusions, expected verification, and human-only steps. Keep it concise: cite authority paths and accepted benchmark/reference conclusions instead of copying source text, transcripts, code, test results, volatile counters, or delivered-work history.
 
@@ -178,7 +192,7 @@ Commands are canonical shorthands, not magic strings. An explicit natural-langua
 - `Cleanup TAL-XX` — local tracker update plus one bounded local commit only.
 - `Sync TAL-XX to Linear` — authorize the named Linear mutation. An equivalent request must explicitly name Linear, the issue, and the requested mutation; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone never authorize a Linear sync.
 
-A clear direct request to implement, fix, change, or update authorizes bounded local work but not a commit, push, deployment, PR, Linear mutation, destructive database action, dependency, external cost, or material scope expansion unless the request explicitly includes it.
+Outside Plan mode, a clear direct request to implement, fix, change, or update authorizes bounded local work but not a commit, push, deployment, PR, Linear mutation, destructive database action, dependency, external cost, or material scope expansion unless the request explicitly includes it.
 
 The user may explicitly combine the normal phases for one approved slice, for example: `Primary proceed TAL-XX, automatically remediate in-scope defects, Verify, and Cleanup after verification passes. Stop only at a protocol human gate.` This is advance authorization for the named slice's implementation, verification, and Cleanup phases; the primary must still preserve their internal boundaries, run the applicable delta gates, and stop rather than commit when verification fails. Compound authorization never applies to a different or next slice and never authorizes destructive database work, unresolved product authority, credentials, cost-bearing or external mutation, deployment, dependency or material scope expansion, subagent use, push, PR, or Linear mutation unless the user separately grants the corresponding gate.
 

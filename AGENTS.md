@@ -458,8 +458,9 @@ Owners: Boost and official docs own framework use; PRD owns product behavior; bl
 
 ### Non-negotiables
 
-- Plan first for `Plan TAL-XX`, complex or ambiguous work, delegation, high-risk changes, or any unresolved material choice. A clear request to implement, fix, change, proceed, or update authorizes bounded local work without a second approval; it does not authorize a commit or external effect unless explicitly included.
-- After approval, record an active slice contract in `TALA-Rescue-Next-Steps.md` only for a long-running, delegated, high-risk, or split orchestrated slice. Keep only one active contract and compact it during Cleanup; small direct work does not create temporary governance-file churn.
+- Plan first for `Plan TAL-XX`, complex or ambiguous work, delegation, high-risk changes, or any unresolved material choice. Outside Plan mode, a clear request to implement, fix, change, proceed, or update authorizes bounded local work without a second approval; it does not authorize a commit or external effect unless explicitly included.
+- When the Codex runtime is in Plan mode or `/plan` is invoked, treat it as `Plan TAL-XX` for an identifiable target and remain read-only. An accepted final plan bridges to `Primary proceed` only after an explicit **Implement** or execution request and after the runtime leaves Plan mode; leaving or toggling modes alone is not authorization. The first execution turn runs the resume delta, records a durable contract when required, then implements and verifies. Cleanup, delegation, commits, and external effects retain their separate gates.
+- After approval, record an active slice contract in `TALA-Rescue-Next-Steps.md` only for a long-running, delegated, high-risk, or split orchestrated slice, on the first authorized execution turn after Plan mode or immediately in a non-Plan workflow. Keep only one active contract and compact it during Cleanup; small direct work does not create temporary governance-file churn.
 - Run the full Ground-Truth Gate when a new orchestrated slice lacks attributable evidence or relevant premises were invalidated. Otherwise use the proportionate delta gate, including after compaction or interruption. Reuse attributable evidence while valid. Stop only when a difference changes authority, scope, risk, acceptance, permission, or feasibility; record non-material deltas and continue.
 - Commit only after explicit authorization through `Cleanup TAL-XX` or an unambiguous equivalent request, and only as one bounded local commit. Never push, deploy, open a PR, or mutate Linear without explicit authorization. Linear mutation must explicitly name Linear, the issue, and the requested action; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone do not authorize it.
 - Target `test_tala_db` for DB-backed checks (`APP_ENV=testing`, `DB_CONNECTION=mysql`); never `tala_db` or `tala_test_codex`.
@@ -470,7 +471,7 @@ Owners: Boost and official docs own framework use; PRD owns product behavior; bl
 
 ### Commands
 
-Activation triggers: `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`.
+Activation triggers: `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`. Codex Plan mode or `/plan` activates the plan-only phase when the target is identifiable.
 
 These commands are canonical shorthands, not magic strings. An explicit natural-language equivalent counts when its target, action, scope, and external effect are unambiguous.
 
