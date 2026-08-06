@@ -25,7 +25,6 @@ Thumbs.db
 dont access
 # Laravel Boost & Agents
 .gemini/
-/GEMINI.md
 /.ai/
 /.codex/
 /.qwen/
@@ -34,7 +33,6 @@ dont access
 /.junie/
 /.claude/
 /.cursor/
-CLAUDE.md
 .mcp.json
 /opencode.json
 /.github/skills/mcp-development/
@@ -51,4 +49,3 @@ __pycache__/
 *.py[cod]
 /cloud/scheduler-solver/.venv/
 /cloud/scheduler-solver.zip
-

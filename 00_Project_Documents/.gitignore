@@ -1,19 +1,46 @@
 *
 !.gitignore
 !README.md
-!TALA-Active-Execution-Plan.md
-!TALA-System-Requirements-Handoff.md
-!TALA-Functional-Specification.md
-!TALA-Technical-Specification.md
-!TALA-Master-System-Test-Cases.md
-!TAL-96B2-Scheduling-Demo-Runbook.md
-!TAL-96B2-Representative-Solver-Evidence.md
-!TAL-96B3-Cloud-Run-Capacity-Benchmark.md
-!TAL-96C-PayMongo-Demo-Runbook.md
-!TALA-System-Operations-and-Defense-Guide.md
-!TALA-96D-Full-System-Refinement-Charter.md
+!TALA-Rescue-Next-Steps.md
+!TALA-Local-Linear-Sync-Tracker.md
+!ui_surface_blueprint.md
 !architecture_specification.md
 !TALA-Orchestrator-Protocol.md
-!TALA-Rebaseline-Rescue-Plan-2026-06-27.md
 !prd_modules/
 !prd_modules/**
+!archive/
+!archive/README.md
+!archive/project-progress/
+!archive/project-progress/README.md
+!archive/project-progress/TALA-Rescue-Next-Steps-pre-vertical-rebaseline-2026-08-06.md
+!archive/project-progress/TALA-96D-Full-System-Refinement-Charter.md
+!archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md
+!archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md
+!archive/project-progress/TALA-Comprehensive-Execution-Log.md
+!archive/project-progress/architecture_diagrams.md
+!archive/demo/
+!archive/demo/README.md
+!archive/demo/TAL-96B2-Scheduling-Demo-Runbook.md
+!archive/demo/TAL-96C-PayMongo-Demo-Runbook.md
+!archive/demo/TALA-System-Operations-and-Defense-Guide.md
+!archive/demo/TALA_End-to-End_Demonstration_Navigation.md
+!archive/tooling/
+!archive/tooling/README.md
+!archive/tooling/CLAUDE-pre-authority-router-2026-08-06.md
+!archive/tooling/GEMINI-pre-authority-router-2026-08-06.md
+!archive/PAPER/
+!archive/PAPER/README.md
+!archive/uat-readiness/
+!archive/uat-readiness/README.md
+!business-evidence/
+!business-evidence/README.md
+!business-evidence/BM-Evaluation.md
+!business-evidence/INSTITUTION WORK  FLOW CURRENT.md
+!business-evidence/IT-Evaluation-done.md
+!business-evidence/SOA-2nd-year-COLLEGE-1.md
+!business-evidence/THM-Evaluation.md
+!business-evidence/samplesched.md
+!research paper/
+!research paper/README.md
+!research paper/how the eqautions should look/
+!research paper/how the eqautions should look/PyJobShop-Solving scheduling problems with constraint programming in Python.md

@@ -2,15 +2,27 @@
 
 ## Purpose
 
-This is the local staging area for completed issues awaiting explicit, user-authorized Linear sync, plus a compact reference for issues already synced. Planning stays in `TALA-Rescue-Next-Steps.md`; only completed local work belongs here. The protocol owns the acceptance and sync rules.
+This is the local staging area for completed tasks awaiting explicit, user-authorized Linear sync, locally superseded or canceled planning items awaiting mapping reconciliation, and a compact reference for tasks already synced. Planning stays in `TALA-Rescue-Next-Steps.md`; this tracker owns local task-key history and local-to-Linear sync state only. The protocol owns the acceptance and sync rules.
 
-- Add accepted work to Active Syncs only after its bounded local commit exists. Keep only the issue ID, `Done locally; pending explicit Linear sync`, and concise title/domain; the commit carries delivery detail and evidence.
+- Add accepted work to Active Syncs only after its bounded local commit exists. Keep only the Local Task Key, `Done locally; pending explicit Linear sync`, and concise title/domain; the commit carries delivery detail and evidence.
 - Never touch Linear from this file. Create, update, comment on, or sync a Linear issue only when the user explicitly says `Sync TAL-XX to Linear`; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the row pending.
-- After an explicit sync, move the row to Compact Synced History with its local ID, generated Linear ID, Linear status, and title.
+- After an explicit sync, move the row to Compact Synced History with its Local Task Key, Linear-generated Issue ID, Linear status, and title.
+- Local Task Keys and Linear Issue IDs are separate namespaces. Never infer a mapping from matching numerals; local TAL-97 through TAL-101 collide with existing unrelated Linear Issue IDs in Compact Synced History.
+- `TAL-175` is the highest historical local base task key recorded before the canonical rebaseline. It does not reserve, predict, or map to Linear `TAL-175`; only an existing tracker mapping or verified live lookup can establish a relationship.
+- Do not assign the next Local Task Key until Active Syncs and pending dispositions have been reconciled and the local key history has been checked. Linear numbering does not determine the next Local Task Key.
+- For a superseded local item, populate the Linear Issue ID column only from an existing recorded mapping or a verified live lookup. If no remote issue exists, record `No remote issue existed; local disposition final` rather than creating an issue solely to cancel it.
 
-## Active Syncs
+## Synchronization Order
 
-| Local Issue | Status | Title / Domain |
+1. Process the Active Syncs first, in controlled user-authorized batches. For each row, verify whether an exact Linear mapping already exists before creating anything; when Linear creates an issue, record the identifier it generates without changing the Local Task Key.
+2. After each authorized batch, refresh the live Linear workspace and move only successfully reconciled rows to Compact Synced History.
+3. Reconcile Pending Disposition Syncs only after Active Syncs is clear. Use exact recorded mappings or verified live lookup results; never infer a mapping from a matching number.
+4. Do not create a Linear issue solely to cancel or supersede a local-only historical item. Record the local disposition as final when no remote issue exists.
+5. Determine the next unused Local Task Key only after both queues are reconciled. Never reserve or predict a future Linear Issue ID.
+
+## Active Syncs — Process First
+
+| Local Task Key | Status | Title / Domain |
 | --- | --- | --- |
 | TAL-95D1 | Done locally; pending explicit Linear sync | PayMongo Hosted Checkout V2 Provider Contract Hardening |
 | TAL-95D2A | Done locally; pending explicit Linear sync | PayMongo Signed-Webhook Admission Compatibility |
@@ -60,11 +72,39 @@ This is the local staging area for completed issues awaiting explicit, user-auth
 | Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
 | Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
 
+## Pending Disposition Syncs
+
+These legacy planning items no longer grant execution authority. Canonical 00–06 supersedes their task contracts, grouping, or deferral routing. Any still-useful capability must be re-derived as a new journey-complete vertical slice.
+
+| Local Task Key | Local disposition | Linear Issue ID | Reason |
+| --- | --- | --- | --- |
+| TAL-96 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Legacy rescue parent replaced by canonical authority and new vertical-slice derivation |
+| TAL-96D | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Full-system refinement charter and execution chain are archived history |
+| TAL-96D2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
+| TAL-96D3 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
+| TAL-96D4 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
+| TAL-96D5 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical acceptance/defense parent replaced by canonical vertical-slice acceptance |
+| TAL-96D5C | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical role/regression planning parent; future coverage must derive from canonical journeys |
+| TAL-96D5E | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical recovery parent; completed correction evidence remains in Active Syncs |
+| TAL-96D5E1 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical systemic-recovery planning parent |
+| TAL-96D5E1B | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical operational-recovery planning parent |
+| TAL-96D5E1B2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical task-centered split; completed child evidence remains preserved |
+| TAL-96D5E1D | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical presentation-recovery parent; D7 is not resumable |
+| TAL-96D5E1D7 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Suspended outputs/reports/acceptance contract replaced by canonical 00–06 ownership |
+| TAL-96D5E1E | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical exploration and acceptance script must be re-derived from canonical journeys |
+| TAL-96D5E2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical evidence-consolidation and deployment disposition is not a current task |
+| TAL-97 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical presentation task; local label does not map to existing Linear TAL-97 |
+| TAL-98 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old disposal/archival deferral; local label does not map to existing Linear TAL-98 |
+| TAL-99 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old privacy-request deferral; local label does not map to existing Linear TAL-99 |
+| TAL-100 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old notification-template deferral; local label does not map to existing Linear TAL-100 |
+| TAL-101 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old audit-tamper-evidence deferral; local label does not map to existing Linear TAL-101 |
+| TAL-175 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical local shared-class deferral; PRD 03 now governs shared cross-program classes |
+
 ## Compact Synced History
 
 *Search the Linear Issue ID on the Linear website for full details, descriptions, and evidence.*
 
-| Local Issue | Linear Issue | Status (Linear) | Title / Domain |
+| Local Task Key | Linear Issue ID | Status (Linear) | Title / Domain |
 | --- | --- | --- | --- |
 | TAL-42 | TAL-42 | Done | R0 PRD rebaseline rescue controller |
 | TAL-43 | TAL-43 | Done | Public landing page and Filament auth routing baseline |

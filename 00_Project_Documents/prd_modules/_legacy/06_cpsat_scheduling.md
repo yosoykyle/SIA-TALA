@@ -1,0 +1,408 @@
+## 6. Constraint Programming–Satisfiability (CP-SAT) Scheduling Subsystem
+
+> **Legacy split input — not current product authority.** Clinic 3 defines Academic Setup, Offerings, Teaching Resources, CP-SAT review, publication, and revision as one journey in [PRD 03 — Academic Setup, Offerings, and Published Timetable](../03_academic_setup_offerings_published_timetable.md). The content below is preserved only as implementation-salvage and historical requirement evidence. It must not govern implementation or task derivation.
+
+---
+
+### 6.1. Scheduling and CP-SAT Integration
+
+Scheduling is a core subsystem.
+
+TALA uses the Google Cloud Run CP-SAT service for scheduling computation. TALA remains the source of truth for official scheduling records.
+
+Plain-language terms used in this module:
+
+- **CP-SAT** is the OR-Tools Constraint Programming–Satisfiability solver that searches for assignments satisfying mandatory scheduling rules.
+- A **Scheduling Demand** is one required course component for one term offering and one regular cohort or delivery group; it is the item the solver assigns.
+- A **candidate schedule** is a proposal awaiting Laravel validation and authorized review. It is not an official schedule.
+- A **hard constraint** is mandatory. A **soft preference** ranks only schedules that already satisfy every hard constraint.
+- `feasible` means all hard constraints pass but the solver has not proved the proposal is the best-ranked possible result. `optimal` means it has also proved that no better objective value exists for the tested input.
+- `unknown` means the search stopped before proving feasibility, infeasibility, or optimality. It is not evidence that the input is impossible.
+
+Scheduling flow:
+
+Term setup → Course Specification revisions ready → Curriculum approved → Term Offerings created → section delivery groups created → Scheduling Demand generated → rooms, faculty, calendar grid, break blocks, and constraints configured → readiness check → solver run → TALA validation → human review → approval → publication → enrollment binding → COR generation.
+
+Scheduling Demand:
+
+1. Scheduling Demand is the canonical schedulable unit sent to CP-SAT.
+2. A Scheduling Demand represents a Course Component from a Curriculum Entry's referenced Course Specification Revision needed by a section delivery group in a term, combined with the Term Offering's actual modality and approved overrides.
+3. A simple lecture subject may create one Scheduling Demand.
+4. A Course Specification Revision with lecture and laboratory components may create separate linked Scheduling Demands when those components require different rooms, contact hours, modalities, or faculty constraints.
+5. CP-SAT schedules demand rows, not raw subjects.
+6. **Two-Phase Architecture:**
+   - **Phase 1 (AI Sandbox):** The CP-SAT solver outputs candidate schedules strictly to the `CandidateScheduleRow` staging table for Registrar review.
+   - **Phase 2 (In-Place Live):** Once approved, candidate rows are published (copied) to the official `section_meetings` table. The candidate run then closes to mutation but remains retained as immutable publication provenance.
+7. Candidate schedules remain separate from official section meeting records until publication.
+8. The client curriculum table supplies curriculum-owned academic data. Default contact and room requirements come from the Course Specification Revision; actual modality and approved overrides come from the Term Offering; assignment choices come from section delivery groups, faculty, rooms, calendar, and scheduling configuration.
+9. CP-SAT schedules cohort delivery groups and regular section blocks. Irregular placement happens post-publication through TALA validation and Registrar-confirmed Enrollment Seat Reservations.
+10. Subject Drop, Withdrawal, Leave of Absence, Program Shift, or movement between compatible published sections updates Student Schedule Bindings. Staff initiates a new solver run only when the Master Schedule itself needs re-optimization.
+11. A new solver run is considered only when the Master Schedule itself must change, such as opening or cancelling a section or materially changing room, time, or faculty assignments.
+12. Linked lecture/laboratory Scheduling Demands must remain tied to one Term Offering, one section delivery group, one student enrollment line, and one released grade unless the institution defines separate subject codes or separate released grades.
+13. Linked Lecture and Laboratory Scheduling Demands may use different qualified faculty unless the Course Specification Revision or Term Offering marks same faculty required.
+
+For conflict enforcement, a course-specific section delivery group remains the traceable source record for one offering, while `cohort_or_student_group_id` identifies the logical students shared across subjects. All course-specific groups for the same term, program, curriculum year level, and exact cohort code must share that conflict identity. The solver and TALA validation use it to enforce the existing section/cohort no-overlap requirement; it does not create a new academic entity or database relationship.
+
+TALA owns:
+
+1. Term and calendar.
+2. Course catalog.
+3. Curriculum versions.
+4. Term offerings.
+5. Sections.
+6. Rooms and room features.
+7. Faculty availability, load, and qualifications.
+8. Academic Calendar scheduling grid, blocked periods, and institutional break blocks.
+9. Constraint catalog.
+10. Solver run history.
+11. Candidate schedules.
+12. Schedule approval.
+13. Published schedule versions.
+14. Enrollment-to-schedule binding.
+15. COR schedule reference.
+
+Solver readiness must check:
+
+1. Approved term calendar.
+2. Approved curriculum.
+3. Approved term offerings.
+4. Section capacities.
+5. Subject contact hours.
+6. Room capacity and features.
+7. Faculty availability and qualification.
+8. Calendar grid, blocked periods, and institutional break blocks.
+9. Constraint set.
+10. Expected demand.
+11. Regular cohort expected count fits the section capacity and selected physical room capacity.
+12. Readiness validation is complete.
+
+Hard constraints:
+
+1. Room assignments are unique for each active time block.
+2. Faculty assignments are unique for each active time block.
+3. Section and cohort meeting times are conflict-free.
+4. Student schedule bindings are conflict-free.
+5. Required contact hours must be satisfied.
+6. Term calendar, institutional break blocks, and blocked periods must be respected.
+7. Room type and features must match subject needs.
+8. Faculty availability and qualifications must be respected.
+9. Faculty load uses the configured term limit or an approved Faculty Term Load Override.
+10. Published schedule changes use the controlled schedule revision flow.
+11. Large contact-hour components (e.g., 6-hour laboratory classes) must be scheduled in consecutive time blocks on a single day when the Course Component requires it.
+12. A Face-to-Face section's expected regular cohort count must fit both its section capacity and assigned room capacity.
+13. Same-faculty requirements across linked components must be respected when configured.
+
+Constraint tiers:
+
+1. **Fixed hard constraints** protect physical feasibility, academic validity, capacity, calendar blocks, break blocks, and safety. The system validates these for every solver output, manual assignment, live revision, and publication.
+2. **Policy constraints** use source records such as Faculty Term Load Override, Course Specification same-faculty requirement, Term Offering overrides, and Academic Calendar availability. Authorized staff change the source record first, then rerun or revalidate the schedule.
+3. **Soft preferences** rank valid schedules. They improve convenience and quality while keeping the schedule publishable when the fixed hard constraints pass.
+
+Manual Schedule Override rules:
+
+1. Manual Schedule Override is available after an infeasible result, invalid result, or institutionally unacceptable candidate schedule.
+2. A valid Manual Schedule Override passes validation for room no-overlap, faculty no-overlap, required contact hours, physical room capacity, room suitability, section/cohort overlap, student time conflict, blocked calendar and break blocks, published-schedule audit requirements, and faculty qualification.
+3. Faculty load uses the approved default limit or a Faculty Term Load Override recorded in Module 5 before validation.
+4. Same-faculty requirements use the Course Specification Revision or authorized Term Offering override before validation.
+5. Calendar or break-block conflicts are handled by updating the Academic Calendar or Scheduling Availability source record before validation.
+6. A Manual Schedule Override records the affected constraint, actor, reason, authority, affected demand or meeting rows, and validation result.
+
+
+Hard constraint source map:
+
+| Constraint | Source Records |
+| --- | --- |
+| Assignment coverage | Term offerings, Scheduling Demand, section delivery groups |
+| Room no-overlap | Rooms, room availability, time blocks, existing active assignments |
+| Faculty no-overlap | Faculty profile, availability, active assignments |
+| Section/cohort no-overlap | Section, cohort group, term offering, meeting pattern |
+| Student no-overlap | Checked by TALA during enrollment for irregular students (solver only enforces cohort/section non-overlap) |
+| Contact-hour completion | Course Specification Revision, Course Components, Scheduling Demand, term calendar time blocks |
+| Calendar validity | Recurring operating grid and recurring break/no-class blocks constrain the Master Schedule; absolute holidays, no-class dates, and examination suspensions govern dated occurrences and operational handling |
+| Resource availability | Room availability, faculty availability, resource-specific blocked times |
+| Room suitability | Room type, features, capacity, delivery modality |
+| Faculty eligibility | Faculty-subject qualification mappings |
+| Faculty load | Term setting default max units plus term-specific overload override |
+| Capacity feasibility | Expected regular cohort count, section capacity, room capacity, delivery modality |
+| Same-faculty requirement | Course Specification Revision component rule or authorized Term Offering override |
+| Fixed assignment preservation | Published schedule version, fixed assignment inputs, revision events |
+| Consecutive laboratory blocks | Course Specification Revision Course Component rules, Scheduling Demand consecutive flag |
+| Manual Schedule Override eligibility | Constraint catalog, authorized role, override reason, affected Scheduling Demand or section meeting |
+
+Soft constraints:
+
+1. Prefer compact student and section schedules.
+2. Reduce faculty idle gaps.
+3. Balance faculty load.
+4. Use rooms efficiently.
+5. Reduce late and weekend schedules.
+6. Minimize changes from previous published version.
+7. Prefer earlier institutional time blocks when multiple valid assignments exist.
+
+Faculty requested-time preference is not part of the approved scope and is not planned. The scheduler must not present or claim preferred-time optimization; recurring unavailable blocks remain mandatory scheduling inputs.
+
+Soft constraint rules:
+
+1. Soft constraints rank schedules that already pass fixed hard constraints.
+2. V1 uses an approved default soft-priority preset.
+3. Solver output includes enough score detail for Registrar review.
+4. Authorized staff may publish a feasible schedule with lower soft-constraint quality and a recorded reason.
+5. Manual Schedule Override may accept a lower soft-constraint score or relax a soft preference after fixed hard-constraint validation passes.
+6. Soft constraints affect ranking among valid schedules.
+
+CP-SAT modeling note:
+
+CP-SAT works over integer variables, so TALA sends time as stable integer time-block IDs or minute offsets, not free-form time strings. Calendar and duration rules must be converted into integer time blocks before the payload is sent to the solver.
+
+Institutional break blocks:
+
+1. Break blocks are sent to the solver as unavailable time blocks for the configured scope.
+2. Institution-wide breaks apply to all affected class meetings.
+3. Room-specific, faculty-specific, or date-specific breaks apply only to the matching Scheduling Demand source records.
+4. Approved make-up class blocks are treated as valid available time only for the authorized affected meetings.
+
+Fixed Assignments and Pre-locking:
+
+1. Staff can pre-fill or lock specific scheduling details (such as a specific room, faculty, or time block) for a Scheduling Demand before the solver runs.
+2. Locked fields are treated as hard constraints (Fixed Assignments) by the solver, which must respect these choices while optimizing the remaining unassigned variables.
+3. Online demands do not require a physical room. A no-meeting demand is used only when the authoritative Course Component requires no weekly scheduled meeting.
+4. TALA validates fixed assignments before solver execution and returns the failed source record when a fixed assignment conflicts with a fixed hard constraint.
+
+Consecutive Block Scheduling:
+
+1. For components requiring large contact hours (e.g., 6 hours or 12 half-hour blocks) that must be scheduled in a single day, the solver must represent and validate the class session as one uninterrupted assignment across valid institutional time blocks.
+2. The selected CP-SAT model must prevent the complete assignment from overlapping faculty, room, cohort, calendar, or break constraints. TAL-94 chooses and verifies the proportionate modeling technique after its independent benchmark.
+
+---
+
+### 6.2. CP-SAT Product-Level Solver Contract
+
+This is the product-level contract between TALA and the CP-SAT scheduling service.
+
+#### 6.2.1 Solver Input Package
+
+TALA must send only validated data.
+
+Required input groups:
+
+1. Run Metadata
+2. Term
+3. Time Slots
+4. Subjects
+5. Scheduling Demand
+6. Sections
+7. Section Delivery Groups
+8. Rooms
+9. Faculty
+10. Faculty Qualifications
+11. Faculty Availability and scoped scheduling blocks from `calendar_events`
+12. Term Offerings
+13. Student / Cohort Groups
+14. Hard Constraints
+15. Soft Constraints
+16. Fixed Assignments
+17. Optimization Settings
+
+Availability and calendar-block payload rules:
+
+1. TALA sends active recurring term-scoped `calendar_events` blocks used by the run. It does not read legacy faculty-availability period, submission, window, or change-request records.
+2. Recurring `UNAVAILABLE` faculty rows and applicable recurring room, institution, break, and no-class rows with `blocks_scheduling=true` are hard inputs for the weekly Master Schedule.
+3. Every enforced block includes `day_of_week`, `starts_at`, and `ends_at` with its source event ID, scope, and target.
+4. Absolute `start_at` / `end_at` holidays, no-class dates, and dated exceptions are not sent to the date-blind weekly solver. They remain Academic Calendar occurrence records and use make-up, revision, or operational handling when applicable.
+5. When an absolute event represents a whole-term restriction, staff records an equivalent recurring block for Master Schedule enforcement.
+6. No faculty-scoped availability row means no additional restriction inside the generated term time grid.
+7. Solver readiness does not require a synthetic availability row. It validates the term grid, active recurring blocks, qualified faculty, rooms, and demand sources that exist.
+8. Recurring manual assignment uses the same active recurring calendar-block overlap rules as the solver and cannot bypass an unavailable block through a note-only override.
+9. Requested or preferred-time capture and optimization are not part of the approved scope or TAL-94 solver claims. A future institutional requirement must pass the protocol gates before changing this contract.
+10. The immutable run snapshot retains the deterministic recurring source rows actually enforced. Later calendar changes affect a new run or explicit revalidation and never rewrite a captured run or published schedule.
+
+#### 6.2.2 Required Input IDs
+
+Every solver input must use stable TALA IDs:
+
+1. solver_run_id
+2. academic_year_id
+3. term_id
+4. curriculum_version_id
+5. term_offering_id
+6. section_id
+7. subject_id
+8. course_component_id or component_key
+9. section_delivery_group_id
+10. scheduling_demand_id or demand_key
+11. room_id
+12. faculty_id
+13. time_slot_id
+14. cohort_or_student_group_id
+15. constraint_profile_key and version
+
+The solver uses official TALA IDs supplied in the input package.
+
+#### 6.2.3 Solver Output Package
+
+Expected output:
+
+1. solver_run_id
+2. solver_status
+3. candidate_schedule_id
+4. assignments
+5. hard_constraint_violations
+6. soft_constraint_scores
+7. infeasible_reasons, if applicable
+8. warnings
+9. runtime_seconds
+10. objective_score, if available
+11. solver_version or model_version
+12. generated_at
+
+Output interpretation: `objective_score` is a weighted ranking value, not a percentage or accuracy score. The current response also carries typed model/search statistics, including the best objective bound and relative optimality gap. The **bound** limits how good an undiscovered solution could still be; the **relative gap** is the normalized distance between the returned feasible objective and that bound. Laravel uses these values as review evidence and still revalidates every assignment independently.
+
+#### 6.2.4 Assignment Output
+
+Each assignment must map back to TALA records:
+
+1. scheduling_demand_id or demand_key
+2. term_offering_id
+3. section_id
+4. section_delivery_group_id
+5. subject_id
+6. course_component_id or component_key
+7. faculty_id
+8. room_id
+9. day
+10. start_time
+11. end_time
+12. time_slot_id or time_block_reference
+13. meeting_pattern
+14. assignment_status
+
+#### 6.2.5 Solver Status Handling
+
+The solver searches in two equation-preserving stages within one total solver budget:
+
+1. The **feasibility stage** uses the approved hard constraints without the soft objective to find one complete valid assignment.
+2. When that stage succeeds, the **optimization stage** adds the unchanged approved soft-objective terms, uses the valid assignment as a search hint, and improves it during the remaining budget.
+3. If the optimization stage reaches its limit, TALA may retain the complete feasibility-stage assignment as `FEASIBLE` after independent Laravel validation. It must not relabel that assignment `OPTIMAL`.
+4. If no stage finds an incumbent and CP-SAT returns `UNKNOWN`, the response contains no candidate timetable and makes no infeasibility claim.
+
+When the solver returns `INFEASIBLE`, TALA presents a "Relaxation & Override" review path. The Registrar can fix source records, relax configured soft preferences, record approved policy overrides, rerun the solver, or create a Manual Schedule Override that passes fixed hard-constraint validation.
+
+Manual override flow:
+
+1. TALA lists infeasible or invalid constraints by source record.
+2. Staff corrects source data when the issue is caused by missing rooms, faculty, contact hours, calendar windows, qualification, capacity, or demand setup.
+3. Staff may relax the approved soft-priority preset or selected institutional policy constraints when the constraint catalog marks them overrideable.
+4. Staff records the override authority, reason, affected Scheduling Demand or section meeting, and expected impact.
+5. TALA revalidates the manually proposed assignment before it can become a candidate schedule.
+6. TALA saves only assignments that pass fixed hard-constraint validation.
+
+#### 6.2.6 Candidate Schedule Rule
+
+Solver output is only a candidate schedule.
+
+A candidate schedule becomes official only after:
+
+1. TALA validates non-overrideable hard constraints and any recorded Manual Schedule Override scope.
+2. Registrar reviews schedule.
+3. Registrar confirms publication after review. Academic Head reviews scheduling exceptions but does not provide a universal V1 publication approval unless later institutional evidence explicitly requires that workflow.
+4. Registrar publishes the schedule as a versioned schedule. System Super Admin configuration authority does not include academic schedule publication.
+
+---
+
+### 6.3. Schedule Publication and Mid-Term Schedule Revisions
+
+TALA uses the AI Sandbox for pre-publication candidate schedules and In-Place Live Edits for post-publication revisions.
+
+Whole-version replacement is available only before active Student Schedule Bindings exist for the current published version. Once enrollment placement creates an active binding, TALA retains that published version and routes operational changes through the controlled live-revision flow below; publication does not remap student bindings.
+
+**Post-Publication (Mid-Term Edits):**
+Once the schedule is published and the Enrollment Calendar opens, the schedule is live. If an operational change happens mid-term (e.g., a room floods, an instructor resigns, or a meeting time must move), the Registrar updates the affected live section meeting rows through a controlled revision form, and TALA validates the replacement before saving it.
+
+**Requirements:**
+
+1. **In-Place Updates:** Mid-term schedule adjustments update the `section_meetings` table directly in-place.
+2. **Revision Event (Audit Log):** Every in-place schedule modification generates an immutable record in the `schedule_revision_events` table containing:
+   - `id`, `term_id`, `section_meeting_id`
+   - `change_type` (Enum: `ROOM_CHANGE`, `FACULTY_REASSIGNMENT`, `TIME_CHANGE`, `DELIVERY_MODALITY_CHANGE`, `SECTION_CANCELLATION`)
+   - `reason` (Required text explanation entered by Registrar)
+   - `effective_date` (system-derived from the immediate apply date; V1 has no future-dated activation queue), `changed_by`
+   - `old_snapshot_json`, `new_snapshot_json` (structural data snapshots of the modified assignment to preserve history without cloning the entire schedule)
+   - `affected_student_count`, `affected_faculty_count`
+   - `created_at`
+3. **COR Handling:** CORs are dynamically rendered from the live `section_meetings` table. The next COR view in the Student Hub renders the current validated assignment.
+4. **Notification:** Only affected faculty and affected students receive email notifications through the configured Laravel mail transport.
+5. **Revision History:** The current state of `section_meetings` plus the `schedule_revision_events` log preserves schedule revision history.
+
+Revision scope rules:
+
+1. **Minor live revision:** A room replacement, faculty reassignment, modality correction, or time change for one affected meeting group may be edited directly if validation passes. One controlled operation may update multiple linked meetings atomically when their shared constraints require it.
+2. **Validation required:** Minor live revisions must recheck room no-overlap, faculty no-overlap, room capacity, room suitability, faculty qualification, contact-hour completion, blocked calendar periods, affected cohort/student conflicts, same-faculty requirements, and COR visibility.
+3. **Structural schedule change:** Opening a new section, dissolving a section with enrolled students, splitting or merging sections, changing expected cohort allocation, changing Course Component contact-hour structure, or changing multiple cohort schedules requires a scheduling revision decision.
+4. **Structural handling:** A structural schedule change requires a scheduling revision decision. Staff either rerun CP-SAT for the affected scope, manually create a validated replacement through Manual Schedule Override, or record an approved section cancellation only when no replacement schedule is needed.
+5. **Section cancellation boundary:** `SECTION_CANCELLATION` cancels the entire Section and all of its active delivery groups and meetings, never one arbitrary meeting. It is allowed only after active student schedule bindings and capacity-holding reservations have been resolved or released. TALA records the approved decision but does not automatically reassign students; replacement scheduling uses the existing placement/manual-handling workflow or a staff-triggered solver run first.
+6. **Staff-triggered rerun:** A new solver run is a staff-triggered action when the Master Schedule structure needs re-optimization.
+
+---
+
+### 6.4. CP-SAT Integration Settings
+
+Settings:
+
+1. Solver service endpoint.
+2. Authentication or service credential reference.
+3. Active / inactive status.
+4. Timeout settings.
+5. Retry settings.
+6. Last successful run.
+7. Last failed run.
+8. Solver version or model version when available.
+
+Rules:
+
+1. Only validated scheduling input can be sent.
+2. Solver run payloads must be logged according to retention policy.
+3. Failed solver calls must appear in integration event logs.
+4. Solver output becomes official only through the publication action.
+
+---
+
+### 6.5. Scheduling Interaction Contract
+
+| Information or action | Required interaction form |
+| --- | --- |
+| Scheduling run scope and settings | Record Form selecting Term, included demands, and bounded solver settings; the approved code-defined constraint profile is shown read-only |
+| Calendar grid and Institutional Break Blocks | Calendar / Date-Range Input sourced from Module 4 and shown in readiness validation |
+| Scheduling Demand review | Editable Table of generated demands; course-owned values are read-only and only approved offering overrides, including same-faculty requirement, are editable |
+| Faculty and room constraints | Read-only consolidated validation table linked to the authoritative forms in Module 5 |
+| Start solver run | Read-only input summary and validation report followed by explicit run confirmation |
+| Run progress and status | Generated Read-Only View showing queued/running/completed/infeasible/failed state and diagnostic summary |
+| Candidate assignments | Accessible review presentation that makes section, course, faculty, room, day, start/end time, validation status, conflicts, and quality understandable; TAL-94 selects the minimum proportionate presentation after its independent benchmark, while preserving a canonical record/table representation |
+| Resolve an infeasible or invalid result | Exception list identifying the failed constraint and linking staff to the authoritative input record, soft-priority preset, approved policy override, or Manual Schedule Override form |
+| Publish Master Schedule | Read-only comparison and conflict report followed by explicit publication confirmation |
+| Revise published schedule | Focused Record Form selecting affected meeting rows, change reason, effective date, and approved replacements, followed by impact preview |
+| CP-SAT integration settings | Restricted Record Form; credentials are stored by secure reference and shown only as masked status |
+
+Candidate rows remain provisional until publication. No drag-and-drop task is planned; if a future approved issue adds visual movement, it must update the same validated assignment fields and pass the same fixed hard-constraint validation.
+
+---
+
+### 6.6. Scheduling Surface Map
+
+This map identifies how scheduling is surfaced for v1. It is not a visual design or page layout.
+
+| Scheduling surface | Primary owner | Main interaction form | Purpose |
+| --- | --- | --- | --- |
+| Academic Calendar scheduling grid | Registrar or authorized staff | Calendar / Date-Range Input | Define operating days, hours, no-class dates, examination blocking behavior, and Institutional Break Blocks. |
+| Room and facility setup | Registrar or authorized staff | Record Form and Editable Table | Maintain room capacity, room type, flat features, active status, and room-scoped unavailability. |
+| Faculty qualification and availability | Faculty for own unavailable blocks; Registrar or Academic Head for authorized review and management | Editable qualification Table plus term-scoped Calendar / Date-Range Input | Record approved subject qualification, active unavailable blocks, and term load inputs. Requested or preferred-time optimization is not in the approved scope. |
+| Term Offering builder | Registrar | Generated Editable Table | Create Regular offerings from Curriculum Entries and add approved offering-owned values. |
+| Section delivery groups | Registrar | Editable Table | Define schedulable cohort or section groups and expected counts. |
+| Scheduling Demand review | Registrar | Generated Review Table | Show the demand rows that CP-SAT will schedule, with source links and validation status. |
+| Constraint profile | System Super Admin or authorized staff | Generated Read-Only View | Inspect the versioned code-defined profile. Hard constraints are immutable and the approved `balanced_v1` soft-priority weights are not user-editable in v1. |
+| Readiness check | Registrar | Generated Read-Only validation table | Show missing inputs, invalid source records, and constraints that must be corrected before a solver run. |
+| Solver run setup | Registrar | Record Form plus confirmation | Select term and included demands, inspect the captured profile version, and confirm bounded solver settings. |
+| Candidate schedule review | Registrar; Academic Head for scheduling-exception review | Benchmark-selected accessible review presentation with a canonical Review Table | Understand and compare candidate assignments, constraint results, quality measures, warnings, and publication impact without predetermining a visualization or interaction pattern. |
+| Manual Schedule Override | Registrar with required authority | Focused Record Form | Record a validated replacement assignment, authority, reason, affected rows, and validation result. |
+| Master Schedule publication | Registrar | Confirmation with conflict and impact summary | Publish validated candidate rows into official section meetings before active student bindings exist; later changes use controlled published-schedule revision. |
+| Published schedule revision | Registrar | Focused Record Form with impact preview | Change room, faculty, modality, time, or cancellation after publication while preserving revision history. |
+| Student and faculty schedule visibility | Student Hub and Faculty Workspace | Generated Read-Only View | Show only published schedule records and authorized current assignments. |

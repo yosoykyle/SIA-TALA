@@ -1,5 +1,7 @@
 # TALA Scheduling Optimization: Constraint Programming–Satisfiability (CP-SAT) Formulation, Laravel Validation, and Empirical Capacity
 
+> **Supporting technical and research evidence — not current product, architecture, procurement, or execution authority.** PRD 03 and the Architecture Specification govern the accepted scheduling boundary; measurements below remain dated implementation evidence.
+
 **Document type:** Standalone technical and empirical specification
 
 **System scope:** CP-SAT candidate timetable generation with Laravel-controlled validation, human review, and publication
@@ -316,7 +318,7 @@ This subsection translates the technical pipeline into the exact screens and act
 
 #### 3.1.1 Current presentation checkpoint
 
-Use the Registrar login page at `http://127.0.0.1:8000/admin/login` and sign in with the local seeded Registrar account `registrar.demo@example.test`. Use the locally controlled seeded password recorded in the [local seeded credential sheet](seeded_credentials.md); do not publish that password in a public copy of this technical specification.
+Use the Registrar login page at `http://127.0.0.1:8000/admin/login` and sign in with the local seeded Registrar account `registrar.demo@example.test`. Historical credential evidence is archived in the private [local seeded credential sheet](../archive/demo/seeded_credentials.md); do not treat it as current execution authority or publish its password values.
 
 The prepared client-aligned `MIN` presentation checkpoint is expected to show the following current application records:
 

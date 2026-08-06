@@ -1,116 +1,15 @@
-# TALA Rescue Next Steps
+# TALA Next Steps
 
 ## Purpose
 
-This is the active planning surface for issue order, compact parent/sub-slice maps, routed deferrals, and the one active approved plan contract. Product behavior and workflow rules remain in their owning authorities. Allocate a new top-level issue after the highest numeric ID already reserved here, in `TALA-Local-Linear-Sync-Tracker.md`, or in Linear; confirm live Linear before creating it.
+This is TALA's live planning surface for a newly approved vertical-slice order, compact parent/sub-slice maps, routed deferrals, and one temporary active approved plan contract when the Orchestrator Protocol requires it. Product behavior remains in canonical 00–06. Local task-key and Linear synchronization state remains in `TALA-Local-Linear-Sync-Tracker.md`.
 
-## Active and Upcoming Issues
+## Current Authority and Execution Boundary
 
-Remaining dependency chain: complete cross-role UAT, regression, UI/UX correction, and the final Markdown user manual (revised TAL-96D), then prepare the formal client and panel presentation (TAL-97). The completed scheduling and PayMongo readiness work is retained in bounded commits and pending-sync tracker rows. Post-MVP deferrals are nonblocking.
+Canonical 00–06, the UI Surface Blueprint, and the Architecture Specification are the complete approved product authority set. The definition-first clinic, consolidation, contradiction/omission, and repository documentation-boundary reviews are complete.
 
-| Issue | Status | Goal |
-| --- | --- | --- |
-| TAL-96 | Planned parent | Final MVP operational-data, integration-demo, system-acceptance, UX-polish, documentation, and capacity-readiness gate. |
-| TAL-96A | Done locally | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline handoff for the project manager. |
-| TAL-96C | Done locally | Client-baseline PayMongo demo readiness and Student Finance checkout acceptance. |
-| TAL-96D | Approved revised split and master charter; depends on TAL-96C | Production-Level MVP Defense Readiness parent governed by [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md): preservation-first vertical hardening, diverse scenario evidence, adversarial cross-role acceptance, targeted capacity readiness, and one consolidated operations and defense guide. |
-| TAL-96D1 | Done locally | Client-Corrected Capacity Authority, Representative Scenario Catalogue, Operating-Order Map, Implementation-Validity Audit, Baseline Correction, and Required-Gap Routing. |
-| TAL-96D2 | Approved revised split; depends on TAL-96D1 | Identity, Admissions, Academic Setup, and Offering-State Hardening parent. |
-| TAL-96D2A | Done locally | Identity, Applicant Intake, Review, and Handover Hardening. |
-| TAL-96D2B | Done locally | Academic Period, Catalog, Curriculum, and Import Hardening. |
-| TAL-96D2C | Done locally | Offering, Section, Resource, Scheduling-Readiness, and Faculty-Evidence Reconciliation with guarded `MIN`, `MIDDLE`, and `MAX` acceptance scenarios. |
-| TAL-96D3 | Approved revised split; depends on TAL-96D2C | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening parent. |
-| TAL-96D3A | Done locally | Master Schedule Functional Hardening: readiness, dispatch and retry, candidate review and correction, publication and revision, and official faculty/student schedule projections. |
-| TAL-96D3B | Done locally; pending explicit Linear sync; consolidated manual acceptance deferred to TAL-96D5B | Enrollment Window, Proposal, and Placement Hardening plus truthful final-state handling, responsive action controls, and a plain-language enrollment information hierarchy. |
-| TAL-96D3C | Done locally; pending explicit Linear sync | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening. |
-| TAL-96D3D | Done locally; pending explicit Linear sync | Official Enrollment, Current COR/Schedule, Hold, Modality, and Cross-Role Comprehensibility Hardening. |
-| TAL-96D4 | Approved revised split; depends on TAL-96D3D | Cross-role UI/UX hardening parent covering the system-wide UX foundation, Grades and Lifecycle, Student Hub and generated outputs, and Bootstrap landing-page refinement. |
-| TAL-96D4A | Done locally; pending explicit Linear sync | System-Wide UX Foundation and Error Handling. |
-| TAL-96D4B | Done locally; pending explicit Linear sync | Grades and Student Lifecycle Hardening from faculty/staff action through controlled review and student-facing projection. |
-| TAL-96D4C | Done locally; pending explicit Linear sync; depends on TAL-96D4B | Student Hub, Reports, Generated Outputs, and Notification Presentation. |
-| TAL-96D4D | Done locally; pending explicit Linear sync; depends on TAL-96D4C | Bootstrap Landing, Static Diagnostics, and Cross-Role Consistency Closure. |
-| TAL-96D5 | Approved revised split; depends on TAL-96D4 | Final acceptance, capacity evidence, deployment-readiness, documentation consolidation, and defense-closure parent. |
-| TAL-96D5A | Done locally; pending explicit Linear sync | Completion Readiness and Acceptance-Matrix Reconciliation. |
-| TAL-96D5B | Done locally; pending explicit Linear sync | Accelerated Full-System Convergence and Bounded Final Acceptance. |
-| TAL-96D5C | Approved revised split; depends on TAL-96D5B | Role-by-Role Implementation and Experience Closure followed by the Full Regression, Security, and Integration Readiness Gate. |
-| TAL-96D5C1 | Done locally; pending explicit Linear sync | Role, Surface, and Cross-Role Contract Closure through code-first inventory, producer-consumer traceability, and evidence-backed remediation. |
-| TAL-96D5C2 | Done locally; pending explicit Linear sync | Full Regression, Security, and Integration-Readiness Gate after role/surface remediation stabilizes. |
-| TAL-96D5D | Done locally; pending explicit Linear sync | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization. |
-| TAL-96D5E | Approved revised split; applicant-modality correction done locally; depends on TAL-96D5D | Systemic client-acceptance recovery and exploration readiness followed by final evidence consolidation, deployment-readiness disposition, TAL-97 handoff, and charter retirement. |
-| TAL-96D5E1 | Approved systemic-recovery split; depends on TAL-96D5D | Browser-free authority reconciliation, workflow and UI contract recovery, vertical demonstration-critical remediation, exploration-ready `MIDDLE` personas, and concise human acceptance before consolidation. |
-| TAL-96D5E1A | Done locally; pending explicit Linear sync | System Truth and Workflow Reconciliation: classified registered surfaces and cross-role journeys, reopened overstated D5C1 conclusions, and established the evidence-backed remediation map. |
-| TAL-96D5E1B | Approved revised split; depends on cleaned TAL-96D5E1A | Fixture-truth-gated Registrar-Centered Operational Recovery across academic setup, admissions, offerings, scheduling, enrollment, student records, lifecycle, and affected-role projections. |
-| TAL-96D5E1B1 | Done locally; pending explicit Linear sync | Fixture Truth and Academic Operating Foundation. |
-| TAL-96D5E1B2 | Approved revised task-centered split; depends on cleaned TAL-96D5E1B1 | Academic Readiness and Curriculum, Admissions, and Class Planning and Scheduling Operational Recovery without merging authoritative records. |
-| TAL-96D5E1B2A | Done locally; pending explicit Linear sync | Academic Readiness and Curriculum Workbench. |
-| TAL-96D5E1B2B | Done locally; pending explicit Linear sync | Admissions Work Queue and Applicant Record with contextual requirements, evidence, decision, duplicate-resolution, handover, history, and applicant projection. |
-| TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations from offerings and resources through readiness, candidate review, publication, and official projections. |
-| TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery with regular/irregular flow, history, preview, and affected-role projections. |
-| TAL-96D5E1C | Done locally; pending explicit Linear sync | Compound Accounting and PayMongo Operational Recovery through an account-centered workflow and a provider-exception workflow while preserving normalized finance records. |
-| TAL-96D5E1D | Reopened; approved seven-slice verification-remediation split; D5E1D1-D6 done locally; D7 next | Code-first Capability and Presentation Recovery across every approved role, demonstration-critical journey, retained output, notification, and integration-facing surface. |
-| TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure across registered pages, resources, widgets, routes, outputs, emails, and exports. |
-| TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery, including visible teaching mode in candidate review. |
-| TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR operating-journey completeness and presentation closure across regular and irregular placement, Student Record context/history, and source-derived COR. |
-| TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Completeness, Consistency, and Lean Presentation Closure. |
-| TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure. |
-| TAL-96D5E1D6 | Done locally; four-slice map complete | Grades, lifecycle, completion, presentation-fixture readiness, and remaining role recovery through sequential task-centered slices. |
-| TAL-96D5E1D6A | Done locally; pending explicit Linear sync | Faculty Grade Entry to Registrar Release. |
-| TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results. |
-| TAL-96D5E1D6C | Done locally; pending explicit Linear sync | Completion Eligibility Review and Student-Visible Review Result. |
-| TAL-96D5E1D6D | Done locally; two-slice map complete | Presentation-data readiness followed by System Administration boundary and health presentation. |
-| TAL-96D5E1D6D1 | Done locally; pending explicit Linear sync | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline. |
-| TAL-96D5E1D6D2 | Done locally; pending explicit Linear sync | System Administration Boundary and Health Presentation. |
-| TAL-96D5E1D7 | In progress; primary execution | Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure. |
-| TAL-96D5E1E | Planned; blocked on verified and cleaned TAL-96D5E1D7 | Exploration Evidence, First-Time Guide, and Concise Human Acceptance using the frozen client-aligned `MIN` presentation fixture and only required case overlays. |
-| TAL-96D5E2 | Planned; blocked on verified and cleaned TAL-96D5E1E | Final evidence consolidation, deployment-readiness disposition, TAL-97 verified-claim handoff, and TAL-96D charter retirement. |
-| TAL-97 | Planned; depends on TAL-96D5 | Formal Client and Panel Presentation and Defense Readiness built only from verified TAL-96D evidence. |
-
-Approved TAL-96D order: `TAL-96D1 -> TAL-96D2A -> TAL-96D2B -> TAL-96D2C -> TAL-96D3A -> TAL-96D3B implementation/automated verification -> standalone TAL-96D2C faculty-evidence reconciliation -> refreshed MIN baseline -> TAL-96D3B manual acceptance finding -> TAL-96D3B remediation and automated reverification -> TAL-96D3C -> TAL-96D3D -> TAL-96D4A -> TAL-96D4B -> TAL-96D4C -> TAL-96D4D -> TAL-96D5A -> TAL-96D5B -> TAL-96D5C1 -> TAL-96D5C2 -> TAL-96D5D -> TAL-96D5E1A -> TAL-96D5E1B1 -> TAL-96D5E1B2A -> TAL-96D5E1B2B -> TAL-96D5E1B2C -> TAL-96D5E1B3 -> TAL-96D5E1C -> TAL-96D5E1D1 -> TAL-96D5E1D2 -> TAL-96D5E1D3 -> TAL-96D5E1D4 -> TAL-96D5E1D5 -> TAL-96D5E1D6A -> TAL-96D5E1D6B -> TAL-96D5E1D6C -> TAL-96D5E1D6D1 -> TAL-96D5E1D6D2 -> TAL-96D5E1D7 -> TAL-96D5E1E -> TAL-96D5E2 -> TAL-97`. D5A reconciles readiness before destructive or external work; D5B provides bounded convergence evidence rather than whole-system usability certification; D5C1's code-first inventory remains evidence but its full role/surface closure conclusion is reopened by verified client-acceptance findings; D5C2 remains a regression baseline, not proof of comprehension. D5D owns the completed population/configuration study. D5E1A–C provide verified salvage evidence but do not certify complete presentation correctness. D5E1D1–D7 recover capability authority, timetabling, enrollment, admissions, finance, grades/lifecycle, presentation data, and shared outputs before D5E1E performs consolidated human acceptance. TAL-96D5E1B2 uses three task-centered vertical slices rather than presenting academic, admissions, offering, and scheduling source records as peer workflows. TAL-96D remains primary-only; subagents require explicit user approval. Production deployment, solver traffic promotion, and cutover remain outside this split unless separately authorized.
-
-The full execution method, accepted product directions, state coverage, population scenarios, capacity-study timing, documentation ownership, and human gates are durable in [`TALA-96D-Full-System-Refinement-Charter.md`](TALA-96D-Full-System-Refinement-Charter.md). Every remaining TAL-96D plan must cite and reconcile that charter through the Ground-Truth Gate. It supplements rather than replaces the PRD, blueprint, architecture, master protocol, or the one active approved slice contract recorded here.
-
-Approved compact dispositions: preserve aligned implementation; fix only evidence-backed defects or real gaps; leave cosmetic preferences unchanged or optional. The product supports only `FACE_TO_FACE` and `ONLINE` per offering. D2B stabilizes three-year academic inputs. D2C owns the 21:00 operating grid, realistic offering/resource readiness, and executable `MIN`/`MIDDLE`/`MAX` fixtures without invoking Cloud capacity tests. Its approved standalone correction must distinguish client-reported faculty headcount from generated synthetic scheduling capacity and must not treat demographic status or student modality counts as equivalent to TALA academic-standing or per-offering modality dimensions. D3 and D4 use the stable scenarios for functional and cross-role hardening. D5 owns the targeted population/configuration and cost study after workload manifests are final. Earlier Profile A/B/C and proportional experiments remain historical solver-scaling evidence rather than population tiers. Shared cross-program common classes remain routed to TAL-175. Any solver-contract or constraint-model change is a human-gated plan revision.
-
-## Post-MVP Deferrals
-
-| Issue | Status | Goal |
-| --- | --- | --- |
-| TAL-98 | Future; nonblocking | Archival, offline-storage management, and disposal automation deferred from TAL-92E and PRD §13.7. |
-| TAL-99 | Future; nonblocking | DPO-owned privacy-request intake and logging deferred from TAL-92F and PRD §13.3.4. |
-| TAL-100 | Future; nonblocking | Database-backed configurable notification templates deferred from TAL-92F and PRD §13.1.1. |
-| TAL-101 | Future; nonblocking | Database-level audit tamper-evidence hardening deferred from TAL-93A and PRD §13.6. |
-| TAL-175 | Future; nonblocking | Shared cross-program common-class modeling with multi-cohort conflict protection, solver-contract review, and synchronized formulation evidence. |
-
-### Unapproved Proposals
-
-No work outside the listed issues is approved or implied. Any additional institutional feature, UI plugin, or infrastructure enhancement must pass the protocol gates and receive an explicit Next Steps issue before implementation.
-
-## Active Approved Plan Contract
-
-### TAL-96D5E1D7 — Shared Outputs, Notifications, Reports, Cross-Role Convergence, and D5E1E Acceptance-Script Closure
-
-**Status:** In progress through approved `Primary proceed`.
-
-**Purpose and ownership:** Close the remaining presentation contract across source-derived outputs, queued notifications, role-authorized reports, producer-consumer consistency, and the one-presenter D5E1E acceptance script. The Registrar remains master-schedule and official-enrollment owner; Accounting owns finance posting and reconciliation; Faculty, Registrar, and Academic Head retain the approved grade-state authorities; System Super Admin owns safe integration and audit visibility. TALA presents source records, generated read-only outputs, integration evidence, and office results without automating institutional judgment.
-
-**Implementation checklist:**
-
-1. Preserve and verify the current `test_tala_db` accepted-candidate checkpoint before any database mutation; retain the existing pristine MIN snapshot as independent recovery evidence.
-2. Revalidate the accepted 54-demand candidate without invoking CP-SAT or another external service.
-3. Map and programmatically prove the shared COR, student/faculty schedule, finance-output, output-access, notification, report/export, audit, and cross-role authorization contracts.
-4. Patch only evidence-backed fixture, presentation, or implementation gaps, using existing services, policies, routes, native Laravel/Filament v5 patterns, and the stable client-aligned MIN personas.
-5. Prepare a guarded post-publication presentation checkpoint in `test_tala_db`, including only the representative official meetings and enrollment bindings required for truthful schedule/COR demonstrations, then preserve and verify that checkpoint.
-6. Rewrite the consolidated Operations and Defense Guide as an ordered one-presenter flow with account, workspace, prerequisite, live versus prepared action, reason, expected visible result, evidence, and recovery.
-7. Update the Git-ignored local credential inventory with the ordered integral presenter accounts while keeping credential values out of newly added tracked guidance.
-
-**Authority correction:** Replace the tracked guide's single blank-scheduling presentation assumption with explicit pristine-MIN, accepted-candidate, and post-publication checkpoint meanings. The accepted Run #10 is real solver evidence, but a candidate is not official until Laravel revalidation and Registrar publication succeed. D5E1E still owns the external provider and rendered human acceptance evidence.
-
-**Benchmark and reference disposition:** Reuse the accepted TAL-96D3A/D3D/D4C/D5B/D5E1D2-D6 benchmarks because no role, source record, integration boundary, official-output class, exposed-data class, or manual-office authority changes. The TALA-specific source-derived output and cross-role workflow has no useful Academico business-logic or implementation-pattern overlap at this closure depth; keep TALA's existing services and native Filament v5 presentation.
-
-**Exclusions:** No solver invocation, Cloud Run call, SMTP delivery, PayMongo request or webhook mutation, ngrok change, production database access, schema or dependency change, real identity, destructive rebuild, deployment, push, pull request, Linear mutation, or Cleanup commit. No active third-year cohort or fabricated official result.
-
-**Expected verification:** Prove `testing|mysql|test_tala_db`; run focused PHPUnit for positive, blocked, duplicate/idempotent, role-authorization, shared-output, notification, report/export, and checkpoint cases; run changed-PHP Pint and scoped PHPStan/Larastan; run the guarded no-external presentation inspection; verify snapshot manifests and hashes; and run `git diff --check`. Browser-family, SMTP, and PayMongo test-mode acceptance remain human-only D5E1E gates.
+No implementation roadmap, approved implementation slice, active plan contract, verification boundary, or Cleanup boundary currently exists. No previous roadmap or task contract grants execution authority. Any aligned capability that remains useful must be re-derived from canonical authority as part of a newly approved journey-complete vertical slice.
 
 ## Next Planning Boundary
 
-Active boundary: `Verify TAL-96D5E1D7` after primary execution completes.
+Separately derive and plan the first journey-complete vertical implementation slice from canonical 00–06. Before assigning a Local Task Key, inspect the local sync tracker so no historical key is reused. A Linear Issue ID is assigned only by Linear during a separately authorized synchronization and must never be predicted from the local key. No application, schema, test, tracker, Linear, commit, push, PR, or deployment action is implied by this boundary.
