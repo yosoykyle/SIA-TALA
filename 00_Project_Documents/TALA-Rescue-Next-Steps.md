@@ -12,4 +12,4 @@ No implementation roadmap, approved implementation slice, active plan contract, 
 
 ## Next Planning Boundary
 
-Separately derive and plan the first journey-complete vertical implementation slice from canonical 00–06. Before assigning a Local Task Key, inspect the local sync tracker so no historical key is reused. A Linear Issue ID is assigned only by Linear during a separately authorized synchronization and must never be predicted from the local key. No application, schema, test, tracker, Linear, commit, push, PR, or deployment action is implied by this boundary.
+The `TAL-96` completion and cancellation records are reconciled. Separately derive and plan the first journey-complete vertical implementation slice from canonical 00–06 as local base task `TAL-97`. Later local base tasks continue as `TAL-98`, `TAL-99`, and so on; sub-slices extend their owning local key. A Linear Issue ID is assigned only by Linear during separately authorized synchronization and never determines the local task sequence. No application, schema, test, commit, push, PR, or deployment action is implied by this boundary.

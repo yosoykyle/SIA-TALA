@@ -8,97 +8,23 @@ This is the local staging area for completed tasks awaiting explicit, user-autho
 - Never touch Linear from this file. Create, update, comment on, or sync a Linear issue only when the user explicitly says `Sync TAL-XX to Linear`; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the row pending.
 - After an explicit sync, move the row to Compact Synced History with its Local Task Key, Linear-generated Issue ID, Linear status, and title.
 - Local Task Keys and Linear Issue IDs are separate namespaces. Never infer a mapping from matching numerals; local TAL-97 through TAL-101 collide with existing unrelated Linear Issue IDs in Compact Synced History.
-- `TAL-175` is the highest historical local base task key recorded before the canonical rebaseline. It does not reserve, predict, or map to Linear `TAL-175`; only an existing tracker mapping or verified live lookup can establish a relationship.
-- Do not assign the next Local Task Key until Active Syncs and pending dispositions have been reconciled and the local key history has been checked. Linear numbering does not determine the next Local Task Key.
-- For a superseded local item, populate the Linear Issue ID column only from an existing recorded mapping or a verified live lookup. If no remote issue exists, record `No remote issue existed; local disposition final` rather than creating an issue solely to cancel it.
+- The reconciled historical local base family ends at `TAL-96`. The next new local base task is `TAL-97`; later base tasks continue sequentially and sub-slices extend their owning local key. Linear numbering never determines this sequence.
+- Archived future proposals do not reserve Local Task Keys and do not belong in the live sync queues. For a real superseded or canceled local task, verify any existing mapping first; if none exists, create the Linear issue with the preserved Local Task Key and set the Linear status to `Canceled`.
 
 ## Synchronization Order
 
-1. Process the Active Syncs first, in controlled user-authorized batches. For each row, verify whether an exact Linear mapping already exists before creating anything; when Linear creates an issue, record the identifier it generates without changing the Local Task Key.
-2. After each authorized batch, refresh the live Linear workspace and move only successfully reconciled rows to Compact Synced History.
-3. Reconcile Pending Disposition Syncs only after Active Syncs is clear. Use exact recorded mappings or verified live lookup results; never infer a mapping from a matching number.
-4. Do not create a Linear issue solely to cancel or supersede a local-only historical item. Record the local disposition as final when no remote issue exists.
-5. Determine the next unused Local Task Key only after both queues are reconciled. Never reserve or predict a future Linear Issue ID.
+1. Reconcile real Pending Disposition Syncs in controlled user-authorized batches. Verify exact existing mappings first; create only missing issues with the preserved Local Task Key and Linear status `Canceled`.
+2. Process Active Syncs as completed local deliveries. Verify exact existing mappings first; create only missing issues with the preserved Local Task Key and Linear status `Done`.
+3. After each authorized batch, refresh the live Linear workspace and move only successfully reconciled rows to Compact Synced History with the Linear-generated Issue ID.
+4. When both queues are clear, retain the compact mappings and continue local planning at base task `TAL-97`. Never reserve or predict a future Linear Issue ID.
 
-## Active Syncs — Process First
+## Active Syncs
 
-| Local Task Key | Status | Title / Domain |
-| --- | --- | --- |
-| TAL-95D1 | Done locally; pending explicit Linear sync | PayMongo Hosted Checkout V2 Provider Contract Hardening |
-| TAL-95D2A | Done locally; pending explicit Linear sync | PayMongo Signed-Webhook Admission Compatibility |
-| TAL-95D2B1 | Done locally; pending explicit Linear sync | PayMongo Provider-Faithful Normalization and Preserved-Review Recovery |
-| TAL-95D2B2 | Done locally; pending explicit Linear sync | Official PayMongo Resend Acceptance |
-| TAL-96A | Done locally; pending explicit Linear sync | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline |
-| TAL-96B1 | Done locally; pending explicit Linear sync | Guarded Client-Aligned Deterministic Acceptance Baseline |
-| TAL-96B2 | Done locally; pending explicit Linear sync | Representative CP-SAT Recovery and Capacity-Benchmark Handoff |
-| TAL-96B3 | Done locally; pending explicit Linear sync | Cloud Run CP-SAT Capacity, Solution-Quality, and Production-Profile Finalization |
-| TAL-96B4 | Done locally; pending explicit Linear sync | Shared-Cohort Conflict Correctness and Representative Timetable Evidence |
-| TAL-96C | Done locally; pending explicit Linear sync | Client-Baseline PayMongo Demo Readiness and Student Finance Checkout Acceptance |
-| TAL-96D1 | Done locally; pending explicit Linear sync | Client-Corrected Capacity Authority and Defense-Readiness Baseline |
-| TAL-96D2A | Done locally; pending explicit Linear sync | Identity, Applicant Intake, Review, and Handover Hardening |
-| TAL-96D2B | Done locally; pending explicit Linear sync | Academic Period, Catalog, Curriculum, and Import Hardening |
-| TAL-96D2C | Done locally; pending explicit Linear sync | Offering, Section, Resource, Scheduling-Readiness, and Faculty-Evidence Reconciliation |
-| TAL-96D3A | Done locally; pending explicit Linear sync | Master Schedule Functional Hardening |
-| TAL-96D3B | Done locally; pending explicit Linear sync | Enrollment Window, Proposal, Placement, Final-State, and Responsive Presentation Hardening |
-| TAL-96D3C | Done locally; pending explicit Linear sync | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening |
-| TAL-96D3D | Done locally; pending explicit Linear sync | Official Enrollment, Current COR/Schedule, Hold, Modality, and Cross-Role Comprehensibility Hardening |
-| TAL-96D4A | Done locally; pending explicit Linear sync | System-Wide UX Foundation and Error Handling |
-| TAL-96D4B | Done locally; pending explicit Linear sync | Grades and Student Lifecycle Hardening |
-| TAL-96D4C | Done locally; pending explicit Linear sync | Student Hub, Reports, Generated Outputs, and Notification Presentation |
-| TAL-96D4D | Done locally; pending explicit Linear sync | Bootstrap Landing, Static Diagnostics, and Cross-Role Consistency Closure |
-| TAL-96D5A | Done locally; pending explicit Linear sync | Completion Readiness and Acceptance-Matrix Reconciliation |
-| TAL-96D5B | Done locally; pending explicit Linear sync | Accelerated Full-System Convergence and Bounded Final Acceptance |
-| TAL-96D5C1 | Done locally; pending explicit Linear sync | Role, Surface, and Cross-Role Contract Closure |
-| TAL-96D5C2 | Done locally; pending explicit Linear sync | Full Regression, Security, and Integration-Readiness Gate |
-| TAL-96D5D | Done locally; pending explicit Linear sync | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization |
-| TAL-96D5E applicant-modality correction | Done locally; pending explicit Linear sync | Applicant Modality Removal and Per-Offering Delivery Alignment |
-| TAL-96D5E1A | Done locally; pending explicit Linear sync | System Truth and Workflow Reconciliation |
-| TAL-96D5E1B1 | Done locally; pending explicit Linear sync | Fixture Truth and Academic Operating Foundation |
-| TAL-96D5E1B2A | Done locally; pending explicit Linear sync | Academic Readiness and Curriculum Workbench |
-| TAL-96D5E1B2B | Done locally; pending explicit Linear sync | Admissions Work Queue and Contextual Applicant Record |
-| TAL-96D5E1B2C | Done locally; pending explicit Linear sync | Class Planning and Scheduling Operations |
-| TAL-96D5E1B3 | Done locally; pending explicit Linear sync | Enrollment, Student Record, and Lifecycle Recovery |
-| TAL-96D5E1C | Done locally; pending explicit Linear sync | Accounting and PayMongo Operational Recovery |
-| TAL-96D5E1D1 | Done locally; pending explicit Linear sync | Capability and Presentation Authority Closure |
-| TAL-96D5E1D2 | Done locally; pending explicit Linear sync | Timetabling Operating-Journey Recovery |
-| TAL-96D5E1D3 | Done locally; pending explicit Linear sync | Enrollment-to-COR Operating-Journey Closure |
-| TAL-96D5E1D4 | Done locally; pending explicit Linear sync | Admissions-to-Student Journey Closure |
-| TAL-96D5E1D5 | Done locally; pending explicit Linear sync | Student Account Payment-to-Clearance Journey and Finance-Output Closure |
-| TAL-96D5E1D6A | Done locally; pending explicit Linear sync | Faculty Grade Entry to Registrar Release |
-| TAL-96D5E1D6B | Done locally; pending explicit Linear sync | Academic Standing and Recorded Lifecycle Results |
-| TAL-96D5E1D6C | Done locally; pending explicit Linear sync | Completion Eligibility Review and Student-Visible Review Result |
-| TAL-96D5E1D6D1 | Done locally; pending explicit Linear sync | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline |
-| TAL-96D5E1D6D2 | Done locally; pending explicit Linear sync | System Administration Boundary and Health Presentation |
-| Standalone CP-SAT formulation gate | Done locally; pending explicit Linear sync | CP-SAT Formulation Consistency and Full-Suite Gate |
-| Standalone TAL-69 | Done locally; pending explicit Linear sync | PayMongo Provider-Reference Regression Correction |
+No active syncs.
 
 ## Pending Disposition Syncs
 
-These legacy planning items no longer grant execution authority. Canonical 00–06 supersedes their task contracts, grouping, or deferral routing. Any still-useful capability must be re-derived as a new journey-complete vertical slice.
-
-| Local Task Key | Local disposition | Linear Issue ID | Reason |
-| --- | --- | --- | --- |
-| TAL-96 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Legacy rescue parent replaced by canonical authority and new vertical-slice derivation |
-| TAL-96D | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Full-system refinement charter and execution chain are archived history |
-| TAL-96D2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
-| TAL-96D3 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
-| TAL-96D4 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical planning parent; completed children remain preserved as implementation evidence |
-| TAL-96D5 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical acceptance/defense parent replaced by canonical vertical-slice acceptance |
-| TAL-96D5C | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical role/regression planning parent; future coverage must derive from canonical journeys |
-| TAL-96D5E | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical recovery parent; completed correction evidence remains in Active Syncs |
-| TAL-96D5E1 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical systemic-recovery planning parent |
-| TAL-96D5E1B | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical operational-recovery planning parent |
-| TAL-96D5E1B2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical task-centered split; completed child evidence remains preserved |
-| TAL-96D5E1D | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical presentation-recovery parent; D7 is not resumable |
-| TAL-96D5E1D7 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Suspended outputs/reports/acceptance contract replaced by canonical 00–06 ownership |
-| TAL-96D5E1E | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical exploration and acceptance script must be re-derived from canonical journeys |
-| TAL-96D5E2 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical evidence-consolidation and deployment disposition is not a current task |
-| TAL-97 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical presentation task; local label does not map to existing Linear TAL-97 |
-| TAL-98 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old disposal/archival deferral; local label does not map to existing Linear TAL-98 |
-| TAL-99 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old privacy-request deferral; local label does not map to existing Linear TAL-99 |
-| TAL-100 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old notification-template deferral; local label does not map to existing Linear TAL-100 |
-| TAL-101 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Old audit-tamper-evidence deferral; local label does not map to existing Linear TAL-101 |
-| TAL-175 | Superseded locally; pending mapping reconciliation | Unresolved — do not infer | Historical local shared-class deferral; PRD 03 now governs shared cross-program classes |
+No pending disposition syncs. The real superseded `TAL-96` planning parents are recorded as `Canceled` in Compact Synced History. Archived future proposals do not reserve Local Task Keys or create Linear issues.
 
 ## Compact Synced History
 
@@ -239,3 +165,65 @@ These legacy planning items no longer grant execution authority. Canonical 00–
 | TAL-95B | TAL-172 | Done | Secure PayMongo Webhook Processing and Financial Evidence |
 | TAL-95C1 | TAL-173 | Done | Accounting PayMongo Reconciliation |
 | TAL-95C2 | TAL-174 | Done | PayMongo Observability and Student Delivery |
+| TAL-95D1 | TAL-175 | Done | PayMongo Hosted Checkout V2 Provider Contract Hardening |
+| TAL-95D2A | TAL-176 | Done | PayMongo Signed-Webhook Admission Compatibility |
+| TAL-95D2B1 | TAL-177 | Done | PayMongo Provider-Faithful Normalization and Preserved-Review Recovery |
+| TAL-95D2B2 | TAL-178 | Done | Official PayMongo Resend Acceptance |
+| TAL-96 | TAL-179 | Canceled | Legacy Rescue Parent |
+| TAL-96D | TAL-180 | Canceled | Production-Level MVP Defense Readiness Parent |
+| TAL-96D2 | TAL-181 | Canceled | Identity, Admissions, Academic Setup, and Offering-State Hardening Parent |
+| TAL-96D3 | TAL-182 | Canceled | Scheduling, Enrollment, Finance, COR, and Integration-State Hardening Parent |
+| TAL-96D4 | TAL-183 | Canceled | Cross-Role UI and UX Hardening Parent |
+| TAL-96D5 | TAL-184 | Canceled | Final Acceptance and Defense Closure Parent |
+| TAL-96D5C | TAL-185 | Canceled | Role and Regression Closure Parent |
+| TAL-96D5E | TAL-186 | Canceled | Systemic Client-Acceptance Recovery Parent |
+| TAL-96D5E1 | TAL-187 | Canceled | Systemic Recovery Parent |
+| TAL-96D5E1B | TAL-188 | Canceled | Registrar-Centered Operational Recovery Parent |
+| TAL-96D5E1B2 | TAL-189 | Canceled | Academic, Admissions, and Scheduling Recovery Split |
+| TAL-96D5E1D | TAL-190 | Canceled | Capability and Presentation Recovery Parent |
+| TAL-96D5E1D7 | TAL-191 | Canceled | Shared Outputs, Notifications, Reports, and Acceptance Closure |
+| TAL-96D5E1E | TAL-192 | Canceled | Exploration Evidence and Human Acceptance |
+| TAL-96D5E2 | TAL-193 | Canceled | Final Evidence Consolidation and Deployment Disposition |
+| TAL-96A | TAL-194 | Done | Standalone CP-SAT Technical Formulation and Laravel Validation Pipeline |
+| TAL-96B1 | TAL-195 | Done | Guarded Client-Aligned Deterministic Acceptance Baseline |
+| TAL-96B2 | TAL-196 | Done | Representative CP-SAT Recovery and Capacity-Benchmark Handoff |
+| TAL-96B3 | TAL-197 | Done | Cloud Run CP-SAT Capacity, Solution-Quality, and Production-Profile Finalization |
+| TAL-96B4 | TAL-198 | Done | Shared-Cohort Conflict Correctness and Representative Timetable Evidence |
+| TAL-96C | TAL-199 | Done | Client-Baseline PayMongo Demo Readiness and Student Finance Checkout Acceptance |
+| TAL-96D1 | TAL-200 | Done | Client-Corrected Capacity Authority and Defense-Readiness Baseline |
+| TAL-96D2A | TAL-201 | Done | Identity, Applicant Intake, Review, and Handover Hardening |
+| TAL-96D2B | TAL-202 | Done | Academic Period, Catalog, Curriculum, and Import Hardening |
+| TAL-96D2C | TAL-203 | Done | Offering, Section, Resource, Scheduling-Readiness, and Faculty-Evidence Reconciliation |
+| TAL-96D3A | TAL-204 | Done | Master Schedule Functional Hardening |
+| TAL-96D3B | TAL-205 | Done | Enrollment Window, Proposal, Placement, Final-State, and Responsive Presentation Hardening |
+| TAL-96D3C | TAL-206 | Done | Authoritative Finance State, PayMongo Recovery, and Plain-Language Operations Hardening |
+| TAL-96D3D | TAL-207 | Done | Official Enrollment, Current COR/Schedule, Hold, Modality, and Cross-Role Comprehensibility Hardening |
+| TAL-96D4A | TAL-208 | Done | System-Wide UX Foundation and Error Handling |
+| TAL-96D4B | TAL-209 | Done | Grades and Student Lifecycle Hardening |
+| TAL-96D4C | TAL-210 | Done | Student Hub, Reports, Generated Outputs, and Notification Presentation |
+| TAL-96D4D | TAL-211 | Done | Bootstrap Landing, Static Diagnostics, and Cross-Role Consistency Closure |
+| TAL-96D5A | TAL-212 | Done | Completion Readiness and Acceptance-Matrix Reconciliation |
+| TAL-96D5B | TAL-213 | Done | Accelerated Full-System Convergence and Bounded Final Acceptance |
+| TAL-96D5C1 | TAL-214 | Done | Role, Surface, and Cross-Role Contract Closure |
+| TAL-96D5C2 | TAL-215 | Done | Full Regression, Security, and Integration-Readiness Gate |
+| TAL-96D5D | TAL-216 | Done | CP-SAT Population Operating Envelope, Staged Search, and Standalone Evidence Finalization |
+| TAL-96D5E applicant-modality correction | TAL-217 | Done | Applicant Modality Removal and Per-Offering Delivery Alignment |
+| TAL-96D5E1A | TAL-218 | Done | System Truth and Workflow Reconciliation |
+| TAL-96D5E1B1 | TAL-219 | Done | Fixture Truth and Academic Operating Foundation |
+| TAL-96D5E1B2A | TAL-220 | Done | Academic Readiness and Curriculum Workbench |
+| TAL-96D5E1B2B | TAL-221 | Done | Admissions Work Queue and Contextual Applicant Record |
+| TAL-96D5E1B2C | TAL-222 | Done | Class Planning and Scheduling Operations |
+| TAL-96D5E1B3 | TAL-223 | Done | Enrollment, Student Record, and Lifecycle Recovery |
+| TAL-96D5E1C | TAL-224 | Done | Accounting and PayMongo Operational Recovery |
+| TAL-96D5E1D1 | TAL-225 | Done | Capability and Presentation Authority Closure |
+| TAL-96D5E1D2 | TAL-226 | Done | Timetabling Operating-Journey Recovery |
+| TAL-96D5E1D3 | TAL-227 | Done | Enrollment-to-COR Operating-Journey Closure |
+| TAL-96D5E1D4 | TAL-228 | Done | Admissions-to-Student Journey Closure |
+| TAL-96D5E1D5 | TAL-229 | Done | Student Account Payment-to-Clearance Journey and Finance-Output Closure |
+| TAL-96D5E1D6A | TAL-230 | Done | Faculty Grade Entry to Registrar Release |
+| TAL-96D5E1D6B | TAL-231 | Done | Academic Standing and Recorded Lifecycle Results |
+| TAL-96D5E1D6C | TAL-232 | Done | Completion Eligibility Review and Student-Visible Review Result |
+| TAL-96D5E1D6D1 | TAL-233 | Done | Client-Aligned MIN Presentation Database and Case-Fixture Rebaseline |
+| TAL-96D5E1D6D2 | TAL-234 | Done | System Administration Boundary and Health Presentation |
+| Standalone CP-SAT formulation gate | TAL-235 | Done | CP-SAT Formulation Consistency and Full-Suite Gate |
+| Standalone TAL-69 | TAL-236 | Done | PayMongo Provider-Reference Regression Correction |
