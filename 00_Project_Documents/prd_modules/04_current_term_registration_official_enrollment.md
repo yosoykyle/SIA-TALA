@@ -41,8 +41,8 @@ The same journey supports:
 - Probation-eligible, academically blocked, or pending-decision cases.
 - Returning/reactivated and shifted Students after Clinic 5 records the authorized outcome.
 - Old-curriculum, bridging, approved-equivalency, and transfer-credit cases.
-- Graduating and approved Special Term cases.
-- Full-payment, installment, scholarship, sponsorship, and authorized accommodation cases.
+- Graduating and approved Special Term cases, including an exact authorized individual assessment when a fixed Program-and-Term Fee Plan cannot represent the confirmed selection.
+- Full-payment, installment, and externally approved scholarship, sponsorship, government-subsidy, or other authorized-funding coverage cases. Coverage processing remains external; Clinic 6 records only its approved Term Account effect.
 
 Incoming/outgoing cross-enrollees, foreign-student processing, second-degree, non-degree/special, refresher students, course shopping, ranked waitlists, petitions, advising appointments, internal chat, and academic approval chains are outside MVP. TALA may consume an externally approved credit or equivalency outcome affecting a Servitech Student.
 
@@ -73,7 +73,7 @@ The current stage is derived from five accountable checkpoints:
 1. Student eligibility.
 2. Confirmed proposed subjects.
 3. Valid class placement.
-4. Accounting clearance or authorized coverage/accommodation.
+4. Accounting clearance through verified payment, Approved Coverage, a mixed basis, or an institutionally authorized `NoPaymentRequired` basis.
 5. Registrar finalization.
 
 `Action Needed`, responsible owner, reason, evidence, and next action are projections. TALA has no configurable enrollment state machine, universal override record, or generic gate engine.
@@ -86,11 +86,11 @@ The current stage is derived from five accountable checkpoints:
 | Proposal in preparation/revision | Prepare Standard Curriculum or Individually Advised proposal | TALA derives then Registrar confirms/revises | Registrar proposal authority; external authorities recorded when required | Assigned curriculum, released Clinic 5 results, actual Clinic 3 classes, no unresolved academic block | New immutable proposed-registration version | Later version supersedes the active proposal without erasing prior versions | Learner sees only an issued version and **Why these subjects**; Accounting sees no course authority |
 | Waiting for learner / confirmed | Issue proposal; confirm online or record assisted confirmation | Registrar then learner/Registrar | Own confirmation or recorded assisted-confirmation authority | Current issued version; stale version rejected; no arbitrary learner course shopping | Learner confirmation tied to exact proposal version | A material revision requires a new confirmation; history remains | Registrar sees confirmation; learner sees exact confirmed subjects/schedule |
 | Placement/reservation valid or shortage | Place or change class; reserve or release seat | Registrar/TALA transaction | Placement authority and current proposal | Published class, requisite and conflict validity, protected capacity, current lock/version | Seat reservation or `EnrollmentShortageItem` with owner/deadline | Expiry/release changes current projection but preserves evidence; no ranked waitlist | Clinic 3 receives unmet-demand projection; Faculty still sees no roster until official enrollment |
-| Finance pending/cleared | Verify payment requirement, coverage, or accommodation | Accounting through Clinic 6 finance authority | Accounting clearance authority | Current assessment/payment requirement and valid finance evidence | `EnrollmentPaymentRequirementProjection` becomes cleared or action needed | Later finance event updates projection; it does not select courses or finalize enrollment | Learner/Registrar see clearance status; Accounting sees bounded enrollment context |
+| Finance unavailable/pending/cleared | Record or verify the exact assessment, payment requirement, verified payment, or Approved Coverage | Accounting through Clinic 6 finance authority | Accounting assessment/clearance authority | Current `PublishedFeePlan` or eligible `AuthorizedIndividualAssessment`, exact proposal/change source, and valid finance evidence | `EnrollmentPaymentRequirementProjection` becomes `Unavailable`, `ActionNeeded`, or `Cleared` | Later finance event updates projection; it does not select courses or finalize enrollment | Learner/Registrar see assessment basis, payment/coverage amounts, satisfaction basis, and clearance status; Accounting sees bounded enrollment context |
 | Ready to finalize / `OfficiallyEnrolled` | Finalize official enrollment | Registrar | Registrar finalization authority | All five checkpoints pass in one current transaction | Official term/course registrations, Student activation if first enrollment, immutable COR version | Finalization is not reversed by mail failure; post-finalization changes use adjustment/drop records | Faculty roster, Student schedule, Accounting reference, Clinic 2 follow-up reference, and COR update together |
 | `CancelledByLearner`, `CancelledByRegistrar`, or `NotEnrolled` | Cancel before finalization or expire at final cutoff | Learner or Registrar | Self-cancel within boundary; recorded Registrar authority | Case not officially enrolled; deadline/outcome current | Seats released and terminal outcome recorded | Terminal case remains historical; no automatic next-term carryover | All roles see safe terminal projection; no official roster/COR is created |
-| Official adjustment | Record authorized post-enrollment change | Registrar | Adjustment authority and recorded evidence | Valid replacement/placement/finance impact; current official version | Updated official registrations, placement, roster, schedule, finance projection, new COR version | Prior COR remains immutable; change is append-only | Student, Faculty, Accounting, and Registrar projections update together |
-| Course Drop | Record approved Course Drop outcome | Registrar | Owning institutional authority recorded | Official registration exists; bounded academic/finance effects known | Course Drop record, roster/schedule update, new COR version | Does not invent refund/fee/grade; prior official record remains | Clinic 5 receives owning outcome; Accounting receives only valid finance effect |
+| Official adjustment | Record authorized post-enrollment change | Registrar | Adjustment authority and recorded evidence | Current official version; valid replacement/placement; an add/replacement has `Cleared` additional requirement or authoritative no-additional-amount result | Updated official registrations, placement, roster, schedule, finance projection, new COR version | Prior COR and assessment remain immutable; change is append-only | Student, Faculty, Accounting, and Registrar projections update together |
+| Course removal or Course Drop | Record approved removal/drop outcome | Registrar | Owning institutional authority recorded | Official registration exists; academic effect valid; financial effect may remain under Accounting review | Removal/drop record, roster/schedule update, `AccountingReviewPending`, new COR version | Does not invent refund, credit, fee, forfeiture, or grade; prior official record remains | Clinic 5 receives owning outcome; Accounting receives the exact change source for review |
 | Timetable-impact review | Clinic 3 proposes published change affecting placements | Registrar | Clinic 3 revision plus Clinic 4 enrollment-impact authority | Every affected reservation/official placement has a valid outcome | Replacement, authorized course cancellation, or recorded approved outcome | No silent learner move; Clinic 3 revision publishes only after impacts resolve | One Clinic 3-owned revision event uses Clinic 4 recipients/context |
 | Official Student profile correction | Record an authorized correction to a source identity/program/curriculum/entry/contact fact | Registrar | Student-record correction authority with reason and evidence | Existing Student profile; current source/version; no conflicting active correction | Append-only correction and current Student profile projection | Issued COR/TOR snapshots are never rewritten; a changed official output uses a successor version | Future Clinic 4/5/6 views use the corrected source while history retains the prior fact |
 
@@ -101,7 +101,7 @@ The current stage is derived from five accountable checkpoints:
 | Student eligibility | Clinic 2 Ready Applicant or Clinic 5 released result/lifecycle/progress effect | Registrar consumes; Clinics 2/5 own source | Applicant is ready or Student has `Allowed`/authorized `AdvisingRequired`; no unresolved block/decision | Case start, placement, or finalization blocked as applicable | Start case; prepare proposal; finalize | Correct owning source or record external authorized outcome; never override locally |
 | Confirmed proposed subjects | Current proposal version and learner confirmation | Registrar and learner | Proposal matches authoritative curriculum/results/classes and exact current version is confirmed | Placement/finalization blocked | Place classes | Revise/issue proposal and obtain new online or assisted confirmation |
 | Valid class placement | Clinic 3 published classes plus reservations, requisites, conflicts, and capacity | Registrar | Every proposed recurring course has a valid protected placement or approved no-meeting treatment | Finalization blocked; shortage owner/deadline shown | Finalize official enrollment | Resolve shortage, validly change class, amend safe capacity, or revise timetable through Clinic 3 |
-| Accounting clearance | Clinic 6 enrollment-payment requirement and verified finance evidence | Accounting | Required current amount is satisfied or valid coverage/accommodation is recorded | Finalization blocked | Finalize official enrollment | Complete payment, verify coverage, or record authorized accommodation in Finance |
+| Accounting clearance | Clinic 6 assessment and enrollment-payment requirement plus verified payment and Approved Coverage evidence | Accounting | Assessment basis is `PublishedFeePlan` or eligible `AuthorizedIndividualAssessment`; source is current; required amount is satisfied by verified payment, Applied coverage, a mixed basis, or `NoPaymentRequired` | `Unavailable` or `ActionNeeded`; finalization blocked without a fallback | Finalize official enrollment | Publish the ordinary Fee Plan, record an eligible exact individual assessment, verify payment, or record current Approved Coverage in Finance |
 | Registrar finalization | Current case, four prior checkpoints, identity/term/version guards | Registrar | Current facts pass atomically and Registrar records finalization | Learner remains not officially enrolled; no roster/COR/Student activation | Create official enrollment and COR | Refresh stale facts, resolve named blocker, then retry idempotently |
 
 ## 4. Academic authority and proposed registrations
@@ -176,9 +176,13 @@ TALA targets the earliest valid completion path. It preserves the original cohor
 
 ## 6. Finance clearance and official finalization
 
-Clinic 4 consumes `EnrollmentPaymentRequirementProjection` containing total assessment; payment, scholarship, sponsorship, or accommodation arrangement; amount required now; verified amount applied; remaining amount required now; clearance state and basis; source/as-of time; later-obligation indicator; and Student Account link.
+Clinic 4 consumes `EnrollmentPaymentRequirementProjection` containing total assessment; `AssessmentBasis = PublishedFeePlan | AuthorizedIndividualAssessment`; the exact proposal or change reference; applicable Accounting authority; amount required now; verified payment applied; Approved Coverage applied; remaining amount required now; state; `SatisfactionBasis = VerifiedPayment | ApprovedCoverage | Mixed | NoPaymentRequired | None`; payment/coverage references; source/as-of time; later-obligation indicator; and Student Account link.
 
-Official enrollment requires Accounting clearance for the amount currently required, not a universal zero balance. Failed checkout or unverified evidence never posts payment. A later missed installment cannot erase an already official enrollment. Examination access, reenrollment, record release, and login use service-specific effects; no global financial hold may block all services.
+Ordinary registration requires a current published fixed Program-and-Term Fee Plan. Approved Special Term, reduced, or Individually Advised cases may instead use an exact externally calculated `AuthorizedIndividualAssessment` when the fixed plan cannot represent the confirmed selection. Clinic 4 never calculates fees from units, reduces an assessment because fewer subjects were proposed, or substitutes zero when neither source is ready. `Unavailable` blocks finalization and names Accounting as the source owner.
+
+Official enrollment requires Accounting clearance for the amount currently required, not a universal zero balance. Failed checkout or unverified evidence never posts payment. Scholarship, sponsorship, subsidy, and other funding eligibility remain external; TALA consumes only Clinic 6's applied, source-keyed coverage effect. A later missed installment or post-enrollment coverage reversal cannot erase an already official enrollment. Examination access, reenrollment, record release, and login use service-specific effects; no global financial hold may block all services.
+
+The coordinated `REG-2026-ST-001` Special Term case uses Clinic 3's `TERM-2026-ST`, `CLS-ITE3-ST-A`, and `CLS-IT201-ST-R`. A prior failed `IT201` excludes dependent `IT301` only; the retake and unrelated planned Special Term course remain eligible in one `IndividuallyAdvised` proposal. Clinic 4 publishes no fee amount until Clinic 6 supplies the exact `AuthorizedIndividualAssessment`. PHP 2,000 Applied coverage plus PHP 1,000 verified payment satisfies the PHP 3,000 enrollment obligation as `Mixed`; Registrar then finalizes the same case and produces its immutable COR snapshot.
 
 For every term, **Finalize official enrollment** atomically:
 
@@ -218,12 +222,13 @@ Adjustment and Course Drop are distinct rule sets presented contextually in the 
 - **Adjustment** is an authorized add, remove, replacement, or class change during the adjustment window.
 - **Course Drop** is an authorized removal after adjustment but within the applicable drop window.
 - Requests and institutional approvals occur outside TALA; Registrar records the approved decision, authority, evidence, and system effects.
-- Cost-increasing changes wait for Accounting clearance. No-cost changes may proceed after academic validation.
-- Removals take academic and roster effect when recorded and create Accounting review; no refund is assumed.
+- An add or replacement with a cost increase waits for a successor Assessment version and clearance of the newly required amount. If the financial source is unavailable, the change remains unapplied.
+- A no-additional-cost add, replacement, or class change proceeds only when the current or successor Assessment version authoritatively confirms no additional amount; unchanged class-only placement is not treated as a fee calculation.
+- An authorized removal or Course Drop takes academic and roster effect when recorded and creates `AccountingReviewPending`. It does not wait for or imply a refund decision.
 - A Course Drop references an officially enrolled course without a released final result.
 - Dropping every active course is full withdrawal and belongs to Clinic 5.
 - Late drops require specific authority.
-- Each applied change updates placement, roster, Student schedule, account-review projection, and immutable COR version together.
+- Each applied change updates placement, roster, Student schedule, the source-keyed account-review projection, and immutable COR version together. A later Accounting result appends an assessment adjustment or successor version without rewriting the change or COR.
 - TALA invents no adjustment fee, drop fee, penalty, refund, or forfeiture.
 
 ### 7.3 Published timetable changes
@@ -275,7 +280,7 @@ Native Filament Tables own work queues and filters; Infolists and Sections own r
 
 ### 8.3 Accounting and role projections
 
-Accounting receives one **Enrollment Clearance** queue showing learner, reference, term, assessed total, amount required now, verified amount, remaining amount, coverage/accommodation, clearance state, deadline, and next action. Accounting cannot select courses, place classes, create Student identity, or finalize enrollment.
+Accounting receives one **Enrollment Clearance** queue showing learner, Registration Case and proposal/change reference, term, assessment basis, authority, assessed total, amount required now, verified payment applied, Approved Coverage applied, remaining amount, satisfaction basis, clearance/review state, deadline, and next action. `Assessment required` remains a state in this queue rather than a new navigation destination. Accounting cannot select courses, place classes, create Student identity, or finalize enrollment.
 
 Faculty sees only official rosters; reservations are not enrolled Students. Academic Head receives read-only oversight and authority evidence. System Administrator sees only locally evidenced System Health for integrations, queues, and email. Applicant and Public see no internal capacity analytics or other learners' information.
 
@@ -283,7 +288,7 @@ The Student **Profile** surface is a read-only official summary and correction-g
 
 ### 8.4 COR
 
-Each immutable, versioned Registration Form/COR contains institution/document identity; student number and complete legal name; program, curriculum, term, and selection basis; curriculum levels represented; official courses, units/contact hours, class references, schedules, modes, rooms, Faculty, and total units; the assessment-at-finalization snapshot; and actual recorded institutional authorities where required.
+Each immutable, versioned Registration Form/COR contains institution/document identity; student number and complete legal name; program, curriculum, term, and selection basis; curriculum levels represented; official courses, units/contact hours, class references, schedules, modes, rooms, Faculty, and total units; the assessment-at-enrollment-finalization snapshot with its basis/reference; and actual recorded institutional authorities where required. A later adjustment/drop COR may state that Accounting review is pending, but it does not recalculate or replace that original financial snapshot.
 
 It excludes LRN, live ledger activity, future installments, payment attempts, receipt history, continuously changing balances, and fictitious signatures. Later financial activity appears in Student Account/SOA. Rendering is restrained, high-contrast, grayscale-safe, and supports authenticated browser print/save-as-PDF.
 
@@ -353,9 +358,9 @@ The later vertical slice must verify:
 - Transfer credit, shift effective term, returning authority, old curriculum, reduced enrollment, overload authority, and concurrent-prerequisite approval.
 - Separate cohort classes, approved sharing, one/multiple valid blocks, protected capacity, shortage resolution, expiry, and concurrency races.
 - Safe capacity amendment versus timetable-revision-required changes.
-- Full payment, installment, scholarship, sponsorship, accommodation, failed checkout, and pending payment.
+- Fixed Fee Plan and authorized individual assessment for ordinary, reduced, Special Term, and Individually Advised cases; unavailable source with no fallback; full payment, installment, externally approved scholarship/sponsorship/subsidy coverage, mixed satisfaction, failed checkout, and pending payment.
 - Generic every-term finalization and conditional first Student activation.
-- Cancellation boundaries, final-cutoff `NotEnrolled`, adjustment, Course Drop, full-withdrawal boundary, and class-cancellation impact.
+- Cancellation boundaries, final-cutoff `NotEnrolled`, cost-increasing/no-additional-cost adjustment, removal/Course Drop with Accounting review pending, later authorized assessment adjustment, full-withdrawal boundary, and class-cancellation impact.
 - COR versioning and assessment snapshot.
 - Cross-role authorization, idempotent email success/failure, desktop/mobile, keyboard/screen-reader use, stale-record protection, and safe error recovery.
 
@@ -366,13 +371,14 @@ The later vertical slice must verify:
 | `REG-2026-0001` | First enrollment for `alma.adult@example.test`, Standard Curriculum | Clinic 2 readiness, first Student activation, official enrollment, COR v1, single combined email |
 | `REG-2026-0002` | Continuing Student, Standard Curriculum | Generic every-term registration without Applicant flow or new Student identity |
 | `REG-2026-0003` | Failed prerequisite with unrelated eligible courses | Bounded exclusion, remaining valid proposal, Clinic 5 released-result source |
-| `REG-2026-0004` | Individually Advised old-curriculum/transferee case | Approved credits/equivalencies, proposal evidence, assisted confirmation |
-| `REG-2026-0005` | Authorized reduced enrollment | Clinic 5 effect/authority, no automatic penalty or learner classification |
+| `REG-2026-0004` | Individually Advised old-curriculum/transferee case with selection-specific charges | Approved credits/equivalencies, proposal evidence, assisted confirmation, `AuthorizedIndividualAssessment` |
+| `REG-2026-0005` | Authorized reduced enrollment | Clinic 5 effect/authority and exact Accounting assessment; no automatic fee reduction, penalty, or learner classification |
 | `REG-2026-0006` | Two-course shortage with one reservation expiry | Protected capacity, Clinic 3 unmet demand, release, valid replacement |
 | `REG-2026-0007` | Installment arrangement with required amount outstanding then cleared | Clinic 6 payment requirement, Accounting action, finalization blocker/recovery |
-| `REG-2026-0008` | Scholarship/authorized accommodation | Coverage evidence without course or Registrar authority |
+| `REG-2026-0008` | Externally approved scholarship coverage | Clinic 6 Applied coverage evidence without scholarship processing, course authority, or Registrar finance mutation |
 | `REG-2026-0009` | Official adjustment followed by Course Drop | Immutable COR v1/v2/v3, synchronized roster/schedule/finance projections |
 | `REG-2026-0010` | Published timetable change affecting an enrolled Student | No silent move, Registrar impact resolution, one Clinic 3 revision event |
+| `REG-2026-ST-001` | Continuing Student in `TERM-2026-ST` with planned `CLS-ITE3-ST-A`, Additional retake `CLS-IT201-ST-R`, and dependent `IT301` excluded | Individually Advised proposal, exact authorized individual assessment, PHP 2,000 Applied subsidy plus PHP 1,000 verified payment, `Mixed` clearance, official enrollment, and immutable COR snapshot |
 
 ### 11.2 Enrollment Browser Walkthrough
 
@@ -383,9 +389,10 @@ The later vertical slice must verify:
 | Registrar; `REG-2026-0001` and `0004` | Students & Enrollment | Prepare Standard and Individually Advised proposals, issue for confirmation | Curriculum/result sources, versions, **Why these subjects**, exact classes | Learner receives only current issued version | Proposal-ready email | Stale/ineligible course is rejected | No standalone Study Plan or arbitrary learner shopping |
 | Learner/Registrar | Enrollment / assisted confirmation | Confirm exact proposal online or record assisted confirmation | Version and confirmation evidence | Placement queue becomes actionable | Learner confirmation | Material revision invalidates old confirmation | Only current exact version is confirmed |
 | Registrar; `REG-2026-0003/0006` | Placement and shortages | Place valid courses, expose failed prerequisite, expire reservation, resolve shortage | Requisite reason, capacity evidence, owner/deadline, replacements | Clinic 3 receives unmet demand; Faculty sees no unofficial roster | Valid placement or explicit shortage | Concurrency loss refreshes rather than oversubscribes | Protected capacity and unrelated eligible courses are preserved |
-| Accounting; `REG-2026-0007/0008` | Enrollment Clearance | Inspect required-now amount, verify payment/coverage/accommodation | Learner/reference/term, assessed/verified/remaining amount, deadline, next action | Registrar checkpoint updates; Accounting cannot finalize | Clearance evidence | Failed/pending checkout leaves action needed | Finance policy remains Clinic 6-owned |
+| Accounting; `REG-2026-0004/0005/0007/0008` and `REG-2026-ST-001` | Enrollment Clearance | Resolve fixed or authorized-individual assessment, then verify payment and/or record Applied coverage | Exact proposal, basis/authority, assessed amount, separate payment/coverage amounts, satisfaction basis, remaining amount, deadline, next action | Registrar checkpoint updates; Accounting cannot finalize | Assessment and clearance evidence | Missing/stale/excess coverage or assessment authority is `Unavailable`; no zero, silent cap, or unit-rate fallback | Finance policy remains Clinic 6-owned |
+| Continuing Student and Registrar; `REG-2026-ST-001` | Enrollment → Students & Enrollment | Review the bounded proposal, confirm it, and finalize after `Mixed` clearance | Special Term source, two eligible classes, dependent `IT301` exclusion, exact assessment/coverage/payment sources, five current checkpoints | Clinic 3 receives placements; Clinic 5 receives official roster membership; Clinic 6 retains the same Term Account | Official Special Term enrollment and COR | Missing class authority, stale proposal, unavailable assessment, invalid coverage, or remaining required amount blocks only the next consuming action | No Summer engine, tutorial feature, irregular status, or scholarship workflow appears |
 | Registrar; all checks current | Ready to finalize | Finalize official enrollment | Atomic five-checkpoint pass, identity/term/version evidence | Faculty roster, Student schedule/access, Accounting reference, Clinic 2 follow-up projection update | Official enrollment and COR v1 | Stale source or mail failure cannot create partial/duplicate result | One transaction creates synchronized official projections |
-| Student/Registrar; `REG-2026-0009` | Current COR / Adjustments and Drops | Record adjustment, then Course Drop; inspect versions | Current and historical COR, authority, changed roster/schedule | Faculty/Accounting/Clinic 5 receive bounded owning projections | COR v2/v3 and printable history | Invalid change preserves current official version | Prior COR versions remain immutable |
+| Student/Registrar; `REG-2026-0009` | Current COR / Adjustments and Drops | Record a cleared cost-increasing adjustment, a confirmed no-additional-cost change, then Course Drop; inspect versions | Current and historical COR, original assessment snapshot, changed roster/schedule, Accounting review state | Faculty/Accounting/Clinic 5 receive bounded owning projections | COR v2/v3 and printable history | Missing increase clearance blocks add/replacement; removal/drop proceeds with review pending and no invented refund | Prior COR and assessment versions remain immutable |
 | Registrar; `REG-2026-0010` | Timetable impacts | Resolve proposed Clinic 3 revision | Affected placement, valid replacement/cancellation/outcome, no silent move | Clinic 3 can publish; affected user gets one shared event | Updated schedule/COR context | Unresolved impact blocks revision publication | Clinic 3 owns the single revision trigger/email |
 
 ## 12. Future implementation gate — not a task plan
@@ -407,6 +414,7 @@ Business evidence, curriculum sheets, PUP/PUPSIS observations, and existing code
 
 - TALA targets a normally recognized and authorized Philippine college.
 - No approved institutional enrollment, overload, grading, refund, late-fee, or readmission handbook has been supplied.
+- The supplied fee evidence does not establish one approved Servitech variable-fee formula. Clinic 4 consumes only Clinic 6's exact authorized assessment result.
 - External institutional decisions are recorded rather than recreated.
 - Existing code and data remain intact until post-authority implementation reconciliation.
 

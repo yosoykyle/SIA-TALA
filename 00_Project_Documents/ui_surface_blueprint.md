@@ -744,7 +744,7 @@ The page is a vertically ordered decision surface, not a Wizard or card dashboar
 4. **Why these subjects** and a contextual link to the full curriculum evaluation.
 5. Academic blockers, unavailable requirements, shortage state, and bounded completion outlook.
 6. Placement and reservation evidence, including the shared institutional expiry deadline.
-7. Amount required now, verified amount, remaining amount required now, clearance state, and **Finance** link.
+7. Amount required now, verified payment applied, Approved Coverage applied, remaining amount required now, satisfaction basis, clearance state, and **Finance** link.
 8. Current/historical COR, registration/change history, and any Registrar-owned post-enrollment credential follow-up reference. The follow-up is not shown as an enrollment checkpoint failure.
 
 Exactly one primary action appears: **Start enrollment**, **Start registration**, **Confirm proposed subjects and schedule**, **Continue to Finance**, or **View COR**. When the proposal looks wrong, the page says **Do not confirm—contact Registrar** and provides the official contact path; it creates no ticket or chat.
@@ -803,20 +803,42 @@ Registrar shortage rows show affected course and learners, current and protected
 
 ### Accounting Enrollment Clearance
 
-One native queue shows learner, reference, term, assessed total, amount required now, verified amount, remaining amount required now, coverage/accommodation, clearance state, deadline, and next action. Accounting may record its owned clearance evidence through focused actions. It cannot change subjects/classes, create Student identity, or finalize enrollment.
+One native queue shows learner, reference, term, assessment basis/source, assessed total, amount required now, verified payment applied, Approved Coverage applied, remaining amount required now, satisfaction basis, clearance state, deadline, and next action. `Assessment required` joins the existing queue when neither a valid `PublishedFeePlan` nor an eligible `AuthorizedIndividualAssessment` is current; it does not create another resource. Accounting may record its owned clearance evidence, an eligible exact externally authorized individual assessment, and externally approved coverage through focused actions. It cannot calculate charges from a rate, determine scholarship eligibility, change subjects/classes, create Student identity, or finalize enrollment.
 
 ```text
 Enrollment Clearance
 ┌ Term · readiness · deadline                              ┐
 ├ Search                                  [Filters: active] │
-│ Learner/reference | Assessed | Required now | Verified   │
-│ Remaining | Coverage/accommodation | State | Next action │
+│ Learner/reference | Basis/source | Assessed | Required now│
+│ Payment | Coverage | Remaining | Basis | State | Action  │
 └ Row detail / focused Accounting action                   ┘
 ```
 
+```text
+Record authorized individual assessment
+┌ Registration/change version · Program/Term · reason category ┐
+├ Confirmed course/unit snapshot · authority reference/date     │
+├ Exact ordered charge lines · obligations · reconciled total   │
+├ Enrollment-required amount · predecessor · impact preview     │
+└ [Cancel]                         [Record exact assessment]     │
+```
+
+The focused form records an externally calculated result only. It contains no per-unit rate, formula builder, inheritance, percentage, penalty, refund, or implicit default. Enrollment and changed-registration surfaces identify `Published fee plan`, `Authorized individual assessment`, or `Unavailable`. A changed registration distinguishes **Additional clearance required**, **No additional amount**, and **Accounting review pending**.
+
+```text
+Record approved coverage
+┌ Current Assessment · named obligations · remaining amounts  ┐
+├ Category/source · authority reference/date · effective date  │
+├ Exact applicable amount · safe learner description           │
+├ Impact: payment ₱___ + coverage ₱___ = remaining ₱___        │
+└ [Cancel]                              [Apply coverage]        │
+```
+
+This focused action records only an externally approved account effect. Missing, stale, conflicting, unreconciled, unsupported, or excessive authority records nothing. There is no scholarship application, eligibility, ranking, renewal, disbursement, silent cap, refund, or financial-accommodation workflow.
+
 ### COR UI and print contract
 
-The current and historical COR surface is an authenticated Generated Read-Only View. It shows institution/document identity; student number and legal name; program, curriculum, term, and enrollment basis; curriculum levels represented; official courses and class/schedule details; total units; assessment-at-finalization categories, coverage, required-now and verified amounts, and balance as of finalization; and actual recorded authority where required.
+The current and historical COR surface is an authenticated Generated Read-Only View. It shows institution/document identity; student number and legal name; program, curriculum, term, and enrollment basis; curriculum levels represented; official courses and class/schedule details; total units; assessment-at-finalization basis/source and categories, Approved Coverage and verified-payment amounts, satisfaction basis, remaining amount as of finalization; and actual recorded authority where required. A later authorized removal or Course Drop may identify **Accounting review pending** without changing the frozen assessment snapshot.
 
 LRN, live ledger activity, future installments, attempts, receipt history, continually changing balances, and fictitious signatures are excluded. Later financial activity links to Student Account/SOA. The document is restrained, high-contrast, grayscale-safe, and offers one browser print/save-as-PDF action.
 
@@ -847,10 +869,12 @@ Enrollment queues sort overdue/action-needed cases first, then nearest deadline,
 | Learner Enrollment | No current case offers a valid start only when eligible; completed/no-current-term state explains next boundary | Checkpoints and primary-action position remain stable | Stale proposal/window/placement/Finance result refreshes before confirmation; failed action preserves current case | Ineligible/closed/expired state identifies owner and support without exposing internal records |
 | Registrar workbench / record | No cases and no filter matches are distinct; filters can be cleared | Tabs/counts/table/detail loading are labelled independently | Stale proposal, placement, finalization, adjustment, or drop action is rejected and current facts shown | Unauthorized roles and direct records are inaccessible without existence disclosure |
 | Placement and shortages | No shortage states **No unresolved shortage**; no alternatives names Clinic 3 owner/action | Capacity/reservation checks show bounded progress | Concurrency loss or expiry refreshes capacity and never oversubscribes | Learners cannot see other learners or internal capacity analytics |
-| Accounting Clearance | No pending cases and filtered empty are distinct | Amount/coverage facts show source loading | Stale payment/coverage result refreshes; failed integration never falsely clears | Accounting cannot change academic records, create identity, or finalize |
+| Accounting Clearance | No pending cases and filtered empty are distinct | Assessment, payment, and coverage facts show source loading | Missing/stale/unreconciled/unauthorized assessment or coverage is `Unavailable`/`ActionNeeded` as applicable; failed recording preserves safe input and never creates a fallback, silent cap, or false clearance | Accounting cannot change academic records, create identity, calculate a formula, determine funding eligibility, or finalize |
 | COR current/history | Unavailable before official enrollment is explicit; missing historical version is an assurance fault | Print view reports loading without presenting a partial official document | Superseded version is labelled; print failure leaves authenticated view authoritative | Only owning learner and authorized Staff see COR; direct unauthorized access reveals nothing |
 
 Clinic 4's four primary page families—learner Enrollment, Registrar Students & Enrollment, Accounting Enrollment Clearance, and current/historical COR—each have a direct wireframe above. Placement, shortage, adjustment, Course Drop, and timetable-impact actions remain contextual parts of the Registrar workbench rather than separate navigation pages.
+
+Clinic 4 demonstration data includes ordinary published-plan enrollment, reduced and Individually Advised cases with selection-specific authority, changed-registration branches, and coordinated `REG-2026-ST-001`. That Special Term case consumes `TERM-2026-ST`, `CLS-ITE3-ST-A`, and Additional retake `CLS-IT201-ST-R`; excludes dependent `IT301` only; remains `Unavailable` until `ACT-2026-ST-001`; then shows PHP 2,000 Applied coverage plus PHP 1,000 verified payment as `Mixed` clearance before official enrollment and COR. The walkthrough must preserve the same references through Clinics 3–6 without creating a Summer, tutorial, irregular-student, scholarship, or accommodation workflow.
 
 ### Responsive, accessibility, failure, and communication behavior
 
@@ -885,9 +909,9 @@ The Clinic 5 visual comparison considered **role workbenches**, **Student-record
 
 ### Faculty Grade Rosters
 
-The native queue leads with course/class reference, program/cohort, official learner count, completed-result count, submission deadline, plain-language state, owner, and next action. Search covers class reference and course; filters cover term, state, and deadline/overdue state.
+The native queue leads with course/class reference, program/cohort, official learner count, completed-result count, submission deadline, plain-language state, owner, and next action. Search covers class reference and course; filters cover term, state, and deadline/overdue state. Before release, Faculty may see that their assigned roster is one missing source for term-grade completeness; they never see another class's results or a learner's term/cumulative average through this context.
 
-The roster table shows Student number, legal name, official enrollment state, one controlled final-grade/INC selector, derived academic result, and any validation or lifecycle explanation. The designated submitter receives **Save draft** and **Submit complete roster**. View-only co-Faculty receive no edit or submit action. Returned-row correction, history, and evidence remain secondary actions.
+The roster table shows Student number, legal name, official enrollment state, one controlled final-grade/INC selector, derived academic result, and any validation or lifecycle explanation. Selecting `INC` always reveals the required completion note. If no applicable approved INC policy exists, it also shows **Deadline not established — institutional policy required** without blocking roster submission. The designated submitter receives **Save draft** and **Submit complete roster**. View-only co-Faculty receive no edit or submit action. Returned-row correction, history, and evidence remain secondary actions.
 
 ```text
 Grade Roster — IT 301 / BSIT 3A
@@ -911,12 +935,12 @@ Each record reads in this order:
 1. State, responsible owner, deadline, next action, and one primary action.
 2. Student or roster identity and authoritative term/class context.
 3. Released result, INC, correction, or progress facts relevant to the selected tab.
-4. GWA/curriculum-evaluation effect where applicable.
+4. Term weighted average/cumulative GWA readiness and curriculum-evaluation effect where applicable.
 5. Lifecycle, completion, or transcript effect where applicable.
-6. Authority and evidence.
+6. Authority and evidence, including the applicable INC policy version, authority reference, and effective Term when one exists.
 7. Collapsed immutable history, audit, and email evidence.
 
-State-valid primary actions include **Release roster**, **Return specified rows**, **Release INC resolution**, **Record authorized correction**, **Record progress decision**, **Record lifecycle result**, **Record conferral**, **Generate transcript preview**, and **Record issuance**. Only one appears for the current decision. There is no bulk release, correction, consequential decision, conferral, or TOR issuance.
+State-valid primary actions include **Release roster**, **Return specified rows**, **Release INC resolution**, **Record authorized correction**, **Record progress decision**, **Record lifecycle result**, **Record conferral**, **Generate transcript preview**, and **Record issuance**. An INC lapse action appears only when an applicable approved policy version authorizes automatic lapse and its inclusive Asia/Manila deadline has passed; it is disabled when the policy source is unavailable or stale. Policy recording is contextual to **Grades & Completion**, not an academic-policy Settings page, and Academic Head sees policy evidence read-only. Only one primary action appears for the current decision. There is no bulk release, correction, consequential decision, conferral, or TOR issuance.
 
 ```text
 Grades & Completion
@@ -933,12 +957,16 @@ Student Academics is one read-mostly vertical page:
 
 1. Current academic-record status and next action.
 2. Released grades grouped by term.
-3. Term/cumulative GWA or **Current GWA pending — incomplete grade unresolved**, plus the last complete **Through [term]** value.
+3. **Term weighted average** and **Cumulative GWA**, or the explicit **Grades not complete**, incomplete-result, or not-applicable state; when current values are withheld, show the last complete cumulative **Through [term]** value if one exists.
 4. Curriculum evaluation with required courses, attempts, credited mappings, current enrollment, prerequisites, and deficiencies.
 5. Confirmed academic progress and safe explanation.
 6. Attempted, earned, and remaining units.
 7. Completion readiness and state-valid **Apply for graduation** action.
 8. Correction, INC, and lifecycle history.
+
+An unresolved `INC` shows a deadline only when an applicable approved policy version supplies it. Without one, Faculty, Registrar, Student, and Academic Oversight projections all show **Deadline not established — institutional policy required**, name Registrar as the responsible office, and give the next safe action. No countdown, deadline reminder, or implied lapse result appears.
+
+`Term weighted average` is the neutral one-term label. **Term GPA** or another display term appears only when the effective `GwaPolicyVersion` records Servitech's authority, reference/date, and effective term. A partially released term always shows **Grades not complete** and never calculates from the released subset. A grade-complete term with only excluded/nonnumeric outcomes shows **Not applicable — no included academic units**, never zero. The cumulative value is recalculated from all included attempts and units rather than averaging displayed term values.
 
 The printable action is labelled **Unofficial record — for student reference**. Official TOR issuance is absent from Student actions. When a correction affects an active Registration Case, the page states that Registrar review is required and links to Enrollment without promising an automatic course change.
 
@@ -946,11 +974,20 @@ The printable action is labelled **Unofficial record — for student reference**
 Academics
 ┌ Record current · Registrar owns official corrections       ┐
 ├ Released grades by term                          [Print unofficial]
-├ GWA / explicit pending reason · Through [last complete term]│
+├ Term weighted average / readiness · Cumulative GWA Through […]│
 ├ Curriculum progress · attempted / earned / remaining units  │
 ├ Confirmed academic progress · responsible office / next step │
 ├ Completion readiness                   [Apply for graduation] │
 └ INC, correction, lifecycle, and conferral history            │
+```
+
+```text
+INC detail — Policy unavailable / Policy bound
+┌ Result INC · Completion note · Original Term end            ┐
+├ Policy: Not established / [version · authority · effective]  │
+├ Deadline: Not established / [inclusive Asia/Manila date]      │
+├ Effect: Academic average pending · prerequisite unsatisfied · progress pending│
+└ Owner: Registrar · [Release completion] / [Lapse when authorized]│
 ```
 
 ### TOR preview and issuance
@@ -973,6 +1010,9 @@ TOR — Proposed preview / Issued / Voided / Superseded
 - Faculty rosters sort overdue and due-soon work first, then course/class reference. **No grade rosters assigned** links to the published teaching assignment; a filtered-empty result offers **Clear filters**.
 - Registrar queues sort action-needed records first, then due date and latest activity. **No records need review** confirms the active term and filters rather than implying that no academic records exist.
 - Student Academics groups terms newest first while TOR rows remain chronological. **No released results yet** explains that only Registrar-released results appear and provides no misleading action.
+- Partly released terms show **Grades not complete**, the count/source of missing official outcomes to authorized Staff, and the last complete cumulative **Through [term]** value when available. They never show a partial term value or a newly calculated cumulative value.
+- Grade-complete terms with no included numeric units show **Not applicable — no included academic units**. Institution-approved display terminology is shown with its effective source; otherwise the neutral label remains.
+- An INC with no applicable policy is neither overdue nor lapse-eligible. Its detail shows the responsible Registrar office and completion path; only policy-bound records may be sorted by an authoritative deadline.
 - TOR readiness names the exact unavailable source: academic record, proposed-layout source, institution-approved template for issuance, Clinic 6 clearance, or external certification. A proposed preview may be generated when its sources are ready, but it cannot enable **Record issuance**. The surface never shows a generic **Not cleared** state.
 - Loading retains the page heading and announces progress. Stale or concurrent actions preserve entered data when safe, identify what changed, and require review before resubmission. Inaccessible records use the shared non-disclosing recovery surface. Technical or mail failures identify the responsible owner and one safe retry, return, or support action.
 
@@ -982,7 +1022,9 @@ Roster, grade-history, curriculum, and queue rows stack with labels on mobile. R
 
 All controls are labelled, keyboard reachable, visibly focused, and accompanied by screen-reader status text. Meaning never depends on color. Empty, loading, stale-record, inaccessible, expired-session, validation, late-window, concurrency, mail-failure, and technical-failure states state what happened, who owns recovery, and the safe next action.
 
-Queued email is limited to the Faculty submission request, returned roster, grade release without values/attachment, INC action/deadline, INC resolution/lapse, authorized correction, consequential progress/lifecycle, completion action-required, and conferral. Routine saves, calculations, GWA refresh, queue movement, navigation, and recurring reminders remain in-workspace only.
+Queued email is limited to the Faculty submission request, returned roster, grade release without values/attachment, policy-bound INC action/deadline, INC resolution or authorized lapse, authorized correction, consequential progress/lifecycle, completion action-required, and conferral. No INC deadline email is created when no applicable approved policy exists. Routine saves, calculation/readiness refresh, queue movement, navigation, and recurring reminders remain in-workspace only.
+
+The Clinic 5 synthetic set includes `INC-NOPOL-001` with no applicable policy and no deadline; `INC-POL-002` bound prospectively to an approved policy and completed before its inclusive deadline; `INC-LAPSE-003` with one idempotent superseding lapse result; and coordinated `TERM-2026-ST` classes `CLS-ITE3-ST-A` (`1.75`) and `CLS-IT201-ST-R` (`2.50`). Releasing the first class alone must show **Grades not complete** and the prior cumulative **Through [term]** value. Releasing the second must show Special Term `2.13` and cumulative `2.01` from 90 prior included units/180 weighted points plus six units/12.75 points; the earlier `IT201` `5.00` remains counted while the retake satisfies the curriculum. No PUP label appears unless separately authorized by Servitech.
 
 ### Native component decision
 
@@ -1001,14 +1043,16 @@ System Administrator receives **System Health** and **Governance & Audit**. Stud
 
 | Primary page | User goal | Information order | Native surface decision |
 |---|---|---|---|
-| Fee Plans | Publish one authorized Program-and-Term version | Current plan, action-needed Drafts, upcoming Terms, history | Native filtered Table plus focused create/view pages |
+| Fee Plans | Publish one fixed ordinary Program-and-Term version | Current plan, action-needed Drafts, upcoming Terms, history | Native filtered Table plus focused create/view pages; no formula or calculation builder |
 | Fee Plan detail | Prepare and publish exact charges and obligations | Identity/authority, charge lines, obligations, readiness, history | Sections, Grid, ordered Repeater/table rows, Infolist after publication, focused publish Action |
-| Student Accounts | Find the next account decision | Status, person, account, Program/Term, assessment, required/verified/due, next action | One Table with three semantic tabs and native filters |
+| Student Accounts | Find the next account decision, including `Assessment required` | Status, person, account, Program/Term, assessment basis/source, required/payment/coverage/due, satisfaction basis, next action | One Table with three semantic tabs and native filters; no separate assessment or coverage destination |
 | Payment Exception detail | Check safe evidence and record the external result | Reason/current due, evidence, review fields, history, consequence | Authorized view Page/Infolist with private preview and focused Actions |
 | TOR Clearance detail | Record one request-specific result | Output request, learner, requirement/reference, source, result | Contextual Infolist with `Record cleared` and `Record not required` Actions |
-| Student Account detail | Explain one Term position and act safely | Current status/due, next obligation/action, projection, evidence tabs | Summary Sections, Infolists, responsive Tables, Tabs, Action Group |
-| Enrollment payment requirement | Complete Clinic 4's finance checkpoint | Required now, state, account, submission, next action | Clinic 4 embedded Section with private File Upload and focused Actions |
-| Student Finance | Understand current or historical account | Current due/status, next obligation, safe actions, recent activity, outputs | Focused Page with Sections, Infolists, responsive activity rows, contextual Actions |
+| Student Account detail | Explain one Term position or record an eligible exact individual or coverage result | Current status/due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, evidence tabs | Summary Sections, Infolists, responsive Tables, Tabs, contextual assessment/coverage Actions, Action Group |
+| Authorized individual assessment | Record an externally calculated exact result, not calculate a fee | Current Registration/change version and course/unit evidence, reason/authority, exact lines/obligations, totals, impact preview | Contextual Form on Account detail; no formula, rate, inheritance, percentage, penalty, or refund controls |
+| Approved Coverage | Record one externally approved Term Account effect | Current Assessment/obligations, category/source, authority/date, exact applicable amount, effective date, safe description, impact preview | Contextual Form on Account detail; no eligibility, application, renewal, disbursement, accommodation, cap, refund, or allocation controls |
+| Enrollment payment requirement | Complete Clinic 4's finance checkpoint | Required now, state, assessment basis/source, account, submission, next action | Clinic 4 embedded Section with private File Upload and focused Actions |
+| Student Finance | Understand current or historical account | Current due/status, assessment basis/source, next obligation, safe actions, recent activity, outputs | Focused Page with Sections, Infolists, responsive activity rows, contextual Actions |
 | System Health | Distinguish local evidence from unknown external state | Capture time, service/status/evidence/as-of, next step | Read-only status Table; local refresh; optional self-test email only |
 | Governance & Audit | Investigate high-value evidence | Tab, filters, newest events, selected detail, retention state | Tabs, read-only Tables/Infolists, fixed filters |
 | Account Statement | Read or print an as-of non-tax account position | Identity/context, charges, activity, obligations, totals, disclaimer | Authenticated print-safe browser view |
@@ -1063,10 +1107,10 @@ Draft row controls provide explicit **Move up** and **Move down** buttons; order
 │ Term [2026 T1▼] State [Action needed▼] Program [All▼]     │
 │ [Search person or account…]              [Export status]  │
 │                                                          │
-│ STATUS       PERSON           ACCOUNT       DUE    ACTION  │
-│ Under review Ana Reyes        ACT-260001   ₱12k    Review  │
-│ Action needed Miguel Santos   ACT-260014   ₱6k     View    │
-│ Cleared       Lea Cruz        ACT-260008   ₱0      View    │
+│ STATUS              PERSON         ACCOUNT       ACTION    │
+│ Assessment required S. Student   ACT-2026-ST-001 Record   │
+│ Under review         Ana Reyes     ACT-260001    Review    │
+│ Action needed        Miguel Santos ACT-260014    View      │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -1078,14 +1122,15 @@ The Payment Exceptions tab uses risk/reason, person/account, claimed amount, cha
 
 ```text
 ┌ Ana Reyes · ACT-260001 · BSIT · 2026 T1 ────────────────┐
-│ [Action needed] Source FP-BSIT-2026-T1-v1  As of 10:32  │
+│ [Action needed] Published fee plan · FP-...-v1 · 10:32    │
 │                                                         │
-│ Assessment     Required now     Verified     Due now     │
-│ ₱48,000        ₱12,000          ₱8,000       ₱4,000      │
+│ Assessment   Required now   Payment   Coverage   Due now │
+│ ₱48,000      ₱12,000        ₱8,000   ₱0         ₱4,000  │
 │ Next obligation: ₱18,000 · 15 Aug 2026                  │
 │ Enrollment projection: ActionNeeded · VerifiedPayment   │
 │                                                         │
-│ [Record verified payment] [Open exception]              │
+│ [Record verified payment] [Record approved coverage]    │
+│ [Open exception]                                        │
 │ [Generate SOA] [Export this account]                     │
 │                                                         │
 │ ACTIVITY                                                │
@@ -1093,11 +1138,45 @@ The Payment Exceptions tab uses risk/reason, person/account, claimed amount, cha
 │ 08 Jun  Evidence submitted · Underpayment               │
 │ 01 Jun  Assessment v1 published · ₱48,000               │
 │                                                         │
-│ ASSESSMENT | PAYMENTS | EVIDENCE | OUTPUTS | AUDIT       │
+│ ASSESSMENT | PAYMENTS | COVERAGE | EVIDENCE | OUTPUTS…  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-The first screenful answers status, current due, next obligation, and next action. Supporting evidence is progressively disclosed through named tabs. An authorized reversal dialog names the payment, amount, external authority, resulting projection, and append-only effect; its confirmation is `Record reversal`, not `Yes`.
+The first screenful answers status, current due, separate payment/coverage effects, satisfaction basis, next obligation, and next action. Supporting evidence is progressively disclosed through named tabs. `Record authorized individual assessment` appears contextually only for an eligible current exception, as shown next; it never appears for Ana's ordinary published-plan account. `Record approved coverage` appears only when a current Assessment and named remaining obligations exist. An authorized reversal dialog names the payment or coverage, amount, external authority, resulting projection, and append-only effect; its confirmation is `Record reversal`, not `Yes`.
+
+#### Authorized individual assessment
+
+```text
+┌ Record authorized individual assessment · ACT-260045 ────────┐
+│ Registration/change REG-045-v3 · Reduced/Individually Advised │
+│ Courses/units [read-only confirmed snapshot]                   │
+│ Authority ref [________] Date [____] Reason [________▼]        │
+│ CHARGE LINES: code · label · amount · order                    │
+│ OBLIGATIONS: label · due date · exact amount                   │
+│ Total ₱_____ · Enrollment required ₱_____ · Reconciled ✓       │
+│ Impact: Additional clearance required ₱_____                   │
+│ [Cancel]                              [Record exact assessment]│
+└────────────────────────────────────────────────────────────────┘
+```
+
+The action is available only for an approved Special Term, a reduced enrollment whose approved charges differ from the fixed plan, an Individually Advised selection-specific result, or an authorized adjustment/Course Drop effect. Missing, stale, unreconciled, or unauthorized source evidence remains `Unavailable`; the form never calculates from the displayed units.
+
+#### Approved Coverage
+
+```text
+┌ Record approved coverage · ACT-2026-ST-001 ─────────────┐
+│ Assessment AIA-ST-001 · Required now ₱3,000             │
+│ Payment applied ₱1,000 · Coverage available up to ₱2,000│
+│ Category [Government subsidy▼]  Source [____________]   │
+│ Authority ref [________] Date [____] Effective [____]   │
+│ Applicable obligation [Enrollment requirement▼]        │
+│ Exact amount [₱2,000]  Safe description [___________]   │
+│ Impact: Mixed · remaining required now ₱0               │
+│ [Cancel]                              [Apply coverage]   │
+└─────────────────────────────────────────────────────────┘
+```
+
+The action records one `Applied` account event. Excess, stale, conflicting, unsupported, or unreconciled authority records nothing and preserves safe entered fields. `Superseded` and `Reversed` results start from coverage history and require named authority and an exact impact preview. No learner application, eligibility document, ranking, renewal, disbursement, cash movement, or email appears.
 
 #### Payment Exception detail
 
@@ -1141,8 +1220,11 @@ Private proof requires record authorization and never appears as a public URL. F
 ```text
 ┌ Enrollment · Payment requirement ────────────────────────┐
 │ Amount required now                    ₱12,000            │
+│ Verified payment applied               ₱0                 │
+│ Approved coverage applied              ₱0                 │
 │ Status                                 Under review       │
 │ Account reference                      ACT-260001         │
+│ Assessment                             Published fee plan │
 │                                                         │
 │ Submitted: GCash · ₱12,000 · 09 Jun 2026                │
 │ Accounting must verify the actual payment source.        │
@@ -1157,15 +1239,17 @@ Private proof requires record authorization and never appears as a public URL. F
 ```text
 ┌ Student Finance · 2026 T1 ───────────────────────────────┐
 │ [Cleared for enrollment]              As of 10 Jun 10:32 │
+│ Assessment: Published fee plan · FP-BSIT-2026-T1-v1      │
 │                                                         │
 │ Current due       Next obligation       Term balance     │
 │ ₱0                ₱18,000 · 15 Aug      ₱36,000          │
+│ Satisfaction: Approved coverage · Coverage ₱12,000       │
 │                                                         │
 │ [Pay exact current due] [Submit payment evidence]        │
 │ [Download SOA]                                           │
 │                                                         │
 │ Recent activity                                         │
-│ Verified payment · ₱12,000       [Open acknowledgment]   │
+│ Approved coverage · Scholarship · ₱12,000               │
 │ Assessment published · ₱48,000                          │
 │                                                         │
 │ A later amount due does not cancel official enrollment.  │
@@ -1180,9 +1264,11 @@ Private proof requires record authorization and never appears as a public URL. F
 ┌ Student Finance ─────────────┐
 │ 2026 T1              [▼]     │
 │ [Action needed]              │
+│ Assessment: Individual       │
 │ Due now                      │
 │ ₱4,000                       │
-│ Required ₱12k · Verified ₱8k │
+│ Required ₱12k · Payment ₱8k  │
+│ Coverage ₱0 · Basis Payment  │
 │ [Pay ₱4,000]                 │
 │ [Submit evidence]            │
 │ [Download SOA]               │
@@ -1245,7 +1331,7 @@ ACCOUNT STATEMENT / SOA                 PAYMENT ACKNOWLEDGMENT
 Non-tax institutional output            Non-tax institutional output
 Learner and account reference            Payment and account reference
 Program / Term / as-of                    Amount / date / channel
-Fee Plan and Assessment version           Masked external reference
+Assessment basis/source/version            Masked external reference
 Ordered charge lines                       Verification basis
 Chronological account activity             Account effect and current state
 Obligation schedule                        Reversal notice when applicable
@@ -1262,18 +1348,19 @@ Print views are monochrome-safe, use semantic headings, repeat table headers, av
 |---|---|---|---|
 | Account/payment status | Summary-first status, due, next obligation/action, then history | Ledger-first page; payment Wizard | Learners should not interpret accounting mechanics or traverse unnecessary steps |
 | Accounting workspace | Fee Plans plus one tabbed Student Accounts workbench | Peer record Resources; dashboard/report hub | Matches the two office tasks and keeps evidence contextual |
+| Approved Coverage | Contextual Account action with append-only effect/history | Scholarship module; Financial Accommodation resource | Records only an externally approved account effect without eligibility, application, renewal, disbursement, or collection scope |
 | Assurance | Locally evidenced status plus `Not checked by TALA` | Provider operations console; manual attestation checklist | Prevents unsupported health/compliance claims and risky controls |
 
 ### Default ordering and page-specific states
 
 - Fee Plans: current Published, action-needed Drafts, upcoming Term opening, Program, version.
-- Accounts: `ActionNeeded`/under review, nearest due, oldest relevant activity, person/account reference.
+- Accounts: `Assessment required`, then `ActionNeeded`/under review, nearest due, oldest relevant activity, person/account reference.
 - Payment Exceptions: blocking or security mismatch, oldest submitted, reference.
 - TOR Clearance: `ActionNeeded`, nearest required date, request date, request reference.
 - Account activity: newest authoritative event first; SOA activity is chronological ascending.
 - System/audit events: newest first, then severity/status and reference.
 
-Each page has a direct empty state, filtered-empty recovery, structure-preserving loading state, as-of/stale state, inaccessible state with no record disclosure, and action failure that states whether anything was posted. Missing Fee Plan or Assessment shows `Unavailable` and blocks the consuming action without a fallback. Output failure creates no partial or official-looking artifact. System Health with no evidence shows `Unknown`, never a successful default.
+Each page has a direct empty state, filtered-empty recovery, structure-preserving loading state, as-of/stale state, inaccessible state with no record disclosure, and action failure that states whether anything was recorded or posted. Missing, stale, unreconciled, or unauthorized assessment authority shows `Unavailable` and blocks only the consuming action without a zero or fee fallback. A failed individual-assessment action preserves safe entered rows, creates no Assessment, and names the failed readiness check. A failed coverage action preserves safe fields, creates no account effect, and names missing, stale, conflicting, unsupported, unreconciled, or excessive authority; it never silently caps or reallocates the amount. Adjustment and Course Drop views distinguish **Additional clearance required**, **No additional amount**, and **Accounting review pending**. Output failure creates no partial or official-looking artifact. System Health with no evidence shows `Unknown`, never a successful default.
 
 ### Responsive, accessibility, keyboard, and writing contract
 
@@ -1290,22 +1377,26 @@ Each page has a direct empty state, filtered-empty recovery, structure-preservin
 
 ### Synthetic demonstration set and browser walkthrough
 
-The authoritative synthetic records are `FP-BSIT-2026-T1-v1`, incomplete `FP-BSA-2026-T1-d2`, Term Accounts `ACT-260001`, `ACT-260008`, `ACT-260014`, `ACT-260021`, `ACT-260027`, `ACT-260033` with learner-specific approved coverage, `ACT-260034` with an institutionally authorized `NoPaymentRequired` Fee Plan result, `ACT-260039` with a missing-webhook manual reconciliation and late event, and `ACT-260041`, TOR clearances `TOR-260003` through `TOR-260005`, reversed `PAY-260009`, one alumni account, and one degraded-health example. Identities use `example.test`; no real student, provider, wallet, or proof data appears.
+The authoritative synthetic records are `FP-BSIT-2026-T1-v1`, incomplete `FP-BSA-2026-T1-d2`, Term Accounts `ACT-260001`, `ACT-260008`, `ACT-260014`, `ACT-260021`, `ACT-260027`, `ACT-260033` with Applied scholarship coverage and successor/reversal evidence, `ACT-260034` with an institutionally authorized `NoPaymentRequired` Fee Plan result, `ACT-260039` with a missing-webhook manual reconciliation and late event, `ACT-260041`, `ACT-260045` with a reduced Individually Advised exact individual assessment, `ACT-2026-ST-001` for `REG-2026-ST-001` with PHP 6,000 assessment, PHP 3,000 required now, `COV-2026-ST-001` PHP 2,000 Applied subsidy, `PAY-2026-ST-001` PHP 1,000 verified payment and `Mixed` clearance, and `ACT-260047` with changed-registration branches; TOR clearances `TOR-260003` through `TOR-260005`; reversed `PAY-260009`; one alumni account; and one degraded-health example. Identities use `example.test`; no real student, provider, wallet, eligibility, or proof data appears.
 
 The browser walkthrough follows this order:
 
-1. Accounting observes the blocked BSA Draft and publishes the valid BSIT plan.
-2. Applicant Ana sees the embedded due before Student creation and submits private evidence without posting.
-3. Accounting verifies the external source; Clinic 4 receives `Cleared`, finalizes enrollment, and the same account gains the Student reference.
-4. Student Finance shows due/status/next obligation, SOA, and acknowledgment from the same sources.
-5. Exact-due PayMongo return remains pending until a valid webhook; duplicate delivery posts and emails once.
-6. A missing webhook remains pending. Accounting verifies the real provider source through the existing external-payment path; a later matching event creates no duplicate posting or email.
-7. Mismatch, underpayment, rejection, resubmission, and reversal preserve append-only evidence.
-8. A later missed obligation changes Finance only and does not undo enrollment or academic access.
-9. Accounting resolves `Cleared`, `NotRequired`, and `ActionNeeded` TOR requests without a global hold.
-10. The two contextual CSVs record purpose and output-access evidence.
-11. System Health separates local evidence from external unknowns; Governance shows retention not approved and disposal disabled.
-12. Alumni opens historical Finance read-only.
+1. Accounting observes the blocked BSA Draft and publishes the valid fixed BSIT plan.
+2. Accounting opens Mira's `Assessment required` row and records a reconciled exact `AuthorizedIndividualAssessment`; stale authority blocks recording and no formula appears.
+3. `REG-2026-ST-001` remains `Unavailable` until Accounting records `ACT-2026-ST-001` from the exact externally authorized result.
+4. Excessive/stale coverage records nothing; valid `COV-2026-ST-001` applies PHP 2,000, `PAY-2026-ST-001` applies PHP 1,000, and Clinic 4 receives `Mixed` clearance without a coverage email or scholarship workflow.
+5. Sam's changed registrations separately show additional clearance, authoritative no-additional-cost confirmation, and Course Drop Accounting review pending without an automatic refund, credit, penalty, forfeiture, or COR rewrite.
+6. Applicant Ana sees the embedded due and assessment basis before Student creation and submits private evidence without posting.
+7. Accounting verifies the external source; Clinic 4 receives `Cleared`, finalizes enrollment, and the same account gains the Student reference.
+8. Student Finance and SOA show payment and coverage as separate append-only account effects; Payment Acknowledgment remains payment-only.
+9. Exact-due PayMongo return remains pending until a valid webhook; duplicate delivery posts and emails once.
+10. A missing webhook remains pending. Accounting verifies the real provider source through the existing external-payment path; a later matching event creates no duplicate posting or email.
+11. Mismatch, underpayment, rejection, resubmission, payment reversal, and coverage supersession/reversal preserve append-only evidence.
+12. A later missed obligation or coverage reversal changes Finance only and does not undo enrollment or academic access.
+13. Accounting resolves `Cleared`, `NotRequired`, and `ActionNeeded` TOR requests without a global hold.
+14. The two contextual CSVs record purpose and output-access evidence.
+15. System Health separates local evidence from external unknowns; Governance shows retention not approved and disposal disabled.
+16. Alumni opens historical Finance read-only.
 
 The walkthrough is documentation authority only and is not executed during clinic closure.
 
@@ -1368,8 +1459,8 @@ This register is the canonical presentation disposition for the currently regist
 | Registrar Students & Enrollment | Enrollment and Student Profile | Primary | Students & Enrollment |
 | Registrar Students & Enrollment | Student Lifecycle Changes and record-owned holds/history | Contextual | Student Profile |
 | Registrar Grades & Completion | Grade Review, INC & Corrections, Academic Progress, Lifecycle, Completion & TOR, and History | Primary | Grades & Completion |
-| Accounting Student Accounts | Assessments and account-centered finance review | Primary | Student Accounts |
-| Accounting Student Accounts | Assessment versions, verified postings, evidence, adjustments/reversals, outputs, and audit | Contextual | Student Account detail tabs |
+| Accounting Student Accounts | Assessment-required and account-centered finance review | Primary | Student Accounts |
+| Accounting Student Accounts | Assessment basis/source, exact authorized individual-assessment action, verified postings, evidence, adjustments/reversals, outputs, and audit | Contextual | Student Account detail tabs |
 | Accounting Payment Exceptions | Manual and PayMongo evidence requiring review | Contextual tab | Student Accounts → Payment Exceptions |
 | Accounting Payment Exceptions | Payment Attempts and retained provider-event evidence | Evidence-only | Payment exception detail |
 | Accounting Fee Plans | Versioned Program-and-Term Fee Plans | Primary | Fee Plans |
@@ -1399,7 +1490,7 @@ This is the code-level inventory behind the register above. A class appearing he
 | Class-planning records | `TermOfferingResource`, `SectionResource`, `RoomResource`, `FacultyQualificationResource`, `FacultyTermLoadOverrideResource`, `CalendarEventResource`, `SchedulingDemandResource`, `ScheduleGenerationRunResource`, `SectionMeetingResource` | Contextual planning, solve, review, and publication records reached from Class Planning |
 | Enrollment and student records | `EnrollmentResource`, `StudentProfileResource`, `StudentLifecycleChangeResource` | Enrollment and Student Profile are Primary operational records; lifecycle change is a Contextual consequential action/history record |
 | Grades and completion records | `GradeRosterResource`, `GraduationReviewBatchResource` | Contextual records reached from role-owned grade or completion work |
-| Finance records | Existing `FeeRuleResource`, `AssessmentResource`, `PaymentResource`, `LedgerEntryResource`, `AccountingAdjustmentResource`, `FinancialAccommodationResource`, and `PaymentAttemptResource` | Quarantined salvage inventory. Clinic 6 requires Fee Plans and continuous Term Accounts; legacy Fee Rule, allocation, accommodation, and ledger-first behavior cannot lead the UI. |
+| Finance records | Existing `FeeRuleResource`, `AssessmentResource`, `PaymentResource`, `LedgerEntryResource`, `AccountingAdjustmentResource`, `FinancialAccommodationResource`, and `PaymentAttemptResource` | Quarantined salvage inventory. Clinic 6 requires fixed ordinary Fee Plans, exact externally authorized individual-assessment recording for bounded exceptions, and continuous Term Accounts; legacy Fee Rule, automated unit calculation, allocation, accommodation, and ledger-first behavior cannot lead the UI. |
 | Public-content and access records | Current user, role, FAQ, notice, and settings implementation | Reconcile against Clinic 1: Users & Access and bounded Public Content are Primary; editable roles/permissions are removed; settings survive only when a later owning domain proves a consumer |
 | Governance records | `ActivityResource`, `OperationalEventResource`, `DisposalReviewResource` | Activity and operational-event foundations are evidence candidates. Disposal Review cannot become an active queue while the retention schedule is not approved. |
 
@@ -1456,8 +1547,9 @@ For comparison against the executable inventory, the final role-owned primary na
 | Application to enrollment readiness | Applicant Application → Registrar Admissions → decision → official credentials → derived readiness | Requirements/evidence, identity-match review, shared Clinic 4 Ready Applicant projection; no Student creation |
 | Timetable publication | Academic Readiness → Class Planning → solve/review/publish | Offering/resource/demand/run evidence; Faculty and Student schedules |
 | Enrollment and COR | Learner starts registration → proposal → confirmation → reservation → Accounting clearance → Registrar finalization | Five-checkpoint evidence, shortages, official schedule/roster, immutable COR, and enrollment/change history |
-| Finance clearance | Fee Plans → Student Accounts / Payment Exceptions → verified posting or approved coverage | Assessment/account/payment evidence; Clinic 4 projection, Student Finance, and non-tax outputs |
-| Grades | Faculty Grade Rosters → Registrar review/post/release | Grade history; Student Academics |
+| Finance clearance | Fixed Fee Plan or authorized individual assessment → Student Accounts → verified payment and/or Approved Coverage | Separate payment/coverage amounts and sources, satisfaction basis, Clinic 4 projection, Student Finance, and non-tax outputs; no scholarship/accommodation workflow |
+| Special Term through academic projection | Approved `TERM-2026-ST` → published Regular/Additional classes → `REG-2026-ST-001` → `ACT-2026-ST-001`/`COV-2026-ST-001`/`PAY-2026-ST-001` → official enrollment → two roster releases | `Grades not complete` after the first release, then `2.13` Term weighted average and `2.01` Cumulative GWA with earlier failure retained |
+| Grades | Faculty Grade Rosters → Registrar review/post/release | Grade history; Student Academics with explicit average readiness |
 | Lifecycle and completion | Registrar Student Profile → lifecycle/progression/completion action | Academic Head approval when required; Student Profile/Academics projection |
 
 **Catalog & Curricula** and **Term Planning** are the two Clinic 3 primary navigation items. Catalog & Curricula owns academic authority and the grouped curriculum journey. Term Planning owns the selected term from typed calendar setup through cohorts/classes, teaching resources, candidate review, publication, and revision. Underlying source-record routes may remain authorized and reachable contextually during later implementation reconciliation, but they are not peer tasks in the accepted product.
@@ -1469,7 +1561,7 @@ The Curriculum review presents every entry in one ordered table with curriculum-
 | Admissions | Registrar | One Admissions workbench, Applicant Record, preliminary-evidence review, decisions, official-credential outcomes, Admission Cycles, immutable Requirement Sets, and identity-match review |
 | Academic Setup, Offerings & Timetable | Registrar, Academic Head, Faculty where applicable | Catalog & Curricula; Term Planning Overview, Cohorts & Classes, Teaching Resources, Generate & Review, Published Timetable; Faculty My Availability and My Schedule projections |
 | Enrollment | Registrar, Academic Head for exceptions | Plain-language status and next-step queue, placement, reservations, academic exceptions, unit-load exceptions |
-| Finance | Accounting | Versioned Program-and-Term Fee Plans; continuous Term Accounts; private manual evidence; exact-due PayMongo; append-only postings, adjustments, and reversals; bounded Clinic 4/5 projections; SOA and Payment Acknowledgment |
+| Finance | Accounting | Versioned fixed Program-and-Term Fee Plans; exact externally calculated authorized individual assessments for bounded exceptions; continuous Term Accounts; private manual evidence; exact-due PayMongo; append-only postings, adjustments, and reversals; bounded Clinic 4/5 projections; SOA and Payment Acknowledgment |
 | Grades | Faculty, Registrar, Academic Head | Faculty rosters, late authorization, submission review, posting/release, INC completion, corrections |
 | Student Records | Registrar, Accounting for owned holds | Student profile, holds, lifecycle changes, program shifts, graduation review |
 | Governance & Audit | System Administrator and authorized owning roles | Read-only institutional changes, system events, output/export access, and retention readiness; two contextual Clinic 6 CSVs rather than a report catalog |
@@ -1539,7 +1631,7 @@ The TAL-71, TAL-96D3C, and TAL-96D5E1C finance notes were implementation-recover
 | PRD 02 Application, Admission Decision & Enrollment Readiness | Applicant Home/Application/Requirements/acknowledgment; Registrar Admissions/Applicant Record/Cycles/Requirement Sets | Native five-step Wizard; grouped requirement Tables; one queue Table with native tabs/search/filters; Infolists; focused Actions; authenticated print view | Retain bounded draft/upload/queue/audit/mail foundations when conforming; simplify intake/evidence/readiness; replace generic calendar/policy/handover/duplicate boundaries; keep physical columns quarantined until later dependency mapping |
 | PRD 03 Academic Setup, Offerings & Published Timetable | Catalog & Curricula; Term Planning Overview, Cohorts & Classes, Teaching Resources, Generate & Review, and Published Timetable; Faculty availability/schedule projections | Native connected workbenches plus one accessible custom weekly view with table fallback; failed-first readiness; fixed quality measures; constrained candidate correction; immutable publication/revision | Retain bounded immutable, solver, validation, mail, and Filament foundations when conforming; simplify calendar/curriculum/availability/class planning; replace legacy layering, equal weights, generic profiles, run-first UI, and override semantics |
 | PRD 04 Current-Term Registration, Official Enrollment, Student Activation, Adjustment & Course Drop | Guided learner Enrollment page; Registrar Students & Enrollment workbench; Accounting Enrollment Clearance; COR and official roster/schedule projections | Native queue Tables and filters, ordered Infolists/Sections, focused Forms, one primary Action, Action Groups, responsive proposal/schedule rows, and authenticated print view | Retain bounded transactional/idempotent/COR foundations when conforming; simplify nine gates and state; replace standalone Study Plan, Regular/Irregular policy status, generic overrides/global holds, and manually re-entered Term Offerings; quarantine physical consumers until later dependency mapping |
-| PRD 06 Accounts, Official Outputs, Operations & Assurance | Fee Plans; Student Accounts with Accounts/Payment Exceptions/TOR Clearance tabs; Student Finance; System Health; Governance & Audit; SOA and Payment Acknowledgment | Native Tables, Tabs, Sections, Infolists, private File Upload, focused Actions, contextual CSV export, and authenticated print views | Retain bounded event/webhook/private-output foundations only after conformance; replace Fee Rules, silent fallback, legacy account ownership, Billing Slip/OR/allocation/accommodation/report/disposal/ops-console behavior; quarantine physical consumers |
+| PRD 06 Accounts, Official Outputs, Operations & Assurance | Fixed ordinary Fee Plans; Student Accounts with Accounts/Payment Exceptions/TOR Clearance tabs and contextual exact individual-assessment/Approved-Coverage actions; Student Finance; System Health; Governance & Audit; SOA and Payment Acknowledgment | Native Tables, Tabs, Sections, Infolists, private File Upload, focused Actions, contextual CSV export, and authenticated print views | Retain bounded event/webhook/private-output foundations only after conformance; replace Fee Rules/automated unit calculation, silent fallback, legacy account ownership, Billing Slip/OR/allocation/accommodation/report/disposal/ops-console behavior; quarantine physical consumers |
 | 09 COR | Current generated COR | Student Hub custom Page, staff-accessible read-only source summary, authenticated printable Blade route, and output log action | Exclude public verification/QR/token inventory for MVP; resolve the active term's official enrollment once, then generate COR, schedule, dashboard, and output-log context from that same record; derive one curriculum level or a truthful mixed-level label from active enrolled subjects; show each subject's Online or Face-to-Face modality and a derived Course Delivery Mix |
 | PRD 05 Teaching, Final Grades, Academic Records, Lifecycle & Completion | Faculty Grade Rosters; Registrar Grades & Completion; Student Academics; unofficial record; TOR preview/issuance | Native roster/queue Tables and filters, controlled Forms, ordered Infolists/Sections, one primary Action, Action Groups, focused Student Academics and authenticated print Pages | Retain bounded roster/event/lifecycle/snapshot foundations when conforming; replace period-grade/formula, released `P`, mutable result, generic policy/hold, batch, and template-editor behavior; quarantine physical consumers until later dependency mapping |
 | Legacy 11 Student Lifecycle | Legacy holds, status, shift, and graduation surfaces | Non-authoritative comparison input only | Academic lifecycle/completion is superseded by PRD 05; Clinic 6 rejects global financial holds and exposes only request-specific projections |
@@ -1594,7 +1686,7 @@ There is no Reports navigation destination or shared report catalog. Clinics 1�
 |---|---|
 | Application Acknowledgment | Authenticated submitted snapshot; explicitly not admission or enrollment proof |
 | Published timetable and schedules | Official only after Registrar publication; version and owner scope visible |
-| Registration Form / COR | Immutable official-enrollment version with assessment-at-finalization; no live ledger |
+| Registration Form / COR | Immutable official-enrollment version with assessment basis/source and position at finalization; later financial review may be identified but no live ledger appears |
 | Unofficial Student Record | Labelled **Unofficial — for student reference** on screen and print |
 | TOR | **Proposed institutional format — Not for official issuance** until exact template approval; Issued/Voided/Superseded states are explicit |
 | Account Statement / SOA and Payment Acknowledgment | Authenticated non-tax outputs with source/as-of and reversal/supersession state |
@@ -1604,7 +1696,7 @@ Generated browser outputs use configured institution identity, a clear document 
 
 ### Notifications
 
-Filament notifications provide immediate success, warning, and error feedback after an action. Student Hub renders one owner-scoped priority notice from authoritative domain records; it does not expose a second persistent notification-center control. Clinic 2 queues idempotent email for submission, one consolidated Action Needed request, Admitted, Not Admitted, Ready for Enrollment, and withdrawal. Clinic 3 sends the Faculty availability request, first timetable publication, and one affected-revision event; Clinic 4 supplies its enrolled-Student recipients and updated schedule/COR context. Clinic 4 sends only the enrollment-window notice, proposal-ready/materially-revised notice, payment/coverage action request, official-enrollment/COR notice, reservation-release/case-expiry notice, and official adjustment/Course Drop notice. The first official-enrollment/COR notice also announces Student access, so neither activation nor timetable revision produces a duplicate email. Clinic 5 sends only Faculty submission, returned roster, grade release without values/attachment, INC action/deadline and resolution/lapse, authorized correction, consequential progress/lifecycle, completion action-required, and conferral notices. Clinic 6 sends only **Verified payment posted**, keyed to the immutable posting reference and containing no tax-document claim. Proof submission/rejection, checkout return, exceptions, TOR clearance, reversals, health, exports, draft saves, routine checks, calculations, page activity, and recurring reminders produce no email. Database-editable templates remain outside MVP.
+Filament notifications provide immediate success, warning, and error feedback after an action. Student Hub renders one owner-scoped priority notice from authoritative domain records; it does not expose a second persistent notification-center control. Clinic 2 queues idempotent email for submission, one consolidated Action Needed request, Admitted, Not Admitted, Ready for Enrollment, and withdrawal. Clinic 3 sends the Faculty availability request, first timetable publication, and one affected-revision event; Clinic 4 supplies its enrolled-Student recipients and updated schedule/COR context. Clinic 4 sends only the enrollment-window notice, proposal-ready/materially-revised notice, payment/coverage action request, official-enrollment/COR notice, reservation-release/case-expiry notice, and official adjustment/Course Drop notice. The first official-enrollment/COR notice also announces Student access, so neither activation nor timetable revision produces a duplicate email. Clinic 5 sends only Faculty submission, returned roster, grade release without values/attachment, policy-bound INC action/deadline, INC resolution or authorized lapse, authorized correction, consequential progress/lifecycle, completion action-required, and conferral notices. No applicable approved INC policy means no deadline message. Clinic 6 sends only **Verified payment posted**, keyed to the immutable posting reference and containing no tax-document claim. Proof submission/rejection, checkout return, exceptions, TOR clearance, reversals, health, exports, draft saves, routine checks, calculations, page activity, and recurring reminders produce no email. Database-editable templates remain outside MVP.
 
 ### Plugin policy
 

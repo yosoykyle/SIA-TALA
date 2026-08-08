@@ -21,6 +21,7 @@ Clinic 3 does not own admissions, student-level study planning, enrollment, seat
 This contract is governed by:
 
 - [CHED CMO No. 40, s. 2008 — MORPHE](https://ched.gov.ph/wp-content/uploads/2017/10/CMO-No.40-s2008.pdf), applicable program Policies, Standards, and Guidelines, and the institution's approved academic decisions.
+- [CHED Regional Office I collegiate-calendar guidance](https://region1.ched.gov.ph/wp-content/uploads/2024/05/CRMO-NO.-03-S.-2024-GUIDELINES-FOR-COLLEGIATE-AND-GRADUATE-SCHOOL-CALENDARS-AY-2024-2025.pdf), which requires particular schedules and the required class hours/days for summer, trimestral, or quarterly terms but does not prescribe a separate SIS workflow or Servitech calendar.
 - [CHED CMO No. 62, s. 2017](https://ched.gov.ph/wp-content/uploads/2018/03/CMO-62-BS-Hospitality-Tourism-Management.pdf) for the distinction between supervised workplace practicum and recurring classroom timetable hours.
 - [PeopleSoft Student Records](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/student-records-overview.html), [PeopleSoft combined sections](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/creating-combined-sections.html), and [UniTime course timetabling](https://help.unitime.org/course-timetabling) as mature-system benchmarks only.
 - [OR-Tools CP-SAT statuses](https://developers.google.com/optimization/cp/cp_solver) and [OR-Tools infeasibility guidance](https://github.com/google/or-tools/blob/stable/ortools/sat/docs/troubleshooting.md) for solver-result meaning and bounded diagnostic evidence.
@@ -150,7 +151,7 @@ Clinic 3 does not manage placement sites, companies, supervisors, workplace atte
 
 Academic Head approves the institutional calendar outside TALA. Registrar records the authority and evidence, activates the package, and operates its windows. Academic Head receives read-only oversight. TALA adds no duplicate approval action.
 
-Every semester begins through an explicitly created `TermCalendarPackage`. TALA never automatically creates or clones the next term.
+Every First, Second, or institutionally approved Special Term begins through an explicitly created `TermCalendarPackage`. TALA never automatically creates or clones the next term, and `Special Term` is a controlled term type rather than a separate Summer subsystem.
 
 ### 6.1 State and owned records
 
@@ -162,14 +163,15 @@ Stored state is only:
 
 The package owns:
 
-- Academic year, controlled term type, display label, administrative dates, and class dates.
+- Academic year, controlled term type, institution-approved display label, administrative dates, and class dates.
 - External approval reference and date plus Registrar recording evidence.
+- For a Special Term, the approved particular schedule and attributable class-hour/class-day basis required by the recorded calendar authority.
 - Typed operational windows with inclusive Asia/Manila close dates and an optional approved cutoff time.
 - One weekly teaching-grid row for every allowed teaching day.
 - Recurring institutional breaks.
 - Dated holidays, no-class periods, make-up dates, and other approved exceptions.
 
-No weekday, operating-hour, break, or preferred-time value is assumed. Scheduling uses a fixed code-owned 30-minute grid inside the approved operating hours; the granularity is not configurable.
+No weekday, operating-hour, break, preferred-time, Special Term unit limit, or compressed-schedule value is assumed. Scheduling uses a fixed code-owned 30-minute grid inside the approved operating hours; the granularity is not configurable.
 
 Application dates remain in Admission Cycles. Payment dates remain in accounts. Examination dates are informational; Clinic 3 includes no examination scheduler. The neutral `Enrollment` operational window owns approved opening and closing dates only. Clinic 4 assigns its bounded applicability to Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. The `Grade Entry` window owns the definite Faculty submission period and due date consumed by Clinic 5; Clinic 5 owns late-grade authority, INC deadlines, release, and correction behavior. No programmable audience rules are introduced. Activating a term does not open enrollment; Clinic 4 also requires a published timetable and its remaining readiness facts.
 
@@ -185,6 +187,7 @@ A dated exception affects the applicable dated occurrences without rewriting the
 |---|---|---|---|---|---|---|
 | Program and curriculum authority | Program Authority, Course Revisions, active Curriculum Version | Registrar | Current authority and immutable applicable version are complete | Term classes/generation blocked | Confirm classes; generate; publish | Correct Draft authority/version and activate an approved replacement |
 | Term Calendar Package | Approved package, operational windows, grid, exceptions | Registrar | Active package has valid bounds, windows, teaching days, breaks, and exceptions | Term planning/generation blocked | Confirm class occurrences; generate | Correct Draft package/source and activate |
+| Special Term schedule | Approved particular schedule, class-hour/class-day basis, and applicable Curriculum Version | Registrar records; institution owns approval | Special Term authority, dates, meeting evidence, and curriculum placement are complete and mutually consistent | Activation, class confirmation, and generation blocked; no Summer default applies | Activate Special Term; confirm classes; generate | Correct the external authority or Draft package; never infer a unit cap, duration, or compressed pattern |
 | Cohorts and demand | Continuing demand, Clinic 2 ready counts, Clinic 4 unmet-demand projection, Registrar confirmation | Registrar | Cohorts needing standard classes are confirmed with attributable demand | Class confirmation/generation blocked or flagged | Confirm/split cohorts and classes | Reconcile source and record confirmation; never let CP-SAT merge cohorts |
 | Class Offerings | Confirmed Class Offerings and cohort links | Registrar | Every in-scope course has source, capacity, meeting treatment, mode, and state | Generation blocked for incomplete recurring classes | Generate/publish | Correct, share, add, or validly cancel the Draft class |
 | Faculty | Eligibility, term capacity, availability declaration, assigned demand | Registrar and Faculty | Eligible Faculty and bounded capacity/availability exist for every required meeting | Generation blocked | Generate candidate | Correct institutional result or request/record declaration |
@@ -227,6 +230,8 @@ Clinic 4 contains no standalone Study Plan. Its `RegistrationCase` owns versione
 The approved curriculum term total is the normal unit ceiling for both selection bases. There is no separate irregular-student maximum. An Individually Advised proposal may carry fewer eligible units; that basis does not create unrelated substitutions or overload rights.
 
 A failed prerequisite blocks only its dependent chain. Other eligible curriculum courses remain available. Cross-program placement requires the same canonical Course or an approved equivalency, a published class, capacity, no conflict, appropriate program permission, and Registrar confirmation. A graduating overload is an externally approved Clinic 4 exception; Clinic 3 encodes no universal overload amount.
+
+For the coordinated Special Term acceptance journey, Clinic 3 owns `TERM-2026-ST`, curriculum-planned `CLS-ITE3-ST-A`, externally approved Additional retake/catch-up class `CLS-IT201-ST-R`, their complete scheduling inputs, and the published timetable version. Clinic 4 alone decides the learner's `REG-2026-ST-001` proposal and placement; Clinic 6 owns assessment and coverage; Clinic 5 owns released results and academic averages. The word `Additional` records the offering source only and does not classify the learner or create a tutorial workflow.
 
 The Ethics-to-Rizal example remains hypothetical because the supplied curriculum evidence does not establish that prerequisite.
 
@@ -388,6 +393,7 @@ The future vertical implementation must prove:
 - Simple prerequisites, equivalencies, and circular-reference prevention.
 - Internship retained without an invented recurring timetable.
 - Explicit First, Second, and approved Special Term creation.
+- One Special Term that continues through published classes, Clinic 4 registration, Clinic 6 assessment/coverage, Clinic 4 official enrollment, and Clinic 5 released-result projections using the same references.
 - Calendar-readiness failures and successful activation.
 - Forecast and confirmed cohorts.
 - Regular, shared, and Additional Class Offerings.
@@ -415,8 +421,10 @@ Realistic demonstration data must include at least one externally arranged pract
 |---|---|---|
 | `CUR-BSHM-2026` | Active BSHM Curriculum Version with lecture, laboratory, and `PRACT-401` externally arranged practicum | Immutable authority, grouped curriculum ordering, no invented practicum meeting |
 | `TERM-2026-1` | Active First Term package with Mon–Sat grid, approved break, holiday, Enrollment and Grade Entry windows | Failed then passing activation readiness and dated-exception behavior |
+| `TERM-2026-ST` | Approved Special Term package with particular schedule, attributable class-hour/class-day basis, Enrollment and Grade Entry windows | Missing authority blocks activation; no Summer-specific unit or timetable default is used |
 | `COH-BSHM-1A/1B` | Separate confirmed cohorts with one approved shared general-education class | Shared class without cohort merge |
 | `CLS-HM101-A/B` | Regular Class Offerings plus `CLS-HM205-X` Additional class with authority | Demand source, capacity, mode, and exception evidence |
+| `CLS-ITE3-ST-A` / `CLS-IT201-ST-R` | Curriculum-planned Special Term class and externally approved Additional retake/catch-up class | One scheduler and publication journey; no tutorial resource or learner status |
 | `FAC-ADA` | Ada Faculty with multiple-course eligibility, bounded capacity, and late corrected availability | Declaration request, blocker, authorized correction, own schedule |
 | `ROOM-LAB1` | Laboratory room with one hard unavailable interval | Capacity/type conflict and factual recovery source |
 | `RUN-OPT`, `RUN-FEA`, `RUN-INF`, `RUN-UNK`, `RUN-MOD`, `RUN-TECH` | Six immutable generation snapshots | `Optimal`, `Feasible`, `Infeasible`, `Unknown`, `ModelInvalid`, and `TechnicalFailure` meanings |
@@ -434,6 +442,7 @@ Realistic demonstration data must include at least one externally arranged pract
 | Registrar; `RUN-FEA` / `CAND-2026-01` | Generate & Review | Open valid candidate, make bounded correction, revalidate | Quality hierarchy, weekly and accessible table views, hard-rule result | Academic Head sees read-only evidence; Faculty/Students see nothing yet | Valid complete candidate | Invalid correction is rejected without waiver | Candidate remains non-official until publication |
 | Registrar; external sign-off recorded | Published Timetable | Publish `PUB-2026-01`, filter/print official view | Authority, version, publication time, immutable meetings | Assigned Faculty sees official schedule; Clinic 4 receives availability | Official timetable print/save-as-PDF | Missing/stale sign-off blocks publication | Published data exactly matches validated candidate |
 | Registrar with affected Clinic 4 placements | Published Timetable revision | Record source change, resolve impact, publish `PUB-2026-02` | Complete impact, validation, superseded history | Affected Faculty and enrolled Students receive one shared event | New official version and revision evidence | Unresolved placement or invalid timetable blocks publication | No meeting is edited in place and no duplicate email fires |
+| Registrar; Draft `TERM-2026-ST` | Term Planning → Cohorts & Classes → Generate & Review | Fail missing calendar/Additional authority, record valid authority, confirm `CLS-ITE3-ST-A` and `CLS-IT201-ST-R`, then publish | Particular schedule, class-hour/class-day evidence, offering sources, resources, candidate, and official version | Clinic 4 receives the two published classes under the same Special Term reference | Published Special Term timetable | Missing authority, resource conflict, or invalid candidate blocks the next action | No Summer scheduler, tutorial workflow, universal unit cap, or learner classification appears |
 
 ## 18. Future Implementation Gate — Not a Task Plan
 
