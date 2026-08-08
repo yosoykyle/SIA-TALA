@@ -15,7 +15,7 @@
 
         <div class="container">
             <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
-                <img src="{{ asset('landing/images/talalogo.png') }}" alt="" class="landing-brand-logo">
+                <img src="{{ asset('talalogo.png') }}" alt="" class="landing-brand-logo">
                 <span data-navbar-contrast-target>TALA</span>
             </a>
 
@@ -62,7 +62,7 @@
                     <div class="col-lg-6">
                         <div class="portal-overview" data-navbar-contrast-surface="light" aria-labelledby="portal-overview-title">
                             <div class="portal-overview-header">
-                                <img src="{{ asset('landing/images/talalogo.png') }}" alt="" class="hero-mockup-logo">
+                                <img src="{{ asset('talalogo.png') }}" alt="" class="hero-mockup-logo">
                                 <div>
                                     <p class="portal-label mb-1">TALA access guide</p>
                                     <h2 class="h3 mb-0" id="portal-overview-title">One system. Three clear workspaces.</h2>
@@ -287,7 +287,7 @@
             <div class="row align-items-start g-4">
                 <div class="col-lg-7">
                     <a class="footer-brand d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}">
-                        <img src="{{ asset('landing/images/talalogo.png') }}" alt="" class="footer-logo">
+                        <img src="{{ asset('talalogo.png') }}" alt="" class="footer-logo">
                         <span>TALA</span>
                     </a>
                     <p class="footer-desc mt-3 mb-0">Tertiary Academic Lifecycle Administration for Servitech Institute Asia.</p>
