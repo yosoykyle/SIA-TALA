@@ -1,8 +1,6 @@
 *
 !.gitignore
 !README.md
-!TALA-Rescue-Next-Steps.md
-!TALA-Local-Linear-Sync-Tracker.md
 !ui_surface_blueprint.md
 !architecture_specification.md
 !TALA-Orchestrator-Protocol.md
@@ -19,6 +17,8 @@
 !archive/project-progress/TALA-Comprehensive-Execution-Log.md
 !archive/project-progress/architecture_diagrams.md
 !archive/project-progress/TALA-UI-Legacy-Implementation-and-Comparison-Inventory-pre-prototype-2026-08-08.md
+!archive/project-progress/TALA-Next-Steps-Retired-2026-08-09.md
+!archive/project-progress/TALA-Linear-History-Tracker-2026-08-09.md
 !archive/demo/
 !archive/demo/README.md
 !archive/demo/TAL-96B2-Scheduling-Demo-Runbook.md

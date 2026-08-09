@@ -21,7 +21,7 @@ Ownership is simple:
 - A GitHub Issue owns its tracked task's goal, scope, acceptance criteria, and live status, but never overrides product authority.
 - The linked GitHub Project is a view of issues, not a second task database.
 - Code, tests, commits, and pull requests are implementation evidence.
-- `TALA-Rescue-Next-Steps.md`, `TALA-Local-Linear-Sync-Tracker.md`, and Linear are frozen history only.
+- `archive/project-progress/TALA-Next-Steps-Retired-2026-08-09.md`, `archive/project-progress/TALA-Linear-History-Tracker-2026-08-09.md`, and Linear are frozen history only.
 
 When sources materially conflict, stop and present the conflict rather than silently choosing one.
 

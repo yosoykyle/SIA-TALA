@@ -6,4 +6,4 @@ This file was retired as a live task queue on 2026-08-09. It no longer owns task
 - No active local task contract existed at the transition boundary.
 - Future planned work lives in GitHub Issues and the linked `TALA Development` GitHub Project.
 - A clear direct task without a GitHub Issue remains valid under the TALA Orchestrator Protocol.
-- Historical Linear mappings remain in `TALA-Local-Linear-Sync-Tracker.md`; they do not authorize or sequence future work.
+- Historical Linear mappings remain in [`TALA-Linear-History-Tracker-2026-08-09.md`](TALA-Linear-History-Tracker-2026-08-09.md); they do not authorize or sequence future work.

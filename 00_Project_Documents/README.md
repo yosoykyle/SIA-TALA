@@ -24,7 +24,7 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | Classification | Documents | Boundary |
 | --- | --- | --- |
 | Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
-| Operational status | [`TALA-Rescue-Next-Steps.md`](TALA-Rescue-Next-Steps.md), [`TALA-Local-Linear-Sync-Tracker.md`](TALA-Local-Linear-Sync-Tracker.md) | Current order/contract boundary and local-to-Linear sync state only |
+| Task management | GitHub Issues and the linked [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked task scope and live status; the project is a synchronized view only |
 | Developer setup | [`../README.md`](../README.md), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Setup or compatibility routing; never product authority |
 
 Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, and implementation history cannot create or restore product requirements.
@@ -57,6 +57,6 @@ Historical manual test cases and UAT documents are demonstration material. Autom
 
 - Update product authority before changing a settled product decision.
 - Update workflow authority before changing orchestration rules.
-- Keep live status only in Next Steps and the local sync tracker.
+- Keep live shared task status only in GitHub Issues; do not create a local shadow tracker.
 - Preserve historical material in the archive with an explicit scope boundary.
 - Delete only material proven redundant and recoverable; ignored or local-only evidence is preserved by default.
