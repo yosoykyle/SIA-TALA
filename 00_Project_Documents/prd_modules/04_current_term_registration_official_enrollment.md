@@ -1,11 +1,9 @@
 # PRD 04 — Current-Term Registration, Official Enrollment, Student Activation, Adjustment, and Course Drop
+## Authority and Standalone Status
 
-## Authority and Review Status
+**Status:** Standalone and ready for vertical-slice planning.
 
-**Clinic 4 authority:** Approved on 2026-08-06; complete-authority review passed
-
-This is the canonical approved unified Clinic 4 journey authority. It is product and UI authority, not an implementation task plan.
-
+This PRD is the complete authority for one Registration Case per learner and Term, proposal versions, confirmation, placement, finance readiness, atomic Official Enrollment, Student activation, cancellation, adjustment, Course Drop, and COR. It is understandable without legacy enrollment/COR PRDs or current implementation.
 ## 1. Purpose and boundary
 
 Clinic 4 owns the complete journey:
@@ -38,7 +36,7 @@ The same journey supports:
 - New first-year and transferee Applicants.
 - Standard continuing Students.
 - Failed or back-course Students and cases with pending or incomplete results.
-- Probation-eligible, academically blocked, or pending-decision cases.
+- Cases whose current `AcademicEnrollmentEffect` is `Allowed`, `AdvisingRequired`, `Blocked`, or `PendingDecision`.
 - Returning/reactivated and shifted Students after Clinic 5 records the authorized outcome.
 - Old-curriculum, bridging, approved-equivalency, and transfer-credit cases.
 - Graduating and approved Special Term cases, including an exact authorized individual assessment when a fixed Program-and-Term Fee Plan cannot represent the confirmed selection.
@@ -98,7 +96,7 @@ The current stage is derived from five accountable checkpoints:
 
 | Check | Authoritative source | Owner | Valid condition | Effect if missing | Consuming action | Recovery |
 |---|---|---|---|---|---|---|
-| Student eligibility | Clinic 2 Ready Applicant or Clinic 5 released result/lifecycle/progress effect | Registrar consumes; Clinics 2/5 own source | Applicant is ready or Student has `Allowed`/authorized `AdvisingRequired`; no unresolved block/decision | Case start, placement, or finalization blocked as applicable | Start case; prepare proposal; finalize | Correct owning source or record external authorized outcome; never override locally |
+| Student eligibility | Clinic 2 Ready Applicant or Clinic 5 released result/lifecycle/progress effect | Registrar consumes; Clinics 2/5 own source | Applicant is ready or Student has `Allowed`/authorized `AdvisingRequired`; no unresolved block/decision | Case creation is blocked when entry eligibility fails; placement is blocked when proposal eligibility fails; finalization is blocked when the current effect becomes `Blocked` or `PendingDecision` | Start case; prepare proposal; finalize | Correct owning source or record external authorized outcome; never override locally |
 | Confirmed proposed subjects | Current proposal version and learner confirmation | Registrar and learner | Proposal matches authoritative curriculum/results/classes and exact current version is confirmed | Placement/finalization blocked | Place classes | Revise/issue proposal and obtain new online or assisted confirmation |
 | Valid class placement | Clinic 3 published classes plus reservations, requisites, conflicts, and capacity | Registrar | Every proposed recurring course has a valid protected placement or approved no-meeting treatment | Finalization blocked; shortage owner/deadline shown | Finalize official enrollment | Resolve shortage, validly change class, amend safe capacity, or revise timetable through Clinic 3 |
 | Accounting clearance | Clinic 6 assessment and enrollment-payment requirement plus verified payment and Approved Coverage evidence | Accounting | Assessment basis is `PublishedFeePlan` or eligible `AuthorizedIndividualAssessment`; source is current; required amount is satisfied by verified payment, Applied coverage, a mixed basis, or `NoPaymentRequired` | `Unavailable` or `ActionNeeded`; finalization blocked without a fallback | Finalize official enrollment | Publish the ordinary Fee Plan, record an eligible exact individual assessment, verify payment, or record current Approved Coverage in Finance |
@@ -119,7 +117,7 @@ Clinic 4 uses only Clinic 5's released official results. Draft or submitted-but-
 - `Blocked` — placement and finalization cannot proceed.
 - `PendingDecision` — Clinic 4 waits for Clinic 5's authoritative outcome.
 
-Failure alone does not automatically dismiss a Student, impose probation, or reduce load. Clinic 5 owns the progress assessment and the authorized consequential decision. `Good` may yield `Allowed` automatically; Warning, Probation, load reduction, and Ineligible effects require Clinic 5's recorded decision before Clinic 4 applies them.
+Failure alone does not automatically dismiss a Student, impose probation, reduce load, or create an institutional eligibility label. Clinic 5 owns factual curriculum evaluation and any actual authorized consequential decision. Ordinary eligible placement yields `Allowed`; failures, deficiencies, shifts, bridging, retakes, and other nonstandard placement yield `AdvisingRequired`; only a recorded authority or incompatible lifecycle state yields `Blocked`, and only an opened review or unresolved authoritative source yields `PendingDecision`.
 
 An authorized released-grade correction recalculates Clinic 5's result, GWA, curriculum evaluation, and progress recommendation. If it affects an active Registration Case, Clinic 4 routes that case to Registrar review and never silently adds, removes, or replaces a proposed or officially registered course.
 
@@ -308,45 +306,28 @@ Routine saves, validation/capacity checks, staff navigation, and recurring remin
 
 Mobile uses labelled stacked course and queue rows, preserves reading order, keeps the primary action reachable, and puts secondary actions in Action Groups. Loading, empty, stale, expired, 403, 404, 419, 429, validation, concurrency, and integration-failure states identify the responsible owner and safe recovery action. Keyboard access, visible focus, screen-reader status text, and non-color status meaning are mandatory.
 
-## 9. Conceptual contracts
+## 9. Authoritative Records and Conceptual Contracts
 
-No public HTTP API is introduced. Minimum interfaces are:
+No public HTTP API is introduced. These are conceptual responsibilities, not physical table or class instructions:
 
-- `RegistrationCase`
-- `EnrollmentSelectionBasis`
-- `ProposedRegistrationVersion`
-- `ProposedCourseRegistration`
-- `LearnerRegistrationConfirmation`
-- `EnrollmentCheckpointProjection`
-- `CourseEligibilityProjection`
-- `OfficialCourseResultProjection`
-- `AcademicEnrollmentEffect`
-- `EnrollmentSeatReservation`
-- `EnrollmentShortageItem`
-- `EnrollmentPaymentRequirementProjection`
-- `OfficialTermEnrollment`
-- `OfficialCourseRegistration`
-- `StudentProfileActivation`
-- `StudentProfileCorrection`
-- `EnrollmentAdjustment`
-- `CourseDropOutcome`
-- `CertificateOfRegistrationVersion`
-- Clinic 3 `UnmetClassDemandProjection`
+| Name or family | Purpose | Authority owner | Classification | Required consumers | Distinction or consolidation decision |
+|---|---|---|---|---|---|
+| RegistrationCase | Own one learner-and-Term journey, current proposal, readiness, finalization, cancellation, and change history | Registrar with bounded learner actions | Persisted authoritative record | Learner, Registrar, PRDs 01/03/05/06 | Remains the stable cross-clinic container |
+| EnrollmentSelectionBasis | Identify Standard Curriculum or Individually Advised selection | PRD 04 | Documentation concept that does not require a separate implementation object | Proposal validation and UI | Implement as a controlled value, not a learner type or policy table |
+| ProposedRegistrationVersion and ProposedCourseRegistration | Freeze one proposed selection and its course/Class Offering rows | Registrar prepares; learner confirms | Immutable version with owned rows | Placement, finance, finalization, COR | Rows belong to the proposal version and need no separate module |
+| LearnerRegistrationConfirmation | Record informed learner or assisted confirmation of one proposal version | Learner or Registrar under assisted authority | Immutable version or event | Finalization readiness and audit | Remains distinct to protect consent/version history |
+| EnrollmentSeatReservation | Protect provisional capacity until expiry/finalization | PRD 04 | Persisted authoritative record with atomic release | Placement and Class Offering capacity | Remains distinct because concurrency and one-time release require authoritative state |
+| OfficialTermEnrollment and OfficialCourseRegistration | Record atomic official enrollment and exact registered classes | Registrar | Persisted authoritative record with owned rows | PRDs 01/03/05/06 and COR | Course rows are owned by the enrollment; no duplicate roster/enrollment record |
+| Student identity activation and correction history | Create the minimal Student identity once and preserve authorized corrections | Registrar through finalization/correction | Immutable version or event on the Student identity | PRD 01 access and all Student projections | Replaces separate `StudentProfileActivation`/`StudentProfileCorrection` aggregates |
+| EnrollmentAdjustment and CourseDropOutcome | Record authorized post-enrollment changes and effects | Registrar | Immutable version or event | Timetable, roster, finance review, COR | Remain distinct event types because their guards and consequences differ |
+| CertificateOfRegistrationVersion | Reproduce the official enrollment snapshot | Registrar/PRD 04 | Official output plus immutable version | Learner and authorized Staff | Not a live finance or schedule record |
+| EnrollmentCheckpointProjection, CourseEligibilityProjection, EnrollmentShortageItem | Explain current readiness, course eligibility, and unresolved capacity | PRD 04 derives from producer-owned sources | Derived projection/calculation or UI-only state | Learner and Registrar | No generic checkpoint engine or stored shadow result |
+| OfficialCourseResultProjection, AcademicEnrollmentEffect, EnrollmentPaymentRequirementProjection, UnmetClassDemandProjection | Consume or publish bounded cross-PRD facts | Owning producer PRD | Derived projection/calculation | Registration and source owners | PRD 04 never edits or copies the producer-owned fact |
+## 10. Lifecycle, Mutation, and Technical Boundaries
 
-These are conceptual responsibilities, not physical table or class instructions.
+A Registration Case, placement/reservation history, Official Enrollment, Student-activation result, Enrollment Adjustment, Course Drop, and COR version are never deleted. Before learner confirmation, the learner may cancel the current case; after confirmation, only Registrar records a cancellation. Material proposal change invalidates prior confirmation. Reservation expiry releases capacity once and preserves the case and finance evidence.
 
-## 10. Reconciliation disposition
-
-| Disposition | Clinic 4 treatment |
-|---|---|
-| `Retain when conforming` | Transactional placement/finalization, row locking, idempotency, schedule/conflict checks, finance projection integration, authorization foundations, COR rendering/logging, and native Filament foundations. |
-| `Simplify` | Nine gates become five checkpoints; enrollment state becomes terminal outcomes plus derived stage; course planning becomes proposal rows within the Registration Case; capacity becomes protection, reservation, and shortage evidence. |
-| `Replace` | Standalone Study Plan, stored Regular/Irregular policy status, student-controlled arbitrary selection, generic overrides, global holds, and manually re-entered Term Offerings. |
-| `Remove after dependency migration` | Unsupported numeric overload/default fees, zero-balance assumptions, ranked waitlists, duplicate Applicant/readmission paths, live installments in COR, and generic policy/state-machine machinery. |
-| `Quarantine` | Existing physical fields and services remain untouched until every consumer is mapped after complete-authority approval. |
-
-Legacy finance, COR, and lifecycle PRDs remain inputs for Clinics 5 and 6, but their Clinic 4-overlapping rules cannot override this authority.
-
+This PRD defines conceptual product behavior, not physical tables, routes, services, migrations, or task order. A future journey-complete slice must reconcile existing enrollment, placement, COR, identity, grades, finance, policies, tests, and all consumers against the producer-owned handoffs in this document.
 ## 11. Acceptance coverage
 
 The later vertical slice must verify:
@@ -365,6 +346,8 @@ The later vertical slice must verify:
 - Cross-role authorization, idempotent email success/failure, desktop/mobile, keyboard/screen-reader use, stale-record protection, and safe error recovery.
 
 ### 11.1 Synthetic Demonstration Data
+
+Registration scenarios reuse the coordinated 47 Students, six cohorts, BM/IT/THM curricula, published Class Offerings, and the exact Clinic 6 accounts. PRD 04 owns Registration Cases and their outcomes; it does not copy admissions, timetable, grade, or finance sources.
 
 | Reference | Synthetic case | Demonstrated evidence |
 |---|---|---|
@@ -395,12 +378,25 @@ The later vertical slice must verify:
 | Student/Registrar; `REG-2026-0009` | Current COR / Adjustments and Drops | Record a cleared cost-increasing adjustment, a confirmed no-additional-cost change, then Course Drop; inspect versions | Current and historical COR, original assessment snapshot, changed roster/schedule, Accounting review state | Faculty/Accounting/Clinic 5 receive bounded owning projections | COR v2/v3 and printable history | Missing increase clearance blocks add/replacement; removal/drop proceeds with review pending and no invented refund | Prior COR and assessment versions remain immutable |
 | Registrar; `REG-2026-0010` | Timetable impacts | Resolve proposed Clinic 3 revision | Affected placement, valid replacement/cancellation/outcome, no silent move | Clinic 3 can publish; affected user gets one shared event | Updated schedule/COR context | Unresolved impact blocks revision publication | Clinic 3 owns the single revision trigger/email |
 
-## 12. Future implementation gate — not a task plan
+### 11.3 Authority-hardening control matrix
 
-Clinic 4 defines behavior, UI, conceptual data, acceptance, exclusions, and salvage disposition only. Clinics 1–6, canonical consolidation, the final cross-module review, and complete-authority approval are complete. A journey-complete implementation task may now be derived only through a separately approved plan; no migration design, application change, tracker change, commit, or external synchronization is authorized by this PRD.
+| Action or record | Actor and authorization | Validation and readiness | Confirmation and audit | Lifecycle, deadline, and failure behavior |
+|---|---|---|---|---|
+| Start Registration Case | Ready Applicant or eligible continuing Student; Registrar may assist | Exactly one Case per learner/Term; current identity, Term window, lifecycle, curriculum/result/readiness sources | Start needs no critical dialog; records entry source and selection basis | Duplicate returns existing Case. No Case is deleted; unavailable source blocks only the consuming step |
+| Prepare/revise proposal | Registrar; standard proposal may be derived only from current curriculum authority | Exactly one current proposal version; unique course/Class Offering pair; same course not twice; positive units; requisites/equivalencies, schedule, capacity, curriculum, lifecycle, and deadline current | Routine Draft save needs no dialog. Material successor identifies exact added/removed/replaced rows and invalidates prior confirmation | Stale/concurrent edit posts nothing and preserves safe notes. No fixed revision count while the Case/window permits |
+| Learner/assisted confirmation | Learner confirms own complete proposal; Registrar records externally assisted confirmation with method/evidence | Current proposal/version, exact meetings/units, eligibility, placement-readiness source | **Confirm proposed enrollment** or **Record assisted confirmation** shows courses, units, meetings, next placement/finance steps, and no guarantee of final enrollment | No fixed attempt count. Material change invalidates confirmation; nonmaterial display correction does not. Learner may cancel before confirmation; after it only Registrar records cancellation |
+| Placement/reservation | Registrar/TALA through atomic current-capacity validation | Current published Class Offerings, no conflict, applicable capacity/protection/deadline | Reservation consequence appears before confirmation/finalization; shortage action names alternatives and authority | Expiration releases capacity exactly once, preserves Case/finance evidence, records reason, and requires replanning. It grants no future entitlement |
+| Registrar cancellation | Registrar after learner confirmation | Current Case, authority/reason, placement/payment/output impacts | **Cancel registration case** shows released seats, readiness/account consequences, learner projection, and preserved history | No hard deletion. Stale/concurrent finalization conflict changes nothing; later restart follows a permitted successor/reopen path |
+| Official finalization and first Student activation | Registrar | All five current checkpoints pass: academic proposal, placement, learner confirmation, Clinic 6 clearance, institutional/identity readiness; current versions locked | **Finalize enrollment** shows exact courses/units/meetings, assessment basis/current requirement, Student activation when first enrollment, rosters/schedule/COR/email effects, and immutability | Atomic/idempotent. Retry cannot duplicate Student identity/number/access, enrollment, placement, Term Account, roster membership, email, or COR. Failure rolls back the whole institutional mutation |
+| Adjustment/add/replacement | Registrar under authorized window/authority; learner acknowledgement where required | Current Enrollment/COR; valid new proposal/change version; academic/capacity/timetable checks; cost increase cleared by successor Assessment; no-cost result authoritatively confirmed | **Apply enrollment adjustment** shows exact before/after rows, units, meetings, financial state, roster/schedule/COR effects | No edit-in-place or deletion. Successor Enrollment/COR history; stale finance or class facts block only application of the change |
+| Removal/Course Drop | Registrar records authorized action | Current registration, deadline/authority, course, academic consequence, current finance review state | **Record Course Drop** shows removed course, roster/schedule/COR successor, and that Accounting review may remain pending without inferred refund/penalty | Academic effect may post without refund decision when authorized; original enrollment/COR remains immutable. No automatic balance change or global hold |
 
-The complete authority set has passed the final cross-module review. Clinic 5's accepted authority governs the academic handoff, and later implementation-task derivation must preserve this PRD's shared identifiers, Student-profile correction history, and cross-clinic projections without treating this document as implementation permission.
+Unit totals, requisites, equivalencies, conflicts, capacity, placement, assessment, and deadline facts are revalidated against their producer versions for every material action. Registration Cases, proposal history after confirmation, official enrollment, placement/reservation history, adjustments, Course Drops, and COR versions are never deleted or generically archived. Inaccessible responses reveal no learner, schedule, academic, or financial facts.
+## 12. Technical and Operational Assumptions
 
+- Clinic 4 consumes only current versioned projections from Clinics 2, 3, 5, and 6 and cannot edit their source facts.
+- `Allowed`, `AdvisingRequired`, `Blocked`, and `PendingDecision` are factual enrollment effects, not Student classifications.
+- No PRD 04 product decision remains unresolved; missing operational dates, authority, assessment, or placement evidence blocks only the affected action.
 ## 13. Evidence basis
 
 - [CHED Manual of Regulations for Private Higher Education](https://legacy.ched.gov.ph/manual-regulations-private-higher-education-morphe/) governs applicable private-college enrollment and academic-record duties; institution-specific deadlines, overloads, grading, refunds, and late charges still require approved institutional authority.
@@ -408,7 +404,7 @@ The complete authority set has passed the final cross-module review. Clinic 5's 
 - [PeopleSoft class enrollment processing](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/class-enrollment-processing.html) is a mature-system benchmark for validating requests against requisites, deadlines, permissions, conflicts, and class limits. It is not Philippine policy and does not justify importing PeopleSoft complexity.
 - [PLMun's published enrollment schedule](https://www.plmun.edu.ph/event.php?id=212) is local comparison evidence that continuing and irregular learners may receive bounded enrollment periods without becoming new Applicants. It does not establish Servitech's dates or terminology.
 
-Business evidence, curriculum sheets, PUP/PUPSIS observations, and existing code remain clarification or salvage inputs. They become enforceable only when supported by applicable authority or an approved institutional decision.
+Business evidence, curriculum sheets, PUP/PUPSIS observations, and existing code remain supporting or implementation evidence. They become enforceable only when supported by applicable authority or an approved institutional decision.
 
 ## 14. Assumptions
 
@@ -418,4 +414,4 @@ Business evidence, curriculum sheets, PUP/PUPSIS observations, and existing code
 - External institutional decisions are recorded rather than recreated.
 - Existing code and data remain intact until post-authority implementation reconciliation.
 
-Clinic 4 is approved and has passed the complete-authority review. Its checklist is satisfied through this PRD and its Clinic 4 UI authority; the settled Clinic 2→4, Clinic 3↔4, Clinic 4↔5, and Clinic 6→4 handoffs remain unchanged. Approval authorizes later implementation-task derivation only and does not authorize implementation.
+Clinic 4 is approved and has passed the complete-authority and authority-hardening reviews. Its checklist is satisfied through this PRD and its Clinic 4 UI authority; the settled Clinic 2→4, Clinic 3↔4, Clinic 4↔5, and Clinic 6→4 handoffs remain unchanged. Approval authorizes later separately planned journey-complete work only and does not authorize implementation.

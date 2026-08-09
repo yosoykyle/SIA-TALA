@@ -1,11 +1,9 @@
 # PRD 03 — Academic Setup, Offerings, and Published Timetable
+## Authority and Standalone Status
 
-## Authority and Review Status
+**Status:** Standalone and ready for vertical-slice planning.
 
-**Clinic 3 authority:** Approved on 2026-08-06; complete-authority review passed
-
-This is the canonical approved unified Clinic 3 journey authority and has passed the complete-authority review. It replaces the product authority formerly split across Academic Setup, Term Offerings and Resources, and CP-SAT Scheduling. Those inputs are preserved in `_legacy/` as read-only salvage evidence. Complete-set approval authorizes later implementation-task derivation only; this PRD does not authorize application changes, schema changes, migration work, or solver deployment.
-
+This PRD is the complete authority for academic setup, curricula, Terms, cohorts, Class Offerings, teaching-resource readiness, whole-term CP-SAT generation, candidate review, publication, and revision. It is understandable without legacy scheduling PRDs, solver source, tests, or the formulation document. The current implementation remains bounded evidence until a later PRD 03 vertical slice proves conformance.
 ## 1. Purpose and Successful Outcome
 
 Clinic 3 defines one complete institutional journey:
@@ -22,16 +20,19 @@ This contract is governed by:
 
 - [CHED CMO No. 40, s. 2008 — MORPHE](https://ched.gov.ph/wp-content/uploads/2017/10/CMO-No.40-s2008.pdf), applicable program Policies, Standards, and Guidelines, and the institution's approved academic decisions.
 - [CHED Regional Office I collegiate-calendar guidance](https://region1.ched.gov.ph/wp-content/uploads/2024/05/CRMO-NO.-03-S.-2024-GUIDELINES-FOR-COLLEGIATE-AND-GRADUATE-SCHOOL-CALENDARS-AY-2024-2025.pdf), which requires particular schedules and the required class hours/days for summer, trimestral, or quarterly terms but does not prescribe a separate SIS workflow or Servitech calendar.
+- [TESDA assessment and certification](https://tesda.gov.ph/About/TESDA/25) and its [official assessment FAQ](https://tesda.gov.ph/About/Tesda/127), which keep competency assessment, accredited assessors, and NC/COC certification under TESDA's external authority.
 - [CHED CMO No. 62, s. 2017](https://ched.gov.ph/wp-content/uploads/2018/03/CMO-62-BS-Hospitality-Tourism-Management.pdf) for the distinction between supervised workplace practicum and recurring classroom timetable hours.
-- [PeopleSoft Student Records](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/student-records-overview.html), [PeopleSoft combined sections](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/creating-combined-sections.html), and [UniTime course timetabling](https://help.unitime.org/course-timetabling) as mature-system benchmarks only.
+- [PeopleSoft Student Records](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/student-records-overview.html), [PeopleSoft combined sections](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/creating-combined-sections.html), [PeopleSoft examination scheduling](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/student-records/scheduling-examinations.html), and [UniTime course timetabling](https://help.unitime.org/course-timetabling) as mature-system benchmarks only. The enterprise examination feature is evidence that class/facility scheduling is a distinct optional subsystem, not authority to add it to TALA.
 - [OR-Tools CP-SAT statuses](https://developers.google.com/optimization/cp/cp_solver) and [OR-Tools infeasibility guidance](https://github.com/google/or-tools/blob/stable/ortools/sat/docs/troubleshooting.md) for solver-result meaning and bounded diagnostic evidence.
 
-No approved Servitech institutional handbook has been supplied. Existing spreadsheets, business forms, database structures, services, and UI remain useful evidence, but none becomes policy merely because it already exists.
+The supplied 2019 handbook concerns Servitech TESDA operations. It is contextual evidence for terminology and observed procedure only; it is not authority for the college grading, enrollment, scheduling, completion, or disciplinary policies in this PRD. Existing spreadsheets, forms, database structures, services, UI, and outside-institution practices likewise become enforceable only when the stated authority hierarchy supports them.
 
 | Institutional responsibility | Owner | TALA responsibility |
 | --- | --- | --- |
 | Recognize a program or approve a curriculum | Regulator and authorized institution outside TALA | Record the authority, source, effective dates, and approved result |
 | Approve the institutional academic calendar | Academic Head through the institution's process outside TALA | Registrar records, activates, and operates the approved package |
+| Schedule and communicate exact class examination arrangements | Faculty through the approved teaching process | Project only the institution-approved Examination Period; no class-level examination schedule |
+| Assess and certify an external TESDA-linked competency | TESDA/accredited assessor | Record only an authority-backed curriculum requirement; Clinic 5 records the verified Student result |
 | Decide staffing eligibility, load, exceptional class authority, timetable sign-off, or graduating overload | Authorized institution outside TALA | Record only the approved result, authority, evidence reference, and effective dates needed by the owning clinic |
 | Build cohorts, classes, and scheduling inputs | Registrar | Authoritative source records and readiness |
 | Generate a timetable candidate | CP-SAT service | Integration output that remains untrusted until Laravel validation and human review |
@@ -44,44 +45,27 @@ This is a `Decision then record` product. It does not recreate regulator, commit
 
 These contracts define responsibilities before physical schema design. They are not approved table names or migrations:
 
-- `ProgramAuthority`
-- `Course`
-- `CourseRevision`
-- Shared Clinic 5 `CourseAcademicClassification`
-- `CourseRequisite`
-- `CourseEquivalency`
-- `WeeklyMeetingRequirement`
-- `CurriculumVersion`
-- `CurriculumEntry`
-- `TermCalendarPackage`
-- `OperationalWindow`
-- `WeeklyTeachingGrid`
-- `DatedException`
-- `TermCohort`
-- `ClassOffering`
-- `ClassOfferingCohort`
-- `FacultyTeachingEligibility`
-- `FacultyTermCapacity`
-- `FacultyAvailabilityDeclaration`
-- `Room`
-- `ResourceUnavailability`
-- `SchedulingCommitment`
-- `ScheduleGenerationRun`
-- `SolverSnapshot`
-- `CandidateTimetable`
-- `CandidateMeetingCorrection`
-- `PublishedTimetableVersion`
-- `PublishedMeeting`
-- `TimetableRevision`
-- Shared Clinic 4 `PublishedClassAvailabilityProjection`
-- Clinic 4 `UnmetClassDemandProjection`
+| Name or family | Purpose | Authority owner | Classification | Required consumers | Distinction or consolidation decision |
+|---|---|---|---|---|---|
+| ProgramAuthority, Course, CourseRevision, CourseRequisite, CourseEquivalency | Define effective academic catalog facts and relationships | Registrar records approved academic authority | Persisted authoritative records and immutable revisions | Curriculum, scheduling, PRDs 04–05 | Remain distinct where effective history or graph validation requires it; no generic rule engine |
+| CourseAcademicClassification | Identify ordinary, PE, or NSTP-equivalent average treatment | Registrar records approved classification | Required institutional operational data with effective history | PRD 05 averages | Owned with the Course revision; not a standalone policy module |
+| CurriculumVersion | Freeze one program curriculum and authority | Registrar | Immutable version | Class demand, registration, curriculum evaluation | Remains distinct for historical reproducibility |
+| CurriculumEntry, WeeklyMeetingRequirement, ExternalCompetencyRequirement | Define owned curriculum/course-position details | CurriculumVersion or CourseRevision | Documentation concept that does not require a separate implementation object | Scheduling, registration, records | May be implemented as owned rows/value objects; no independent lifecycle or navigation destination |
+| TermCalendarPackage | Define one Term's dates, windows, teaching grid, exceptions, and Examination Period | Registrar | Immutable activated version | Scheduling, registration, grades, role projections | OperationalWindow, WeeklyTeachingGrid, and DatedException remain owned parts, not top-level modules |
+| TermCohort and ClassOffering | Define term demand and the actual class to schedule/enroll | Registrar | Persisted authoritative records | Solver, PRDs 04–05 | ClassOfferingCohort is an owned association rather than an independent aggregate |
+| FacultyTeachingEligibility, FacultyTermCapacity, FacultyAvailabilityDeclaration | Supply current bounded teaching-resource facts | Registrar records eligibility/capacity; Faculty declares availability | Persisted authoritative records or immutable declarations | Scheduling readiness and solver input | Remain separate facts because their owners and correction paths differ; no HR/workload system |
+| Room, ResourceUnavailability, SchedulingCommitment | Supply room/resource facts and exact authorized commitments | Registrar | Persisted authoritative records or immutable events | Scheduling readiness and solver input | No generic resource or override engine |
+| ScheduleGenerationRun | Own one immutable source snapshot, request, result, evidence, and run status | TALA/Registrar | Persisted authoritative record plus immutable result | Candidate review and audit | `SolverSnapshot` is the run's immutable input, not another aggregate |
+| CandidateTimetable | Preserve a complete candidate and quality evidence | TALA result; Registrar reviews | Immutable version | Candidate review and publication | CandidateMeetingCorrection is successor history on the candidate, not a standalone workflow |
+| PublishedTimetableVersion | Freeze the official meeting set and publication/revision evidence | Registrar | Immutable version and official output source | Faculty, Student, PRDs 04–05 | PublishedMeeting is owned content; TimetableRevision is successor metadata on a new published version |
+| PublishedClassAvailabilityProjection, UnmetClassDemandProjection, Examination Period and readiness results | Communicate source-owned availability, demand, dates, and blockers | Owning PRD derives from authoritative facts | Derived projection/calculation | PRD 04 and role UIs | No stored copy, generic readiness engine, or event calendar |
 
 No public HTTP API, generic policy DSL, universal override record, generic state-machine builder, or configurable constraint engine is introduced.
 
 ## 4. End-to-End Narrative
 
 1. Registrar records the regulator and institutional authority for each recognized program.
-2. Registrar records or imports a Draft curriculum from an externally approved source, resolves every blocking finding, records the authority, and activates the immutable version.
+2. Registrar records or imports a Draft curriculum from an externally approved source, including any explicitly authorized external-competency requirements, resolves every blocking finding, records the authority, and activates the immutable version.
 3. Registrar explicitly creates a Draft Term Calendar Package, records its approved dates and teaching grid, resolves failed readiness checks, and activates it.
 4. TALA projects continuing-student demand, Clinic 2 Ready-for-Enrollment counts, and bounded Clinic 4 unmet-demand evidence. Registrar confirms or splits standard-curriculum cohorts. TALA may generate Draft Class Offerings from those authoritative inputs; Registrar confirms, shares, adds, or cancels them.
 5. Registrar records Faculty eligibility and term capacity decisions, rooms, genuine hard unavailability, and any authorized exact commitments.
@@ -99,6 +83,7 @@ No public HTTP API, generic policy DSL, universal override record, generic state
 |---|---|---|---|---|---|---|---|
 | Draft course/curriculum authority | Record or import approved academic source | Registrar | Recorded regulator/institutional authority | Bounded source, complete revisions, no inconsistent/circular requisites | Draft records and blocking findings | Activation creates an immutable version; later correction requires a new revision/version | Academic Head sees readiness; other clinics consume only active authority |
 | Active Curriculum Version | Activate | Registrar | Recorded external approval | Every entry/revision valid; findings resolved | Immutable active version becomes academic source | Never edited in place; later approved version supersedes prospectively | Clinic 4/5 consume assigned version and evaluation source |
+| External competency requirement | Record inside a Draft Curriculum Version | Registrar | Exact approved curriculum authority identifies the qualification and treatment | Qualification/level, curriculum position, authority/effective version, and `TrackedOnly` or expressly authorized `CompletionRequired` treatment are complete | Bounded requirement becomes part of the immutable active Curriculum Version | Supplied evaluation sheets cannot create a completion block; later change requires a successor Curriculum Version | Clinic 5 may record and evaluate only externally verified results against the active requirement |
 | Term Calendar Package `Draft` / `Active` / `Closed` | Create, activate, or close | Registrar | Recorded external calendar authority | Valid dates/windows/grid/exceptions; stale action rejected | Current term package and operational-window projection | Activation preserves source; later dated exception/change retains evidence | Clinics 2, 4, and 5 consume their owned window facts without editing them |
 | Forecast/confirmed cohort and Draft Class Offering | Project demand; confirm, split, share, add, or cancel | TALA then Registrar | Registrar class-planning authority; special cases record external authority | Active curriculum/term; source and capacity facts; no cohort merge by CP-SAT | Confirmed cohorts/classes and source evidence | Later confirmed change supersedes draft; published-impact guards apply after publication | Clinic 4 supplies unmet demand and consumes published availability; no Student classification is created |
 | Teaching resources ready/not ready | Record eligibility, capacity, rooms, unavailability, declaration, commitments | Registrar or Faculty for own declaration | Recorded institutional result; Faculty owns only declaration | Term/source validity; bounded hard facts; no invented preferences | Resource records and failed-first blocker projection | Later authorized source supersedes current fact; history remains | Faculty sees own declaration/schedule; Academic Head sees oversight |
@@ -135,6 +120,13 @@ Registrar records and activates an externally approved curriculum. TALA has no A
 - An import never activates records or overwrites an authoritative active record.
 - Duplicate course codes, malformed or circular requisites, inconsistent titles, differing units, missing references, and invalid year/term placement remain blocking findings until resolved.
 - Grades, remarks, and student outcomes in evaluation spreadsheets remain student-record evidence and never become catalog fields.
+
+An approved Curriculum Version may also contain a bounded external-competency requirement when its exact authority identifies the qualification. The requirement owns only the qualification label and level, related course or curriculum position when applicable, authority reference/date, effective Curriculum Version, and treatment:
+
+- `TrackedOnly` records an externally verified result for curriculum-evaluation visibility and never blocks enrollment, grades, completion, or conferral.
+- `CompletionRequired` is permitted only when an exact approved Servitech curriculum authority expressly makes the external result a completion requirement.
+
+The supplied Servitech evaluation forms establish that assessment dates and remarks are tracked; they do not by themselves authorize `CompletionRequired`. TALA does not infer a requirement from similar course titles, TESDA labels in schedule samples, or another institution's practice. The requirement is not a generic credential, certification, or curriculum-rule builder. TESDA assessment and certification remain external; Clinic 5 owns only the verified Student result and its approved curriculum projection.
 
 ### 5.3 Courses without recurring meetings
 
@@ -173,7 +165,7 @@ The package owns:
 
 No weekday, operating-hour, break, preferred-time, Special Term unit limit, or compressed-schedule value is assumed. Scheduling uses a fixed code-owned 30-minute grid inside the approved operating hours; the granularity is not configurable.
 
-Application dates remain in Admission Cycles. Payment dates remain in accounts. Examination dates are informational; Clinic 3 includes no examination scheduler. The neutral `Enrollment` operational window owns approved opening and closing dates only. Clinic 4 assigns its bounded applicability to Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. The `Grade Entry` window owns the definite Faculty submission period and due date consumed by Clinic 5; Clinic 5 owns late-grade authority, INC deadlines, release, and correction behavior. No programmable audience rules are introduced. Activating a term does not open enrollment; Clinic 4 also requires a published timetable and its remaining readiness facts.
+Application dates remain in Admission Cycles. Payment dates remain in accounts. The approved `Examination Period` is informational: its inclusive dates, Term display label, calendar authority, effective package version, owner, and as-of time are projected read-only to Registrar, Academic Head, Faculty, and officially enrolled Students. Exact class arrangements remain Faculty-owned and use the approved teaching channel. Missing or stale evidence shows **Examination period unavailable — contact Registrar or Faculty** and never derives a date from class meetings. Clinic 3 includes no class-level examination record or examination scheduler. The neutral `Enrollment` operational window owns approved opening and closing dates only. Clinic 4 assigns its bounded applicability to Ready Applicants, Standard continuing Students, Individually Advised or exception cases, or all otherwise eligible learners. The `Grade Entry` window owns the definite Faculty submission period and due date consumed by Clinic 5; Clinic 5 owns late-grade authority, INC deadlines, release, and correction behavior. No programmable audience rules are introduced. Activating a term does not open enrollment; Clinic 4 also requires a published timetable and its remaining readiness facts.
 
 ### 6.2 Readiness and date effects
 
@@ -186,6 +178,7 @@ A dated exception affects the applicable dated occurrences without rewriting the
 | Check | Authoritative source | Owner | Valid condition | Effect if missing | Consuming action | Recovery |
 |---|---|---|---|---|---|---|
 | Program and curriculum authority | Program Authority, Course Revisions, active Curriculum Version | Registrar | Current authority and immutable applicable version are complete | Term classes/generation blocked | Confirm classes; generate; publish | Correct Draft authority/version and activate an approved replacement |
+| External competency requirement authority | Exact approved curriculum source for each declared external qualification | Registrar records; external authority owns requirement | Every declared requirement has qualification/level, curriculum position, treatment, authority, and effective version; `CompletionRequired` is explicit | Requirement cannot activate or be consumed by Clinic 5; no completion effect is inferred | Activate Curriculum Version; evaluate external result | Correct the Draft requirement/source or omit it; never infer from an evaluation sheet or course label |
 | Term Calendar Package | Approved package, operational windows, grid, exceptions | Registrar | Active package has valid bounds, windows, teaching days, breaks, and exceptions | Term planning/generation blocked | Confirm class occurrences; generate | Correct Draft package/source and activate |
 | Special Term schedule | Approved particular schedule, class-hour/class-day basis, and applicable Curriculum Version | Registrar records; institution owns approval | Special Term authority, dates, meeting evidence, and curriculum placement are complete and mutually consistent | Activation, class confirmation, and generation blocked; no Summer default applies | Activate Special Term; confirm classes; generate | Correct the external authority or Draft package; never infer a unit cap, duration, or compressed pattern |
 | Cohorts and demand | Continuing demand, Clinic 2 ready counts, Clinic 4 unmet-demand projection, Registrar confirmation | Registrar | Cohorts needing standard classes are confirmed with attributable demand | Class confirmation/generation blocked or flagged | Confirm/split cohorts and classes | Reconcile source and record confirmation; never let CP-SAT merge cohorts |
@@ -270,6 +263,10 @@ One generation run covers every confirmed and scheduling-ready Class Offering in
 
 Hard constraints include complete assignment of every included meeting block; Faculty, room, and cohort non-overlap; approved calendar grid, breaks, dated effects, and hard unavailability; room capacity, type, and required features; Faculty eligibility, term load, and applicable preparation limits; required meeting pattern and linkage; cohort modality-transition buffer; authorized hard commitments; whole-term completeness; and independent Laravel revalidation.
 
+The accepted runtime default is the private `tala-scheduler-solver` Cloud Run service in `asia-southeast1`: 8 vCPU, 16 GiB, eight solver workers, concurrency one, a 300-second solver limit, a 360-second HTTP timeout, minimum zero instances, maximum two instances, and deterministic seed `20260718`. These values preserve a previously qualified operating profile; they do not prove that the current formula or internal contract implements this PRD.
+
+The current `tal94-demand-v2` and `balanced_v1` implementation names remain bounded technical evidence. This PRD neither adopts their behavior nor names a replacement contract. The future PRD 03 vertical slice must reconcile the refined source model, constraints, quality order, typed outcomes, Laravel validation, formulation, tests, fixtures, and deployed compatibility before claiming conformance. Expensive capacity testing is repeated only if the reconciled formulation, workload, compatibility evidence, or runtime telemetry invalidates the preserved profile.
+
 ### 11.2 Fixed lexicographic quality hierarchy
 
 After hard feasibility, the code-owned non-configurable hierarchy is:
@@ -347,7 +344,7 @@ The exact page hierarchy and low-fidelity layouts live in the Clinic 3 section o
 
 One connected Registrar workbench contains Programs and authority, the Course catalog and current revisions, a grouped Curriculum Version sheet, Draft import preview and blocking findings, and activation readiness and evidence.
 
-The curriculum sheet groups by curriculum year and term. It shows course code/title, units, prerequisites/corequisites, scheduling treatment, weekly meeting pattern, modes, room needs, source, and readiness. Draft rows may be edited; active records are read-only.
+The curriculum sheet groups by curriculum year and term. It shows course code/title, units, prerequisites/corequisites, scheduling treatment, weekly meeting pattern, modes, room needs, source, and readiness. Authorized external-competency requirements appear in a bounded section with qualification/level, mapped curriculum position, treatment, authority, and effective version. Draft rows may be edited; active records are read-only.
 
 ### 15.2 Term Planning workbench
 
@@ -355,7 +352,7 @@ One selected-term header shows term identity, state, current readiness, governin
 
 The workbench has five tabs:
 
-1. **Overview** — official dates, operational windows, weekly grid, exceptions, authority evidence, and failed-first readiness.
+1. **Overview** — official dates, operational windows including the informational Examination Period, weekly grid, exceptions, authority evidence, and failed-first readiness.
 2. **Cohorts & Classes** — forecast and confirmed cohorts, Class Offerings, sharing, capacity, source, pattern, mode, state, readiness, and contextual filters/actions.
 3. **Teaching Resources** — Faculty declaration and capacity, eligibility, assigned demand, rooms, hard unavailability, blockers, and bounded commitments.
 4. **Generate & Review** — result meaning, owner, next action, quality measures, filterable weekly view, accessible table alternative, warnings or failure diagnostics, and candidate actions.
@@ -366,35 +363,31 @@ Only the weekly timetable view is a justified custom component. Native Filament 
 ### 15.3 Role projections
 
 - Registrar: complete editable planning and publication authority.
-- Academic Head: read-only calendar, curriculum, readiness, candidate evidence, and published timetable oversight.
-- Faculty: one availability declaration, assigned official schedule, and affected revision history.
-- Student: confirmed schedule only after Clinic 4 placement and official enrollment.
+- Academic Head: read-only calendar, Examination Period, curriculum including authorized external requirements, readiness, candidate evidence, and published timetable oversight.
+- Faculty: one availability declaration, assigned official schedule, affected revision history, and the current Examination Period with source/as-of evidence.
+- Student: confirmed schedule only after Clinic 4 placement and official enrollment, plus the current Examination Period with source/as-of evidence; exact class exam arrangements remain outside TALA.
 - System Administrator: solver-related System Health and technical evidence, with no academic authority.
 - Applicant, Accounting, and Public: no Clinic 3 timetable authority or master-schedule access.
 
 On mobile, curriculum rows and class/resource tables use responsive stacked layouts and the weekly view becomes day-by-day/list presentation. Secondary actions remain in Action Groups. Status meaning never depends on color alone.
+## 16. Lifecycle, Mutation, and Implementation-Evidence Boundary
 
-## 16. Salvage Disposition
+Draft Programs, Courses, Course Revisions, Curriculum Versions, Calendar Packages, resources, cohorts, and Class Offerings may be deleted only before activation, confirmation, publication, or any reference. Historically used authority is retired, cancelled, or superseded through effective-dated successors. Accepted candidates and Published Timetable Versions are immutable.
 
-| Verdict | Clinic 3 disposition |
-| --- | --- |
-| Retain when conforming | Immutable course/curriculum foundations, term records, Faculty/room sources, CP-SAT integration, immutable snapshots, status distinctions, candidate validation, candidate/published separation, revision evidence, queued mail, and native Filament foundations |
-| Simplify | Calendar into Term Calendar Package; curricula into one grouped sheet/import; Faculty availability into one declaration; class planning into Term Cohort plus Class Offering |
-| Replace | Term Offering → Section → Delivery Group layering; equal-weight objective; generic constraint profiles; technical run-first UI; unrestricted manual override; automatic handover/publication assumptions |
-| Remove after dependency reconciliation | Configurable granularity, assumed day/hour values, preferred times, HyFlex, universal ceilings, separate special-offering workflows, generic approval/policy/override engines, duplicated states, exam scheduling, and automatic term cloning |
-| Quarantine | Existing columns, models, services, routes, resources, and tests remain untouched until later authority-approved task derivation maps every consumer |
-
+This PRD defines the desired scheduling problem and institutional workflow. It does not approve a replacement formula, internal API, wire schema, table, class, migration, or deployment change. Current `tal94-demand-v2`, `balanced_v1`, Laravel integration, formulation, schema, tests, and fixtures remain implementation evidence to be reconciled together in a future PRD 03 journey-complete vertical slice.
 ## 17. Acceptance and Defense Scenarios
 
 The future vertical implementation must prove:
 
 - Program authority and externally approved curriculum activation.
+- Authority-gated external-competency requirement activation without inferred completion effect.
 - Duplicate or inconsistent curriculum import findings.
 - Simple prerequisites, equivalencies, and circular-reference prevention.
 - Internship retained without an invented recurring timetable.
 - Explicit First, Second, and approved Special Term creation.
 - One Special Term that continues through published classes, Clinic 4 registration, Clinic 6 assessment/coverage, Clinic 4 official enrollment, and Clinic 5 released-result projections using the same references.
 - Calendar-readiness failures and successful activation.
+- Consistent Registrar, Academic Head, Faculty, and Student Examination Period projections, including unavailable/stale evidence and no class-level schedule.
 - Forecast and confirmed cohorts.
 - Regular, shared, and Additional Class Offerings.
 - Multiple cohorts sharing one class without being mistaken for room sharing.
@@ -413,16 +406,20 @@ The future vertical implementation must prove:
 - Policy traceability for every automatic rule.
 - Later DB-backed checks only against `test_tala_db`.
 
-Realistic demonstration data must include at least one externally arranged practicum, one shared class, one Additional class, multiple meeting patterns, mixed On-campus/Online schedules, a Faculty late correction, a room conflict, every solver-result family, a bounded candidate correction, a first publication, and an affected-role revision. Demonstration data is not policy authority.
+Realistic demonstration data must include at least one externally arranged practicum, one authority-backed tracked-only external-competency requirement, one shared class, one Additional class, multiple meeting patterns, mixed On-campus/Online schedules, a Faculty late correction, a room conflict, every solver-result family, a bounded candidate correction, a first publication, an affected-role revision, and one Examination Period projection plus unavailable-source state. Demonstration data is not policy authority.
 
 ### 17.1 Synthetic Demonstration Data
 
+The coordinated institution contains BM, IT, and THM; 47 current Students across six first/second-year cohorts; nine Faculty; and ten rooms with explicit capacity, type, features, and availability. Third-year curricula may be represented, but no current third-year enrollment is fabricated. The observed 34 face-to-face/13 online distribution is contextual population evidence and never assigns a Class Offering's mode.
+
 | Reference | Synthetic record | Demonstrated evidence |
 |---|---|---|
-| `CUR-BSHM-2026` | Active BSHM Curriculum Version with lecture, laboratory, and `PRACT-401` externally arranged practicum | Immutable authority, grouped curriculum ordering, no invented practicum meeting |
-| `TERM-2026-1` | Active First Term package with Mon–Sat grid, approved break, holiday, Enrollment and Grade Entry windows | Failed then passing activation readiness and dated-exception behavior |
+| `CUR-THM-2026` | Active THM Curriculum Version with lecture, laboratory, and `PRACT-401` externally arranged practicum | Immutable authority, grouped curriculum ordering, no invented practicum meeting |
+| `EXT-COMP-CSS-NCII` | Tracked-only external competency requirement with exact synthetic curriculum authority | Clinic 5 may record verified results; absence cannot block completion |
+| `EXT-COMP-WEB-NCIII-REQ` | Hypothetical `CompletionRequired` external competency requirement with explicit synthetic curriculum authority | Demonstrates that only exact authority can create a pending completion effect; it is not adopted Servitech policy |
+| `TERM-2026-1` | Active First Term package with Mon–Sat grid, approved break, holiday, Enrollment, Examination Period, and Grade Entry windows | Failed then passing activation readiness, role-consistent examination-period projection, and dated-exception behavior |
 | `TERM-2026-ST` | Approved Special Term package with particular schedule, attributable class-hour/class-day basis, Enrollment and Grade Entry windows | Missing authority blocks activation; no Summer-specific unit or timetable default is used |
-| `COH-BSHM-1A/1B` | Separate confirmed cohorts with one approved shared general-education class | Shared class without cohort merge |
+| `COH-THM-1A/1B` | Separate confirmed cohorts with one approved shared general-education class | Shared class without cohort merge |
 | `CLS-HM101-A/B` | Regular Class Offerings plus `CLS-HM205-X` Additional class with authority | Demand source, capacity, mode, and exception evidence |
 | `CLS-ITE3-ST-A` / `CLS-IT201-ST-R` | Curriculum-planned Special Term class and externally approved Additional retake/catch-up class | One scheduler and publication journey; no tutorial resource or learner status |
 | `FAC-ADA` | Ada Faculty with multiple-course eligibility, bounded capacity, and late corrected availability | Declaration request, blocker, authorized correction, own schedule |
@@ -435,8 +432,9 @@ Realistic demonstration data must include at least one externally arranged pract
 
 | Persona / preconditions | Entry | Action | Visible evidence | Cross-role result | Output | Failure branch | Pass condition |
 |---|---|---|---|---|---|---|---|
-| Registrar; Draft `CUR-BSHM-2026` | Catalog & Curricula | Resolve import findings and activate | Grouped sheet, sources, blockers, authority, immutable active state | Clinic 4/5 can consume only the active version | Curriculum activation evidence | Circular requisite or missing authority blocks activation | No generic Settings or peer-resource maze is used |
+| Registrar; Draft `CUR-THM-2026` | Catalog & Curricula | Resolve import findings and activate | Grouped sheet, sources, blockers, authority, immutable active state | Clinic 4/5 can consume only the active version | Curriculum activation evidence | Circular requisite or missing authority blocks activation | No generic Settings or peer-resource maze is used |
 | Registrar; Draft `TERM-2026-1` | Term Planning Overview | Attempt activation, correct window/grid conflict, activate | Failed-first source/owner/recovery then all-passed summary | Downstream clinics see owned window projections | Active Term Calendar Package | Contradictory exception blocks activation | Dates are explicit and no term is auto-cloned |
+| Registrar, Academic Head, Faculty, and Student; active `TERM-2026-1` | Term Planning Overview / Academic Oversight / My Schedule / Student Home or Academics | Open the Examination Period projection | Same approved dates, authority, package version, owner, and as-of time; exact arrangements identified as Faculty-owned | Every role sees the same informational period without gaining a scheduling action | No new output | Missing/stale calendar evidence shows the named unavailable state and no inferred date | No class-level exam schedule, email, generic event, or financial hold appears |
 | Registrar and Faculty `FAC-ADA` | Cohorts & Classes / Teaching Resources / My Availability | Confirm classes, request declaration, submit late correction | Demand sources, separate cohorts, blockers, declaration history | Registrar readiness updates; Faculty sees only own facts | Complete scheduling inputs | Room or Faculty gap remains linked to owner/source | Every recurring class is attributable and ready |
 | Registrar; `RUN-TECH` then `RUN-INF` | Generate & Review | Generate, inspect technical failure, then infeasible diagnostics | Distinct result meaning, safe reason, owner, source, next action | System Administrator sees technical health only | Retained failed runs, no candidate | Retry unavailable until service/source recovery | Failure is never mislabeled as a valid candidate |
 | Registrar; `RUN-FEA` / `CAND-2026-01` | Generate & Review | Open valid candidate, make bounded correction, revalidate | Quality hierarchy, weekly and accessible table views, hard-rule result | Academic Head sees read-only evidence; Faculty/Students see nothing yet | Valid complete candidate | Invalid correction is rejected without waiver | Candidate remains non-official until publication |
@@ -444,18 +442,31 @@ Realistic demonstration data must include at least one externally arranged pract
 | Registrar with affected Clinic 4 placements | Published Timetable revision | Record source change, resolve impact, publish `PUB-2026-02` | Complete impact, validation, superseded history | Affected Faculty and enrolled Students receive one shared event | New official version and revision evidence | Unresolved placement or invalid timetable blocks publication | No meeting is edited in place and no duplicate email fires |
 | Registrar; Draft `TERM-2026-ST` | Term Planning → Cohorts & Classes → Generate & Review | Fail missing calendar/Additional authority, record valid authority, confirm `CLS-ITE3-ST-A` and `CLS-IT201-ST-R`, then publish | Particular schedule, class-hour/class-day evidence, offering sources, resources, candidate, and official version | Clinic 4 receives the two published classes under the same Special Term reference | Published Special Term timetable | Missing authority, resource conflict, or invalid candidate blocks the next action | No Summer scheduler, tutorial workflow, universal unit cap, or learner classification appears |
 
-## 18. Future Implementation Gate — Not a Task Plan
+### 17.3 Authority-hardening control matrix
 
-This PRD owns Clinic 3 behavior, UI, conceptual data, acceptance, exclusions, and salvage classification only. It is not a migration design, task breakdown, solver implementation contract, or permission to modify the application.
+| Action or record | Authorization and validation | Confirmation and audit | Lifecycle, retry, and failure behavior |
+|---|---|---|---|
+| Program, Course Revision, Curriculum Version | Registrar records approved external authority | Unique scoped references; effective dates do not overlap incompatibly; units/contact hours reconcile; prerequisite/corequisite graph has no cycle; required external competency is expressly authorized | **Activate [record]** shows effective version and downstream Programs/Terms. Never-used Draft may delete; active/historically used record retires or receives successor, never hard-deletes |
+| Calendar Package activation/closure | Registrar | Authority, Term/type, inclusive dates, operational windows, Examination Period, teaching grid, dated exceptions, Special Term class-hour/class-day evidence, no conflict | **Activate/Close calendar** shows every downstream window and consuming clinic. Activated package is immutable; successor/dated exception preserves history; stale input blocks |
+| Term Cohort/Class Offering confirmation/cancellation | Registrar | Unique Term/program/cohort/course/reference; attributable demand; active curriculum; course/offering uniqueness; positive units; valid capacity; Additional authority when applicable | **Confirm/Cancel Class Offering** shows demand, capacity, scheduling, Clinic 4 effects, and reason. Confirmed/historical offering never deletes; cancellation preserves projections/history |
+| Faculty/resource readiness | Faculty records own availability; Registrar records eligibility/capacity/room authority | Faculty eligibility, availability, load/preparation facts; unique room/resource code; room capacity and modality; no contradictory commitment | Late availability correction records source and impact. Candidate becomes stale; after publication use controlled timetable revision |
+| Generate schedule | Registrar after failed-first readiness passes | One immutable source snapshot; all classes/resources/grid/integrations current; no active run | **Generate timetable candidate** shows snapshot, expected result classes, and no publication effect. Exactly one run per snapshot scope at a time; no arbitrary lifetime count |
+| Solver retry/correction | Registrar | Same-snapshot retry only for `Unknown`; `Optimal`/`Feasible` need source change or recorded rejection; `Infeasible` needs conflicting fact change; `ModelInvalid` defect correction; `TechnicalFailure` recovery | Constrained candidate correction revalidates all hard rules and records quality impact. Invalid/stale correction changes nothing; failures retain source/owner/next action |
+| Candidate accept/reject | Registrar; current valid complete candidate and source snapshot | Named action shows that acceptance remains non-official; rejection requires reason and enables attributable later run | Candidate immutable. Concurrency/stale source blocks; no hidden waiver or manual override |
+| First/revision publication | Registrar after external sign-off and full revalidation; current accepted candidate/revision, complete impact, valid Clinic 4 placements, and source authority | **Publish timetable/revision** shows version, affected classes/roles, one owned email event, outputs, supersession, and irreversibility | Atomic/idempotent. Published meetings never edit/delete; successor version and exact impact preserve history; output failure creates no partial official artifact |
 
-Clinics 1–6, canonical `00`–`06` consolidation, and the final cross-module review are complete. A journey-complete implementation task may now be derived only through a separately approved plan; this PRD does not authorize migration design, application change, tracker mutation, commit, or synchronization.
+References/codes follow the shared 1–64-character primitive and are unique within their owning scope. Unit/contact-hour, capacity, room-capacity, meeting-grid, date-window, and effective-authority checks are cross-record validations rather than generic policy rules. Examination Period and external-competency boundaries remain unchanged.
+## 18. Technical and Operational Boundaries
 
-## 19. Assumptions and Closure Record
+TALA invokes a separately deployed private OR-Tools CP-SAT service. Laravel owns authorization, source-snapshot creation, request identity, persistence, independent candidate validation, and publication. The solver owns bounded search over the supplied immutable snapshot and returns a typed outcome plus attributable diagnostics and quality measures. Neither side may treat a browser timeout or transport response as an official timetable.
+
+The accepted runtime default is operational evidence, not formula conformance. Later implementation planning must reconcile code, the internal contract, formulation, tests, fixtures, and deployment compatibility before changing any of them.
+## 19. Assumptions and External Responsibilities
 
 - TALA targets a normally recognized and authorized Philippine college.
-- No approved Servitech institutional handbook has been supplied.
+- The supplied TESDA handbook is contextual evidence only and does not establish college policy.
 - Existing business documents remain valuable but unverified evidence.
 - Institutional curriculum, calendar, staffing, workload, exceptional-class, timetable-sign-off, and overload decisions occur externally and are recorded by TALA.
 - The existing application and schema remain intact until later authority-approved reconciliation.
 
-Clinic 3 is approved and has passed the complete-authority review. Its complete-clinic checklist is satisfied through this PRD and its Clinic 3 UI authority, every automatic rule remains factually traceable, and the settled Clinic 3↔4 handoff is preserved. No material Clinic 3 product question remains open. Approval authorizes later implementation-task derivation only and does not authorize implementation.
+Clinic 3 is approved and has passed the complete-authority, essential-SIS negative-space, and authority-hardening reviews. Its complete-clinic checklist is satisfied through this PRD and its Clinic 3 UI authority, every automatic rule remains factually traceable, and the settled Clinic 3↔4 handoff is preserved. No material Clinic 3 product question remains open. Approval permits separately authorized journey-complete planning; it does not authorize implementation.

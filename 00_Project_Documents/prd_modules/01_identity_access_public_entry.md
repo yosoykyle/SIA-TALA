@@ -1,17 +1,9 @@
 # PRD 01 — Identity, Access, and Public Entry
+## Authority and Standalone Status
 
-## Authority and Review Status
+**Status:** Standalone and ready for vertical-slice planning.
 
-**Clinic 1 decision set:** Accepted
-
-**Rewritten authority:** Approved
-
-**Clinic closure:** Approved on 2026-08-06
-
-This PRD defines TALA's identity, access, public entry, and account-security behavior. It replaces the identity and workspace rules formerly scattered across the legacy PRDs. The accepted [TALA System Definition Baseline](./00_system_definition_baseline.md) governs product-wide boundaries; the Clinic 1 section of the [UI Surface Blueprint](../ui_surface_blueprint.md) governs exact presentation.
-
-This document is the canonical approved Clinic 1 product authority and has passed the complete-authority review. Complete-set approval authorizes later implementation-task derivation only; it does not authorize application code, physical schema changes, tracker changes, commits, Linear synchronization, push, or deployment.
-
+This PRD is the complete product authority for identity, access, public entry, account security, and bounded public content. It is sufficient to understand the module without a legacy PRD or implementation file. Product-wide terminology and mutation rules come from the [TALA System Definition Baseline](./00_system_definition_baseline.md); exact shared presentation comes from the [UI Surface Blueprint](../ui_surface_blueprint.md).
 ## 1. Purpose and Successful Outcome
 
 Clinic 1 gives each person one secure TALA credential account and only the workspace contexts that person is authorized to use. It provides:
@@ -48,7 +40,7 @@ Verified email is the only sign-in identifier and the single live TALA communica
 
 ### 2.2 TALA records or consumes but does not decide
 
-- System Administrator records an authorized Staff-role assignment or revocation. The institution decides outside TALA who should hold that responsibility.
+- System Administrator records an externally authorized Staff-role assignment or revocation. The authorizing office supplies the person, fixed role, authority reference, and effective date as operational inputs; TALA does not select Staff or model employment approval.
 - Lost-factor recovery begins only after the institution verifies the Staff member's identity outside TALA. TALA records the authorized reset and its evidence.
 - Clinic 2 owns admissions-cycle dates, Applicant identity, applications, requirements, matching, and admission decisions. Clinic 1 consumes only whether public account creation is currently available.
 - Clinic 4 owns official enrollment, student-number creation, and the idempotent grant of Student access.
@@ -64,7 +56,7 @@ Clinic 1 does not build:
 - A role builder, permission editor, generic policy DSL, configurable account state machine, or arbitrary Settings page
 - A full CMS, page builder, gallery, media library, programs-marketing catalog, embedded map, or reviewer workflow
 - Applicant intake, admission review, student-master creation, enrollment, finance, grades, or academic decisions
-- Automatic deletion or retention periods unsupported by approved institutional policy
+- An automatic retention/disposal module, legal-hold workflow, or ordinary deletion of security/domain history
 - Email for routine saves, navigation, successful sign-in, failed sign-in, or internal queue movement
 
 ## 3. Roles and Access Boundary
@@ -97,6 +89,16 @@ One account may hold multiple legitimate roles. TALA authorizes one active works
 
 These are domain contracts, not approved physical table names.
 
+| Name | Purpose | Authority owner | Classification | Required consumers | Distinction or consolidation decision |
+|---|---|---|---|---|---|
+| User Account | Credential, verification, security, session, invitation, and current disablement facts | Account holder for self-service facts; System Administrator for Staff/access actions | Persisted authoritative record | Every authenticated workspace | Remains distinct from Applicant, Student, and Staff domain facts |
+| Staff Access Profile and role assignment history | Safe Staff identity plus fixed authorized contexts | System Administrator records the external authorization result | Persisted authoritative record plus immutable events | Workspace resolution and role-owned pages | Contains no employment or HR lifecycle |
+| Verification, recovery, invitation, MFA, and session-security facts | Enforce bounded authentication journeys | PRD 01 | Persisted security facts or immutable events on the Account | Authentication and Account Security | They do not require separate product modules or public resources |
+| Workspace Context | Resolve one authorized role and fixed destination | PRD 01 | Derived projection/calculation | Authenticated shell | Never duplicated or stored as another role record |
+| Account Access State | Present InvitationPending, VerificationRequired, Active, or Disabled | PRD 01 | Derived projection/calculation | Authentication, workspace chooser, Users & Access | Derived from current Account/security facts; no state-machine engine |
+| Access Change Evidence | Preserve actor, authority, reason, effect, and time | PRD 01 through the existing audit facility | Immutable version or event | Users & Access and Governance & Audit | Reuses product audit history; no parallel audit store |
+| PublicNotice and PublicFaq | Publish bounded public information | System Administrator | Persisted authoritative record with publication history | Public Gateway | Separate types because their validation and ordering differ; neither becomes a CMS |
+
 ### 4.1 User Account
 
 Contains only:
@@ -117,7 +119,7 @@ It does not own legal name, Applicant workflow state, Student academic status, e
 Contains:
 
 - Account reference
-- Given, middle, and family name parts as applicable
+- Required given and family names, optional middle name, and optional separately stored suffix under the shared name primitive
 - Derived display name
 - Optional institution-issued Staff identifier
 
@@ -179,9 +181,9 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 
 ### 4.7 Public Content
 
-**PublicNotice** contains title, short message, publication state, visible-from, visible-until, and an optional safe link label/URL.
+**PublicNotice** contains a required title of 1–160 characters, required plain-text short message of 1–500 characters, publication state, optional visible-from and visible-until in Asia/Manila, a positive display order unique within its effective published group, and an optional HTTPS link whose label is at most 80 characters and URL at most 2,048 characters. When both dates exist, visible-from cannot follow visible-until.
 
-**PublicFaq** contains question, concise answer, category, publication state, category order, and question order. Neither record supports arbitrary page layout, scripts, uploads, or rich CMS behavior.
+**PublicFaq** contains a required question of 1–160 characters, required plain-text answer of 1–3,000 characters, category label of 1–120 characters, publication state, positive category order, and positive question order unique within the category/effective published group. Neither record supports arbitrary page layout, scripts, uploads, or rich CMS behavior.
 
 ## 5. Readiness and Setup Contract
 
@@ -343,7 +345,7 @@ Audit high-value events only:
 - MFA enrollment, challenge outcome, recovery-code use, and authorized reset
 - Last successful sign-in
 
-Bounded security logs may retain throttling and failed-authentication evidence without passwords, tokens, MFA secrets, recovery codes, full request bodies, or a navigation clickstream. Exact retention and disposal periods are owned by approved institutional/privacy authority. Clinic 6 exposes whether that schedule exists and keeps automatic disposal disabled while it does not; Clinic 1 invents no duration.
+Bounded security logs may retain throttling and failed-authentication evidence without passwords, tokens, MFA secrets, recovery codes, full request bodies, or a navigation clickstream. Institutional retention schedules, privacy requests, legal holds, and secure disposal remain external responsibilities. TALA provides no automatic disposal function and PRD 01 invents no retention duration.
 
 ## 10. UI Authority
 
@@ -443,28 +445,28 @@ Technical IDs and evidence references remain secondary detail.
 - Validation appears beside the relevant field and preserves entered non-secret values when safe.
 - Loading and empty states explain whether the user should wait, change a filter, create the first record, or contact the responsible owner.
 - A direct unauthorized record route returns inaccessible behavior without leaking record existence.
+## 12. Lifecycle, Validation, Confirmation, and Recovery
 
-## 12. Salvage Disposition
+The following matrix is the controlling module-specific mutation contract. Product-wide primitives, stale/conflict behavior, and critical-action evidence are summarized here where they affect identity behavior.
 
-Current implementation is evidence, not authority.
+### 12.1 Authority-hardening control matrix
 
-| Disposition | Surface |
-|---|---|
-| Retain when conformance passes | Fortify email authentication, session guard, email verification, password recovery, three Filament panels, Spatie role assignments, panel policies/gates, public design language, FAQ foundation, and branded authentication shell |
-| Simplify | Credential account into security/access ownership; public page into task gateway; account profile into Account Security |
-| Replace | Silent Staff→Student→Applicant redirect priority; administrator-created passwords; archive/restore; one-role Staff form; misleading Applicant registration copy |
-| Remove after every consumer migrates | Username login/data, authentication-owned name fields, Applicant state on credential account, editable Role UI, account archival semantics |
-| Quarantine until proven safe | Current mixed status/name/username/archive fields and any compatibility paths that still consume them |
+| Action or record | Who and when | Validation/readiness | Confirmation and audit | Limits, deletion, and recovery |
+|---|---|---|---|---|
+| Applicant registration and verification | Public user while registration is available | Email primitive; password 15–64; acknowledgement; no protected duplicate disclosure | Submit does not need an alertdialog; successful creation records credential reference and verification event | One credential account per normalized email. Resend is one message per 60 seconds; token expires after 60 minutes; no duplicate account is created |
+| Sign-in, MFA, and recovery | Account owner; Staff context requires enrolled TOTP | Five failed login/MFA attempts per normalized account/IP per minute; stricter Staff session policy; valid recovery token/code | Sensitive account changes require password reconfirmation no older than 15 minutes | Throttle waits for window reset, never permanent auto-lock. Recovery codes are shown once and complete-set replacement invalidates the prior set |
+| Email change | Account owner after recent password confirmation and verification of the replacement | New email valid/unique; current account/version; no unresolved conflicting change | **Change sign-in email** shows session and notification consequences; audit old/new normalized address without exposing secrets | No second credential account. Stale/conflict posts nothing; prior verified email remains until successor verification completes |
+| Staff invitation/resend/activation | System Administrator with Staff-access authority | Existing eligible verified account is reused; fixed role; unique active invitation; mail readiness | **Invite Staff** or **Resend invitation** shows role, recipient, expiry, and that the prior link becomes invalid | One active invitation per account/scope; expiry creates no account. Resend invalidates prior link; activation is idempotent |
+| Role assignment/revocation | System Administrator | Fixed role set; authority/reason; current account; transactional final-active-System-Administrator protection | Named confirmation shows gained/lost workspaces and sessions; records before/after roles and reason | No role builder or account deletion. Rejected final-admin action changes nothing and is safe to retry after another administrator exists |
+| Disable/reactivate | System Administrator for another account; self-disable is unavailable | Current account/state, reason/authority, affected contexts, and transactional final-active-System-Administrator protection | **Disable account** states that all sessions and contexts end while history remains; **Reactivate account** states restored access | Accounts are never archived or deleted. Disablement preserves every domain link; reactivation does not recreate roles or records |
+| MFA reset | System Administrator under bounded recovery authority | Verified subject/recovery basis, recent actor password confirmation, current Staff account | **Reset Staff MFA** shows session termination and re-enrollment requirement | Old factor and recovery codes become unusable; no secret is displayed or recoverable |
+| Public Notice/FAQ Draft | System Administrator | Title/label primitives; unique order within published group; Asia/Manila window; HTTPS link; safe content | Routine Draft save needs no confirmation | Hard-delete only before first publication and without references. Previously published content is unpublished or superseded, never deleted |
+| Publish/unpublish public content | System Administrator | Current Draft/version, complete safe content, valid window/link/order | **Publish [type]** or **Unpublish [type]** shows public visibility and effective window | Atomic and idempotent; stale version posts nothing. Scheduled/public projections update without a generic archive state |
 
-No field, migration, route, or test is removed merely because this PRD supersedes its behavior. Any future implementation task, after the complete TALA authority set is approved, must identify all consumers and prove the replacement before cleanup.
+All identity mutations revalidate authorization and version server-side. Conflicting changes are never merged. Inaccessible and duplicate-account responses disclose neither whether another person exists nor their roles, state, or identifiers. Email delivery failure never reverses the access transaction and retains the same immutable email idempotency key.
+## 13. Technical and Operational Boundaries
 
-## 13. Future Implementation Gate — Not a Task Plan
-
-This PRD owns Identity, Access, and Public Entry behavior, UI requirements, acceptance scenarios, exclusions, and salvage classification. It does not approve an implementation task, task count, task order, issue breakdown, active contract, migration, or application change.
-
-Clinics 1–6, canonical consolidation, the final cross-module review, and complete-authority approval are complete. Implementation-task derivation is now permitted only through a later journey-complete plan that is separately authorized through the TALA Orchestrator Protocol and, when required, recorded in TALA Rescue Next Steps.
-
-Future tasks must remain journey-complete vertical slices containing the required schema, domain logic, authorization, participating-role UI, cross-role effects, email and audit behavior, realistic demonstration data, automated tests, and desktop/mobile browser acceptance. This completeness rule is a future delivery constraint, not an approved Clinic 1 task decomposition.
+This PRD names conceptual product records, actions, and acceptance behavior; it does not prescribe physical tables, routes, classes, migrations, or an implementation sequence. A later journey-complete slice must reconcile Fortify, Filament panels, role assignments, policies, current account fields, tests, and every consumer against this authority before retaining or changing them.
 
 ## 14. Acceptance and Defense Scenarios
 
@@ -496,7 +498,7 @@ The implemented module must prove:
 
 ### 14.1 Synthetic Demonstration Data
 
-All identities use `example.test`; references are stable synthetic values and contain no real person data.
+This module supplies credential and role contexts for the coordinated baseline of 47 Students, nine Faculty, Registrar, Accounting, Academic Head, and System Administrator personas. All identities use `example.test`; references are stable synthetic values and contain no real person data. PRD 01 owns only access facts and consumes no invented academic or finance detail.
 
 | Reference | Persona and starting state | Roles/contexts | Demonstrated evidence |
 |---|---|---|---|
@@ -519,7 +521,7 @@ All identities use `example.test`; references are stable synthetic values and co
 | `C1-MULTIROLE` | Staff sign-in | Complete MFA, choose Student, switch to Faculty | Only authorized contexts, current context identity, stricter Staff session policy | Student and Faculty projections remain separate | Correct destination for each chosen context | Direct unauthorized role route is inaccessible without record leakage | No combined-role dashboard or privilege merging |
 | System Administrator and `C1-STAFF-INVITE` | Users & Access | Invite Staff, expire/resend link, activate, enroll MFA | Pending/expired state, invalidated old link, fixed roles, access evidence | Invitee receives Staff context after MFA | Activated Staff account | Duplicate-email path reuses an eligible verified account | Administrator never enters a password; one account is used |
 | System Administrator and `C1-DISABLED` | Account detail | Disable, attempt sign-in/direct route, then reactivate | Required authority evidence, ended sessions, generic support guidance | All contexts blocked then restored | Immutable access-change evidence | Mail failure does not reverse access state | Linked records and roles remain intact |
-| `C1-FINAL-ADMIN` | Account detail | Attempt self-disable and final-admin removal | Specific authorized-user error with no state change | Administration remains available | Rejected action evidence as applicable | Stale record requires refresh before retry | Final active administrator protection holds server-side |
+| `C1-FINAL-ADMIN` | Account detail | Attempt self-disable and final-admin removal | Specific authorized-user error with no state change | Administration remains available | Rejected consequential-action evidence | Stale record requires refresh before retry | Final active administrator protection holds server-side |
 
 Implementation verification must target **test_tala_db** for DB-backed tests, use focused PHPUnit, format modified PHP with Pint, run narrowed Larastan for changed typed paths, run **git diff --check**, and complete browser acceptance. Those checks are implementation gates, not evidence that the current application already conforms.
 
@@ -531,13 +533,13 @@ Implementation verification must target **test_tala_db** for DB-backed tests, us
 | Password/passphrase and authenticator guidance | [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html) | Security benchmark, not Philippine college policy |
 | LRN meaning | [DepEd Order No. 22, s. 2012](https://www.deped.gov.ph/2012/03/20/do-22-s-2012-adoption-of-the-unique-learner-reference-number/) | Confirms LRN is a basic-education identifier, not a college sign-in credential |
 | Authentication, verification, password broker, sessions, email change, MFA, and Filament surfaces | [Laravel authentication](https://laravel.com/docs/12.x/authentication), [Laravel Fortify](https://laravel.com/docs/12.x/fortify), and version-compatible Filament capabilities | Technical implementation boundary |
-| Existing Fortify, panels, Spatie roles, public/auth shell, and current account fields | Current repository inspection | Salvage evidence only |
+| Existing Fortify, panels, Spatie roles, public/auth shell, and current account fields | Current repository inspection | Implementation evidence only |
 | Academico identity model | Bounded qualified-reference inspection | Rejected as product authority; only generic session/policy patterns may be adapted |
 
 No Philippine higher-education source requires username login, a role builder, an HR profile, a general CMS, or the legacy account state machine. Those features therefore require their own proven institutional need; none was established for Clinic 1.
 
-## 16. Closure Record
+## 16. Assumptions and External Responsibilities
 
-Clinic 1 is approved and has passed the complete-authority review. The complete-clinic checklist is satisfied through this PRD and its Clinic 1 UI authority: accepted journeys, state/action and readiness matrices, email rows, page and state behavior, direct/shared wireframes, synthetic demonstration data, and a written browser walkthrough are present. No material Clinic 1 product question remains open, and legacy identity rules remain evidence rather than competing authority.
-
-This closure authorizes later implementation-task derivation only and does not authorize implementation. Any later implementation constraint may reopen only the affected rule; it does not silently return authority to the legacy PRD or current code.
+- The institution's authorizing office supplies Staff-role approval and completes off-system identity proof for lost-factor recovery. These are external operational inputs; System Administrator records only the authorized assignment or reset result and its evidence.
+- Account disablement preserves every domain link. Ordinary UI never deletes Account or security history; lawful retention/privacy/disposal operations remain external under the product-wide boundary.
+- No PRD 01 product-policy ambiguity remains for implementation planning.

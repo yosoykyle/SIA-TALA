@@ -1,12 +1,14 @@
 # PRD 05 — Teaching, Final Grades, Academic Records, Lifecycle, and Completion
 
-> **Authority status — Clinic 5 approved; complete-authority review passed.** This is the canonical unified Clinic 5 journey authority. It replaces the product authority formerly split across Grades, Student Lifecycle, and the academic-record/completion portions of Student Hub. Those inputs are preserved in `_legacy/` as non-authoritative salvage evidence. Complete-set approval authorizes later implementation-task derivation only; it does not authorize application changes, schema changes, migration work, or deployment.
+## Authority and Standalone Status
+
+> **Authority status — Standalone and ready for vertical-slice planning.** This PRD is the complete authority for official roster results, release and correction, academic averages, curriculum evaluation, external competency evidence, enrollment effect, lifecycle, completion, conferral, academic records, and TOR. It is understandable without legacy Grades, Student Lifecycle, or Student Hub PRDs.
 
 ## 1. Purpose and successful outcome
 
 Clinic 5 defines one complete academic-record journey:
 
-`Official roster → final-grade submission → Registrar release → academic record/term and cumulative averages → curriculum evaluation → progress decision → lifecycle effects → completion/conferral → unofficial record and TOR`
+`Official roster → final-grade submission → Registrar release → academic record/term and cumulative averages → curriculum evaluation and enrollment effect → lifecycle effects → completion/conferral → unofficial record and TOR`
 
 The successful outcome is one coherent, append-only academic history whose released results, curriculum evaluation, lifecycle effects, completion evidence, and official outputs remain consistent across Faculty, Registrar, Academic Head, and Student projections.
 
@@ -20,9 +22,9 @@ This contract is grounded in:
 - [Batas Pambansa Blg. 232](https://lawphil.net/statutes/bataspam/bp1982/bp_232_1982.html), which protects access to school records and requires official records such as grades and transcripts within thirty days of request.
 - [CHED eCAV requirements](https://ecav.ched.gov.ph/requirements), which require an official TOR used for CAV to be certified true and signed by the current HEI Registrar but do not supply a universal visual template.
 - [CHED's statement on institutional grading systems](https://legacy.ched.gov.ph/424-scholars-may-lose-scholarship-due-to-pass-all-policy-of-17-heis/), which uses GPA/GWA in a specific scholarship context while affirming that HEIs determine their grading systems; it does not establish Servitech's one-term display label.
-- The [PUP Student Handbook](https://www.pup.edu.ph/studentservices/files/ThePUPStudentHandbook.pdf) as a mature Philippine reference for a one-academic-year INC period, automatic lapse to `5.00`, and the transparent academic-progress profile. These are PUP rules, not CHED-wide or automatically Servitech policy.
 - The [UP academic-policy reference](https://osu.up.edu.ph/wp-content/uploads/2022/04/1309.FINALE.pdf) as a mature Philippine example of excluding PE and NSTP from GWA; Servitech's exclusion remains institution-specific and client-confirmed.
 - [PeopleSoft grade-roster self-service](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/campus-self-service/entering-grades-through-self-service.html) as a mature-system benchmark for roster submission and controlled release, not Philippine policy.
+- [TESDA assessment and certification](https://tesda.gov.ph/About/TESDA/25) and its [official assessment FAQ](https://tesda.gov.ph/About/Tesda/127), which establish TESDA/accredited-assessor ownership of competency judgments and NC/COC certification; they do not authorize TALA to operate those processes.
 
 | Institutional responsibility | Owner | TALA responsibility |
 | --- | --- | --- |
@@ -30,7 +32,8 @@ This contract is grounded in:
 | Release official grades | Registrar | Validate and release the complete submitted roster or return specified rows |
 | Decide late submission, correction, progress consequence, lifecycle change, credit/equivalency, honor, or conferral | Authorized institution outside TALA | Record the approved result, authority, evidence, effective date, and system effect |
 | Maintain the academic record and derive academic averages/evaluation | Registrar-owned TALA records | Deterministic projections from released and approved facts |
-| Request, pay for, certify, sign, seal, deliver, or authenticate a TOR | External Registrar/Accounting process | Record request evidence, generate an immutable snapshot, and record issuance |
+| Assess or certify an external TESDA-linked competency | TESDA/accredited assessor | Registrar records only a verified append-only result against an active authority-backed curriculum requirement |
+| Request, physically sign, seal, deliver, or submit a TOR for CAV | External Registrar/Accounting process | Record request/clearance evidence, generate the TALA Standard TOR, and record immutable issuance/void/replacement history |
 | Produce diplomas, manage ceremonies, or calculate honors | External institutional process | No workflow; optionally record an approved honor with the conferral |
 
 This is a **Decision then record** product. TALA does not turn institutional academic judgment into a generic approval engine.
@@ -38,10 +41,10 @@ This is a **Decision then record** product. TALA does not turn institutional aca
 ### 2.1 Benchmark result
 
 - **Domain checked:** final-result recording, complete-roster submission and release, academic-record projections, lifecycle/completion, and controlled transcript issuance.
-- **Sources consulted:** the Servitech final-grade workbook, Batas Pambansa Blg. 232, CHED eCAV requirements, the cited PUP and UP academic references, PeopleSoft grade-roster self-service, the legacy TALA PRDs, and bounded code/schema salvage evidence.
+- **Sources consulted:** the Servitech final-grade workbook, Batas Pambansa Blg. 232, CHED eCAV requirements, the cited UP academic reference, PeopleSoft grade-roster self-service, the legacy TALA PRDs, and bounded code/schema implementation evidence.
 - **Confirmed:** a lean TALA journey can accept one final result per official registration, release a complete roster under Registrar control, preserve immutable academic events, derive term weighted average, cumulative GWA, and curriculum evaluation, and generate a controlled transcript snapshot without recreating a Faculty gradebook or document-request office.
-- **Rejected or bounded:** another institution's policy is not Servitech authority. The PUP one-year/automatic-`5.00` INC rule remains a proposed reference profile until Servitech records institutional adoption. Period-grade formulas, attendance, generic progress engines, editable transcript templates, clearance routing, delivery, and diploma production remain outside TALA.
-- **Alignment:** the PRD adopts the controlled roster and read-mostly academic-record patterns while keeping institution-specific decisions externally authorized and recorded. Missing policy makes only the dependent deadline/lapse behavior unavailable; no benchmark, code constant, or demo fixture becomes a default.
+- **Rejected or bounded:** another institution's rule is not Servitech evidence. TALA adopts only the explicitly bounded one-year nonautomatic INC completion default; no external automatic grade conversion, academic sanction, or load rule is copied. Period-grade formulas, attendance, generic progress engines, editable transcript templates, clearance routing, delivery, and diploma production remain outside TALA.
+- **Alignment:** the PRD adopts controlled roster and read-mostly academic-record patterns, a deterministic nonautomatic INC completion lifecycle, and one fixed versioned Servitech-branded TOR. No benchmark, code constant, or demo fixture silently creates another policy.
 
 ## 3. Final-grade and roster authority
 
@@ -56,7 +59,7 @@ Faculty calculates grades outside TALA using the institution's workbook or appro
 
 Preliminary, Midterm, Final-period percentages, quizzes, requirements, examinations, attendance, raw scores, and formulas remain outside TALA. `P` is not an official mark. A blank row is unfinished workflow state and cannot be released. Course Drop, full withdrawal, and approved credit results come from their owning Registrar actions and cannot be entered by Faculty as grades.
 
-The final-grade vocabulary is code-owned through an effective `FinalGradePolicyVersion`; it is not a runtime formula or grading-scale builder. The supplied Servitech workbook establishes `INC` as a valid temporary result, but it does not establish a deadline or automatic consequence. An immutable institutionally approved INC policy within the effective version must separately record authority reference/date, effective term, deadline basis, lapse result, and whether automatic lapse is authorized.
+The final-grade vocabulary is a fixed TALA product contract informed by the supplied Servitech workbook; it is not a configurable grading-scale or policy engine. `INC` is a valid temporary result. Its completion deadline and nonautomatic overdue behavior are fixed by Section 4.2.
 
 ### 3.2 Official roster
 
@@ -102,7 +105,7 @@ Rules:
 - A correction replaces the superseded value in effective calculations while preserving event history.
 - Academic averages appear in Student Academics and Registrar academic-record views, not in the standard TOR.
 
-`CourseAcademicClassification` identifies which effective course revisions are PE, NSTP/CWTS/LTS/ROTC, or ordinary academic courses. `GwaPolicyVersion` records the institution-specific inclusion rule and its effective term without providing an arbitrary GWA editor. It may also record an institution-approved term display label, authority reference/date, and effective term. **Term GPA** or another institutional label appears only when Servitech has recorded that authority; PUP terminology never supplies it. Without such authority, the neutral **Term weighted average** label remains.
+`CourseAcademicClassification` identifies which effective course revisions are PE, NSTP/CWTS/LTS/ROTC, or ordinary academic courses. The formula and confirmed exclusions above are fixed product rules, not a configurable GWA policy engine. An optional institution-approved term display label is bounded operational metadata with its authority reference/date and effective term. **Term GPA** or another institutional label appears only when Servitech records that metadata; PUP terminology never supplies it. Without it, the neutral **Term weighted average** label remains.
 
 One shared `AcademicAverageReadiness` projection has exactly four states:
 
@@ -115,22 +118,32 @@ One shared `AcademicAverageReadiness` projection has exactly four states:
 
 Course Drop, full-withdrawal, approved-credit, and PE/NSTP-equivalent outcomes may satisfy grade completeness only when their owning authoritative outcome is released. They still contribute no grade points or units. While the selected term is `GradesNotComplete` or `IncompleteResultPending`, the last complete cumulative value remains visible as **Through [term]**; when none exists, cumulative GWA is unavailable. TALA never calculates from the released subset of a partially released term.
 
-Resolution or lapse recalculates the original term and every later cumulative projection.
+Resolution recalculates the original term and every later cumulative projection.
 
 ### 4.2 Incomplete result
 
-`INC` requires a short Faculty completion note. It does not satisfy a prerequisite, is excluded from both academic-average calculations while unresolved, and is not treated as failure merely because deadline policy is unavailable.
+`INC` requires a short Faculty completion note. It does not satisfy a prerequisite, is excluded from both academic-average calculations while unresolved, and never becomes failure solely because time passes.
 
-The proposed reference profile is one academic year from the original term's official end with automatic lapse to `5.00`. It is inactive until Servitech records an applicable institutional approval. An approved policy applies prospectively from its effective term. It does not bind an earlier `INC` unless the approving authority expressly records retrospective applicability.
+Every released `INC` receives the bounded TALA completion deadline: one calendar year after the original Term's official end date. The same month and day in the next year is used; February 29 becomes February 28 when the next year has no February 29. The deadline is inclusive through 23:59:59 Asia/Manila.
 
-- When an applicable policy exists, the released `INC` binds to that immutable policy version and stores its inclusive Asia/Manila deadline and authorized lapse behavior.
-- When no applicable approved policy exists, the released result has no invented deadline or lapse outcome. It remains unresolved until Faculty supplies a completion result for Registrar release or a separate externally authorized correction is recorded.
-- The no-policy projection is **Deadline not established — institutional policy required**. No countdown, deadline email, manual lapse action, or automatic lapse is available.
-- Faculty records a completion grade and Registrar releases the superseding result. Transactional revalidation ensures a valid completion recorded before lapse wins.
-- When the bound policy expressly authorizes automatic lapse, the first process after the inclusive deadline appends one idempotent superseding result. It never edits the original `INC` or creates a duplicate lapse/email.
-- A result changed after an effective lapse uses the authorized grade-correction path rather than reopening INC completion.
-- The original `INC`, completion note, applicable policy/deadline when one exists, and resolution/lapse history remain visible to authorized roles.
-- The Student sees the safe status, authoritative deadline or no-policy state, responsible office, and required next action, not private evidence.
+The completion lifecycle is:
+
+| State | Deterministic condition | Permitted action |
+|---|---|---|
+| `CompletionOpen` | The released `INC` remains unresolved and the current deadline has not elapsed | Faculty records the authorized completion result; Registrar may append an authorized deadline correction |
+| `CompletionOverdue` | The current deadline has elapsed and no successor result exists | Faculty and Registrar may still complete the controlled result process; Registrar may append an authorized deadline correction |
+| `Resolved` | Registrar has released the authorized completion or replacement result | Read current result and history; later change uses grade correction |
+
+- The original INC event stores its completion note, original Term end, calculated deadline, release actor, release time, and source version.
+- Registrar may correct the deadline before final resolution only by appending a deadline amendment with the prior and new deadline, authority reference/date, 10–1,000-character reason, actor, and time. The latest valid amendment controls the current state; every earlier value remains visible.
+- An amendment may correct an already-overdue deadline. A later future deadline returns the derived state to `CompletionOpen`; a past or elapsed corrected date remains `CompletionOverdue`.
+- Deadline passage is a derived state and audit-timeline fact, not a grade event. TALA never converts the result to `5.00` or another grade automatically.
+- Faculty records the authorized completion result and Registrar releases the immutable superseding Official Grade Event. The original `INC`, deadlines, amendments, overdue interval, and final result remain historically visible.
+- Completion release and deadline amendment transactionally revalidate the current unresolved INC. A stale or concurrent action records nothing and refreshes the controlling version.
+- There is no arbitrary completion-attempt or amendment count while the result remains unresolved and the actor remains authorized.
+- An unresolved INC keeps the current term `IncompleteResultPending`, contributes no grade points or units, leaves its course and dependent prerequisites unsatisfied, and keeps curriculum completion/conferral pending.
+- Clinic 4 receives `AdvisingRequired` for nonstandard planning. The unresolved or overdue INC blocks only dependent courses; it never creates automatic probation, dismissal, a general enrollment block, or a financial hold.
+- Student Academics shows the course, completion note, current deadline, `CompletionOpen` or **Completion overdue**, responsible Registrar office, and next safe action. Faculty sees only assigned-course completion action; Registrar sees the complete authority/history; Academic Head remains read-only.
 
 ### 4.3 Grade correction
 
@@ -139,7 +152,7 @@ A correction to a released result requires an externally authorized decision con
 - TALA has no hard technical correction cutoff.
 - A correction outside the normal institutional period is visibly late but remains recordable when authorized.
 - The correction appends a superseding result; it never mutates the original event.
-- Term weighted average, cumulative GWA, curriculum evaluation, progress recommendations, and completion readiness recalculate.
+- Term weighted average, cumulative GWA, curriculum evaluation, `AcademicEnrollmentEffect`, and completion readiness recalculate.
 - Earlier consequential decisions remain historical. If the recommendation changes, a new decision is required.
 - Any affected active Clinic 4 Registration Case enters Registrar review. TALA never silently adds or removes a course.
 - An already issued transcript snapshot remains immutable and is marked superseded; future issuance uses a new snapshot.
@@ -173,34 +186,46 @@ The authoritative `CurriculumEvaluation` derives from:
 - the effective-dated Program and Curriculum Version;
 - every released course attempt;
 - approved transfer-credit and equivalency mappings;
+- externally verified competency results for requirements expressly present in the active Curriculum Version;
 - current official enrollment; and
 - approved shift, deficiency, bridging, and old-curriculum mappings.
 
-It shows every required course, every official attempt and grade, credited mapping, current enrollment, prerequisite relationship, attempted units, earned units, remaining units, and unresolved deficiency.
+It shows every required course, every official attempt and grade, credited mapping, current enrollment, prerequisite relationship, attempted units, earned units, remaining units, unresolved deficiency, and any authority-backed external-competency requirement with its safe current result.
 
 - A later passing attempt may satisfy a requirement, but every attempt remains in the academic record and TOR.
 - A credit or equivalency satisfies only its approved mapped requirement.
 - Credits cannot be double-counted unless the approved curriculum explicitly permits it.
+- A `TrackedOnly` external-competency requirement displays its verified result or **Not recorded** and never blocks enrollment, grades, completion, or conferral.
+- A `CompletionRequired` external-competency requirement affects completion only when the active Curriculum Version's exact approved authority expressly assigns that treatment. Supplied evaluation sheets alone never create the block.
 - TALA has no learner what-if audit, speculative graduation date, generic substitution builder, or automatic equivalency decision.
+
+### 5.3 Externally verified competency result
+
+TESDA or its accredited assessor owns the competency judgment and certification. Registrar may record one append-only `ExternalCompetencyResult` only against an authorized external-competency requirement in the Student's active Curriculum Version.
+
+The record contains the Student and requirement references, assessment date, `Competent` or `NotYetCompetent` result, optional verified `NC` or `COC` reference and validity information, safe remarks, external evidence/source reference, Registrar recorder and time, and predecessor/supersession evidence.
+
+- Reassessment creates a successor result; earlier attempts remain visible history.
+- Missing, conflicting, stale, or unverified evidence posts nothing and names the external source or Registrar recovery action.
+- The result never creates a course grade, academic units, average contribution, prerequisite satisfaction, or financial effect. A separate approved course/equivalency mapping remains authoritative for those effects.
+- TALA Standard TOR — Servitech v1 excludes the external competency result. A later successor template may include it only with exact approved curriculum and output authority.
+- No email or new official output is created.
+- TALA does not manage TESDA applications, eligibility, training, schedules, assessors, venues, fees, assessment delivery, certificate issuance, renewal, or registry operations.
 
 ## 6. Academic progress and enrollment effect
 
-`AcademicProgressPolicyVersion` records the transparent capstone reference profile. It produces a recommendation only from fully resolved, released academic results:
+TALA derives factual academic progress from the active Curriculum Version and released results. It determines course satisfaction, prerequisite availability, remaining requirements, retake need, unresolved deficiencies, and whether the ordinary curriculum sequence remains usable. It does not convert failed-unit percentages into institutional sanctions.
 
-| Failed academic units in the evaluated period | Recommendation |
-| --- | --- |
-| None | `Good` |
-| Up to 15% | `Warning` |
-| 16–30% | `Warning` with recommended three-unit reduction |
-| 31–50% | `Probation` with recommended six-unit reduction |
-| 51–75% | `Ineligible` recommendation for the current program |
-| Above 75% | `Ineligible` recommendation for institutional continuation |
+`AcademicEnrollmentEffect` is exactly:
 
-Successive-warning and probation rules follow the cited PUP reference profile. PE, NSTP, and valid nonnumeric outcomes are excluded from this failed-academic-unit calculation. An unresolved `INC` leaves the consequential assessment pending rather than treating the learner as failed.
+| Effect | Exact condition | Enrollment consequence |
+|---|---|---|
+| `Allowed` | Ordinary curriculum placement remains eligible and no recorded lifecycle or academic authority blocks it | Clinic 4 may prepare the standard proposal |
+| `AdvisingRequired` | Failure, deficiency, shift, bridging, retake, unavailable course, or another nonstandard placement requires an Individually Advised proposal | Registrar prepares an attributable proposal; the learner is not assigned a permanent type |
+| `Blocked` | A recorded authorized institutional decision or incompatible lifecycle state expressly prevents the consuming action | Clinic 4 blocks placement/finalization and shows the authority, effective term, owner, and next safe action |
+| `PendingDecision` | A real institutional review has been opened or an authoritative source needed for the effect remains unresolved | Clinic 4 waits for the named owner; absence of a policy alone does not fabricate a review |
 
-`Good` requires no human confirmation. `Warning`, `Probation`, load reduction, and either `Ineligible` outcome require an authorized institutional decision recorded by Registrar with authority, safe explanation, effective term, and `AcademicEnrollmentEffect`.
-
-This profile is not represented as CHED-wide policy. It is a transparent capstone reference that must be institutionally adopted or replaced before production deployment. TALA has no generic progress-policy DSL.
+Failed-unit percentages never automatically create `Warning`, `Probation`, load reduction, dismissal, program ineligibility, or institutional ineligibility. A consequential external decision is append-only and Registrar-recorded with its authority reference/date, reason, safe learner explanation, effective term, enrollment effect, actor, and time. A successor decision preserves the earlier decision and refreshes affected Clinic 4 projections. TALA has no generic progress-policy DSL or policy-driving Regular/Irregular status.
 
 ## 7. Lifecycle, graduation, and conferral
 
@@ -228,7 +253,7 @@ Clinic 5 records externally authorized leave, full withdrawal, return/reactivati
 
 ### 7.2 Graduation application and readiness
 
-**Apply for graduation** appears when every curriculum requirement is either already satisfied/credited or officially enrolled in the Student's current final term.
+**Apply for graduation** appears when every course requirement is either already satisfied/credited or officially enrolled in the Student's current final term and every authority-backed `CompletionRequired` external-competency requirement is satisfied. `TrackedOnly` evidence never affects eligibility.
 
 Missing, failed, dropped, unregistered, or unresolved requirements from an earlier term block application. The application records intent only and is not proof of completion or graduation.
 
@@ -269,35 +294,37 @@ Student Academics presents one vertical reading order:
 
 Students may print an **Unofficial — for student reference** record. They cannot issue or self-download an official TOR.
 
-### 8.2 Proposed and institution-approved TOR format
+### 8.2 TALA Standard TOR — Servitech v1
 
-The supplied Servitech TOR format is unavailable for reuse because it is covered by the client's NDA. TALA therefore uses an original code-owned demonstration layout labelled **Proposed institutional format — Not for official issuance**. It supports current, withdrawn, transferred-out, and completed Students. Previewing the proposed layout does not make it an approved institutional form; official issuance requires a separately recorded institution-approved `TranscriptTemplateVersion`.
+TALA owns one fixed Servitech-branded transcript definition identified as **TALA Standard TOR — Servitech v1**. It is an immutable output definition, not a configurable template builder. Servitech branding, address/contact details, the current Registrar signatory name/title, and the seal image or seal-placement instruction are required operational inputs. A later adopted format becomes a successor template version; every prior issued version remains reproducible.
 
-The TOR contains:
+The standard TOR contains:
 
-- institution and document identity;
-- reference, issue date, and page numbering;
-- complete legal name and Student number;
-- program/major and applicable department;
-- birth date and entry/admission date;
-- conferral date when applicable;
-- chronological academic-year and term groups;
-- course code, historical title snapshot, lecture/laboratory hours, units, official grade or mark, and remarks;
-- every official attempt, including failures and retakes;
-- approved-credit/equivalency annotations;
-- term total units, total earned units, grading legend, certification statement, Registrar area, and seal area.
+- Servitech logo, institutional name, address/contact data, and `TRANSCRIPT OF RECORDS`;
+- transcript reference, template version, issue date/time, generation reference, and `Page x of y`;
+- Student legal name, Student number, program, Curriculum Version, admission basis/date, and prior-school/prior-credit information when applicable;
+- chronological Academic Year and Term groups;
+- course code, historical title snapshot, units, released grade or mark, remarks, attempt history, and approved-credit/equivalency treatment;
+- term units and cumulative earned units;
+- completion and conferral information when applicable;
+- grading/remarks legend, Registrar certification statement, current signatory name/title, and institutional seal area;
+- repeated Student/transcript identity and table headings on continuation pages; and
+- explicit `Issued`, `Voided`, `Replacement`, or `Superseded` notice, with `Generated through TALA` as restrained footer metadata.
 
-It excludes GWA, LRN, period grades, raw scores, Faculty, schedules, financial balances, receipt details, service restrictions, and audit history.
+The standard v1 TOR excludes term weighted average, cumulative GWA, LRN, period grades, raw scores, Faculty, schedules, financial balances, receipt details, service restrictions, and audit history.
 
 ### 8.3 Issuance boundary
 
-1. Request, payment, delivery, claiming, CAV, signature, seal, and certification processes remain external.
+1. Request intake, physical signing, sealing, claiming, delivery, courier, CAV submission, diploma, and ceremony remain external.
 2. Registrar records the external request date/reference; TALA derives the 30-day statutory due date.
 3. Clinic 6 supplies `OfficialOutputPaymentClearance` as `Cleared`, `NotRequired`, or `ActionNeeded`.
-4. TALA may generate an immutable proposed preview and `TranscriptSnapshot` from the effective record, clearly labelled as not for official issuance.
-5. Registrar may record issuance only when the institution has approved the exact code-owned template version and institutional certification has occurred externally.
-6. An issuance mistake creates a voided version and replacement.
-7. A later legitimate grade correction preserves but marks the historical snapshot superseded; future issuance uses a new snapshot.
+4. Official issuance is available for an academically completed learner when identity, released academic history, completion/conferral, request-specific clearance, current signatory data, template rendering, and issuance authorization are ready.
+5. TALA generates an exact preview of the immutable snapshot. **Issue official TOR** confirms the learner, request, snapshot, template version, clearance, signatory data, resulting reference, and external physical steps.
+6. Successful confirmation creates one immutable Transcript Snapshot and issuance event. Students cannot self-issue or anonymously download the official TOR.
+7. Generation or validation failure creates neither an issuance event nor an official-looking partial artifact.
+8. An issuance mistake appends a Void event and creates a new replacement snapshot/reference. No version is overwritten.
+9. A later legitimate grade correction preserves but marks the historical snapshot `Superseded`; future issuance uses a new snapshot.
+10. A generated TOR does not claim to be physically signed, sealed, a Certified True Copy, or CAV-ready unless those external facts are separately completed and recorded. Their external completion does not block TALA from generating and recording its official issuance.
 
 ### 8.4 Consolidated State and Action Matrix
 
@@ -308,17 +335,18 @@ It excludes GWA, LRN, period grades, raw scores, Faculty, schedules, financial b
 | `GradeRoster: Returned` | Correct specified rows and resubmit | Designated Faculty | Current submitting-Faculty assignment | Return explanation visible; membership/version current | Next reviewable roster version | Prior return/submission history retained | Registrar sees successor version |
 | `GradeRoster: Released` | View or begin separately authorized correction | Authorized role / Registrar | Record access or correction authority | Direct edit and partial release unavailable | Read-only released record or correction case | Released events immutable; correction appends successor | Student/Clinic 4 consume only released projection |
 | Average `GradesNotComplete` | View a term whose official classes are only partly released | Authorized Student or Staff | Own-record or academic-record access | At least one official registration lacks a released terminal result/outcome | Read-only **Grades not complete** plus last complete cumulative **Through [term]** when available | No partial average is stored or displayed; later release recomputes readiness | Student sees own state; Registrar/Academic Head see authorized completeness evidence; Faculty sees only whether an assigned roster remains a missing source, never other classes or learner averages |
-| Average `IncompleteResultPending` | View a grade-complete term with unresolved `INC` | Authorized Student or Staff | Own-record or academic-record access | All expected outcomes released; at least one included result remains `INC` | Read-only pending projection and last complete cumulative value | Resolution/lapse appends a result and recalculates | Student and authorized Staff see the same source/policy status |
-| Average `Available` / `NotApplicable` | Publish deterministic projection | System-derived | Effective `GwaPolicyVersion` and released authoritative results | Complete term; denominator positive for `Available`, zero for `NotApplicable` | Exact full-precision projection and two-decimal display, or explicit no-included-units text | Corrections supersede source results and recompute later projections | Student/Registrar views agree; TOR remains unchanged |
+| Average `IncompleteResultPending` | View a grade-complete term with unresolved `INC` | Authorized Student or Staff | Own-record or academic-record access | All expected outcomes released; at least one included result remains `INC` | Read-only pending projection and last complete cumulative value | Registrar release of a successor result recalculates | Student and authorized Staff see the same source/deadline status |
+| Average `Available` / `NotApplicable` | Publish deterministic projection | System-derived | Fixed PRD 05 formula, effective Course classifications/display-label metadata, and released authoritative results | Complete term; denominator positive for `Available`, zero for `NotApplicable` | Exact full-precision projection and two-decimal display, or explicit no-included-units text | Corrections supersede source results and recompute later projections | Student/Registrar views agree; TOR remains unchanged |
 | Unresolved `INC` | Record completion and release result | Faculty then Registrar | Faculty completion plus Registrar release authority | Original result/note; current version; valid completion result | Superseding result and recalculated projections | Original `INC` remains history | Student, curriculum evaluation, term/cumulative averages, and Clinic 4 refresh |
-| `INC` lapse unavailable | Attempt deadline/lapse behavior | System-derived | No lapse authority exists | No applicable approved policy version | Read-only **Deadline not established — institutional policy required**; no grade mutation | Later policy is prospective unless its authority expressly covers the earlier result | Student/Faculty/Registrar see safe policy-required state; Clinic 4 continues to receive `Incomplete` |
-| `INC` lapse due | Apply authorized automatic lapse | System under the bound policy | Effective policy expressly authorizes lapse | Bound policy/deadline current; inclusive deadline elapsed; result still unresolved; idempotency key unused | One append-only lapsed result and recalculated projections | Completion/lapse race revalidates under lock; later change uses correction | Student, curriculum evaluation, term/cumulative averages, progress, and Clinic 4 refresh once |
-| Progress recommendation | Record authorized consequence | Registrar | Academic-progress decision authority | Resolved released results, effective policy, authority, explanation, term | Confirmed `AcademicEnrollmentEffect` | Recommendation and decision remain distinct history | Clinic 4 receives confirmed effect only |
+| `INC: CompletionOpen` | View, complete, or amend deadline | Student views; Faculty completes; Registrar releases/amends | Own-record, assigned-roster, or academic-record authority | Current unresolved INC; inclusive deadline not elapsed; action uses current version | Deadline/action projection, deadline amendment, or immutable successor result | Amendment and result release append history; no automatic grade | Student/Faculty/Registrar/AH see role-safe current state; Clinic 4 receives `AdvisingRequired` |
+| `INC: CompletionOverdue` | Deadline passes with no successor result | System-derived; Faculty/Registrar retain controlled completion actions | Same role authority as open completion | Current unresolved INC; latest deadline elapsed | **Completion overdue** guidance and audit timeline; grade remains `INC` | Later amendment may reopen the window; result release resolves it; neither overwrites history | Dependent courses and completion remain pending; unrelated enrollment is not globally blocked |
+| External competency result absent/current/superseded | Record verified result or reassessment | Registrar | Academic-record access plus active requirement and external evidence | Exact requirement authority, Student curriculum version, assessment source, result, and current version revalidated | Append-only `ExternalCompetencyResult`; tracked-only absence displays **Not recorded** | Reassessment appends a successor and retains every attempt; failed/stale action posts nothing | Student Academics and Academic Oversight receive the safe current projection; no grade, average, prerequisite, finance, email, or TOR effect is inferred |
+| Curriculum position / authorized academic decision | Derive factual effect or record external decision | TALA / Registrar | Released-result and curriculum sources; decision authority only when an actual decision exists | Current curriculum facts; for `Blocked` or authority-backed `PendingDecision`, exact authority/review, explanation, and effective term | `Allowed`, `AdvisingRequired`, `Blocked`, or `PendingDecision` projection | Factual advising is regenerated; consequential decisions are append-only successors | Clinic 4 receives the current source-labelled effect only |
 | Lifecycle change | Record externally authorized result | Registrar | Lifecycle-result authority | Authority, effective date, current facts, current-term impact preview | Append-only lifecycle event | History never deleted | Student, Clinic 4, rosters, COR/account review receive bounded effects |
 | Graduation application | Apply | Eligible Student | Own record and application eligibility | Requirements satisfied, credited, or officially enrolled in final term | Graduation intent | Does not confer degree or prove completion | Registrar receives completion work item |
 | `ReadyForConferral` | Record conferral | Registrar | Conferral-recording authority | Complete curriculum, no unresolved result, source clearances, external authority/date | Conferral/evaluation snapshots and `Completed` event | Immutable; later correction uses successor evidence | Student sees conferral; downstream lifecycle projection updates |
-| TOR proposed preview | Generate preview | Registrar | Transcript-preview authority | Releasable record, request reference/date, Clinic 6 clearance not `ActionNeeded`, proposed layout available | Immutable preview labelled not for official issuance | Cannot be represented as issued | Registrar sees preview/history; Student receives no official-download action |
-| TOR issuance | Record issuance or later void/replace | Registrar | TOR issuance authority | Current snapshot, institution-approved template version, external certification, Clinic 6 clearance | Issued snapshot or append-only void/replacement | Issuance freezes snapshot; later supersession never overwrites | Authorized history shows Issued/Voided/Superseded exactly |
+| TOR preview | Generate exact preview | Registrar | Transcript-preview authority | Academically completed learner; releasable record; request/reference; current TALA Standard TOR and signatory data; Clinic 6 clearance not `ActionNeeded` | Preview of the exact immutable issuance snapshot | Preview alone creates no issuance | Registrar sees content/readiness/history; Student receives no self-issue action |
+| TOR issuance | Issue, void, or replace | Registrar | TOR issuance authority | Current academic snapshot, verified identity, completion/conferral, current template/signatory data, Clinic 6 clearance, successful rendering | Issued snapshot or append-only void/replacement | Issuance freezes snapshot; later supersession never overwrites | Authorized history shows Issued/Voided/Replacement/Superseded exactly |
 
 ### 8.5 Readiness matrix
 
@@ -326,14 +354,15 @@ It excludes GWA, LRN, period grades, raw scores, Faculty, schedules, financial b
 |---|---|---|---|---|---|---|
 | Roster submission | Clinic 3 class/assignment, Clinic 4 membership, Grade Entry window, current rows | Faculty submits; Clinics 3/4 own sources | Designated submitter and one valid result per required row within window/authority | Submission blocked with row-level action needed | Submit roster | Correct rows or owning assignment/window/membership source |
 | Roster release | Current submitted version and official membership | Registrar | Version current, membership unchanged, all rows valid | Release blocked; specified rows may be returned | Release roster | Resolve stale enrollment evidence or return exact rows |
-| Academic-average publication | Official term registrations, released terminal outcomes, Course Academic Classifications, effective `GwaPolicyVersion` | Registrar owns record; system derives | Every registration has a released resolved outcome; terminology/inclusion source is current; included-unit denominator is known | `GradesNotComplete`, `IncompleteResultPending`, or `NotApplicable`; no partial/zero fallback | Publish term weighted average and cumulative GWA | Release the missing owning result, resolve `INC`, or correct stale classification/policy authority |
+| Academic-average publication | Official term registrations, released terminal outcomes, fixed formula, Course Academic Classifications, optional authorized display-label metadata | Registrar owns source metadata; system derives | Every registration has a released resolved outcome; terminology/inclusion source is current; included-unit denominator is known | `GradesNotComplete`, `IncompleteResultPending`, or `NotApplicable`; no partial/zero fallback | Publish term weighted average and cumulative GWA | Release the missing owning result, resolve `INC`, or correct stale classification/display metadata |
+| External competency result | Active Curriculum Version requirement, external assessment/certification evidence, current Student curriculum | TESDA/accredited assessor owns result; Registrar records verified evidence | Requirement is active and attributable; evidence supports the selected result; `CompletionRequired` treatment has exact authority | Recording blocked or result shown **Not recorded**; completion remains pending only for expressly required items | Record verified external result; evaluate completion when authorized | Correct requirement/evidence, verify current external source, or record a successor reassessment result |
 | INC completion | Original `INC`, note, Faculty result, release authority | Faculty and Registrar | Valid completion result and current unresolved source | Superseding result unavailable | Release INC completion | Supply result or correct stale authority; preserve original event |
-| INC deadline/lapse | Original `INC`, applicable approved policy version, term end, current time | Registrar owns policy evidence; system applies an expressly authorized lapse | Policy authority/effective term match; deadline is derived from official term end; automatic lapse and exact result are approved | Deadline/lapse unavailable; result remains `INC`; no deadline email or fallback | Display deadline or append one authorized lapse | Record institutional policy prospectively, or resolve/correct the result through an authorized path |
-| Progress consequence | Released results, resolved INC, effective policy, authority | Registrar | Recommendation complete and authorized decision recorded | `PendingDecision`; no Clinic 4 effect | Record progress effect | Record the external authorized decision and safe explanation |
+| INC deadline and completion | Original `INC`, official Term end, current deadline/amendments, current time, completion result | Registrar owns deadline corrections/releases; Faculty supplies completion | One-year deadline calculated; latest amendment current; unresolved source/version current | Stale action records nothing; overdue state remains actionable; grade never changes automatically | Display current state, amend deadline, or release successor result | Correct the exact stale source, append an authorized deadline amendment, or complete the controlled result process |
+| Academic enrollment effect | Released results, active curriculum/lifecycle, and any actual external decision or opened review | TALA derives facts; Registrar records decision | Ordinary/nonstandard placement is attributable; `Blocked` has authority; `PendingDecision` has an opened review or unresolved named source | Consuming action receives `AdvisingRequired` or a named unavailable/pending state; no sanction is inferred | Prepare proposal or record authorized decision | Correct source or record/supersede the actual external decision and safe explanation |
 | Lifecycle result | External authority and current-state/current-term impact | Registrar | Authority/effective date current and impact preview available | No lifecycle mutation | Record lifecycle result | Correct authority or refresh impact evidence |
 | Conferral | Graduation application, evaluation, results, source clearances, external authority | Registrar and source owners | Curriculum satisfied, no unresolved result, every clearance ready | `AwaitingResultsOrClearance` | Record conferral | Resolve the named source; never override readiness locally |
-| TOR proposed preview | Academic snapshot, request reference/date, Clinic 6 clearance, proposed layout | Registrar/Accounting | Record releasable and clearance not `ActionNeeded` | Preview unavailable with named source | Generate proposed preview | Correct source or Clinic 6 clearance |
-| TOR issuance | Proposed/current snapshot, institution-approved template version, Clinic 6 clearance, external certification | Registrar, institution, Accounting | Exact template approved and certification/clearance complete | **Record issuance** unavailable | Record issuance | Approve the code-owned template externally or complete named source; do not relabel a proposed preview |
+| TOR preview | Completed academic snapshot, request reference/date, Clinic 6 clearance, TALA Standard TOR, signatory data | Registrar/Accounting | Identity, academic, completion/conferral, template, signatory, clearance, and rendering sources current | Preview unavailable with the named failed source | Generate exact preview | Correct the named source; preview creates no issue event |
+| TOR issuance | Current preview/snapshot, TALA Standard TOR version, Clinic 6 clearance, issuance authority | Registrar and Accounting source | Every preview check passes and consequence confirmation succeeds | **Issue official TOR** unavailable; no partial artifact or event | Issue immutable TOR | Correct the named source; physical signing/sealing/CAV remain external after generation |
 
 ## 9. Exact UI authority
 
@@ -372,14 +401,16 @@ One workbench contains:
 - Completion & TOR
 - History
 
+Authorized external-competency requirements remain inside the existing Academic Progress or Completion context. A focused **Record verified external result** action shows the Student, active requirement, treatment, assessment date, result, optional NC/COC reference and validity, safe remarks, external evidence/source, and append-only impact preview. It creates no TESDA, Certifications, or Assessment destination.
+
 Search supports Student number, legal name, course/class reference, and TOR reference. Native filters cover term, program, course, Faculty, roster state, deadline, result, INC/correction state, progress, lifecycle, completion readiness, and relevant date ranges.
 
-Each record leads with state, owner, next action, and one state-appropriate primary action, then presents the authoritative academic facts and collapsed evidence/history. Academic-average detail shows the neutral calculation name, effective inclusion source, authoritative display label when one exists, grade-completeness evidence, included units, and **Through [term]** cumulative context. INC detail shows the applicable policy authority/effective term and derived deadline, or **Deadline not established — institutional policy required**. Policy evidence is contextual to Grades & Completion and read-only in Academic Oversight; there is no academic-policy Settings page. Lapse behavior is unavailable while its policy source is absent, stale, or inapplicable. There is no bulk release, bulk correction, bulk consequential decision, bulk conferral, or bulk TOR issuance.
+Each record leads with state, owner, next action, and one state-appropriate primary action, then presents the authoritative academic facts and collapsed evidence/history. Academic-average detail shows the neutral calculation name, effective inclusion source, authorized display label when one exists, grade-completeness evidence, included units, and **Through [term]** cumulative context. INC detail shows the original Term end, current completion deadline, `CompletionOpen` or `CompletionOverdue`, amendments, owner, and next action. TOR detail shows template/source versions, signatory inputs, readiness, issue history, and external physical steps. There is no policy Settings page, automatic lapse action, bulk release, bulk correction, bulk consequential decision, bulk conferral, or bulk TOR issuance.
 
 ### 9.3 Role projections and interaction rules
 
-- Student sees only their released record, term weighted average/cumulative GWA or explicit readiness state, evaluation, confirmed progress, completion, unofficial output, and the authoritative INC deadline or safe no-policy state.
-- Academic Head sees read-only academic oversight, including INC policy availability and recorded decision evidence.
+- Student sees only their released record, term weighted average/cumulative GWA or explicit readiness state, evaluation including safe external-competency results, confirmed progress, completion, unofficial output, the informational Examination Period, and the current INC deadline/state.
+- Academic Head sees read-only academic oversight, including deadline/overdue evidence, external-competency requirement/result evidence, and recorded decision evidence.
 - Accounting sees only Clinic 6 payment/clearance responsibility.
 - System Administrator sees queue, email, and System Health evidence without academic authority.
 - Applicant and Public receive no Clinic 5 access.
@@ -395,8 +426,9 @@ Queued, idempotent emails are limited to:
 | Grade roster requires submission | Designated Faculty | Class reference, due date, action, authenticated link | Roster assignment/window plus Faculty identity | Workspace remains authoritative; authorized resend recorded | No draft-save or recurring reminder mail |
 | Registrar returns specified rows | Designated Faculty | Class reference and instruction to review authenticated explanation | Returned roster version plus Faculty identity | Return remains valid; mail failure does not reopen/release | No row values or private explanation in email |
 | Registrar releases roster | Affected Students | Official results available; secure link | Released roster version plus Student identity | Results remain official in Student Academics | No grade value or attachment |
-| Policy-bound `INC` requires action or approaches its authoritative deadline | Student and designated Faculty when needed | Safe state, authoritative deadline, owner, authenticated link | INC event plus bound policy/deadline and recipient identity | Deadline/state remain authoritative | No email when policy/deadline is unavailable; no recurring reminder loop or grade value |
-| `INC` resolved or lapsed | Student | Outcome available in Student Academics; secure link | Superseding result event plus Student identity | Result/recalculation remain committed | No grade value or attachment |
+| `INC` released | Student and designated Faculty | Course, Term, completion deadline, responsible Registrar office, authenticated link | INC event plus recipient identity | Deadline/state remain authoritative | One action email only; no grade value, attachment, countdown, or recurring reminder |
+| INC deadline amended | Student and designated Faculty | Course, replacement deadline, owner, authenticated link | Deadline-amendment event plus recipient identity | Latest deadline remains authoritative | One replacement-deadline email; no prior deadline erased or recurring reminder |
+| `INC` resolved | Student | Outcome available in Student Academics; secure link | Superseding result event plus Student identity | Result/recalculation remain committed | No grade value or attachment; deadline passage alone sends no email |
 | Authorized correction released | Affected Student | Academic record updated; secure history link | Correction release event plus Student identity | Correction remains committed | No old/new grade value or attachment |
 | Progress or lifecycle decision recorded | Affected Student | Safe outcome, owner, next action, secure link | Confirmed decision/event plus Student identity | Decision remains effective | No sensitive reason or unrelated record detail |
 | Completion requires action | Student | Missing source, owner, next action, secure link | Completion-readiness version plus Student identity | Readiness remains source-derived | No automated reminder loop |
@@ -408,34 +440,24 @@ Routine saves, calculations, queue movement, academic-average recalculation, pag
 
 These names define responsibilities before physical schema design. No public HTTP API or physical table design is approved here:
 
-- `FinalGradePolicyVersion`
-- `GwaPolicyVersion`
-- `CourseAcademicClassification`
-- `GradeRoster`
-- `GradeRosterEntry`
-- `OfficialGradeEvent`
-- `LateGradeAuthorization`
-- `IncompleteResolution`
-- `GradeCorrectionDecision`
-- `AcademicAverageReadiness`
-- `TermWeightedAverageProjection`
-- `CumulativeGwaProjection`
-- `OfficialCourseResultProjection`
-- `CurriculumEvaluation`
-- `CurriculumRequirementResult`
-- `AcademicProgressPolicyVersion`
-- `AcademicProgressAssessment`
-- `AcademicProgressDecision`
-- `AcademicEnrollmentEffect`
-- `StudentLifecycleEvent`
-- `GraduationApplication`
-- `CompletionReadiness`
-- `DegreeConferral`
-- `AcademicHonorRecord`
-- `TranscriptTemplateVersion`
-- `TranscriptSnapshot`
-- `TranscriptIssuance`
-- Clinic 6 `OfficialOutputPaymentClearance`
+| Name or family | Purpose | Authority owner | Classification | Required consumers | Distinction or consolidation decision |
+|---|---|---|---|---|---|
+| Grade vocabulary, average formula, exclusions, and INC deadline rule | Define fixed allowed results and calculations | PRD 05/TALA product authority | Documentation concept that does not require a separate implementation object | Roster validation, averages, INC UI | Fixed rules require no policy engine or editor |
+| CourseAcademicClassification and optional term display-label authority | Supply effective course inclusion and authorized wording | Registrar records operational data | Required institutional operational data with effective history | Academic averages and UI | Owned with Course/effective metadata; not a standalone settings module |
+| GradeRoster and GradeRosterEntry | Preserve complete Faculty submission/review versions | Faculty submits; Registrar releases/returns | Persisted authoritative record with owned rows and immutable versions | Registrar, Student result generation | Entries belong to the roster; no raw-score gradebook |
+| OfficialGradeEvent | Preserve each released INC, completion, grade, or correction | Registrar | Immutable version or event | Student record, PRD 04, averages, completion, TOR | Late authority, completion resolution, and correction authority are event metadata, not separate workflow aggregates |
+| INC deadline amendment | Correct one unresolved INC deadline without rewriting history | Registrar | Immutable version or event | Student, Faculty, Registrar, Academic Head | Remains distinct because it changes the controlling deadline but never the grade |
+| AcademicAverageReadiness, TermWeightedAverageProjection, CumulativeGwaProjection | Explain completeness and calculate term/cumulative results | PRD 05 | Derived projection/calculation | Student, Registrar, Academic Head | No stored partial average or GWA engine |
+| OfficialCourseResultProjection | Publish the released course result to authorized consumers | PRD 05 | Derived projection/calculation | PRD 04 and curriculum evaluation | No copied academic record |
+| ExternalCompetencyResult | Record verified TESDA/accredited-assessor evidence | External assessor owns judgment; Registrar records it | External reference/result with immutable history | Curriculum evaluation and role projections | No TESDA operations module |
+| CurriculumEvaluation and CurriculumRequirementResult | Map released attempts/credits to curriculum requirements | PRD 05 | Derived projection/calculation | Student, Registrar, PRD 04, completion | Requirement results are owned parts of the evaluation, not separate authoritative records |
+| AuthorizedAcademicDecision | Record a real externally authorized consequential result | Registrar | Immutable version or event | AcademicEnrollmentEffect and PRD 04 | Used only when a real decision exists; no generic approval/override engine |
+| AcademicEnrollmentEffect and CompletionReadiness | Publish current advising/enrollment and completion facts | PRD 05 | Derived projection/calculation | PRD 04, Student, Registrar | Never stored as sanctions or a configurable state machine |
+| StudentLifecycleEvent | Preserve authorized leave, withdrawal, transfer, reactivation, shift, completion, and correction | Registrar | Immutable version or event | Enrollment, rosters, finance review, Student projections | One event family with explicit event types; no lifecycle engine |
+| GraduationApplication and DegreeConferral | Record learner intent and the authoritative conferred result | Student/Registrar | Persisted authoritative record and immutable event | Completion, lifecycle, TOR | Honor calculation and award workflow remain external |
+| TALA Standard TOR — Servitech template version | Reproduce the exact output layout and contract | PRD 05 product authority | Immutable version or event | Transcript preview/issuance | Fixed versioned definition; no template builder or generic document engine |
+| TranscriptSnapshot and TranscriptIssuance | Freeze exact academic content and issue/void/replace/supersede history | Registrar | Immutable version or event and official output | Authorized Registrar history | Kept distinct because content reproducibility and issuance lifecycle protect different integrity concerns |
+| OfficialOutputPaymentClearance | Supply request-specific Accounting result | PRD 06 | External reference/result consumed read-only | TOR readiness | PRD 05 never edits or recreates it |
 
 There is no public API, gradebook engine, grading DSL, GWA editor, degree-audit rules engine, lifecycle state machine, generic override record, transcript-template editor, or global hold engine.
 
@@ -443,50 +465,19 @@ There is no public API, gradebook engine, grading DSL, GWA editor, degree-audit 
 
 | Conceptual record family | Minimum authoritative facts | Owner and mutability |
 | --- | --- | --- |
-| Policy versions | Version, effective scope/dates, accepted vocabulary; optional approved INC authority/date, effective term, deadline basis, lapse result, and automatic-lapse authorization | Registrar-governed; immutable after use; missing INC policy cannot produce a deadline or lapse |
+| Fixed academic rules and operational metadata | Accepted result vocabulary, average formula/exclusions, one-year nonautomatic INC rule, effective Course classifications, and optional authorized term display label | Product rules are fixed by PRD 05; Registrar records only bounded effective operational metadata |
 | Roster and entry | Term, official Class Offering, official registrations, designated submitter, due date, row result/note, roster state and version | Faculty edits Draft/Returned rows; Registrar controls release; released versions are immutable |
-| Official result, INC, and correction | Registration, result, release event/time/actor, original INC note, bound policy/deadline when applicable, explicit no-policy state otherwise, superseding result, correction reason/authority/evidence | Registrar-owned append-only academic history |
-| Academic averages and curriculum evaluation | Included attempts/units, exclusions, term weighted/cumulative value or readiness reason, requirement-to-attempt/credit mapping, attempted/earned/remaining units | Generated read-only projections from released records and approved mappings |
-| Progress and enrollment effect | Evaluated period, failed-unit basis, recommendation, decision authority/explanation/effective term, confirmed Clinic 4 effect | Recommendation is generated; consequential decision is Registrar-recorded and append-only |
+| Official result, INC, and correction | Registration, result, release event/time/actor, original INC note, Term end, original/current deadline, amendments, overdue interval, superseding result, correction reason/authority/evidence | Registrar-owned append-only academic history; deadline passage never changes the grade automatically |
+| Academic averages and curriculum evaluation | Included attempts/units, exclusions, term weighted/cumulative value or readiness reason, requirement-to-attempt/credit mapping, attempted/earned/remaining units, authority-backed external-competency requirements and current safe results | Generated read-only projections from released records, approved mappings, and verified external evidence |
+| External competency result | Student, active requirement, assessment date, `Competent`/`NotYetCompetent`, optional verified NC/COC reference and validity, safe remarks, external source, recorder/time, predecessor/supersession | TESDA/accredited assessor owns the judgment; Registrar records append-only verified evidence; reassessment never overwrites history |
+| Curriculum position and enrollment effect | Curriculum/result/lifecycle sources; ordinary or nonstandard placement basis; any actual decision authority/explanation/effective term; current Clinic 4 effect | Factual projection is generated; consequential external decision is Registrar-recorded and append-only |
 | Lifecycle and completion | Event type, prior/derived state, authority, effective date, impact evidence, application, readiness source results, conferral facts and snapshot | Registrar-owned append-only events and generated readiness |
-| Transcript | Template version, source academic-record version, request reference/date, due date, Clinic 6 clearance, preview/issuance state, issue/void/replacement/supersession evidence | Registrar-controlled; issued snapshots are immutable |
+| Transcript | TALA Standard TOR version, source academic-record version, request reference/date, due date, Clinic 6 clearance, signatory inputs, preview/issuance state, issue/void/replacement/supersession evidence | Registrar-controlled; issued snapshots are immutable; physical signing/sealing/CAV remain external |
+## 12. Lifecycle, Mutation, and Technical Boundaries
 
-## 12. Reconciliation disposition
+Submitted and released roster results, grade corrections, external competency results, lifecycle events, Completion Readiness versions, Conferral, and transcript snapshots are append-only and never deleted. Draft rows remain editable only before complete-roster submission; every later change uses return, completion, correction, withdrawal, void, replacement, or a successor version under the authority defined in this PRD.
 
-### Retain when conforming
-
-- Roster and immutable result-event foundations.
-- Transaction locking and late-authority evidence.
-- Lifecycle history and completion snapshots.
-- Authorization and native Filament foundations.
-
-### Simplify
-
-- Faculty entry to one final result.
-- Curriculum evaluation to one deterministic projection.
-- Academic progress to recommendation plus authorized decision.
-- Completion to application, readiness, and conferral.
-
-### Replace
-
-- Period-grade calculation and stored Preliminary/Midterm/Final values.
-- Hard-coded formula/scale engine.
-- Released `P` and mutable released grades.
-- Legacy Term Offering dependencies.
-- Manual graduation batches and global-hold completion logic.
-
-### Remove after dependency migration
-
-- Raw gradebook logic and daily attendance.
-- Generic grading DSL and arbitrary GWA editor.
-- Learner what-if audit.
-- Transcript-template editor.
-- Internal appeals, chat, and official-TOR Student self-download.
-
-### Quarantine
-
-Current columns, services, pages, configuration, and tests remain untouched until a separately approved implementation task maps every consumer. The existing hard-coded `365`/`5.00` configuration and current-time-based deadline calculation are quarantined implementation evidence, not an approved Servitech rule or date basis. Nothing is dropped by this authority review.
-
+This PRD does not prescribe tables, services, migrations, formula code, or implementation order. A future journey-complete slice must reconcile current roster, grade-event, curriculum-evaluation, lifecycle, transcript, authorization, UI, email, and test surfaces against this authority without restoring period-grade calculation, automatic sanctions, or external-institution policy.
 ## 13. Acceptance coverage
 
 The future vertical implementation must prove:
@@ -497,62 +488,77 @@ The future vertical implementation must prove:
 - grade window, overdue roster, and late authority;
 - official enrollment changes invalidating a submitted roster;
 - complete release, returned rows, and no partial release;
-- INC creation with no approved policy, no invented deadline/lapse/email, academic-average withholding, later completion, policy-bound deadline, idempotent authorized lapse to `5.00`, deadline race, post-lapse correction, and recalculation;
+- INC release with the calculated one-year deadline, leap-date handling, amendment, `CompletionOpen`, `CompletionOverdue`, later controlled completion, stale/concurrent action, academic-average withholding, prerequisite/advising effects, and recalculation without automatic grade conversion;
 - correction without a hard cutoff, append-only history, active-registration review, and issued-TOR supersession;
 - PE/NSTP exclusion, neutral term weighted average, institution-authorized display terminology, all-attempt cumulative GWA, retake satisfaction, no attempt limit, and no arithmetic averaging of term values;
 - partially released `GradesNotComplete`, unresolved-INC pending, available, and no-included-unit `NotApplicable` states with no partial or zero fallback;
 - curriculum evaluation, credits/equivalencies, shifts, bridging, and no double counting;
-- `Good`, `Warning`, `Probation`, and `Ineligible` recommendations with required human confirmation;
+- tracked-only external competency evidence, **Not recorded**, `NotYetCompetent` followed by superseding `Competent`, authority-gated completion effect, and no grade/average/unit/prerequisite/finance/email/TOR default;
+- factual curriculum position; `Allowed`, `AdvisingRequired`, `Blocked`, and `PendingDecision` effects; nonstandard Individually Advised placement; and proof that failed-unit percentages never create sanctions;
 - leave, withdrawal, transfer out, reactivation, and persistent portal history;
 - final-term graduation application, failed/dropped final-term course, clearance, and conferral;
-- current-Student and completed-Student TORs, all attempts, no GWA in TOR, external request date, 30-day due date, reissue, and supersession;
+- completed-Student TALA Standard TOR, all attempts, no GWA, external request date, 30-day due date, exact preview, issue, void, replacement, supersession, continuation pages, and external physical-certification boundary;
 - cross-role authorization, inaccessible-record behavior, email idempotency/failure, desktop/mobile, keyboard/screen-reader, stale-record, and concurrency behavior; and
 - later DB-backed verification only against `test_tala_db`.
 
 ### 13.1 Realistic demonstration data
 
-Use synthetic AY 2026–2027 records, never real Student data:
+Use the coordinated 47-Student BM/IT/THM institution and its published classes, Registration Cases, and official roster membership for synthetic AY 2026–2027 records; never use real Student data:
 
 - one official class with a designated Faculty submitter, one view-only co-Faculty member, and three officially enrolled Students;
-- one passing result, one `5.00`, one no-policy `INC` with its completion note and no deadline, one policy-bound `INC` resolved before deadline, and one policy-bound `INC` that lapses idempotently;
+- one passing result, one `5.00`, one `INC` resolved before its calculated deadline, one overdue `INC`, and one overdue deadline amended to a future date;
 - one returned roster row and consolidated Registrar explanation;
 - one later released INC completion and one separately authorized grade correction;
-- one progress recommendation requiring an authorized decision;
+- one nonstandard curriculum position producing `AdvisingRequired` and one separate authority-backed decision producing a recorded effect;
 - one final-term Student whose completion waits for a source-owned clearance;
 - one completed former Student with an issued, later superseded TOR snapshot;
 - official Special Term roster membership sourced from Clinic 4 `REG-2026-ST-001` under Clinic 3 `TERM-2026-ST`;
 - coordinated `TERM-2026-ST` results for `CLS-ITE3-ST-A` (`1.75`) and `CLS-IT201-ST-R` (`2.50`), with the first class released while the second remains unreleased;
-- prior cumulative evidence of 90 included units and 180 weighted grade points, producing Special Term `2.13` and cumulative `2.01` after both classes release; and
-- the earlier `IT201` `5.00` attempt retained in cumulative history while the passing retake satisfies the curriculum requirement.
+- prior cumulative evidence of 90 included units and 180 weighted grade points, producing Special Term `2.13` and cumulative `2.01` after both classes release;
+- the earlier `IT201` `5.00` attempt retained in cumulative history while the passing retake satisfies the curriculum requirement; and
+- `EXT-COMP-CSS-NCII`, one tracked-only synthetic external-competency requirement; `EXT-RES-CSS-001` `NotYetCompetent` followed by `EXT-RES-CSS-002` `Competent`; one missing tracked-only result that does not block completion; and hypothetical authority-backed `EXT-COMP-WEB-NCIII-REQ`, whose missing result keeps completion pending without establishing Servitech policy.
 
 ### 13.2 Browser acceptance walkthrough
 
 1. As designated Faculty, open the official roster, enter the three controlled final results, and submit the complete roster; confirm that the view-only co-Faculty member cannot edit or submit.
 2. As Registrar, return one specified row with one explanation; confirm that no official grade is released.
 3. As Faculty, correct the returned row and resubmit; as Registrar, release the whole roster atomically.
-4. As each Student, confirm that only released results appear; the no-policy `INC` shows **Deadline not established — institutional policy required**, no countdown or deadline email, and the current academic average explicitly pending.
-5. Record an applicable approved policy prospectively. Confirm that only policy-bound results receive a deadline, that the earlier unbound result remains unbound without express retrospective authority, and that Student/Faculty/Academic Head projections cite the same source.
+4. As each Student, confirm that every released `INC` shows its calculated one-year inclusive deadline, responsible Registrar office, `CompletionOpen`, and an explicitly pending academic average.
+5. Amend one deadline with authority and reason; confirm the replacement-deadline email, visible prior/current values, and that a stale concurrent amendment records nothing.
 6. Record and release one INC completion before its deadline; confirm transactional revalidation, recalculated term/cumulative academic projections and curriculum evaluation, and history without overwriting the original `INC`.
-7. Pass the inclusive deadline for another bound `INC`; confirm one authorized lapse event and email despite repeated processing, then use the correction path for a later authorized result change.
+7. Pass the inclusive deadline for another `INC`; confirm **Completion overdue**, no grade mutation or overdue email, dependent-course/completion blocking only, and continued controlled completion. Amend it to a future date and confirm it returns to `CompletionOpen` without erasing the overdue interval.
 8. Record an authorized correction; confirm append-only history, recalculated projections, and Registrar review on any affected active Clinic 4 Registration Case.
-9. Record the required progress/lifecycle decision and verify that Student, Registrar, Academic Head, and Clinic 4 receive only their authorized projections.
+9. Record one actual authority-backed academic/lifecycle decision and verify that Student, Registrar, Academic Head, and Clinic 4 receive only their authorized projections; a failed result without such authority produces advising rather than an automatic sanction.
 10. Apply for graduation, resolve the named source-owned clearance, and record conferral; confirm the immutable degree and `Completed` history.
-11. Generate a TOR proposed preview for the completed former Student and confirm its **Not for official issuance** label; satisfy Clinic 6 clearance, record institution approval of the exact template version and external certification, then record issuance and supersede it through the authorized correction path. Confirm that every proposed and issued snapshot remains correctly labelled and historical.
-12. Repeat the core Faculty, Registrar, Student, and TOR views at narrow width and by keyboard, including policy unavailable, filtered-empty, inaccessible, stale, validation, concurrency, and mail-failure recovery states.
+11. Generate an exact TALA Standard TOR preview for the completed former Student; satisfy Clinic 6 clearance and signatory inputs, then issue, void, replace, and supersede it through the authorized paths. Confirm continuation-page identity, monochrome output, immutable references, no Student self-issue, no partial artifact on failure, and no claim that unsigned output is CAV-ready.
+12. Repeat the core Faculty, Registrar, Student, and TOR views at narrow width and by keyboard, including completion-open/overdue/amended, filtered-empty, inaccessible, stale, validation, concurrency, and mail-failure recovery states.
 13. For `TERM-2026-ST`, release `CLS-ITE3-ST-A` while `CLS-IT201-ST-R` remains unreleased; verify **Grades not complete**, no partial term value, and the prior cumulative **Through [term]** value.
-14. Release `CLS-IT201-ST-R`; verify the `2.13` term weighted average, `2.01` cumulative GWA from the full attempt/unit history, curriculum satisfaction by the retake, and retention of the earlier `5.00` attempt. Repeat the Student projection at 360/390 pixels and Staff detail at 1366 pixels without exposing PUP-derived terminology.
+14. Release `CLS-IT201-ST-R`; verify the `2.13` term weighted average, `2.01` cumulative GWA from the full attempt/unit history, curriculum satisfaction by the retake, and retention of the earlier `5.00` attempt. Repeat the Student projection at 360/390 pixels and Staff detail at 1366 pixels using only neutral or Servitech-authorized terminology.
+15. As Registrar, attempt to record an external competency result without an active authorized requirement or current evidence and confirm that nothing posts. Record `EXT-RES-CSS-001`, then the superseding `EXT-RES-CSS-002`; verify the safe result and history in Student Academics and Academic Oversight, that a missing tracked-only result says **Not recorded**, and that no grade, average, unit, prerequisite, finance, email, or standard-TOR effect appears. Open the hypothetical authority-backed `EXT-COMP-WEB-NCIII-REQ` state and confirm that its missing result alone keeps completion pending while making no claim that Servitech has adopted that requirement.
 
-## 14. Future implementation gate — not a task plan
+### 13.3 Authority-hardening control matrix
 
-This PRD owns Clinic 5 behavior, UI, conceptual records, acceptance, exclusions, and salvage classification only. It is not a migration design, task breakdown, implementation sequence, or permission to modify the application.
+| Area or action | Actor and authorization | Validation/readiness | Confirmation, history, and limits | Failure/correction behavior |
+|---|---|---|---|---|
+| Grade-row Draft and complete-roster submission | Assigned designated Faculty; Registrar may return but not author the Faculty result | Every official roster row has one allowed result; numeric grades use the accepted increments; `INC` requires a completion note; no unassigned or duplicate learner; current roster/window/source; late submission requires recorded authority | Draft may be edited; submitted/released results cannot be deleted. **Submit complete roster** shows class, term, row count, unresolved warnings, and that Registrar review follows. No partial submission or arbitrary attempt cap | Invalid/stale/concurrent submission posts nothing and preserves safe row input. A returned roster reopens only named rows with one consolidated Registrar explanation |
+| Roster release/return | Registrar with release authority | Complete submitted roster, current source, all row findings resolved, no stale successor | **Release roster** shows every row, effective result, Student/curriculum effects, email event, immutability, and audit. Return names rows and requires a 10–1,000-character reason. No partial release | Concurrent change blocks the whole action. Release is atomic; duplicate execution is idempotent. Later change uses grade correction |
+| Released-grade correction | Registrar records an externally authorized decision | Original result/version, reason, authority/date, effective result, affected averages/curriculum/enrollment/output facts | **Record grade correction** creates one successor; no numeric lifetime cap, deletion, or edit-in-place | Conflict posts nothing. Affected active Registration Cases enter review; issued transcript snapshots remain immutable/superseded |
+| `INC` completion | Faculty supplies authorized completion result; Registrar releases | Current unresolved `INC`, completion note/history, roster identity, current deadline/version, and applicable correction/release authority | **Release INC completion** shows result and recalculation effects; no arbitrary attempt cap | Transactional revalidation ensures only one successor. A stale deadline amendment or result action records nothing |
+| INC deadline and amendment | System derives one year from Term end; Registrar may amend with authority | Original Term end, inclusive Asia/Manila calculation, current unresolved source/version; amendment requires prior/new date, authority/date, reason, actor | **Change INC deadline** shows the current/new deadline, resulting open/overdue state, email, and append-only consequence | Deadline passage derives `CompletionOverdue` but never a grade/email. A valid future amendment may reopen; conflict records nothing |
+| External competency result | Registrar records verified external evidence | Active Curriculum Version requirement; result/date/source; predecessor for reassessment; optional NC/COC fields valid when present | **Record verified external result** states tracked-only or authority-backed completion effect; successor preserves attempts; no delete or email | Missing/stale/conflicting evidence posts nothing. `TrackedOnly` absence is **Not recorded**, not failed |
+| Lifecycle event | Registrar records externally authorized leave, withdrawal, transfer, reactivation, shift, completion, or correction | Current lifecycle, authority/effective date, non-overlap, source records, affected registration/access projections | Consequential transition uses a named confirmation with resulting lifecycle and downstream effects; events are append-only | Conflicting or retroactive mutation is rejected. Correction creates a successor; no event creates a seat, refund, grade, or payment effect |
+| Graduation Application and conferral | Student applies/withdraws own active application; Registrar records corrections/conferral | One active application per completion scope; final-term/result/clearance readiness; conferral authority | Application has no arbitrary resubmission cap while eligible. **Record conferral** shows degree, effective date, lifecycle, outputs, and irreversibility | Duplicate blocked; withdrawal preserves record. Missing sources produce `AwaitingResultsOrClearance`, never inferred completion |
+| TOR preview, issuance, void, replacement | Registrar; Clinic 6 provides read-only clearance | Completed learner, verified identity, exact academic snapshot, request reference, current clearance, TALA Standard TOR version, signatory data, successful rendering | Preview creates no issue. Issue/void/replace each require consequence-specific confirmation. Reissue has no arbitrary cap but every version needs reason/authority | Output failure creates no partial artifact or event. Missing operational input names the owner; physical signature/seal/delivery/CAV remain external |
 
-Clinic 5 is closed and has passed the complete-authority review. Clinics 1–6 satisfy the same complete-clinic checklist, canonical `00`–`06` consolidation is complete, and implementation tasks may now be derived only through a separately approved journey-complete plan.
+Shared validation primitives, stale/conflict behavior, critical-action audit fields, responsive states, and deletion rules come from baseline Section 11.4. All released academic, lifecycle, completion, and transcript records are append-only. The 30-day official-document duty remains sourced from BP 232; request intake, physical signatures, seals, claiming, delivery, and CAV remain institution-owned.
+## 14. External Boundaries
 
+The INC deadline and overdue behavior are complete TALA product rules. No automatic grade conversion or grading-policy engine exists. TALA Standard TOR — Servitech v1 is ready for Registrar preview and issuance when its operational data and source readiness pass. Physical signing, sealing, claiming, delivery, courier, CAV, diploma, and ceremony remain external and do not leave product behavior unresolved. Personal-data handling follows the product-wide no-automatic-disposal boundary.
 ## 15. Assumptions
 
 - TALA targets a normally recognized and authorized Philippine college.
 - The final-grade vocabulary comes from the supplied Servitech workbook.
 - PE/NSTP/CWTS/LTS/ROTC exclusion from both academic-average projections is client-confirmed Servitech policy.
-- The supplied evidence does not establish a Servitech INC deadline or automatic lapse rule. The PUP one-year/automatic-`5.00` profile remains inactive until institutionally adopted.
-- The PUP academic-progress reference profile is a transparent capstone reference requiring institutional adoption or replacement before production deployment.
+- The supplied evidence does not establish a Servitech INC deadline or automatic lapse rule. TALA therefore adopts the bounded one-year completion deadline and rejects automatic grade conversion.
+- No other institution's academic-progress thresholds, sanctions, terminology, or load rules govern Servitech. TALA records factual curriculum effects and only an actual authorized institutional decision may block enrollment.
 - External institutional decisions are recorded rather than recreated as multi-step approval systems.

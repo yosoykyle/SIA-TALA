@@ -1,11 +1,9 @@
 # PRD 02 — Application, Admission Decision, and Enrollment Readiness
+## Authority and Standalone Status
 
-## Authority and Review Status
+**Status:** Standalone and ready for vertical-slice planning.
 
-**Clinic 2 authority:** Approved on 2026-08-06; complete-authority review passed
-
-This PRD is the canonical approved admissions authority and has passed the complete-authority review. Complete-set approval authorizes later implementation-task derivation only; it does not authorize application changes, schema changes, or migration work.
-
+This PRD is the complete authority for Admission Cycles, Applicant applications, evidence, correction, decisions, official-credential outcomes, and the derived enrollment-readiness handoff. It is understandable without legacy admissions documents or current implementation. Shared terms and controls come from the [baseline](./00_system_definition_baseline.md); shared screen behavior comes from the [UI Surface Blueprint](../ui_surface_blueprint.md).
 ## 1. Purpose and Boundary
 
 Clinic 2 owns the journey from a verified Applicant account to an enrollment-ready admissions record. It does not create a Student profile, student number, Student role, enrollment, payment obligation, study plan, or class placement.
@@ -94,7 +92,7 @@ There is no stored `Pending`, `ForEvaluation`, `ApprovedForHandover`, or configu
 
 - Draft fields remain editable.
 - After submission, only fields or evidence named by the current Registrar correction request reopen.
-- A correction request contains affected items, one consolidated applicant instruction, responsible party, optional deadline, actor, and time.
+- A correction request contains affected items, one consolidated applicant instruction, responsible party, a required due date/time within the Admission Cycle's authorized correction boundary, actor, and time.
 - Corrected items return the application to `Submitted` for review.
 - The prior submitted snapshot, evidence version, review result, correction request, and resubmission remain in history.
 - Server-side guards prevent stale, unauthorized, or out-of-order edits even when a page remains open.
@@ -124,7 +122,7 @@ There is no stored `Pending`, `ForEvaluation`, `ApprovedForHandover`, or configu
 | Admission Cycle `Cancelled` | Cancel cycle | Registrar | Recorded cancellation authority and safe explanation | Authorized action; affected records identified | New work stops; existing records and explanation remain | Cancellation is retained; any later replacement is a distinct authorized cycle/version | Applicants see safe support path; Registrar retains history |
 | Application `Draft` | Start, save, or discard | Applicant or bounded Registrar-assisted entry | Own account or authorized assistance | Cycle open; one application per account/cycle | Partial application and temporary evidence, or removal on discard | First submission supersedes editability; discard exists only before submission | Applicant sees own progress; Registrar sees no review queue until submission |
 | Application `Submitted` | First submission or corrected-item resubmission | Applicant | Own application | Cycle accepts first submissions; required fields/declarations valid; stale snapshot rejected | Stable reference and immutable submitted snapshot | Later resubmission adds a version; it never rewrites the prior snapshot | Registrar queue shows action needed; Applicant sees acknowledgment/history |
-| Application `ActionNeeded` | Issue scoped correction | Registrar | Application-review authority | Named fields/evidence, consolidated instruction, owner, optional deadline | Correction request and bounded reopened items | Resubmission supersedes the active request while preserving it in history | Applicant sees only actionable scope; Registrar sees waiting state |
+| Application `ActionNeeded` | Issue scoped correction | Registrar | Application-review authority | Named fields/evidence, consolidated instruction, owner, and due date within the authorized correction boundary | Correction request and bounded reopened items | Resubmission supersedes the active request while preserving it in history | Applicant sees only actionable scope; Registrar sees waiting/overdue state |
 | `Withdrawn` | Self-withdraw, record offline withdrawal, or reopen | Applicant or Registrar | Self-service before registration; recorded authority for offline withdrawal/reopen | Submitted/ActionNeeded/Admitted; Clinic 4 registration not started; cycle permits reopen | Withdrawal or reopened submitted application using the same reference | History is immutable; reopening supersedes current state without deletion | Applicant and Registrar see history; Clinic 4 ready projection disappears |
 | `Admitted` / `NotAdmitted` | Record decision | Registrar | Admissions-decision authority | Identity warnings resolved; applicable review complete | Append-only decision and safe applicant projection | Reconsideration creates a superseding decision; earlier decision remains | Applicant sees safe result; no Student identity or enrollment is created |
 | Credential result | Record received, under review, verified, or action needed | Registrar | Credential-review authority | Admitted application; applicable requirement version; evidence/source recorded | Official-credential outcome and history | Later authorized result supersedes current outcome, never erases it | Applicant sees safe requirement status; Clinic 4 sees only readiness projection |
@@ -250,7 +248,7 @@ Allowed results are:
 
 The label **Accepted** is never shown alone because a review copy must not be mistaken for an officially verified credential.
 
-Digital evidence remains private, authorization-protected, checksum-tracked, and versioned. The current PDF, JPEG, and PNG allowlist and 5 MB per-file limit are retain candidates; implementation reconciliation must confirm usability before they become physical validation rules.
+Digital evidence remains private, authorization-protected, checksum-tracked, and versioned. Each requirement/evidence version accepts exactly one PDF, JPEG, or PNG up to 10 MiB with actual MIME/signature validation. A multipage document is one PDF. Physical implementation must also use private storage, a generated storage name, and access auditing.
 
 Clinic 2 records metadata and outcomes for physical credentials. It does not track shelves, envelopes, courier movement, appointments, or physical custody.
 
@@ -286,25 +284,43 @@ Clinic 2 records metadata and outcomes for physical credentials. It does not tra
 - Accuracy declaration.
 - Preliminary evidence required by the published requirement set.
 
+### 10.5 Field and cross-record validation
+
+| Field group | Required rule |
+|---|---|
+| Application scope | Current published Admission Cycle; selected Program is active and accepting the selected first-year/transferee path; one Application per credential account/Cycle |
+| Legal name | First/last required and middle/suffix optional using the shared name primitives; the submitted snapshot is immutable outside a scoped correction |
+| Birth date | Required valid date not in the future; age is derived at submission time. If under 18, guardian name, 1–60-character relationship, and valid telephone become required |
+| Citizenship | Required controlled country value; display label 1–100 characters |
+| Email and mobile | Verified credential email is read-only; mobile uses the shared telephone primitive |
+| Current locality | City/municipality and province each required plain-text labels of 1–120 characters; no complete street/barangay address is collected |
+| Prior school | Official school name 1–160 characters and required controlled country value |
+| Credential basis | Must be one value published for the selected path/requirement-set version |
+| Completion/graduation year | Required four-digit year no later than the current Asia/Manila calendar year |
+| LRN | Optional shared 12-digit primitive; duplicate verified identity blocks decision, not initial submission |
+| Prior-college identifier | Transferee-only when available; trimmed 1–64 characters using the shared code primitive |
+| Declarations | Both current privacy-notice acknowledgement and accuracy declaration must be affirmatively accepted at submission; a changed notice version requires acknowledgement before a later submission |
+| Evidence | Current published requirement/version; exactly one allowed private file per evidence version; required evidence must finish validation before submission |
+
+Fields not listed in Section 10 are not collected speculatively. A cross-field or source failure links to the owning Wizard step, preserves safe input, records no submitted snapshot, and names the Registrar or source-owned recovery.
+
 Civil status, sex, birthplace, complete street or barangay address, emergency contact, religion, ethnicity, disability, household income, parental occupation, and complete Student-reporting demographics are not collected during admission. Clinic 4 may collect verified official-Student data only when an applicable authority proves the need.
 
 ## 11. Conceptual Domain Contracts
 
-No public HTTP API is introduced. These are conceptual boundaries, not approved physical table names:
+No public HTTP API is introduced. These are logical responsibilities, not approved physical table names:
 
-- `AdmissionCycle`
-- `AdmissionRequirementSet`
-- `AdmissionRequirement`
-- `ApplicantProfile`
-- `AdmissionApplication`
-- `ApplicationCorrectionRequest`
-- `ApplicantRequirementResult`
-- `PreliminaryEvidenceVersion`
-- `OfficialCredentialResult`
-- `AdmissionDecision`
-- `IdentityMatchReview`
-- Derived `EnrollmentReadiness`
-- Shared Clinic 4 `ReadyApplicantProjection`
+| Name | Purpose | Authority owner | Classification | Required consumers | Distinction or consolidation decision |
+|---|---|---|---|---|---|
+| AdmissionCycle | Own dates, paths, publication, requirements, and current availability | Registrar | Persisted authoritative record with immutable publication/date-change events | Public Gateway, Applicant, Registrar, PRD 04 | Remains the one entry and deadline authority for its cycle |
+| AdmissionRequirementSet and AdmissionRequirement | Version the exact requirements for a cycle/path | Registrar | Immutable version plus owned entries | Application, credential review, readiness | Entries belong to the version and need not be separate top-level resources |
+| AdmissionApplication | Own one account-and-cycle application, identity/contact/prior-school facts, declarations, and snapshots | Applicant submits; Registrar reviews | Persisted authoritative record plus immutable submitted versions | Applicant, Registrar, PRD 04 readiness | `ApplicantProfile` is a documentation grouping inside Account continuity and Application facts, not a required master record |
+| PreliminaryEvidenceVersion | Preserve each private submission/replacement | Applicant submits; Registrar reviews | Immutable version or event | Requirement review and access audit | Remains distinct from the external official-credential outcome |
+| ApplicationCorrectionRequest | Reopen named fields/evidence with one instruction and deadline | Registrar | Immutable version or event | Applicant and Registrar | Exactly one active request; later resubmission closes it without deletion |
+| AdmissionDecision | Record admitted/not-admitted result and any authorized successor | Registrar | Immutable version or event | Applicant and `ReadyApplicantProjection` | Never edited in place |
+| OfficialCredentialResult | Record the verified external credential outcome | Registrar records the external result | External reference/result with immutable history | Applicant, Registrar, readiness | `ApplicantRequirementResult` is the derived current requirement status, not another authoritative record |
+| IdentityMatchReview | Resolve a possible identity conflict without disclosure | Registrar | Persisted authoritative record with restricted visibility | Account/Application uniqueness checks | Separate because it protects identity integrity and privacy |
+| ReadyApplicantProjection | Publish the single Clinic 2→4 readiness handoff | PRD 02 | Derived projection/calculation | PRD 04 | Replaces the duplicate `EnrollmentReadiness` name; no copied handover record |
 
 `ReadyApplicantProjection` carries the same application reference, applicant identity, admitted program, path, current decision, verified identifiers, requirement version, credential results, readiness date, and unresolved post-enrollment follow-ups. It creates no copied admissions or person record.
 
@@ -456,7 +472,7 @@ On mobile, tables collapse secondary columns into labelled row detail, the Wizar
 | Trigger | Recipient | Safe contents | Source / idempotency key | Failure behavior | Excluded notifications |
 |---|---|---|---|---|---|
 | First submission or accepted resubmission | Applicant | Application reference, received time, next-step link | Submitted snapshot/version | Submission remains authoritative; authorized resend available | No draft-save or routine upload mail |
-| Consolidated Action Needed request | Applicant | Affected item labels, safe instruction, deadline when applicable, secure link | Correction-request reference | Request remains active in workspace; delivery outcome recorded | No message for each field/status update |
+| Consolidated Action Needed request | Applicant | Affected item labels, safe instruction, required correction due date/time, secure link | Correction-request reference | Request remains active and can become overdue in workspace; delivery outcome recorded | No message for each field/status update |
 | `Admitted` | Applicant | Safe result and official-credential instructions | Admission-decision reference | Decision remains effective; authorized resend available | No private reviewer notes or evidence |
 | `NotAdmitted` | Applicant | Safe result, official support path, secure history link | Admission-decision reference | Decision remains effective; authorized resend available | No sensitive rationale beyond approved applicant explanation |
 | `ReadyForEnrollment` first becomes true | Applicant | Readiness result, secure **Start enrollment** link, no promise of official enrollment | Application plus readiness derivation generation | Projection remains authoritative; Clinic 4 visibility is unaffected | No separate copied-handover message |
@@ -465,51 +481,11 @@ On mobile, tables collapse secondary columns into labelled row detail, the Wizar
 No email is sent for draft saves, routine file receipt or verification, page activity, every status-field update, or recurring reminders.
 
 Mail failure never rolls back submission, decision, credential verification, withdrawal, or readiness. TALA records delivery outcome, keeps the workspace authoritative, and provides an authorized resend path. Email contains the safe result and a link to TALA; private evidence and sensitive review detail remain in the authorized workspace.
+## 15. Lifecycle, Mutation, and Technical Boundaries
 
-## 15. Salvage Reconciliation
+Draft applications and unreferenced Draft Admission Cycles may be discarded only under the rules in Sections 5 and 7. Submitted applications, evidence versions, decisions, credential results, withdrawals, and readiness history are never deleted; correction, reopening, cancellation, extension, or supersession preserves the same reference chain.
 
-### Retain when conformance passes
-
-- Applicant authentication and panel separation from Clinic 1.
-- Draft-saving foundation.
-- Private file storage, MIME and size validation, checksum, replacement history, and authorized download.
-- Registrar policies and gates.
-- Native Filament pages, tables, infolists, filters, actions, and responsive foundations.
-- Activity and audit logging.
-- Queued email and operational delivery evidence.
-- Exact-match candidate-warning concept.
-
-### Simplify
-
-- Applicant intake to the approved minimum field set and lean state vocabulary.
-- Applicant Home and Requirements to the approved information hierarchy.
-- Admissions queue to one owner, next-action, and two-readiness projection.
-- Evidence review into separate preliminary and official results.
-- Admission Cycle readiness to a bounded failed-first checklist.
-
-### Replace
-
-- Generic admissions calendar windows with `AdmissionCycle`.
-- Generic admission-policy rows with immutable Registrar-owned requirement sets.
-- **Hand Over to Student** with the shared automatic Clinic 4 projection.
-- Applicant workflow state on the credential account with application-owned state.
-- Post-created Student duplicate repair with pre-decision identity-match review.
-
-### Remove after dependency migration
-
-- Returning or readmission as an application category.
-- Applicant modality or preferred-time fields.
-- **Mark for Evaluation** and **Approved for Handover** terminology.
-- Six downstream blocking levels.
-- Duplicate checklist status and verification-state combinations.
-- Arbitrary waiver or undertaking behavior.
-- Student-profile creation, student-number generation, role activation, and enrollment start inside Clinic 2.
-- Required civil status and universal guardian or full-address collection.
-- Admission-requirement Settings surface.
-- Universal admission quotas or payment-secured admission slots.
-
-Current columns, actions, and records remain quarantined until every consumer is mapped during later implementation reconciliation. Nothing is dropped during this planning clinic.
-
+This PRD defines product records and behavior, not physical tables, routes, classes, migrations, or task order. A later journey-complete slice must reconcile current Applicant pages, private storage, queues, policies, email, matching, schema, and tests against this authority without restoring a generic admissions policy engine, copied handoff, or early Student creation.
 ## 16. Acceptance Contract
 
 The later implementation must prove:
@@ -541,6 +517,8 @@ Realistic demonstration data must cover at least one adult first-year applicatio
 
 ### 16.1 Synthetic Demonstration Data
 
+Applicant data is a bounded journey set linked to the coordinated BM, IT, and THM Programs; it is not an annual-volume forecast. Ready applicants hand off to the same six-cohort/47-Student institutional scenario without fabricating a Student before Clinic 4 finalization.
+
 All identities use `example.test`; dates, references, credentials, and authorities are synthetic and stable.
 
 | Reference | Applicant/case | Starting condition | Demonstrated path |
@@ -568,16 +546,27 @@ All identities use `example.test`; dates, references, credentials, and authoriti
 | `APP-2026-0001` and Registrar | Applicant Home / Clinic 4 queue | Satisfy final due credential | `ReadyForEnrollment`, secure next action, no enrollment promise | Same application appears automatically in Clinic 4 | Readiness email and printable history | Reversed authoritative credential removes readiness and flags consumers | No handover button or copied admissions record exists |
 | `CYCLE-2026-A` owner | Admission Cycle setup | Fail readiness, correct sources, publish, extend, close/cancel | Failed-first source/owner/recovery details and immutable authority history | Public entry changes; existing review continues | Cycle publication evidence | Storage unavailable blocks publication | Only complete, authorized cycles publish |
 
-## Future Implementation Gate — Not a Task Plan
+### 16.3 Authority-hardening control matrix
 
-This PRD owns Clinic 2 product behavior, UI, acceptance, exclusions, and salvage classification only. Its conceptual contracts are not table names, migrations, or implementation increments.
+| Action or record | Authorization and validation | Confirmation/audit | Limits, deadlines, deletion, and correction |
+|---|---|---|---|
+| Admission Cycle Draft/publish/extend/close/cancel | Registrar; unique scoped code, valid Term/programs/paths/requirement versions, opening before closing, support/privacy/storage readiness | **Publish**, **Extend**, **Close**, or **Cancel admission cycle** shows dates, affected paths/applicants, public-entry result, reversibility, and reason/authority | Draft hard-delete only before publication and before any Application reference. Published cycles are never deleted; changes append authority. Closing stops new/first submissions but not authorized review/correction |
+| Start/save/discard Application | Applicant or authorized assisted entry; exactly one Application per credential account and Cycle; identity/contact/education/program/path fields use baseline primitives and cross-field date/program checks | Draft save needs no confirmation; **Discard draft** states that the unsubmitted record and temporary evidence are removed | Only unsubmitted Draft may be discarded. Submitted Application, snapshots, and reviewed evidence are never deleted |
+| Submit/withdraw/reopen | Applicant submits/withdraws own record; Registrar records offline withdrawal/reopening under authority | **Submit application** shows declarations, immutable snapshot, requirements, and Registrar review; **Withdraw/Reopen application** shows readiness effect and preserved history | Stale/invalid submit posts nothing and preserves safe input. Withdrawal before Clinic 4 registration; reopening uses same reference. No arbitrary submission/reopen count while the governing state/window permits |
+| Correction request/resubmission | Registrar names exact fields/evidence, responsible party, consolidated instruction, and due date within the Cycle's authorized correction boundary; Applicant edits only that scope | **Request correction** shows reopened items, due date, Applicant message/email, and no decision effect | Exactly one active correction request. Missing its deadline marks overdue/action-needed, never rejected/withdrawn. No numeric correction/evidence-replacement cap while authorized state remains open; each resubmission preserves versions |
+| Evidence version | Applicant/Registrar within the relevant requirement and state | File uses the common private-evidence primitive; multipage evidence is one PDF; requirement/source/version must match | Replacement creates a new version. Unsubmitted temporary evidence may be removed with Draft discard; submitted/reviewed evidence never deletes |
+| Identity warning resolution | Registrar with bounded identity-review authority | LRN is optional 12 digits; verified duplicate against another credential blocks decision; exact normalized name+birth date is a private warning only | **Resolve identity warning** never exposes the other record to Applicant. No merge is automatic; stale evidence changes nothing |
+| Admissions decision/supersession | Registrar; current submitted review, resolved identity warning, valid program/path, recorded reason/authority | **Record admission decision** shows Applicant result, credential/readiness effects, email, and no Student creation. **Supersede decision** shows both versions | One current decision; correction always appends an authorized successor. Earlier decisions and messages remain immutable; no appeal engine |
+| Official credential outcome | Registrar; current requirement/version, physical/external source, result, and safe explanation | Consequential verify/reverse action names readiness effect | Late/unavailable outcome remains Registrar-owned. Preliminary evidence never becomes official automatically; reversal refreshes the same `ReadyApplicantProjection` |
 
-Clinic 2 is approved and the complete authority set has passed the final cross-module review. A journey-complete implementation task may now be derived only through a separately approved plan; no schema migration, application change, tracker mutation, commit, or synchronization is authorized by this PRD.
+The Application data contract requires requiredness, format, range, uniqueness, immutability, and cross-record validation for legal identity, birth date, contact, prior school, program/path, LRN when present, declarations, and evidence. Duplicate, stale, concurrent, inaccessible, and partial failures create no admissions mutation. `ReadyForEnrollment` remains derived and idempotent; it cannot create a Student, placement, assessment, or copied handoff record.
+## 17. Technical, Operational, and External Assumptions
 
-## Assumptions
-
+- Applicant demand is represented by bounded acceptance cases because supplied evidence establishes no annual forecast.
+- Institution-specific requirements, Cycle dates, decision authority, official-credential verification, and exceptional cases are operational inputs recorded by Registrar; no additional hidden workflow is inferred.
+- No PRD 02 product decision remains unresolved. Automatic retention disposal is outside the MVP under the product-wide boundary.
 - TALA is designed for a normally recognized and authorized Philippine college.
 - Registrar is the accountable admissions-decision owner.
 - First-year and transferee paths are sufficient for the capstone baseline.
-- No approved institutional admissions handbook has been supplied.
+- The supplied TESDA handbook is contextual evidence only and does not establish Servitech college-admissions policy; exact admission requirements and dates remain Registrar-recorded operational inputs.
 - The written browser walkthrough is complete authority. Live browser execution and screenshots remain later implementation-acceptance evidence and were not performed during documentation closure.
