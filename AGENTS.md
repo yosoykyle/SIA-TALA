@@ -446,41 +446,25 @@ livewire(ListUsers::class)
 
 <TALA-Orchestrator-Protocol>
 
-## TALA Orchestration — Router
+## TALA Workflow Router
 
-Always-loaded router for TALA MVP orchestration. It carries only the intake chain, the non-negotiable safety rails, and the command vocabulary. Every detailed rule — gates, planning sequence, delegation, verification, product-rule ownership — lives once in the master protocol, `00_Project_Documents/TALA-Orchestrator-Protocol.md`, which must be read before planning, delegating, or implementing. Core authority, database, preservation, verification, and external-mutation rails apply to all TALA work; the full orchestrated-slice lifecycle applies only after an activation prompt or while continuing an active approved contract. This block supplements the Laravel Boost guidelines above and never overrides them.
+Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md` only for complex, ambiguous, high-risk, long-running, split, delegated, resumed, Commit, or Sync work. Clear direct work uses this router plus the minimum relevant authority and implementation files.
 
-### Intake chain and owners
+### Default behavior
 
-For an orchestrated slice, read in order: this router -> master protocol -> `TALA-Rescue-Next-Steps.md` (issue order and active approved contract) -> `TALA-Local-Linear-Sync-Tracker.md` (sync state) -> relevant `prd_modules/` -> `ui_surface_blueprint.md` -> `architecture_specification.md` -> `business-evidence/` (clarification only) -> code and tests (salvage evidence). For clear direct work, read the router and master protocol, then only the relevant authority and implementation surfaces; read Next Steps or the tracker only when order, an active contract, status, Cleanup, or Linear sync matters.
+- Review, diagnosis, and planning are read-only unless the user also requests a change.
+- A clear request to implement, fix, change, build, or proceed authorizes bounded local edits, proportionate verification in the project's configured environment, and automatic remediation of in-scope failures.
+- Preserve aligned code and unrelated work. Patch proven gaps; do not broad-restart.
+- PRDs own product behavior, the UI blueprint owns surfaces and roles, architecture owns integration boundaries, Next Steps owns issue order and any active contract, and the tracker owns sync state. Code and tests are evidence, not product authority.
+- Stop only for a material authority or product decision, destructive action, dependency, credential, cost, deployment, external write, material scope expansion, or unauthorized delegation.
+- Never infer permission to commit, push, open a pull request, deploy, or mutate Linear. Testing configuration belongs to the project, not this workflow.
 
-Owners: Boost and official docs own framework use; PRD owns product behavior; blueprint owns UI mapping; architecture owns integration boundaries; this protocol owns workflow; Next Steps owns order and the active approved contract; tracker owns sync state. On any unresolved conflict, stop and reconcile in the primary thread before acting.
+### Workflow boundaries
 
-### Non-negotiables
+- `Plan TAL-XX` — read-only planning for work that needs a plan.
+- `Deliver TAL-XX` — inspect, implement, verify, remediate in scope, and report; no commit or external effect.
+- `Commit TAL-XX` — after current verification, update only required Git-tracked task state and create one bounded local commit.
+- `Sync TAL-XX to Linear` — perform only the named Linear mutation.
 
-- Plan first for `Plan TAL-XX`, complex or ambiguous work, delegation, high-risk changes, or any unresolved material choice. Outside Plan mode, a clear request to implement, fix, change, proceed, or update authorizes bounded local work without a second approval; it does not authorize a commit or external effect unless explicitly included.
-- When the Codex runtime is in Plan mode or `/plan` is invoked, treat it as `Plan TAL-XX` for an identifiable target and remain read-only. An accepted final plan bridges to `Primary proceed` only after an explicit **Implement** or execution request and after the runtime leaves Plan mode; leaving or toggling modes alone is not authorization. The first execution turn runs the resume delta, records a durable contract when required, then implements and verifies. Cleanup, delegation, commits, and external effects retain their separate gates.
-- After approval, record an active slice contract in `TALA-Rescue-Next-Steps.md` only for a long-running, delegated, high-risk, or split orchestrated slice, on the first authorized execution turn after Plan mode or immediately in a non-Plan workflow. Keep only one active contract and compact it during Cleanup; small direct work does not create temporary governance-file churn.
-- Run the full Ground-Truth Gate when a new orchestrated slice lacks attributable evidence or relevant premises were invalidated. Otherwise use the proportionate delta gate, including after compaction or interruption. Reuse attributable evidence while valid. Stop only when a difference changes authority, scope, risk, acceptance, permission, or feasibility; record non-material deltas and continue.
-- Commit only after explicit authorization through `Cleanup TAL-XX` or an unambiguous equivalent request, and only as one bounded local commit. Never push, deploy, open a PR, or mutate Linear without explicit authorization. Linear mutation must explicitly name Linear, the issue, and the requested action; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone do not authorize it.
-- Target `test_tala_db` for DB-backed checks (`APP_ENV=testing`, `DB_CONNECTION=mysql`); never `tala_db` or `tala_test_codex`.
-- Passing tests are not acceptance; the primary independently verifies in proportion to risk before Cleanup. Verification does not repeat unchanged successful checks unless their evidence was invalidated.
-- Preserve aligned code and unrelated worktree changes; patch proven gaps; never broad-restart.
-- Mandatory tools and domain skills proven for an uninterrupted slice may be reused; recheck them after failure, domain expansion, evidence of disconnection or version drift, or a resume delta that invalidates the prior proof. Compaction or interruption alone does not invalidate a proven tool.
-- When relevant memory is enabled and could materially affect primary activation, resume, or Cleanup, inspect only the relevant entries after Git authorities and treat them as recall, not authority. Memory is read-only by default; mutate, rename, or delete it only on the user's explicit authorization through a supported interface. Never persist volatile task state.
-
-### Commands
-
-Activation triggers: `Act as the TALA primary orchestrator`, `Resume TALA orchestration`, `Plan the next TALA task`. Codex Plan mode or `/plan` activates the plan-only phase when the target is identifiable.
-
-These commands are canonical shorthands, not magic strings. An explicit natural-language equivalent counts when its target, action, scope, and external effect are unambiguous.
-
-- `Plan TAL-XX` — draft a plan only.
-- `Primary proceed` — execute the accepted current slice.
-- `Orchestrate TAL-XX` — dispatch one accountable worker on the accepted plan.
-- `Verify TAL-XX` — independently inspect the result and the live repo.
-- `Cleanup TAL-XX` — update the tracker and make one bounded local commit whose message records the delivered detail.
-- `Sync TAL-XX to Linear` — authorize the named Linear mutation; an equivalent request must explicitly name Linear, the issue, and the requested mutation.
-
-The user may explicitly authorize `Primary proceed`, automatic in-scope remediation, `Verify`, and `Cleanup` as one compound lifecycle for one approved slice. This preserves every internal phase and human gate and never authorizes another slice, destructive database work, credentials, external cost or mutation, deployment, dependency or material scope expansion, subagent use, push, PR, or Linear sync.
+Natural-language equivalents count when target, scope, and external effect are unambiguous. Use one active contract in Next Steps only for long-running, delegated, high-risk, split, or cross-session work; small direct work creates no tracker or contract churn. Memory is recall, never live task authority.
 </TALA-Orchestrator-Protocol>
