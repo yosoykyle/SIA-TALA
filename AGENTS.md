@@ -448,23 +448,22 @@ livewire(ListUsers::class)
 
 ## TALA Workflow Router
 
-Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md` only for complex, ambiguous, high-risk, long-running, split, delegated, resumed, Commit, or Sync work. Clear direct work uses this router plus the minimum relevant authority and implementation files.
+Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md` for tracked GitHub Issues and for complex, ambiguous, high-risk, long-running, split, delegated, resumed, completion, or publication work. Clear direct work uses this router plus the minimum relevant authority and implementation files.
 
 ### Default behavior
 
 - Review, diagnosis, and planning are read-only unless the user also requests a change.
 - A clear request to implement, fix, change, build, or proceed authorizes bounded local edits, proportionate verification in the project's configured environment, and automatic remediation of in-scope failures.
 - Preserve aligned code and unrelated work. Patch proven gaps; do not broad-restart.
-- PRDs own product behavior, the UI blueprint owns surfaces and roles, architecture owns integration boundaries, Next Steps owns issue order and any active contract, and the tracker owns sync state. Code and tests are evidence, not product authority.
+- PRDs own product behavior, the UI blueprint owns surfaces and roles, and architecture owns integration boundaries. A GitHub Issue owns its tracked task scope and live status but never overrides product authority; the linked GitHub Project is only a view of issues. Code, tests, commits, and PRs are evidence.
 - Stop only for a material authority or product decision, destructive action, dependency, credential, cost, deployment, external write, material scope expansion, or unauthorized delegation.
-- Never infer permission to commit, push, open a pull request, deploy, or mutate Linear. Testing configuration belongs to the project, not this workflow.
+- Never infer permission to commit, publish, deploy, or mutate an external system outside the explicit workflow boundary. Testing configuration belongs to the project, not this workflow.
 
 ### Workflow boundaries
 
-- `Plan TAL-XX` — read-only planning for work that needs a plan.
-- `Deliver TAL-XX` — inspect, implement, verify, remediate in scope, and report; no commit or external effect.
-- `Commit TAL-XX` — after current verification, update only required Git-tracked task state and create one bounded local commit.
-- `Sync TAL-XX to Linear` — perform only the named Linear mutation.
+- `Plan #NN` — read the named GitHub Issue and produce a plan; no edits or external writes.
+- `Complete #NN` — mark the issue In Progress, implement, research when needed, verify, clean up, and create one bounded local commit; do not publish or close the issue.
+- `Publish #NN` — after fresh verification, push directly for approved solo work or open a branch PR containing `Closes #NN`; close the issue only when the code is on GitHub or the PR merges.
 
-Natural-language equivalents count when target, scope, and external effect are unambiguous. Use one active contract in Next Steps only for long-running, delegated, high-risk, split, or cross-session work; small direct work creates no tracker or contract churn. Memory is recall, never live task authority.
+Natural-language equivalents count when target, scope, and external effect are unambiguous. Clear work without an issue number remains valid and skips GitHub task mutations. Frozen Linear and local tracker files are history only. Cleanup never updates memory unless the user explicitly requests it.
 </TALA-Orchestrator-Protocol>

@@ -1,34 +1,18 @@
-# TALA Local Linear Sync Tracker
+# TALA Linear History Tracker
 
-## Purpose
+## Frozen Historical Record
 
-This is the local staging area for completed tasks awaiting explicit, user-authorized Linear sync, locally superseded or canceled planning items awaiting mapping reconciliation, and a compact reference for tasks already synced. Planning stays in `TALA-Rescue-Next-Steps.md`; this tracker owns local task-key history and local-to-Linear sync state only. The protocol owns the acceptance and sync rules.
+This file was frozen on 2026-08-09 when TALA approved the transition from Linear and local `TAL-*` task keys to GitHub Issues. It is historical evidence only: it no longer owns task order, live status, synchronization, or future numbering.
 
-- Add accepted work to Active Syncs only after its bounded local commit exists. Keep only the Local Task Key, `Done locally; pending explicit Linear sync`, and concise title/domain; the commit carries delivery detail and evidence.
-- Never touch Linear from this file. Create, update, comment on, or sync a Linear issue only when the user explicitly says `Sync TAL-XX to Linear`; `finish`, `close`, `cleanup`, `commit`, or `proceed` alone leave the row pending.
-- After an explicit sync, move the row to Compact Synced History with its Local Task Key, Linear-generated Issue ID, Linear status, and title.
-- Local Task Keys and Linear Issue IDs are separate namespaces. Never infer a mapping from matching numerals; local TAL-97 through TAL-101 collide with existing unrelated Linear Issue IDs in Compact Synced History.
-- The reconciled historical local base family ends at `TAL-96`. The next new local base task is `TAL-97`; later base tasks continue sequentially and sub-slices extend their owning local key. Linear numbering never determines this sequence.
-- Archived future proposals do not reserve Local Task Keys and do not belong in the live sync queues. For a real superseded or canceled local task, verify any existing mapping first; if none exists, create the Linear issue with the preserved Local Task Key and set the Linear status to `Canceled`.
-
-## Synchronization Order
-
-1. Reconcile real Pending Disposition Syncs in controlled user-authorized batches. Verify exact existing mappings first; create only missing issues with the preserved Local Task Key and Linear status `Canceled`.
-2. Process Active Syncs as completed local deliveries. Verify exact existing mappings first; create only missing issues with the preserved Local Task Key and Linear status `Done`.
-3. After each authorized batch, refresh the live Linear workspace and move only successfully reconciled rows to Compact Synced History with the Linear-generated Issue ID.
-4. When both queues are clear, retain the compact mappings and continue local planning at base task `TAL-97`. Never reserve or predict a future Linear Issue ID.
-
-## Active Syncs
-
-No active syncs.
-
-## Pending Disposition Syncs
-
-No pending disposition syncs. The real superseded `TAL-96` planning parents are recorded as `Canceled` in Compact Synced History. Archived future proposals do not reserve Local Task Keys or create Linear issues.
+- Linear issues `TAL-5` through `TAL-236` remain historical records.
+- The private raw Linear CSV contains the complete exported issue fields and must remain outside the public repository.
+- The table below preserves the historical local-task-to-Linear mapping.
+- New tracked work uses GitHub Issue numbers. Local `TAL-*` numbering does not continue.
+- Git commits remain the authoritative implementation and verification evidence for completed deliveries.
 
 ## Compact Synced History
 
-*Search the Linear Issue ID on the Linear website for full details, descriptions, and evidence.*
+*The Linear workspace and private CSV retain the full issue descriptions. This compact table remains searchable historical context.*
 
 | Local Task Key | Linear Issue ID | Status (Linear) | Title / Domain |
 | --- | --- | --- | --- |
