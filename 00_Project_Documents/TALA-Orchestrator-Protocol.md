@@ -80,7 +80,7 @@ Do not manufacture a gate for reading files, inspecting logs, editing in-scope l
 
 GitHub Issues are the only live shared task records. Keep issue bodies concise: goal, bounded scope, acceptance criteria, and material exclusions. Use issue comments only for durable decisions or evidence that collaborators need; do not duplicate full logs or transcripts.
 
-The `TALA Development` GitHub Project uses only `Todo`, `In Progress`, and `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
 On resume, compare the live Git state, the issue, and relevant Git authority. Refresh only premises that may have changed and re-plan only when authority, scope, risk, acceptance, permission, or feasibility changed.
 
