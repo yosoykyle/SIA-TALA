@@ -15,12 +15,16 @@ TALA is the college information-system project for Servitech Institute Asia. Pro
 ```powershell
 git clone <repository_url>
 Set-Location SIA-TALA
-composer setup
+Copy-Item .env.example .env
 ```
 
-`composer setup` installs PHP and Node dependencies, creates `.env` when needed, generates the application key, runs migrations, and builds frontend assets.
+Create separate development and automated-test databases before running setup:
 
-Configure the development database in `.env` before running the application:
+```powershell
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS tala_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS test_tala_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+Configure only the development database in `.env`:
 
 ```env
 DB_CONNECTION=mysql
@@ -29,6 +33,12 @@ DB_PORT=3306
 DB_DATABASE=tala_db
 DB_USERNAME=root
 DB_PASSWORD=your_mysql_password
+```
+
+Then install dependencies, generate the application key, migrate `tala_db`, and build the frontend assets:
+
+```powershell
+composer setup
 ```
 
 Start the local development processes with:
@@ -41,10 +51,14 @@ The command starts Laravel, the queue worker, Vite, and Laravel Pail according t
 
 ## Developer verification
 
-Use the protected testing configuration described by `AGENTS.md` and the TALA Orchestrator Protocol. DB-backed tests must target `test_tala_db`, never the development database.
+`phpunit.xml` forces automated tests to use `APP_ENV=testing`, MySQL, and `test_tala_db`. Keep that database disposable and never place development, demonstration, or institutional records in it. Do not point the normal local `.env` at `test_tala_db`.
 
 ```powershell
 php artisan test --compact
 ```
+
+## Optional development tools
+
+The application requires only the prerequisites and setup above. MCP servers, Laravel Boost tools, Codex, Claude, Gemini, and other AI-development integrations are optional developer aids and are not required to install, run, or test TALA. If an AI agent is used, it must read [`AGENTS.md`](AGENTS.md) and follow the tracked project guidance. Keep machine-specific MCP configuration, credentials, and secrets in ignored local files such as `.mcp.json` and `.env`.
 
 Historical fixture-building, provider rehearsal, demonstration, and acceptance instructions are preserved as non-authoritative evidence under `00_Project_Documents/archive/` and must not be used as current product or execution authority.
