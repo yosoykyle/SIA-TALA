@@ -6,6 +6,8 @@ The repository-wide [Documentation Authority Registry](../README.md) identifies 
 
 The [TALA System Definition Baseline](./00_system_definition_baseline.md) owns the product goal, evidence hierarchy, shared terminology, operating rules, policy classes, coordinated acceptance institution, and cross-module ownership. Each journey PRD defines **what its module must do**. Replaced modules are preserved under [`_legacy/`](./_legacy/) as supporting evidence, not product rules.
 
+TALA is Servitech-first but not limited to the approved Servitech evidence that is currently available. Unavailable or confidentiality-restricted local evidence is never inferred or disclosed, and it cannot cap necessary SIS coverage. Gaps follow the baseline's ordered authority model: applicable Philippine authority, approved Servitech evidence, qualified Philippine institutional comparison, mature-SIS pattern, lean safe TALA default, then a complete policy gate when no safe default exists. Another institution's thresholds, sanctions, deadlines, fees, grade vocabulary, or workflow scale never become Servitech policy automatically.
+
 The [UI Surface Blueprint](../ui_surface_blueprint.md) is the complete authority for user-visible capabilities, navigation, states, responsiveness, accessibility, and UI acceptance. Its coverage inventory does not prescribe a fixed number of Laravel pages, routes, Livewire components, Filament Resources, or design-tool frames. The next separate gate is planning the first journey-complete vertical implementation slice under the [TALA Orchestrator Protocol](../TALA-Orchestrator-Protocol.md). This status does not authorize application, schema, test, tracker, Git, or external changes.
 
 ## Canonical Authority and Preserved Inputs
@@ -27,6 +29,7 @@ The former Product Intent, Term Offerings, CP-SAT, COR, Student Lifecycle, Stude
 - **Client and product review:** scope, workflows, roles, business rules, outputs, integrations, and product boundaries.
 - **Agent and development context:** domain intent, cross-module dependencies, constraints, and terminology needed to prepare feature PRDs and implementation issues.
 - **Implementation authority:** the approved baseline and six journey PRDs, the canonical UI authority, the Architecture Specification, and a separately accepted journey-complete vertical-slice plan.
+- **Evidence-scarcity rule:** missing local evidence may narrow what TALA can claim as Servitech-specific, but it cannot remove a necessary capability or leave `Unavailable` without an owner, usable remainder, recovery, and reopening condition.
 - **Change rule:** a development decision must not silently alter a client-facing requirement. Product changes must first be reflected in the relevant module.
 
 Working audits and reconciliation notes may remain in [`_working/`](./_working/) when present; each must state its own authority status. The system-definition baseline no longer lives there because canonical consolidation is complete.

@@ -766,7 +766,7 @@ Filters use the native Filament filter panel with active indicators: program, cu
 
 ### Term Planning workbench
 
-The selected-term header always shows term identity, state, current readiness, governing authority, current published version, and exactly one state-appropriate primary action. Context is selected before actions; no global action silently operates on an implicit term.
+The selected-term header always shows term identity, state, current readiness, governing authority, current published version, and exactly one state-appropriate primary action. Context is selected before actions; no global action silently operates on an implicit term. The selector may show multiple concurrently active First, Second, or Special Terms and labels each by academic year, term type/display label, and state. Changing context never carries a Draft edit, filter with a different meaning, selected record, or pending action into another Term.
 
 #### Overview
 
@@ -884,7 +884,7 @@ Curricula order by curriculum year, term placement, course code, then stable rev
 | Page/tab | Empty / filtered empty | Loading | Stale / failed action | Inaccessible / unavailable |
 |---|---|---|---|---|
 | Catalog & Curricula | No program/curriculum provides source-owner guidance; no filter matches offers **Clear filters** | Group/sheet structure and import progress are labelled | Stale Draft/import/activation refreshes source; active versions stay read-only | Unauthorized edit actions are absent and server-rejected |
-| Overview | Missing calendar facts render failed readiness, never an empty success | Checks retain source/owner placeholders | Stale package/date action refreshes and requires reconfirmation; exam dates are never inferred | Inactive/missing term prevents downstream actions with source link; unavailable Examination Period names Registrar/Faculty recovery |
+| Overview | Missing calendar facts render failed readiness, never an empty success | Checks retain source/owner placeholders | Stale package/date action refreshes and requires reconfirmation; exam dates are never inferred | Inactive/missing exact Term prevents only that Term's downstream actions with source link; other active Terms remain usable; unavailable Examination Period names Registrar/Faculty recovery |
 | Cohorts & Classes | No demand and no filter match are distinct; absence of classes is a blocker when curriculum demand exists | Forecast/source state is labelled | Source change refreshes Draft rows; published-impact action requires review | Other-role and implicit-term actions are inaccessible |
 | Teaching Resources / My Availability | No declaration/resource shows responsible owner and due action | Declaration and blocker rows keep labels | Late/stale declaration records a new correction; failure preserves last authority | Faculty sees only own declaration/schedule; System Administrator cannot change academic facts |
 | Generate & Review | No run explains readiness/start action; no candidate is distinct from an empty meeting set | One active run shows safe progress without fake completion | Stale source invalidates generation/publication action and links to source | Infeasible, Unknown, ModelInvalid, and TechnicalFailure each show distinct meaning/owner/recovery; no candidate can publish |
@@ -902,6 +902,8 @@ The Term Planning wireframe is the explicitly shared shell for Overview, Cohorts
 - Applicant, Accounting, and Public receive no Clinic 3 master-timetable access.
 
 On mobile, grouped curriculum and resource rows stack with labels, the weekly view becomes a day-by-day list, filters remain in the native panel, and secondary actions stay in Action Groups. Result status includes text and screen-reader meaning and never depends on color. Empty, loading, inaccessible, stale-source, technical-failure, and no-candidate states all name what happened and the safe next action.
+
+Concurrent-Term acceptance switches between an active prior/Special Term and the next active Term on desktop and mobile, announces the selected Term to screen readers, preserves an unambiguous heading and breadcrumb, and proves that each timetable, window, deadline, failure, print view, and action remains bound to the selected exact Term.
 
 ### Native component and communication decision
 
@@ -934,7 +936,7 @@ The page is a vertically ordered decision surface, not a Wizard or card dashboar
 2. Five-checkpoint summary: eligibility, confirmed proposal, valid placement, Accounting clearance/coverage, and Registrar finalization. Successful checks collapse; failures lead with reason, owner, and recovery.
 3. Proposed or official subjects and schedule.
 4. **Why these subjects** and a contextual link to the full curriculum evaluation.
-5. Academic blockers, unavailable requirements, shortage state, and bounded completion outlook.
+5. Academic blockers, unavailable requirements, any exact pending-prerequisite permission or result-impact review, shortage state, and bounded completion outlook. An exception shows the prerequisite source, dependent course, authority owner, expiry, and **This permission is not a grade or completed prerequisite**.
 6. Placement and reservation evidence, including the shared institutional expiry deadline.
 7. Amount required now, verified payment applied, Approved Coverage applied, remaining amount required now, satisfaction basis, clearance state, and **Finance** link.
 8. Current/historical COR, registration/change history, and any Registrar-owned post-enrollment credential follow-up reference. The follow-up is not shown as an enrollment checkpoint failure.
@@ -958,7 +960,7 @@ Enrollment — First Semester AY 2026–2027
 
 The selected-term header shows term and applicable windows, authoritative deadlines, current readiness, official-enrollment count, shortage count, and one state-appropriate primary action.
 
-Tabs are **Ready to prepare**, **Waiting for learner**, **Placement and shortages**, **Finance pending**, **Ready to finalize**, **Adjustments and Drops**, and **Official and history**. Counts are operational orientation, not a chart dashboard.
+Tabs are **Ready to prepare**, **Waiting for learner**, **Placement and shortages**, **Finance pending**, **Ready to finalize**, **Adjustments and Drops**, and **Official and history**. A result impact before finalization returns the exact case to **Ready to prepare**; after finalization it appears in **Adjustments and Drops** with the released source, affected course, owner, window/late-authority state, and next action. Counts are operational orientation, not a chart dashboard.
 
 The native table searches legal name, verified email, application reference, and student number. Native filter-panel controls cover term/program, Applicant/continuing context, `StandardCurriculum`/`IndividuallyAdvised`, academic enrollment effect, checkpoint/stage, shortage/capacity condition, finance state, deadline/overdue state, and started/finalized/last-activity date ranges. Active filters remain visible; column-header dropdowns are not used.
 
@@ -976,7 +978,15 @@ The record reads in this order:
 8. Adjustments, Course Drops, timetable impacts, and COR versions.
 9. Collapsed audit and email evidence.
 
-State-valid actions are **Prepare/revise proposal**, **Issue for confirmation**, **Record assisted confirmation**, **Place/change class**, **Finalize official enrollment**, **Record cancellation**, **Record adjustment**, **Record Course Drop**, and **Print current/historical COR**. The primary action stands alone; secondary actions use an Action Group. Invalid or stale actions remain server-rejected even when a crafted request bypasses the UI.
+State-valid actions are **Prepare/revise proposal**, **Record prerequisite exception**, **Issue for confirmation**, **Record assisted confirmation**, **Place/change class**, **Finalize official enrollment**, **Record cancellation**, **Record adjustment**, **Record Course Drop**, and **Print current/historical COR**. **Record prerequisite exception** appears only for an Individually Advised continuing-Student case with an unreleased prerequisite and current exact authority; its focused form records the two Terms, prerequisite result source, dependent course/Class Offering, authority/reference/date, reason, exact scope, effective period, expiry, recorder, and learner-safe explanation. The primary action stands alone; secondary actions use an Action Group. Invalid or stale actions remain server-rejected even when a crafted request bypasses the UI.
+
+An academic-result impact panel uses plain language:
+
+- **Enrollment proposal needs review** before finalization; the current proposal/placement is stale, Registrar owns the revision, and finalization is unavailable.
+- **Registrar review is required for your enrollment** after finalization; the current enrollment and COR remain official until an authorized change is applied.
+- **Adjustment period closed** when no current late authority exists; the panel names the responsible office, what remains usable, and the next permissible institutional path.
+
+The panel never promises that a course will be added, removed, replaced, or retained. A current late-adjustment authority reveals the existing **Record adjustment** action only after capacity, conflicts, learner confirmation, timetable, load, and Finance readiness pass. Course Drop remains a separate action.
 
 ```text
 Students & Enrollment — First Semester AY 2026–2027
@@ -1058,8 +1068,8 @@ Enrollment queues sort overdue/action-needed cases first, then nearest deadline,
 
 | Surface | Empty / filtered empty | Loading | Stale / failed action | Inaccessible / unavailable |
 |---|---|---|---|---|
-| Learner Enrollment | No current case offers a valid start only when eligible; completed/no-current-term state explains next boundary | Checkpoints and primary-action position remain stable | Stale proposal/window/placement/Finance result refreshes before confirmation; failed action preserves current case | Authority-blocked, lifecycle-blocked, closed, or expired state identifies source, owner, and support without exposing internal records |
-| Registrar workbench / record | No cases and no filter matches are distinct; filters can be cleared | Tabs/counts/table/detail loading are labelled independently | Stale proposal, placement, finalization, adjustment, or drop action is rejected and current facts shown | Unauthorized roles and direct records are inaccessible without existence disclosure |
+| Learner Enrollment | No current case offers a valid start only when eligible; completed/no-current-term state explains next boundary | Checkpoints and primary-action position remain stable | Stale proposal/window/placement/Finance/result/exception source refreshes before action; failed action preserves current case | Authority-blocked, lifecycle-blocked, closed, or expired state identifies source, owner, usable remainder, and next path without exposing internal records |
+| Registrar workbench / record | No cases and no filter matches are distinct; filters can be cleared | Tabs/counts/table/detail loading are labelled independently | Stale proposal, exception, result-impact, placement, finalization, adjustment, or drop action is rejected and current facts shown | Unauthorized roles and direct records are inaccessible without existence disclosure; closed Adjustment exposes no action without exact late authority |
 | Placement and shortages | No shortage states **No unresolved shortage**; no alternatives names Clinic 3 owner/action | Capacity/reservation checks show bounded progress | Concurrency loss or expiry refreshes capacity and never oversubscribes | Learners cannot see other learners or internal capacity analytics |
 | Accounting Clearance | No pending cases and filtered empty are distinct | Assessment, payment, and coverage facts show source loading | Missing, stale, unreconciled, or unauthorized assessment/coverage authority is `Unavailable`; a valid account with an unsatisfied current obligation is `ActionNeeded`; failed recording preserves safe input and never creates a fallback, silent cap, or false clearance | Accounting cannot change academic records, create identity, calculate a formula, determine funding eligibility, or finalize |
 | COR current/history | Unavailable before official enrollment is explicit; missing historical version is an assurance fault | Print view reports loading without presenting a partial official document | Superseded version is labelled; print failure leaves authenticated view authoritative | Only owning learner and authorized Staff see COR; direct unauthorized access reveals nothing |
@@ -1068,11 +1078,13 @@ Clinic 4's four primary page families—learner Enrollment, Registrar Students &
 
 Clinic 4 demonstration data includes ordinary published-plan enrollment, reduced and Individually Advised cases with selection-specific authority, changed-registration branches, and coordinated `REG-2026-ST-001`. That Special Term case consumes `TERM-2026-ST`, `CLS-ITE3-ST-A`, and Additional retake `CLS-IT201-ST-R`; excludes dependent `IT301` only; remains `Unavailable` until `ACT-2026-ST-001`; then shows PHP 2,000 Applied coverage plus PHP 1,000 verified payment as `Mixed` clearance before official enrollment and COR. The walkthrough must preserve the same references through Clinics 3–6 without creating a Summer, tutorial, irregular-student, scholarship, or accommodation workflow.
 
+Clinic 4 also includes `REG-2026-0011`, whose exact pending-prerequisite exception is recorded, confirmed with its proposal, and resolved by a satisfying release, plus `REG-2026-0012`, whose adverse post-enrollment release opens one review. The latter proves open Adjustment, closed Adjustment with exact late authority, and closed Adjustment without authority on desktop/mobile and by keyboard/screen reader. Only an applied guarded change creates a new COR; duplicate result, failed email, stale Finance, capacity conflict, or unavailable late authority leaves the current enrollment/COR intact.
+
 ### Responsive, accessibility, failure, and communication behavior
 
 Course and queue rows stack with labels on mobile; information order is unchanged; the primary action remains reachable; secondary actions remain in Action Groups. All controls are labelled, keyboard reachable, visibly focused, and announced with current status. Meaning never depends on color.
 
-Loading, empty, stale, expired, inaccessible, 403, 404, 419, 429, validation, concurrency, and integration-failure states name what happened, the responsible owner, and a safe recovery action. A failed checkpoint expands; a multi-check readiness surface whose checks all pass reduces them to **All required checks passed**.
+Loading, empty, stale, expired, inaccessible, 403, 404, 419, 429, validation, concurrency, and integration-failure states name what happened, the responsible owner, what remains usable, and a safe recovery action. Exception expiry or an adverse result is announced as a status change and never as an automatic course removal. A failed checkpoint expands; a multi-check readiness surface whose checks all pass reduces them to **All required checks passed**.
 
 Queued, idempotent email is limited to the continuing-Student enrollment-window notice, proposal ready/materially revised, payment or coverage action required, official enrollment/COR ready, reservation release/case expiry, and official adjustment/Course Drop. On first enrollment, the official-enrollment/COR message also explains that Student access is active; no separate activation email is sent. An affected timetable revision uses Clinic 3's one shared publication event, with Clinic 4 supplying affected enrolled-Student recipients and updated schedule/COR context. Routine saves, checks, navigation, and recurring reminders remain in-workspace only. Mail failure never rolls back enrollment or financial state.
 
@@ -1090,7 +1102,7 @@ Native Filament Tables own queues/search/filters; Infolists and Sections own aut
 | --- | --- | --- |
 | Faculty | **Grade Rosters** | Assigned official schedule and returned-roster history |
 | Registrar | **Grades & Completion** workbench | Student Record, official Class Offering, curriculum and verified external-competency evidence, Clinic 6 clearance |
-| Student | **Academics** | Examination Period, external-competency result, unofficial print view, and contextual Enrollment link when a changed course result affects registration |
+| Student | **Academics** | Examination Period, external-competency result, unofficial print view, and contextual Enrollment link whenever an initial release, INC resolution, or correction affects registration |
 | Academic Head | Read-only Academic Oversight | Examination Period, external-competency, progress, correction, lifecycle, and conferral authority evidence |
 | Accounting | Clinic 6 output-payment clearance only | Student Account; no grade or academic decision action |
 | System Administrator | Queue, email, and System Health evidence only | Technical evidence without academic-record authority |
@@ -1132,7 +1144,7 @@ Each record reads in this order:
 6. Authority and evidence, including the original Term end, current calculated deadline, and any Registrar deadline-amendment authority, reason, actor, and time.
 7. Collapsed immutable history, audit, and email evidence.
 
-State-valid primary actions include **Release roster**, **Return specified rows**, **Release INC completion**, **Change INC deadline**, **Record authorized correction**, **Record verified external result**, **Record authorized academic decision**, **Record lifecycle result**, **Record conferral**, **Generate TOR preview**, and **Issue official TOR**. The external-result action appears only for an active authority-backed requirement and shows the Student, requirement and treatment, assessment date, `Competent`/`NotYetCompetent`, optional verified NC/COC reference and validity, safe remarks, external source, and append-only impact preview. **Change INC deadline** requires authority, reason, prior/new dates, and current-version revalidation; there is no lapse or automatic-grade action. The academic-decision action appears only for a real external decision or opened review; failed-unit percentages never create a button or status. Only one primary action appears for the current decision. Release, correction, external-result recording, consequential decisions, conferral, and TOR issuance are record-specific actions; no bulk form exists for them.
+State-valid primary actions include **Release roster**, **Return specified rows**, **Release INC completion**, **Change INC deadline**, **Record authorized correction**, **Record verified external result**, **Record authorized academic decision**, **Record lifecycle result**, **Record conferral**, **Generate TOR preview**, and **Issue official TOR**. Release/INC/correction previews identify affected active Registration Cases and the Clinic 4 review consequence without offering an enrollment action in Clinic 5. The external-result action appears only for an active authority-backed requirement and shows the Student, requirement and treatment, assessment date, `Competent`/`NotYetCompetent`, optional verified NC/COC reference and validity, safe remarks, external source, and append-only impact preview. **Change INC deadline** requires authority, reason, prior/new dates, and current-version revalidation; there is no lapse or automatic-grade action. The academic-decision action appears only for a real external decision or opened review; failed-unit percentages never create a button or status. Only one primary action appears for the current decision. Release, correction, external-result recording, consequential decisions, conferral, and TOR issuance are record-specific actions; no bulk form exists for them.
 
 ```text
 Grades & Completion
@@ -1152,7 +1164,7 @@ Student Academics is one read-mostly vertical page:
 3. Released grades grouped by term.
 4. **Term weighted average** and **Cumulative GWA**, or the explicit **Grades not complete**, incomplete-result, or not-applicable state; when current values are withheld, show the last complete cumulative **Through [term]** value if one exists.
 5. Curriculum evaluation with required courses, attempts, credited mappings, current enrollment, prerequisites, deficiencies, and authority-backed external-competency requirements/results.
-6. Factual curriculum position and `AcademicEnrollmentEffect`, including any recorded institutional decision and safe explanation.
+6. Factual curriculum position and `AcademicEnrollmentEffect`, including any recorded institutional decision, pending-prerequisite permission, active Registration Case impact, responsible owner, and safe explanation.
 7. Attempted, earned, and remaining units.
 8. Completion readiness and state-valid **Apply for graduation** action.
 9. Correction, INC, external-competency reassessment, and lifecycle history.
@@ -1163,7 +1175,7 @@ Every unresolved `INC` shows its original Term end, current inclusive deadline, 
 
 An external-competency row shows qualification/level, `Tracked only` or authority-backed `Completion required`, assessment date, safe `Competent`/`Not yet competent` result, optional verified NC/COC reference and validity, source, and current/superseded history. A missing tracked-only result says **Not recorded** and never blocks enrollment, grades, completion, or conferral. A completion effect appears only when the active Curriculum Version cites exact authority for `CompletionRequired`. The row never contributes a grade, unit, average, prerequisite, finance, email, or standard-TOR value.
 
-The printable action is labelled **Unofficial record — for student reference**. Official TOR issuance is absent from Student actions. When a correction affects an active Registration Case, the page states that Registrar review is required and links to Enrollment without promising an automatic course change.
+The printable action is labelled **Unofficial record — for student reference**. Official TOR issuance is absent from Student actions. Whenever an initial release, INC resolution, or correction affects an active Registration Case, the page states **Registrar review is required for your enrollment** and links to Enrollment without promising an automatic course change. A current exception says **This permission is not a grade or completed prerequisite** and shows its expiry. A closed Adjustment state says what remains official and who owns the next permissible path.
 
 ```text
 Academics
@@ -1219,7 +1231,7 @@ TOR — Preview / Issued / Voided / Replacement / Superseded
 - INC work sorts `CompletionOverdue` first, then nearest current deadline. Every row has a deadline; no lapse-eligible or automatic-grade state exists.
 - External-competency results order current first, then newest superseded attempt. Missing tracked-only evidence shows **Not recorded**; missing/stale authority disables recording and never invents a completion block.
 - TOR readiness names the exact unavailable source: identity, completed academic record/conferral, request reference, Clinic 6 clearance, TALA Standard TOR version, signatory data, or rendering. Preview creates no issuance. The surface never shows a generic **Not cleared** state.
-- Loading retains the page heading and announces progress. Stale or concurrent actions preserve entered data when safe, identify what changed, and require review before resubmission. Inaccessible records use the shared non-disclosing recovery surface. Technical or mail failures identify the responsible owner and one safe retry, return, or support action.
+- Loading retains the page heading and announces progress. Stale or concurrent actions preserve entered data when safe, identify what changed, and require review before resubmission. Result-impact status, exception expiry, and Adjustment-window state are announced to screen readers and never depend on color. Inaccessible records use the shared non-disclosing recovery surface. Technical or mail failures identify the responsible owner and one safe retry, return, or support action.
 
 ### Responsive, accessibility, failure, and communication behavior
 
@@ -1227,9 +1239,11 @@ Roster, grade-history, curriculum, and queue rows stack with labels on mobile. R
 
 All controls are labelled, keyboard reachable, visibly focused, and accompanied by screen-reader status text. Examination-period dates are announced with their source and unavailable state; external-result treatment and outcome never depend on color. Empty, loading, stale-record, inaccessible, expired-session, validation, late-window, concurrency, mail-failure, and technical-failure states state what happened, who owns recovery, and the safe next action.
 
-Queued email is limited to the Faculty submission request, returned roster, grade release without values/attachment, INC release/deadline, deadline amendment, INC resolution, authorized correction, consequential progress/lifecycle, completion action-required, and conferral. Deadline passage sends no email. Routine saves, calculation/readiness refresh, queue movement, navigation, countdowns, and recurring reminders remain in-workspace only.
+Queued email is limited to the Faculty submission request, returned roster, grade release without values/attachment, INC release/deadline, deadline amendment, INC resolution, authorized correction, consequential progress/lifecycle, completion action-required, and conferral. The one release/INC/correction email may add **Registrar review is required for your enrollment** and an authenticated Enrollment link when the same event affects an active case; no separate review email is sent. Deadline passage sends no email. Routine saves, calculation/readiness refresh, queue movement, navigation, countdowns, and recurring reminders remain in-workspace only.
 
 The Clinic 5 synthetic set includes `INC-OPEN-001` with its calculated deadline and later completion, `INC-OVERDUE-002` whose deadline passes without a grade change/email, and `INC-AMEND-003` whose authorized amendment returns it to `CompletionOpen`; `EXT-COMP-CSS-NCII` as tracked-only; `EXT-RES-CSS-001` `NotYetCompetent` followed by superseding `EXT-RES-CSS-002` `Competent`; one missing tracked-only result that does not block completion; hypothetical authority-backed `EXT-COMP-WEB-NCIII-REQ`, whose missing result keeps completion pending without becoming Servitech policy; and coordinated `TERM-2026-ST` classes `CLS-ITE3-ST-A` (`1.75`) and `CLS-IT201-ST-R` (`2.50`). Releasing the first class alone must show **Grades not complete** and the prior cumulative **Through [term]** value. Releasing the second must show Special Term `2.13` and cumulative `2.01` from 90 prior included units/180 weighted points plus six units/12.75 points; the earlier `IT201` `5.00` remains counted while the retake satisfies the curriculum.
+
+The same Clinic 5 set includes the prerequisite releases for `REG-2026-0011` and `REG-2026-0012`. Release preview identifies the affected exact case without exposing an enrollment action. Student Academics shows one contextual Enrollment link and the safe review message; email contains no grade value and no duplicate review notice. Satisfied release resolves only the exception, while adverse release leaves Official Enrollment unchanged until Clinic 4 records an authorized outcome.
 
 The negative-space acceptance coverage proves that Registrar, Academic Head, Faculty, and Student see the same sourced Examination Period; missing/stale dates produce no fabricated value; and exact class arrangements remain outside TALA. It then blocks an external-result action against a missing/stale requirement, records `EXT-RES-CSS-001`, appends `EXT-RES-CSS-002` without overwriting the first attempt, and shows the same safe result in Student Academics and Academic Oversight. The tracked-only missing example remains **Not recorded** without blocking completion; hypothetical `EXT-COMP-WEB-NCIII-REQ` remains pending only because its synthetic curriculum authority explicitly says `CompletionRequired`. No TESDA operations, new destination, email, standard-TOR field, grade, average, unit, prerequisite, or financial effect appears.
 

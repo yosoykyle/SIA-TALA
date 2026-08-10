@@ -143,7 +143,7 @@ Clinic 3 does not manage placement sites, companies, supervisors, workplace atte
 
 Academic Head approves the institutional calendar outside TALA. Registrar records the authority and evidence, activates the package, and operates its windows. Academic Head receives read-only oversight. TALA adds no duplicate approval action.
 
-Every First, Second, or institutionally approved Special Term begins through an explicitly created `TermCalendarPackage`. TALA never automatically creates or clones the next term, and `Special Term` is a controlled term type rather than a separate Summer subsystem.
+Every First, Second, or institutionally approved Special Term begins through an explicitly created `TermCalendarPackage`. More than one exact Term may be `Active` concurrently, including prior-term teaching or grade work while next-term registration or adjustment is open. The uniqueness boundary is one active package version per exact Term, not one active Term for the institution. Every window, class, timetable, registration, roster, result, account, COR, and output carries its exact Term; no action may infer one global current term. TALA never automatically creates or clones the next term, and `Special Term` is a controlled term type rather than a separate Summer subsystem.
 
 ### 6.1 State and owned records
 
@@ -216,7 +216,7 @@ Before publication, cancellation requires a reason and authority. After publicat
 
 ## 8. Clinic 4 and Clinic 5 Handoffs
 
-Clinic 3 exposes curriculum term totals, requisites, approved equivalencies, published Class Offerings, capacities, and official meeting times through one `PublishedClassAvailabilityProjection`.
+Clinic 3 exposes curriculum term totals, requisites, approved equivalencies, published Class Offerings, capacities, and official meeting times through one exact-Term `PublishedClassAvailabilityProjection`. Concurrent packages remain independent: a source version, window, publication, closure, or failure for one Term never supplies or changes another Term's facts.
 
 Clinic 4 contains no standalone Study Plan. Its `RegistrationCase` owns versioned proposed registrations under `EnrollmentSelectionBasis` (`StandardCurriculum` or `IndividuallyAdvised`) plus current-term eligibility, confirmation, placement and reservations, finance clearance, official enrollment, Student activation, and COR. Clinic 5 owns full curriculum evaluation and official academic-history outcomes; Clinic 4 consumes those released facts.
 
@@ -385,6 +385,7 @@ The future vertical implementation must prove:
 - Simple prerequisites, equivalencies, and circular-reference prevention.
 - Internship retained without an invented recurring timetable.
 - Explicit First, Second, and approved Special Term creation.
+- Concurrent exact First-, Second-, and Special-Term operation, including prior-term grade entry while next-term registration and adjustment are open, with no implicit current-term action or cross-term source leakage.
 - One Special Term that continues through published classes, Clinic 4 registration, Clinic 6 assessment/coverage, Clinic 4 official enrollment, and Clinic 5 released-result projections using the same references.
 - Calendar-readiness failures and successful activation.
 - Consistent Registrar, Academic Head, Faculty, and Student Examination Period projections, including unavailable/stale evidence and no class-level schedule.
@@ -406,7 +407,7 @@ The future vertical implementation must prove:
 - Policy traceability for every automatic rule.
 - Later DB-backed checks only against `test_tala_db`.
 
-Realistic demonstration data must include at least one externally arranged practicum, one authority-backed tracked-only external-competency requirement, one shared class, one Additional class, multiple meeting patterns, mixed On-campus/Online schedules, a Faculty late correction, a room conflict, every solver-result family, a bounded candidate correction, a first publication, an affected-role revision, and one Examination Period projection plus unavailable-source state. Demonstration data is not policy authority.
+Realistic demonstration data must include at least one externally arranged practicum, one authority-backed tracked-only external-competency requirement, one shared class, one Additional class, multiple meeting patterns, mixed On-campus/Online schedules, a Faculty late correction, a room conflict, every solver-result family, a bounded candidate correction, a first publication, an affected-role revision, one Examination Period projection plus unavailable-source state, and two simultaneously active exact Terms whose operational windows overlap. The scoped [PUP 2026–2027 schedule](https://www.pup.edu.ph/announcements/?go=Cjoh4ZVj%2FLE%3D&v=Schedule-of-AY-2026-2027-First-Semester-Online-Enrollment-and-Encoding-of-Grades-20260727134235133) supports the overlap scenario only; it supplies no Servitech dates or policy. Demonstration data is not policy authority.
 
 ### 17.1 Synthetic Demonstration Data
 
