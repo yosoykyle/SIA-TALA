@@ -299,7 +299,11 @@ Student Academics presents one vertical reading order:
 7. Completion readiness.
 8. Correction, INC, and lifecycle history.
 
-Students may print an **Unofficial — for student reference** record. They cannot issue or self-download an official TOR.
+Students may print an A4 portrait **UNOFFICIAL STUDENT RECORD** generated from their released academic-record projection as of one explicit time. The screen and every page state **Unofficial — for student reference** and never resemble or claim to be an issued TOR.
+
+The output contains approved institution identity; Student legal name, Student number, Program, and Curriculum Version; generation reference/time and **Academic record as of** context; chronological Academic Year and exact Term groups; Course code, historical title snapshot, units, released grade or mark, remarks, attempt/supersession context, and approved-credit/equivalency treatment; each term's earned/attempted units and term weighted average or explicit `Grades not complete`, incomplete, or not-applicable state; cumulative earned/attempted/remaining units and cumulative GWA or readiness state; current curriculum/completion summary; and safe correction/INC context. It excludes draft/submitted results, private evidence, internal notes, Faculty, schedules, finance, official certification language, signatory, seal, and official-TOR controls.
+
+The print view is monochrome-safe, removes navigation and interactive controls, repeats Student identity and table headings on continuation pages, preserves meaningful rows across page breaks, and uses a restrained **Generated through TALA** footer. Incomplete source facts are labelled rather than replaced with zero. A stale or unavailable projection blocks generation and names Registrar as owner; failure produces no partial artifact and preserves access to the ordinary Academics page. Students cannot issue or self-download an official TOR.
 
 ### 8.2 TALA Standard TOR — Servitech v1
 
@@ -424,6 +428,8 @@ Each record leads with state, owner, next action, and one state-appropriate prim
 
 Mobile layouts use labelled stacked rows, preserve reading order, keep the primary action reachable, and move secondary actions into Action Groups. Loading, empty, stale-record, inaccessible, expired-session, validation, concurrency, and technical-failure states identify the responsible owner and safe recovery action. Meaning never depends on color alone.
 
+The Unofficial Student Record uses the same released projection and order as Student Academics, not a separate transcript calculation. Its print action is unavailable while the projection is stale or inaccessible, and a generation retry cannot create a conflicting academic snapshot or an official-output event.
+
 ## 10. Communication contract
 
 Queued, idempotent emails are limited to:
@@ -541,7 +547,7 @@ Use the coordinated 47-Student BM/IT/THM institution and its published classes, 
 9. Record one actual authority-backed academic/lifecycle decision and verify that Student, Registrar, Academic Head, and Clinic 4 receive only their authorized projections; a failed result without such authority produces advising rather than an automatic sanction.
 10. Apply for graduation, resolve the named source-owned clearance, and record conferral; confirm the immutable degree and `Completed` history.
 11. Generate an exact TALA Standard TOR preview for the completed former Student; satisfy Clinic 6 clearance and signatory inputs, then issue, void, replace, and supersede it through the authorized paths. Confirm continuation-page identity, monochrome output, immutable references, no Student self-issue, no partial artifact on failure, and no claim that unsigned output is CAV-ready.
-12. Repeat the core Faculty, Registrar, Student, and TOR views at narrow width and by keyboard, including completion-open/overdue/amended, filtered-empty, inaccessible, stale, validation, concurrency, and mail-failure recovery states.
+12. Generate the A4 portrait Unofficial Student Record from Student Academics; confirm the immutable as-of context, chronological released results, explicit incomplete/not-applicable averages, curriculum/unit summary, repeated identity/headings, monochrome output, unofficial label on every page, and no partial artifact on failure. Repeat the core Faculty, Registrar, Student, unofficial-record, and TOR views at narrow width and by keyboard, including completion-open/overdue/amended, filtered-empty, inaccessible, stale, validation, concurrency, and mail-failure recovery states.
 13. For `TERM-2026-ST`, release `CLS-ITE3-ST-A` while `CLS-IT201-ST-R` remains unreleased; verify **Grades not complete**, no partial term value, and the prior cumulative **Through [term]** value.
 14. Release `CLS-IT201-ST-R`; verify the `2.13` term weighted average, `2.01` cumulative GWA from the full attempt/unit history, curriculum satisfaction by the retake, and retention of the earlier `5.00` attempt. Repeat the Student projection at 360/390 pixels and Staff detail at 1366 pixels using only neutral or Servitech-authorized terminology.
 15. As Registrar, attempt to record an external competency result without an active authorized requirement or current evidence and confirm that nothing posts. Record `EXT-RES-CSS-001`, then the superseding `EXT-RES-CSS-002`; verify the safe result and history in Student Academics and Academic Oversight, that a missing tracked-only result says **Not recorded**, and that no grade, average, unit, prerequisite, finance, email, or standard-TOR effect appears. Open the hypothetical authority-backed `EXT-COMP-WEB-NCIII-REQ` state and confirm that its missing result alone keeps completion pending while making no claim that Servitech has adopted that requirement.

@@ -613,6 +613,17 @@ Use native Filament v5 first:
 
 Custom components or plugins require a demonstrated native capability gap. A month calendar may supplement dated exceptions as a read-only view; it cannot replace the Term Setup workbench.
 
+Every entry in the Canonical UI Surface Coverage Inventory carries one implementation disposition:
+
+| Disposition | Meaning |
+|---|---|
+| `NativeFilament` | Filament resources, Pages, Tables, Forms, Infolists, Tabs, Sections, Wizards, Actions, filters, notifications, or their ordinary composition satisfy the approved behavior |
+| `InstalledCompatibleDependency` | An already-installed, version-compatible dependency has one bounded approved responsibility that native Filament cannot supply alone |
+| `FocusedTALACustom` | A small TALA-owned Blade, Livewire, print, visualization, preview, or failure component is necessary for the exact approved behavior and reuses native primitives where practical |
+| `PurposefullyExcluded` | The interaction is unnecessary, unsafe, externally owned, or deliberately outside the MVP; no placeholder page, plugin, or generic engine is created |
+
+The disposition does not mandate one route or component per inventory row. A custom Filament Page composed from ordinary native primitives remains `NativeFilament`; `FocusedTALACustom` is reserved for behavior or rendering that those primitives cannot express by themselves.
+
 No public HTTP API is added. The shared vocabulary below names logical responsibilities, not approved tables, classes, routes, or a mandate to preserve a legacy abstraction. Each owning PRD classifies every named concept as an authoritative record, immutable version/event, derived projection/calculation, UI-only state, external result, official output, or documentation-only concept.
 
 | Owner | Canonical conceptual vocabulary |
@@ -839,6 +850,8 @@ The dialog shows the exact record/version, actor/authority, resulting state, dow
 | Versioning | Superseded, corrected, voided, or reversed outputs remain historical and visibly labelled |
 | Failure | Produce no partial or official-looking artifact; preserve the source transaction and provide a safe retry/support path |
 | Claims | Output states whether it is official, unofficial, non-tax, superseded, voided, reversed, or externally certified; it never implies unrecorded authority |
+| Print frame | Institution identity leads official and institutional outputs; the TALA product mark is restrained, navigation and interactive controls are absent, headings remain semantic, table headers repeat, rows do not clip, and every copy is monochrome-safe |
+| Completeness | Application Acknowledgment, Published Timetable, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment each define exact source/version, status, content, orientation, generation evidence, supersession, and failure behavior in the owning PRD |
 
 #### Matrix 11 — UI screens, actions, states, navigation, responsiveness, and accessibility
 
@@ -851,6 +864,8 @@ The dialog shows the exact record/version, actor/authority, resulting state, dow
 | Responsive | Learner journeys qualify at 360/390 CSS pixels; Staff operational views at 1366; intermediate navigation transformation; 200% reflow |
 | Accessibility | Semantic landmarks/headings/forms/tables, visible focus, logical order, keyboard-complete controls, labelled dialogs, associated/announced errors, no color-only meaning, and accessible output/table alternatives |
 | Failure wording | State what happened, whether anything changed, responsible owner, preserved input, next safe action, and source/as-of evidence without exposing restricted data |
+| Component disposition | Every canonical surface is classified as `NativeFilament`, `InstalledCompatibleDependency`, `FocusedTALACustom`, or `PurposefullyExcluded`; a new dependency requires a proven gap after the first three options are evaluated in order |
+| Brand authority | The UI Surface Blueprint owns the semantic roles of the TALA product mark, live wordmark, institution mark, typography, Heroicons Outline interface icons, favicon/app icon, and monochrome print identity; file presence or legacy use does not establish authority |
 
 #### Matrix 12 — Policy dependency and decision classification
 

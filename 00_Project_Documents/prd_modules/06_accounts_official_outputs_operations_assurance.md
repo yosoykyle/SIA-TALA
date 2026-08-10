@@ -349,12 +349,43 @@ One authenticated, non-tax acknowledgment is available per verified Payment Post
 
 #### Contextual CSV exports
 
-| Export | Allowed columns |
-|---|---|
-| Account Status CSV | Account reference, safe person reference, Program, Term, assessment total, required-now amount, verified-payment-applied amount, approved-coverage-applied amount, current due, projection state, satisfaction basis, assessment basis, safe source version/authority reference, as-of time |
-| Verified Payments CSV | Payment reference, account reference, safe person reference, Term, amount, channel, masked external reference, posted time, verification basis, current state |
+Exports are CSV-only native Filament actions with fixed ordered columns. Column selection, alternate formats, a generic exporter, and a Reports navigation page are not provided.
 
-Exports are contextual actions, not a Reports navigation page. Sensitive export requires purpose and records actor, role, normalized filters, purpose, row count, outcome, and time. CSV values are allowlisted, formula-safe, and stable for Excel import. Private proof paths, raw provider data, bank details, secrets, and internal notes are excluded.
+**Account Status CSV** uses the exact normalized Accounts-tab filters, actor authorization scope, and deterministic visible ordering confirmed at export time. Its filename is `tala-account-status-YYYYMMDD-HHmmss-PHT.csv`, and its ordered labels are:
+
+1. `Account Reference`
+2. `Person Reference`
+3. `Program`
+4. `Term`
+5. `Assessment Total (PHP)`
+6. `Required Now (PHP)`
+7. `Verified Payment Applied (PHP)`
+8. `Approved Coverage Applied (PHP)`
+9. `Current Due (PHP)`
+10. `Projection State`
+11. `Satisfaction Basis`
+12. `Assessment Basis`
+13. `Source Version or Authority Reference`
+14. `As of (Asia/Manila)`
+
+**Verified Payments CSV** is available from one selected Student Account's Payments context and uses only its current state/date filters and actor authorization scope. It is not a system-wide payment report. Its filename is `tala-verified-payments-YYYYMMDD-HHmmss-PHT.csv`, and its ordered labels are:
+
+1. `Payment Reference`
+2. `Account Reference`
+3. `Person Reference`
+4. `Term`
+5. `Amount (PHP)`
+6. `Channel`
+7. `Masked External Reference`
+8. `Posted At (Asia/Manila)`
+9. `Verification Basis`
+10. `Current State`
+
+Both files are UTF-8 with a byte-order mark, comma-delimited, RFC 4180 quoted, and generated with CRLF line endings. Money is an ungrouped two-decimal value such as `12000.00` without a currency symbol; date/time is RFC 3339 with `+08:00`. Blank means not applicable or unavailable and never silently becomes zero. Text cells beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefixed with one apostrophe before export; numeric and date/time cells are generated only from typed authoritative values.
+
+The actor must provide a purpose before confirmation. The confirmation names the export, normalized scope, row-count estimate, fixed columns, and private retrieval. Export rechecks role, per-record visibility, current filters, and source/as-of state and is limited to 10,000 rows; a larger result requires narrower filters. Zero matching rows records a `NoRows` attempt and creates no artifact. A completed export is retrievable only by the initiating authorized actor through private storage. Failure records no successful output, retains the normalized scope for retry, and creates no partial file. Audit records actor, role, normalized filters/context, purpose, row count, outcome, and time. Exports send no email.
+
+Private proof paths, raw provider data, bank details, secrets, eligibility material, and internal notes are excluded. Output access and retry remain contextual to Student Accounts or the selected Account; no notification center, export history destination, or report hub is added.
 
 #### Required audit evidence
 
@@ -422,11 +453,11 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 |---|---|---|---|
 | Fee Plans | Accounting publishes the Program-and-Term authority | Current published plan, action-needed Drafts, upcoming Terms | Term/Program/state/search; reference, version, total, authority, readiness; `New draft`, `Continue`, `View` |
 | Fee Plan detail | Accounting prepares and publishes one version | Identity/authority, charge lines, obligations, readiness, history | Visible labels for authority/date; editable ordered rows only in Draft; `Save draft`, `Publish plan`; successor action on Published |
-| Student Accounts — Accounts | Accounting finds the next account decision, including `Assessment required` | Status, learner, account, Program/Term, assessment basis, required/payment/coverage/due, satisfaction basis, next action | Term/state/Program/search; contextual Account Status CSV; no separate assessment or coverage resource |
+| Student Accounts — Accounts | Accounting finds the next account decision, including `Assessment required` | Status, learner, account, Program/Term, assessment basis, required/payment/coverage/due, satisfaction basis, next action | Term/state/Program/search; fixed contextual Account Status CSV after purpose confirmation; no separate assessment or coverage resource |
 | Student Accounts — Payment Exceptions | Accounting resolves manual/provider evidence safely | Risk/reason, learner/account, amount, channel/source, age, next action | Source/state/reason/date filters; `Review`; no raw payload columns |
 | Payment Exception detail | Accounting records the external-check result | Reason and current due, safe evidence, review form, history | Private preview; actual verified amount; safe reason; `Reject evidence`, `Return for review`, or exact `Verify` consequence |
 | Student Accounts — TOR Clearance | Accounting records a request-specific result | Action-needed request, learner, output ref, due/reference, source | State/date/search; `Record cleared` or `Record not required`; no generic hold action |
-| Student Account detail | Accounting explains one Term position or records an eligible exact individual or coverage result | Current status and due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, then evidence tabs | Assessment/Payments/Coverage/Evidence/Outputs/Audit; contextual `Record authorized individual assessment`, `Record approved coverage`, record verified external payment, generate SOA, contextual export, authorized reversal |
+| Student Account detail | Accounting explains one Term position or records an eligible exact individual or coverage result | Current status and due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, then evidence tabs | Assessment/Payments/Coverage/Evidence/Outputs/Audit; contextual `Record authorized individual assessment`, `Record approved coverage`, record verified external payment, generate SOA, fixed Verified Payments CSV from the selected Payments context, authorized reversal |
 | Authorized individual assessment form | Accounting records an externally calculated exact result; it is not a calculator | Registration/change version and course/unit evidence, reason/authority, exact charge lines/obligations, totals, impact preview | Reconciled nonnegative rows, enrollment amount, predecessor; no rate/formula builder |
 | Approved Coverage form | Accounting records only an externally approved Term Account effect | Current Assessment/obligations, category/source, authority/date, exact amount, effective date, safe description, impact preview | `Apply` only after current non-excess reconciliation; successor/reversal from history; no eligibility, application, renewal, disbursement, or accommodation workflow |
 | Enrollment payment requirement | Applicant/Student completes Clinic 4 finance checkpoint | Required now, state, assessment basis/source, account ref, submitted evidence, next action | Private upload fields; view/replace submission; no finance navigation duplication |
@@ -451,7 +482,7 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 | Surface | Empty | Filtered empty | Loading/stale | Inaccessible | Failed action |
 |---|---|---|---|---|---|
 | Fee Plans | “No Fee Plans yet. Create a Draft for an approved Program and Term.” | Name active filters and offer `Clear filters` | Preserve list structure; stale Draft requires refresh before publish | No fee or authority details disclosed | Preserve Draft; name the readiness item to correct |
-| Accounts | “No Term Accounts are available for this scope.” | Name query/filters and clear them | Show last as-of time; disable assessment/posting/export when source is stale | Generic unavailable page | State whether no assessment/posting occurred and preserve safe form data |
+| Accounts | “No Term Accounts are available for this scope.” A zero-row export records `NoRows` and creates no file | Name query/filters and clear them | Show last as-of time; disable assessment/posting/export when source is stale | Generic unavailable page | State whether no assessment/posting/export occurred, retain normalized export scope, and preserve safe form data |
 | Authorized individual assessment | Explain that the action is available only for an eligible current case | Not applicable | Preserve entered rows; stale registration/change blocks recording | Reveal no account, course, or authority detail | No Assessment is created; retain safe entered data and identify the failed readiness check |
 | Approved Coverage | Explain that no externally approved coverage applies to this account | Not applicable | Preserve safe entered fields; stale Assessment/obligation disables Apply | Reveal no account, eligibility, provider, or authority detail | No coverage effect is recorded; name the missing, conflicting, stale, unreconciled, or excessive source |
 | Payment Exceptions | “No payment evidence needs review.” | Name filters and clear them | Preserve queue position; revalidate before result | No evidence metadata or screenshot disclosed | Keep item under review and explain the next safe action |
@@ -473,7 +504,7 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 - Dialogs have descriptive names, focus containment, safe Escape behavior, and focus return. Consequential confirmation buttons repeat the exact effect.
 - Targets meet the WCAG 2.2 24×24 CSS-pixel minimum; learner primary actions prefer 44×44.
 - No action depends on drag, hover, background color, or a pointer. Private evidence preview has an accessible name and never appears as decorative public media.
-- Print views are monochrome-safe, repeat table headings, avoid clipped rows, retain disclaimers, and do not depend on navigation or background color.
+- Print views are A4 portrait unless an owning PRD expressly selects landscape, are monochrome-safe, repeat identity and table headings, avoid clipped rows, retain status/disclaimers, and do not depend on navigation, remote fonts, or background color. CSVs remain downloadable data rather than printable documents.
 
 ## 13. Accepted Layout Decisions
 
@@ -532,7 +563,7 @@ No real student number, account number, wallet reference, proof image, provider 
 | 14 | Jo and Pia | Review mismatch; reject/resubmit evidence | Exceptions and supersession retained | Raw provider/private data remains hidden |
 | 15 | Eva | Reach later due date | Finance becomes action-needed | Login/classes/exams/enrollment remain available |
 | 16 | Accounting/Registrar | Resolve three TOR examples | Clinic 5 sees only request-specific projection | No global hold or TOR workflow appears |
-| 17 | Accounting | Generate two contextual CSVs | Purpose and output-access audit recorded | Disallowed fields never export |
+| 17 | Accounting | Generate Account Status from exact Accounts filters and Verified Payments from one selected Account/Payments context | Fixed headers/order, filenames, UTF-8 BOM, typed PHP/date representation, purpose, row count, private retrieval, and output-access audit are visible | Zero rows, more than 10,000 rows, stale/unauthorized source, formula-like text, failure, retry, and duplicate request never expose disallowed fields or create a partial/duplicate artifact |
 | 18 | System Administrator | Open System Health | Local evidence differs from `Not checked by TALA` | Unknown never appears green/available |
 | 19 | System Administrator | Open Governance & Audit | **Automatic retention disposal: Not provided in this MVP** | No attestation, policy-approval status, or disposal action appears |
 | 20 | Alumnus | Open historical Finance | Read-only outputs/history | No checkout, upload, or mutation action appears |
@@ -551,7 +582,7 @@ Documentation closure does not execute this walkthrough. Later implementation ac
 | PayMongo attempt/webhook/reconciliation | Learner starts exact current-due checkout; integration posts only a valid signed event | PHP exact due; current Assessment/account; one matching pending account/amount attempt; signed/idempotent provider event; matching account/reference/currency/amount | Browser return is informational. Automatic success uses immutable provider event key; exceptions/reversals use named Staff confirmation | Provider-reported Cancelled/Expired/Failed permits a new attempt. Browser elapsed time alone never fabricates expiry. Duplicate delivery creates no duplicate posting/email; mismatch enters exception |
 | Payment/coverage reversal | Accounting records authorized external correction | Current posting/effect, authority, reason, amount/account, external result | **Record reversal** shows due/projection, acknowledgment supersession, and no refund/cash movement | Append-only; original remains. No lifetime cap when current authority exists. Refund/chargeback execution stays external |
 | TOR clearance | Accounting | Exact Clinic 5 request/issuance reference, required amount/reference, `Cleared` or authority-backed `NotRequired` basis | Named confirmation shows only request-specific effect | No global hold; correction appends result. Clinic 5 consumes read-only projection |
-| SOA/acknowledgment/CSV | Authorized learner/Accounting purpose as defined | Current immutable source; scoped rows; purpose for sensitive export; formula-safe cell treatment; no private paths/payloads/notes | **Generate/Export** shows scope, row count estimate/purpose, official/non-tax status, and access evidence | Failure creates no partial/official-looking artifact. Outputs version/supersession remain; exports audit actor, role, filters, row count, completion, time |
+| SOA/acknowledgment/CSV | Authorized learner/Accounting purpose as defined; CSV retrieval remains initiating-actor only | Current immutable source; exact contextual scope; fixed columns; 10,000-row limit; purpose; per-record authorization; UTF-8 BOM/comma/CRLF; typed PHP/date representation; formula-safe text; no private paths/payloads/notes | **Generate/Export** shows exact scope, row-count estimate, purpose, fixed format, official/non-tax status where applicable, and access evidence | Output failure creates no partial/official-looking artifact. CSV zero rows records `NoRows` without a file; over-limit requires narrower filters; retry reuses normalized scope; exports audit actor, role, context/filters, purpose, row count, outcome, and time and send no email |
 | System Health/Governance | System Administrator read-only | Locally evidenced fact and as-of time only | No consequential provider/control confirmation exists | Missing evidence is `Unknown`/`Not checked by TALA`, never healthy. No arbitrary-recipient email, test charge, solver run, backup, restore, command, or attestation action |
 
 Authorized Individual Assessments, account events, coverage, payment postings, reversals, clearance results, export access, and generated output history are never edited or deleted through ordinary UI. Financial mutations are transactional and idempotent, payment and coverage remain separate effects, and an inaccessible response reveals no person, account, proof, provider, or balance fact. Automatic retention disposal is outside the MVP; the institution remains responsible for lawful privacy governance and externally controlled disposal.

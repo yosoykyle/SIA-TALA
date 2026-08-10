@@ -405,6 +405,8 @@ Every context has a deterministic first destination: Public Gateway, Applicant H
 
 At 1024 CSS pixels and above, the authenticated shell uses persistent left navigation, a top bar, and one main region. Below that width, navigation becomes a labelled modal drawer; TALA adds no role-specific bottom navigation or global search. The shell, navigation order, workspace switcher, Account Security entry, page-title/action hierarchy, breadcrumb/back-link rules, semantic landmarks, focus behavior, responsive transformations, visual tokens, and reusable component variants are governed by the UI Surface Blueprint. These presentation contracts reuse Filament/Livewire and the existing TALA brand direction; they do not introduce a SPA, a second authorization layer, a new public API, or a design-tool runtime dependency.
 
+Every canonical UI entry is dispositioned as `NativeFilament`, `InstalledCompatibleDependency`, `FocusedTALACustom`, or `PurposefullyExcluded`. The disposition records the leanest approved presentation responsibility; it does not require one route, Page, or component per inventory row. Native Filament remains first, an already-installed compatible dependency is second, a small TALA-specific component is third, and a new dependency is considered only when those options cannot satisfy approved behavior.
+
 Breadcrumbs appear only on genuinely hierarchical Staff detail/setup pages and never replace Wizard/process progress. Learner contextual records and outputs use a named return to their owning page. Each page has one H1 and one state-valid primary action; failed readiness leads supporting data; destructive or superseding actions remain explicit secondary decisions. The UI authority qualifies learner views at 390 and 360 CSS pixels, intermediate review at 768×1024, and dense Staff work at 1366×768 before implementation acceptance.
 
 Student Home composes source-labelled priority summaries without creating a global learner state. Student Profile is a read-only projection of Clinic 4 official identity/program/curriculum/entry/contact facts with correction guidance; Account Security remains Clinic 1. Academic Oversight is a read-only set of links to source-owned academic evidence and grants no universal approve, publish, release, or correction action. Readiness stays contextual to the consuming action.
@@ -618,7 +620,7 @@ The PayMongo transport and signed webhook pipeline are application-owned. Previo
 | Axios | 1.18.1 | Present in the default bootstrap layer, but not an architectural API client while the application entry point does not load that layer |
 | Bootstrap assets | local landing-page assets | Isolated public-facing landing presentation, not the administrative component system |
 
-Driver.js 1.4.0 and the npm Heroicons package 2.2.0 are declared but have no active application import establishing a current production responsibility. Filament's PHP icon abstractions are the active administrative icon surface.
+Driver.js 1.4.0 has one approved optional responsibility: role-aware Quick tours inside authenticated Applicant, Student, and Staff workspaces. TALA supplies only a small wrapper for invitation, replay, role/version scope, target filtering, accessibility, reduced motion, and privacy behavior; Driver.js does not own navigation, authorization, business state, analytics, onboarding records, or a configurable tour editor. Filament's PHP `Heroicon` abstractions using Heroicons Outline are the canonical interface icon surface. The separately declared npm Heroicons package 2.2.0 has no independent production responsibility.
 
 ### 11.4 Solver and Engineering Tooling
 
@@ -677,7 +679,7 @@ As of **Tuesday, July 14, 2026, Philippine Time**, targeted source inspection fo
 | Session capability | First-party cookies enabled | Laravel session authentication and CSRF protection depend on the browser returning the session cookie |
 | Network | Stable HTTPS connectivity while using TALA | TALA is centralized and not offline-first; no arbitrary Mbps claim is made without measured payload and latency tests |
 | Files | Browser file selection, upload, and download support where the user's workflow requires documents | Applicant, records, and output workflows exchange files through authenticated server requests |
-| Printing | Browser print and save-as-PDF capability | COR, Account Statement/SOA, and Payment Acknowledgment use authenticated HTML/CSS print views in the MVP |
+| Printing | Browser print and save-as-PDF capability | Application Acknowledgment, Published Timetable, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment use authenticated HTML/CSS print views in the MVP |
 | Device hardware | Any device capable of running a qualified browser and the required workflow | A fixed end-user CPU or RAM value is not justified by the framework and must not be invented without device testing |
 
 Responsive support is role- and workflow-specific. The following dimensions are **qualification targets**, not yet proof that every screen has passed compatibility review:

@@ -121,6 +121,35 @@ Registrar records and activates an externally approved curriculum. TALA has no A
 - Duplicate course codes, malformed or circular requisites, inconsistent titles, differing units, missing references, and invalid year/term placement remain blocking findings until resolved.
 - Grades, remarks, and student outcomes in evaluation spreadsheets remain student-record evidence and never become catalog fields.
 
+#### TALA curriculum CSV v1 contract
+
+The optional import uses the downloadable template `tala-curriculum-import-template-v1.csv`. It is UTF-8 with an optional byte-order mark, comma-delimited, RFC 4180 quoted, generated with CRLF line endings, and limited to one file of 5 MiB and 5,000 nonblank data rows. The header is row 1 and uses this exact order:
+
+1. `template_version`
+2. `program_code`
+3. `curriculum_version`
+4. `curriculum_name`
+5. `curriculum_year`
+6. `term_placement`
+7. `course_code`
+8. `course_title`
+9. `units`
+10. `prerequisite_course_codes`
+11. `corequisite_course_codes`
+12. `equivalent_course_codes`
+13. `scheduling_treatment`
+14. `source_reference`
+
+The three requisite/equivalency cells may be blank; every other cell is required. `template_version` is the literal `1`. Program, curriculum, Course, and source references use the shared code/reference validation; curriculum and Course names use the shared title validation; `curriculum_year` is a positive whole number; and `units` uses the shared positive two-decimal unit validation. Multiple course codes inside one requisite/equivalency cell use `|` and must resolve to a Course in the same preview or current academic authority. `term_placement` accepts only `First`, `Second`, or `Special`; `scheduling_treatment` accepts only `Recurring` or `ExternallyArranged`. Meeting components, allowed delivery modes, and room requirements are completed on the resulting Draft through the ordinary workbench. CSV v1 does not encode them through a nested syntax or mini-language.
+
+The mapping preview shows the fixed one-to-one header contract read-only. Missing, duplicate, reordered, or unknown headers and an unsupported template version block preview; TALA provides no generic mapping designer. Invalid encoding, delimiter, file size, or row count produces one file-level explanation and recovery action and creates no academic record.
+
+Preview creates no Course, Course Revision, Curriculum Entry, or active authority. It shows each source row, normalized interpretation, comparison with current academic authority, proposed Draft effect, errors, and warnings. Whole-file and row checks include authorization and source version; duplicate course codes; circular, unresolved, or malformed requisites; inconsistent course title or units; missing or invalid authority reference; invalid year/term/treatment; a non-empty source cell beginning with `=`, `+`, `-`, `@`, tab, or carriage return; and attempted overwrite of active or historically used authority. A blocking finding links to the exact source row. Warnings require acknowledgement but never conceal a blocker.
+
+**Create Draft records** is available only with zero blockers and acknowledged warnings. It revalidates the Registrar, selected Program/Curriculum context, source versions, checksum, and every affected Draft scope, then creates all Draft records in one transaction. Any failure creates none. A checksum plus selected context reopens one unfinished preview; a successfully committed file/context cannot create duplicate Drafts on retry. Activation remains the separate ordinary readiness decision.
+
+The formula-safe findings download contains source-row identity, original plain-text values, severity, affected column, finding, and recovery. Generated text cells beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefixed with one apostrophe; browser preview escapes and renders contents as plain text and never evaluates markup. The findings file is not accepted as an import source: Registrar corrects and re-uploads the original TALA template. Upload, preview, findings download, and commit each require current Catalog & Curricula authorization without exposing another Program's data.
+
 An approved Curriculum Version may also contain a bounded external-competency requirement when its exact authority identifies the qualification. The requirement owns only the qualification label and level, related course or curriculum position when applicable, authority reference/date, effective Curriculum Version, and treatment:
 
 - `TrackedOnly` records an externally verified result for curriculum-evaluation visibility and never blocks enrollment, grades, completion, or conferral.
@@ -315,7 +344,7 @@ There is no arbitrary lifetime run limit and no unlimited identical-rerun action
 
 ## 13. Publication and Revision
 
-The immutable Published Timetable and its role-filtered print/save-as-PDF view are Clinic 3's official output. Output generation must use one published version, show its authority and generation context, and fail without producing a partial or official-looking artifact when the source is stale or unavailable.
+The immutable Published Timetable and its role-filtered print/save-as-PDF view are Clinic 3's official output. Output generation uses one Published Timetable Version and labels it `Published` or `Superseded`; it never combines meetings from multiple versions. The authenticated A4 landscape view contains approved institution identity and **PUBLISHED TIMETABLE**; Academic Year, exact First/Second/Special Term label and reference; authority reference; publication and generation times; version and role/filter context; and ordered day/time, Course, Class Offering, Faculty where authorized, delivery mode, room or Online location, and revision marker. It repeats the Term/version and table headings on continuation pages, is monochrome-safe, omits navigation/controls, and uses a restrained **Generated through TALA** footer. A superseded version remains printable only as visibly historical. Stale or unavailable source prevents generation and failure produces no partial or official-looking artifact while preserving the ordinary timetable page and safe retry/support path.
 
 Any required academic sign-off follows `Decision then record` outside TALA. Registrar records its authority/reference and publishes.
 
@@ -433,13 +462,13 @@ The coordinated institution contains BM, IT, and THM; 47 current Students across
 
 | Persona / preconditions | Entry | Action | Visible evidence | Cross-role result | Output | Failure branch | Pass condition |
 |---|---|---|---|---|---|---|---|
-| Registrar; Draft `CUR-THM-2026` | Catalog & Curricula | Resolve import findings and activate | Grouped sheet, sources, blockers, authority, immutable active state | Clinic 4/5 can consume only the active version | Curriculum activation evidence | Circular requisite or missing authority blocks activation | No generic Settings or peer-resource maze is used |
+| Registrar; Draft `CUR-THM-2026` | Catalog & Curricula | Download the v1 template, preview one invalid file, correct it, create Draft records, resolve remaining findings, and activate | Fixed headers/mapping, source comparison, errors/warnings, checksum, grouped sheet, authority, immutable active state | Clinic 4/5 can consume only the active version | Formula-safe findings CSV and curriculum activation evidence | Invalid encoding/header/row, circular requisite, missing authority, stale source, or duplicate commit creates no partial/duplicate Drafts | No generic mapper, Settings surface, or peer-resource maze is used |
 | Registrar; Draft `TERM-2026-1` | Term Planning Overview | Attempt activation, correct window/grid conflict, activate | Failed-first source/owner/recovery then all-passed summary | Downstream clinics see owned window projections | Active Term Calendar Package | Contradictory exception blocks activation | Dates are explicit and no term is auto-cloned |
 | Registrar, Academic Head, Faculty, and Student; active `TERM-2026-1` | Term Planning Overview / Academic Oversight / My Schedule / Student Home or Academics | Open the Examination Period projection | Same approved dates, authority, package version, owner, and as-of time; exact arrangements identified as Faculty-owned | Every role sees the same informational period without gaining a scheduling action | No new output | Missing/stale calendar evidence shows the named unavailable state and no inferred date | No class-level exam schedule, email, generic event, or financial hold appears |
 | Registrar and Faculty `FAC-ADA` | Cohorts & Classes / Teaching Resources / My Availability | Confirm classes, request declaration, submit late correction | Demand sources, separate cohorts, blockers, declaration history | Registrar readiness updates; Faculty sees only own facts | Complete scheduling inputs | Room or Faculty gap remains linked to owner/source | Every recurring class is attributable and ready |
 | Registrar; `RUN-TECH` then `RUN-INF` | Generate & Review | Generate, inspect technical failure, then infeasible diagnostics | Distinct result meaning, safe reason, owner, source, next action | System Administrator sees technical health only | Retained failed runs, no candidate | Retry unavailable until service/source recovery | Failure is never mislabeled as a valid candidate |
 | Registrar; `RUN-FEA` / `CAND-2026-01` | Generate & Review | Open valid candidate, make bounded correction, revalidate | Quality hierarchy, weekly and accessible table views, hard-rule result | Academic Head sees read-only evidence; Faculty/Students see nothing yet | Valid complete candidate | Invalid correction is rejected without waiver | Candidate remains non-official until publication |
-| Registrar; external sign-off recorded | Published Timetable | Publish `PUB-2026-01`, filter/print official view | Authority, version, publication time, immutable meetings | Assigned Faculty sees official schedule; Clinic 4 receives availability | Official timetable print/save-as-PDF | Missing/stale sign-off blocks publication | Published data exactly matches validated candidate |
+| Registrar; external sign-off recorded | Published Timetable | Publish `PUB-2026-01`, filter/print the A4 landscape official view | Authority, exact Term, version/status, publication/generation time, role/filter context, immutable meetings | Assigned Faculty sees official schedule; Clinic 4 receives availability | Monochrome-safe Published Timetable with repeated Term/version and headings | Missing/stale sign-off blocks publication; generation failure creates no artifact | Published data exactly matches the validated candidate and a superseded version is visibly historical |
 | Registrar with affected Clinic 4 placements | Published Timetable revision | Record source change, resolve impact, publish `PUB-2026-02` | Complete impact, validation, superseded history | Affected Faculty and enrolled Students receive one shared event | New official version and revision evidence | Unresolved placement or invalid timetable blocks publication | No meeting is edited in place and no duplicate email fires |
 | Registrar; Draft `TERM-2026-ST` | Term Planning → Cohorts & Classes → Generate & Review | Fail missing calendar/Additional authority, record valid authority, confirm `CLS-ITE3-ST-A` and `CLS-IT201-ST-R`, then publish | Particular schedule, class-hour/class-day evidence, offering sources, resources, candidate, and official version | Clinic 4 receives the two published classes under the same Special Term reference | Published Special Term timetable | Missing authority, resource conflict, or invalid candidate blocks the next action | No Summer scheduler, tutorial workflow, universal unit cap, or learner classification appears |
 

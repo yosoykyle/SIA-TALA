@@ -365,8 +365,11 @@ Each row shows requirement, purpose, due stage, submission method, applicant-saf
 ### 12.4 History and printable acknowledgment
 
 - Earlier submitted, withdrawn, or decided applications remain read-only.
-- A printable application acknowledgment contains the stable reference, submitted application summary, current requirement list, and applicable physical-submission instructions.
+- A printable Application Acknowledgment is generated from one immutable submitted Application version and the exact published Requirement Set version that governed that submission. Later requirement changes do not rewrite the historical acknowledgment.
+- The A4 portrait output contains the approved institution identity; **APPLICATION ACKNOWLEDGMENT**; Applicant display name and stable Application reference; Admission Cycle, Program, and path; submitted time; the submitted Application summary; the versioned requirement list and each applicable submission method/state as of submission; applicable physical-submission instructions; output reference and generation time; and a restrained **Generated through TALA** footer.
+- The screen and every printed copy identify the source Application and Requirement Set versions. A later submitted successor or changed decision leaves the earlier acknowledgment historical and visibly labelled with its source/version; it never silently presents current requirements as if they governed the earlier submission.
 - The acknowledgment is not an admission certificate, proof of official enrollment, COR, or Student record.
+- The output is authenticated, monochrome-safe, semantic, and keyboard reachable; navigation and interactive controls do not print. Multi-page copies repeat the Applicant/Application identity and table headings. Stale or unavailable source prevents generation, and failure creates no partial or official-looking artifact while retaining the ordinary Application page and safe retry/support path.
 
 ## 13. Registrar Admissions UI Authority
 
@@ -507,7 +510,7 @@ The later implementation must prove:
 - Derived `ReadyForEnrollment` and automatic Clinic 4 visibility without Student creation.
 - Applicant withdrawal, Registrar-recorded withdrawal, and authorized reopening.
 - Mail success, failure, idempotency, and resend.
-- Printable acknowledgment without false admission or official-enrollment language.
+- Printable acknowledgment bound to the submitted Application and Requirement Set versions, with exact A4 content, historical labelling, monochrome behavior, and no false admission or official-enrollment language.
 - Cross-role authorization and inaccessible-record behavior.
 - Native date/time filters, active indicators, empty, loading, and error states.
 - Keyboard, screen-reader, desktop, mobile, and print journeys.
@@ -538,7 +541,7 @@ All identities use `example.test`; dates, references, credentials, and authoriti
 | Persona / preconditions | Entry | Action | Visible evidence | Cross-role result | Output | Failure branch | Pass condition |
 |---|---|---|---|---|---|---|---|
 | Public/Applicant; `CYCLE-2026-A` closed then open | Public gateway | Inspect closed entry, then sign in and start after publication | Open/close dates, supported paths, guidance, privacy and support | Clinic 1 derives entry availability | One application for the cycle | Close-time race blocks first submission without losing safe draft facts | Closed entry never blocks existing Applicant sign-in |
-| `APP-2026-0001` | Applicant Home | Complete the five Wizard steps, save draft, submit | Step status, field errors, evidence versions, declarations, stable reference | Registrar queue receives `Submitted` | Printable acknowledgment | Invalid upload or stale submission preserves safe recovery | No Student, enrollment, or Study Plan record is created |
+| `APP-2026-0001` | Applicant Home | Complete the five Wizard steps, save draft, submit | Step status, field errors, evidence versions, declarations, stable reference | Registrar queue receives `Submitted` | A4 Application Acknowledgment bound to the submitted Application and Requirement Set versions | Invalid upload or stale submission preserves safe recovery; output failure creates no artifact | No Student, enrollment, or Study Plan record is created, and the acknowledgment claims neither admission nor enrollment |
 | Registrar and `APP-2026-0002` | Admissions queue/Applicant Record | Review and issue one scoped correction; Applicant resubmits | Action-needed scope, owner, deadline, version/history | Queue moves from waiting back to needs review | Consolidated correction email | Delivery failure leaves workspace authoritative | Only named fields/evidence reopen |
 | Registrar and `APP-2026-0005` | Applicant Record | Resolve identity warning and record decision | Masked identity evidence, resolution, authorized decision | Applicant sees safe decision only | Append-only decision evidence | Unresolved warning blocks `Admitted` | No merge or other-person disclosure occurs |
 | Registrar and `APP-2026-0007` | Applicant Record | Record `NotAdmitted`, then authorized superseding `Admitted` | Previous and current decisions, reason, authority, safe explanations | Applicant history updates; no Student identity exists | Decision messages keyed to each decision | Stale action is rejected | Earlier decision remains immutable |

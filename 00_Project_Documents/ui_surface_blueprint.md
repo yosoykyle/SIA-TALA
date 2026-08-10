@@ -37,7 +37,7 @@ MVP decisions:
 8. Auth Designer is retained only when native Filament verification, recovery, profile, email-change, MFA, responsive, and accessibility behavior still works. Applicant registration remains a focused custom page only if needed to enforce the approved minimal account-creation contract.
 ## Canonical UI Status and Evidence Boundary
 
-**Status:** Canonical UI authority complete and aligned to standalone PRDs 01–06.
+**Status:** Canonical UI authority complete and aligned to standalone PRDs 01–06, including explicit component dispositions, brand roles, fixed CSV contracts, complete printable outputs, and the optional Quick-tour boundary.
 
 The Canonical UI Surface Coverage Inventory is the implementation-coverage contract. Its entries represent required user-visible capabilities and acceptance evidence, not one mandatory route, Laravel page, Livewire component, Filament Resource, modal, or design frame each. Related entries may share one workbench through tabs, selected-record panels, contextual actions, dialogs, outputs, or shared states when ownership and behavior remain explicit.
 
@@ -57,6 +57,17 @@ Current application pages, schema-shaped resources, legacy screenshots, archived
 | Operational Queue / Review Table | Resource `Table` with default filters, status badges, row actions, and optional header/bulk actions | Default view shows the role's next work |
 | Filter Form | Native table filters, including controlled selects and date ranges | Add saved-filter plugins only after repeated use proves the need |
 | Generated Read-Only View | Resource view page with an infolist, read-only table, focused custom Filament Page, or authenticated Laravel printable Blade route | Corrections link back to the owning source record |
+
+Every entry in the Canonical UI Surface Coverage Inventory has one implementation disposition:
+
+| Disposition | Use |
+|---|---|
+| `NativeFilament` | Filament resources, Pages, Tables, Forms, Infolists, Tabs, Sections, Wizards, Actions, filters, notifications, or an ordinary composition of them satisfy the behavior |
+| `InstalledCompatibleDependency` | An already-installed compatible dependency fills one bounded capability that native Filament cannot provide alone |
+| `FocusedTALACustom` | A small TALA-owned Blade, Livewire, print, visualization, preview, or failure component is necessary and reuses native primitives where practical |
+| `PurposefullyExcluded` | The interaction is unnecessary, unsafe, externally owned, or deliberately outside the MVP; no placeholder page or generic subsystem is created |
+
+These dispositions describe responsibility, not route or class count. A custom Filament Page composed entirely from native Sections, Tables, Forms, Tabs, Infolists, and Actions remains `NativeFilament`. `FocusedTALACustom` is reserved for behavior or rendering that native primitives cannot express alone. New plugins remain last resort after native Filament, an installed compatible dependency, and a focused TALA component have each been shown insufficient.
 
 Filament v5 implementation conventions:
 
@@ -347,9 +358,19 @@ Every page uses this order:
 
 Controls retain a distinct border, fill, or stable action zone and never look like adjacent static content. Grouping uses spacing before additional rules: gaps between sections are at least twice the gap between tightly related items. Content aligns to shared leading edges and uses logical start/end behavior. Long labels, references, and translated strings wrap without clipping actions.
 
+### Optional Quick tour
+
+Authenticated Applicant, Student, and each Staff role may use one short, role-aware **Quick tour** implemented with the installed Driver.js 1.4.0 dependency plus a small TALA wrapper. Public visitors receive no tour. On the first successful entry for a credential, authorized role, and tour version, TALA shows a non-blocking invitation; it never opens the overlay automatically. **Quick tour** remains replayable from the account menu. Dismissal or completion suppresses only that role and version's invitation.
+
+The static steps cover only the current workspace/role, canonical navigation, explicit Term context when present, owner/status/next-action presentation, the page's primary-action location, and Account Security/replay. The tour never navigates, switches a Term or role, opens the mobile drawer, enters data, explains private record contents, or performs an institutional mutation. Before starting, the wrapper removes steps whose targets are not present or authorized; it does not rely on a newer missing-target option. If no usable step remains, ordinary navigation continues and no completion preference is recorded.
+
+The tour uses visible **Next**, **Previous**, **Finish**, and **Close** controls; Escape closes; focus remains within the named dialog and returns to the invitation or replay control. Screen readers receive the title, description, and **Step x of y** progress in meaningful order. At mobile widths, the visible drawer trigger may be highlighted but the drawer is not programmatically opened; a target-free centered explanation may replace a hidden desktop target. With reduced motion, animation and smooth scrolling are disabled. The tour sends no third-party request, captures no DOM or record content, records no grade, application, finance, or identity value, and adds no analytics. Failure changes neither business state nor the dismissal/completion preference.
+
+No onboarding checklist, dashboard, tour editor, database-driven workflow builder, or new plugin is introduced. Later implementation acceptance must qualify Driver.js 1.4.0 with keyboard, NVDA or equivalent desktop screen reader, TalkBack or equivalent mobile screen reader, 360/390 mobile, and reduced-motion behavior; inability to pass that bounded contract reopens only the tour disposition and never blocks ordinary workspace use.
+
 ## Visual Foundation and Implementation Authority
 
-The canonical interface is light-first and uses the existing TALA blue/yellow identity with the mascot or star mark as a restrained orientation cue, not as decoration inside dense workbenches.
+The canonical interface is light-first and uses the existing TALA blue/yellow identity. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The approved Servitech/SIA crest is the institution mark. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork.
 
 ### Color tokens
 
@@ -373,7 +394,7 @@ All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1.
 
 ### Typography tokens
 
-- Outfit is the display/heading face; Inter is the body, control, table, amount, and identifier face; both fall back to the system sans-serif stack.
+- Outfit at weights 600–700 is the display/heading face. Inter at weights 400, 500, and 600 is the body, control, table, amount, and identifier face. Both fall back to the system sans-serif stack.
 - The type scale is 12, 14, 16, 18, 20, 24, and 30 CSS pixels. Text smaller than 12 pixels is not used.
 - Body and learner input text remains at least 16 pixels at mobile widths. Dense Staff table text may be 14 pixels while retaining zoom/reflow and target requirements.
 - Body line height is 1.5; headings use approximately 1.25. Wrapped text of three or more lines uses at least 1.4.
@@ -386,8 +407,18 @@ All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1.
 - Corner radii use 6, 8, and 12 pixels. Nested surfaces use concentric radii rather than identical pinched corners.
 - Borders carry structural hierarchy. Shadows are reserved for drawers, menus, and dialogs that genuinely float above content.
 - Routine state changes use no decorative entrance animation. Necessary feedback is limited to 150–200 ms opacity or transform transitions, never `transition: all`, and respects reduced-motion preference.
-- One outline icon family is used consistently; icon stroke weight matches adjacent text and active states use color/fill without requiring a separate asset.
+- Heroicons Outline is the one interface icon family. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Icon stroke weight matches adjacent text and active states use color/fill without requiring a separate asset.
 - Qualification frames are 390×844 and 360×800 for learner mobile, 768×1024 for intermediate review, and 1366×768 for dense Staff work.
+
+### Brand-mark and print roles
+
+- Public and authentication surfaces show institution identity together with the TALA star and live **TALA** wordmark. The star may be friendly and prominent there, but it never competes with the page's task.
+- Authenticated Applicant, Student, and Staff shells use a 32 CSS-pixel TALA star with the live workspace name. Dense navigation and workbenches do not repeat the institution crest or decorative mascot treatment.
+- The favicon and install/app icon use the approved star-only artwork.
+- Official and institutional printable outputs lead with the approved institution crest and institution name. They do not use the mascot; a restrained **Generated through TALA** text footer may identify the product.
+- The TALA star is never rendered below 24 CSS pixels, is normally 32 pixels in the authenticated shell, and is at least 48 pixels on public/authentication surfaces. The institution crest is at least 48 CSS pixels on screen and 18 mm high on print, preserves its aspect ratio, and has a qualified monochrome-safe rendering.
+- When adjacent visible text already identifies TALA or Servitech/SIA, the image is decorative and uses an empty text alternative. A standalone product or institution mark receives the matching accessible name. No interface uses the filename as alternative text.
+- Failure pages use system fallbacks and do not depend on Vite or Livewire. Failure pages and printable outputs do not depend on remotely loaded fonts or a decorative background to communicate identity or status.
 
 ## Reusable Component Authority
 
@@ -438,67 +469,67 @@ Routine save, search, filter, pagination, tab selection, read-only projection, p
 
 The inventory uses the columns below. `J1`–`J7` refer to the seven representative journeys in the next section; `Support` is a reachable supporting capability rather than a separate end-to-end journey. The count is not authoritative and may change when redundant presentation surfaces are consolidated or missing coverage is identified. Consolidation must not hide ownership, permissions, source evidence, actions, failures, responsive behavior, or accessibility, and must not recreate a generic dashboard.
 
-| Coverage ID | Role/workspace | User-visible surface | Parent entry | Source PRD | Authoritative source | Primary action | Output | Required state/correction coverage | Responsive/print requirement | Acceptance journey |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `SHR-001` | Public | Public Gateway | Direct URL | PRD 01 | Published public content and current Admission Cycle projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance | 390, 360, 1366 | J1 |
-| `SHR-002` | Shared identity | Registration and contextual sign-in | Gateway or owning journey | PRD 01 | Person, account, verification state | Register or sign in | Verification request | Duplicate identity, invalid credentials, rate limit | 390, 360 | J1 |
-| `SHR-003` | Shared identity | Verification, recovery, reset, and MFA | Secure message or sign-in | PRD 01 | Verification/recovery challenge | Verify or recover access | Security notice | Expired, consumed, invalid, or failed challenge | 390, 360 | J1 |
-| `SHR-004` | Multi-role Staff | Workspace chooser | Successful sign-in | PRD 01 | Current role assignments | Enter selected workspace | — | Zero authorized context or stale assignment | 390, 1366 | J1 |
-| `SHR-005` | Authenticated | Account Security | Top bar account menu | PRD 01 | Account security state | Update password or MFA | Security notice | Reauthentication or MFA failure | 390, 1366 | Support |
-| `SHR-006` | Shared | Access and service failure | Any protected route | Baseline | Authorization and locally known service state | Return to authorized entry | — | Inaccessible, expired session, limited, unavailable | 390, 1366 | J1 |
-| `APP-001` | Applicant | Applicant Home | Applicant fixed entry | PRD 02 | Application and readiness projection | Continue current next action | — | No open cycle, correction required, withdrawn | 390, 360 | J2 |
-| `APP-002` | Applicant | Five-step Application Wizard | Applicant Home | PRD 02 | Application draft/version | Save and continue or submit | Submitted snapshot | Validation, stale draft, failed submission | 390, 360 | J2 |
-| `APP-003` | Applicant | Requirements | Applicant Home or Wizard | PRD 02 | Published Requirement Set and evidence | Submit or replace evidence | — | Missing, rejected, superseded, inaccessible evidence | 390, 360 | J2 |
-| `APP-004` | Applicant | Application acknowledgment | Applicant Home | PRD 02 | Submitted Application version | Download acknowledgment | Application Acknowledgment | Generation failure creates no artifact | 390, print | J2 |
-| `STU-001` | Student | Student Home | Student fixed entry | Baseline | Source-owned Enrollment, Academics, Finance, and Examination Period projections | Open highest-priority safe action | — | Stale or unavailable source remains labelled; no inferred examination date | 390, 360, 768 | J3/J4/J5/J6 |
-| `STU-002` | Student | Enrollment | Student Home | PRD 04 | Registration Case, proposal, placement, readiness | Confirm or resolve current checkpoint | Current COR link | No proposal/class/assessment, expired reservation | 390, 360 | J4 |
-| `STU-003` | Student | Academics | Student Home | PRD 03/05 | Released results, external competency results, academic projections, and Examination Period | Open result or correction guidance | Unofficial academic record | Grades not complete; INC completion open/overdue/amended/resolved; external result not recorded; unavailable examination period | 390, 360, 768 | J3/J5 |
-| `STU-004` | Student/alumni | Finance | Student Home | PRD 06 | Term Account and current projection | Pay exact due or submit evidence | SOA, Payment Acknowledgment | Pending/mismatch/stale source; alumni read-only | 390, 360, 768 | J6 |
-| `STU-005` | Student | Profile | Student Home | PRD 04 projection | Official identity/program/curriculum/contact facts | Follow correction guidance | — | Missing/stale source; no direct official edit | 390, 360 | Support |
-| `STU-006` | Student | Current and historical COR | Enrollment | PRD 04 | Immutable COR versions | Open or print selected version | COR | Superseded version or generation failure | 390, print | J4 |
-| `REG-A01` | Registrar | Admissions | Registrar fixed entry | PRD 02 | Applications and action queue | Open next application | — | Initial/filtered empty, stale queue | 1366 | J2 |
-| `REG-A02` | Registrar | Applicant Record | Admissions | PRD 02 | Application/evidence/decision history | Request correction or record decision | Decision/credential result | Unauthorized, stale, superseding decision | 1366, 768 read-only | J2 |
-| `REG-A03` | Registrar | Admission Cycles and readiness | Admissions | PRD 02 | Admission Cycle and Requirement Set | Publish cycle | — | Failed readiness or competing publication | 1366 | J2 |
-| `REG-C01` | Registrar | Catalog & Curricula | Registrar navigation | PRD 03 | Program, Course Revision, Curriculum Version, external competency requirement | Activate valid successor | — | Import/authority/readiness blocker; no inferred completion treatment | 1366 | J3 |
-| `REG-T01` | Registrar | Term Planning Overview | Registrar navigation | PRD 03 | Term Calendar Package, Examination Period, and planning readiness | Open first failed checkpoint | — | Missing/stale calendar authority; examination period unavailable | 1366 | J3 |
-| `REG-T02` | Registrar | Cohorts & Classes | Term Planning | PRD 03 | Term Cohort and Class Offering | Add or correct offering | — | Missing Additional-offering authority | 1366 | J3 |
-| `REG-T03` | Registrar | Teaching Resources | Term Planning | PRD 03 | Faculty, room, availability, meeting pattern | Resolve resource blocker | — | Missing/incompatible resource | 1366 | J3 |
-| `REG-T04` | Registrar | Generate & Review | Term Planning | PRD 03 | Solver request/result and candidate | Generate or validate candidate | Candidate evidence | Infeasible, Unknown, ModelInvalid, TechnicalFailure | 1366 | J3 |
-| `REG-T05` | Registrar | Candidate correction | Generate & Review | PRD 03 | Candidate meeting version | Apply valid bounded correction | Revalidated candidate | Invalid replacement or stale candidate | 1366 | J3 |
-| `REG-T06` | Registrar | Published Timetable and revision | Term Planning | PRD 03 | Published Timetable Version | Publish or record affected revision | Published Timetable | Failed impact/readiness or stale publication | 1366, 768 read-only, print | J3 |
-| `REG-E01` | Registrar | Students & Enrollment | Registrar navigation | PRD 04 | Registration Cases and readiness queue | Open next actionable case | — | Empty/stale/action unavailable | 1366 | J4 |
-| `REG-E02` | Registrar | Enrollment case and proposal | Students & Enrollment | PRD 04 | Registration Case and proposal versions | Prepare/revise/finalize valid case | Enrollment and COR result | Failed prerequisite, placement, assessment, clearance | 1366 | J4 |
-| `REG-E03` | Registrar | Shortage and timetable-impact context | Students & Enrollment | PRD 04 | Placement/reservation and timetable impact | Resolve affected case | Updated learner projection | No valid class or expired reservation | 1366 | J4 |
-| `REG-E04` | Registrar | Adjustment and Course Drop | Enrollment case | PRD 04 | Authorized change and successor versions | Apply authorized change | Successor COR when applicable | Additional clearance or Accounting review pending | 1366 | J4 |
-| `REG-G01` | Registrar | Grades & Completion | Registrar navigation | PRD 05 | Roster/release/progress/completion queues | Open next actionable record | — | Empty/stale/unauthorized action | 1366 | J5 |
-| `REG-G02` | Registrar | Grade release, INC, and correction detail | Grades & Completion | PRD 05 | Final result, deadline/amendment, and correction chain | Release, amend deadline, resolve, or supersede result | Released result | Completion overdue, deadline/result race, stale result | 1366, 768 read-only | J5 |
-| `REG-G03` | Registrar | Progress and lifecycle detail | Grades & Completion | PRD 05 | Curriculum progress and lifecycle result | Record authorized decision | Updated projection | Missing source or consequential pending state | 1366 | J5 |
-| `REG-G04` | Registrar | Completion and conferral | Grades & Completion | PRD 05 | Completion review and conferral record | Confirm authorized completion outcome | Completion result | Missing requirement or authority | 1366 | J5 |
-| `REG-G05` | Registrar | TOR preview and issuance history | Grades & Completion | PRD 05/06 | Transcript snapshot, TALA Standard TOR version, signatory data, clearance | Preview or issue | Issued TOR | Missing source/signatory/clearance; generation failure; void/replacement/supersession | 1366, print | J5 |
-| `REG-G06` | Registrar | Verified external competency result | Grades & Completion | PRD 03/05 | Active external requirement and external assessment/certification evidence | Record verified result | Updated curriculum evaluation | Missing/stale requirement or evidence; successor preserves prior attempt | 1366, 768 read-only | J5 |
-| `ACC-001` | Accounting | Fee Plans | Accounting fixed entry | PRD 06 | Fee Plan versions | Create draft or publish valid plan | — | Incomplete/reconciled/competing publication blocker | 1366 | J6 |
-| `ACC-002` | Accounting | Fee Plan detail | Fee Plans | PRD 06 | Selected Fee Plan version | Save draft or publish | Published immutable version | Stale or failed readiness | 1366 | J6 |
-| `ACC-003` | Accounting | Student Accounts tabs | Accounting navigation | PRD 06 | Account, exception, and TOR-clearance queues | Open next actionable record | Contextual CSV | Empty/stale/filter failure | 1366 | J4/J6 |
-| `ACC-004` | Accounting | Student Account detail | Student Accounts | PRD 06 | Term Account, Assessment, Coverage, postings | Record authorized account action | SOA | Assessment unavailable/stale; failed posting | 1366 | J4/J6 |
-| `ACC-005` | Accounting | Authorized individual assessment | Account detail | PRD 06 | Registration/change version and Accounting authority | Record exact assessment | Successor AssessmentVersion | Unauthorized, unreconciled, or stale source | 1366 | J4 |
-| `ACC-006` | Accounting | Approved Coverage action | Account detail | PRD 06 | Coverage authority and current obligation | Record valid coverage | Updated clearance projection | Excess, conflict, stale, unsupported authority | 1366 | J4 |
-| `ACC-007` | Accounting | Payment Exception | Student Accounts | PRD 06 | Evidence/attempt exception | Verify actual amount or reject safely | Payment result when verified | Mismatch, duplicate, reversal, no posting | 1366 | J6 |
-| `ACC-008` | Accounting | TOR Clearance | Student Accounts | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
-| `FAC-001` | Faculty | My Availability | Faculty fixed entry | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
-| `FAC-002` | Faculty | My Schedule | Faculty navigation | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
-| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | PRD 05 | Official roster and submitted result version | Submit roster/results | Submission result | Incomplete/returned/stale roster; INC completion open/overdue | 1366, 768 | J5 |
-| `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
-| `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
-| `SYS-002` | System Administrator | Public Content | System Administrator navigation | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
-| `SYS-003` | System Administrator | System Health | System Administrator navigation | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Unknown/Not checked by TALA/degraded | 1366, 768 | J7 |
-| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; automatic disposal not provided | 1366, 768 | J7 |
-| `OUT-001` | Applicant | Application Acknowledgment print | Application acknowledgment | PRD 02 | Submitted Application version | Print/save | Application Acknowledgment | Generation failure | Print | J2 |
-| `OUT-002` | Authenticated roles | Published Timetable print | Published Timetable | PRD 03 | Published Timetable Version | Print/save | Published Timetable | Superseded/unavailable version | Print | J3 |
-| `OUT-003` | Student/Registrar | COR print/history | Enrollment or case | PRD 04 | COR Version | Print/save | COR | Superseded version or generation failure | Print | J4 |
-| `OUT-004` | Student | Unofficial academic record | Academics | PRD 05 | Released academic-record projection | Print/save | Unofficial Student Record | Incomplete/stale source or generation failure | Print | J5 |
-| `OUT-005` | Registrar | TALA Standard TOR | TOR preview/history | PRD 05 | Transcript snapshot, template version, and issuance state | Preview, issue, or print authorized state | TOR | Preview/issued/voided/replaced/superseded/generation failure | Print | J5 |
-| `OUT-006` | Student/Accounting | Account Statement/SOA | Finance or Account detail | PRD 06 | Term Account as-of projection | Generate/print | SOA | Stale source or no partial artifact | Print | J6 |
-| `OUT-007` | Student/Accounting | Payment Acknowledgment | Finance or Account detail | PRD 06 | Verified payment posting | Open/print | Payment Acknowledgment | Reversed/superseded/generation failure | Print | J6 |
+| Coverage ID | Role/workspace | User-visible surface | Parent entry | Component disposition | Source PRD | Authoritative source | Primary action | Output | Required state/correction coverage | Responsive/print requirement | Acceptance journey |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `SHR-001` | Public | Public Gateway | Direct URL | `FocusedTALACustom` | PRD 01 | Published public content and current Admission Cycle projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance | 390, 360, 1366 | J1 |
+| `SHR-002` | Shared identity | Registration and contextual sign-in | Gateway or owning journey | `NativeFilament` | PRD 01 | Person, account, verification state | Register or sign in | Verification request | Duplicate identity, invalid credentials, rate limit | 390, 360 | J1 |
+| `SHR-003` | Shared identity | Verification, recovery, reset, and MFA | Secure message or sign-in | `NativeFilament` | PRD 01 | Verification/recovery challenge | Verify or recover access | Security notice | Expired, consumed, invalid, or failed challenge | 390, 360 | J1 |
+| `SHR-004` | Multi-role Staff | Workspace chooser | Successful sign-in | `NativeFilament` | PRD 01 | Current role assignments | Enter selected workspace | — | Zero authorized context or stale assignment | 390, 1366 | J1 |
+| `SHR-005` | Authenticated | Account Security | Top bar account menu | `NativeFilament` | PRD 01 | Account security state | Update password or MFA | Security notice | Reauthentication or MFA failure | 390, 1366 | Support |
+| `SHR-006` | Shared | Access and service failure | Any protected route | `FocusedTALACustom` | Baseline | Authorization and locally known service state | Return to authorized entry | — | Inaccessible, expired session, limited, unavailable | 390, 1366 | J1 |
+| `APP-001` | Applicant | Applicant Home | Applicant fixed entry | `NativeFilament` | PRD 02 | Application and readiness projection | Continue current next action | — | No open cycle, correction required, withdrawn | 390, 360 | J2 |
+| `APP-002` | Applicant | Five-step Application Wizard | Applicant Home | `NativeFilament` | PRD 02 | Application draft/version | Save and continue or submit | Submitted snapshot | Validation, stale draft, failed submission | 390, 360 | J2 |
+| `APP-003` | Applicant | Requirements | Applicant Home or Wizard | `NativeFilament` | PRD 02 | Published Requirement Set and evidence | Submit or replace evidence | — | Missing, rejected, superseded, inaccessible evidence | 390, 360 | J2 |
+| `APP-004` | Applicant | Application acknowledgment | Applicant Home | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Download acknowledgment | Application Acknowledgment | Superseded snapshot remains labelled; generation failure creates no artifact | 390, print | J2 |
+| `STU-001` | Student | Student Home | Student fixed entry | `NativeFilament` | Baseline | Source-owned Enrollment, Academics, Finance, and Examination Period projections | Open highest-priority safe action | — | Stale or unavailable source remains labelled; no inferred examination date | 390, 360, 768 | J3/J4/J5/J6 |
+| `STU-002` | Student | Enrollment | Student Home | `NativeFilament` | PRD 04 | Registration Case, proposal, placement, readiness | Confirm or resolve current checkpoint | Current COR link | No proposal/class/assessment, expired reservation | 390, 360 | J4 |
+| `STU-003` | Student | Academics | Student Home | `NativeFilament` | PRD 03/05 | Released results, external competency results, academic projections, and Examination Period | Open result or correction guidance | Unofficial academic record | Grades not complete; INC completion open/overdue/amended/resolved; external result not recorded; unavailable examination period | 390, 360, 768 | J3/J5 |
+| `STU-004` | Student/alumni | Finance | Student Home | `NativeFilament` | PRD 06 | Term Account and current projection | Pay exact due or submit evidence | SOA, Payment Acknowledgment | Pending/mismatch/stale source; alumni read-only | 390, 360, 768 | J6 |
+| `STU-005` | Student | Profile | Student Home | `NativeFilament` | PRD 04 projection | Official identity/program/curriculum/contact facts | Follow correction guidance | — | Missing/stale source; no direct official edit | 390, 360 | Support |
+| `STU-006` | Student | Current and historical COR | Enrollment | `FocusedTALACustom` | PRD 04 | Immutable COR versions | Open or print selected version | COR | Superseded version or generation failure | 390, print | J4 |
+| `REG-A01` | Registrar | Admissions | Registrar fixed entry | `NativeFilament` | PRD 02 | Applications and action queue | Open next application | — | Initial/filtered empty, stale queue | 1366 | J2 |
+| `REG-A02` | Registrar | Applicant Record | Admissions | `NativeFilament` | PRD 02 | Application/evidence/decision history | Request correction or record decision | Decision/credential result | Unauthorized, stale, superseding decision | 1366, 768 read-only | J2 |
+| `REG-A03` | Registrar | Admission Cycles and readiness | Admissions | `NativeFilament` | PRD 02 | Admission Cycle and Requirement Set | Publish cycle | — | Failed readiness or competing publication | 1366 | J2 |
+| `REG-C01` | Registrar | Catalog & Curricula | Registrar navigation | `FocusedTALACustom` | PRD 03 | Program, Course Revision, Curriculum Version, external competency requirement | Preview/import Draft authority or activate valid successor | Import findings CSV | File/header/row/authority/readiness blocker; no inferred completion treatment | 1366 | J3 |
+| `REG-T01` | Registrar | Term Planning Overview | Registrar navigation | `NativeFilament` | PRD 03 | Term Calendar Package, Examination Period, and planning readiness | Open first failed checkpoint | — | Missing/stale calendar authority; examination period unavailable | 1366 | J3 |
+| `REG-T02` | Registrar | Cohorts & Classes | Term Planning | `NativeFilament` | PRD 03 | Term Cohort and Class Offering | Add or correct offering | — | Missing Additional-offering authority | 1366 | J3 |
+| `REG-T03` | Registrar | Teaching Resources | Term Planning | `NativeFilament` | PRD 03 | Faculty, room, availability, meeting pattern | Resolve resource blocker | — | Missing/incompatible resource | 1366 | J3 |
+| `REG-T04` | Registrar | Generate & Review | Term Planning | `FocusedTALACustom` | PRD 03 | Solver request/result and candidate | Generate or validate candidate | Candidate evidence | Infeasible, Unknown, ModelInvalid, TechnicalFailure | 1366 | J3 |
+| `REG-T05` | Registrar | Candidate correction | Generate & Review | `NativeFilament` | PRD 03 | Candidate meeting version | Apply valid bounded correction | Revalidated candidate | Invalid replacement or stale candidate | 1366 | J3 |
+| `REG-T06` | Registrar | Published Timetable and revision | Term Planning | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Publish or record affected revision | Published Timetable | Failed impact/readiness, stale publication, or visibly superseded output | 1366, 768 read-only, A4 landscape print | J3 |
+| `REG-E01` | Registrar | Students & Enrollment | Registrar navigation | `NativeFilament` | PRD 04 | Registration Cases and readiness queue | Open next actionable case | — | Empty/stale/action unavailable | 1366 | J4 |
+| `REG-E02` | Registrar | Enrollment case and proposal | Students & Enrollment | `NativeFilament` | PRD 04 | Registration Case and proposal versions | Prepare/revise/finalize valid case | Enrollment and COR result | Failed prerequisite, placement, assessment, clearance | 1366 | J4 |
+| `REG-E03` | Registrar | Shortage and timetable-impact context | Students & Enrollment | `NativeFilament` | PRD 04 | Placement/reservation and timetable impact | Resolve affected case | Updated learner projection | No valid class or expired reservation | 1366 | J4 |
+| `REG-E04` | Registrar | Adjustment and Course Drop | Enrollment case | `NativeFilament` | PRD 04 | Authorized change and successor versions | Apply authorized change | Successor COR when applicable | Additional clearance or Accounting review pending | 1366 | J4 |
+| `REG-G01` | Registrar | Grades & Completion | Registrar navigation | `NativeFilament` | PRD 05 | Roster/release/progress/completion queues | Open next actionable record | — | Empty/stale/unauthorized action | 1366 | J5 |
+| `REG-G02` | Registrar | Grade release, INC, and correction detail | Grades & Completion | `NativeFilament` | PRD 05 | Final result, deadline/amendment, and correction chain | Release, amend deadline, resolve, or supersede result | Released result | Completion overdue, deadline/result race, stale result | 1366, 768 read-only | J5 |
+| `REG-G03` | Registrar | Progress and lifecycle detail | Grades & Completion | `NativeFilament` | PRD 05 | Curriculum progress and lifecycle result | Record authorized decision | Updated projection | Missing source or consequential pending state | 1366 | J5 |
+| `REG-G04` | Registrar | Completion and conferral | Grades & Completion | `NativeFilament` | PRD 05 | Completion review and conferral record | Confirm authorized completion outcome | Completion result | Missing requirement or authority | 1366 | J5 |
+| `REG-G05` | Registrar | TOR preview and issuance history | Grades & Completion | `FocusedTALACustom` | PRD 05/06 | Transcript snapshot, TALA Standard TOR version, signatory data, clearance | Preview or issue | Issued TOR | Missing source/signatory/clearance; generation failure; void/replacement/supersession | 1366, print | J5 |
+| `REG-G06` | Registrar | Verified external competency result | Grades & Completion | `NativeFilament` | PRD 03/05 | Active external requirement and external assessment/certification evidence | Record verified result | Updated curriculum evaluation | Missing/stale requirement or evidence; successor preserves prior attempt | 1366, 768 read-only | J5 |
+| `ACC-001` | Accounting | Fee Plans | Accounting fixed entry | `NativeFilament` | PRD 06 | Fee Plan versions | Create draft or publish valid plan | — | Incomplete/reconciled/competing publication blocker | 1366 | J6 |
+| `ACC-002` | Accounting | Fee Plan detail | Fee Plans | `NativeFilament` | PRD 06 | Selected Fee Plan version | Save draft or publish | Published immutable version | Stale or failed readiness | 1366 | J6 |
+| `ACC-003` | Accounting | Student Accounts tabs | Accounting navigation | `NativeFilament` | PRD 06 | Account, exception, and TOR-clearance queues | Open next actionable record or export current context | Account Status CSV; Verified Payments CSV from selected account context | Empty/stale/filter/export failure | 1366 | J4/J6 |
+| `ACC-004` | Accounting | Student Account detail | Student Accounts | `NativeFilament` | PRD 06 | Term Account, Assessment, Coverage, postings | Record authorized account action | SOA | Assessment unavailable/stale; failed posting | 1366 | J4/J6 |
+| `ACC-005` | Accounting | Authorized individual assessment | Account detail | `NativeFilament` | PRD 06 | Registration/change version and Accounting authority | Record exact assessment | Successor AssessmentVersion | Unauthorized, unreconciled, or stale source | 1366 | J4 |
+| `ACC-006` | Accounting | Approved Coverage action | Account detail | `NativeFilament` | PRD 06 | Coverage authority and current obligation | Record valid coverage | Updated clearance projection | Excess, conflict, stale, unsupported authority | 1366 | J4 |
+| `ACC-007` | Accounting | Payment Exception | Student Accounts | `NativeFilament` | PRD 06 | Evidence/attempt exception | Verify actual amount or reject safely | Payment result when verified | Mismatch, duplicate, reversal, no posting | 1366 | J6 |
+| `ACC-008` | Accounting | TOR Clearance | Student Accounts | `NativeFilament` | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
+| `FAC-001` | Faculty | My Availability | Faculty fixed entry | `NativeFilament` | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
+| `FAC-002` | Faculty | My Schedule | Faculty navigation | `NativeFilament` | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
+| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 05 | Official roster and submitted result version | Submit roster/results | Submission result | Incomplete/returned/stale roster; INC completion open/overdue | 1366, 768 | J5 |
+| `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | `NativeFilament` | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
+| `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | `NativeFilament` | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
+| `SYS-002` | System Administrator | Public Content | System Administrator navigation | `NativeFilament` | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
+| `SYS-003` | System Administrator | System Health | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Unknown/Not checked by TALA/degraded | 1366, 768 | J7 |
+| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; automatic disposal not provided | 1366, 768 | J7 |
+| `OUT-001` | Applicant | Application Acknowledgment print | Application acknowledgment | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Print/save | Application Acknowledgment | Superseded or generation failure | A4 portrait print | J2 |
+| `OUT-002` | Authenticated roles | Published Timetable print | Published Timetable | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Print/save | Published Timetable | Superseded/unavailable version | A4 landscape print | J3 |
+| `OUT-003` | Student/Registrar | COR print/history | Enrollment or case | `FocusedTALACustom` | PRD 04 | COR Version | Print/save | COR | Superseded version or generation failure | A4 portrait print | J4 |
+| `OUT-004` | Student | Unofficial academic record | Academics | `FocusedTALACustom` | PRD 05 | Released academic-record projection as of generation | Print/save | Unofficial Student Record | Incomplete/stale source or generation failure | A4 portrait print | J5 |
+| `OUT-005` | Registrar | TALA Standard TOR | TOR preview/history | `FocusedTALACustom` | PRD 05 | Transcript snapshot, template version, and issuance state | Preview, issue, or print authorized state | TOR | Preview/issued/voided/replaced/superseded/generation failure | A4 portrait print | J5 |
+| `OUT-006` | Student/Accounting | Account Statement/SOA | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Term Account as-of projection | Generate/print | SOA | Stale source or no partial artifact | A4 portrait print | J6 |
+| `OUT-007` | Student/Accounting | Payment Acknowledgment | Finance or Account detail | `FocusedTALACustom` | PRD 06 | Verified payment posting | Open/print | Payment Acknowledgment | Reversed/superseded/generation failure | A4 portrait print | J6 |
 
 Routine empty, loading, and validation states use shared patterns instead of separate coverage entries. A dedicated entry is required only when a state changes meaning, permitted action, cross-role outcome, or official-output status.
 
@@ -597,7 +628,7 @@ Clinic 2 uses the same authoritative application across Applicant and Registrar 
 | Home | Reference, state, owner, deadline, one next action, scope, two readiness summaries, what happens next, and history | Custom Filament Page with vertically ordered Sections and one primary Action |
 | Application | Draft, validate, submit, or correct only authorized application facts and preliminary evidence | Custom Filament Page with native five-step Wizard: Application Choice, Identity and Contact, Prior Education, Preliminary Evidence, Review and Submit |
 | Requirements | Preliminary digital review and official-credential verification | Contextual Page with two grouped, mobile-stacked Tables and only state-permitted Actions |
-| Application acknowledgment | Submitted snapshot, stable reference, requirement list, and physical-submission instructions | Authenticated printable read-only view; never an admission certificate or proof of enrollment |
+| Application acknowledgment | Submitted Application and Requirement Set versions, stable reference, submitted summary, versioned requirements, physical-submission instructions, generation evidence, and no-admission/no-enrollment claim | Authenticated A4 portrait printable read-only view; never an admission certificate or proof of enrollment |
 
 `Requirements` is reached from Home or the current or historical Application. Account Security remains in the account menu and is not an admissions page.
 
@@ -689,11 +720,12 @@ Requirements
 
 ```text
 Application acknowledgment — printable
-┌ Institution · Application acknowledgment · Reference           ┐
-├ Submitted applicant/cycle/program/path facts                   ┤
-├ Submitted requirement list and evidence receipt summary        ┤
-├ Physical/official credential instructions                      ┤
-└ Submitted time · This is not admission or enrollment proof     ┘
+┌ Institution · APPLICATION ACKNOWLEDGMENT · Reference            ┐
+├ Application version · Requirement Set version · submitted time  ┤
+├ Applicant / cycle / program / path submitted facts              ┤
+├ Versioned requirement list · method/state as of submission      ┤
+├ Physical/official credential instructions                       ┤
+└ Generation ref/time · Not admission or enrollment proof         ┘
 ```
 
 ```text
@@ -722,7 +754,7 @@ Admissions queues sort overdue/action-needed items first, then nearest deadline,
 | Applicant Home | No application offers **Start application** only when a cycle is open; historical-only state explains the next valid entry | Status and readiness sections retain labelled structure | Changed decision/correction/readiness refreshes before action and preserves history | Other applicants' references and unsupported paths are inaccessible without disclosure |
 | Application Wizard | No Draft is created until start is valid; optional step sections explain applicability | Save/step/submit progress is explicit and duplicate submit disabled | Closing-time race, stale snapshot, or field/evidence validation retains safe Draft data and focuses the error summary | Closed cycle makes Draft read-only; unauthorized record route is generic inaccessible |
 | Requirements | No applicable rows states the retained requirement version and owner; filtered empty offers **Clear filters** | Groups and row labels remain available | Replaced evidence or result refreshes the row before action; upload failure preserves prior version | Private files require authorized download and never expose storage paths |
-| Acknowledgment | Unavailable before first submission; explanation links back to Application | Print view reports generation/loading without showing a false document | Superseded snapshot remains historical and clearly versioned | Only the owning Applicant and authorized Registrar may view it |
+| Acknowledgment | Unavailable before first submission; explanation links back to Application | A4 portrait view retains Application/Requirement Set version and output-generation labels without showing a false document | Superseded snapshot remains historical and clearly versioned; failure creates no artifact and returns to Application | Only the owning Applicant and authorized Registrar may view it; navigation/controls do not print |
 | Admissions queue | First-use and no-filter-match states are distinct; the latter clears filters | Table/tab counts report loading separately | Stale row action refreshes record and rejects out-of-order decision | Unauthorized roles have no navigation or record disclosure |
 | Applicant Record | Optional evidence/credential sections state **Not yet applicable** | Ordered Sections load without changing action position | Stale correction/decision/credential action shows current authoritative state | Direct unauthorized record route is indistinguishable from unavailable record |
 | Admission Cycle/readiness | No cycle offers bounded **New cycle**; no requirement version remains a blocker, never false success | Failed-first checks retain source/owner placeholders | Publish/date/cancel conflict requires refresh and reconfirmation | Storage/mail outage is attributed to System Administration; storage unavailability blocks publication |
@@ -764,6 +796,12 @@ The grouped sheet shows course code/title, units, prerequisites/corequisites, sc
 
 Filters use the native Filament filter panel with active indicators: program, curriculum intake/version, curriculum year, term placement, course state, scheduling treatment, and readiness. Search covers program, course code, and course title. Blocking import findings link to the exact Draft source row; import never activates or overwrites authority records.
 
+The CSV action is `FocusedTALACustom`: a small preview/commit coordinator built from native private File Upload, Form, Table, Action, policy, notification, and background-progress primitives. It uses the fixed template `tala-curriculum-import-template-v1.csv` with these read-only ordered headers: `template_version`, `program_code`, `curriculum_version`, `curriculum_name`, `curriculum_year`, `term_placement`, `course_code`, `course_title`, `units`, `prerequisite_course_codes`, `corequisite_course_codes`, `equivalent_course_codes`, `scheduling_treatment`, and `source_reference`. Only the three requisite/equivalency cells may be blank; `template_version` is `1`; codes, titles, units, and positive whole-number curriculum year use the shared validation; and `|` separates multiple Course codes that must resolve within the preview or current authority. `term_placement` is `First`, `Second`, or `Special`; `scheduling_treatment` is `Recurring` or `ExternallyArranged`.
+
+Before upload, the action shows **Download TALA curriculum template**, UTF-8/comma guidance, 5 MiB/5,000-row limits, and that import creates Drafts only. Missing, duplicate, reordered, unknown, or unsupported headers cannot be remapped. Preview records no academic authority and shows file summary/checksum, exact source row, normalized interpretation, current-source comparison, proposed Draft effect, errors, warnings, and filterable finding count. A finding links to its row/column and states how to correct the original template. Meeting components, modes, and room needs are completed later in the Draft workbench; the CSV offers no mini-language.
+
+**Create Draft records** appears only after zero blockers and acknowledged warnings. Formula-leading source text is a blocker. Its confirmation names the Program/Curriculum scope, proposed counts, source/checksum, all-or-nothing Draft effect, and that activation remains separate. Commit revalidates authorization and every source version. Failure states that no Draft was created and retains the preview for retry; a successful file/context cannot create duplicate Drafts. **Download findings** prefixes formula-leading generated text with one apostrophe, but that file cannot be re-imported. Preview always escapes and renders source text rather than markup. Upload, preview, findings download, and commit remain Registrar-only and never expose another Program's data.
+
 ### Term Planning workbench
 
 The selected-term header always shows term identity, state, current readiness, governing authority, current published version, and exactly one state-appropriate primary action. Context is selected before actions; no global action silently operates on an implicit term. The selector may show multiple concurrently active First, Second, or Special Terms and labels each by academic year, term type/display label, and state. Changing context never carries a Draft edit, filter with a different meaning, selected record, or pending action into another Term.
@@ -803,6 +841,8 @@ The weekly timetable is the one justified custom component. It must have an equi
 #### Published Timetable
 
 Show the current immutable version, recorded authority, publication time, filtered official timetable, print/save-as-PDF, revision impact, and superseded history. A targeted revision begins from an explicit source change and impact preview; no published meeting is edited in place.
+
+The official browser output is `FocusedTALACustom` and A4 landscape. It uses exactly one Published Timetable Version labelled `Published` or `Superseded` and shows institution identity, exact Academic Year and First/Second/Special Term, Term reference, authority, publication/generation times, version, role/filter context, and ordered day/time, Course, Class, authorized Faculty, mode, room/Online location, and revision marker. Continuation pages repeat Term/version and table headings. It is monochrome-safe, prints no navigation or controls, and uses restrained **Generated through TALA** footer text. A superseded version is visibly historical; stale/unavailable source or rendering failure creates no artifact and leaves the owning page available with retry/support guidance.
 
 ### Low-fidelity wireframes
 
@@ -888,7 +928,7 @@ Curricula order by curriculum year, term placement, course code, then stable rev
 | Cohorts & Classes | No demand and no filter match are distinct; absence of classes is a blocker when curriculum demand exists | Forecast/source state is labelled | Source change refreshes Draft rows; published-impact action requires review | Other-role and implicit-term actions are inaccessible |
 | Teaching Resources / My Availability | No declaration/resource shows responsible owner and due action | Declaration and blocker rows keep labels | Late/stale declaration records a new correction; failure preserves last authority | Faculty sees only own declaration/schedule; System Administrator cannot change academic facts |
 | Generate & Review | No run explains readiness/start action; no candidate is distinct from an empty meeting set | One active run shows safe progress without fake completion | Stale source invalidates generation/publication action and links to source | Infeasible, Unknown, ModelInvalid, and TechnicalFailure each show distinct meaning/owner/recovery; no candidate can publish |
-| Published Timetable / My Schedule | No published version states not official yet; filtered empty offers **Clear filters** | Version and table/view loading are labelled | Stale sign-off/revision/impact refreshes; failed publication creates no partial version | Candidate data is inaccessible to Faculty/Students; Students receive only Clinic 4 official placement projection |
+| Published Timetable / My Schedule | No published version states not official yet; filtered empty offers **Clear filters** | Version and table/view/loading and A4 generation states are labelled | Stale sign-off/revision/impact refreshes; failed publication/output creates no partial version/artifact; superseded print is visibly historical | Candidate data is inaccessible to Faculty/Students; Students receive only Clinic 4 official placement projection |
 
 The Term Planning wireframe is the explicitly shared shell for Overview, Cohorts & Classes, Teaching Resources, Generate & Review, and Published Timetable. The dedicated failure, valid-candidate, Faculty, and published/revision frames provide the required state- and role-specific detail; Catalog & Curricula has its own direct frame.
 
@@ -1175,7 +1215,7 @@ Every unresolved `INC` shows its original Term end, current inclusive deadline, 
 
 An external-competency row shows qualification/level, `Tracked only` or authority-backed `Completion required`, assessment date, safe `Competent`/`Not yet competent` result, optional verified NC/COC reference and validity, source, and current/superseded history. A missing tracked-only result says **Not recorded** and never blocks enrollment, grades, completion, or conferral. A completion effect appears only when the active Curriculum Version cites exact authority for `CompletionRequired`. The row never contributes a grade, unit, average, prerequisite, finance, email, or standard-TOR value.
 
-The printable action is labelled **Unofficial record — for student reference**. Official TOR issuance is absent from Student actions. Whenever an initial release, INC resolution, or correction affects an active Registration Case, the page states **Registrar review is required for your enrollment** and links to Enrollment without promising an automatic course change. A current exception says **This permission is not a grade or completed prerequisite** and shows its expiry. A closed Adjustment state says what remains official and who owns the next permissible path.
+The printable action is labelled **Unofficial record — for student reference**. It produces a `FocusedTALACustom` A4 portrait view from the released academic projection as of one explicit time. Every page says **UNOFFICIAL STUDENT RECORD** and **Unofficial — for student reference** and includes institution identity; Student legal name/number, Program, and Curriculum Version; output/as-of references; chronological exact Term groups; released course/attempt/credit facts; term units and average/readiness; cumulative unit/GWA readiness; curriculum/completion summary; and safe INC/correction context. It excludes draft/submitted results, private evidence, Faculty, schedule, finance, certification/signatory/seal, and official-TOR actions. Continuation pages repeat Student identity and headings; navigation/controls do not print; stale/unavailable source or rendering failure creates no artifact. Official TOR issuance is absent from Student actions. Whenever an initial release, INC resolution, or correction affects an active Registration Case, the page states **Registrar review is required for your enrollment** and links to Enrollment without promising an automatic course change. A current exception says **This permission is not a grade or completed prerequisite** and shows its expiry. A closed Adjustment state says what remains official and who owns the next permissible path.
 
 ```text
 Academics
@@ -1266,7 +1306,7 @@ System Administrator receives **System Health** and **Governance & Audit**. Stud
 |---|---|---|---|
 | Fee Plans | Publish one fixed ordinary Program-and-Term version | Current plan, action-needed Drafts, upcoming Terms, history | Native filtered Table plus focused create/view pages; no formula or calculation builder |
 | Fee Plan detail | Prepare and publish exact charges and obligations | Identity/authority, charge lines, obligations, readiness, history | Sections, Grid, ordered Repeater/table rows, Infolist after publication, focused publish Action |
-| Student Accounts | Find the next account decision, including `Assessment required` | Status, person, account, Program/Term, assessment basis/source, required/payment/coverage/due, satisfaction basis, next action | One Table with three semantic tabs and native filters; no separate assessment or coverage destination |
+| Student Accounts | Find the next account decision, including `Assessment required` | Status, person, account, Program/Term, assessment basis/source, required/payment/coverage/due, satisfaction basis, next action | One Table with three semantic tabs, native filters, and fixed contextual native Filament CSV Actions; no separate assessment, coverage, or Reports destination |
 | Payment Exception detail | Check safe evidence and record the external result | Reason/current due, evidence, review fields, history, consequence | Authorized view Page/Infolist with private preview and focused Actions |
 | TOR Clearance detail | Record one request-specific result | Output request, learner, requirement/reference, source, result | Contextual Infolist with `Record cleared` and `Record not required` Actions |
 | Student Account detail | Explain one Term position or record an eligible exact individual or coverage result | Current status/due, assessment basis/source, separate payment/coverage amounts, satisfaction basis, next obligation/action, projection, evidence tabs | Summary Sections, Infolists, responsive Tables, Tabs, contextual assessment/coverage Actions, Action Group |
@@ -1326,7 +1366,7 @@ Draft row controls provide explicit **Move up** and **Move down** buttons; order
 ┌ Student Accounts ─────────────────────────────────────────┐
 │ [Accounts 24] [Payment Exceptions 3] [TOR Clearance 2]   │
 │ Term [2026 T1▼] State [Action needed▼] Program [All▼]     │
-│ [Search person or account…]              [Export status]  │
+│ [Search person or account…]      [Export account status]  │
 │                                                          │
 │ STATUS              PERSON         ACCOUNT       ACTION    │
 │ Assessment required S. Student   ACT-2026-ST-001 Record   │
@@ -1336,6 +1376,18 @@ Draft row controls provide explicit **Move up** and **Move down** buttons; order
 ```
 
 The Payment Exceptions tab uses risk/reason, person/account, claimed amount, channel/source, submission age, and `Review`. The TOR Clearance tab uses state, request reference, learner, required amount/reference, required date, and `Open`.
+
+#### Contextual finance CSV actions
+
+Both exports are `NativeFilament` CSV-only actions with fixed columns, private initiating-actor retrieval, explicit query scoping, a required purpose, and no column chooser or alternate format.
+
+**Export account status** acts on the exact normalized Accounts-tab filters, authorization scope, and deterministic visible ordering confirmed in its dialog. It uses `tala-account-status-YYYYMMDD-HHmmss-PHT.csv` and these ordered labels: `Account Reference`, `Person Reference`, `Program`, `Term`, `Assessment Total (PHP)`, `Required Now (PHP)`, `Verified Payment Applied (PHP)`, `Approved Coverage Applied (PHP)`, `Current Due (PHP)`, `Projection State`, `Satisfaction Basis`, `Assessment Basis`, `Source Version or Authority Reference`, `As of (Asia/Manila)`.
+
+**Export verified payments** appears only in one selected Student Account's Payments context and applies its active state/date filters. It uses `tala-verified-payments-YYYYMMDD-HHmmss-PHT.csv` and these ordered labels: `Payment Reference`, `Account Reference`, `Person Reference`, `Term`, `Amount (PHP)`, `Channel`, `Masked External Reference`, `Posted At (Asia/Manila)`, `Verification Basis`, `Current State`. It never expands into a system-wide payment report.
+
+The confirmation shows the exact export, scope, row-count estimate, fixed columns, required purpose, and private retrieval. Both files are UTF-8 with BOM, comma-delimited, RFC 4180 quoted, and CRLF. Money uses ungrouped two-decimal values without `₱`; date/time uses RFC 3339 with `+08:00`; blank never means zero. Formula-like text beginning with `=`, `+`, `-`, `@`, tab, or carriage return is prefixed with one apostrophe, while numeric and date cells come only from typed authority.
+
+Export rechecks role, per-record visibility, filters/context, and source/as-of state and allows at most 10,000 rows. Above the limit, the dialog requires narrower filters. Zero rows records `NoRows` and creates no file. Failure creates no partial file, retains the normalized scope, and offers retry. Audit records actor, role, context/filters, purpose, row count, outcome, and time. No export email, notification center, report hub, private proof, raw provider data, bank detail, secret, eligibility material, or internal note is included.
 
 ### Detailed Account and Payment Status reference design
 
@@ -1547,6 +1599,8 @@ Unknown is never colored or labeled as healthy. Refresh reads locally knowable e
 
 ### Printable-output wireframes
 
+All seven canonical outputs use the same authenticated print frame: approved institution crest and name first; exact output title/status; source/version and generation reference/time; monochrome-safe semantic headings; repeated identity/table headings; deliberate page breaks without clipped rows; no navigation or interactive controls; system-font fallback; and restrained **Generated through TALA** footer text. Application Acknowledgment, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment are A4 portrait. Published Timetable is A4 landscape. A stale, inaccessible, or failed source creates no partial or official-looking artifact and preserves the owning page with a safe retry/support path.
+
 ```text
 ACCOUNT STATEMENT / SOA                 PAYMENT ACKNOWLEDGMENT
 Non-tax institutional output            Non-tax institutional output
@@ -1561,7 +1615,7 @@ Generation reference                       Institutional disclaimer
 Institutional disclaimer
 ```
 
-Print views are monochrome-safe, use semantic headings, repeat table headers, avoid clipped rows, and retain the disclaimer on every generated copy.
+SOA and Payment Acknowledgment retain their non-tax disclaimer on every generated copy. Their approved institution-first frame contains no mascot; the TALA product is identified only by the restrained footer.
 
 ### Selected alternatives
 

@@ -57,6 +57,8 @@ Use these rules when updating or implementing the modules:
 4. Source records are edited only in their owning workspace. Other surfaces show read-only summaries, links, or generated outputs.
 5. Computed values such as balances, eligibility, schedule conflicts, grade outcomes, and official outputs are shown as generated read-only results.
 6. Boundary statements are used only when they prevent overbuilding or protect official-record integrity.
+7. Every canonical UI entry declares one disposition: `NativeFilament`, `InstalledCompatibleDependency`, `FocusedTALACustom`, or `PurposefullyExcluded`. The inventory remains a coverage contract, not a required page or route count.
+8. Imports, exports, and printable outputs use fixed versioned contracts from their owning PRD. They do not expose a generic mapping designer, column designer, report hub, or template editor.
 
 ## MVP System Surface Map
 
@@ -75,7 +77,7 @@ This map identifies how major system areas are surfaced for v1. It is not a visu
 | Faculty rosters and final grades | Faculty Workspace and Registrar Workspace | Controlled final-result table with complete-roster submission and Registrar release/return actions; every released `INC` receives the fixed one-year completion deadline | Released result history, deadline amendments, `CompletionOpen`/`CompletionOverdue`/`Resolved`, correction evidence, and academic projections; no automatic grade conversion |
 | Academic record and lifecycle | Student Academics and Registrar Grades & Completion | Focused actions that record verified external-competency evidence and actual authorized academic/lifecycle decisions | Released grades, explicit average readiness, neutral Term weighted average, cumulative GWA, factual curriculum position, `AcademicEnrollmentEffect`, safe external results, lifecycle history, and unofficial record; no automatic sanction thresholds |
 | Graduation, conferral, and TOR | Registrar Grades & Completion with Student Academics visibility | Graduation application, readiness review, recorded conferral, TALA Standard TOR preview, and Registrar issuance after readiness | Completion readiness, immutable degree record, issued/void/replacement/superseded transcript snapshots, and unofficial Student record |
-| Imports, contextual exports, health, governance, and retention boundary | System Administrator and owning role workspaces | Fixed TALA CSV templates, locally evidenced health refresh, safe filters, and owning-record actions | Two contextual Clinic 6 CSVs, read-only audit/evidence views, explicit `Not checked by TALA`, and **Automatic retention disposal: Not provided in this MVP** |
+| Imports, contextual exports, health, governance, and retention boundary | System Administrator and owning role workspaces | Fixed TALA curriculum CSV preview/import contract, fixed contextual finance CSV contracts, locally evidenced health refresh, safe filters, and owning-record actions | Draft-only curriculum findings, two contextual Clinic 6 CSVs, read-only audit/evidence views, explicit `Not checked by TALA`, and **Automatic retention disposal: Not provided in this MVP** |
 
 ## Table of Contents
 
