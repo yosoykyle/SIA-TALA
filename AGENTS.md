@@ -455,6 +455,7 @@ Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md
 - Review, diagnosis, and planning are read-only unless the user also requests a change.
 - A clear request to implement, fix, change, build, or proceed authorizes bounded local edits, proportionate verification in the project's configured environment, and automatic remediation of in-scope failures.
 - Preserve aligned code and unrelated work. Patch proven gaps; do not broad-restart.
+- After compaction or resumption, re-anchor tracked and untracked work from recent original messages and available durable evidence before making changes or claiming completion. Read further backward or ask the user only when a material objective, decision, state, or permission remains unclear.
 - PRDs own product behavior, the UI blueprint owns surfaces and roles, and architecture owns integration boundaries. A GitHub Issue owns its tracked task scope and live status but never overrides product authority; the linked GitHub Project is only a view of issues. Code, tests, commits, and PRs are evidence.
 - Stop only for a material authority or product decision, destructive action, dependency, credential, cost, deployment, external write, material scope expansion, or unauthorized delegation.
 - Never infer permission to commit, publish, deploy, or mutate an external system outside the explicit workflow boundary. Testing configuration belongs to the project, not this workflow.

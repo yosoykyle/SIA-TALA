@@ -82,7 +82,9 @@ GitHub Issues are the only live shared task records. Keep issue bodies concise: 
 
 The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
-On resume, compare the live Git state, the issue, and relevant Git authority. Refresh only premises that may have changed and re-plan only when authority, scope, risk, acceptance, permission, or feasibility changed.
+After compaction or resumption, re-anchor both tracked and untracked work before editing, committing, publishing, or claiming completion. Treat the compacted summary as navigation rather than the sole authority. Read recent original messages and expand backward only until the outcome, accepted decisions, current step, remaining work, and authorization boundaries are clear.
+
+Then compare available durable evidence: the named issue, if any; relevant Git authority; live Git state; and current verification results. Refresh only premises that may have changed and re-plan only when authority, scope, risk, acceptance, permission, or feasibility changed. If a material point would require guessing, stop and ask the user.
 
 Memory may help recall prior reasoning but never replaces live Git authority or issue state. Cleanup never creates, updates, renames, or deletes memory unless the user explicitly requests it through a supported interface.
 
