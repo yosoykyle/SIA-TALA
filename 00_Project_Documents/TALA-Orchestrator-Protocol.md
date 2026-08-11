@@ -33,6 +33,21 @@ When sources materially conflict, stop and present the conflict rather than sile
 
 A useful plan states the goal, bounded scope, relevant authorities and surfaces, verification approach, exclusions, and any material decision requiring the user. Add detail only when it can change the decision.
 
+For a UI-bearing vertical slice, the plan and any developer handoff derived from it must explicitly identify:
+
+- Canonical UI inventory IDs from `ui_surface_blueprint.md`.
+- Workspace and navigation entry.
+- Information and action hierarchy.
+- Component disposition: Filament core, installed compatible dependency, focused TALA custom, or purposeful exclusion.
+- Reusable current components.
+- Loading, empty, validation, stale or concurrent, failure, and inaccessible states.
+- Responsive transformation.
+- Keyboard and screen-reader behavior.
+- Print or other output effects when applicable.
+- Browser acceptance scenarios.
+
+This is a planning and handoff completeness contract. It does not require high-fidelity mockups for every state, reopen settled PRDs, map each inventory row to a separate route, or introduce new plugins or components.
+
 A planning request without an issue number works the same way but has no GitHub task mutation. Accepting a plan does not itself authorize implementation while Codex remains in Plan mode.
 
 ### Complete
