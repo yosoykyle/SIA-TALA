@@ -47,6 +47,7 @@
     - [Compatibility and Minimum Requirements](#115-compatibility-and-minimum-requirements)
 12. [Deployment and Operational Architecture](#12-deployment-and-operational-architecture)
     - [Degraded and Failure Behavior](#121-degraded-and-failure-behavior)
+    - [Capstone Acceptance versus Prospective Production](#122-capstone-acceptance-versus-prospective-production)
 13. [Estimated Deployment and Operating Costs in Philippine Peso](#13-estimated-deployment-and-operating-costs-in-philippine-peso)
     - [Pricing Basis and Assumptions](#131-pricing-basis-and-assumptions)
     - [Lean Fixed-Cost Baseline](#132-lean-fixed-cost-baseline)
@@ -91,10 +92,12 @@ The authority basis is the product requirements in `prd_modules/` and the UI sur
 The following terms prevent design intent from being confused with operational proof:
 
 - **System requirement** — behavior or infrastructure required for the completed system.
-- **Implemented mechanism** — a mechanism represented in the application source and tests.
-- **Configured service** — an external service for which the application has a supported configuration boundary.
+- **Current implementation evidence** — a mechanism represented in application source or tests; it is conformance evidence, not proof that the target requirement is accepted or operational.
+- **Current configuration evidence** — a repository or provider setting observed at a stated time; it may drift and does not by itself prove a working end-to-end capability.
 - **Operational evidence** — deployment records, provider invoices, monitoring, restore tests, or institution-signed acceptance evidence.
-- **Planning estimate** — a recalculable cost scenario, not a quotation, invoice, service-level agreement, or guarantee.
+- **Planning selection** — a chosen direction or recalculable scenario that still requires implementation, procurement, or operational proof.
+- **Capstone acceptance evidence** — bounded proof of the approved new-system journeys using authorized synthetic data; it is not a production-capacity, migration, backup, or service-level claim.
+- **Prospective production claim** — a future production requirement or procurement gate. It must not be written as achieved until current operational evidence proves it.
 
 Vendor feature and price statements are cited as vendor-published information. They do not prove equal scope, quality, availability, or institutional fit.
 
@@ -268,26 +271,44 @@ Clinic 6 supplies bounded `OfficialOutputPaymentClearance` to transcript preview
 
 ```mermaid
 flowchart TB
-    Browser["Browser<br/>Public, Applicant, Student, Staff"] --> Edge["HTTPS / Nginx"]
-    Edge --> Laravel["Laravel 12 Core<br/>Filament 5 + Livewire 4"]
+    subgraph ClientZone["Untrusted client zone"]
+        Browser["Browser<br/>Public, Applicant, Student, Staff"]
+    end
 
-    Laravel --> Auth["Fortify Sessions<br/>Policies + RBAC"]
-    Laravel --> App["Domain Actions and Services"]
-    App --> MySQL[("MySQL<br/>System of Record")]
-    App --> Queue[("Database Queue and Cache")]
+    subgraph TalaZone["TALA application trust zone"]
+        Edge["HTTPS / Nginx"]
+        Laravel["Laravel 12 Core<br/>Filament 5 + Livewire 4"]
+        Auth["Fortify Sessions<br/>Policies + RBAC"]
+        App["Domain Actions and Services"]
+        Webhook["Signed webhook transport endpoint"]
+        Worker["Supervised Laravel Queue Worker"]
+        SolverClient["Scheduling Solver Client"]
+        MySQL[("MySQL system of record<br/>institutional data + queue/cache logical tables")]
+        Storage["Private application files"]
+    end
 
-    Worker["Laravel Queue Worker"] --> Queue
-    Worker --> SolverClient["Scheduling Solver Client"]
-    SolverClient --> IAM["Google Identity Token"]
-    IAM --> Solver["Private Cloud Run<br/>Python + OR-Tools CP-SAT"]
-    Solver --> SolverClient
+    subgraph ProviderZone["External provider trust zones"]
+        IAM["Audience-bound Google identity token"]
+        Solver["Private Cloud Run<br/>Python + OR-Tools CP-SAT"]
+        PayMongo["PayMongo Checkout and Webhooks"]
+        SMTP["Transactional SMTP provider"]
+    end
 
-    Laravel --> PayMongo["PayMongo Checkout API"]
-    PayMongo --> Webhook["Signed Payment Webhook"]
-    Webhook --> Laravel
-
-    Worker --> SMTP["SMTP Transactional Email"]
-    Laravel --> Storage["Private Documents / Object Storage"]
+    Browser --> Edge --> Laravel
+    Laravel --> Auth
+    Laravel --> App
+    App <--> MySQL
+    App --> Storage
+    App -->|enqueue after commit| MySQL
+    Worker -->|consume queued jobs| MySQL
+    Worker <-->|read/write authoritative records| MySQL
+    Worker --> SolverClient --> IAM --> Solver
+    Solver -->|typed untrusted result| SolverClient
+    Laravel -->|create exact-due checkout| PayMongo
+    PayMongo -->|signed event| Webhook
+    Webhook -->|verify, persist, and enqueue transport evidence| MySQL
+    Worker -->|invoke authorized payment domain action| App
+    Worker --> SMTP
 ```
 
 ### 5.1 Primary Request Flow
@@ -301,7 +322,9 @@ flowchart TB
 
 ### 5.2 Queue Operations
 
-The database queue is appropriate while workload remains within the capacity of the primary database. The solver job timeout must exceed the configured solver HTTP timeout, and the queue's `retry_after` must exceed the job timeout by a documented safety margin so a running job is not made available to another worker prematurely. Exact values belong to the later scheduling slice's qualified runtime configuration. Solver attempts and backoff remain bounded and failures are recorded as operational evidence.
+The database queue is appropriate while workload remains within the capacity of the primary database. For the accepted 360-second solver HTTP request timeout, the solver job timeout must be **strictly greater than 360 seconds**, and the database queue's `retry_after` must in turn be **strictly greater than the selected job timeout** by a documented safety margin. Solver attempts and backoff remain bounded and failures are recorded as operational evidence.
+
+Current implementation/configuration evidence checked on **August 11, 2026** does not yet satisfy that complete ordering: `ScheduleSolverDispatchJob::$timeout` is 360 seconds, equal to the accepted HTTP timeout, while the database queue default `retry_after` is 420 seconds. The equality is not accepted behavior. It is a concrete later PRD 03 implementation-conformance item: qualify a job timeout above 360 seconds, then retain or raise `retry_after` so it remains above that chosen job timeout before the 360-second profile is called application-compatible.
 
 A production process supervisor must keep the queue worker running and restart it after failure or deployment. Redis and Laravel Horizon are an upgrade path when measured queue throughput, latency, or operations visibility justifies a dedicated queue/cache service; they are not prerequisites for the selected baseline.
 
@@ -452,13 +475,24 @@ Secrets must be injected through protected runtime configuration and must never 
 
 TALA supports institutional compliance work through access control, audit, retention-aware records, and privacy-oriented boundaries. Compliance with the Philippine Data Privacy Act remains an organizational responsibility involving policy, lawful processing, security operations, staff practice, and data-subject procedures; a software feature list alone cannot establish compliance.
 
+The table above states target controls, not achieved production assurance. As of **August 11, 2026**, the repository and audited provider configuration do not establish all of the following operational facts:
+
+- the selected database and private-file encryption-at-rest mechanisms, key custody, and recovery procedure;
+- the production method for an external web host to obtain Cloud Run invocation credentials, or the accountable custody and rotation procedure for any credential material;
+- the institution-approved security-log retention period, lawful deletion process, and review owner; or
+- the configured alert channels, escalation path, and accountable operational owner for security or service events.
+
+The private Cloud Run service and its dedicated invoker authorization are current configuration evidence; they do not settle external-host credential custody. Before production acceptance, the institution and its authorized infrastructure custodian must name the accountable owners and approve and evidence the mechanisms above. No provider, person, retention duration, rotation interval, alert channel, or achieved control is inferred here. PRD 01's bounded security evidence and PRD 06's `Not checked by TALA` presentation remain authoritative in the product UI.
+
 ---
 
 ## 9. External Integrations
 
 ### 9.1 CP-SAT Scheduling Service
 
-The scheduling service is an isolated private Python/OR-Tools CP-SAT adapter. The accepted runtime default is the private `tala-scheduler-solver` Cloud Run service in `asia-southeast1`, configured with 8 vCPU, 16 GiB, eight solver workers, concurrency one, a 300-second solver limit, a 360-second HTTP timeout, minimum zero instances, maximum two instances, and deterministic seed `20260718`. The product boundary is an immutable whole-term source snapshot, a typed solver outcome, independent Laravel validation, human review, and Registrar publication.
+The scheduling service is an isolated private Python/OR-Tools CP-SAT adapter. A read-only provider check on **August 11, 2026** confirmed the current promoted private `tala-scheduler-solver` Cloud Run revision in `asia-southeast1` as `tala-scheduler-solver-d5dstage2-665963443cc0`, receiving 100% of normal service traffic. Its observed profile is 8 vCPU, 16 GiB, eight solver workers, concurrency one, a 300-second solver limit, a 360-second HTTP timeout, minimum zero instances, maximum two instances, and deterministic seed `20260718`. The service remains private; the dedicated invoker authorization was present and no public invoker was observed. This is dated current provider-configuration evidence, not a guarantee that the state cannot drift or that Laravel currently conforms to its timeout contract.
+
+The product boundary remains an immutable whole-term source snapshot, a typed solver outcome, independent Laravel validation, human review, and Registrar publication. Historical 1/1, 2/4, 4/8, and earlier 8/8 or 8/16 benchmark profiles remain useful scaling and failure evidence only; none overrides the dated promoted profile or proves production capacity.
 
 One solver demand represents one required recurring meeting block for one confirmed Class Offering. Courses without a genuine recurring master-timetable meeting create no demand. A candidate is untrusted integration output until Laravel revalidates whole-term completeness and every hard rule, and Registrar completes human review.
 
@@ -509,7 +543,7 @@ These objectives are lexicographic: a lower priority may not worsen a higher pri
 
 #### Runtime evidence and implementation-conformance boundary
 
-The runtime profile above is accepted operating evidence and remains the default unless later compatibility results, workload growth, formulation change, or runtime telemetry materially invalidates it. It does not prove that current `tal94-demand-v2`, `balanced_v1`, solver source, formulation, or internal contract conforms to PRD 03.
+The dated runtime profile above is the current promoted configuration and the accepted planning default unless later compatibility results, workload growth, formulation change, runtime telemetry, or a new provider check materially invalidates it. It does not prove that current `tal94-demand-v2`, `balanced_v1`, solver source, formulation, internal contract, or queue-timeout configuration conforms to PRD 03.
 
 Historical fixture, candidate-size, memory, status, validation, and scaling measurements remain bounded evidence in the archived [Representative Solver Evidence](archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md) and [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). The future PRD 03 slice must reconcile solver code, Laravel integration, internal contract, formulation, schema, tests, fixtures, and deployment compatibility together. It reruns expensive capacity qualification only when that reconciliation invalidates the accepted evidence; it must still run proportionate functional and compatibility acceptance against the coordinated Servitech workload.
 
@@ -692,17 +726,17 @@ Responsive support is role- and workflow-specific. The following dimensions are 
 
 Mobile-responsive styling does not by itself prove mobile usability. Before publication or production acceptance, representative users must complete the relevant workflows at the target sizes without hidden actions, inaccessible controls, unreadable tables, or dependence on hover-only behavior. A learner-facing mobile commitment does not automatically make every staff administration surface a phone-supported workflow.
 
-#### Production runtime and capacity baseline
+#### Prospective production runtime and current configuration baseline
 
 | Layer | Required runtime or selected baseline | Evidence classification |
 | --- | --- | --- |
 | PHP application | PHP 8.2 or later with Ctype, cURL, DOM, Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session, Tokenizer, and XML extensions | Laravel 12 framework minimum |
 | Operating system and web server | Supported 64-bit Linux environment with Nginx and PHP-FPM, or a documented equivalent; only the Laravel `public/` directory is web-accessible | TALA deployment design and Laravel security requirement |
 | Database | MySQL 8.4 baseline with InnoDB, transactional storage, and tested migrations | Project-selected and documented database baseline, not merely Laravel's lowest theoretical database version |
-| Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories; client-owned four-bay ORICO 9548U3 enclosure initially populated with two independent 4 TB CMR NAS HDDs for encrypted offline backup rotation | Current application configuration, Laravel runtime requirement, and client-confirmed physical-backup choice |
-| Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | Current asynchronous execution contract |
-| Initial web host | Hostinger KVM 1: 1 vCPU, 4 GB RAM, 50 GB NVMe storage, and 4 TB published bandwidth | Selected self-managed starting topology based on the provider's August 6, 2026 Philippine plan page; not a load-tested universal minimum or service guarantee |
-| Scheduling service | Private `tala-scheduler-solver` in `asia-southeast1`; Python 3.12 container; 8 vCPU; 16 GiB; eight solver workers; concurrency one; 300-second solver limit; 360-second HTTP timeout; minimum zero and maximum two instances; seed `20260718` | Accepted runtime default. Formula and internal-contract conformance remain unproven until the future PRD 03 reconciliation slice |
+| Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories; client-owned four-bay ORICO 9548U3 enclosure planned for two independently procured 4 TB CMR NAS HDDs and encrypted offline backup rotation | Database-backed state is current configuration evidence; the physical-backup profile is a prospective selection whose drive procurement, automation, rotation, and restore proof remain unresolved |
+| Long-running work | A supervised queue worker for the `scheduling` and `default` queues, with deployment-safe restart and monitoring | The database queue/job mechanism is current implementation evidence; production supervision, monitoring, alert route, and owner remain prospective requirements |
+| Initial web host | Hostinger KVM 1: 1 vCPU, 4 GB RAM, 50 GB NVMe storage, and 4 TB published bandwidth | Selected self-managed starting topology based on the provider's Philippine plan page checked August 11, 2026; not a load-tested universal minimum or service guarantee |
+| Scheduling service | Private `tala-scheduler-solver` in `asia-southeast1`; promoted revision `tala-scheduler-solver-d5dstage2-665963443cc0`; Python 3.12 container; 8 vCPU; 16 GiB; eight solver workers; concurrency one; 300-second solver limit; 360-second HTTP timeout; minimum zero and maximum two instances; seed `20260718` | Current provider-configuration evidence verified August 11, 2026. Formula, internal-contract, and Laravel timeout conformance remain unproven until the future PRD 03 reconciliation slice |
 | Network and trust | Valid TLS, DNS, firewall controls, private credentials, and outbound HTTPS/SMTP access for approved integrations | Security and integration requirement |
 
 For the scheduling row, a **solver worker** is one CP-SAT search thread inside a request, while **concurrency one** means one HTTP solver request at a time per service instance. The settings are not interchangeable. The later slice must verify compatibility, observed memory, queue behavior, and accepted-result evidence before claiming the refined scheduling behavior is implemented.
@@ -736,25 +770,55 @@ Production sizing must similarly be qualified with realistic data and concurrenc
 
 ```mermaid
 flowchart LR
-    U["Students, staff, and faculty"] --> TLS["DNS and TLS"]
-    TLS --> N["Nginx"]
-    N --> P["PHP-FPM / Laravel on Hostinger KVM 1"]
-    P --> DB[("MySQL system of record")]
-    P --> FS["Private application files"]
-    P --> Q[("Database queue and cache")]
-    W["Supervised Laravel queue worker"] --> Q
-    W --> CR["Private Cloud Run solver"]
-    PM["PayMongo"] --> WH["Signed webhook endpoint"]
-    WH --> P
-    W --> SMTP["Transactional SMTP provider"]
-    B["Automated encrypted backup process"] --> DB
-    B --> OS["Independent off-server object storage"]
-    B --> OH["ORICO 9548U3 four-bay enclosure<br/>encrypted Drive A / Drive B"]
+    subgraph ClientZone["Client network"]
+        U["Students, staff, and faculty"]
+    end
+
+    subgraph HostZone["Initial Hostinger KVM 1 failure domain"]
+        TLS["DNS and TLS"]
+        N["Nginx"]
+        P["PHP-FPM / Laravel"]
+        W["Supervised Laravel queue worker"]
+        WH["Signed webhook transport endpoint"]
+        DB[("MySQL system of record<br/>institutional + queue/cache logical tables")]
+        FS["Private application files"]
+        B["Required consistent backup export<br/>automation not yet evidenced"]
+        E["Encrypt and checksum"]
+    end
+
+    subgraph Providers["External provider trust zones"]
+        CR["Private Cloud Run solver"]
+        PM["PayMongo"]
+        SMTP["Transactional SMTP provider"]
+    end
+
+    subgraph BackupZone["Off-server / offline backup trust zones"]
+        OS["Independent object storage<br/>provider not selected"]
+        OH["ORICO 9548U3 enclosure<br/>independent encrypted Drive A / Drive B"]
+    end
+
+    U --> TLS --> N --> P
+    P <--> DB
+    P <--> FS
+    P -->|enqueue after commit| DB
+    W -->|consume queued jobs| DB
+    W <-->|read/write authoritative records| DB
+    P -->|create exact-due checkout| PM
+    PM -->|signed event| WH -->|verify, persist, and enqueue| DB
+    W -->|invoke authorized payment domain action| P
+    W --> CR
+    CR -->|typed solver response| W
+    W --> SMTP
+    DB -->|consistent database export| B
+    FS -->|consistent private-file export| B
+    B --> E
+    E --> OS
+    E --> OH
 ```
 
-A single Hostinger KVM 1 VPS is a lean self-managed starting topology, not a highly available one. Nginx terminates web traffic, PHP-FPM runs Laravel, MySQL holds authoritative data, and a supervised queue worker processes asynchronous work. This design minimizes fixed cost and operational surfaces for the initial institutional scale, but the application and database share one failure domain. Hostinger's published weekly VPS backup and manual snapshot are supplemental recovery layers; weekly recovery points alone cannot satisfy TALA's accepted six-hour RPO.
+A single Hostinger KVM 1 VPS is a lean self-managed starting topology, not a highly available one. Nginx terminates web traffic, PHP-FPM runs Laravel, MySQL holds authoritative data, and a supervised queue worker processes asynchronous work. This design minimizes fixed cost and operational surfaces for the initial institutional scale, but the application and database share one failure domain. Hostinger's published weekly VPS backup and manual snapshot are supplemental recovery layers; weekly recovery points alone cannot satisfy TALA's six-hour RPO target.
 
-The minimum production operating controls are:
+The following are **prospective production requirements**, not a description of controls already implemented or achieved:
 
 - provider weekly VPS backup and a controlled pre-change snapshot as supplemental infrastructure recovery;
 - automated, encrypted, off-server database and private-file backup generations created at least every six hours;
@@ -770,9 +834,11 @@ The minimum production operating controls are:
 - at least quarterly end-to-end restore evidence; and
 - a measured trigger for resizing the VPS or separating the database and workers.
 
-Independent object storage is not a complete backup system. TALA's operations process must create a consistent export, encrypt it, transfer it outside the VPS provider failure domain, retain recoverable generations, monitor failures, and regularly prove restoration. The storage vendor remains a procurement-time decision; existing DigitalOcean Spaces evidence may be reconsidered without making DigitalOcean the application host. The ORICO-attached HDDs are additional offline disaster-recovery copies of the database and private application files, including permanent graduation and academic records; they do not replace the live MySQL system of record, make the application offline-first, or remove retained records from authorized system access. Each 4 TB drive holds its own complete backup set, so the initial two-drive configuration provides two media copies rather than one combined 8 TB volume.
+Independent object storage is not a complete backup system. A production operations process must create a consistent export, encrypt it, transfer it outside the VPS provider failure domain, retain recoverable generations, monitor failures, and regularly prove restoration. No object-storage provider or quotation is approved. The ORICO-attached HDDs are planned additional offline disaster-recovery copies of the database and private application files, including permanent graduation and academic records; they do not replace the live MySQL system of record, make the application offline-first, or remove retained records from authorized system access. Each 4 TB drive is intended to hold its own complete backup set, so the initial two-drive design provides two media copies rather than one combined 8 TB volume.
 
-The **RPO target is six hours**: after a qualifying failure, no more than six hours of authoritative database/private-file changes should be lost when the most recent valid backup is used. The **RTO target is eight hours**: priority authenticated service should be restored within eight hours after recovery is declared and required provider access, keys, media, and personnel are available. These are requirements to test, not claims of achieved production performance.
+As of **August 11, 2026**, no tracked evidence establishes the production backup automation mechanism, failure monitoring, alert route, named recovery owner, retained-generation count or schedule, object-storage procurement, completed ORICO rotation, or a successful end-to-end restore. Those items remain owner-bound production gates. The institution and its authorized infrastructure custodian must select and record the mechanism, accountable owners, retention generations, provider/quotation, key custody, monitoring, and evidence procedure before any of these controls are presented as operating. This specification does not invent them.
+
+The **RPO target is six hours**: after a qualifying failure, no more than six hours of authoritative database/private-file changes should be lost when the most recent valid backup is used. The **RTO target is eight hours**: priority authenticated service should be restored within eight hours after recovery is declared and required provider access, keys, media, and personnel are available. These are prospective requirements to test, not an SLA, accepted operational capability, or claim of achieved restore performance.
 
 The client-supplied enclosure is the **ORICO 9548U3** four-bay 3.5-inch hard-drive enclosure. Its host connection is USB 3.0 Type-B with a maximum interface rate of 5 Gbps; internally it uses a SATA 3.0 bridging scheme for compatible SATA HDDs. ORICO specifies push-pull installation, Windows/macOS/Linux compatibility, a built-in 150 W power supply for the four-bay version, and a maximum supported capacity of 64 TB. The starting deployment uses only two 4 TB drives. The remaining two bays are expansion positions and do not authorize unmeasured capacity purchases or an undocumented RAID conversion. Sources: [ORICO 9548U3 product specification](https://www.orico.cc/index/product/detail/2056.html?mtpl=1) and [ORICO 95U3 series manual](https://orico.cc/storage/attachments/20250415/f593f8ef0bbef6c65c90e7a9b049dc36.pdf).
 
@@ -785,14 +851,22 @@ Cloud Run is selected for the solver because optimization is intermittent and in
 | Unavailable component | Required safe behavior |
 | --- | --- |
 | Cloud Run solver | A generation attempt fails visibly and may be retried; already published schedules remain authoritative and available. Authorized staff retain controlled manual scheduling as continuity. |
-| Queue worker | Queued solver, webhook, and email work waits durably while ordinary synchronous pages continue where safe. Monitoring alerts operations, and the worker can be restarted without duplicating idempotent effects. |
+| Queue worker | Queued solver, webhook, and email work waits durably while ordinary synchronous pages continue where safe. A production deployment must alert its assigned operator and support safe worker restart without duplicating idempotent effects; the current alert route and owner are not yet evidenced. |
 | PayMongo | New hosted checkout or confirmation may be unavailable. TALA must not infer payment from a redirect; verified prior records remain intact, and controlled manual evidence procedures provide continuity. |
 | SMTP provider | The underlying institutional transaction remains valid. Delivery is retried or recorded as failed for operational follow-up. |
-| Hostinger VPS or MySQL | Web workspaces are unavailable. Recovery uses the latest valid independent off-server generation, with provider backup/snapshot only as a supplemental option, under the six-hour RPO/eight-hour RTO procedure. |
+| Hostinger VPS or MySQL | Web workspaces are unavailable. Once the prospective backup controls are implemented and proved, recovery uses the latest valid independent off-server generation, with provider backup/snapshot only as a supplemental option, under the six-hour RPO/eight-hour RTO test procedure. |
 | Independent object storage | The application may continue temporarily, but off-server backup transfer and any deliberately stored private objects are impaired; operations must restore redundancy promptly. |
 | ORICO enclosure or one rotation HDD | The live system and independent off-server copy remain authoritative and available. Quarantine the failed component, keep the other verified rotation drive offline, procure a compatible replacement, recreate the encrypted copy, verify its checksum, and record a restore test before returning to normal rotation. |
 
 TALA is a centralized web system, not an offline-first application. Loss of campus internet, the application host, or the primary database therefore requires institutional contingency procedures. The system must never portray cached, redirected, emailed, or solver-produced information as authoritative when the corresponding server-side transaction was not completed.
+
+### 12.2 Capstone Acceptance versus Prospective Production
+
+Capstone acceptance does **not** migrate a client production database. It proves only the approved new-system journeys and their cross-role handoffs using bounded synthetic seed and acceptance data derived from authorized evidence.
+
+The coordinated acceptance envelope uses **47 synthetic current-Student shapes, six cohorts, nine Faculty, and ten rooms**. Those counts come from an **undated supplied snapshot** whose collector, approval reference, peak usage, applicant volume, document volume, and concurrent-user model are not established. They therefore define synthetic acceptance shapes only; they are not a production population, capacity result, annual forecast, or service-level basis. The source file remains unchanged until an attributable snapshot date and owner are supplied.
+
+Larger datasets are permitted only as explicitly labelled synthetic structural or stress fixtures with their own disclosed purpose and limits. They must not be presented as Servitech forecasts. Procurement of production object storage, backup media expansion, production-data migration tooling, or proof of the prospective production recovery controls is **not a prerequisite for capstone journey acceptance**. Those remain later production procurement and operational-acceptance gates and may be discussed in the research paper only as requirements or plans, never as achieved capability.
 
 ---
 
@@ -800,11 +874,26 @@ TALA is a centralized web system, not an offline-first application. Loss of camp
 
 ### 13.1 Pricing Basis and Assumptions
 
-This estimate combines the original **July 14, 2026** cost evidence with the Clinic 6 Hostinger host decision checked on **August 6, 2026, Philippine Time**. USD prices are converted at **US$1 = ₱61.55**, the reference rate in the independently retrieved Bangko Sentral ng Pilipinas bulletin used for this revision, dated July 3, 2026. The exchange rate is an estimate input, not a guaranteed bank or card settlement rate.
+This estimate preserves the original **July 14, 2026** planning basis and uses the cost/provider evidence refreshed on **August 11, 2026, Philippine Time**. USD prices are converted at **US$1 = ₱61.55**, the reference rate in the independently retrieved Bangko Sentral ng Pilipinas bulletin used for this revision, dated July 3, 2026. The exchange rate is an estimate input, not a guaranteed bank or card settlement rate.
 
 Exchange-rate source: [Bangko Sentral ng Pilipinas, Financial Markets Reference Exchange Rate Bulletin, July 3, 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2306/03Jul2026.pdf).
 
-The baseline assumes one production institution, one self-managed Hostinger KVM 1 VPS, the provider's included weekly backup as a supplemental copy, separately procured independent object storage for encrypted six-hour backup generations, the client-owned four-bay ORICO 9548U3 with two independently encrypted 4 TB CMR NAS HDDs, an eligible `.edu.ph` domain renewed through PHNET, database-backed queue/cache, a transactional-email free allowance sufficient for measured use, and Cloud Run use within available allowance. Taxes, object-storage price, payment-processor fees, overages, foreign-exchange spreads, shipping, and future replacement or expansion media are added when known.
+The baseline assumes one prospective production institution, one self-managed Hostinger KVM 1 VPS, the provider's included weekly backup as a supplemental copy, separately procured independent object storage for encrypted six-hour backup generations, the client-owned four-bay ORICO 9548U3 with two independently encrypted 4 TB CMR NAS HDDs, an eligible `.edu.ph` domain renewed through PHNET, and database-backed queue/cache. The Brevo free allowance and Cloud Run free tier are conditional usage assumptions only: neither may be treated as sufficient or zero-cost without measured email and compute usage. Taxes, object-storage price, payment-processor fees, overages, foreign-exchange spreads, shipping, egress/retrieval, and future replacement or expansion media remain excluded until attributable evidence exists.
+
+Cost statements use these labels consistently:
+
+| Label | Meaning in this estimate |
+| --- | --- |
+| **Fixed known planning floor** | Dated host/domain arithmetic only; not complete production TCO |
+| **Promotional / renewal** | A dated paid-upfront entry offer versus the selected renewal-equivalent basis |
+| **Usage-dependent** | Cloud Run, email beyond allowance, storage volume, retrieval, networking, logging, and overages |
+| **Transaction-dependent** | PayMongo fees driven by successful channel volume and actual merchant terms |
+| **Unquoted** | Required object storage, operations/support, and other items with no approved quotation |
+| **Comparator-only** | Commercial offer normalized to 500 learners; not TALA acceptance, population, or capacity evidence |
+| **VAT / tax** | Included only when the source expressly says so; otherwise excluded or subject to the actual invoice/tax treatment |
+| **FX** | USD conversion at the dated ₱61.55 reference only; card/bank spread and settlement rate excluded |
+| **Shipping / egress** | Procurement delivery, storage retrieval, and network transfer remain variable and excluded unless quoted |
+| **Procurement-time** | Stock, warranty, exact CMR drive model, provider, contract, tax invoice, and final price must be reconfirmed before purchase |
 
 ### 13.2 Lean Fixed-Cost Baseline
 
@@ -813,7 +902,7 @@ The baseline assumes one production institution, one self-managed Hostinger KVM 
 | Hostinger KVM 1 renewal basis | ₱679/month equivalent when renewing for two years; provider page showed ₱409/month promotional entry | ₱679.00 | ₱8,148.00 | Hosts Nginx, PHP-FPM, Laravel, MySQL, and the initial queue worker; renewal basis avoids treating a promotion as the steady-state price |
 | Hostinger weekly VPS backup | Included in the published KVM plan | ₱0.00 incremental | ₱0.00 incremental | Supplemental infrastructure recovery only; does not satisfy the six-hour RPO |
 | Independent encrypted object storage | Required; vendor and quotation not yet approved | **Quotation required** | **Quotation required** | Holds off-provider six-hour database/private-file backup generations |
-| `.edu.ph` domain | ₱2,500/year | ₱208.33 monthly equivalent | ₱2,500.00 | Provides the institution's eligible Philippine education namespace |
+| `.edu.ph` domain | ₱2,500/year, published by PHNET as VAT-inclusive | ₱208.33 monthly equivalent | ₱2,500.00 | Fixed known planning-floor item; eligibility and procurement confirmation still apply |
 | **Known fixed baseline before object storage** |  | **₱887.33** | **₱10,648.00** | Honest known host-and-domain floor; not the complete production cost |
 
 Hostinger states that VPS plans are paid upfront and displays the monthly equivalent. The promotional entry price is not used for the steady-state total. The independent-storage line prevents the known subtotal from being misrepresented as a complete RPO-compliant deployment quotation.
@@ -840,10 +929,10 @@ The 4 TB selection is the starting deployment capacity, not an unmeasured lifeti
 | --- | ---: | ---: | --- |
 | Hostinger renewal baseline before object storage | ₱887.33 + storage | ₱10,648.00 + storage | Selected steady-state host/domain floor; production cannot omit independent storage |
 | Hostinger promotional entry before object storage | ₱617.33 + storage | ₱7,408.00 + storage | Dated entry-price illustration only; paid-upfront term and renewal price control procurement |
-| Renewal baseline plus Brevo Starter | ₱1,441.28 + storage | ₱17,295.40 + storage | Adds US$9/month when measured email requirements exceed the free allowance |
+| Renewal baseline plus Brevo Starter | ₱1,441.28 + storage | ₱17,295.40 + storage | Dated paid-Brevo scenario: US$108/year × ₱61.55 = ₱6,647.40, plus the ₱10,648 floor; excludes FX spread, applicable digital-service tax/VAT, and every unquoted/usage-dependent item |
 | Separated database/workers | **Not selected** | **Quotation required if selected** | Procure only when measured workload, recovery, or maintenance risk justifies topology expansion |
 
-Independent object storage is mandatory in every production scenario because the weekly provider backup cannot meet the accepted RPO. A larger VPS, separated workers, or managed/high-availability database must be budgeted when concurrent workload, maintenance, and recovery evidence justify them.
+Independent object storage is mandatory in every prospective production scenario because the weekly provider backup cannot meet the six-hour RPO target. A larger VPS, separated workers, or managed/high-availability database must be budgeted when concurrent workload, maintenance, and recovery evidence justify them.
 
 Scenario source: [Brevo plan documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans).
 
@@ -851,8 +940,8 @@ Scenario source: [Brevo plan documentation](https://help.brevo.com/hc/en-us/arti
 
 | Service | Published basis used | Treatment in estimate |
 | --- | --- | --- |
-| Google Cloud Run | Request, CPU, memory, and networking are usage-based, with published free-tier allowances subject to eligibility and region | Modelled at ₱0 fixed baseline only while actual metering remains within allowance; billing alerts and monthly review are required |
-| Brevo Free | Up to 300 emails per day; unused daily allowance does not carry forward | No fixed charge in the lean baseline |
+| Google Cloud Run | Request, CPU, memory, and networking are usage-dependent, with published free-tier allowances aggregated by billing account and subject to eligibility and region | No fixed amount is claimed; actual metering, other project use, networking, logging, build/registry, tax, and overrun control determine cost |
+| Brevo Free | Up to 300 emails per day; unused daily allowance does not carry forward | Conditional zero-charge scenario only if measured transactional volume and required deliverability fit the allowance |
 | Brevo Starter | Starts at US$9/month | Shown as a scenario, not silently included |
 | PayMongo GCash | 2.23% per successful transaction, exclusive of VAT | Variable; apply to measured channel volume |
 | PayMongo Maya | 1.79% per successful transaction, exclusive of VAT | Variable; apply to measured channel volume |
@@ -872,6 +961,8 @@ Estimated solver request cost =
 
 Historical request measurements and corrected cost proxies are preserved in the archived [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). They are not an invoice, monthly forecast, promoted runtime, or current capacity promise. Procurement and implementation planning must use then-current regional rates and a freshly qualified PRD 03 workload.
 
+At the current 8-vCPU/16-GiB profile, one full 300-second solver request consumes 2,400 vCPU-seconds and 4,800 GiB-seconds before startup, probes, serialization, networking, logging, builds, registry use, tax, or other billing-account activity. Against the published free-tier quantities checked on **August 11, 2026**, the CPU and memory allowances are co-limiting at an idealized **75 such runs per month**. This is a usage illustration, not a free-cost promise or workload forecast; monthly provider metering controls.
+
 An illustrative payment-fee estimate must use the actual channel mix:
 
 ```text
@@ -889,20 +980,20 @@ The fixed-cost total deliberately excludes implementation labor, ongoing mainten
 
 ## 14. Traditional and Commercial SIS Cost Comparison
 
-Public Philippine SIS prices are commonly quoted per learner, while TALA's lean infrastructure is primarily per institution. The table below normalizes published offers to **500 active learners** for illustration. It is a price benchmark, not a claim that the products have identical modules, service levels, implementation work, ownership terms, or availability guarantees.
+Public Philippine SIS prices are commonly quoted per learner, while TALA's lean infrastructure is primarily per institution. The table below normalizes published commercial offers to **500 active learners for commercial comparison only**. Five hundred learners is **not an acceptance, population, load, or capacity dataset** for TALA. The comparison is not a claim that the products have identical modules, service levels, implementation work, ownership terms, or availability guarantees.
 
 Comparator sources: [ADAL Education Management System](https://www.adal-edu.com/), [Academe](https://academe.ph/), and the dated [ISMS D22 brochure](https://isms.ph/downloads/D22.pdf).
 
-| System / public offer | Published pricing basis | Monthly equivalent at 500 learners | Annual amount at 500 learners | Important qualification |
+| System / public offer | Published pricing basis | Monthly equivalent / disclosed floor | Annual amount / disclosed floor | Important qualification |
 | --- | ---: | ---: | ---: | --- |
-| **TALA lean fixed infrastructure** | Per-institution baseline | **₱1,402.40** | **₱16,828.84** | Excludes labor, support contract, migration, training, transaction fees, taxes, and risk contingency |
+| **TALA known planning floor before object storage** | Per-institution host/domain floor; not normalized by learner count | **₱887.33 + unquoted and usage-dependent costs** | **₱10,648.00 + unquoted and usage-dependent costs** | Not complete production TCO; required object storage, operations/support, usage, transactions, tax, and risk remain unresolved |
 | ADAL SIS annual plan | ₱650 per learner/year | ₱27,083.33 | ₱325,000.00 | Vendor-hosted offer; verify included modules, minimums, implementation, support, and current quotation |
 | ADAL SIS monthly plan | ₱85 per learner/month | ₱42,500.00 | ₱510,000.00 annualized | Month-to-month basis; verify contractual terms and current quotation |
 | Academe SIS annual billing | ₱76 per learner/month equivalent | ₱38,000.00 | ₱456,000.00 | Public price presentation; verify scope, minimums, setup, and support |
 | Academe SIS monthly billing | ₱95 per learner/month | ₱47,500.00 | ₱570,000.00 annualized | Public price presentation; verify scope, minimums, setup, and support |
 | ISMS D22 on-premises license | ₱550 per learner/year for five years | ₱22,916.67 | ₱275,000.00 per year | Dated public brochure; school supplies and operates its own server/network, and a current quotation is essential |
 
-At that illustrative enrollment, the gross annual price difference against TALA's lean fixed infrastructure is ₱308,171.16 for the ADAL annual plan, ₱439,171.16 for Academe's annual-billing price, and ₱258,171.16 for the dated ISMS D22 on-premises license. These are **not net savings** because TALA's institutional labor and implementation obligations are not included in its fixed hosting bill.
+No gross annual price difference or savings amount is published because TALA's denominator is incomplete. Required object storage and usage-dependent provider charges are unpriced, and production TCO also requires institutional operations/support, maintenance, training, migration if later authorized, security/recovery work, tax, and risk evidence. Subtracting the ₱10,648 planning floor from a commercial offer would produce arithmetic, not a defensible savings claim.
 
 A defensible procurement comparison uses:
 
@@ -922,7 +1013,7 @@ Commercial SIS products may justify a higher subscription through established su
 
 ## 15. How the Client Saves Money: The Value Proposition
 
-TALA's economic proposition is **lower recurring license exposure plus locally governed integration**, not “almost free software.” Its fixed hosting baseline does not grow directly with every enrolled learner, its principal frameworks and solver are open source, and intermittent optimization can use metered compute instead of a permanently provisioned solver server.
+TALA's prospective economic proposition is **lower recurring license exposure plus locally governed integration**, not “almost free software” or achieved savings. Its known host/domain floor does not grow directly with every enrolled learner, its principal frameworks and solver are open source, and intermittent optimization can use metered compute instead of a permanently provisioned solver server. Whether this becomes cheaper in production remains unproven until complete TCO and measured client outcomes exist.
 
 The architecture can reduce cost through:
 
@@ -1036,7 +1127,7 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 
 | Risk | Architectural response |
 | --- | --- |
-| Single Hostinger VPS and co-located MySQL form one failure domain | Six-hour encrypted off-provider copies, supplemental provider backup, ORICO offline copies, restore testing, monitoring, and explicit scale/separation triggers |
+| Single Hostinger VPS and co-located MySQL form one failure domain | Prospective controls: six-hour encrypted off-provider copies, supplemental provider backup, ORICO offline copies, restore testing, monitoring, and explicit scale/separation triggers; owners, mechanisms, procurement, retention generations, alerting, and achieved restore evidence remain unresolved |
 | Database queue/cache can contend with transactional workload | Index and monitor queue tables, bound retries and payloads, keep jobs idempotent, and move queue/cache to dedicated services when measurements justify it |
 | Solver service is externally hosted and may time out or be unreachable | Immutable request snapshot, authenticated calls, bounded timeout, visible failure, safe retry, Laravel revalidation, and no automatic publication |
 | Payment events can be duplicated, delayed, forged, or reordered | Verify signatures, persist provider identifiers, process idempotently, lock authoritative records, and never trust browser redirects |
@@ -1068,13 +1159,13 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 - Treat Account Statement/SOA and Payment Acknowledgment as authenticated non-tax outputs. Accounting remains responsible for any registered invoice or other BIR-required document outside TALA.
 - Keep HEMIS, Enrollment List, Promotional Report, List of Graduates, Special Order, CAV-supporting records, and other regulator-prescribed submission/certification work external until Servitech supplies an exact applicable authority and format. Retain trustworthy source records without adding speculative fields, a generic Reports surface, or a submission engine.
 - Show only locally recorded evidence in System Health; label provider and physical-backup facts `Not checked by TALA`. Keep Governance & Audit read-only and state **Automatic retention disposal: Not provided in this MVP** without claiming to assess external compliance.
-- Select Hostinger KVM 1 as the self-managed MVP host direction, with independent encrypted six-hour off-server copies, additional business-day ORICO rotation, six-hour RPO, and eight-hour RTO. Treat provider backups and all recovery objectives as requirements requiring external operational proof.
+- Select Hostinger KVM 1 as the self-managed MVP host direction. Independent encrypted six-hour off-server copies, additional business-day ORICO rotation, six-hour RPO, and eight-hour RTO remain prospective production requirements whose provider, automation, owners, retention generations, alerting, procurement, and restore evidence require external operational proof.
 - Use a fixed lexicographic scheduling-quality hierarchy after hard feasibility; do not retain equal weights, editable constraint profiles, preferred times, generic overrides, or an accuracy percentage as product behavior.
 - Preserve the accepted 8-vCPU/16-GiB Cloud Run runtime default and its historical scaling evidence while treating formula and internal-contract conformance as unproven; change the profile only when reconciled compatibility, workload, formulation, or telemetry evidence justifies it.
 - Use a lean single-node topology only with explicit recovery controls and measured upgrade triggers.
 - Measure value against total ownership cost and client baseline evidence, not infrastructure price alone.
 
-This architecture is suitable for a bounded institutional deployment that prioritizes integrated records, local control, transparent business rules, and low fixed infrastructure cost. It is not presented as a high-availability enterprise platform, a general-purpose timetabling suite, an offline-first application, or a substitute for operational governance.
+This target architecture is suitable to guide a bounded institutional deployment that prioritizes integrated records, local control, transparent business rules, and a lean fixed-cost floor. It is not evidence that production deployment, operational controls, complete TCO, or savings have been achieved, and it is not presented as a high-availability enterprise platform, a general-purpose timetabling suite, an offline-first application, or a substitute for operational governance.
 
 The architecture is aligned to the standalone PRDs and is ready to constrain separately planned journey-complete vertical implementation slices. These conceptual boundaries do not prescribe tables, classes, APIs, migrations, or implementation order, and they do not claim that current code already conforms.
 
@@ -1082,7 +1173,7 @@ The architecture is aligned to the standalone PRDs and is ready to constrain sep
 
 ## 18. Sources and References
 
-Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, privacy, and Hostinger sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated.
+Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the cost/provider sources explicitly identified below were refreshed on **August 11, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
 ### 18.1 Internal System Evidence
 
@@ -1104,6 +1195,7 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 - MySQL 8.4 Reference Manual: [InnoDB transaction model](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html).
 - MongoDB Manual: [transactions](https://www.mongodb.com/docs/manual/core/transactions/) — evidence for the correction that MongoDB does support transactions, subject to deployment and modeling considerations.
 - The Open Group: [TOGAF Standard, 10th Edition](https://www.opengroup.org/togaf) — architecture-development and governance context, not the asserted SDLC.
+- Google Cloud Run: [CPU configuration](https://cloud.google.com/run/docs/configuring/services/cpu), [request timeout](https://cloud.google.com/run/docs/configuring/request-timeout), and [private service authentication](https://cloud.google.com/run/docs/authenticating/service-to-service) — official configuration semantics checked August 11, 2026. The current revision/profile claim also relies on the dated read-only provider check; documentation alone does not prove the live state or external-host credential custody.
 
 ### 18.3 Academic Record and Policy Sources
 
@@ -1133,15 +1225,15 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 
 ### 18.5 Cost and Local-Market Sources
 
-- Bangko Sentral ng Pilipinas, [Financial Markets Reference Exchange Rate Bulletin, July 3, 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2306/03Jul2026.pdf) — BSP reference rate of ₱61.550 per US dollar.
-- Hostinger: [Philippine VPS plans](https://www.hostinger.com/ph/vps-hosting) — dated KVM 1 capacity, promotional/renewal price, weekly backup, and paid-upfront basis. Provider claims do not prove TALA recovery performance.
-- Google Cloud: [Cloud Run pricing and free-tier treatment](https://cloud.google.com/run/pricing).
-- Brevo: [plan and email-limit documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans).
-- PayMongo: [standard pricing](https://www.paymongo.com/pricing), explicitly stated by the provider as exclusive of VAT.
-- Philippine Network Foundation: [`.edu.ph` registration and renewal fee](https://services.ph.net/payment.html).
-- ADAL Education Management System: [public module and plan pricing](https://www.adal-edu.com/).
-- Academe: [public SIS feature and pricing page](https://academe.ph/).
-- ISMS Philippines: [D22 School Management System brochure](https://isms.ph/downloads/D22.pdf). This is dated comparison evidence and requires a current vendor quotation.
+- Bangko Sentral ng Pilipinas, [Financial Markets Reference Exchange Rate Bulletin, July 3, 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2306/03Jul2026.pdf) — BSP reference rate of ₱61.550 per US dollar; retrieved again August 11, 2026. It is a July 3 bulletin value, not an August 11 settlement quote.
+- Hostinger: [Philippine VPS plans](https://www.hostinger.com/ph/vps-hosting) — KVM 1 capacity, promotional/renewal price, weekly backup, and paid-upfront basis checked August 11, 2026. Provider claims do not prove TALA recovery performance, tax treatment, or final procurement price.
+- Google Cloud: [Cloud Run pricing and free-tier treatment](https://cloud.google.com/run/pricing) — checked August 11, 2026. Allowances and rates are usage/billing-account inputs, not an invoice or zero-cost commitment.
+- Brevo: [plan and email-limit documentation](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans) — 300-email daily Free allowance and Starter-from-US$9 basis checked August 11, 2026; deliverability, volume fit, tax, and settlement remain unproven.
+- PayMongo: [standard pricing](https://www.paymongo.com/pricing) — checked August 11, 2026 and explicitly stated by the provider as exclusive of VAT; actual fees remain transaction- and merchant-term-dependent.
+- Philippine Network Foundation: [`.edu.ph` registration and renewal fee](https://services.ph.net/payment.html) — ₱2,500 VAT-inclusive fee checked August 11, 2026; eligibility and procurement confirmation still apply.
+- ADAL Education Management System: [public module and plan pricing](https://www.adal-edu.com/) — checked August 11, 2026 for commercial-comparison normalization only.
+- Academe: [public SIS feature and pricing page](https://academe.ph/) — checked August 11, 2026 for commercial-comparison normalization only.
+- ISMS Philippines: [D22 School Management System brochure](https://isms.ph/downloads/D22.pdf) — accessed August 11, 2026, but the brochure is dated comparison evidence rather than a current quote; procurement requires a current vendor quotation.
 
 ### 18.6 SDLC Sources
 
