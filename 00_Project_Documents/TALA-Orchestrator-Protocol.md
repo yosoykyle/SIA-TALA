@@ -72,8 +72,10 @@ A clear task without an issue number remains valid. A request to implement, fix,
 `Publish #NN` is a separate external-write boundary. It first requires current verification and intended-diff evidence.
 
 - For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then close the issue and mark its project item `Done`.
-- For concurrent work, push a `codex/` or developer branch and open a pull request containing `Closes #NN`. Leave the issue open until the pull request merges.
-- Publishing never authorizes deployment, merge, public-access changes, or movement of unrelated issues unless explicitly included.
+- For concurrent work, push the Issue-specific branch and open one pull request containing `Closes #NN`. Open pull-request review remains `In Progress`.
+- `Publish #NN` may open that pull request but never authorizes merge. Merge requires separate explicit authorization and fresh evidence that acceptance criteria, automated and applicable browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main` are satisfied.
+- After an authorized merge, close the issue and mark its project item `Done`; the merged branch may be deleted, and dependent branches refresh from `main` before continuing.
+- Publishing never authorizes deployment, public-access changes, or movement of unrelated issues unless explicitly included.
 
 The command names are optional shorthands. Clear natural language with the same target, scope, and external effect is equivalent.
 
@@ -95,7 +97,11 @@ Do not manufacture a gate for reading files, inspecting logs, editing in-scope l
 
 GitHub Issues are the only live shared task records. Keep issue bodies concise: goal, bounded scope, acceptance criteria, and material exclusions. Use issue comments only for durable decisions or evidence that collaborators need; do not duplicate full logs or transcripts.
 
-The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. It identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, and stop conditions.
+
+The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. Open pull-request review remains `In Progress`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+
+Concurrent development starts isolated: one accountable owner, one Issue-specific branch from accepted and up-to-date `main`, one pull request, and no unrelated Issues on that branch. Do not share a mutable workspace or database unless isolation is proven. Record dependency order and shared-seam ownership before coding. Dependent work waits until the prerequisite Issue's pull request merges into `main` unless an explicit stacked-branch plan is approved.
 
 After compaction or resumption, re-anchor both tracked and untracked work before editing, committing, publishing, or claiming completion. Treat the compacted summary as navigation rather than the sole authority. Read recent original messages and expand backward only until the outcome, accepted decisions, current step, remaining work, and authorization boundaries are clear.
 
