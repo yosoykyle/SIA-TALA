@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import '../../vendor/tallstackui/tallstackui/dist/tallstackui.css';
 
 @theme {
   --font-sans: 'Outfit', 'Inter', sans-serif;

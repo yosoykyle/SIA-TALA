@@ -634,9 +634,10 @@ Versions in this section were verified from the installed dependency graph on **
 | Google Auth | 1.52.0 | Service-account credentials and identity-token creation for authenticated Cloud Run invocation |
 | Guzzle | 7.15.2 | HTTP transport used by Laravel's outbound integration clients |
 | Guzzle PSR-7 | 2.13.0 | PSR-7 request, response, stream, and URI implementation used by the HTTP transport |
-| TallStackUI | 3.0.0 | Limited reusable presentation components where TALA has deliberately adopted them |
 
 Laravel, Filament, and Livewire are selected together because TALA is a form-, table-, policy-, and workflow-heavy institutional application. They keep UI behavior, validation, authorization, and transactions in one PHP system. A separate JavaScript SPA would add an API contract, duplicated validation and authorization concerns, client-state complexity, and another deployment surface without a demonstrated baseline requirement for disconnected clients or independent frontend teams.
+
+Authenticated workspaces use native Filament components first and focused Tailwind CSS presentation only where Filament composition cannot express the approved behavior; Bootstrap remains isolated to the public landing page.
 
 ### 11.2 Declared Packages Requiring Deliberate Disposition
 
