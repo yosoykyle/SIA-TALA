@@ -560,7 +560,7 @@ Recording or activating a date does not itself send an email. The separate trans
 - Clinic 6 generates only a non-tax Account Statement/SOA, non-tax Payment Acknowledgment, contextual Account Status CSV, and contextual Verified Payments CSV. Accounting owns any required BIR invoice or external tax document.
 - Accounting navigation is **Fee Plans** and one tabbed **Student Accounts** workbench. Student Finance is summary-first and becomes read-only for alumni.
 - System Health shows only locally recorded evidence and explicitly labels provider or physical-backup facts `Not checked by TALA`. Governance & Audit is read-only. Automatic retention disposal is not provided in the MVP; lawful retention schedules, privacy requests, legal holds, and secure disposal remain external institutional responsibilities.
-- The selected MVP infrastructure direction is a self-managed Hostinger KVM 1 VPS with independent encrypted off-server backups, additional encrypted ORICO offline copies, six-hour RPO, and eight-hour RTO. Provider facts and recovery performance require external operational evidence.
+- The selected MVP infrastructure direction is a self-managed Hostinger KVM 2 VPS with independent encrypted off-server backups, additional encrypted ORICO offline copies, six-hour RPO, and eight-hour RTO. Provider facts and recovery performance require external operational evidence.
 - Clinic 6 owns only the idempotent **Verified payment posted** email.
 ## 10. Canonical PRD and UI Contract
 
