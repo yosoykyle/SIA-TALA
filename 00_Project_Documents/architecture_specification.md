@@ -323,9 +323,9 @@ flowchart TB
 
 ### 5.2 Queue Operations
 
-The database queue is appropriate while workload remains within the capacity of the primary database. For the accepted 360-second solver HTTP request timeout, the solver job timeout must be **strictly greater than 360 seconds**, and the database queue's `retry_after` must in turn be **strictly greater than the selected job timeout** by a documented safety margin. Solver attempts and backoff remain bounded and failures are recorded as operational evidence.
+The database queue is appropriate while workload remains within the capacity of the primary database. Current implementation/configuration evidence checked on **August 13, 2026** resolves the Laravel HTTP client timeout to 330 seconds, with a repository fallback of 300 seconds; `ScheduleSolverDispatchJob::$timeout` is 360 seconds; and the database queue default `retry_after` is 420 seconds. The current application ordering therefore satisfies **Laravel HTTP client 330 seconds < job timeout 360 seconds < `retry_after` 420 seconds**. Cloud Run's separate 360-second service request ceiling does not replace the Laravel client limit, and its equality with the job timeout is not by itself a Laravel queue conformance defect. Solver attempts and backoff remain bounded and failures are recorded as operational evidence.
 
-Current implementation/configuration evidence checked on **August 11, 2026** does not yet satisfy that complete ordering: `ScheduleSolverDispatchJob::$timeout` is 360 seconds, equal to the accepted HTTP timeout, while the database queue default `retry_after` is 420 seconds. The equality is not accepted behavior. It is a concrete later PRD 03 implementation-conformance item: qualify a job timeout above 360 seconds, then retain or raise `retry_after` so it remains above that chosen job timeout before the 360-second profile is called application-compatible.
+If a future deployment selects a 360-second Laravel HTTP client timeout, it must first increase the solver job timeout to a value strictly greater than 360 seconds and increase `retry_after` to remain strictly greater than that job timeout by a documented safety margin. That prospective selection requires coordinated configuration and verification; it is not the current application setting.
 
 A production process supervisor must keep the queue worker running and restart it after failure or deployment. Redis and Laravel Horizon are an upgrade path when measured queue throughput, latency, or operations visibility justifies a dedicated queue/cache service; they are not prerequisites for the selected baseline.
 
@@ -493,7 +493,7 @@ The private Cloud Run service and its dedicated invoker authorization are curren
 
 ### 9.1 CP-SAT Scheduling Service
 
-The scheduling service is an isolated private Python/OR-Tools CP-SAT adapter. A read-only provider check on **August 11, 2026** confirmed the current promoted private `tala-scheduler-solver` Cloud Run revision in `asia-southeast1` as `tala-scheduler-solver-d5dstage2-665963443cc0`, receiving 100% of normal service traffic. Its observed profile is 8 vCPU, 16 GiB, eight solver workers, concurrency one, a 300-second solver limit, a 360-second HTTP timeout, minimum zero instances, maximum two instances, and deterministic seed `20260718`. The service remains private; the dedicated invoker authorization was present and no public invoker was observed. This is dated current provider-configuration evidence, not a guarantee that the state cannot drift or that Laravel currently conforms to its timeout contract.
+The scheduling service is an isolated private Python/OR-Tools CP-SAT adapter. A read-only provider check on **August 11, 2026** confirmed the current promoted private `tala-scheduler-solver` Cloud Run revision in `asia-southeast1` as `tala-scheduler-solver-d5dstage2-665963443cc0`, receiving 100% of normal service traffic. Its observed profile is 8 vCPU, 16 GiB, eight solver workers, concurrency one, a 300-second solver limit, a 360-second Cloud Run service request ceiling, minimum zero instances, maximum two instances, and deterministic seed `20260718`. The service remains private; the dedicated invoker authorization was present and no public invoker was observed. This is dated current provider-configuration evidence, not a guarantee that the state cannot drift or that provider configuration alone proves production performance or external-host credential custody.
 
 The product boundary remains an immutable whole-term source snapshot, a typed solver outcome, independent Laravel validation, human review, and Registrar publication. Historical 1/1, 2/4, 4/8, and earlier 8/8 or 8/16 benchmark profiles remain useful scaling and failure evidence only; none overrides the dated promoted profile or proves production capacity.
 
@@ -617,14 +617,14 @@ Recent UCTP literature shows that exact solvers, commercial mathematical program
 
 ## 11. Dependency Architecture
 
-Versions in this section were verified from the installed dependency graph on **July 27, 2026 (Philippine Time)**. A dependency is justified only when its active responsibility is clear; presence in a manifest does not prove architectural use.
+Versions in this section were verified from the installed dependency graph on **August 13, 2026 (Philippine Time)**. A dependency is justified only when its active responsibility is clear; presence in a manifest does not prove architectural use.
 
 ### 11.1 Active PHP Runtime
 
 | Dependency | Verified version | Architectural responsibility and benefit |
 | --- | ---: | --- |
-| PHP | 8.2 | Supported runtime for the selected Laravel ecosystem |
-| Laravel Framework | 12.63.0 | HTTP lifecycle, routing, validation, ORM, transactions, queues, policies, notifications, storage, and testing conventions |
+| PHP | 8.2 | Selected runtime for the current Laravel ecosystem; the PHP 8.2 branch receives security fixes only through December 31, 2026 |
+| Laravel Framework | 12.66.0 | HTTP lifecycle, routing, validation, ORM, transactions, queues, policies, notifications, storage, and testing conventions; Laravel 12 receives security fixes through February 24, 2027 |
 | Filament | 5.6.7 | Role-oriented administrative workspaces built from server-defined resources and actions |
 | Livewire | 4.3.1 | Stateful, reactive server-driven interactions without a separate SPA/API application |
 | Laravel Fortify | 1.37.2 | Headless authentication actions including login, recovery, verification, and two-factor foundations |
@@ -632,10 +632,12 @@ Versions in this section were verified from the installed dependency graph on **
 | Spatie Laravel Permission | 6.25.0 | Persisted roles and permissions integrated with Laravel authorization |
 | Spatie Activitylog | 4.12.3 | Auditable model and workflow activity where explicitly configured |
 | Google Auth | 1.52.0 | Service-account credentials and identity-token creation for authenticated Cloud Run invocation |
-| Guzzle | 7.15.2 | HTTP transport used by Laravel's outbound integration clients |
+| Guzzle | 7.15.3 | HTTP transport used by Laravel's outbound integration clients |
 | Guzzle PSR-7 | 2.13.0 | PSR-7 request, response, stream, and URI implementation used by the HTTP transport |
 
 Laravel, Filament, and Livewire are selected together because TALA is a form-, table-, policy-, and workflow-heavy institutional application. They keep UI behavior, validation, authorization, and transactions in one PHP system. A separate JavaScript SPA would add an API contract, duplicated validation and authorization concerns, client-state complexity, and another deployment surface without a demonstrated baseline requirement for disconnected clients or independent frontend teams.
+
+The runtime lifecycle must be reconsidered before PHP 8.2 security support ends on **December 31, 2026** and before Laravel 12 security support ends on **February 24, 2027**. Laravel 13 remains a separate future dependency-compatibility, PHP-platform, and deployment decision; these dates do not authorize or imply an immediate framework upgrade.
 
 Authenticated workspaces use native Filament components first and focused Tailwind CSS presentation only where Filament composition cannot express the approved behavior; Bootstrap remains isolated to the public landing page.
 
@@ -672,7 +674,7 @@ The scheduling container uses Python 3.12 slim, Google OR-Tools 9.15.6755, Flask
 
 | Engineering dependency | Verified version | Responsibility |
 | --- | ---: | --- |
-| Laravel Boost | 2.4.12 | Version-aware application inspection and framework-documentation retrieval for AI-assisted development |
+| Laravel Boost | 2.5.3 | Version-aware application inspection and framework-documentation retrieval for AI-assisted development |
 | PHPUnit | 11.5.55 | Automated unit and feature behavior checks |
 | Larastan | 3.10.0 | Laravel-aware static analysis |
 | Laravel Pint | 1.29.1 | Consistent PHP formatting |
@@ -740,7 +742,7 @@ Mobile-responsive styling does not by itself prove mobile usability. Before publ
 
 | Layer | Required runtime or selected baseline | Evidence classification |
 | --- | --- | --- |
-| PHP application | PHP 8.2 or later with Ctype, cURL, DOM, Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session, Tokenizer, and XML extensions | Laravel 12 framework minimum |
+| PHP application | PHP 8.2 or later with Ctype, cURL, DOM, Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session, Tokenizer, and XML extensions | Laravel 12 framework minimum; PHP 8.2 is security-fixes-only through December 31, 2026, so production runtime selection must be reconsidered before that date |
 | Operating system and web server | Supported 64-bit Linux environment with Nginx and PHP-FPM, or a documented equivalent; only the Laravel `public/` directory is web-accessible | TALA deployment design and Laravel security requirement |
 | Database | MySQL 8.4 baseline with InnoDB, transactional storage, and tested migrations | Project-selected and documented database baseline, not merely Laravel's lowest theoretical database version |
 | Stateful infrastructure | Database-backed session, queue, and cache tables; private writable application storage; writable `storage/` and `bootstrap/cache` directories; selected encrypted restic/Cloudflare R2 recovery direction; client-owned four-bay ORICO 9548U3 enclosure planned for two independently procured 4 TB CMR NAS HDDs and weekly alternating offline rotation | Database-backed state is current configuration evidence; recovery mechanisms are prospective planning selections whose accounts, drive procurement, automation, ownership, rotation, and restore proof remain unresolved operational gates |
@@ -748,7 +750,7 @@ Mobile-responsive styling does not by itself prove mobile usability. Before publ
 | Initial web host | Hostinger KVM 2: 2 vCPU, 8 GB RAM, 100 GB NVMe storage, and 8 TB published bandwidth | Selected self-managed starting topology based on the provider's Philippine plan page checked August 13, 2026; proportionate initial headroom, not a load-tested universal minimum or service guarantee |
 | Domain and DNS | Client-approved institution-owned `.com` domain registered and DNS-managed through Hostinger when no suitable institution-owned domain exists; otherwise a bounded subdomain of the existing domain | Selected lean identity and routing direction; `.edu.ph` is an optional later alias/upgrade and an ordinary domain is not accreditation evidence |
 | Transactional email | One Hostinger Business Email Starter mailbox dedicated to automated TALA mail, with provider-neutral authenticated SMTP and optional institution-owned human `Reply-To` | Selected initial production provider; published volume limits, DNS authentication, delivery evidence, and account handover remain production-acceptance checks |
-| Scheduling service | Private `tala-scheduler-solver` in `asia-southeast1`; promoted revision `tala-scheduler-solver-d5dstage2-665963443cc0`; Python 3.12 container; 8 vCPU; 16 GiB; eight solver workers; concurrency one; 300-second solver limit; 360-second HTTP timeout; minimum zero and maximum two instances; seed `20260718` | Current provider-configuration evidence verified August 11, 2026. Formula, internal-contract, and Laravel timeout conformance remain unproven until the future PRD 03 reconciliation slice |
+| Scheduling service | Private `tala-scheduler-solver` in `asia-southeast1`; promoted revision `tala-scheduler-solver-d5dstage2-665963443cc0`; Python 3.12 container; 8 vCPU; 16 GiB; eight solver workers; concurrency one; 300-second solver limit; 360-second Cloud Run service request ceiling; minimum zero and maximum two instances; seed `20260718` | Current provider-configuration evidence verified August 11, 2026. The current Laravel client/job/retry ordering was verified August 13, 2026; formula, broader internal-contract, queue-behavior, and accepted-result evidence remain for the future PRD 03 reconciliation slice |
 | Network and trust | Valid TLS, DNS, firewall controls, private credentials, and outbound HTTPS/SMTP access for approved integrations | Security and integration requirement |
 
 For the scheduling row, a **solver worker** is one CP-SAT search thread inside a request, while **concurrency one** means one HTTP solver request at a time per service instance. The settings are not interchangeable. The later slice must verify compatibility, observed memory, queue behavior, and accepted-result evidence before claiming the refined scheduling behavior is implemented.
@@ -759,7 +761,7 @@ The 8 GB KVM 2 VPS co-locates Nginx, PHP-FPM, Laravel, MySQL, and an initial que
 
 | Tool or service | Minimum or project baseline | Why it is required |
 | --- | --- | --- |
-| PHP | 8.2 or later | Matches Laravel 12 and the Composer platform contract |
+| PHP | 8.2 or later | Matches Laravel 12 and the Composer platform contract; PHP 8.2 receives security fixes only through December 31, 2026 |
 | Composer | Current supported Composer 2 release | Installs and validates PHP dependencies |
 | Node.js | `^20.19.0` or `>=22.12.0` | Exact installed Vite 7 engine requirement; this excludes Node 21 and Node 22.0–22.11 rather than implying that every intermediate release is compatible |
 | npm | A release supported by the selected Node.js version | Installs and builds the locked frontend dependency graph |
@@ -1175,7 +1177,7 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 
 ### 17.2 Final Architecture Decisions
 
-- Use one Laravel 12 application and one centralized MySQL record for cross-domain integrity.
+- Use one Laravel 12 application and one centralized MySQL record for cross-domain integrity. Reconsider the runtime before PHP 8.2 security support ends on December 31, 2026 and before Laravel 12 security support ends on February 24, 2027; any Laravel 13 move remains a separate dependency-compatibility, PHP-platform, and deployment decision rather than an implied immediate upgrade.
 - Organize the code by business responsibility while acknowledging that the current structure is a layered monolith, not a strictly isolated modular monolith.
 - Use synchronous requests for immediate workflows and queues for slow or externally dependent supporting work.
 - Keep domain state changes transactional; use events for notification and extension, not as the authoritative transaction.
@@ -1204,7 +1206,7 @@ Repository evidence can establish implemented behavior. It cannot, by itself, es
 - Use the client-owned ORICO enclosure only for weekly alternating offline Drive A/Drive B recovery copies made through an authorized recovery workstation. It is never a live system, archive database, RAID requirement, or TALA application surface. Preserve live `Completed`/alumni access and keep institutional retention, legal holds, and lawful disposal external.
 - Keep Hostinger, R2, billing, and recovery accounts institution-owned; assign named Infrastructure Custodian and privacy/DPO responsibilities; keep scoped provider credentials and two separately controlled recovery-password copies; and do not claim operation until procurement, automation, monitoring, rotation, and restore evidence exist.
 - Use a fixed lexicographic scheduling-quality hierarchy after hard feasibility; do not retain equal weights, editable constraint profiles, preferred times, generic overrides, or an accuracy percentage as product behavior.
-- Preserve the accepted 8-vCPU/16-GiB Cloud Run runtime default and its historical scaling evidence while treating formula and internal-contract conformance as unproven; change the profile only when reconciled compatibility, workload, formulation, or telemetry evidence justifies it.
+- Preserve the accepted 8-vCPU/16-GiB Cloud Run runtime default and its historical scaling evidence while treating formula, broader internal-contract, queue-behavior, and accepted-result conformance as unproven; keep the verified current Laravel timeout ordering distinct from the Cloud Run service request ceiling, and change the profile only when reconciled compatibility, workload, formulation, or telemetry evidence justifies it.
 - Use a lean single-node topology only with explicit recovery controls and measured upgrade triggers.
 - Measure value against total ownership cost and client baseline evidence, not infrastructure price alone.
 
@@ -1216,7 +1218,7 @@ The architecture is aligned to the standalone PRDs and is ready to constrain sep
 
 ## 18. Sources and References
 
-Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the cost/provider sources explicitly identified below were refreshed on **August 11, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
+Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**, with the Hostinger KVM 2 plan rechecked on **August 13, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
 ### 18.1 Internal System Evidence
 
@@ -1231,7 +1233,7 @@ Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-r
 
 ### 18.2 Framework, Data, and Architecture Sources
 
-- Laravel 12 documentation: [deployment and server requirements](https://laravel.com/docs/12.x/deployment), [authentication](https://laravel.com/docs/12.x/authentication), [authorization](https://laravel.com/docs/12.x/authorization), [queues](https://laravel.com/docs/12.x/queues), [events](https://laravel.com/docs/12.x/events), [task scheduling](https://laravel.com/docs/12.x/scheduling), and [Fortify](https://laravel.com/docs/12.x/fortify).
+- Laravel 12 documentation: [release notes and support policy](https://laravel.com/docs/12.x/releases), [deployment and server requirements](https://laravel.com/docs/12.x/deployment), [authentication](https://laravel.com/docs/12.x/authentication), [authorization](https://laravel.com/docs/12.x/authorization), [queues](https://laravel.com/docs/12.x/queues), [events](https://laravel.com/docs/12.x/events), [task scheduling](https://laravel.com/docs/12.x/scheduling), and [Fortify](https://laravel.com/docs/12.x/fortify); PHP runtime lifecycle uses the official [supported-versions table](https://www.php.net/supported-versions.php).
 - [Filament 5 security guidance](https://github.com/filamentphp/filament/blob/5.x/docs/09-advanced/06-security.md), [Livewire 4 documentation](https://livewire.laravel.com/docs/4.x/quickstart), and [Livewire browser-testing guidance](https://livewire.laravel.com/docs/4.x/testing#browser-testing).
 - Frontend compatibility sources: [Tailwind CSS 4 compatibility](https://tailwindcss.com/docs/compatibility), [Vite 7 production browser targets](https://v7.vite.dev/guide/build#browser-compatibility), [Vite 7 Node.js requirements](https://v7.vite.dev/guide/migration#node-js-support), and [Bootstrap 5.3 browser and device support](https://getbootstrap.com/docs/5.3/getting-started/browsers-devices/).
 - UI and accessibility sources: [WCAG 2.2](https://www.w3.org/TR/WCAG22/), [consistent navigation](https://www.w3.org/WAI/WCAG22/Understanding/consistent-navigation.html), [multiple ways](https://www.w3.org/WAI/WCAG22/Understanding/multiple-ways), [headings and labels](https://www.w3.org/WAI/WCAG22/Understanding/headings-and-labels), and the [WAI-ARIA breadcrumb pattern](https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb). [PeopleSoft Student Homepage](https://docs.oracle.com/en/applications/peoplesoft/campus-solutions/9.2.038/campus-solutions-application-fundamentals/using-student-homepage.html) is a bounded mature-SIS navigation comparison, not authority for TALA's broader enterprise features.
