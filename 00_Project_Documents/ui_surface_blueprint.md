@@ -1571,7 +1571,7 @@ At 360/390 CSS pixels, actions remain inset inside the content margin and stack 
 │ Queue         2 pending / 1 failed    Attention   10:35   │
 │ Database      Local check succeeded   Available   10:35   │
 │ App backup    Last job 05:40          Available   05:40   │
-│ Hostinger     Not checked by TALA     Unknown       —     │
+│ Primary host  Not checked by TALA     Unknown       —     │
 │ Off-host copy Not checked by TALA     Unknown       —     │
 │                                                          │
 │ No provider, restore, payment, or solver controls appear.│
