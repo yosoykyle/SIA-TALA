@@ -273,43 +273,43 @@ Clinic 6 supplies bounded `OfficialOutputPaymentClearance` to transcript preview
 ```mermaid
 flowchart TB
     subgraph ClientZone["Untrusted client zone"]
+        direction LR
         Browser["Browser<br/>Public, Applicant, Student, Staff"]
+        Inbox["Recipient inboxes"]
     end
 
     subgraph TalaZone["TALA application trust zone"]
-        Edge["HTTPS / Nginx"]
-        Laravel["Laravel 12 Core<br/>Filament 5 + Livewire 4"]
-        Auth["Fortify Sessions<br/>Policies + RBAC"]
-        App["Domain Actions and Services"]
+        direction LR
+        Web["HTTPS / Nginx<br/>Laravel 12 + Filament 5 + Livewire 4<br/>Fortify sessions + policies + RBAC"]
+        Domain["Domain actions and services"]
+        Data["MySQL system of record<br/>institutional data + durable queue/cache tables"]
+        Files["Private application files"]
+        Worker["Supervised Laravel queue worker"]
         Webhook["Signed webhook transport endpoint"]
-        Worker["Supervised Laravel Queue Worker"]
-        SolverClient["Scheduling Solver Client"]
-        MySQL[("MySQL system of record<br/>institutional data + queue/cache logical tables")]
-        Storage["Private application files"]
+
+        Web --> Domain
+        Domain <--> Data
+        Domain --> Files
+        Domain -->|enqueue after commit| Data
+        Worker <-->|consume jobs and read/write authoritative records| Data
+        Worker -->|independently validated domain actions| Domain
+        Webhook -->|verify and persist transport evidence| Data
     end
 
     subgraph ProviderZone["External provider trust zones"]
-        IAM["Audience-bound Google identity token"]
-        Solver["Private Cloud Run<br/>Python + OR-Tools CP-SAT"]
-        PayMongo["PayMongo Checkout and Webhooks"]
+        direction LR
+        Solver["Audience-bound Google identity<br/>Private Cloud Run<br/>Python + OR-Tools CP-SAT"]
+        PayMongo["PayMongo hosted Checkout<br/>and signed webhooks"]
         SMTP["Transactional SMTP provider"]
     end
 
-    Browser --> Edge --> Laravel
-    Laravel --> Auth
-    Laravel --> App
-    App <--> MySQL
-    App --> Storage
-    App -->|enqueue after commit| MySQL
-    Worker -->|consume queued jobs| MySQL
-    Worker <-->|read/write authoritative records| MySQL
-    Worker --> SolverClient --> IAM --> Solver
-    Solver -->|typed untrusted result| SolverClient
-    Laravel -->|create exact-due checkout| PayMongo
-    PayMongo -->|signed event| Webhook
-    Webhook -->|verify, persist, and enqueue transport evidence| MySQL
-    Worker -->|invoke authorized payment domain action| App
-    Worker --> SMTP
+    Browser -->|authenticated or public HTTPS| Web
+    Worker ---|audience-bound request and typed untrusted result| Solver
+    Web ---|server-side Checkout Session and hosted URL| PayMongo
+    Browser ---|hosted payment and informational return| PayMongo
+    Webhook ---|signed event from PayMongo| PayMongo
+    Worker ---|queued transactional message| SMTP
+    SMTP -.-|transactional message, never authoritative| Inbox
 ```
 
 ### 5.1 Primary Request Flow
@@ -499,6 +499,8 @@ The product boundary remains an immutable whole-term source snapshot, a typed so
 
 One solver demand represents one required recurring meeting block for one confirmed Class Offering. Courses without a genuine recurring master-timetable meeting create no demand. A candidate is untrusted integration output until Laravel revalidates whole-term completeness and every hard rule, and Registrar completes human review.
 
+Official mechanics rechecked on **August 13, 2026** support the boundary without proving TALA conformance: [Cloud Run service-to-service authentication](https://cloud.google.com/run/docs/authenticating/service-to-service) requires a Google-signed OpenID Connect ID token whose audience identifies the receiving service or configured custom audience; a [Cloud Run request timeout](https://cloud.google.com/run/docs/configuring/request-timeout) closes the connection with `504` but may leave container work running; and [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver) defines `OPTIMAL`, `FEASIBLE`, `INFEASIBLE`, `MODEL_INVALID`, and `UNKNOWN`. TALA separately maps authentication, transport, timeout, and infrastructure failures to `TechnicalFailure`; that sixth product outcome is not an invented CP-SAT status.
+
 #### Controlled Scheduling Flow
 
 1. TALA assembles one immutable whole-term snapshot from the active Term Calendar Package, every confirmed and scheduling-ready Class Offering, required meeting blocks, linked cohorts, eligible Faculty, Faculty term capacity and declared hard unavailability, rooms, room hard unavailability, and authorized exact commitments.
@@ -509,6 +511,75 @@ One solver demand represents one required recurring meeting block for one confir
 6. Registrar reviews the complete candidate and may apply only bounded corrections that revalidate the whole candidate and waive no hard rule.
 7. Registrar records any externally made sign-off and publishes an immutable `PublishedTimetableVersion`.
 8. Faculty and Clinic 4-owned Student schedule/COR projections read only from the applicable published version.
+
+#### Authoritative CP-SAT Integration Sequence
+
+The following sequence is the authoritative target integration contract. Current Laravel jobs, clients, validation services, solver source, configuration, and tests corroborate parts of this path, but they remain implementation evidence and do not prove that the current formula or complete PRD 03 behavior is conformant.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Registrar
+    participant Laravel as Laravel authorization and domain services
+    participant DB as MySQL system of record
+    participant Worker as Supervised queue worker
+    participant IAM as Google identity service
+    participant Solver as Private Cloud Run CP-SAT service
+
+    Registrar->>Laravel: Generate whole-Term timetable candidate
+    Laravel->>Laravel: Authenticate, authorize, and run readiness checks
+    Laravel->>DB: Check that no run is active for the Term
+    alt Readiness fails or another run is active
+        Laravel-->>Registrar: Show source-owned blocker and safe next action
+        Note over Laravel,DB: No run, snapshot, or dispatch is committed
+    else Request is authorized and ready
+        Laravel->>DB: Commit one active run and immutable whole-Term snapshot
+        Laravel->>Worker: Dispatch durable solver job after commit
+        Worker->>DB: Claim run and read the saved snapshot
+        Worker->>IAM: Request Google-signed ID token for solver audience
+        IAM-->>Worker: Audience-bound ID token
+        Worker->>Solver: Authenticated HTTPS request with immutable snapshot
+        alt Authentication, transport, timeout, or provider failure
+            Solver--xWorker: No usable solver result
+            Worker->>DB: Record TechnicalFailure and attempt evidence
+            Registrar->>Laravel: Open or refresh the generation run
+            Laravel->>DB: Read current run and failure evidence
+            Laravel-->>Registrar: Show technical failure and recovery owner
+            Note over Registrar,Worker: Retry only after technical recovery, while published versions stay authoritative
+        else Solver returns a typed response
+            Solver-->>Worker: Status, assignments, diagnostics, and measures
+            Note over Worker,Solver: Provider response is untrusted integration output
+            Worker->>Laravel: Submit result for independent validation
+            Laravel->>DB: Validate against saved snapshot and every hard rule
+            alt ModelInvalid or independent validation fails
+                Laravel->>DB: Record blocked or ModelInvalid evidence and create no candidate
+                Laravel-->>Registrar: Show defect/source and safe corrective action
+                Note over Registrar,Laravel: Retry only after the model or contract defect is corrected
+            else Infeasible
+                Laravel->>DB: Record proven Infeasible outcome and create no candidate
+                Laravel-->>Registrar: Show affected sources, factual basis, owner, and correction
+                Note over Registrar,Laravel: Retry only after a conflicting authoritative source changes
+            else Unknown
+                Laravel->>DB: Record inconclusive outcome and create no candidate
+                Laravel-->>Registrar: Show Unknown and same-snapshot retry option
+            else Optimal or Feasible and independently hard-valid
+                Laravel->>DB: Persist immutable candidate and quality evidence
+                Laravel-->>Registrar: Present complete non-official candidate for review
+                Registrar->>Laravel: Review, bounded correction, accept, or reject
+                Laravel->>DB: Revalidate whole candidate and current authoritative sources
+                alt Candidate is stale, rejected, or invalid
+                    Laravel-->>Registrar: Block publication and show safe recovery
+                    Note over Registrar,Laravel: A recorded rejection or authoritative source correction may permit a later distinct run
+                else External sign-off recorded and publication explicitly authorized
+                    Registrar->>Laravel: Publish timetable
+                    Laravel->>DB: Atomically create immutable PublishedTimetableVersion
+                    DB-->>Laravel: Commit official published version and evidence
+                    Laravel-->>Registrar: Show the authoritative published version
+                end
+            end
+        end
+    end
+```
 
 #### Required Hard Constraints
 
@@ -556,9 +627,80 @@ TALA creates checkout only for the exact positive current due of an authoritativ
 
 If no signed event arrives, the local attempt remains `Pending`; elapsed time and browser return cannot confirm it. Accounting may check the actual provider/external source and use the same verified-external-payment path already authorized for manual evidence. The posting retains the attempt and external reference so a later matching signed event is an idempotent no-op and cannot create a second posting or email. TALA does not expose provider replay, settlement, refund, or control-panel operations.
 
+#### Authoritative Hosted-Payment Integration Sequence
+
+The following sequence is the authoritative target integration contract. Current checkout, signature-verification, transport-evidence, queue, and posting code corroborates parts of the path, but it remains implementation evidence until the future Clinic 6 reconciliation slice proves conformance with the authoritative Assessment and Term Account model.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Learner
+    participant Laravel as Laravel finance domain
+    participant DB as MySQL system of record
+    participant PayMongo as PayMongo hosted Checkout
+    participant Webhook as Signed webhook endpoint
+    participant Worker as Supervised queue worker
+    actor Accounting
+
+    Learner->>Laravel: Pay exact current due
+    Laravel->>DB: Read authoritative Assessment, Term Account, and current due
+    alt Source is unavailable, stale, zero, or a matching attempt is pending
+        Laravel-->>Learner: Disable checkout and show the safe next action
+    else Exact positive PHP amount is current
+        Laravel->>DB: Commit local Pending PaymentAttempt and reference
+        Laravel->>PayMongo: Create Checkout Session from backend for exact due
+        alt Provider is unavailable or session creation fails
+            PayMongo-->>Laravel: Error or unavailable response, with no usable session
+            Laravel->>DB: Record Failed attempt evidence and preserve the authoritative due
+            Laravel-->>Learner: Show checkout unavailable and the safe manual-evidence path
+        else Hosted Checkout Session is created
+            PayMongo-->>Laravel: Session ID and hosted checkout URL
+            Laravel-->>Learner: Redirect browser to hosted checkout
+            Learner->>PayMongo: Complete provider-hosted payment interaction
+            PayMongo-->>Learner: Redirect to success or cancel URL
+            Learner->>Laravel: Return to TALA
+            Laravel-->>Learner: Show Pending because redirect is not payment proof
+        end
+    end
+
+    PayMongo->>Webhook: Signed webhook delivery, normally checkout_session.payment.paid
+    Webhook->>Webhook: Verify raw-body signature, mode, and freshness
+    alt Invalid or stale signature
+        Webhook-->>PayMongo: Reject delivery
+        Note over Webhook,DB: No posting or trusted domain action
+    else Signature is valid
+        Webhook->>DB: Persist durable transport evidence by provider event ID
+        Webhook-->>PayMongo: Acknowledge promptly
+        alt Unsupported event
+            Webhook->>DB: Mark ignored with no payment effect
+        else Duplicate event or late event after external reconciliation
+            Webhook->>DB: Record delivery evidence and keep prior result unchanged
+            Note over Webhook,DB: No duplicate posting or verified-payment email
+        else Supported event requires processing
+            Webhook->>Worker: Dispatch processing after transport commit
+            Worker->>DB: Claim event and match attempt, source, amount, currency, and references
+            alt Processing fails before an authoritative posting
+                Worker->>DB: Record failure for bounded retry of the same event
+                Note over Worker,DB: No partial posting, and retries remain idempotent
+            else Source is stale or evidence is missing or mismatched
+                Worker->>DB: Mark ReviewRequired and create no posting
+                Accounting->>Laravel: Open payment exceptions
+                Laravel->>DB: Read current ReviewRequired evidence
+                Laravel-->>Accounting: Show bounded exception and reconciliation action
+            else Exact valid paid evidence matches current authority
+                Worker->>DB: Atomically create one immutable posting and refresh projections
+                Learner->>Laravel: Open or refresh Student Finance
+                Laravel->>DB: Read committed authoritative account projection
+                Laravel-->>Learner: Show Finance status from TALA records
+                Note over Worker,DB: One verified-payment email per authoritative posting, with no duplicate from a matching later event
+            end
+        end
+    end
+```
+
 PayMongo is selected because it provides locally relevant payment channels without TALA storing card or wallet credentials. The tradeoffs are transaction fees, provider availability, settlement rules, account verification, webhook operations, and vendor contract dependence.
 
-Provider contract reference: [PayMongo webhook resource](https://docs.paymongo.com/reference/webhook-resource).
+Official provider mechanics checked on **August 13, 2026**: [Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start), [webhook key concepts and signature boundary](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts), [webhook retry and idempotency guidance](https://docs.paymongo.com/docs/developer-tools-retry-logic), and the [webhook resource](https://docs.paymongo.com/reference/webhook-resource). These sources define provider transport behavior only; they do not define TALA's authoritative Assessment, posting, retry, or Accounting-review policy.
 
 ### 9.3 Transactional Email
 
@@ -1218,7 +1360,7 @@ The architecture is aligned to the standalone PRDs and is ready to constrain sep
 
 ## 18. Sources and References
 
-Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**, with the Hostinger KVM 2 plan rechecked on **August 13, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
+Architecture-wide sources were checked on **July 14, 2026**; Clinic 5 academic-record sources were checked on **August 8, 2026**; and Clinic 6 policy, fee-authority, tax-document, and privacy sources were checked through **August 8, 2026**, unless a separate publication or bulletin date is stated. The Cloud Run configuration and the provider/cost sources explicitly identified below were refreshed through **August 11, 2026**; current Cloud Run authentication and request-timeout mechanics, OR-Tools outcome semantics, and PayMongo hosted-checkout, signature, retry, and webhook mechanics were rechecked on **August 13, 2026**; and the Hostinger KVM 2 plan was rechecked on **August 13, 2026**. Access dates establish only what the source or provider state showed then; they do not prove procurement, billing, operational ownership, or achieved TALA controls.
 
 ### 18.1 Internal System Evidence
 
