@@ -27,6 +27,16 @@ When sources materially conflict, stop and present the conflict rather than sile
 
 ## 3. Operating model
 
+### Issue derivation
+
+Issue derivation is read-only. It drafts work but never creates an Issue, changes the Project, or mutates GitHub. Start from the approved coordination Issue that owns the accepted delivery order, then inspect current Issues and Project statuses, open pull requests, live Git state, and the minimum relevant canonical authority and implementation evidence.
+
+Exclude work that is completed, canceled, already active, duplicated, or blocked by an unmet dependency. From the remaining dependency frontier, recommend the smallest journey-complete vertical slice that best unlocks the critical path. If materially different slices are equally eligible, present the alternatives and recommend one with rationale instead of silently choosing.
+
+Every derived draft identifies its intended outcome, accountable owner, relevant authority and UI inventory IDs, bounded scope, dependencies, material implementation order, acceptance criteria, verification and applicable browser scenarios, exclusions, and stop conditions. If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
+
+Creating the approved draft is a separate explicit external write. That authorization may create the Issue, add it to `TALA Development` as `Todo`, assign the approved owner, and establish native dependency or sub-Issue links; it does not authorize planning, coding, a branch, a commit, publication, or merge.
+
 ### Plan
 
 `Plan #NN` reads the named GitHub Issue, relevant Git authority, current implementation, and qualified sources when needed, then returns a decision-complete plan. It makes no local edits, commits, or external writes.
@@ -97,9 +107,13 @@ Do not manufacture a gate for reading files, inspecting logs, editing in-scope l
 
 GitHub Issues are the only live shared task records. Keep issue bodies concise: goal, bounded scope, acceptance criteria, and material exclusions. Use issue comments only for durable decisions or evidence that collaborators need; do not duplicate full logs or transcripts.
 
+One coordination-only GitHub Issue holds the accepted implementation order and links the derived implementation Issues. It is the durable delivery map, not an implementation authorization: it owns no branch or code change and permits no commit, publication, or merge. Native Issue dependency links determine which work is dependency-ready; the GitHub Project remains a view. Creating or materially updating the coordination Issue requires separate explicit authorization.
+
 When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. It identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, and stop conditions.
 
 The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. Open pull-request review remains `In Progress`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+
+The approved solo direct-`main` publication path remains valid while only one implementation Issue is active. Before a second implementation Issue becomes active concurrently, verify that pull-request CI and protection of `main` are configured and working. Parallel work requires pull requests, successful required checks, and resolved review conversations, with force-pushes and branch deletion blocked. Recording this gate does not authorize CI, repository-rule, or GitHub configuration changes.
 
 Concurrent development starts isolated: one accountable owner, one Issue-specific branch from accepted and up-to-date `main`, one pull request, and no unrelated Issues on that branch. Do not share a mutable workspace or database unless isolation is proven. Record dependency order and shared-seam ownership before coding. Dependent work waits until the prerequisite Issue's pull request merges into `main` unless an explicit stacked-branch plan is approved.
 
@@ -145,6 +159,12 @@ Passing tests are evidence, not the whole acceptance decision. Inspect authority
 
 Every completed local task reports changed scope, verification evidence, untouched exclusions, remaining risks, and the next action requiring authorization. Do not repeat unchanged evidence or narrate internal ceremony.
 
-## 9. Authority corrections
+## 9. Authority corrections and decision records
 
 Product behavior stays in the PRDs, UI blueprint, and architecture specification. If implementation reveals a substantive authority error, present the evidence and proposed correction for approval before depending on it. Trivial wording or consistency fixes may be corrected within an already authorized documentation scope.
+
+The Architecture Specification owns the current architecture. An Architecture Decision Record explains why a separately accepted significant technical choice was made; it never grants authority or replaces the Architecture Specification, PRDs, UI blueprint, protocol, or owning Issue.
+
+Offer an ADR only when the decision is hard to reverse, surprising without context, and the result of a genuine trade-off. If any condition is absent, keep the rationale in the owning plan, Issue, code, or canonical document instead. `Plan` may recommend an ADR but remains read-only, and no ADR may be written merely to make an undecided option appear settled.
+
+When separately authorized, future ADRs live under `00_Project_Documents/architecture-decisions/` and record status, context, considered options, decision, consequences, and any supersession link. Create the directory lazily with the first qualifying ADR; do not mass-backfill historical decisions. If an implemented decision changes, retain the old record as superseded and link the replacement.
