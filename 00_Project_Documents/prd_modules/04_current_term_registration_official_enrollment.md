@@ -299,6 +299,8 @@ Accounting receives one **Enrollment Clearance** queue showing learner, Registra
 
 Faculty sees only official rosters; reservations are not enrolled Students. Academic Head receives read-only oversight and authority evidence. System Administrator sees only locally evidenced System Health for integrations, queues, and email. Applicant and Public see no internal capacity analytics or other learners' information.
 
+For one selected official `ClassOffering`, assigned Faculty and an authorized Registrar read the same current Class Roster projection. Clinic 4 owns membership: only current official course registrations appear, and an applied adjustment, class change, Course Drop, or other authorized removal updates the projection atomically with the Student schedule, account-review source, and successor COR. Clinic 5 owns the contextual print/CSV actions and may not copy roster membership into a separate reporting record. The projection exposes no reservation, Applicant evidence, grade, finance, address, phone, or email data.
+
 The Student **Profile** surface is a read-only official summary and correction-guidance page. Registrar reaches the same profile from **Students & Enrollment** and receives a focused **Record authorized correction** action only when current authority and evidence are present. Empty, stale, inaccessible, correction-conflict, and failed-output states reveal no protected identity detail and preserve entered correction evidence when safe.
 
 ### 8.4 COR
@@ -361,6 +363,7 @@ The later vertical slice must verify:
 - Generic every-term finalization and conditional first Student activation.
 - Cancellation boundaries, final-cutoff `NotEnrolled`, cost-increasing/no-additional-cost adjustment, open Adjustment, closed Adjustment with and without exact late authority, removal/Course Drop with Accounting review pending, later authorized assessment adjustment, full-withdrawal boundary, and class-cancellation impact.
 - COR versioning and assessment snapshot.
+- Current per-Class-Offering roster view, print/save-as-PDF, and fixed CSV after official enrollment, adjustment, class change, and Course Drop; unauthorized, empty, stale, and generation-failure paths disclose no learner data.
 - Cross-role authorization, idempotent email success/failure, desktop/mobile, keyboard/screen-reader use, stale-record protection, and safe error recovery.
 
 ### 11.1 Synthetic Demonstration Data

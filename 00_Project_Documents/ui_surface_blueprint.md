@@ -517,7 +517,7 @@ The inventory uses the columns below. `J1`–`J7` refer to the seven representat
 | `ACC-008` | Accounting | TOR Clearance | Student Accounts | `NativeFilament` | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
 | `FAC-001` | Faculty | My Availability | Faculty fixed entry | `NativeFilament` | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
 | `FAC-002` | Faculty | My Schedule | Faculty navigation | `NativeFilament` | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
-| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 05 | Official roster and submitted result version | Submit roster/results | Submission result | Incomplete/returned/stale roster; INC completion open/overdue | 1366, 768 | J5 |
+| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 04/05 | Current official roster and submitted result version | Submit results or use a contextual roster action | Submission result; current Class Roster print/CSV | Empty/incomplete/returned/stale roster; export failure; INC completion open/overdue | 1366, 768, A4 portrait operational print | J5 |
 | `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | `NativeFilament` | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
 | `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | `NativeFilament` | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
 | `SYS-002` | System Administrator | Public Content | System Administrator navigation | `NativeFilament` | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
@@ -1155,7 +1155,7 @@ The Clinic 5 visual comparison considered **role workbenches**, **Student-record
 
 The native queue leads with course/class reference, program/cohort, official learner count, completed-result count, submission deadline, plain-language state, owner, and next action. Search covers class reference and course; filters cover term, state, and deadline/overdue state. Before release, Faculty may see that their assigned roster is one missing source for term-grade completeness; they never see another class's results or a learner's term/cumulative average through this context.
 
-The roster table shows Student number, legal name, official enrollment state, one controlled final-grade/INC selector, derived academic result, and any validation or lifecycle explanation. Selecting `INC` always reveals the required completion note and previews the one-year deadline calculated from the official Term end. The designated submitter receives **Save draft** and **Submit complete roster**. View-only co-Faculty receive no edit or submit action. Returned-row correction, history, and evidence remain secondary actions.
+The roster table shows Student number, legal name, official enrollment state, one controlled final-grade/INC selector, derived academic result, and any validation or lifecycle explanation. Selecting `INC` always reveals the required completion note and previews the one-year deadline calculated from the official Term end. The designated submitter receives **Save draft** and **Submit complete roster**. Every assigned Faculty member with roster-view access receives **Print class roster** and **Export roster CSV** as contextual secondary actions; view-only co-Faculty still receive no edit or submit action. Returned-row correction, history, and evidence remain secondary actions.
 
 ```text
 Grade Roster — IT 301 / IT 3A
@@ -1163,10 +1163,13 @@ Grade Roster — IT 301 / IT 3A
 ├ Student no. | Legal name | Enrollment | Final result | Note │
 │ SIA-...     | ...        | Official   | [1.00–5.00/INC]     │
 ├ Validation / returned-row explanation                       │
+├ Secondary: [Print class roster] [Export roster CSV]          │
 └ [Save draft]                         [Submit complete roster]│
 ```
 
-An empty result remains unfinished and cannot be released. `INC` reveals the required short completion note. The UI never requests Preliminary, Midterm, Final-period values, formulas, attendance, raw scores, `P`, Course Drop, withdrawal, or approved-credit marks.
+The print action opens an authenticated A4 portrait **CURRENT CLASS ROSTER — Operational reference** view; the CSV is a private initiating-actor download. Both use the selected Class Offering's current Clinic 4 membership, fixed identity/enrollment columns, legal-name/Student-number ordering, an Asia/Manila as-of time, formula-safe cells, role-derived purpose, and logged output access. Neither uses selected table rows, a column chooser, a second format, a bulk action, or a Reports destination. Neither contains grades, result notes, contact details, Applicant evidence, or finance data, and neither becomes an eighth canonical official output.
+
+An empty result remains unfinished and cannot be released. A class with no officially enrolled learners shows **No officially enrolled students in this class** and no print/export action. `INC` reveals the required short completion note. Stale, changed, inaccessible, or failed roster generation creates no partial artifact and offers **Refresh roster** or the shared safe return/support path. The UI never requests Preliminary, Midterm, Final-period values, formulas, attendance, raw scores, `P`, Course Drop, withdrawal, or approved-credit marks.
 
 ### Registrar Grades & Completion workbench
 
@@ -1264,7 +1267,7 @@ TOR — Preview / Issued / Voided / Replacement / Superseded
 
 ### Sorting and page-specific states
 
-- Faculty rosters sort overdue and due-soon work first, then course/class reference. **No grade rosters assigned** links to the published teaching assignment; a filtered-empty result offers **Clear filters**.
+- Faculty rosters sort overdue and due-soon work first, then course/class reference. **No grade rosters assigned** links to the published teaching assignment; a filtered-empty result offers **Clear filters**. The selected Class Roster uses fixed legal-name/Student-number ordering; empty, stale, changed, inaccessible, or generation-failure states never expose a partial print or CSV.
 - Registrar queues sort action-needed records first, then due date and latest activity. **No records need review** confirms the active term and filters rather than implying that no academic records exist.
 - Student Academics groups terms newest first while TOR rows remain chronological. **No released results yet** explains that only Registrar-released results appear and provides no misleading action.
 - Partly released terms show **Grades not complete**, the count/source of missing official outcomes to authorized Staff, and the last complete cumulative **Through [term]** value when available. They never show a partial term value or a newly calculated cumulative value.
@@ -1602,6 +1605,8 @@ Unknown is never colored or labeled as healthy. Refresh reads locally knowable e
 
 All seven canonical outputs use the same authenticated print frame: approved institution crest and name first; exact output title/status; source/version and generation reference/time; monochrome-safe semantic headings; repeated identity/table headings; deliberate page breaks without clipped rows; no navigation or interactive controls; system-font fallback; and restrained **Generated through TALA** footer text. Application Acknowledgment, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment are A4 portrait. Published Timetable is A4 landscape. A stale, inaccessible, or failed source creates no partial or official-looking artifact and preserves the owning page with a safe retry/support path.
 
+The current Class Roster uses the same authenticated, monochrome-safe, repeated-heading, non-clipping A4 portrait print quality, but is explicitly labelled **Operational reference** with a current as-of time. It is not included in the seven canonical outputs, creates no issuance/version event, and is never proof of enrollment or grades.
+
 ```text
 ACCOUNT STATEMENT / SOA                 PAYMENT ACKNOWLEDGMENT
 Non-tax institutional output            Non-tax institutional output
@@ -1670,7 +1675,7 @@ The browser walkthrough follows this order:
 11. Mismatch, underpayment, rejection, resubmission, payment reversal, and coverage supersession/reversal preserve append-only evidence.
 12. A later missed obligation or coverage reversal changes Finance only and does not undo enrollment or academic access.
 13. Accounting resolves `Cleared`, `NotRequired`, and `ActionNeeded` TOR requests without a global hold.
-14. The two contextual CSVs record purpose and output-access evidence.
+14. The two Clinic 6 finance CSVs record purpose and output-access evidence.
 15. System Health separates local evidence from external unknowns; Governance states that automatic retention disposal is not provided and makes no external compliance verdict.
 16. Alumni opens historical Finance read-only.
 
