@@ -70,7 +70,7 @@ A planning request without an issue number works the same way but has no GitHub 
 4. Run proportionate non-destructive verification in the configured project environment.
 5. Remediate and re-check in-scope failures.
 6. Inspect and clean the intended diff without touching unrelated work.
-7. Create one bounded local commit after verification evidence is current.
+7. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
 8. Report the result, evidence, exclusions, remaining risk, and publication boundary.
 
 Complete leaves the issue open and its project item short of `Done`. It never authorizes a push, pull request, merge, deployment, destructive operation, dependency, credential, external cost, public-access change, or material scope expansion.
