@@ -14,6 +14,13 @@
         $workspacePath = $authenticatedUser?->authorizedWorkspacePath();
         $workspaceName = $authenticatedUser?->authorizedWorkspaceName();
         $canSwitchAccount = $statusCode === 403 && $workspacePath !== null && $workspaceName !== null;
+        $isApplicantVerificationFailure = $statusCode === 403
+            && request()->routeIs('filament.applicant.auth.email-verification.verify')
+            && $authenticatedUser?->hasRole('applicant')
+            && ! $authenticatedUser->hasVerifiedEmail();
+        $guidance = $isApplicantVerificationFailure
+            ? 'This verification link is expired, malformed, or no longer the newest link. Request a new link from the verification page.'
+            : $guidance;
     @endphp
 
     <main class="error-shell" aria-labelledby="error-title">
@@ -33,7 +40,10 @@
             </section>
 
             <div class="error-actions">
-                @if ($canSwitchAccount)
+                @if ($isApplicantVerificationFailure)
+                    <a class="primary-action" href="{{ route('filament.applicant.auth.email-verification.prompt') }}">Request a new verification link</a>
+                    <button class="secondary-action" type="button" data-open-account-switch>Use another account</button>
+                @elseif ($canSwitchAccount)
                     <a class="primary-action" href="{{ url($workspacePath) }}">Return to {{ $workspaceName }}</a>
                     <button class="secondary-action" type="button" data-open-account-switch>Use another account</button>
                 @else
@@ -51,7 +61,7 @@
             </form>
             <h2 id="account-switch-title">Use another TALA account?</h2>
             <p>
-                You are signed in as <strong>{{ $authenticatedUser->name }}</strong>
+                You are signed in as <strong>{{ $authenticatedUser->getFilamentName() }}</strong>
                 ({{ $authenticatedUser->email }}). Continuing will securely sign out this account.
             </p>
             <div class="dialog-actions">

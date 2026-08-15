@@ -21,6 +21,22 @@ document.addEventListener('DOMContentLoaded', () => {
         updateScrollButton();
     }
 
+    const requestedModal = new URLSearchParams(window.location.search).get('modal');
+
+    if (['privacy', 'accessibility', 'support'].includes(requestedModal) && window.bootstrap?.Modal) {
+        const modalElement = document.getElementById(`${requestedModal}Modal`);
+
+        if (modalElement) {
+            window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.delete('modal');
+                window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+            }, { once: true });
+        }
+    }
+
     const navbar = document.querySelector('.navbar');
     const contrastTargets = navbar
         ? navbar.querySelectorAll('[data-navbar-contrast-target]')
@@ -85,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('scroll', scheduleNavbarContrastUpdate, { passive: true });
         navbar.addEventListener('shown.bs.collapse', scheduleNavbarContrastUpdate);
         navbar.addEventListener('hidden.bs.collapse', scheduleNavbarContrastUpdate);
+        navbar.addEventListener('shown.bs.dropdown', scheduleNavbarContrastUpdate);
+        navbar.addEventListener('hidden.bs.dropdown', scheduleNavbarContrastUpdate);
         scheduleNavbarContrastUpdate();
     }
 

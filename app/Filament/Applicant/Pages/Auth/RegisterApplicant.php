@@ -2,22 +2,32 @@
 
 namespace App\Filament\Applicant\Pages\Auth;
 
-use App\Actions\Applicants\AdmissionWindowService;
+use App\Actions\Applicants\ApplicantEntryReadinessService;
+use App\Actions\Applicants\DispatchApplicantEmailVerification;
+use App\Actions\Fortify\CreateNewUser;
+use App\Actions\Fortify\PasswordValidationRules;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Register;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\HtmlString;
 use SensitiveParameter;
-use Spatie\Permission\Models\Role;
 
 class RegisterApplicant extends Register
 {
+    use PasswordValidationRules;
+
     public function mount(): void
     {
-        if (! app(AdmissionWindowService::class)->hasOpenAdmissionsWindow()) {
-            $this->redirect(route('home', ['admissions' => 'closed']));
+        $readiness = app(ApplicantEntryReadinessService::class);
+
+        if (! $readiness->registrationIsAvailable()) {
+            $reason = $readiness->admissionsAreOpen() ? 'unavailable' : 'closed';
+            $this->redirect(route('home', ['registration' => $reason]));
 
             return;
         }
@@ -30,23 +40,58 @@ class RegisterApplicant extends Register
      */
     protected function handleRegistration(#[SensitiveParameter] array $data): Model
     {
-        if (! app(AdmissionWindowService::class)->hasOpenAdmissionsWindow()) {
-            throw ValidationException::withMessages([
-                'email' => 'Applications are currently closed. You may sign in to an existing applicant account.',
-            ]);
+        return app(CreateNewUser::class)->create($data);
+    }
+
+    protected function sendEmailVerificationNotification(Model $user): void
+    {
+        if (! $user instanceof User || $user->hasVerifiedEmail()) {
+            return;
         }
 
-        $user = User::create($data);
+        if (! app(DispatchApplicantEmailVerification::class)->execute($user)) {
+            session()->flash('applicant_verification_dispatch_failed', true);
+        }
+    }
 
-        Role::findOrCreate('applicant', 'web');
-        $user->assignRole('applicant');
+    public function form(Schema $schema): Schema
+    {
+        $privacyUrl = app(ApplicantEntryReadinessService::class)->officialReferences()['privacy'];
 
-        return $user;
+        return $schema->components([
+            TextInput::make('email')
+                ->label('Email address')
+                ->email()
+                ->required()
+                ->maxLength(255)
+                ->autocomplete('email')
+                ->autofocus(),
+            TextInput::make('password')
+                ->label('Password')
+                ->password()
+                ->revealable(filament()->arePasswordsRevealable())
+                ->required()
+                ->rules($this->passwordRules())
+                ->showAllValidationMessages()
+                ->autocomplete('new-password'),
+            TextInput::make('password_confirmation')
+                ->label('Confirm password')
+                ->password()
+                ->revealable(filament()->arePasswordsRevealable())
+                ->required()
+                ->autocomplete('new-password'),
+            Checkbox::make('privacy_acknowledged')
+                ->label(new HtmlString(
+                    'I acknowledge the <a class="underline" href="'.e($privacyUrl).'" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.',
+                ))
+                ->accepted()
+                ->required(),
+        ]);
     }
 
     public function getTitle(): string|Htmlable
     {
-        return 'Apply Online';
+        return 'Create Applicant Account';
     }
 
     public function getHeading(): string|Htmlable|null
@@ -57,6 +102,6 @@ class RegisterApplicant extends Register
     public function getRegisterFormAction(): Action
     {
         return parent::getRegisterFormAction()
-            ->label('Apply Online');
+            ->label('Create account');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Applicant\Pages\Application;
+use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
@@ -35,7 +36,7 @@ class ApplicantPanelProvider extends PanelProvider
             ->login()
             ->registration(RegisterApplicant::class)
             ->passwordReset()
-            ->emailVerification()
+            ->emailVerification(ApplicantEmailVerification::class)
             ->profile()
             ->brandName('TALA Applicant Workspace')
             ->brandLogo(asset('talalogo.png'))
@@ -54,7 +55,9 @@ class ApplicantPanelProvider extends PanelProvider
                         ->usingPage(RegisterApplicant::class)
                     )
                     ->passwordReset()
-                    ->emailVerification()
+                    ->emailVerification(fn (AuthPageConfig $config) => $config
+                        ->usingPage(ApplicantEmailVerification::class)
+                    )
                     ->themeToggle()
             )
             ->discoverResources(in: app_path('Filament/Applicant/Resources'), for: 'App\Filament\Applicant\Resources')
