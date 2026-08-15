@@ -13,6 +13,7 @@ use Filament\Panel;
 use Filament\Support\Colors\Color;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -27,16 +28,24 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('TALA')
-            ->assertSee('Apply Online')
+            ->assertSee('Create Applicant Account')
             ->assertSee('Applicant Sign In')
             ->assertSee('Student Sign In')
             ->assertSee('Staff Sign In')
+            ->assertSee('Applicant Login')
+            ->assertSee('Student Login')
+            ->assertSee('Staff Login')
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertSee(route('filament.student.auth.login'), false)
             ->assertSee(route('filament.admin.auth.login'), false)
             ->assertSee(asset('landing/vendor/bootstrap/css/bootstrap.min.css'), false)
             ->assertSee(asset('landing/css/styles.css'), false)
+            ->assertSee('data-bs-toggle="dropdown"', false)
+            ->assertSee('data-bs-target="#privacyModal"', false)
+            ->assertSee('modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down', false)
+            ->assertSee('Open in Google Maps')
+            ->assertDontSee('<iframe', false)
             ->assertSee('Applicant Workspace')
             ->assertSee('Student Hub')
             ->assertDontSee('Student Registration')
@@ -49,7 +58,7 @@ class PublicLandingAndFilamentAuthTest extends TestCase
     public function test_public_fortify_auth_view_routes_are_not_exposed(): void
     {
         $this->get('/login')->assertMethodNotAllowed();
-        $this->get('/register')->assertMethodNotAllowed();
+        $this->get('/register')->assertNotFound();
         $this->get('/forgot-password')->assertMethodNotAllowed();
         $this->get('/email/verify')->assertNotFound();
     }
@@ -64,7 +73,8 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $this->get(route('filament.applicant.auth.register'))
             ->assertOk()
             ->assertSee('Create Applicant Account')
-            ->assertSee('Apply Online');
+            ->assertSee('Create account')
+            ->assertSee(route('home', ['modal' => 'privacy']), false);
     }
 
     public function test_role_filament_panels_share_the_admin_primary_color(): void
@@ -83,14 +93,15 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $method->setAccessible(true);
 
         $user = $method->invoke($page, [
-            'name' => 'Test Applicant',
             'email' => 'test-applicant@example.test',
-            'password' => 'secret-password',
+            'password' => 'a valid passphrase',
+            'password_confirmation' => 'a valid passphrase',
+            'privacy_acknowledged' => true,
         ]);
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertTrue($user->hasRole('applicant'));
-        $this->assertTrue(Hash::check('secret-password', $user->password));
+        $this->assertTrue(Hash::check('a valid passphrase', $user->password));
     }
 
     /**
@@ -106,6 +117,10 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     private function openAdmissions(): CalendarEvent
     {
+        Http::fake([
+            'api.pwnedpasswords.com/*' => Http::response('', 200),
+        ]);
+
         $term = Term::factory()->create(['state' => Term::StateActive]);
 
         return CalendarEvent::factory()->for($term)->create([

@@ -26,13 +26,13 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             ->assertSee('href="#main-content"', false)
             ->assertSee('id="main-content"', false)
             ->assertSee('One system. Three clear workspaces.')
-            ->assertSee('Apply and track admission requirements.')
+            ->assertSee('Create and verify your Applicant account.')
             ->assertSee('View enrollment, schedules, finance, and academic records.')
             ->assertSee('Manage verified school operations according to your role.')
             ->assertSee('LOGIN')
-            ->assertSee('LOCATION')
-            ->assertSee('ABOUT US')
             ->assertSee('FREQUENTLY ASKED QUESTIONS')
+            ->assertDontSee('OUR MISSION')
+            ->assertDontSee('<iframe', false)
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertSee(route('filament.student.auth.login'), false)
@@ -151,21 +151,15 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringContainsString('tala-filament.css', $provider);
     }
 
-    public function test_landing_content_actions_use_explicit_spacing_without_global_button_margins(): void
+    public function test_landing_keeps_external_location_guidance_without_an_embedded_map_or_global_button_margins(): void
     {
         $landing = file_get_contents(resource_path('views/welcome.blade.php'));
         $styles = file_get_contents(public_path('landing/css/styles.css'));
 
         $this->assertIsString($landing);
         $this->assertIsString($styles);
-        $this->assertMatchesRegularExpression(
-            '/<div class="section-actions">\s*<a[^>]+>\s*Open in Google Maps/s',
-            $landing,
-        );
-        $this->assertMatchesRegularExpression(
-            '/\.section-actions\s*\{[^}]*margin-top:\s*1\.5rem;/s',
-            $styles,
-        );
+        $this->assertStringContainsString('Open in Google Maps', $landing);
+        $this->assertStringNotContainsString('<iframe', $landing);
         $this->assertStringNotContainsString('.btn { margin-top:', $styles);
     }
 

@@ -1,6 +1,6 @@
 <?php
 
-use App\Actions\Applicants\AdmissionWindowService;
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
@@ -10,10 +10,12 @@ use App\Http\Controllers\StudentSchedulePrintController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function (AdmissionWindowService $admissionWindowService) {
+Route::get('/', function (ApplicantEntryReadinessService $applicantEntryReadinessService) {
     return view('welcome', [
         'faqEntries' => FaqEntry::query()->publishedOrdered()->get(),
-        'admissionsOpen' => $admissionWindowService->hasOpenAdmissionsWindow(),
+        'admissionsOpen' => $applicantEntryReadinessService->admissionsAreOpen(),
+        'applicantEntryReady' => $applicantEntryReadinessService->registrationIsAvailable(),
+        'officialReferences' => $applicantEntryReadinessService->officialReferences(),
     ]);
 })->name('home');
 

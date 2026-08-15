@@ -728,6 +728,21 @@ All PRD acceptance data uses one coordinated, wholly synthetic institution. Pers
 
 Third-year curriculum authority may exist, but current third-year enrollment is not fabricated. Every PRD names the subset it owns, consumes, projects, and exercises in its browser acceptance. Shared references must resolve to the same program, term, person, course, class, amount, state, version, and as-of time wherever they appear.
 
+#### Implementation input and acceptance classification
+
+Confidentiality restrictions and the absence of direct client contact do not reopen an approved product decision or create a hidden implementation gate. Each slice classifies a required input as one of: verified public fact; accepted researched TALA rule or bounded product default; coordinated synthetic acceptance data; proven implementation dependency; or institution-entered runtime record. Public facts are checked against attributable sources. Institution-exclusive facts are never invented or presented as approved. When real runtime values are unavailable, the coordinated synthetic institution must still exercise the complete product workflow; the installation accepts the real value later through the already-defined operational record or configuration boundary.
+
+| Slice | Proven high-level prerequisites | Inputs used for implementation acceptance rather than treated as client blockers |
+|---|---|---|
+| 1 — Public entry and verified Applicant | Open Clinic 2 Admission Cycle projection for registration; existing credential, authorization, and mail-dispatch boundaries | Approved TALA public guidance, project-approved public support contacts, synthetic Applicant accounts, and fake/local mail delivery evidence |
+| 2 — Application to enrollment readiness | Verified Applicant context from Slice 1 | Synthetic Cycle dates, requirement versions, Registrar authority, Applicants, private evidence, credential results, and support/privacy references |
+| 3 — Academic authority to published timetable | Authorized Registrar Staff access; PRD 03 academic authority, Term, offering, resource, and solver/publication boundaries. Delivery after Slice 2 is a solo-capacity order, not a blanket dependency | Synthetic curricula, Term calendars, Faculty, rooms, cohorts, Class Offerings, commitments, solver outcomes, sign-off authority, and publication versions |
+| 4 — Registration to Official Enrollment and COR | Ready Applicant projection from Slice 2; applicable active academic authority and published timetable from Slice 3; current Clinic 6 assessment/payment-readiness projections for the selected case | Synthetic Registration Cases, proposals, placement/capacity facts, assessment or coverage/payment results, Registrar authority, and COR sources |
+| 5 — Official roster to released Student Academics | Official Enrollment and roster projections from Slice 4; applicable academic authority from Slice 3 | Fixed PRD 05 result/INC rules plus synthetic Faculty, rosters, grade events, corrections, lifecycle authority, curriculum evaluation, and completion cases |
+| 6 — Completion, TOR, accounts, outputs, and assurance | Only the Slice 4–5 records consumed by the relevant completion/TOR subjourney; other subjourneys use dependencies proven when derived | Synthetic Fee Plans, assessments, coverage, payments, clearances, signatory/output inputs, degraded-service evidence, and backup/restore result records. Provider credentials, procurement, and real recovery operations remain production gates, not capstone implementation-acceptance gates |
+
+Missing or stale runtime authority may block only the action that consumes it. It does not justify incomplete code, a placeholder journey, fabricated success, or deferral from the current accepted scope. A real production installation remains responsible for entering and approving its own dates, people, amounts, authorities, provider accounts, custody, and operational evidence before enabling the affected live action.
+
 ### 11.4 Shared Authority-Control Annex
 
 This annex supplies the normalized controls used by PRDs 01–06. An owning PRD may narrow a rule but may not silently weaken it. The records named here are conceptual product authority, not database, API, class, or migration design.

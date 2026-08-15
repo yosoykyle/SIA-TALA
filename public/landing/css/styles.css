@@ -86,6 +86,26 @@ button:focus-visible,
     letter-spacing: 0.5px;
 }
 
+.navbar .dropdown-menu {
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-radius-sm);
+    box-shadow: var(--tala-shadow);
+    min-width: 13rem;
+    padding: 0.5rem;
+}
+
+.navbar .dropdown-item {
+    border-radius: 0.6rem;
+    font-weight: 700;
+    padding: 0.7rem 0.8rem;
+}
+
+.navbar .dropdown-item:focus,
+.navbar .dropdown-item:hover {
+    background: rgba(13, 63, 158, 0.1);
+    color: var(--tala-blue);
+}
+
 .navbar [data-navbar-contrast-target] {
     transition: color 160ms ease;
 }
@@ -445,16 +465,20 @@ button:focus-visible,
     text-underline-offset: 0.2rem;
 }
 
-.map-box {
+.institution-card {
+    align-items: center;
+    background: var(--tala-surface);
     border: 1px solid var(--tala-border);
     border-radius: var(--tala-radius);
     box-shadow: var(--tala-shadow);
-    line-height: 0;
-    overflow: hidden;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    padding: clamp(1.5rem, 4vw, 3rem);
 }
 
-.map-frame {
-    border: 0;
+.institution-card .section-lead {
+    max-width: 52rem;
 }
 
 .about-section {
@@ -584,6 +608,54 @@ button:focus-visible,
     text-underline-offset: 0.25rem;
 }
 
+.footer-link-button {
+    background: transparent;
+    border: 0;
+    padding: 0;
+}
+
+.tala-info-modal .modal-content {
+    background: var(--tala-surface);
+    border: 0;
+    border-radius: var(--tala-radius);
+    color: var(--tala-ink);
+}
+
+.tala-info-modal .modal-header,
+.tala-info-modal .modal-body {
+    padding: clamp(1.25rem, 3vw, 2.25rem);
+}
+
+.tala-info-modal .modal-header {
+    border-bottom-color: var(--tala-border);
+}
+
+.tala-info-modal .modal-body {
+    font-size: 1rem;
+    line-height: 1.75;
+}
+
+.tala-info-modal .modal-body > :last-child {
+    margin-bottom: 0;
+}
+
+.modal-action-list {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.modal-note {
+    color: var(--tala-muted);
+    font-size: 0.9rem;
+}
+
+.privacy-notice-copy {
+    max-width: 75ch;
+}
+
 .footer-divider {
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     color: #8392aa;
@@ -684,6 +756,15 @@ button:focus-visible,
     .display-headline {
         max-width: 15ch;
     }
+
+    .navbar .dropdown-menu {
+        margin-bottom: 0.5rem;
+    }
+
+    .institution-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -706,10 +787,6 @@ button:focus-visible,
 
     .workspace-card {
         padding: 1.35rem;
-    }
-
-    .map-frame {
-        height: 21rem;
     }
 
     .btn-scroll-top {

@@ -19,6 +19,7 @@ use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use ReflectionMethod;
@@ -45,6 +46,9 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
         Permission::findOrCreate('approve-documents', 'web');
         CarbonImmutable::setTestNow('2026-07-26 10:00:00');
         $this->clearAdmissionWindows();
+        Http::fake([
+            'api.pwnedpasswords.com/*' => Http::response('', 200),
+        ]);
     }
 
     protected function tearDown(): void
@@ -93,14 +97,14 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
             ->assertSee(route('filament.applicant.auth.login'), false);
 
         $this->get($registrationUrl)
-            ->assertRedirect(url('/?admissions=closed'));
+            ->assertRedirect(url('/?registration=closed'));
 
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $this->admissionsWindow($term);
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('Apply Online')
+            ->assertSee('Create Applicant Account')
             ->assertSee('href="'.$registrationUrl.'"', false);
 
         $this->get($registrationUrl)
@@ -116,9 +120,10 @@ class TAL96D5BAdmissionsWindowAndWithdrawalTest extends TestCase
 
         try {
             $method->invoke($page, [
-                'name' => 'Closed Window Applicant',
                 'email' => 'closed-window-applicant@example.test',
-                'password' => 'secret-password',
+                'password' => 'a valid passphrase',
+                'password_confirmation' => 'a valid passphrase',
+                'privacy_acknowledged' => true,
             ]);
             $this->fail('Expected closed admissions to block account creation.');
         } catch (\ReflectionException $exception) {

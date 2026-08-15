@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements FilamentUser, MustVerifyEmail
+class User extends Authenticatable implements FilamentUser, HasName, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
@@ -155,6 +156,9 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         'email',
         'password',
         'status',
+        'privacy_notice_reference',
+        'privacy_acknowledged_at',
+        'email_verification_nonce',
     ];
 
     /**
@@ -177,8 +181,31 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
         return [
             'archived_at' => 'datetime',
             'email_verified_at' => 'datetime',
+            'privacy_acknowledged_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function getFilamentName(): string
+    {
+        return filled($this->name) ? (string) $this->name : 'Applicant account';
+    }
+
+    public function getEmailForVerification(): string
+    {
+        if (blank($this->email_verification_nonce)) {
+            return $this->email;
+        }
+
+        return "{$this->email}|{$this->email_verification_nonce}";
+    }
+
+    public function markEmailAsVerified(): bool
+    {
+        return $this->forceFill([
+            'email_verified_at' => $this->freshTimestamp(),
+            'email_verification_nonce' => null,
+        ])->save();
     }
 
     protected static function booted(): void
