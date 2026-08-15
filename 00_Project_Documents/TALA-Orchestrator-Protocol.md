@@ -4,6 +4,8 @@
 
 This protocol keeps TALA work aligned with the product definition while using GitHub Issues as the optional live task system. It defines three visible boundaries: **Plan**, **Complete**, and **Publish**.
 
+For a compact operator sequence and copyable prompts, use the [TALA Orchestration Cheat Sheet](TALA-Orchestration-Cheat-Sheet.md); this protocol governs if the two differ.
+
 Generic planning, debugging, testing, review, Laravel, Filament, and delegation technique belongs to the applicable installed skills and framework guidance. This file contains only TALA-specific authority, permission, coordination, and evidence rules.
 
 ## 2. Sources of truth

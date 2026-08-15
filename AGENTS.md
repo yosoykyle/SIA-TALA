@@ -450,6 +450,8 @@ livewire(ListUsers::class)
 
 Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md` for tracked GitHub Issues and for complex, ambiguous, high-risk, long-running, split, delegated, resumed, completion, or publication work. Clear direct work uses this router plus the minimum relevant authority and implementation files.
 
+Use `00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md` as the non-authoritative quick reference for choosing the next workflow action and Codex mode; the detailed protocol governs any conflict.
+
 ### Default behavior
 
 - Review, diagnosis, and planning are read-only unless the user also requests a change.
