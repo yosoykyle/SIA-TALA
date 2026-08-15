@@ -37,7 +37,7 @@ Exclude work that is completed, canceled, already active, duplicated, or blocked
 
 Every derived draft identifies its intended outcome, accountable owner, relevant authority and UI inventory IDs, bounded scope, dependencies, material implementation order, acceptance criteria, verification and applicable browser scenarios, exclusions, and stop conditions. If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
 
-Creating the approved draft is a separate explicit external write. That authorization may create the Issue, add it to `TALA Development` as `Todo`, assign the approved owner, and establish native dependency or sub-Issue links; it does not authorize planning, coding, a branch, a commit, publication, or merge.
+Creating the approved draft is a separate explicit external write. That authorization may create the Issue with the `implementation` label, assign the approved owner, and establish native dependency or sub-Issue links. Project automation then adds the Issue to `TALA Development` and sets it to `Todo`; the user does not need to request those two Project mutations separately. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
 
 ### Plan
 
@@ -83,10 +83,10 @@ A clear task without an issue number remains valid. A request to implement, fix,
 
 `Publish #NN` is a separate external-write boundary. It first requires current verification and intended-diff evidence.
 
-- For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then close the issue and mark its project item `Done`.
+- For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then close the issue; the configured Project workflow sets its item to `Done`.
 - For concurrent work, push the Issue-specific branch and open one pull request containing `Closes #NN`. Open pull-request review remains `In Progress`.
 - `Publish #NN` may open that pull request but never authorizes merge. Merge requires separate explicit authorization and fresh evidence that acceptance criteria, automated and applicable browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main` are satisfied.
-- After an authorized merge, close the issue and mark its project item `Done`; the merged branch may be deleted, and dependent branches refresh from `main` before continuing.
+- After an authorized merge, the linked issue closes and the configured Project workflow sets its item to `Done`; the merged branch may be deleted, and dependent branches refresh from `main` before continuing.
 - Publishing never authorizes deployment, public-access changes, or movement of unrelated issues unless explicitly included.
 
 The command names are optional shorthands. Clear natural language with the same target, scope, and external effect is equivalent.
@@ -109,7 +109,7 @@ Do not manufacture a gate for reading files, inspecting logs, editing in-scope l
 
 GitHub Issues are the only live shared task records. Keep issue bodies concise: goal, bounded scope, acceptance criteria, and material exclusions. Use issue comments only for durable decisions or evidence that collaborators need; do not duplicate full logs or transcripts.
 
-One coordination-only GitHub Issue holds the accepted implementation order and links the derived implementation Issues. It is the durable delivery map, not an implementation authorization: it owns no branch or code change and permits no commit, publication, or merge. Native Issue dependency links determine which work is dependency-ready; the GitHub Project remains a view. Creating or materially updating the coordination Issue requires separate explicit authorization.
+One coordination-only GitHub Issue holds the accepted implementation order and links the derived implementation Issues. It is labeled `coordination`, appears in `TALA Development` as `In Progress` while its cycle is active, and remains the parent view of the implementation work. It is the durable delivery map, not an implementation authorization: it owns no branch or code change and permits no commit, publication, or merge. Native Issue dependency links determine which work is dependency-ready; the GitHub Project remains a view. Creating or materially updating the coordination Issue requires separate explicit authorization.
 
 When no current coordination Issue exists for an approved implementation cycle, bootstrap is read-only: inspect canonical product authority and live delivery state, then draft the full accepted high-level journey map, dependency order, capacity assumptions, completion conditions, and first recommended slice. Creating that map as the coordination Issue remains a separately authorized GitHub write.
 
@@ -119,7 +119,7 @@ The cycle is complete only when every accepted high-level journey is covered by 
 
 When planner and implementer differ, the accepted plan or a concise execution handoff must be posted in or durably linked from the owning GitHub Issue before coding begins under an authorized assignment or `Complete #NN` boundary. It identifies relevant authority, bounded scope, accountable ownership, dependencies, material implementation order, verification, exclusions, and stop conditions.
 
-The `TALA Development` GitHub Project uses `Todo`, `In Progress`, `Done`, and `Canceled`. Open pull-request review remains `In Progress`. `Done` means the task was delivered; `Canceled` means it was intentionally stopped, superseded, or closed as not planned. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
+The public `TALA Development` GitHub Project provides an `All Work` table and a status-grouped `Board`. It uses exactly `Todo`, `In Progress`, `Done`, and `Canceled`. An open Issue labeled `implementation` is automatically added and set to `Todo`; closing the Issue or merging its linked pull request sets it to `Done`. Codex sets `In Progress` when `Complete #NN` begins and sets `Canceled` only after an explicit intentional stop, supersession, or not-planned decision with a recorded reason. Open pull-request review remains `In Progress`. The active `coordination` Issue remains `In Progress` until the separately authorized final closure sets it to `Done`. Create no local shadow queue. Work without an issue remains valid but has no shared task status.
 
 The approved solo direct-`main` publication path remains valid while only one implementation Issue is active. Before a second implementation Issue becomes active concurrently, verify that pull-request CI and protection of `main` are configured and working. Parallel work requires pull requests, successful required checks, and resolved review conversations, with force-pushes and branch deletion blocked. Recording this gate does not authorize CI, repository-rule, or GitHub configuration changes.
 

@@ -25,7 +25,7 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | --- | --- | --- |
 | Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
 | Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
-| Task management | GitHub Issues and the linked [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked task scope and live status; the project is a synchronized view only |
+| Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
 | Developer setup | [`../README.md`](../README.md), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Setup or compatibility routing; never product authority |
 
 Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, and implementation history cannot create or restore product requirements.

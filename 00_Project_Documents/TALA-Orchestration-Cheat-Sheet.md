@@ -22,7 +22,7 @@ Do this once when an approved implementation cycle has no coordination Issue.
 
 1. In Plan mode, draft the complete high-level journey map, dependency order, capacity assumptions, completion conditions, and first recommended slice.
 2. Review the draft.
-3. In Default mode, explicitly authorize creation of the coordination-only Issue.
+3. In Default mode, explicitly authorize creation of the coordination-only Issue with the `coordination` label and inclusion in `TALA Development` as `In Progress`.
 4. Do not treat the coordination Issue as coding permission or as an implementation `Todo`.
 
 ```text
@@ -79,8 +79,9 @@ After accepting the draft, switch to Default mode:
 
 ```text
 Create the approved implementation Issue exactly from the accepted draft.
-Add it to TALA Development as Todo, assign the approved owner, and establish
-the approved dependency or sub-Issue links.
+Apply the implementation label, assign the approved owner, and establish the
+approved dependency or sub-Issue links. Project automation adds it to TALA
+Development as Todo.
 
 Do not plan, implement, create a branch, commit, publish, merge, or deploy.
 ```
@@ -107,7 +108,7 @@ When the result and outgoing scope are accepted:
 Publish #NN
 ```
 
-For approved solo work on `main`, this freshly verifies and pushes the accepted commit range, then closes the Issue and marks it `Done`. It never authorizes deployment.
+For approved solo work on `main`, this freshly verifies and pushes the accepted commit range, then closes the Issue. Project automation marks it `Done`. It never authorizes deployment.
 
 ## You plus one developer
 
@@ -183,12 +184,12 @@ Compaction never expands authority. A compacted `Complete #NN` may finish its bo
 
 ## Statuses
 
-| Status | Meaning |
-| --- | --- |
-| `Todo` | Approved implementation Issue exists but is not active |
-| `In Progress` | Implementation or open-PR review is active |
-| `Done` | Work was delivered through the approved publication or merge path |
-| `Canceled` | Work was intentionally stopped, superseded, or closed as not planned, with a recorded reason |
+| Status | Meaning | Set by |
+| --- | --- | --- |
+| `Todo` | Approved implementation Issue exists but is not active | GitHub automation when an open `implementation` Issue enters the Project |
+| `In Progress` | Implementation, open-PR review, or the coordination cycle is active | Codex at `Complete #NN`; coordination setup is a separately authorized write |
+| `Done` | Work was delivered through the approved publication or merge path | GitHub automation when the Issue closes or linked PR merges |
+| `Canceled` | Work was intentionally stopped, superseded, or closed as not planned, with a recorded reason | Codex after explicit authorization |
 
 Do not create a local shadow queue or another Project status.
 
@@ -218,11 +219,11 @@ A successor coordination Issue is appropriate only for materially new approved w
 ```text
 NO COORDINATION ISSUE
 Plan mode: draft full coordination map
-Default mode: authorize coordination-Issue creation
+Default mode: authorize coordination-Issue creation as In Progress
 
 REPEATING SOLO LOOP
 Plan mode: derive next Issue draft
-Default mode: authorize Issue creation as Todo
+Default mode: authorize implementation-Issue creation; automation sets Todo
 Plan mode: Plan #NN
 Default mode: Complete #NN
 Default mode: Publish #NN
