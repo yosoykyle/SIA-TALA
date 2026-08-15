@@ -142,7 +142,7 @@ Memory may help recall prior reasoning but never replaces live Git authority or 
 
 ## 7. Delegation
 
-Delegate only when the user explicitly requests it or approves a plan that includes it. Use one accountable worker by default and split work only when tasks are genuinely independent and their files and shared resources do not conflict.
+Delegate only when the user explicitly requests it or approves a plan that includes it. Use one accountable worker and at most one active subagent by default on the primary workstation. Do not nest subagents. Split work only when tasks are genuinely independent and their files and shared resources do not conflict. A second concurrent subagent requires separate explicit authorization and must stop if local responsiveness degrades.
 
 Give each worker a narrow goal, exact owned files or surfaces, relevant authority, verification expectation, exclusions, and stop conditions. Workers do not commit, publish, deploy, mutate issues, expand scope, or start another issue unless explicitly authorized.
 

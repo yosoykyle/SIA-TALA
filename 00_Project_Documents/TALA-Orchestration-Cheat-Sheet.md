@@ -229,6 +229,10 @@ Default mode: Complete #NN
 Default mode: Publish #NN
 Repeat until the map is covered
 
+SUBAGENTS
+Default: do not delegate; when delegated, use at most one active subagent
+No nested subagents; a second requires explicit approval and a responsive workstation
+
 PARALLEL DIFFERENCE
 Verify CI + main protection first
 Use isolated owner + Issue + branch + workspace + PR
