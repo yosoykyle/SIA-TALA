@@ -46,6 +46,8 @@ The same coordination map remains active until its accepted cycle passes the fin
 
 ## Solo workflow
 
+Use the existing primary `main` checkout. Do not create a branch, clone, or worktree unless the user explicitly requests isolation or the accepted plan demonstrates that isolation is necessary.
+
 Use one active implementation Issue at a time:
 
 ```text
