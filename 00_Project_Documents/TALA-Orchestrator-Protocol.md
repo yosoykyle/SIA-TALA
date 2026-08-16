@@ -72,16 +72,21 @@ A planning request without an issue number works the same way but has no GitHub 
 4. Run proportionate non-destructive verification in the configured project environment.
 5. Remediate and re-check in-scope failures.
 6. Inspect and clean the intended diff without touching unrelated work.
-7. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
-8. Report the result, evidence, exclusions, remaining risk, and publication boundary.
+7. Build a criterion-by-criterion acceptance ledger for the owning Issue. Classify every acceptance criterion as `Verified`, `Partial`, or `Unverified` and cite current attributable evidence; automated or browser results may support entries but never auto-satisfy a semantic criterion.
+8. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
+9. Report the result, evidence, exclusions, remaining risk, and publication boundary.
 
 Complete leaves the issue open and its project item short of `Done`. It never authorizes a push, pull request, merge, deployment, destructive operation, dependency, credential, external cost, public-access change, or material scope expansion.
+
+Complete may be reported successful only when every owning-Issue acceptance criterion is `Verified`. Any `Partial` or `Unverified` criterion keeps the Issue `In Progress` and blocks Publish, merge, closure, and `Done` unless the Issue contract is separately and explicitly corrected. Issue status, pull-request merge, and Project automation are consequences, not acceptance evidence.
 
 A clear task without an issue number remains valid. A request to implement, fix, change, build, or proceed authorizes bounded local edits, verification, and in-scope remediation but not a commit. An explicit natural-language request to complete or commit that task authorizes one bounded local commit and skips GitHub issue/project mutations.
 
 ### Publish
 
-`Publish #NN` is a separate external-write boundary. It first requires current verification and intended-diff evidence.
+`Publish #NN` is a separate external-write boundary. It first requires current verification, intended-diff evidence, and an all-`Verified` acceptance ledger.
+
+Immediately before an authorized solo closure or separately authorized concurrent merge, revalidate the ledger, update only evidence-backed acceptance checkboxes in the owning Issue, and leave a compact durable evidence record. Never tick a semantic criterion merely because tests passed.
 
 - For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then close the issue; the configured Project workflow sets its item to `Done`.
 - For concurrent work, push the Issue-specific branch and open one pull request containing `Closes #NN`. Open pull-request review remains `In Progress`.

@@ -104,6 +104,8 @@ Complete #NN
 
 This marks the Issue `In Progress`, implements the bounded scope, researches when needed, verifies, remediates in-scope failures, cleans the intended diff, and creates one local commit. It does not push, merge, or deploy.
 
+Before calling Complete successful, classify every Issue acceptance criterion as `Verified`, `Partial`, or `Unverified` with current evidence. Any criterion not `Verified` keeps the Issue `In Progress` and blocks Publish, merge, closure, and `Done`; tests and status automation do not substitute for criterion-level acceptance.
+
 When the result and outgoing scope are accepted:
 
 ```text
@@ -111,6 +113,8 @@ Publish #NN
 ```
 
 For approved solo work on `main`, this freshly verifies and pushes the accepted commit range, then closes the Issue. Project automation marks it `Done`. It never authorizes deployment.
+
+Immediately before authorized closure or merge, revalidate the ledger, update only evidence-backed Issue checkboxes, and leave a compact durable evidence record.
 
 ## You plus one developer
 
