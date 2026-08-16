@@ -171,6 +171,89 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->assertSame(1, User::query()->where('email', 'applicant@example.test')->count());
     }
 
+    public function test_database_unique_race_uses_non_disclosing_feedback_without_creating_a_duplicate(): void
+    {
+        $this->openAdmissions();
+        $this->configureReadyApplicantEntry();
+        $raceWasTriggered = false;
+
+        User::creating(function (User $user) use (&$raceWasTriggered): void {
+            if ($raceWasTriggered || $user->email !== 'race@example.test') {
+                return;
+            }
+
+            $raceWasTriggered = true;
+
+            User::withoutEvents(fn (): User => User::query()->create([
+                'name' => null,
+                'email' => 'race@example.test',
+                'password' => 'a valid passphrase',
+                'status' => User::StatusApplicantPending,
+            ]));
+        });
+
+        try {
+            app(CreateNewUser::class)->create([
+                'email' => 'race@example.test',
+                'password' => 'a valid passphrase',
+                'password_confirmation' => 'a valid passphrase',
+                'privacy_acknowledged' => true,
+            ]);
+
+            $this->fail('A database uniqueness race should be reported as safe duplicate feedback.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                ['An account could not be created with those details. Try signing in or use account recovery.'],
+                $exception->errors()['email'],
+            );
+        }
+
+        $this->assertTrue($raceWasTriggered);
+        $this->assertLessThanOrEqual(1, User::query()->where('email', 'race@example.test')->count());
+    }
+
+    public function test_compromised_password_is_rejected_without_creating_an_account(): void
+    {
+        $this->openAdmissions();
+        $password = 'a compromised passphrase';
+        $hash = strtoupper(sha1($password));
+
+        Http::fake([
+            'api.pwnedpasswords.com/range/'.substr($hash, 0, 5) => Http::response(substr($hash, 5).':3', 200),
+        ]);
+
+        try {
+            app(CreateNewUser::class)->create([
+                'email' => 'compromised@example.test',
+                'password' => $password,
+                'password_confirmation' => $password,
+                'privacy_acknowledged' => true,
+            ]);
+
+            $this->fail('A compromised password should be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('password', $exception->errors());
+        }
+
+        $this->assertDatabaseMissing('users', ['email' => 'compromised@example.test']);
+    }
+
+    public function test_compromised_password_provider_failure_degrades_safely(): void
+    {
+        $this->openAdmissions();
+        Http::fake(fn () => throw new RuntimeException('Simulated compromised-password provider failure.'));
+
+        $applicant = app(CreateNewUser::class)->create([
+            'email' => 'provider-failure@example.test',
+            'password' => 'a valid passphrase',
+            'password_confirmation' => 'a valid passphrase',
+            'privacy_acknowledged' => true,
+        ]);
+
+        $this->assertSame('provider-failure@example.test', $applicant->email);
+        $this->assertTrue($applicant->hasRole('applicant'));
+    }
+
     public function test_account_creation_rechecks_readiness_after_the_entry_page_was_loaded(): void
     {
         $admissionsWindow = $this->openAdmissions();
@@ -228,6 +311,27 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         Notification::assertSentTo($applicant, VerifyEmail::class);
     }
 
+    public function test_registration_validation_errors_have_an_announced_focusable_summary(): void
+    {
+        $this->openAdmissions();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::test(RegisterApplicant::class)
+            ->fillForm([
+                'email' => 'new-applicant@example.test',
+                'password' => 'short',
+                'password_confirmation' => 'different',
+                'privacy_acknowledged' => true,
+            ])
+            ->call('register')
+            ->assertHasFormErrors(['password'])
+            ->assertSeeHtml('id="applicant-registration-error-summary"')
+            ->assertSeeHtml('role="alert"')
+            ->assertSeeHtml('aria-live="assertive"')
+            ->assertSeeHtml('data-error-field="password"')
+            ->assertSee('Review the highlighted fields');
+    }
+
     public function test_resending_verification_supersedes_the_previous_link_and_success_clears_the_nonce(): void
     {
         $applicant = User::factory()->unverified()->create([
@@ -262,6 +366,35 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         $this->actingAs($applicant->fresh())
             ->get($secondUrl)
             ->assertRedirect('/applicant');
+
+        $this->assertNotNull($applicant->fresh()->email_verified_at);
+        $this->assertNull($applicant->fresh()->email_verification_nonce);
+    }
+
+    public function test_reused_verification_link_gives_an_already_verified_applicant_a_safe_workspace_action(): void
+    {
+        $applicant = User::factory()->unverified()->create([
+            'name' => null,
+            'first_name' => null,
+            'last_name' => null,
+            'status' => User::StatusApplicantPending,
+        ]);
+        Role::findOrCreate('applicant', 'web');
+        $applicant->assignRole('applicant');
+        Notification::fake();
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $this->assertTrue(app(DispatchApplicantEmailVerification::class)->execute($applicant));
+        $verificationUrl = Notification::sent($applicant, VerifyEmail::class)->sole()->url;
+
+        $this->actingAs($applicant->fresh())
+            ->get($verificationUrl)
+            ->assertRedirect('/applicant');
+
+        $this->actingAs($applicant->fresh())
+            ->get($verificationUrl)
+            ->assertForbidden()
+            ->assertSee('Return to Applicant Workspace');
 
         $this->assertNotNull($applicant->fresh()->email_verified_at);
         $this->assertNull($applicant->fresh()->email_verification_nonce);

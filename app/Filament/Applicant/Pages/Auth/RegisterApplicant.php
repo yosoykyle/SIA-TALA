@@ -11,6 +11,7 @@ use Caresome\FilamentAuthDesigner\Pages\Auth\Register;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
@@ -59,6 +60,8 @@ class RegisterApplicant extends Register
         $privacyUrl = app(ApplicantEntryReadinessService::class)->officialReferences()['privacy'];
 
         return $schema->components([
+            View::make('filament.applicant.components.registration-error-summary')
+                ->columnSpanFull(),
             TextInput::make('email')
                 ->label('Email address')
                 ->email()
