@@ -6,8 +6,8 @@ use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Actions\Fortify\CreateNewUser;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
+use App\Models\AdmissionCycle;
 use App\Models\ApplicantIntake;
-use App\Models\CalendarEvent;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
@@ -79,7 +79,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $this->assertNull($applicant->name);
         $this->assertSame('applicant@example.test', $applicant->email);
-        $this->assertSame(User::StatusApplicantPending, $applicant->status);
+        $this->assertSame(User::StatusActive, $applicant->status);
         $this->assertNull($applicant->email_verified_at);
         $this->assertSame(route('home', ['modal' => 'privacy']), $applicant->privacy_notice_reference);
         $this->assertNotNull($applicant->privacy_acknowledged_at);
@@ -188,7 +188,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
                 'name' => null,
                 'email' => 'race@example.test',
                 'password' => 'a valid passphrase',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
             ]));
         });
 
@@ -258,7 +258,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     {
         $admissionsWindow = $this->openAdmissions();
         $this->configureReadyApplicantEntry();
-        $admissionsWindow->update(['end_at' => now()->subMinute()]);
+        $admissionsWindow->update(['closes_at' => now()->subMinute()]);
 
         $this->expectException(ValidationException::class);
 
@@ -338,7 +338,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             'name' => null,
             'first_name' => null,
             'last_name' => null,
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ]);
         Role::findOrCreate('applicant', 'web');
         $applicant->assignRole('applicant');
@@ -377,7 +377,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             'name' => null,
             'first_name' => null,
             'last_name' => null,
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ]);
         Role::findOrCreate('applicant', 'web');
         $applicant->assignRole('applicant');
@@ -406,7 +406,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             'name' => null,
             'first_name' => null,
             'last_name' => null,
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ]);
         Role::findOrCreate('applicant', 'web');
         $applicant->assignRole('applicant');
@@ -448,7 +448,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             'name' => null,
             'email' => 'dispatch-failure@example.test',
             'password' => 'a valid passphrase',
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ])->save();
 
         $this->assertFalse(app(DispatchApplicantEmailVerification::class)->execute($applicant));
@@ -463,7 +463,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
     public function test_verification_prompt_resends_once_per_minute_without_exposing_the_nonce(): void
     {
         $applicant = User::factory()->unverified()->create([
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
             'email_verification_nonce' => 'existing-secret-nonce',
         ]);
         Role::findOrCreate('applicant', 'web');
@@ -489,21 +489,13 @@ class ApplicantAccountEntryJourneyTest extends TestCase
         Notification::assertSentToTimes($applicant, VerifyEmail::class, 1);
     }
 
-    private function openAdmissions(): CalendarEvent
+    private function openAdmissions(): AdmissionCycle
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
 
-        return CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessAdmissions,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        return AdmissionCycle::factory()->for($term)->published()->create([
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
         ]);
     }
 

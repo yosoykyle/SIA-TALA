@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ProgramFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Program extends Model
@@ -53,5 +54,12 @@ class Program extends Model
     public function sections(): HasMany
     {
         return $this->hasMany(Section::class);
+    }
+
+    public function admissionCycles(): BelongsToMany
+    {
+        return $this->belongsToMany(AdmissionCycle::class)
+            ->withPivot(['accepts_first_year', 'accepts_transferee'])
+            ->withTimestamps();
     }
 }

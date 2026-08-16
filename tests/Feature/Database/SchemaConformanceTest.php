@@ -16,8 +16,11 @@ final class SchemaConformanceTest extends TestCase
     ];
 
     private const APPLICATION_TABLES = [
-        'academic_years', 'accounting_adjustments', 'admission_requirement_policies', 'applicant_intakes',
-        'assessment_lines', 'assessments', 'calendar_events', 'candidate_schedule_rows',
+        'academic_years', 'accounting_adjustments', 'admission_application_events', 'admission_cycle_events',
+        'admission_cycle_program', 'admission_cycles', 'admission_decisions', 'admission_requirement_policies',
+        'admission_requirement_sets', 'admission_requirements', 'applicant_intakes', 'application_correction_items',
+        'application_correction_requests', 'application_submission_versions', 'assessment_lines', 'assessments',
+        'calendar_events', 'candidate_schedule_rows',
         'checklist_items', 'course_components', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
         'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
@@ -25,10 +28,11 @@ final class SchemaConformanceTest extends TestCase
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
         'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
         'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
-        'graduation_snapshots', 'holds', 'import_batches', 'late_grade_authorizations',
+        'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempts', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
-        'programs', 'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
+        'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'room_features', 'rooms',
+        'schedule_revision_events', 'schedule_runs',
         'scheduling_demands', 'section_delivery_groups', 'section_meetings', 'sections',
         'student_lifecycle_changes', 'student_profiles', 'student_schedule_bindings',
         'system_settings', 'term_offerings', 'terms',
@@ -52,9 +56,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(60, self::APPLICATION_TABLES);
+        $this->assertCount(73, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(78, $actual);
+        $this->assertCount(91, $actual);
         $this->assertSame($expected, $actual);
     }
 

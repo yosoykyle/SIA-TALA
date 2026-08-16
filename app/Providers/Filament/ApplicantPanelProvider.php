@@ -6,6 +6,7 @@ use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
+use App\Filament\Applicant\Pages\Requirements;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -66,8 +67,9 @@ class ApplicantPanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
-                $this->navigationItem(Dashboard::class, 'Home'),
-                $this->navigationItem(Application::class, 'Application'),
+                $this->navigationItem(Dashboard::class, 'Home', 'filament.applicant.pages.dashboard'),
+                $this->navigationItem(Application::class, 'Application', 'filament.applicant.pages.application'),
+                $this->navigationItem(Requirements::class, 'Requirements', 'filament.applicant.pages.requirements'),
             ]))
             ->discoverWidgets(in: app_path('Filament/Applicant/Widgets'), for: 'App\Filament\Applicant\Widgets')
             ->widgets([
@@ -92,11 +94,11 @@ class ApplicantPanelProvider extends PanelProvider
     /**
      * @param  class-string  $component
      */
-    private function navigationItem(string $component, string $label): NavigationItem
+    private function navigationItem(string $component, string $label, string $routeName): NavigationItem
     {
-        /** @var NavigationItem $item */
-        $item = $component::getNavigationItems()[0];
-
-        return $item->label($label);
+        return NavigationItem::make($label)
+            ->icon($component::getNavigationIcon())
+            ->url(fn (): string => route($routeName))
+            ->isActiveWhen(fn (): bool => request()->routeIs($routeName));
     }
 }

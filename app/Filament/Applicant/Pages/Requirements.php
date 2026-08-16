@@ -2,29 +2,19 @@
 
 namespace App\Filament\Applicant\Pages;
 
-use App\Actions\Applicants\ApplicantEvidenceService;
-use App\Actions\Applicants\ApplicantIntakeWorkflowPresenter;
-use App\Models\ApplicantIntake;
-use App\Models\ChecklistItem;
+use App\Models\AdmissionApplication;
+use App\Models\AdmissionRequirement;
+use App\Models\DocumentEvidence;
+use App\Models\OfficialCredentialResult;
+use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
 use BackedEnum;
-use Carbon\CarbonInterface;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
-use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Concerns\RestrictsFileUploadsToSchemaComponents;
-use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
-use LogicException;
 
 class Requirements extends Page
 {
-    use RestrictsFileUploadsToSchemaComponents;
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected static ?string $navigationLabel = 'Requirements';
@@ -33,161 +23,128 @@ class Requirements extends Page
 
     protected string $view = 'filament.applicant.pages.requirements';
 
-    /** @var array<string, mixed> | null */
-    public ?array $data = [];
-
-    public function mount(): void
-    {
-        $this->replacementForm()->fill();
-    }
-
     public static function canAccess(): bool
     {
-        return Auth::user() instanceof User;
+        $user = Auth::user();
+
+        return $user instanceof User && $user->hasRole('applicant');
     }
 
-    public function form(Schema $schema): Schema
+    public function application(): ?AdmissionApplication
     {
-        return $schema
-            ->components([
-                Section::make('Replace Rejected Evidence')
-                    ->description('Choose a rejected digital requirement and upload its corrected version. The rejected file remains in the audit history.')
-                    ->schema([
-                        Select::make('requirement_id')
-                            ->label('Requirement to Correct')
-                            ->options(fn (): array => $this->rejectedDigitalRequirements())
-                            ->required()
-                            ->native(false),
-                        FileUpload::make('replacement_file')
-                            ->label('Corrected File')
-                            ->disk('local')
-                            ->directory(fn (): string => 'applicant-evidence-replacements/'.Auth::id())
-                            ->visibility('private')
-                            ->preventFilePathTampering(
-                                allowFilePathUsing: fn (string $file): bool => $this->pathIsInside(
-                                    $file,
-                                    'applicant-evidence-replacements/'.Auth::id(),
-                                ),
-                            )
-                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                            ->maxFiles(1)
-                            ->maxSize(5120)
-                            ->helperText('PDF, JPG, or PNG; maximum 5 MB. Upload a corrected file, not the rejected version.')
-                            ->required(),
-                    ])
-                    ->visible(fn (): bool => $this->intake()?->status === ApplicantIntake::StatusActionRequired)
-                    ->columnSpanFull(),
-            ])
-            ->statePath('data');
-    }
-
-    private function pathIsInside(string $path, string $directory): bool
-    {
-        $normalizedPath = str_replace('\\', '/', $path);
-        $normalizedDirectory = trim(str_replace('\\', '/', $directory), '/').'/';
-
-        return ! str_contains($normalizedPath, '../')
-            && str_starts_with($normalizedPath, $normalizedDirectory)
-            && strlen($normalizedPath) > strlen($normalizedDirectory);
-    }
-
-    public function replaceEvidence(): void
-    {
-        $applicant = Auth::user();
-        abort_unless($applicant instanceof User, 403);
-        $intake = $this->intake();
-        abort_unless($intake instanceof ApplicantIntake, 404);
-        $state = $this->replacementForm()->getState();
-        $item = $intake->checklistItems()->findOrFail((int) $state['requirement_id']);
-
-        try {
-            app(ApplicantEvidenceService::class)->replace(
-                intake: $intake,
-                checklistItem: $item,
-                applicant: $applicant,
-                path: (string) $state['replacement_file'],
-            );
-        } catch (ValidationException $exception) {
-            $message = $exception->validator->errors()->first();
-            $this->addError('data.replacement_file', $message);
-            Notification::make()
-                ->title('Corrected evidence cannot be submitted')
-                ->body($message)
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        Notification::make()
-            ->title('Corrected evidence submitted')
-            ->body('The Registrar can now review the new version. The earlier rejected version remains recorded.')
-            ->success()
-            ->send();
-
-        $this->redirect(Dashboard::getUrl());
-    }
-
-    public function intake(): ?ApplicantIntake
-    {
-        $applicant = Auth::user();
-
-        if (! $applicant instanceof User) {
-            return null;
-        }
-
-        return ApplicantIntake::query()
+        return AdmissionApplication::query()
+            ->canonical()
             ->with([
-                'checklistItems.documentEvidence.reviewer',
-                'program',
-                'term',
-                'withdrawalActivity.causer',
+                'admissionCycle',
+                'currentSubmissionVersion.requirementSet.requirements',
+                'evidenceVersions.preliminaryReviews',
+                'credentialResults.requirement',
+                'correctionRequests.items.admissionRequirement',
             ])
-            ->whereBelongsTo($applicant)
-            ->orderByRaw('status != ? desc', [ApplicantIntake::StatusWithdrawn])
-            ->latest('id')
+            ->where('user_id', Auth::id())
+            ->latest('updated_at')
             ->first();
     }
 
-    /**
-     * @return array{
-     *     stage:string,
-     *     responsible_party:string,
-     *     next_action:string,
-     *     handover_blocker_count:int,
-     *     requirement_count:int,
-     *     resolved_requirement_count:int,
-     *     outstanding_requirement_count:int,
-     *     requirements_summary:string,
-     *     ready_for_handover:bool,
-     *     last_activity_at:?CarbonInterface
-     * }
-     */
-    public function workflowSummary(ApplicantIntake $intake): array
+    /** @return array<int, array{requirement: AdmissionRequirement, evidence: ?DocumentEvidence, result: string, instruction: string, updated_at: mixed, action: string}> */
+    public function preliminaryRows(AdmissionApplication $application): array
     {
-        return app(ApplicantIntakeWorkflowPresenter::class)->present($intake);
+        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements
+            ?->where('requires_preliminary_evidence', true)
+            ->sortBy('display_order') ?? collect();
+
+        return $requirements->map(function (AdmissionRequirement $requirement) use ($application): array {
+            $evidence = $application->evidenceVersions
+                ->where('admission_requirement_id', $requirement->id)
+                ->sortByDesc('uploaded_at')
+                ->first();
+            $review = $evidence instanceof DocumentEvidence
+                ? $evidence->preliminaryReviews->sortByDesc('reviewed_at')->first()
+                : null;
+            $result = $review instanceof PreliminaryEvidenceReview
+                ? $review->result
+                : ($evidence instanceof DocumentEvidence ? PreliminaryEvidenceReview::ResultUnderReview : 'NotSubmitted');
+
+            return [
+                'requirement' => $requirement,
+                'evidence' => $evidence,
+                'result' => $result,
+                'instruction' => $review instanceof PreliminaryEvidenceReview && filled($review->reason)
+                    ? $review->reason
+                    : $requirement->applicant_instructions,
+                'updated_at' => $review instanceof PreliminaryEvidenceReview
+                    ? $review->reviewed_at
+                    : ($evidence instanceof DocumentEvidence ? $evidence->uploaded_at : null),
+                'action' => $result === PreliminaryEvidenceReview::ResultActionNeeded
+                    ? 'Open Application to replace only this evidence item.'
+                    : 'No Applicant action currently available.',
+            ];
+        })->values()->all();
     }
 
-    /** @return array<int, string> */
-    private function rejectedDigitalRequirements(): array
+    /** @return array<int, array{requirement: AdmissionRequirement, result: string, instruction: string, updated_at: mixed, action: string}> */
+    public function officialRows(AdmissionApplication $application): array
     {
-        $intake = $this->intake();
+        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements
+            ?->sortBy(fn (AdmissionRequirement $requirement): string => $requirement->due_stage.sprintf('%05d', $requirement->display_order)) ?? collect();
 
-        if (! $intake instanceof ApplicantIntake) {
-            return [];
-        }
+        return $requirements->map(function (AdmissionRequirement $requirement) use ($application): array {
+            $credentialResult = $application->credentialResults
+                ->where('admission_requirement_id', $requirement->id)
+                ->sortByDesc('recorded_at')
+                ->first();
 
-        return $intake->checklistItems
-            ->filter(fn (ChecklistItem $item): bool => $item->status === ChecklistItem::StatusRejected
-                && $item->evidence_method === ChecklistItem::EvidenceMethodDigitalUpload)
-            ->mapWithKeys(fn (ChecklistItem $item): array => [
-                $item->id => str($item->requirement_type)->replace('_', ' ')->title()->toString(),
-            ])
-            ->all();
+            return [
+                'requirement' => $requirement,
+                'result' => $credentialResult instanceof OfficialCredentialResult
+                    ? $credentialResult->result
+                    : OfficialCredentialResult::ResultNotYetDue,
+                'instruction' => $credentialResult instanceof OfficialCredentialResult && filled($credentialResult->safe_explanation)
+                    ? $credentialResult->safe_explanation
+                    : $requirement->applicant_instructions,
+                'updated_at' => $credentialResult instanceof OfficialCredentialResult
+                    ? $credentialResult->recorded_at
+                    : null,
+                'action' => $this->officialAction(
+                    $requirement,
+                    $credentialResult instanceof OfficialCredentialResult ? $credentialResult->result : null,
+                ),
+            ];
+        })->values()->all();
     }
 
-    private function replacementForm(): Schema
+    public function resultLabel(string $result): string
     {
-        return $this->getSchema('form') ?? throw new LogicException('Applicant requirements form schema is unavailable.');
+        return match ($result) {
+            PreliminaryEvidenceReview::ResultAccepted => 'Accepted as preliminary evidence',
+            default => str($result)->headline()->toString(),
+        };
+    }
+
+    public function resultColor(string $result): string
+    {
+        return match ($result) {
+            PreliminaryEvidenceReview::ResultAccepted,
+            OfficialCredentialResult::ResultVerified,
+            OfficialCredentialResult::ResultAuthorizedException => 'success',
+            PreliminaryEvidenceReview::ResultActionNeeded,
+            OfficialCredentialResult::ResultActionNeeded => 'danger',
+            OfficialCredentialResult::ResultNotYetDue => 'gray',
+            default => 'warning',
+        };
+    }
+
+    private function officialAction(AdmissionRequirement $requirement, ?string $result): string
+    {
+        return match ($result) {
+            OfficialCredentialResult::ResultActionNeeded => 'Follow the Registrar instruction shown here.',
+            OfficialCredentialResult::ResultVerified,
+            OfficialCredentialResult::ResultAuthorizedException => 'No Applicant action.',
+            default => match ($requirement->official_submission_method) {
+                AdmissionRequirement::SubmissionInPerson => 'Provide the official credential to the Registrar in person.',
+                AdmissionRequirement::SubmissionSchoolToSchool => 'Coordinate the school-to-school process stated by the Registrar.',
+                default => 'No separate official submission is required.',
+            },
+        };
     }
 }

@@ -54,6 +54,17 @@
                         <p class="hero-lead">
                             Use the appropriate secure workspace to create or access your TALA account and continue an authorized school task.
                         </p>
+                        @if ($admissionCycle)
+                            <div class="alert {{ $admissionCycle['is_open'] ? 'alert-light' : 'alert-secondary' }} mt-3" role="status">
+                                <strong>{{ $admissionCycle['label'] }} ({{ $admissionCycle['code'] }})</strong><br>
+                                {{ $admissionCycle['term'] ?? 'Target term unavailable' }} · {{ implode(' and ', $admissionCycle['paths']) ?: 'Paths unavailable' }}<br>
+                                @if ($admissionCycle['is_open'])
+                                    Open until {{ $admissionCycle['closes_at'] }}.
+                                @else
+                                    Opens {{ $admissionCycle['opens_at'] }}.
+                                @endif
+                            </div>
+                        @endif
                         <div class="d-flex flex-column flex-sm-row gap-3 mt-4">
                             @if ($applicantEntryReady)
                                 <a class="btn btn-primary-custom" href="{{ route('filament.applicant.auth.register') }}">

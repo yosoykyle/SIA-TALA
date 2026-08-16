@@ -41,7 +41,7 @@ class EmailVerificationBoundaryTest extends TestCase
             ],
             'applicant workspace' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
                 'panel' => 'applicant',
                 'promptRoute' => 'filament.applicant.auth.email-verification.prompt',
             ],
@@ -110,7 +110,7 @@ class EmailVerificationBoundaryTest extends TestCase
             ],
             'verified applicant workspace' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
                 'panel' => 'applicant',
             ],
             'verified student hub' => [

@@ -81,7 +81,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
         Role::findOrCreate('applicant', 'web');
         $applicant = User::factory()->create([
             'name' => 'Applicant Example',
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
             'email_verified_at' => now(),
         ]);
         $applicant->assignRole('applicant');
@@ -110,7 +110,7 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
     {
         Role::findOrCreate('applicant', 'web');
         $applicant = User::factory()->create([
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
             'email_verified_at' => now(),
         ]);
         $applicant->assignRole('applicant');

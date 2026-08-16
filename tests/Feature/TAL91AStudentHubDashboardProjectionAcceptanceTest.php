@@ -70,7 +70,7 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
     public function non_students_cannot_access_student_hub(): void
     {
         $applicant = User::factory()->create([
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ]);
         $applicant->assignRole('applicant');
 

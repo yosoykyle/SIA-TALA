@@ -71,10 +71,6 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
             return false;
         }
 
-        if ($this->hasRole('applicant')) {
-            return in_array($this->status, self::applicantWorkspaceStatusValues(), true);
-        }
-
         return $this->status === self::StatusActive;
     }
 
@@ -126,6 +122,21 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
     public function applicantIntakes(): HasMany
     {
         return $this->hasMany(ApplicantIntake::class);
+    }
+
+    /** @return HasMany<AdmissionApplication, $this> */
+    public function admissionApplications(): HasMany
+    {
+        return $this->hasMany(AdmissionApplication::class, 'user_id');
+    }
+
+    /** @return HasOne<AdmissionApplication, $this> */
+    public function currentAdmissionApplication(): HasOne
+    {
+        return $this->hasOne(AdmissionApplication::class, 'user_id')
+            ->canonical()
+            ->where('application_state', '!=', AdmissionApplication::StateWithdrawn)
+            ->latestOfMany();
     }
 
     /** @return HasOne<ApplicantIntake, $this> */
@@ -282,11 +293,6 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
     {
         return [
             self::StatusActive => 'Active',
-            self::StatusApplicantPending => 'Pending',
-            self::StatusApplicantActionRequired => 'Action Required',
-            self::StatusApplicantForEvaluation => 'For Evaluation',
-            self::StatusApplicantApproved => 'Approved',
-            self::StatusApplicantWithdrawn => 'Withdrawn',
         ];
     }
 

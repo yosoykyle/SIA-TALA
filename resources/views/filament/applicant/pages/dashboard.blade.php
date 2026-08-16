@@ -1,200 +1,127 @@
 <x-filament-panels::page>
-    @php
-        $intake = $this->getIntake();
-        $draftUploadCount = count($intake?->draft_document_references ?? []);
-        $workflow = $intake ? $this->workflowSummary($intake) : null;
-    @endphp
+    @php($application = $this->currentApplication())
 
-    @if (! $intake)
-        <x-filament::section class="max-w-4xl mx-auto py-8">
-            <div class="tala-empty-state">
-                <div class="tala-empty-state__icon-shell">
-                    <x-filament::icon
-                        icon="heroicon-o-document-text"
-                        class="tala-empty-state__icon"
-                    />
-                </div>
+    @if (! $application)
+        <x-filament::section>
+            <x-slot name="heading">No application yet</x-slot>
+            <x-slot name="description">
+                One verified account can own one Application per published Admission Cycle.
+            </x-slot>
 
-                <div class="tala-empty-state__copy">
-                    <h2 class="text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">
-                        No active application
-                    </h2>
-                    <p class="max-w-md text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-                        Start a new application only while Admissions is open. Earlier applications remain available in Application History.
-                    </p>
-                </div>
-
-                <div class="tala-empty-state__actions">
-                    @if ($this->admissionsAreOpen())
-                        <x-filament::button
-                            :href="\App\Filament\Applicant\Pages\Application::getUrl()"
-                            tag="a"
-                            icon="heroicon-m-document-text"
-                            size="lg"
-                        >
-                            Start Application
-                        </x-filament::button>
-                    @else
-                        <x-filament::callout color="info" icon="heroicon-m-clock">
-                            <x-slot name="heading">Admissions are currently closed</x-slot>
-                            <x-slot name="description">
-                                Check the public TALA page for the next admission period or contact the Registrar.
-                            </x-slot>
-                        </x-filament::callout>
-                    @endif
-                </div>
-            </div>
+            @if ($this->admissionsAreOpen())
+                <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl()" tag="a" icon="heroicon-m-document-text">
+                    Start application
+                </x-filament::button>
+            @else
+                <x-filament::callout color="info" icon="heroicon-m-clock">
+                    <x-slot name="heading">Applications are currently closed</x-slot>
+                    <x-slot name="description">Applicant sign-in remains available. Check the public TALA gateway for the next published Cycle.</x-slot>
+                </x-filament::callout>
+            @endif
         </x-filament::section>
     @else
+        @php($projection = $this->readinessProjection($application))
+
         <div class="space-y-6">
             <x-filament::section>
                 <x-slot name="heading">
-                    <div class="tala-section-heading">
-                        <span>Application Status</span>
-                        <x-filament::badge :color="$this->statusColor($intake->status)" size="lg">
-                            {{ $this->statusLabel($intake->status) }}
-                        </x-filament::badge>
-                    </div>
+                    {{ $application->application_reference ?? 'Application draft' }}
+                </x-slot>
+                <x-slot name="description">
+                    State, accountable party, nearest Cycle deadline, and one safe next action.
                 </x-slot>
 
+                <div class="space-y-4">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-filament::badge :color="$this->statusColor($application->application_state)" size="lg">
+                            {{ $this->statusLabel($application->application_state) }}
+                        </x-filament::badge>
+                        <span><strong>Responsible party:</strong> {{ $this->responsibleParty($application) }}</span>
+                        <span><strong>Cycle closes:</strong> {{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') ?? 'Unavailable' }}</span>
+                    </div>
+
+                    <x-filament::callout color="info" icon="heroicon-m-arrow-right-circle">
+                        <x-slot name="heading">What you need to do next</x-slot>
+                        <x-slot name="description">{{ $this->nextAction($application) }}</x-slot>
+                    </x-filament::callout>
+
+                    <div class="tala-action-block">
+                        @if (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
+                            <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl()" tag="a" icon="heroicon-m-pencil-square">
+                                {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Respond to correction' }}
+                            </x-filament::button>
+                        @else
+                            <x-filament::button :href="\App\Filament\Applicant\Pages\Requirements::getUrl()" tag="a" icon="heroicon-m-clipboard-document-check">
+                                Review requirements
+                            </x-filament::button>
+                        @endif
+                    </div>
+                </div>
+            </x-filament::section>
+
+            <x-filament::section>
+                <x-slot name="heading">Application scope</x-slot>
                 <dl class="tala-status-grid">
-                    <div class="tala-status-grid__item">
-                        <dt>Academic Term</dt>
-                        <dd>{{ $intake->term?->label ?? 'Not assigned' }}</dd>
-                    </div>
-                    <div class="tala-status-grid__item">
-                        <dt>Preferred Program</dt>
-                        <dd>{{ $intake->program?->name ?? 'Not assigned' }}</dd>
-                    </div>
-                    <div class="tala-status-grid__item">
-                        <dt>Admission Category</dt>
-                        <dd>{{ str($intake->admission_category)->replace('_', ' ')->title() }}</dd>
-                    </div>
-                    <div class="tala-status-grid__item">
-                        <dt>Submission Date</dt>
-                        <dd>{{ \App\Support\DisplayDateTime::format($intake->submitted_at, 'F j, Y, g:i a', 'Not submitted') }}</dd>
-                    </div>
+                    <div class="tala-status-grid__item"><dt>Admission Cycle</dt><dd>{{ $application->admissionCycle?->label ?? 'Unavailable' }}</dd></div>
+                    <div class="tala-status-grid__item"><dt>Program</dt><dd>{{ $application->program?->name ?? 'Not selected' }}</dd></div>
+                    <div class="tala-status-grid__item"><dt>Path</dt><dd>{{ str($application->application_path)->headline() }}</dd></div>
+                    <div class="tala-status-grid__item"><dt>Current submitted version</dt><dd>{{ $application->currentSubmissionVersion?->version ?? 'Not submitted' }}</dd></div>
                 </dl>
             </x-filament::section>
 
             <x-filament::section>
-                <x-slot name="heading">Next Step</x-slot>
-
-                <div class="tala-guidance">
-                    @if ($intake->status === \App\Models\ApplicantIntake::StatusDraft)
-                        <x-filament::callout color="info" icon="heroicon-m-pencil-square">
-                            <x-slot name="heading">Draft saved</x-slot>
-                            <x-slot name="description">
-                                {{ $draftUploadCount }} {{ $draftUploadCount === 1 ? 'document is' : 'documents are' }} attached. Complete the remaining information, then submit the application for Registrar review.
-                            </x-slot>
-                        </x-filament::callout>
-                        <div class="tala-action-block">
-                            <x-filament::button
-                                :href="\App\Filament\Applicant\Pages\Application::getUrl()"
-                                tag="a"
-                                icon="heroicon-m-pencil-square"
-                            >
-                                Continue Application
-                            </x-filament::button>
-                        </div>
-                    @elseif ($intake->status === \App\Models\ApplicantIntake::StatusPending)
-                        <x-filament::callout color="warning" icon="heroicon-m-clock">
-                            <x-slot name="heading">Registrar review in progress</x-slot>
-                            <x-slot name="description">
-                                Check Requirements for each submission method and any item that still needs attention.
-                            </x-slot>
-                        </x-filament::callout>
-                    @elseif ($intake->status === \App\Models\ApplicantIntake::StatusActionRequired)
-                        <x-filament::callout color="danger" icon="heroicon-m-exclamation-triangle">
-                            <x-slot name="heading">A correction is required</x-slot>
-                            <x-slot name="description">
-                                Open Requirements, read the Registrar instruction, and replace each rejected digital item.
-                            </x-slot>
-                        </x-filament::callout>
-                    @elseif ($intake->status === \App\Models\ApplicantIntake::StatusForEvaluation)
-                        <x-filament::callout color="info" icon="heroicon-m-magnifying-glass">
-                            <x-slot name="heading">Credential evaluation in progress</x-slot>
-                            <x-slot name="description">
-                                The Registrar is evaluating the application before approval and student handover.
-                            </x-slot>
-                        </x-filament::callout>
-                    @elseif ($intake->status === \App\Models\ApplicantIntake::StatusApproved)
-                        <x-filament::callout color="success" icon="heroicon-m-check-circle">
-                            <x-slot name="heading">Application approved</x-slot>
-                            <x-slot name="description">
-                                Student Hub access becomes available after the Registrar completes student handover.
-                            </x-slot>
-                        </x-filament::callout>
-                    @endif
-
-                    @if ($intake->status !== \App\Models\ApplicantIntake::StatusDraft)
-                        <div class="tala-action-block">
-                            <x-filament::button
-                                :href="\App\Filament\Applicant\Pages\Requirements::getUrl()"
-                                tag="a"
-                                icon="heroicon-m-clipboard-document-check"
-                            >
-                                Review Requirements
-                            </x-filament::button>
-                        </div>
-                    @endif
-                </div>
+                <x-slot name="heading">Preliminary evidence readiness</x-slot>
+                <p>
+                    {{ $application->evidenceVersions->count() }} private evidence version(s) are retained.
+                    Preliminary review never means an official credential is verified.
+                </p>
             </x-filament::section>
 
-            @if ($intake->status === \App\Models\ApplicantIntake::StatusDraft)
-                <x-filament::section>
-                    <x-slot name="heading">Draft progress</x-slot>
+            <x-filament::section>
+                <x-slot name="heading">Official credential readiness</x-slot>
+                @if (($projection['ready'] ?? false) === true)
+                    <x-filament::callout color="success" icon="heroicon-m-check-circle">
+                        <x-slot name="heading">Ready for enrollment</x-slot>
+                        <x-slot name="description">This is a derived read-only projection. It did not create a Student, enrollment, assessment, or Registration Case.</x-slot>
+                    </x-filament::callout>
+                @else
+                    <p>{{ count($projection['blockers'] ?? []) }} current readiness blocker(s). Follow only the Applicant-safe instruction shown in Requirements.</p>
+                @endif
+            </x-filament::section>
 
-                    <div class="tala-draft-progress">
-                        <p>
-                            <strong>{{ $draftUploadCount }} {{ $draftUploadCount === 1 ? 'document' : 'documents' }} attached to this draft.</strong>
-                            You can replace or add files before submission.
-                        </p>
-                        <p>The Registrar checklist and review history are created after you submit the application.</p>
-                    </div>
-                </x-filament::section>
-            @else
-                <x-filament::section>
-                    <x-slot name="heading">Requirement Readiness</x-slot>
-                    <x-slot name="description">
-                        This summary shows progress only. Requirements owns the instructions, latest evidence state, feedback, and permitted correction.
-                    </x-slot>
+            <x-filament::section>
+                <x-slot name="heading">What happens next</x-slot>
+                <p>The Registrar reviews preliminary evidence, resolves any private identity warning, records an immutable admission decision, and then records official credential outcomes. Readiness appears automatically only when all current authoritative conditions pass.</p>
+            </x-filament::section>
 
-                    @if ($workflow['requirement_count'] === 0)
-                        <x-filament::callout color="warning" icon="heroicon-m-exclamation-triangle">
-                            <x-slot name="heading">Checklist unavailable</x-slot>
-                            <x-slot name="description">
-                                Contact the Registrar to confirm the requirements configured for this application.
-                            </x-slot>
-                        </x-filament::callout>
-                    @else
-                        <p class="tala-requirement-summary">{{ $workflow['requirements_summary'] }}</p>
-                        <dl class="tala-status-grid">
-                            <div class="tala-status-grid__item">
-                                <dt>Resolved</dt>
-                                <dd>{{ $workflow['resolved_requirement_count'] }} of {{ $workflow['requirement_count'] }}</dd>
-                            </div>
-                            <div class="tala-status-grid__item">
-                                <dt>Outstanding</dt>
-                                <dd>{{ $workflow['outstanding_requirement_count'] }}</dd>
-                            </div>
-                            <div class="tala-status-grid__item">
-                                <dt>Blocks Handover</dt>
-                                <dd>{{ $workflow['handover_blocker_count'] }}</dd>
-                            </div>
-                        </dl>
-                    @endif
+            @if ($application->currentSubmissionVersion)
+                <x-filament::section>
+                    <x-slot name="heading">Application acknowledgment</x-slot>
+                    <x-slot name="description">Bound to Application version {{ $application->currentSubmissionVersion->version }} and Requirement Set version {{ $application->currentSubmissionVersion->requirementSet?->version }}.</x-slot>
+                    <x-filament::button
+                        :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $application->currentSubmissionVersion])"
+                        tag="a"
+                        target="_blank"
+                        icon="heroicon-m-printer"
+                    >
+                        Open acknowledgment
+                    </x-filament::button>
                 </x-filament::section>
             @endif
+
+            <x-filament::section collapsible>
+                <x-slot name="heading">Application history</x-slot>
+                @forelse ($application->events->sortByDesc('occurred_at') as $event)
+                    <p><strong>{{ str($event->event_type)->headline() }}</strong> — {{ $event->occurred_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</p>
+                @empty
+                    <p>No authoritative lifecycle event has been recorded yet.</p>
+                @endforelse
+            </x-filament::section>
         </div>
     @endif
 
     <x-filament::section>
-        <x-slot name="heading">Application History</x-slot>
-        <x-slot name="description">
-            Review earlier and current admission records. Sensitive withdrawal details appear only after you select View.
-        </x-slot>
-
+        <x-slot name="heading">Current and earlier Applications</x-slot>
         {{ $this->table }}
     </x-filament::section>
 </x-filament-panels::page>

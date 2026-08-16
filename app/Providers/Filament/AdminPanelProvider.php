@@ -15,8 +15,8 @@ use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResourc
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Activities\ActivityResource;
-use App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource;
-use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
@@ -109,8 +109,8 @@ class AdminPanelProvider extends PanelProvider
                 SystemSettingResource::class,
                 FaqEntryResource::class,
                 OperationalEventResource::class,
-                ApplicantIntakeResource::class,
-                AdmissionRequirementPolicyResource::class,
+                AdmissionApplicationResource::class,
+                AdmissionCycleResource::class,
                 EnrollmentResource::class,
                 FeeRuleResource::class,
                 AssessmentResource::class,
@@ -188,8 +188,9 @@ class AdminPanelProvider extends PanelProvider
         $components = match (true) {
             $user->hasRole(User::StaffRoleRegistrar) => [
                 'Home' => Dashboard::class,
+                'Admissions' => AdmissionApplicationResource::class,
+                'Admission Cycles' => AdmissionCycleResource::class,
                 'Academic Readiness' => AcademicReadiness::class,
-                'Admissions' => ApplicantIntakeResource::class,
                 'Class Planning' => ClassPlanning::class,
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,

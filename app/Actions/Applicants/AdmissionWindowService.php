@@ -2,15 +2,35 @@
 
 namespace App\Actions\Applicants;
 
-use App\Actions\Calendar\Exceptions\CalendarGateViolation;
-use App\Models\CalendarEvent;
+use App\Models\AdmissionCycle;
 use App\Models\Term;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class AdmissionWindowService
 {
+    public function currentCycle(?CarbonImmutable $at = null): ?AdmissionCycle
+    {
+        return $this->openWindowQuery($at)
+            ->with(['term', 'programs'])
+            ->orderBy('closes_at')
+            ->first();
+    }
+
+    public function nextPublishedCycle(?CarbonImmutable $at = null): ?AdmissionCycle
+    {
+        $evaluatedAt = $at ?? CarbonImmutable::now();
+
+        return AdmissionCycle::query()
+            ->where('state', AdmissionCycle::StatePublished)
+            ->where('opens_at', '>', $evaluatedAt)
+            ->with(['term', 'programs'])
+            ->orderBy('opens_at')
+            ->first();
+    }
+
     public function hasOpenAdmissionsWindow(?CarbonImmutable $at = null): bool
     {
         return $this->openWindowQuery($at)->exists();
@@ -23,26 +43,25 @@ class AdmissionWindowService
             ->exists();
     }
 
-    public function admissionsWindow(int $termId, ?CarbonImmutable $at = null): CalendarEvent
+    public function admissionsCycle(int $termId, ?CarbonImmutable $at = null): AdmissionCycle
     {
         $window = $this->openWindowQuery($at)
             ->where('term_id', $termId)
-            ->orderBy('start_at')
+            ->orderBy('opens_at')
             ->first();
 
-        if ($window instanceof CalendarEvent) {
+        if ($window instanceof AdmissionCycle) {
             return $window;
         }
 
-        throw new CalendarGateViolation(
-            'Applications are currently closed for the selected admission term.',
-            'admissions_window',
-            [
-                'term_id' => $termId,
-                'process_key' => CalendarEvent::ProcessAdmissions,
-                'evaluated_at' => ($at ?? CarbonImmutable::now())->toIso8601String(),
-            ],
-        );
+        throw ValidationException::withMessages([
+            'admission_cycle' => 'Applications are currently closed for the selected admission term.',
+        ]);
+    }
+
+    public function admissionsWindow(int $termId, ?CarbonImmutable $at = null): AdmissionCycle
+    {
+        return $this->admissionsCycle($termId, $at);
     }
 
     /**
@@ -59,18 +78,16 @@ class AdmissionWindowService
     }
 
     /**
-     * @return Builder<CalendarEvent>
+     * @return Builder<AdmissionCycle>
      */
     private function openWindowQuery(?CarbonImmutable $at = null): Builder
     {
         $evaluatedAt = $at ?? CarbonImmutable::now();
 
-        return CalendarEvent::query()
-            ->academicCalendarWindows()
-            ->where('process_key', CalendarEvent::ProcessAdmissions)
-            ->where('state', CalendarEvent::StateActive)
-            ->where('start_at', '<=', $evaluatedAt)
-            ->where('end_at', '>=', $evaluatedAt)
+        return AdmissionCycle::query()
+            ->where('state', AdmissionCycle::StatePublished)
+            ->where('opens_at', '<=', $evaluatedAt)
+            ->where('closes_at', '>', $evaluatedAt)
             ->whereHas('term', fn (Builder $query): Builder => $query
                 ->where('state', Term::StateActive));
     }

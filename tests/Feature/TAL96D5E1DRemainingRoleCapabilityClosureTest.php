@@ -77,6 +77,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
         Role::findByName(User::StaffRoleRegistrar, 'web')->givePermissionTo([
             Permission::findOrCreate('approve-documents', 'web'),
             Permission::findOrCreate('evaluate-transferees', 'web'),
+            Permission::findOrCreate('manage-admission-setup', 'web'),
         ]);
         Role::findByName(User::StaffRoleSystemSuperAdmin, 'web')->givePermissionTo(
             Permission::findOrCreate('manage-faqs', 'web'),
@@ -107,7 +108,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
         $panel = Filament::getPanel('applicant');
         Filament::setCurrentPanel($panel);
 
-        $this->assertSame(['Home', 'Application'], $this->navigationLabels());
+        $this->assertSame(['Home', 'Application', 'Requirements'], $this->navigationLabels());
         $this->assertContains(Requirements::class, $panel->getPages());
         $this->assertNotContains(FilamentInfoWidget::class, $panel->getWidgets());
     }
@@ -424,8 +425,9 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
                 'role' => User::StaffRoleRegistrar,
                 'expectedLabels' => [
                     'Home',
-                    'Academic Readiness',
                     'Admissions',
+                    'Admission Cycles',
+                    'Academic Readiness',
                     'Class Planning',
                     'Students & Enrollment',
                     'Grades & Completion',

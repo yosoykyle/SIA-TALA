@@ -4,13 +4,16 @@ namespace App\Filament\Resources\Enrollments\Pages;
 
 use App\Actions\Enrollment\StartEnrollment;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Models\AdmissionApplication;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
+use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Support\Collection;
 use Throwable;
 
 class ListEnrollments extends ListRecords
@@ -23,6 +26,18 @@ class ListEnrollments extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('readyApplicants')
+                ->label('Ready applicants')
+                ->icon('heroicon-o-user-plus')
+                ->color('info')
+                ->modalHeading('Ready applicants from Admissions')
+                ->modalDescription('Read-only Clinic 4 visibility. No Registration Case, Student, enrollment, placement, or assessment has been created.')
+                ->modalContent(fn () => view('filament.admin.enrollments.ready-applicants', [
+                    'applications' => $this->readyApplicants(),
+                ]))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Close')
+                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false),
             Action::make('startContinuingEnrollment')
                 ->label('Start Continuing Enrollment')
                 ->icon('heroicon-o-plus-circle')
@@ -112,5 +127,19 @@ class ListEnrollments extends ListRecords
                     }
                 }),
         ];
+    }
+
+    /** @return Collection<int, AdmissionApplication> */
+    private function readyApplicants(): Collection
+    {
+        $query = app(ReadyApplicantProjectionQuery::class);
+
+        return AdmissionApplication::query()
+            ->canonical()
+            ->where('application_state', AdmissionApplication::StateAdmitted)
+            ->with(['user', 'program', 'admissionCycle', 'decisions', 'credentialResults.requirement', 'currentSubmissionVersion.requirementSet.requirements'])
+            ->get()
+            ->filter(fn (AdmissionApplication $application): bool => $query->forApplication($application)['ready'])
+            ->values();
     }
 }

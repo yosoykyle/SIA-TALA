@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
-use App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource;
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\Payments\PaymentResource;
@@ -154,7 +154,7 @@ class RoleAccessMatrixTest extends TestCase
                 'role' => 'registrar', 'resource' => SectionMeetingResource::class, 'expected' => true,
             ],
             'registrar reaches applicant review' => [
-                'role' => 'registrar', 'resource' => ApplicantIntakeResource::class, 'expected' => true,
+                'role' => 'registrar', 'resource' => AdmissionApplicationResource::class, 'expected' => true,
             ],
             'registrar cannot manage FAQs' => [
                 'role' => 'registrar', 'resource' => FaqEntryResource::class, 'expected' => false,

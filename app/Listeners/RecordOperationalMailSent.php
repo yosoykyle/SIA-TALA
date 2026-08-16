@@ -20,6 +20,13 @@ class RecordOperationalMailSent
                 OperationalEvent::TypePaymentPostedEmail,
                 OperationalEvent::TypeApplicantActionRequiredEmail,
                 OperationalEvent::TypeApplicantApprovedEmail,
+                OperationalEvent::TypeAdmissionApplicationSubmitted,
+                OperationalEvent::TypeAdmissionApplicationResubmitted,
+                OperationalEvent::TypeAdmissionCorrectionRequested,
+                OperationalEvent::TypeAdmissionApplicationAdmitted,
+                OperationalEvent::TypeAdmissionApplicationNotAdmitted,
+                OperationalEvent::TypeAdmissionReadyForEnrollment,
+                OperationalEvent::TypeAdmissionApplicationWithdrawn,
             ], true)) {
             return;
         }

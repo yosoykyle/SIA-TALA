@@ -62,7 +62,7 @@ class CreateNewUser implements CreatesNewUsers
                     'name' => null,
                     'email' => $validated['email'],
                     'password' => $validated['password'],
-                    'status' => User::StatusApplicantPending,
+                    'status' => User::StatusActive,
                     'privacy_notice_reference' => $this->applicantEntryReadinessService->officialReferences()['privacy'],
                     'privacy_acknowledged_at' => now(),
                 ]);

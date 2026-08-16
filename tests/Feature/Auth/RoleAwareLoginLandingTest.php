@@ -58,24 +58,9 @@ class RoleAwareLoginLandingTest extends TestCase
                 'status' => User::StatusActive,
                 'expectedPath' => '/student',
             ],
-            'pending applicant lands in Applicant Workspace' => [
+            'active applicant lands in Applicant Workspace' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
-                'expectedPath' => '/applicant',
-            ],
-            'action-required applicant lands in Applicant Workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantActionRequired,
-                'expectedPath' => '/applicant',
-            ],
-            'for-evaluation applicant lands in Applicant Workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantForEvaluation,
-                'expectedPath' => '/applicant',
-            ],
-            'approved applicant lands in Applicant Workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantApproved,
+                'status' => User::StatusActive,
                 'expectedPath' => '/applicant',
             ],
         ];
@@ -109,7 +94,7 @@ class RoleAwareLoginLandingTest extends TestCase
             ],
             'applicant sees Applicant Workspace dashboard' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
                 'path' => '/applicant',
                 'expectedText' => 'TALA Applicant Workspace',
             ],

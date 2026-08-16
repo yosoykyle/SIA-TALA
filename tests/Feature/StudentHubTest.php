@@ -38,7 +38,7 @@ class StudentHubTest extends TestCase
     public function non_students_cannot_access_student_hub()
     {
         $applicant = User::factory()->create([
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
         ]);
         $applicant->assignRole('applicant');
 

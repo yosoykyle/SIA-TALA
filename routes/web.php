@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\Applicants\ApplicantEntryReadinessService;
+use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
+use App\Http\Controllers\AdmissionEvidenceDownloadController;
 use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
@@ -16,6 +18,7 @@ Route::get('/', function (ApplicantEntryReadinessService $applicantEntryReadines
         'admissionsOpen' => $applicantEntryReadinessService->admissionsAreOpen(),
         'applicantEntryReady' => $applicantEntryReadinessService->registrationIsAvailable(),
         'officialReferences' => $applicantEntryReadinessService->officialReferences(),
+        'admissionCycle' => $applicantEntryReadinessService->cycleProjection(),
     ]);
 })->name('home');
 
@@ -24,6 +27,12 @@ Route::get('/outputs/cor/{enrollment}', CorPrintController::class)
     ->name('cor.print');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get(
+        '/outputs/applications/{application}/acknowledgment/{version}',
+        AdmissionApplicationAcknowledgmentController::class,
+    )->name('admissions.application.acknowledgment');
+    Route::get('/admissions/evidence/{evidence}', AdmissionEvidenceDownloadController::class)
+        ->name('admissions.evidence.download');
     Route::get('/outputs/finance/statement/{assessment}', FinanceStatementController::class)
         ->name('finance.statement');
     Route::get('/outputs/finance/billing-slip/{assessment}', BillingSlipController::class)

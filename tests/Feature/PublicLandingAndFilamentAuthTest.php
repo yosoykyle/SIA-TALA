@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
-use App\Models\CalendarEvent;
+use App\Models\AdmissionCycle;
 use App\Models\Term;
 use App\Models\User;
 use App\Providers\Filament\AdminPanelProvider;
@@ -115,7 +115,7 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             ->getColors()['primary'];
     }
 
-    private function openAdmissions(): CalendarEvent
+    private function openAdmissions(): AdmissionCycle
     {
         Http::fake([
             'api.pwnedpasswords.com/*' => Http::response('', 200),
@@ -123,17 +123,9 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
         $term = Term::factory()->create(['state' => Term::StateActive]);
 
-        return CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessAdmissions,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        return AdmissionCycle::factory()->for($term)->published()->create([
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
         ]);
     }
 }

@@ -8,13 +8,11 @@ use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
-use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
@@ -25,6 +23,7 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -101,56 +100,30 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         $this->assertFalse(method_exists(StudentEnrollmentService::class, 'startRegularEnrollment'));
     }
 
-    public function test_approved_applicant_handover_starts_one_clean_pending_review_enrollment(): void
+    public function test_admission_cannot_start_enrollment_through_the_retired_handover_path(): void
     {
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
 
-        $applicant = User::factory()->create(['status' => User::StatusApplicantApproved]);
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
         $applicant->assignRole('applicant');
-
-        $program = Program::factory()->create();
-        $term = Term::factory()->create(['state' => Term::StateActive]);
-        CurriculumVersion::factory()->create([
-            'program_id' => $program->id,
-            'state' => CurriculumVersion::StateActive,
-        ]);
         $intake = ApplicantIntake::factory()->approved($registrar)->create([
             'user_id' => $applicant->id,
-            'program_id' => $program->id,
-            'term_id' => $term->id,
-            'admission_category' => ApplicantIntake::AdmissionCategoryTransfer,
-            'credential_basis' => ApplicantIntake::CredentialBasisTransferCredentials,
         ]);
 
-        $action = app(HandOverApprovedApplicant::class);
-        $firstProfile = $action->execute($intake, $registrar);
-        $secondProfile = $action->execute($intake->fresh(), $registrar);
+        try {
+            app(HandOverApprovedApplicant::class)->execute($intake, $registrar);
+            $this->fail('Admission must stop at Ready for Enrollment.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Ready for Enrollment', $exception->getMessage());
+        }
 
-        $this->assertTrue($firstProfile->is($secondProfile));
-        $enrollment = Enrollment::query()
-            ->where('student_profile_id', $firstProfile->id)
-            ->where('term_id', $term->id)
-            ->sole();
-        $directlyReusedEnrollment = app(StartEnrollment::class)->execute(
-            $firstProfile,
-            $term,
-            'transferee',
-            $registrar,
-        );
-
-        $this->assertTrue($enrollment->is($directlyReusedEnrollment));
-        $this->assertSame('pending_review', $enrollment->status);
-        $this->assertSame('transferee', $enrollment->student_type);
-        $this->assertNull($enrollment->registered_at);
-        $this->assertNull($enrollment->officially_enrolled_at);
-        $this->assertSame(1, Enrollment::query()->where('student_profile_id', $firstProfile->id)->where('term_id', $term->id)->count());
+        $this->assertSame(0, Enrollment::query()->count());
+        $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
         $this->assertSame(0, CourseEnrollment::query()->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->count());
         $this->assertSame(0, StudentScheduleBinding::query()->count());
-        $this->assertSame(0, EnrollmentGateResult::query()
-            ->whereBelongsTo($enrollment)
-            ->count());
+        $this->assertSame(0, EnrollmentGateResult::query()->count());
         $this->assertSame(0, Assessment::query()->count());
         $this->assertSame(0, LedgerEntry::query()->count());
         $this->assertSame(0, Payment::query()->count());

@@ -24,11 +24,11 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
     public function test_applicant_workspace_navigation_contains_only_applicant_surfaces(): void
     {
-        $applicant = $this->userWithRole('applicant', User::StatusApplicantPending);
+        $applicant = $this->userWithRole('applicant', User::StatusActive);
 
         $labels = $this->navigationLabelsForPanel($applicant, 'applicant');
 
-        $this->assertSame(['My Application', 'Dashboard', 'Requirements'], $labels);
+        $this->assertSame(['Application', 'Dashboard', 'Requirements'], $labels);
         $this->assertNoStaffOnlyNavigationLabels($labels);
     }
 
@@ -39,7 +39,8 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $labels = $this->navigationLabelsForPanel($student, 'student');
 
         $this->assertSame([
-            'Completion',
+            'Academics',
+            'Completion Review',
             'COR',
             'Dashboard',
             'Enrollment',
@@ -55,7 +56,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
     public function test_applicant_dashboard_does_not_render_staff_workspace_surfaces(): void
     {
-        $applicant = $this->userWithRole('applicant', User::StatusApplicantPending);
+        $applicant = $this->userWithRole('applicant', User::StatusActive);
 
         $this->actingAs($applicant)
             ->get('/applicant')

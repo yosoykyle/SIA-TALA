@@ -260,19 +260,16 @@ class TAL96D5E1D4AdmissionsJourneyClosureTest extends TestCase
         Livewire::actingAs($applicant)
             ->test(Dashboard::class)
             ->assertOk()
-            ->assertSee('1 of 2 requirements resolved')
-            ->assertSee('Review Requirements')
+            ->assertSee('No application yet')
             ->assertDontSee('Identity Document')
             ->assertDontSee('Submitted Digital Documents');
 
         $this->actingAs($applicant)
             ->get('/applicant/requirements')
             ->assertOk()
-            ->assertSee('Identity Document')
-            ->assertSee('Form 137')
-            ->assertSee('Bring to the Registrar')
-            ->assertSee('Latest evidence')
-            ->assertSee('Registrar instruction');
+            ->assertSee('Requirements are not available yet')
+            ->assertDontSee('Identity Document')
+            ->assertDontSee('Form 137');
     }
 
     public function test_applicant_status_mail_renders_scope_owner_and_safe_next_action(): void
@@ -307,7 +304,7 @@ class TAL96D5E1D4AdmissionsJourneyClosureTest extends TestCase
     private function applicant(): User
     {
         $applicant = User::factory()->create([
-            'status' => User::StatusApplicantPending,
+            'status' => User::StatusActive,
             'email_verified_at' => now(),
         ]);
         $applicant->assignRole('applicant');

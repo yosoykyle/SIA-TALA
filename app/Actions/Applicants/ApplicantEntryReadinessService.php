@@ -18,6 +18,34 @@ class ApplicantEntryReadinessService
         return $this->admissionsAreOpen();
     }
 
+    /** @return array{code:string,label:string,term:?string,opens_at:?string,closes_at:?string,programs:list<string>,paths:list<string>,is_open:bool}|null */
+    public function cycleProjection(): ?array
+    {
+        $cycle = $this->admissionWindowService->currentCycle();
+        $isOpen = $cycle !== null;
+        $cycle ??= $this->admissionWindowService->nextPublishedCycle();
+
+        if ($cycle === null) {
+            return null;
+        }
+
+        $paths = collect([
+            $cycle->programs()->wherePivot('accepts_first_year', true)->exists() ? 'First year' : null,
+            $cycle->programs()->wherePivot('accepts_transferee', true)->exists() ? 'Transferee' : null,
+        ])->filter()->values()->all();
+
+        return [
+            'code' => $cycle->code,
+            'label' => $cycle->label,
+            'term' => $cycle->term?->label,
+            'opens_at' => $cycle->opens_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A'),
+            'closes_at' => $cycle->closes_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A'),
+            'programs' => $cycle->programs->pluck('name')->values()->all(),
+            'paths' => $paths,
+            'is_open' => $isOpen,
+        ];
+    }
+
     /**
      * @return array{support: ?string, support_phone: string, support_phone_uri: string, privacy: string, accessibility: string, map: ?string}
      */

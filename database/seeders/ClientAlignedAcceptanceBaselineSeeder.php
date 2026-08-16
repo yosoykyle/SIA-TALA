@@ -11,7 +11,9 @@ use App\Actions\SystemAdministration\ClientCurriculumFixtureCatalog;
 use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Actions\SystemAdministration\SchedulingFacultyCapacityAssessment;
 use App\Models\AcademicYear;
+use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirementPolicy;
+use App\Models\AdmissionRequirementSet;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
 use App\Models\Course;
@@ -63,6 +65,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     public function __construct(
         private readonly DatabaseSeeder $databaseSeeder,
         private readonly AdmissionRequirementPolicySeeder $admissionRequirementPolicySeeder,
+        private readonly AdmissionsAcceptanceSeeder $admissionsAcceptanceSeeder,
         private readonly BuildTermOfferings $offeringBuilder,
         private readonly SectionDeliveryGroupService $deliveryGroupService,
         private readonly GenerateSchedulingDemand $demandGenerator,
@@ -104,6 +107,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
             [$term, $priorTerm, $registrar, $faculty] = $this->createTermAndAccounts();
             $programs = $this->createPrograms();
+            $this->admissionsAcceptanceSeeder->run();
             $specifications = $this->createCourseCatalog($term, $priorTerm);
             $curricula = $this->createCurricula($term, $registrar, $programs, $specifications);
 
@@ -307,7 +311,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         ]);
 
         [$applicantFirstName, $applicantLastName] = $this->staffIdentity('applicant.demo@example.test');
-        $this->createUser($applicantFirstName, $applicantLastName, 'applicant.demo@example.test', 'applicant', User::StatusApplicantPending);
+        $this->createUser($applicantFirstName, $applicantLastName, 'applicant.demo@example.test', 'applicant');
         [$registrarFirstName, $registrarLastName] = $this->staffIdentity('registrar.demo@example.test');
         $registrar = $this->createUser($registrarFirstName, $registrarLastName, 'registrar.demo@example.test', User::StaffRoleRegistrar);
         [$accountingFirstName, $accountingLastName] = $this->staffIdentity('accounting.demo@example.test');
@@ -932,6 +936,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         return $this->programsAreComplete()
+            && $this->admissionsAcceptanceBaselineIsComplete($term)
             && $this->admissionRequirementPolicySeeder->baselineIsComplete()
             && User::query()->count() === $counts['students'] + $counts['faculty'] + 5
             && User::query()->whereNull('email_verified_at')->doesntExist()
@@ -1059,6 +1064,42 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         }
 
         return true;
+    }
+
+    private function admissionsAcceptanceBaselineIsComplete(Term $term): bool
+    {
+        if (AdmissionCycle::query()->count() !== 1) {
+            return false;
+        }
+
+        $cycle = AdmissionCycle::query()
+            ->where('code', 'CYCLE-2026-A')
+            ->where('state', AdmissionCycle::StatePublished)
+            ->whereBelongsTo($term)
+            ->with(['programs', 'requirementSets.requirements'])
+            ->first();
+
+        if (! $cycle instanceof AdmissionCycle
+            || $cycle->programs->pluck('code')->sort()->values()->all() !== ['DBM', 'DIT', 'DTHM']
+            || $cycle->programs->contains(function (Program $program): bool {
+                $pivot = $program->getRelation('pivot');
+
+                return ! data_get($pivot, 'accepts_first_year')
+                    || ! data_get($pivot, 'accepts_transferee');
+            })) {
+            return false;
+        }
+
+        $sets = $cycle->requirementSets->keyBy('application_path');
+        $firstYear = $sets->get(AdmissionCycle::PathFirstYear);
+        $transferee = $sets->get(AdmissionCycle::PathTransferee);
+
+        return $sets->count() === 2
+            && $sets->every(fn (AdmissionRequirementSet $set): bool => $set->state === AdmissionRequirementSet::StatePublished)
+            && $firstYear instanceof AdmissionRequirementSet
+            && $firstYear->requirements->count() === 3
+            && $transferee instanceof AdmissionRequirementSet
+            && $transferee->requirements->count() === 2;
     }
 
     private function calendarWindowsAreComplete(Term $term): bool
@@ -1512,6 +1553,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         /** @var list<class-string<Model>> $models */
         $models = [
             AcademicYear::class,
+            AdmissionCycle::class,
             AdmissionRequirementPolicy::class,
             Term::class,
             Program::class,

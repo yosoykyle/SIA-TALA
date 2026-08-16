@@ -31,15 +31,11 @@ class WorkspaceAuthenticationEligibilityTest extends TestCase
     {
         return [
             'active applicant' => [User::StatusActive],
-            'pending applicant' => [User::StatusApplicantPending],
-            'action required applicant' => [User::StatusApplicantActionRequired],
-            'for evaluation applicant' => [User::StatusApplicantForEvaluation],
-            'approved applicant' => [User::StatusApplicantApproved],
         ];
     }
 
     #[DataProvider('applicantLoginStatuses')]
-    public function test_applicant_workflow_statuses_can_authenticate_and_reach_applicant_workspace(string $status): void
+    public function test_active_applicant_can_authenticate_and_reach_applicant_workspace(string $status): void
     {
         $applicant = $this->userWithRole('applicant', $status);
 

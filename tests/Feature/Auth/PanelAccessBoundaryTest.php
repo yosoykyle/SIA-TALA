@@ -65,27 +65,9 @@ class PanelAccessBoundaryTest extends TestCase
                 'verified' => true,
                 'panel' => 'student',
             ],
-            'pending applicant can access applicant workspace' => [
+            'active applicant can access applicant workspace' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
-                'verified' => true,
-                'panel' => 'applicant',
-            ],
-            'action-required applicant can access applicant workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantActionRequired,
-                'verified' => true,
-                'panel' => 'applicant',
-            ],
-            'for-evaluation applicant can access applicant workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantForEvaluation,
-                'verified' => true,
-                'panel' => 'applicant',
-            ],
-            'approved applicant can access applicant workspace' => [
-                'role' => 'applicant',
-                'status' => User::StatusApplicantApproved,
+                'status' => User::StatusActive,
                 'verified' => true,
                 'panel' => 'applicant',
             ],
@@ -128,7 +110,7 @@ class PanelAccessBoundaryTest extends TestCase
             ],
             'applicant cannot access staff workspace' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
                 'verified' => true,
                 'panel' => 'admin',
             ],
@@ -152,7 +134,7 @@ class PanelAccessBoundaryTest extends TestCase
             ],
             'applicant cannot access student hub' => [
                 'role' => 'applicant',
-                'status' => User::StatusApplicantPending,
+                'status' => User::StatusActive,
                 'verified' => true,
                 'panel' => 'student',
             ],

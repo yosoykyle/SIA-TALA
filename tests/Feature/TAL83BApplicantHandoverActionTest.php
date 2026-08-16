@@ -2,213 +2,47 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\ApplicantIntakes\Pages\ViewApplicantIntake;
-use App\Models\AdmissionRequirementPolicy;
+use App\Actions\Applicants\HandOverApprovedApplicant;
 use App\Models\ApplicantIntake;
-use App\Models\ChecklistItem;
-use App\Models\CurriculumVersion;
-use App\Models\Program;
 use App\Models\StudentProfile;
-use App\Models\Term;
 use App\Models\User;
-use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Livewire\Livewire;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
-/**
- * Transaction-only isolation preserves the persistent TAL-96 acceptance fixture.
- * Do not replace this with RefreshDatabase or another migrate:fresh-based trait.
- */
 class TAL83BApplicantHandoverActionTest extends TestCase
 {
-    use DatabaseTransactions;
+    use LazilyRefreshDatabase;
 
-    protected function setUp(): void
+    public function test_legacy_handover_action_is_retired_without_creating_student_records(): void
     {
-        parent::setUp();
+        $actor = User::factory()->create([
+            'status' => User::StatusActive,
+            'email_verified_at' => now(),
+        ]);
+        $intake = ApplicantIntake::factory()->create();
 
-        $this->assertSame('test_tala_db', config('database.connections.mysql.database'));
-
-        foreach ([User::StaffRoleRegistrar, User::StaffRoleAccounting, 'applicant', 'student'] as $role) {
-            Role::findOrCreate($role, 'web');
+        try {
+            app(HandOverApprovedApplicant::class)->execute($intake, $actor);
+            $this->fail('The retired handover action unexpectedly created a Student record.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'The legacy Applicant handover is retired. Admission ends at the derived Ready for Enrollment state; Student and enrollment records are created only by the authorized registration journey.',
+                $exception->errors()['application'][0],
+            );
         }
 
-        Permission::findOrCreate('approve-documents', 'web');
-        Permission::findOrCreate('evaluate-transferees', 'web');
-
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-    }
-
-    public function test_registrar_can_handover_approved_applicant_from_review_page(): void
-    {
-        [$intake, $registrar, $applicant, , $curriculum] = $this->approvedIntake();
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $intake->getRouteKey()])
-            ->assertActionVisible('handOverToStudent')
-            ->callAction('handOverToStudent')
-            ->assertNotified('Applicant handed over to Student Hub');
-
-        $studentProfile = StudentProfile::query()->where('applicant_intake_id', $intake->id)->firstOrFail();
-
-        $this->assertNotNull($intake->fresh()->handed_over_at);
-        $this->assertSame($registrar->id, $intake->fresh()->handed_over_by);
-        $this->assertSame($applicant->id, $studentProfile->user_id);
-        $this->assertSame($curriculum->id, $studentProfile->curriculum_version_id);
-        $this->assertSame(StudentProfile::LifecycleActive, $studentProfile->lifecycle_status);
-        $this->assertSame(StudentProfile::StandingRegular, $studentProfile->academic_standing);
-        $this->assertMatchesRegularExpression('/^SIA-'.now(config('app.timezone'))->year.'-\d{4}$/', $studentProfile->student_number);
-
-        $studentUser = $applicant->fresh();
-        $this->assertSame(User::StatusActive, $studentUser->status);
-        $this->assertTrue($studentUser->hasRole('student'));
-        $this->assertTrue($studentUser->canAccessPanel(Filament::getPanel('student')));
-    }
-
-    public function test_handover_action_carries_forward_non_handover_checklist_items(): void
-    {
-        [$intake, $registrar] = $this->approvedIntake();
-        $source = $this->checklistItem($intake, ChecklistItem::BlockingRetentionOnly, ChecklistItem::StatusPending);
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $intake->getRouteKey()])
-            ->callAction('handOverToStudent')
-            ->assertNotified('Applicant handed over to Student Hub');
-
-        $studentProfile = StudentProfile::query()->where('applicant_intake_id', $intake->id)->firstOrFail();
-
-        $this->assertDatabaseHas('checklist_items', [
-            'owner_type' => ChecklistItem::OwnerStudent,
-            'applicant_intake_id' => null,
-            'student_profile_id' => $studentProfile->id,
-            'source_policy_id' => $source->source_policy_id,
-            'blocking_level' => ChecklistItem::BlockingRetentionOnly,
-            'status' => ChecklistItem::StatusPending,
-        ]);
-    }
-
-    public function test_unresolved_blocks_handover_checklist_item_blocks_ui_handover(): void
-    {
-        [$intake, $registrar] = $this->approvedIntake();
-        $this->checklistItem($intake, ChecklistItem::BlockingHandover, ChecklistItem::StatusPending);
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $intake->getRouteKey()])
-            ->assertActionVisible('handOverToStudent')
-            ->callAction('handOverToStudent')
-            ->assertNotified('Applicant handover blocked');
-
+        $this->assertSame(0, StudentProfile::query()->count());
         $this->assertNull($intake->fresh()->handed_over_at);
-        $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
+        $this->assertNull($intake->fresh()->handed_over_by);
     }
 
-    public function test_missing_active_curriculum_blocks_ui_handover(): void
+    public function test_legacy_intake_and_policy_routes_are_not_reachable(): void
     {
-        [$intake, $registrar] = $this->approvedIntake(createActiveCurriculum: false);
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $intake->getRouteKey()])
-            ->callAction('handOverToStudent')
-            ->assertNotified('Applicant handover blocked');
-
-        $this->assertNull($intake->fresh()->handed_over_at);
-        $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
-    }
-
-    public function test_non_approved_and_already_handed_over_intakes_hide_handover_action(): void
-    {
-        [$approvedIntake, $registrar] = $this->approvedIntake();
-        $pendingIntake = ApplicantIntake::factory()->create([
-            'program_id' => $approvedIntake->program_id,
-            'term_id' => $approvedIntake->term_id,
-            'status' => ApplicantIntake::StatusPending,
-            'approved_at' => null,
-            'approved_by' => null,
-        ]);
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $pendingIntake->getRouteKey()])
-            ->assertActionHidden('handOverToStudent');
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $approvedIntake->getRouteKey()])
-            ->callAction('handOverToStudent')
-            ->assertNotified('Applicant handed over to Student Hub');
-
-        Livewire::actingAs($registrar)
-            ->test(ViewApplicantIntake::class, ['record' => $approvedIntake->fresh()->getRouteKey()])
-            ->assertActionHidden('handOverToStudent');
-    }
-
-    public function test_staff_without_registrar_role_cannot_handover_even_with_admissions_permission(): void
-    {
-        [$intake] = $this->approvedIntake();
-        $accounting = User::factory()->create([
-            'status' => User::StatusActive,
-            'email_verified_at' => now(),
-        ]);
-        $accounting->assignRole(User::StaffRoleAccounting);
-        $accounting->givePermissionTo('approve-documents');
-
-        Livewire::actingAs($accounting)
-            ->test(ViewApplicantIntake::class, ['record' => $intake->getRouteKey()])
-            ->assertActionHidden('handOverToStudent');
-    }
-
-    /**
-     * @return array{ApplicantIntake, User, User, Program, ?CurriculumVersion}
-     */
-    private function approvedIntake(bool $createActiveCurriculum = true): array
-    {
-        $registrar = User::factory()->create([
-            'status' => User::StatusActive,
-            'email_verified_at' => now(),
-        ]);
-        $registrar->assignRole(User::StaffRoleRegistrar);
-        $registrar->givePermissionTo('approve-documents');
-
-        $applicant = User::factory()->create([
-            'status' => User::StatusApplicantApproved,
-            'email_verified_at' => now(),
-        ]);
-        $applicant->assignRole('applicant');
-
-        $program = Program::factory()->create();
-        $term = Term::factory()->create(['state' => Term::StateActive]);
-        $curriculum = $createActiveCurriculum
-            ? CurriculumVersion::factory()->create([
-                'program_id' => $program->id,
-                'state' => CurriculumVersion::StateActive,
-            ])
-            : null;
-
-        $intake = ApplicantIntake::factory()->approved($registrar)->create([
-            'user_id' => $applicant->id,
-            'program_id' => $program->id,
-            'term_id' => $term->id,
-        ]);
-
-        return [$intake, $registrar, $applicant, $program, $curriculum];
-    }
-
-    private function checklistItem(ApplicantIntake $intake, string $blockingLevel, string $status): ChecklistItem
-    {
-        $policy = AdmissionRequirementPolicy::factory()->create([
-            'admission_category' => $intake->admission_category,
-            'credential_basis' => $intake->credential_basis,
-            'blocking_level' => $blockingLevel,
-        ]);
-
-        return ChecklistItem::factory()->create([
-            'owner_type' => ChecklistItem::OwnerApplicant,
-            'applicant_intake_id' => $intake->id,
-            'student_profile_id' => null,
-            'source_policy_id' => $policy->id,
-            'blocking_level' => $blockingLevel,
-            'status' => $status,
-        ]);
+        $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.view'));
+        $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.create'));
     }
 }

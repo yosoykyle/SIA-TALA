@@ -51,6 +51,20 @@ class OperationalEvent extends Model
 
     public const TypeApplicantApprovedEmail = 'applicant_approved_email';
 
+    public const TypeAdmissionApplicationSubmitted = 'admission_application_submitted';
+
+    public const TypeAdmissionApplicationResubmitted = 'admission_application_resubmitted';
+
+    public const TypeAdmissionCorrectionRequested = 'admission_correction_requested';
+
+    public const TypeAdmissionApplicationAdmitted = 'admission_application_admitted';
+
+    public const TypeAdmissionApplicationNotAdmitted = 'admission_application_not_admitted';
+
+    public const TypeAdmissionReadyForEnrollment = 'admission_ready_for_enrollment';
+
+    public const TypeAdmissionApplicationWithdrawn = 'admission_application_withdrawn';
+
     public const StatusPending = 'PENDING';
 
     public const StatusProcessed = 'PROCESSED';

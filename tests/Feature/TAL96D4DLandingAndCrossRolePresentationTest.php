@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\CalendarEvent;
+use App\Models\AdmissionCycle;
 use App\Models\FaqEntry;
 use App\Models\Term;
 use App\Providers\Filament\AdminPanelProvider;
@@ -180,21 +180,13 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertSame($admin->getColors()['primary'], $student->getColors()['primary']);
     }
 
-    private function openAdmissions(): CalendarEvent
+    private function openAdmissions(): AdmissionCycle
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
 
-        return CalendarEvent::factory()->for($term)->create([
-            'event_type' => CalendarEvent::TypeWindow,
-            'scope_type' => CalendarEvent::ScopeInstitution,
-            'process_key' => CalendarEvent::ProcessAdmissions,
-            'start_at' => now()->subDay(),
-            'end_at' => now()->addDay(),
-            'day_of_week' => null,
-            'starts_at' => null,
-            'ends_at' => null,
-            'blocks_scheduling' => false,
-            'state' => CalendarEvent::StateActive,
+        return AdmissionCycle::factory()->for($term)->published()->create([
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
         ]);
     }
 }
