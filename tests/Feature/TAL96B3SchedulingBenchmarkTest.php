@@ -191,12 +191,16 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
         ]);
         $output = Artisan::output();
 
-        $this->assertSame(Command::SUCCESS, $exitCode, $output);
-        $this->assertStringContainsString('TAL-96B3 benchmark evidence ready.', $output);
         $this->assertTrue(Storage::disk('local')->exists('benchmarks/tal96b3-test.json'));
-
         $reportJson = Storage::disk('local')->get('benchmarks/tal96b3-test.json');
         $report = json_decode($reportJson, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(
+            Command::SUCCESS,
+            $exitCode,
+            $output."\n".json_encode(data_get($report, 'tiers.representative.summary'), JSON_PRETTY_PRINT),
+        );
+        $this->assertStringContainsString('TAL-96B3 benchmark evidence ready.', $output);
 
         $this->assertSame('tal96b3-v2', $report['benchmark_version']);
         $this->assertSame('tal94-demand-v2', $report['contract_version']);

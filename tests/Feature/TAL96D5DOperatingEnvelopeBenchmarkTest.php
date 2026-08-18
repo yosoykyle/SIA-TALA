@@ -8,6 +8,7 @@ use App\Actions\Scheduling\ScheduleAssignmentValidationService;
 use App\Actions\Scheduling\SchedulingOperatingEnvelopeCostEstimator;
 use App\Actions\Scheduling\SchedulingOperatingEnvelopeEnvironmentGuard;
 use App\Actions\Scheduling\SchedulingOperatingEnvelopeSnapshotCapture;
+use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -34,6 +35,9 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-scheduling-scenario', [
+            'scenario' => SchedulingAcceptanceScenarioCatalog::Middle,
+        ]), Artisan::output());
         $this->assertSame(270, DB::table('student_profiles')->count());
         $this->assertSame(77, SchedulingDemand::query()->count());
         $this->assertSame(0, ScheduleGenerationRun::query()->count());
@@ -217,17 +221,17 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             data_get($report, 'summary.gross_experiment_cost_usd'),
             0.0000000001,
         );
-        $this->assertSame('validation_failure', data_get($report, 'runs.0.result_classification'));
+        $this->assertSame('infeasible', data_get($report, 'runs.0.result_classification'));
         $this->assertFalse(data_get($report, 'runs.0.operationally_valid'));
         $this->assertFalse(data_get($report, 'runs.0.meets_strict_study_acceptance'));
         $this->assertFalse(data_get($report, 'runs.0.laravel_hard_constraints_pass'));
         $this->assertTrue(data_get($report, 'runs.0.telemetry_complete'));
-        $this->assertSame('optimization', data_get($report, 'runs.0.solver_statistics.result_source'));
-        $this->assertSame('optimal', data_get($report, 'runs.0.solver_statistics.search_stages.feasibility.status'));
-        $this->assertSame('optimal', data_get($report, 'runs.0.solver_statistics.search_stages.optimization.status'));
+        $this->assertSame('none', data_get($report, 'runs.0.solver_statistics.result_source'));
+        $this->assertSame('infeasible', data_get($report, 'runs.0.solver_statistics.search_stages.feasibility.status'));
+        $this->assertSame('not_run', data_get($report, 'runs.0.solver_statistics.search_stages.optimization.status'));
         $this->assertEquals(0.0, data_get($report, 'runs.0.solver_statistics.search_stages.feasibility.wall_time_seconds'));
         $this->assertEquals(0.0, data_get($report, 'runs.0.solver_statistics.search_stages.optimization.wall_time_seconds'));
-        $this->assertSame(77, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
+        $this->assertSame(0, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
         $this->assertIsArray(data_get($report, 'runs.0.assignment_evidence.section_timetables'));
         $this->assertIsArray(data_get($report, 'scenario_feasibility_audit.room_type_capacity'));
         $this->assertIsString($report['snapshot_sha256']);

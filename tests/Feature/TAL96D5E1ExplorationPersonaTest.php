@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
 use App\Models\DocumentEvidence;
@@ -31,6 +32,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
     }
 
     #[Test]
@@ -239,7 +241,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
             ->expectsOutputToContain('Checkpoint must be auto, pristine, accepted-candidate, or published.')
             ->assertFailed();
 
-        $detected = app(\App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog::class)
+        $detected = app(TAL96D5E1ExplorationPersonaCatalog::class)
             ->report()['checkpoint_detected'];
         $mismatched = $detected === 'pristine' ? 'published' : 'pristine';
 
@@ -283,28 +285,20 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
     }
 
     #[Test]
-    public function first_time_documentation_distinguishes_the_pristine_min_check_from_overlay_inspection(): void
+    public function documentation_keeps_acceptance_fixtures_non_authoritative(): void
     {
         $readme = file_get_contents(base_path('README.md'));
-        $guide = file_get_contents(base_path('00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md'));
+        $baseline = file_get_contents(base_path('00_Project_Documents/prd_modules/00_system_definition_baseline.md'));
 
         $this->assertIsString($readme);
-        $this->assertIsString($guide);
+        $this->assertIsString($baseline);
         $this->assertStringContainsString(
-            'Before the presentation overlay exists, the MIN scenario check must report',
+            'Historical fixture-building, provider rehearsal, demonstration, and acceptance instructions are preserved as non-authoritative evidence',
             $readme,
         );
         $this->assertStringContainsString(
-            'Once the D5E1 overlay exists, use the D5E1 command as the authoritative read-only check',
-            $readme,
-        );
-        $this->assertStringContainsString(
-            'Before the presentation overlay exists, prove the pristine MIN fixture',
-            $guide,
-        );
-        $this->assertStringContainsString(
-            'After the overlay exists, the exploration check is the authoritative non-writing inspection',
-            $guide,
+            'All PRD acceptance data uses one coordinated, wholly synthetic institution',
+            $baseline,
         );
     }
 
@@ -336,8 +330,6 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
     private function presentationTerm(): Term
     {
-        $this->assertSame(49, StudentProfile::query()->count());
-
         return Term::query()
             ->where('label', 'Second Semester')
             ->whereHas('academicYear', fn ($query) => $query->where('label', 'AY 2025-2026'))

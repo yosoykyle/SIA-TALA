@@ -29,7 +29,7 @@ class TAL96D5BSharedFoundationTest extends TestCase
         );
     }
 
-    public function test_staff_sidebar_uses_ordered_workflow_groups_instead_of_role_names(): void
+    public function test_staff_sidebar_uses_the_canonical_flat_task_navigation_without_legacy_groups(): void
     {
         $this->seed(DatabaseSeeder::class);
 
@@ -45,20 +45,6 @@ class TAL96D5BSharedFoundationTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertSame([
-            'Admissions',
-            'Academic Setup',
-            'Offerings & Scheduling',
-            'Enrollment',
-            'Finance',
-            'Grades',
-            'Student Records',
-            'Reports & Audit',
-        ], $groupLabels);
-
-        $this->assertEmpty(array_intersect(
-            ['Registrar', 'Accounting', 'Faculty', 'Academic Head', 'System Administration'],
-            $groupLabels,
-        ));
+        $this->assertSame([], $groupLabels);
     }
 }

@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
+use App\Actions\Integrations\Payments\MockPaymentGateway;
+use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -43,6 +45,10 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
+        $this->app->instance(PaymentGateway::class, new MockPaymentGateway(
+            providerName: 'mock',
+            checkoutBaseUrl: 'https://mock-payments.test/checkout',
+        ));
     }
 
     public function test_student_finance_page_shows_ledger_derived_finance_and_available_outputs(): void

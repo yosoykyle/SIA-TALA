@@ -88,7 +88,8 @@ final class PreparePayMongoDemoFixture
         $accounting = User::query()
             ->where('email', self::AccountingEmail)
             ->sole();
-        $term = Term::query()->sole();
+        $term = $this->activeBaselineTerm()
+            ?? throw new RuntimeException('The active client-baseline Term is unavailable.');
         $offering = TermOffering::query()
             ->with('curriculumEntry.courseSpecification')
             ->whereBelongsTo($term)
@@ -160,7 +161,7 @@ final class PreparePayMongoDemoFixture
         $profile = $student instanceof User
             ? StudentProfile::query()->whereBelongsTo($student)->first()
             : null;
-        $term = Term::query()->first();
+        $term = $this->activeBaselineTerm();
         $enrollment = $profile instanceof StudentProfile && $term instanceof Term
             ? Enrollment::query()
                 ->whereBelongsTo($profile)
@@ -291,6 +292,14 @@ final class PreparePayMongoDemoFixture
     private function amountMatches(string|int|float|null $actual, string $expected): bool
     {
         return $actual !== null && $this->money->normalize($actual) === $expected;
+    }
+
+    private function activeBaselineTerm(): ?Term
+    {
+        return Term::query()
+            ->where('label', 'Second Semester')
+            ->where('state', Term::StateActive)
+            ->first();
     }
 
     private function conflictException(): RuntimeException

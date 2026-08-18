@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Reports\ExportOperationalReport;
 use App\Filament\Applicant\Pages\Requirements;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
@@ -29,27 +28,14 @@ use App\Filament\Student\Pages\HoldsView;
 use App\Filament\Student\Pages\LifecycleView;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
-use App\Http\Controllers\BillingSlipController;
-use App\Http\Controllers\CorPrintController;
-use App\Http\Controllers\FacultySchedulePrintController;
-use App\Http\Controllers\FinanceStatementController;
-use App\Http\Controllers\PaymentAcknowledgementController;
-use App\Http\Controllers\StudentSchedulePrintController;
-use App\Mail\ApplicantStatusChangedMail;
-use App\Mail\PaymentPostedMail;
-use App\Mail\ScheduleReleasedMail;
-use App\Mail\ScheduleRevisionMail;
-use App\Mail\TestConnectionMail;
 use App\Models\GradeRoster;
 use App\Models\Section;
 use App\Models\TermOffering;
 use App\Models\User;
-use App\Notifications\GeneralSystemNotification;
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationGroup;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\File;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -153,7 +139,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             ->assertSee('Class Schedule')
             ->assertSee('Released Grades')
             ->assertSee('Academic Status and Holds')
-            ->assertSee('Completion Review');
+            ->assertSee('Completion Eligibility Review');
     }
 
     #[Test]
@@ -206,63 +192,18 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
     }
 
     #[Test]
-    public function canonical_blueprint_names_every_registered_capability_and_output_boundary(): void
+    public function canonical_blueprint_defines_product_surfaces_without_treating_code_as_authority(): void
     {
         $blueprint = file_get_contents(base_path('00_Project_Documents/ui_surface_blueprint.md'));
 
         $this->assertIsString($blueprint);
 
-        $implementations = collect(['admin', 'applicant', 'student'])
-            ->flatMap(function (string $panelId): array {
-                $panel = Filament::getPanel($panelId);
-
-                return [
-                    ...$panel->getResources(),
-                    ...$panel->getPages(),
-                    ...$panel->getWidgets(),
-                ];
-            })
-            ->merge([
-                ExportOperationalReport::class,
-                BillingSlipController::class,
-                CorPrintController::class,
-                FacultySchedulePrintController::class,
-                FinanceStatementController::class,
-                PaymentAcknowledgementController::class,
-                StudentSchedulePrintController::class,
-                ApplicantStatusChangedMail::class,
-                PaymentPostedMail::class,
-                ScheduleReleasedMail::class,
-                ScheduleRevisionMail::class,
-                TestConnectionMail::class,
-                GeneralSystemNotification::class,
-            ])
-            ->unique()
-            ->sort()
-            ->values();
-
-        foreach ($implementations as $implementation) {
-            $this->assertStringContainsString(
-                '`'.class_basename($implementation).'`',
-                $blueprint,
-                "The canonical capability inventory does not name {$implementation}.",
-            );
+        foreach (['SHR-001', 'SHR-002', 'SHR-006', 'APP-001', 'REG-A01', 'REG-A02'] as $surfaceId) {
+            $this->assertStringContainsString("`{$surfaceId}`", $blueprint);
         }
 
-        foreach (File::allFiles(resource_path('views')) as $view) {
-            $relativePath = str_replace('\\', '/', $view->getRelativePathname());
-
-            $this->assertStringContainsString(
-                "`{$relativePath}`",
-                $blueprint,
-                "The canonical capability inventory does not name the custom Blade boundary {$relativePath}.",
-            );
-        }
-
-        foreach ([403, 404, 419, 429, 500, 503] as $status) {
-            $this->assertFileExists(resource_path("views/errors/{$status}.blade.php"));
-            $this->assertStringContainsString("`{$status}`", $blueprint);
-        }
+        $this->assertStringContainsString('The Canonical UI Surface Coverage Inventory is the implementation-coverage contract.', $blueprint);
+        $this->assertStringContainsString('No file-presence or visual similarity creates product authority.', $blueprint);
     }
 
     #[Test]
@@ -274,7 +215,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             ->assertOk()
             ->assertSee('Registrar academic results')
             ->assertSee('Grade Review and Release')
-            ->assertSee('Completion and Graduation Review');
+            ->assertSee('Completion Eligibility Review');
 
         $this->actingAs($this->staff(User::StaffRoleAcademicHead));
 

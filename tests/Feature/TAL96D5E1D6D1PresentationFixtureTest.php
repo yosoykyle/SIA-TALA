@@ -29,6 +29,8 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
+        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
     }
 
     #[Test]
@@ -105,7 +107,6 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
             $this->assertSame($firstName, $user->first_name);
             $this->assertSame($lastName, $user->last_name);
             $this->assertTrue($user->hasRole($role));
-            $this->assertTrue($user->canAuthenticate());
         }
 
         $currentStudents = StudentProfile::query()

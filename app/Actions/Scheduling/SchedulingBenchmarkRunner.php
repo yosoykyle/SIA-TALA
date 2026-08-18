@@ -39,6 +39,8 @@ final class SchedulingBenchmarkRunner
         'wall_time_seconds',
         'worker_count',
         'random_seed',
+        'result_source',
+        'search_stages',
     ];
 
     public function __construct(

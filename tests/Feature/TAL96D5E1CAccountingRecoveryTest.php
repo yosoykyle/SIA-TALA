@@ -44,6 +44,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
+        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
 
         Role::query()->firstOrCreate([
             'name' => User::StaffRoleAccounting,

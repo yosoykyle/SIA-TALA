@@ -200,26 +200,31 @@ final class TAL59RegistrarTermOfferingBuilderTest extends TestCase
         $this->assertSame(TermOffering::ArrangementTutorial, $offering->delivery_variant);
     }
 
-    public function test_only_registrar_and_system_super_admin_can_mutate_offerings(): void
+    public function test_only_registrar_can_mutate_offerings(): void
     {
         [$term, $program, $curriculum, $entry] = $this->scope();
         $row = $this->regularRow($entry, 'BSIT-1A');
 
-        foreach ([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin] as $role) {
-            $result = $this->builder->regular($this->staff($role), $term, $program, $curriculum, 'First Year', [$row]);
-            $this->assertContains($result['created'] + $result['skipped'], [1]);
-        }
+        $result = $this->builder->regular($this->staff(User::StaffRoleRegistrar), $term, $program, $curriculum, 'First Year', [$row]);
+        $this->assertSame(1, $result['created']);
 
-        [$otherTerm, $otherProgram, $otherCurriculum, $otherEntry] = $this->scope();
-        $this->expectException(AuthorizationException::class);
-        $this->builder->regular(
-            $this->staff(User::StaffRoleFaculty),
-            $otherTerm,
-            $otherProgram,
-            $otherCurriculum,
-            'First Year',
-            [$this->regularRow($otherEntry, 'BSIT-1B')],
-        );
+        foreach ([User::StaffRoleSystemSuperAdmin, User::StaffRoleFaculty] as $role) {
+            [$otherTerm, $otherProgram, $otherCurriculum, $otherEntry] = $this->scope();
+
+            try {
+                $this->builder->regular(
+                    $this->staff($role),
+                    $otherTerm,
+                    $otherProgram,
+                    $otherCurriculum,
+                    'First Year',
+                    [$this->regularRow($otherEntry, 'BSIT-1B')],
+                );
+                $this->fail("Expected {$role} to be denied.");
+            } catch (AuthorizationException) {
+                $this->assertSame(1, TermOffering::query()->count());
+            }
+        }
     }
 
     public function test_term_offering_resource_is_explicitly_registered_and_boots_for_registrar(): void

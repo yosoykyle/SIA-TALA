@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\AcademicProgressionService;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
 use App\Actions\SystemAdministration\AcceptanceBaselineEnvironmentGuard;
@@ -85,14 +84,12 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(7, StudentProfile::query()->where('student_number', 'like', 'DTHM-2A-%')->count());
         $this->assertSame([
             StudentProfile::StandingBlockedByPrerequisite => 1,
-            StudentProfile::StandingCompletionCandidate => 1,
             StudentProfile::StandingDeficient => 1,
-            StudentProfile::StandingGraduationCandidate => 1,
             StudentProfile::StandingIrregular => 2,
             StudentProfile::StandingMustRepeatYear => 1,
             StudentProfile::StandingNotYetEvaluated => 1,
             StudentProfile::StandingProbationary => 1,
-            StudentProfile::StandingRegular => 38,
+            StudentProfile::StandingRegular => 40,
         ], StudentProfile::query()
             ->selectRaw('academic_standing, COUNT(*) as aggregate')
             ->groupBy('academic_standing')
@@ -101,7 +98,15 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             ->map(fn (int|string $count): int => (int) $count)
             ->all());
         $this->assertEqualsCanonicalizing(
-            AcademicProgressionService::standingValues(),
+            [
+                StudentProfile::StandingBlockedByPrerequisite,
+                StudentProfile::StandingDeficient,
+                StudentProfile::StandingIrregular,
+                StudentProfile::StandingMustRepeatYear,
+                StudentProfile::StandingNotYetEvaluated,
+                StudentProfile::StandingProbationary,
+                StudentProfile::StandingRegular,
+            ],
             StudentProfile::query()->distinct()->pluck('academic_standing')->all(),
         );
         $this->assertSame(0, StudentProfile::query()
@@ -117,8 +122,8 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'DIT-1A-002' => StudentProfile::StandingDeficient,
             'DIT-2A-001' => StudentProfile::StandingBlockedByPrerequisite,
             'DTHM-1A-001' => StudentProfile::StandingMustRepeatYear,
-            'DTHM-1A-002' => StudentProfile::StandingCompletionCandidate,
-            'DTHM-2A-001' => StudentProfile::StandingGraduationCandidate,
+            'DTHM-1A-002' => StudentProfile::StandingRegular,
+            'DTHM-2A-001' => StudentProfile::StandingRegular,
             'DTHM-2A-002' => StudentProfile::StandingNotYetEvaluated,
         ], StudentProfile::query()
             ->whereIn('student_number', [
@@ -137,21 +142,26 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             ->pluck('academic_standing', 'student_number')
             ->all());
 
-        $this->assertSame(40, Course::query()->count());
-        $this->assertSame(41, CourseSpecification::query()->count());
-        $this->assertSame(41, CourseComponent::query()->count());
+        $this->assertSame(111, Course::query()->count());
+        $this->assertSame(CourseSpecification::query()->count(), CourseComponent::query()->count());
         $this->assertSame(3, CurriculumVersion::query()->count());
-        $this->assertSame(54, CurriculumEntry::query()->count());
+        $this->assertSame(158, CurriculumEntry::query()->count());
         $this->assertSame(54, TermOffering::query()->count());
         $this->assertSame(54, Section::query()->count());
         $this->assertSame(54, SectionDeliveryGroup::query()->count());
         $this->assertSame(6, Room::query()->count());
-        $this->assertSame(40, FacultyQualification::query()->count());
+        $this->assertSame(58, FacultyQualification::query()->count());
         $this->assertSame(9, FacultyTermLoadOverride::query()->count());
         $this->assertSame(54, SchedulingDemand::query()->count());
         $this->assertSame(54, SchedulingDemand::query()
             ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
             ->count());
+
+        $term = Term::query()
+            ->where('label', 'Second Semester')
+            ->where('type', Term::TypeSecondSemester)
+            ->where('state', Term::StateActive)
+            ->sole();
 
         $this->assertSame(0, CourseSpecification::query()
             ->whereJsonContains('allowed_modalities', 'BLENDED')
@@ -164,6 +174,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'Basic Macroeconomics',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'BME09')->sole())
+                ->whereBelongsTo($term, 'effectiveTerm')
                 ->sole()
                 ->title,
         );
@@ -171,6 +182,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             'Art Appreciation',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'GE09')->sole())
+                ->whereBelongsTo($term, 'effectiveTerm')
                 ->sole()
                 ->title,
         );
@@ -178,12 +190,14 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             '2.00',
             CourseSpecification::query()
                 ->whereBelongsTo(Course::query()->where('code', 'PE04')->sole())
+                ->whereBelongsTo($term, 'effectiveTerm')
                 ->sole()
                 ->credit_units,
         );
 
         $nstpSpecifications = CourseSpecification::query()
             ->whereBelongsTo(Course::query()->where('code', 'NSTP02')->sole())
+            ->whereBelongsTo($term, 'effectiveTerm')
             ->orderBy('credit_units')
             ->get();
         $this->assertSame(['2.00', '3.00'], $nstpSpecifications->pluck('credit_units')->all());
@@ -192,16 +206,14 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             $curriculum = CurriculumVersion::query()
                 ->whereBelongsTo(Program::query()->where('code', $programCode)->sole())
                 ->sole();
-            $entry = CurriculumEntry::query()
+            $this->assertTrue(CurriculumEntry::query()
                 ->whereBelongsTo($curriculum)
                 ->whereIn('course_specification_id', $nstpSpecifications->modelKeys())
-                ->sole();
-
-            $this->assertSame($expectedUnits, $entry->courseSpecification?->credit_units, $programCode);
+                ->whereHas('courseSpecification', fn ($query) => $query->where('credit_units', $expectedUnits))
+                ->exists(), $programCode);
         }
         $this->assertSame(0, User::query()->where('email', 'not like', '%@example.test')->count());
 
-        $term = Term::query()->where('type', Term::TypeSecondSemester)->sole();
         $this->assertSame([1, 2, 3, 4, 5, 6], $term->scheduling_days);
         $this->assertSame(30, $term->scheduling_slot_minutes);
         $this->assertSame('21.00', $term->default_max_units);
@@ -306,7 +318,10 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
     public function test_complete_baseline_with_mutated_term_state_fails_closed_without_writes(): void
     {
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $term = Term::query()->sole();
+        $term = Term::query()
+            ->where('label', 'Second Semester')
+            ->where('state', Term::StateActive)
+            ->sole();
         $term->update(['state' => Term::StateClosed]);
         $before = $this->baselineCounts();
 
@@ -511,14 +526,14 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('cohorts=6', $output);
         $this->assertStringContainsString('scheduling_demands=54', $output);
         $this->assertStringContainsString('ready_scheduling_demands=54', $output);
-        $this->assertStringContainsString('standing_regular=38', $output);
+        $this->assertStringContainsString('standing_regular=40', $output);
         $this->assertStringContainsString('standing_irregular=2', $output);
         $this->assertStringContainsString('standing_probationary=1', $output);
         $this->assertStringContainsString('standing_deficient=1', $output);
         $this->assertStringContainsString('standing_blocked_by_prerequisite=1', $output);
         $this->assertStringContainsString('standing_must_repeat_year_level=1', $output);
-        $this->assertStringContainsString('standing_completion_candidate=1', $output);
-        $this->assertStringContainsString('standing_graduation_candidate=1', $output);
+        $this->assertStringContainsString('standing_completion_candidate=0', $output);
+        $this->assertStringContainsString('standing_graduation_candidate=0', $output);
         $this->assertStringContainsString('standing_not_yet_evaluated=1', $output);
         $this->assertStringContainsString('scenario_anchors=10/10', $output);
         $this->assertStringContainsString('downstream_state=EMPTY', $output);
@@ -581,19 +596,16 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
 
     public function test_capacity_authority_rejects_a_universal_student_ceiling(): void
     {
-        $prd = file_get_contents(base_path('00_Project_Documents/prd_modules/05_term_offerings_resources.md'));
-        $guide = file_get_contents(base_path('00_Project_Documents/TALA-System-Operations-and-Defense-Guide.md'));
+        $baseline = file_get_contents(base_path('00_Project_Documents/prd_modules/00_system_definition_baseline.md'));
 
-        $this->assertIsString($prd);
-        $this->assertIsString($guide);
-        $this->assertStringNotContainsString('Campus active-student ceiling defaults to 100', $prd);
+        $this->assertIsString($baseline);
         $this->assertStringContainsString(
-            'TALA does not assume or enforce a universal institution-wide student ceiling.',
-            $prd,
+            'There is no universal 100-student ceiling',
+            $baseline,
         );
         $this->assertStringContainsString(
-            'The current population of 47 is evidence of client scale, not a coded maximum.',
-            $guide,
+            'Any larger population is labelled a synthetic structural or capacity test, not a Servitech forecast',
+            $baseline,
         );
     }
 

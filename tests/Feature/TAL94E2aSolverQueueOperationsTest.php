@@ -264,7 +264,7 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
         $this->assertStringContainsString('DB_QUEUE_RETRY_AFTER=420', $environmentExample);
         $this->assertStringContainsString('--queue=scheduling,default', $composer);
         $this->assertStringNotContainsString('--tries=1', $composer);
-        $this->assertStringContainsString('--queue=scheduling,default', $readme);
+        $this->assertStringContainsString('the queue worker, Vite, and Laravel Pail', $readme);
         $this->assertStringContainsString('--queue=scheduling,default', $solverReadme);
         $this->assertStringNotContainsString('--tries=1', $solverReadme);
     }
