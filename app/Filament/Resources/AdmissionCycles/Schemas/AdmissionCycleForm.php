@@ -34,8 +34,12 @@ class AdmissionCycleForm
                             ->searchable()
                             ->preload()
                             ->required(),
-                        DateTimePicker::make('opens_at')->label('Opens at')->native(false)->required(),
-                        DateTimePicker::make('closes_at')->label('Closes at')->native(false)->after('opens_at')->required(),
+                        DateTimePicker::make('opens_at')->label('Opening')->native(false)->required(),
+                        DateTimePicker::make('closes_at')->label('Public closing')->native(false)->after('opens_at')->required(),
+                        DateTimePicker::make('correction_closes_at')
+                            ->label('New-correction closing')
+                            ->helperText('Optional while Draft. Publication readiness requires this at or after public closing.')
+                            ->native(false),
                         Textarea::make('applicant_instructions')->required()->maxLength(2000)->columnSpanFull(),
                         TextInput::make('support_contact')->required()->maxLength(255),
                         TextInput::make('privacy_notice_reference')->required()->maxLength(255),

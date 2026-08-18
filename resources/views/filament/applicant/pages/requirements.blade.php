@@ -19,8 +19,8 @@
             @php($activeCorrection = $application->correctionRequests->where('state', \App\Models\ApplicationCorrectionRequest::StateActive)->first())
             @if ($activeCorrection)
                 <x-filament::callout color="warning" icon="heroicon-m-exclamation-triangle">
-                    <x-slot name="heading">Scoped correction due {{ $activeCorrection->due_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</x-slot>
-                    <x-slot name="description">{{ $activeCorrection->applicant_instruction }} Only the named fields or evidence reopen.</x-slot>
+                    <x-slot name="heading">{{ $activeCorrection->isOverdue() ? 'Correction overdue' : 'Scoped correction due' }} {{ $activeCorrection->due_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</x-slot>
+                    <x-slot name="description">{{ $activeCorrection->applicant_instruction }} Only the named fields or evidence reopen. An overdue request remains editable and resubmittable.</x-slot>
                 </x-filament::callout>
                 <div class="tala-action-block">
                     <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl()" tag="a" icon="heroicon-m-pencil-square">

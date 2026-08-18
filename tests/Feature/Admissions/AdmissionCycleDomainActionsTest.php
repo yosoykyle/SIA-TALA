@@ -78,6 +78,10 @@ class AdmissionCycleDomainActionsTest extends TestCase
 
         $this->assertSame(AdmissionCycle::StatePublished, $published->state);
         $this->assertSame(AdmissionCycleEvent::TypePublished, $published->events()->sole()->event_type);
+        $this->assertSame(
+            $published->correction_closes_at->toIso8601String(),
+            $published->events()->sole()->new_values['correction_closes_at'],
+        );
 
         $closed = $changes->close(
             $published,

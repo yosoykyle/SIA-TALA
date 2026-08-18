@@ -486,9 +486,17 @@ class Application extends Page
                 ->exists();
     }
 
-    private function isCorrectionMode(): bool
+    public function isCorrectionMode(): bool
     {
         return $this->currentApplication()?->application_state === AdmissionApplication::StateActionNeeded;
+    }
+
+    public function activeCorrectionRequest(): ?ApplicationCorrectionRequest
+    {
+        return $this->currentApplication()?->correctionRequests
+            ->where('state', ApplicationCorrectionRequest::StateActive)
+            ->sortByDesc('requested_at')
+            ->first();
     }
 
     private function fieldIsEditable(string $field): bool
@@ -497,10 +505,7 @@ class Application extends Page
             return true;
         }
 
-        $request = $this->currentApplication()?->correctionRequests
-            ->where('state', ApplicationCorrectionRequest::StateActive)
-            ->sortByDesc('requested_at')
-            ->first();
+        $request = $this->activeCorrectionRequest();
 
         return $request?->items
             ->where('scope_type', ApplicationCorrectionItem::ScopeField)
@@ -510,10 +515,7 @@ class Application extends Page
     /** @return list<int> */
     private function editableEvidenceRequirementIds(): array
     {
-        $request = $this->currentApplication()?->correctionRequests
-            ->where('state', ApplicationCorrectionRequest::StateActive)
-            ->sortByDesc('requested_at')
-            ->first();
+        $request = $this->activeCorrectionRequest();
 
         return $request?->items
             ->where('scope_type', ApplicationCorrectionItem::ScopeEvidence)

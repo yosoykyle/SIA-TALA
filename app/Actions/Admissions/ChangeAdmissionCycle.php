@@ -20,6 +20,7 @@ class ChangeAdmissionCycle
         User $actor,
         string $reason,
         string $authorityReference,
+        ?string $expectedBoundaryVersion = null,
     ): AdmissionCycle {
         return $this->changeDates(
             $cycle,
@@ -28,6 +29,8 @@ class ChangeAdmissionCycle
             $reason,
             $authorityReference,
             'close',
+            null,
+            $expectedBoundaryVersion ?? $cycle->boundaryVersion(),
         );
     }
 
@@ -37,6 +40,8 @@ class ChangeAdmissionCycle
         CarbonInterface $newClosingTime,
         string $reason,
         string $authorityReference,
+        ?CarbonInterface $newCorrectionClosingTime = null,
+        ?string $expectedBoundaryVersion = null,
     ): AdmissionCycle {
         return $this->changeDates(
             $cycle,
@@ -45,6 +50,8 @@ class ChangeAdmissionCycle
             $reason,
             $authorityReference,
             'extend',
+            $newCorrectionClosingTime === null ? null : CarbonImmutable::instance($newCorrectionClosingTime),
+            $expectedBoundaryVersion ?? $cycle->boundaryVersion(),
         );
     }
 
@@ -54,6 +61,8 @@ class ChangeAdmissionCycle
         CarbonInterface $newClosingTime,
         string $reason,
         string $authorityReference,
+        ?CarbonInterface $newCorrectionClosingTime = null,
+        ?string $expectedBoundaryVersion = null,
     ): AdmissionCycle {
         return $this->changeDates(
             $cycle,
@@ -62,7 +71,59 @@ class ChangeAdmissionCycle
             $reason,
             $authorityReference,
             'reopen',
+            $newCorrectionClosingTime === null ? null : CarbonImmutable::instance($newCorrectionClosingTime),
+            $expectedBoundaryVersion ?? $cycle->boundaryVersion(),
         );
+    }
+
+    public function extendCorrectionBoundary(
+        AdmissionCycle $cycle,
+        User $actor,
+        CarbonInterface $newCorrectionClosingTime,
+        string $reason,
+        string $authorityReference,
+        ?string $expectedBoundaryVersion = null,
+    ): AdmissionCycle {
+        $this->authorize($actor);
+        [$reason, $authorityReference] = $this->validateEvidence($reason, $authorityReference);
+        $newCorrectionClosingTime = CarbonImmutable::instance($newCorrectionClosingTime);
+        $expectedBoundaryVersion ??= $cycle->boundaryVersion();
+
+        return DB::transaction(function () use (
+            $cycle,
+            $actor,
+            $newCorrectionClosingTime,
+            $reason,
+            $authorityReference,
+            $expectedBoundaryVersion,
+        ): AdmissionCycle {
+            $locked = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
+            $this->assertPublished($locked);
+            $this->assertFreshBoundary($locked, $expectedBoundaryVersion);
+
+            if ($locked->correction_closes_at === null
+                || $newCorrectionClosingTime->lessThanOrEqualTo($locked->correction_closes_at)
+                || $locked->closes_at === null
+                || $newCorrectionClosingTime->lessThan($locked->closes_at)) {
+                throw ValidationException::withMessages([
+                    'correction_closes_at' => 'A correction-boundary extension must move later and cannot precede public closing.',
+                ]);
+            }
+
+            $previousValues = $this->boundaryValues($locked);
+            $locked->forceFill(['correction_closes_at' => $newCorrectionClosingTime])->save();
+            $this->recordEvent(
+                $locked,
+                $actor,
+                AdmissionCycleEvent::TypeDatesChanged,
+                $previousValues,
+                [...$this->boundaryValues($locked), 'operation' => 'extend_correction_boundary'],
+                $reason,
+                $authorityReference,
+            );
+
+            return $locked->refresh();
+        }, attempts: 3);
     }
 
     public function cancel(
@@ -70,13 +131,16 @@ class ChangeAdmissionCycle
         User $actor,
         string $reason,
         string $authorityReference,
+        ?string $expectedBoundaryVersion = null,
     ): AdmissionCycle {
         $this->authorize($actor);
         [$reason, $authorityReference] = $this->validateEvidence($reason, $authorityReference);
+        $expectedBoundaryVersion ??= $cycle->boundaryVersion();
 
-        return DB::transaction(function () use ($cycle, $actor, $reason, $authorityReference): AdmissionCycle {
+        return DB::transaction(function () use ($cycle, $actor, $reason, $authorityReference, $expectedBoundaryVersion): AdmissionCycle {
             $locked = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
             $this->assertPublished($locked);
+            $this->assertFreshBoundary($locked, $expectedBoundaryVersion);
             $previousState = $locked->state;
             $locked->forceFill(['state' => AdmissionCycle::StateCancelled])->save();
             $this->recordEvent(
@@ -100,6 +164,8 @@ class ChangeAdmissionCycle
         string $reason,
         string $authorityReference,
         string $operation,
+        ?CarbonImmutable $newCorrectionClosingTime,
+        string $expectedBoundaryVersion,
     ): AdmissionCycle {
         $this->authorize($actor);
         [$reason, $authorityReference] = $this->validateEvidence($reason, $authorityReference);
@@ -111,9 +177,12 @@ class ChangeAdmissionCycle
             $reason,
             $authorityReference,
             $operation,
+            $newCorrectionClosingTime,
+            $expectedBoundaryVersion,
         ): AdmissionCycle {
             $locked = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
             $this->assertPublished($locked);
+            $this->assertFreshBoundary($locked, $expectedBoundaryVersion);
             $now = CarbonImmutable::now(config('app.timezone'));
 
             if ($operation === 'close' && $locked->closes_at?->lessThanOrEqualTo($now)) {
@@ -140,14 +209,37 @@ class ChangeAdmissionCycle
                 ]);
             }
 
-            $previous = $locked->closes_at?->toIso8601String();
-            $locked->forceFill(['closes_at' => $newClosingTime])->save();
+            $effectiveCorrectionClosingTime = $newCorrectionClosingTime ?? $locked->correction_closes_at;
+
+            if ($operation !== 'close'
+                && ($effectiveCorrectionClosingTime === null
+                    || $newClosingTime->greaterThan($effectiveCorrectionClosingTime))) {
+                throw ValidationException::withMessages([
+                    'correction_closes_at' => 'Extending or reopening public closing beyond the correction boundary requires an accompanying correction-boundary extension.',
+                ]);
+            }
+
+            if ($newCorrectionClosingTime !== null
+                && $locked->correction_closes_at !== null
+                && $newCorrectionClosingTime->lessThan($locked->correction_closes_at)) {
+                throw ValidationException::withMessages([
+                    'correction_closes_at' => 'The correction boundary cannot be shortened.',
+                ]);
+            }
+
+            $previousValues = $this->boundaryValues($locked);
+            $locked->forceFill([
+                'closes_at' => $newClosingTime,
+                'correction_closes_at' => $operation === 'close'
+                    ? $locked->correction_closes_at
+                    : $effectiveCorrectionClosingTime,
+            ])->save();
             $this->recordEvent(
                 $locked,
                 $actor,
                 AdmissionCycleEvent::TypeDatesChanged,
-                ['closes_at' => $previous],
-                ['closes_at' => $newClosingTime->toIso8601String(), 'operation' => $operation],
+                $previousValues,
+                [...$this->boundaryValues($locked), 'operation' => $operation],
                 $reason,
                 $authorityReference,
             );
@@ -172,6 +264,25 @@ class ChangeAdmissionCycle
                 'state' => 'Only a Published Admission Cycle can be changed or cancelled.',
             ]);
         }
+    }
+
+    private function assertFreshBoundary(AdmissionCycle $cycle, string $expectedBoundaryVersion): void
+    {
+        if (! hash_equals($expectedBoundaryVersion, $cycle->boundaryVersion())) {
+            throw ValidationException::withMessages([
+                'boundary_version' => 'The Admission Cycle boundaries changed. Refresh the record before trying again.',
+            ]);
+        }
+    }
+
+    /** @return array{opens_at: ?string, closes_at: ?string, correction_closes_at: ?string} */
+    private function boundaryValues(AdmissionCycle $cycle): array
+    {
+        return [
+            'opens_at' => $cycle->opens_at?->toIso8601String(),
+            'closes_at' => $cycle->closes_at?->toIso8601String(),
+            'correction_closes_at' => $cycle->correction_closes_at?->toIso8601String(),
+        ];
     }
 
     /** @return array{string, string} */

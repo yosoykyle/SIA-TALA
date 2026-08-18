@@ -29,14 +29,16 @@ class AdmissionCycleReadinessService
             || $cycle->term->state !== Term::StateActive
             || $cycle->opens_at === null
             || $cycle->closes_at === null
-            || ! $cycle->opens_at->lessThan($cycle->closes_at)) {
+            || $cycle->correction_closes_at === null
+            || ! $cycle->opens_at->lessThan($cycle->closes_at)
+            || $cycle->closes_at->greaterThan($cycle->correction_closes_at)) {
             $blockers[] = $this->blocker(
                 'target_term_and_dates',
                 'Admission Cycle and active academic term',
                 'Registrar',
-                'The target term or opening and closing date/time is invalid.',
+                'The target term, opening, public closing, or correction boundary is invalid.',
                 'Correct the cycle term and dates.',
-                'Select an active term, ensure opening precedes closing, and rerun readiness.',
+                'Select an active term, ensure opening precedes public closing and public closing is not after the correction boundary, then rerun readiness.',
             );
         }
 

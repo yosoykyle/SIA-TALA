@@ -49,6 +49,14 @@ class AdmissionsAcceptanceSeederTest extends TestCase
             ->withCount('requirements')
             ->get()
             ->sum('requirements_count'));
+        $this->assertSame(
+            '2026-09-30 17:00',
+            $cycle->closes_at->timezone('Asia/Manila')->format('Y-m-d H:i'),
+        );
+        $this->assertSame(
+            '2026-10-07 17:00',
+            $cycle->correction_closes_at->timezone('Asia/Manila')->format('Y-m-d H:i'),
+        );
         $this->assertSame(1, AdmissionCycle::query()->where('code', 'CYCLE-2026-A')->count());
     }
 

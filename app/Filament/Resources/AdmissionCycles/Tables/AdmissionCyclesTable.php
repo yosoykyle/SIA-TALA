@@ -19,8 +19,9 @@ class AdmissionCyclesTable
                 TextColumn::make('label')->searchable()->wrap(),
                 TextColumn::make('term.label')->label('Target term'),
                 TextColumn::make('state')->badge()->sortable(),
-                TextColumn::make('opens_at')->dateTime()->sortable(),
-                TextColumn::make('closes_at')->dateTime()->sortable(),
+                TextColumn::make('opens_at')->label('Opening')->dateTime()->sortable(),
+                TextColumn::make('closes_at')->label('Public closing')->dateTime()->sortable(),
+                TextColumn::make('correction_closes_at')->label('New-correction closing')->dateTime()->placeholder('Not set'),
                 TextColumn::make('programs_count')->counts('programs')->label('Programs'),
             ])
             ->filters([

@@ -98,6 +98,8 @@ class AdmissionReviewReadinessActionsTest extends TestCase
         $this->assertSame(2, $resubmitted->submissionVersions()->count());
         $this->assertSame(ApplicationCorrectionRequest::StateCompleted, $request->fresh()->state);
 
+        $resubmitted->admissionCycle->forceFill(['correction_closes_at' => now()->subSecond()])->save();
+
         try {
             app(RequestAdmissionCorrection::class)->execute(
                 $resubmitted,
@@ -111,7 +113,7 @@ class AdmissionReviewReadinessActionsTest extends TestCase
                 responsibleParty: 'Applicant',
                 dueAt: now()->addDay(),
             );
-            $this->fail('A closed Cycle must not create a new correction request.');
+            $this->fail('An expired correction boundary must not create a new correction request.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('due_at', $exception->errors());
         }
@@ -120,6 +122,10 @@ class AdmissionReviewReadinessActionsTest extends TestCase
     public function test_identity_decision_credential_reversal_and_ready_projection_remain_append_only(): void
     {
         [$application, $requirement, $nonCoreRequirement] = $this->submittedApplication();
+        $application->admissionCycle->forceFill([
+            'closes_at' => now()->subDays(2),
+            'correction_closes_at' => now()->subDay(),
+        ])->save();
         $registrar = $this->registrar();
         $identityReview = IdentityMatchReview::factory()->for($application, 'application')->create([
             'outcome' => IdentityMatchReview::OutcomePending,
@@ -230,6 +236,10 @@ class AdmissionReviewReadinessActionsTest extends TestCase
     public function test_withdrawal_and_reopening_stop_after_clinic_four_registration_exists(): void
     {
         [$application] = $this->submittedApplication();
+        $application->admissionCycle->forceFill([
+            'closes_at' => now()->subDays(2),
+            'correction_closes_at' => now()->subDay(),
+        ])->save();
         $applicant = $application->user;
         $registrar = $this->registrar();
         $lifecycle = app(ChangeAdmissionApplicationLifecycle::class);

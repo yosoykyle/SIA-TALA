@@ -19,13 +19,16 @@ class AdmissionCycleFactory extends Factory
      */
     public function definition(): array
     {
+        $publicClose = now()->addMonth();
+
         return [
             'code' => 'CYCLE-'.fake()->unique()->numerify('####-####'),
             'label' => fake()->words(4, true),
             'term_id' => Term::factory(),
             'state' => AdmissionCycle::StateDraft,
             'opens_at' => now()->subDay(),
-            'closes_at' => now()->addMonth(),
+            'closes_at' => $publicClose,
+            'correction_closes_at' => $publicClose,
             'applicant_instructions' => 'Complete the application and submit the listed preliminary evidence.',
             'support_contact' => 'Synthetic Registrar support',
             'privacy_notice_reference' => 'privacy-notice:synthetic-v1',

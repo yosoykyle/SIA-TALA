@@ -70,19 +70,26 @@ class RequestAdmissionCorrection
                 ]);
             }
 
-            $cycle = $locked->admissionCycle()->firstOrFail();
+            $cycle = AdmissionCycle::query()->lockForUpdate()->findOrFail($locked->admission_cycle_id);
+            $now = CarbonImmutable::now(config('app.timezone'));
 
             if ($cycle->state !== AdmissionCycle::StatePublished
-                || $cycle->closes_at === null
-                || ! $cycle->closes_at->isFuture()) {
+                || $cycle->correction_closes_at === null
+                || $now->greaterThan($cycle->correction_closes_at)) {
                 throw ValidationException::withMessages([
-                    'due_at' => 'A new correction request requires an open authorized Admission Cycle boundary. Existing corrections remain available for response after closing.',
+                    'due_at' => 'The correction boundary has passed. An authorized Registrar must extend the correction boundary before issuing another request; existing corrections and review work remain available.',
                 ]);
             }
 
-            if ($dueAt->greaterThan($cycle->closes_at)) {
+            if ($dueAt->lessThanOrEqualTo($now)) {
                 throw ValidationException::withMessages([
-                    'due_at' => 'The correction due time exceeds the current authorized cycle boundary.',
+                    'due_at' => 'The correction due time must still be in the future when the request is issued.',
+                ]);
+            }
+
+            if ($dueAt->greaterThan($cycle->correction_closes_at)) {
+                throw ValidationException::withMessages([
+                    'due_at' => 'The correction due time exceeds the current correction boundary.',
                 ]);
             }
 

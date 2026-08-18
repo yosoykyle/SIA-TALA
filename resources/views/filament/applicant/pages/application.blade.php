@@ -23,7 +23,18 @@
             </x-filament::callout>
         @endif
 
-        @if (! $this->admissionsAreOpen())
+        @php($activeCorrection = $this->activeCorrectionRequest())
+        @if ($activeCorrection)
+            <x-filament::callout :color="$activeCorrection->isOverdue() ? 'danger' : 'warning'" icon="heroicon-m-exclamation-triangle">
+                <x-slot name="heading">
+                    {{ $activeCorrection->isOverdue() ? 'Correction overdue' : 'Scoped correction active' }} —
+                    {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}
+                </x-slot>
+                <x-slot name="description">
+                    {{ $activeCorrection->applicant_instruction }} The due time does not lock or reject this Application; submit only the named corrections.
+                </x-slot>
+            </x-filament::callout>
+        @elseif (! $this->admissionsAreOpen())
             <x-filament::callout color="warning" icon="heroicon-m-lock-closed">
                 <x-slot name="heading">First submission is closed</x-slot>
                 <x-slot name="description">

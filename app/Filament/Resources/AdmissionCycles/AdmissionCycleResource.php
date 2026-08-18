@@ -69,7 +69,7 @@ class AdmissionCycleResource extends Resource
             'term',
             'registrarOwner',
             'programs',
-            'events',
+            'events.actor',
             'requirementSets.requirements',
         ]);
     }

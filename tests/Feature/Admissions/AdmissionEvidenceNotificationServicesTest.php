@@ -89,6 +89,11 @@ class AdmissionEvidenceNotificationServicesTest extends TestCase
         $this->assertNotSame($first->checksum, $replacement->checksum);
         $this->assertNotSame('', $service->contents($replacement, $applicant));
 
+        $application->admissionCycle->forceFill([
+            'closes_at' => now()->subDays(2),
+            'correction_closes_at' => now()->subDay(),
+        ])->save();
+
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
         $underReview = app(ReviewPreliminaryEvidence::class)->execute(

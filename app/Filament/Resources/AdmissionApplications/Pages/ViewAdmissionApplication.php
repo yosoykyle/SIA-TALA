@@ -10,6 +10,7 @@ use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionIdentity;
 use App\Actions\Admissions\ReviewPreliminaryEvidence;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionDecision;
 use App\Models\ApplicationCorrectionItem;
@@ -70,10 +71,16 @@ class ViewAdmissionApplication extends ViewRecord
                         ->required(),
                     Textarea::make('applicant_instruction')->required()->maxLength(1500),
                     TextInput::make('responsible_party')->default('Applicant')->required()->maxLength(120),
-                    DateTimePicker::make('due_at')->native(false)->minDate(now())->required(),
+                    DateTimePicker::make('due_at')
+                        ->label('Correction due')
+                        ->native(false)
+                        ->minDate(now())
+                        ->maxDate(fn (): mixed => $this->application()->admissionCycle?->correction_closes_at)
+                        ->required(),
                 ])
                 ->visible(fn (): bool => $this->canReview()
-                    && $this->application()->application_state === AdmissionApplication::StateSubmitted)
+                    && $this->application()->application_state === AdmissionApplication::StateSubmitted
+                    && $this->correctionIssuanceIsOpen())
                 ->action(fn (array $data): mixed => $this->runAction(function (User $actor) use ($data): void {
                     $scopes = collect((array) $data['scopes'])
                         ->map(function (array $scope): array {
@@ -99,6 +106,30 @@ class ViewAdmissionApplication extends ViewRecord
                         CarbonImmutable::parse((string) $data['due_at']),
                     );
                 }, 'Scoped correction requested')),
+            Action::make('manageCorrectionBoundary')
+                ->label('Extend correction boundary')
+                ->icon('heroicon-o-calendar-days')
+                ->color('warning')
+                ->url(fn (): string => AdmissionCycleResource::getUrl('view', [
+                    'record' => $this->application()->admissionCycle,
+                ]))
+                ->visible(fn (): bool => $this->canReview()
+                    && $this->canManageAdmissionSetup()
+                    && $this->application()->application_state === AdmissionApplication::StateSubmitted
+                    && ! $this->correctionIssuanceIsOpen()),
+            Action::make('correctionBoundaryRecovery')
+                ->label('Correction issuance closed')
+                ->icon('heroicon-o-information-circle')
+                ->color('gray')
+                ->action(fn (): mixed => Notification::make()
+                    ->title('Authorized extension required')
+                    ->body('Ask the Registrar owner with admission-setup authority to extend the correction boundary. Existing review, decision, and credential work remains available.')
+                    ->warning()
+                    ->send())
+                ->visible(fn (): bool => $this->canReview()
+                    && ! $this->canManageAdmissionSetup()
+                    && $this->application()->application_state === AdmissionApplication::StateSubmitted
+                    && ! $this->correctionIssuanceIsOpen()),
             ActionGroup::make([
                 Action::make('reviewEvidence')
                     ->label('Review preliminary evidence')
@@ -325,6 +356,20 @@ class ViewAdmissionApplication extends ViewRecord
         $actor = auth()->user();
 
         return $actor instanceof User && $actor->can('resolveIdentity', $this->application());
+    }
+
+    private function canManageAdmissionSetup(): bool
+    {
+        $actor = auth()->user();
+
+        return $actor instanceof User && $actor->can('manage-admission-setup');
+    }
+
+    private function correctionIssuanceIsOpen(): bool
+    {
+        $boundary = $this->application()->admissionCycle?->correction_closes_at;
+
+        return $boundary !== null && now(config('app.timezone'))->lessThanOrEqualTo($boundary);
     }
 
     private function failedNotification(): ?OperationalEvent

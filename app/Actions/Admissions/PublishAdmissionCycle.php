@@ -54,6 +54,7 @@ class PublishAdmissionCycle
                     'state' => AdmissionCycle::StatePublished,
                     'opens_at' => $locked->opens_at?->toIso8601String(),
                     'closes_at' => $locked->closes_at?->toIso8601String(),
+                    'correction_closes_at' => $locked->correction_closes_at?->toIso8601String(),
                 ],
                 'reason' => 'Admission Cycle publication readiness passed.',
                 'authority_reference' => $authorityReference,

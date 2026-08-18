@@ -4,11 +4,14 @@ namespace App\Filament\Resources\AdmissionApplications\Tables;
 
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
+use App\Models\ApplicationCorrectionRequest;
 use App\Models\Program;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class AdmissionApplicationsTable
 {
@@ -63,9 +66,27 @@ class AdmissionApplicationsTable
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('admissionCycle.closes_at')
-                    ->label('Cycle closes')
+                    ->label('Public closing')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('correction_status')
+                    ->label('Correction due')
+                    ->state(function (AdmissionApplication $record): string {
+                        $request = $record->correctionRequests
+                            ->where('state', ApplicationCorrectionRequest::StateActive)
+                            ->sortByDesc('sequence')
+                            ->first();
+
+                        if (! $request instanceof ApplicationCorrectionRequest) {
+                            return 'No active correction';
+                        }
+
+                        $due = $request->due_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A');
+
+                        return $request->isOverdue() ? "Overdue — {$due}" : "Due {$due}";
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => str_starts_with($state, 'Overdue') ? 'danger' : 'gray'),
                 TextColumn::make('updated_at')
                     ->label('Last activity')
                     ->dateTime()
@@ -97,6 +118,14 @@ class AdmissionApplicationsTable
                         AdmissionApplication::StateNotAdmitted => 'Not admitted',
                         AdmissionApplication::StateWithdrawn => 'Withdrawn',
                     ]),
+                Filter::make('overdue_correction')
+                    ->label('Overdue correction')
+                    ->query(fn (Builder $query): Builder => $query->whereHas(
+                        'correctionRequests',
+                        fn (Builder $corrections): Builder => $corrections
+                            ->where('state', ApplicationCorrectionRequest::StateActive)
+                            ->where('due_at', '<', now(config('app.timezone'))),
+                    )),
             ])
             ->recordActions([
                 ViewAction::make()->label('Open applicant record'),

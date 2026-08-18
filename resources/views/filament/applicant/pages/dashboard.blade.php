@@ -37,7 +37,11 @@
                             {{ $this->statusLabel($application->application_state) }}
                         </x-filament::badge>
                         <span><strong>Responsible party:</strong> {{ $this->responsibleParty($application) }}</span>
-                        <span><strong>Cycle closes:</strong> {{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') ?? 'Unavailable' }}</span>
+                        <span><strong>Public closing:</strong> {{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') ?? 'Unavailable' }}</span>
+                        @php($activeCorrection = $application->correctionRequests->where('state', \App\Models\ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first())
+                        @if ($activeCorrection)
+                            <span><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</span>
+                        @endif
                     </div>
 
                     <x-filament::callout color="info" icon="heroicon-m-arrow-right-circle">

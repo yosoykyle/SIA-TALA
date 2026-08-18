@@ -22,8 +22,9 @@ class AdmissionCycleInfolist
                         TextEntry::make('label'),
                         TextEntry::make('state')->badge(),
                         TextEntry::make('term.label')->label('Target term'),
-                        TextEntry::make('opens_at')->dateTime(),
-                        TextEntry::make('closes_at')->dateTime(),
+                        TextEntry::make('opens_at')->label('Opening')->dateTime(),
+                        TextEntry::make('closes_at')->label('Public closing')->dateTime(),
+                        TextEntry::make('correction_closes_at')->label('New-correction closing')->dateTime()->placeholder('Not set'),
                         TextEntry::make('registrarOwner.email')->label('Registrar owner'),
                         TextEntry::make('support_contact'),
                         TextEntry::make('privacy_notice_reference'),
@@ -77,15 +78,32 @@ class AdmissionCycleInfolist
                             ->state(fn (AdmissionCycle $record): string => $record->events
                                 ->sortByDesc('occurred_at')
                                 ->map(fn (AdmissionCycleEvent $event): string => sprintf(
-                                    '%s — %s — %s',
-                                    $event->occurred_at->format('M j, Y g:i A'),
+                                    '%s — %s — %s → %s — %s — %s — %s',
+                                    $event->occurred_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
                                     str($event->event_type)->headline(),
+                                    self::boundarySummary((array) $event->previous_values),
+                                    self::boundarySummary((array) $event->new_values),
                                     $event->reason ?: 'No reason recorded',
+                                    $event->authority_reference ?: 'No authority recorded',
+                                    $event->actor?->email ?: 'Actor unavailable',
                                 ))->implode("\n") ?: 'No publication or change event yet.')
                             ->listWithLineBreaks(),
                     ])
                     ->collapsible()
                     ->columnSpanFull(),
             ]);
+    }
+
+    /** @param array<string, mixed> $values */
+    private static function boundarySummary(array $values): string
+    {
+        return collect([
+            'opening' => $values['opens_at'] ?? null,
+            'public close' => $values['closes_at'] ?? null,
+            'new-correction close' => $values['correction_closes_at'] ?? null,
+            'state' => $values['state'] ?? null,
+        ])->filter(fn (mixed $value): bool => filled($value))
+            ->map(fn (mixed $value, string $label): string => "{$label}: {$value}")
+            ->implode(', ') ?: 'No boundary value';
     }
 }

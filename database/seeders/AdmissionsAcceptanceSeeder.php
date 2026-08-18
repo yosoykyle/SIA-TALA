@@ -10,6 +10,7 @@ use App\Models\AdmissionRequirementSet;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -34,13 +35,15 @@ class AdmissionsAcceptanceSeeder extends Seeder
         }
 
         DB::transaction(function () use ($term, $registrar, $programs): void {
+            $displayTimezone = (string) config('app.display_timezone', 'Asia/Manila');
             $cycle = AdmissionCycle::query()->create([
                 'code' => 'CYCLE-2026-A',
                 'label' => 'Synthetic First-Year and Transferee Admission Cycle',
                 'term_id' => $term->id,
                 'state' => AdmissionCycle::StateDraft,
-                'opens_at' => '2026-08-01 08:00:00',
-                'closes_at' => '2026-09-30 17:00:00',
+                'opens_at' => CarbonImmutable::parse('2026-08-01 08:00:00', $displayTimezone)->utc(),
+                'closes_at' => CarbonImmutable::parse('2026-09-30 17:00:00', $displayTimezone)->utc(),
+                'correction_closes_at' => CarbonImmutable::parse('2026-10-07 17:00:00', $displayTimezone)->utc(),
                 'applicant_instructions' => 'Complete the five-step TALA Application and provide the requirement-version evidence shown in the Applicant workspace.',
                 'support_contact' => 'Servitech Facebook or 0947 737 9208',
                 'privacy_notice_reference' => 'tala-privacy:2026-08',

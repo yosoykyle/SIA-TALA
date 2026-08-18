@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property Carbon|null $opens_at
  * @property Carbon|null $closes_at
+ * @property Carbon|null $correction_closes_at
  */
 class AdmissionCycle extends Model
 {
@@ -37,6 +38,7 @@ class AdmissionCycle extends Model
         'state',
         'opens_at',
         'closes_at',
+        'correction_closes_at',
         'applicant_instructions',
         'support_contact',
         'privacy_notice_reference',
@@ -54,7 +56,19 @@ class AdmissionCycle extends Model
         return [
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',
+            'correction_closes_at' => 'datetime',
         ];
+    }
+
+    public function boundaryVersion(): string
+    {
+        return hash('sha256', implode('|', [
+            (string) $this->id,
+            (string) $this->state,
+            $this->opens_at?->toIso8601String() ?? '',
+            $this->closes_at?->toIso8601String() ?? '',
+            $this->correction_closes_at?->toIso8601String() ?? '',
+        ]));
     }
 
     /** @return BelongsTo<Term, $this> */

@@ -60,7 +60,16 @@ class ViewAdmissionCycle extends ViewRecord
                     && $this->cycle()->closes_at?->isFuture())
                 ->action(fn (array $data): mixed => $this->runCycleAction(
                     fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)
-                        ->extend($cycle, $actor, CarbonImmutable::parse((string) $data['closes_at']), (string) $data['reason'], (string) $data['authority_reference']),
+                        ->extend(
+                            $cycle,
+                            $actor,
+                            CarbonImmutable::parse((string) $data['closes_at']),
+                            (string) $data['reason'],
+                            (string) $data['authority_reference'],
+                            filled($data['correction_closes_at'] ?? null)
+                                ? CarbonImmutable::parse((string) $data['correction_closes_at'])
+                                : null,
+                        ),
                     'Admission Cycle extended',
                 )),
             Action::make('reopen')
@@ -71,8 +80,40 @@ class ViewAdmissionCycle extends ViewRecord
                     && ! $this->cycle()->closes_at?->isFuture())
                 ->action(fn (array $data): mixed => $this->runCycleAction(
                     fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)
-                        ->reopen($cycle, $actor, CarbonImmutable::parse((string) $data['closes_at']), (string) $data['reason'], (string) $data['authority_reference']),
+                        ->reopen(
+                            $cycle,
+                            $actor,
+                            CarbonImmutable::parse((string) $data['closes_at']),
+                            (string) $data['reason'],
+                            (string) $data['authority_reference'],
+                            filled($data['correction_closes_at'] ?? null)
+                                ? CarbonImmutable::parse((string) $data['correction_closes_at'])
+                                : null,
+                        ),
                     'Admission Cycle reopened',
+                )),
+            Action::make('extendCorrectionBoundary')
+                ->label('Extend correction boundary')
+                ->icon('heroicon-o-arrow-right-circle')
+                ->schema([
+                    DateTimePicker::make('correction_closes_at')
+                        ->label('New correction boundary')
+                        ->native(false)
+                        ->minDate(fn (): mixed => $this->cycle()->correction_closes_at?->copy()->addSecond())
+                        ->required(),
+                    ...$this->authoritySchema(),
+                ])
+                ->visible(fn (): bool => $this->cycle()->state === AdmissionCycle::StatePublished)
+                ->action(fn (array $data): mixed => $this->runCycleAction(
+                    fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)
+                        ->extendCorrectionBoundary(
+                            $cycle,
+                            $actor,
+                            CarbonImmutable::parse((string) $data['correction_closes_at']),
+                            (string) $data['reason'],
+                            (string) $data['authority_reference'],
+                        ),
+                    'Correction boundary extended',
                 )),
             Action::make('cancel')
                 ->label('Cancel cycle')
@@ -112,10 +153,14 @@ class ViewAdmissionCycle extends ViewRecord
     {
         return [
             DateTimePicker::make('closes_at')
-                ->label('New closing time')
+                ->label('New public closing')
                 ->native(false)
                 ->minDate(now())
                 ->required(),
+            DateTimePicker::make('correction_closes_at')
+                ->label('Companion correction boundary (only if needed)')
+                ->helperText('Required only when the new public closing would pass the current correction boundary.')
+                ->native(false),
             ...$this->authoritySchema(),
         ];
     }
@@ -137,7 +182,7 @@ class ViewAdmissionCycle extends ViewRecord
         try {
             $operation($this->cycle(), $actor);
             Notification::make()->title($successTitle)->success()->send();
-            $this->refreshFormData(['state', 'opens_at', 'closes_at']);
+            $this->refreshFormData(['state', 'opens_at', 'closes_at', 'correction_closes_at']);
         } catch (ValidationException $exception) {
             Notification::make()
                 ->title('Admission Cycle action blocked')

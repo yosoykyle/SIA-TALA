@@ -63,11 +63,13 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
             ->assertTableColumnExists('application_state')
             ->assertTableColumnExists('owner_next_action')
             ->assertTableColumnExists('application_path')
+            ->assertTableColumnExists('correction_status')
             ->assertTableColumnExists('updated_at')
             ->assertTableFilterExists('admission_cycle_id')
             ->assertTableFilterExists('program_id')
             ->assertTableFilterExists('application_path')
             ->assertTableFilterExists('application_state')
+            ->assertTableFilterExists('overdue_correction')
             ->assertTableBulkActionDoesNotExist('admit')
             ->assertTableBulkActionDoesNotExist('verify')
             ->assertTableBulkActionDoesNotExist('withdraw');

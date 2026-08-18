@@ -83,4 +83,9 @@ class ApplicationCorrectionRequest extends Model
     {
         return $this->hasMany(ApplicationCorrectionItem::class);
     }
+
+    public function isOverdue(): bool
+    {
+        return $this->state === self::StateActive && $this->due_at->isPast();
+    }
 }
