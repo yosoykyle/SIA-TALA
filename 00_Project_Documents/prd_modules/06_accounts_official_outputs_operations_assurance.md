@@ -65,7 +65,7 @@ These are conceptual product records and projections. They are not approved tabl
 | PaymentAttempt | Track one provider checkout lifecycle | PayMongo/TALA integration | Persisted authoritative record | Payment posting, exception handling, learner status | Distinct for signed-event idempotency; no arbitrary-amount checkout |
 | PaymentPosting and reversal | Record verified monetary effect and correction | Accounting or verified integration | Immutable version or event | Account, Clinic 4, acknowledgments | Original posting remains; reversal is append-only and not refund execution |
 | Clearance decision and OfficialOutputPaymentClearance | Record and publish request-specific Accounting clearance | Accounting | Persisted authoritative decision plus derived projection | PRD 05 | No global hold or generic clearance engine |
-| Current due, account status, EnrollmentPaymentRequirementProjection | Explain current position and enrollment requirement | PRD 06 | Derived projection/calculation | Learner, Accounting, PRD 04 | No stored balance fallback or payment allocation model |
+| Current due, account status, EnrollmentPaymentRequirementProjection | Explain current position and enrollment requirement | PRD 06 | Derived projection/calculation | Learner, Accounting, PRD 04 | No stored balance fallback or generic payment-allocation engine; every posting names its exact obligation effects |
 | System Health and Governance & Audit projections | Present locally recorded operational/audit evidence | System Administrator reads; source systems record facts | Derived projection/calculation or UI-only state | System Administrator | No provider console, second audit store, or compliance-attestation workflow |
 | SOA, Payment Acknowledgment, and contextual CSVs | Reproduce authorized account/payment views | PRD 06 | Official output | Learner or Accounting | Remain non-tax outputs; no report center or generic exporter |
 
@@ -112,7 +112,7 @@ One conceptual `TermAccount` is anchored to the same human subject, `Registratio
 - Account activity is append-only: assessment charges, verified payments, approved coverage, authorized adjustments, and reversals.
 - The Account Statement can reproduce the position from those authoritative events without presenting a general-ledger model.
 
-`Current due` is the sum of applicable obligations due through the as-of time, including the enrollment obligation while the Clinic 4 finance checkpoint is pending, minus verified payments and approved coverage applicable to this Term, floored at zero.
+`Current due` is the sum of applicable obligations due through the as-of time, including the enrollment obligation while the Clinic 4 finance checkpoint is pending, minus verified-payment and Approved-Coverage amounts applied to those due obligations, floored at zero. Later-obligation payments do not reduce current due until that obligation is due, while the Term remaining balance reflects all valid obligation applications.
 
 #### Approved Coverage
 
@@ -148,10 +148,10 @@ Applied coverage does not rewrite a Fee Plan or Assessment. A successor Assessme
 | External reference | Learner-supplied reference, masked outside authorized review |
 | Private screenshot | Access-controlled image with content metadata and checksum |
 | State | `Submitted`, `Verified`, `Rejected`, or `Superseded` |
-| Review result | Accounting actor, review time, verified amount or safe rejection reason, and external-check reference |
+| Review result | Accounting actor, review time, verified amount, named target obligations and proposed application, or safe rejection reason, plus external-check reference |
 | Replacement link | Earlier evidence superseded by a resubmission |
 
-Submission never posts payment. Accounting must check the real bank, wallet, or institutional source. An underpayment may post its actual verified amount and leave the projection `ActionNeeded`. A claim above the remaining Term obligation enters Payment Exceptions and cannot post until the discrepancy has an authorized result. Rejection preserves the submitted evidence; resubmission creates a successor.
+Submission never posts payment. The owning Enrollment or Finance action supplies the named current Assessment obligations the payment claims to satisfy; Accounting must check the real bank, wallet, or institutional source and confirm the actual verified amount and proposed application. An underpayment may post its actual verified amount and leave the projection `ActionNeeded`. An amount above the remaining named target obligations enters Payment Exceptions and cannot post until the discrepancy has an authorized result. Rejection preserves the submitted evidence; resubmission creates a successor.
 
 #### Payment attempt, posting, and correction
 
@@ -164,11 +164,13 @@ One immutable verified `PaymentPosting` contains:
 - verification basis: Accounting external check or exact signed PayMongo event;
 - source evidence or attempt reference;
 - idempotency key;
-- applicable Assessment version and account effect;
+- applicable Assessment version and exact named obligations with the amount applied to each;
 - actor or automatic integration identity; and
 - current state, including a linked reversal when applicable.
 
-An authorized reversal appends a correcting event, records authority and reason, refreshes projections, and marks the related acknowledgment reversed or superseded. It never deletes the original posting. Refund execution, chargeback handling, and cash movement remain outside TALA; TALA records only the authorized external result needed to correct its account projection.
+Every posting is obligation-keyed. The owning action supplies a bounded target set from the current Assessment; TALA applies the verified amount to those obligations in published order, oldest due first, and records no unassigned remainder. Exact-due PayMongo checkout binds to an immutable current-due obligation snapshot. Manual verification previews the same named effects before confirmation. This is deterministic contextual application, not a configurable allocation model, and it never crosses a Term or applies to prior debt.
+
+An authorized reversal appends a correcting event, records authority and reason, reverses the exact obligation effects, refreshes projections, and marks the related acknowledgment reversed or superseded. It never deletes the original posting. Refund execution, chargeback handling, and cash movement remain outside TALA; TALA records only the authorized external result needed to correct its account projection.
 
 #### Clinic 4 enrollment projection
 
@@ -178,7 +180,7 @@ Clinic 6 publishes one read-only `EnrollmentPaymentRequirementProjection`:
 |---|---|
 | Total assessment | Current authoritative Assessment version total |
 | Amount required now | Enrollment obligation applicable to finalization |
-| Verified payment applied | Posted verified payment usable for the enrollment obligation |
+| Verified payment applied | Posted verified payment explicitly applied to the enrollment obligation |
 | Approved coverage applied | Current Applied coverage usable for the enrollment obligation |
 | Remaining required now | Nonnegative difference |
 | State | `Cleared`, `ActionNeeded`, or `Unavailable` |
@@ -240,9 +242,9 @@ Passed readiness rows remain collapsed. Every failed result names the owner, sou
 | Change `AccountingReviewPending` | Apply authorized removal/Course Drop academically | Registrar; Accounting owns financial review | Academic removal/drop authority exists; financial effect unresolved | Review-queue item; no automatic balance change | Later result appends adjustment/successor | COR may state review pending; Finance/SOA owns current position |
 | Evidence `Submitted` | Submit private evidence | Owning Applicant/Student | Authorized account, complete fields, valid private file | Review-queue item | Submission retained | Learner sees `Under review` |
 | Evidence `Rejected` | Reject evidence | Accounting reviewer | External check completed; safe reason supplied | Rejection result | Evidence retained; resubmission supersedes | Learner sees reason and resubmit action |
-| Evidence `Verified` | Verify and post | Accounting reviewer | Exact external evidence; amount not above unresolved obligation | Immutable Payment Posting | Correction requires reversal | Projection and learner account refresh |
-| Attempt `Pending` | Start exact-due checkout | Owning Applicant/Student | Positive current due; PayMongo ready; no matching active attempt | Provider attempt and redirect | Browser return cannot confirm | Learner sees pending status |
-| Attempt `Confirmed` | Process exact valid signed paid webhook | Integration identity | Signature, amount, PHP, account, reference, and idempotency match | Automatic immutable Payment Posting | Duplicate event is no-op | Projection refresh and one email |
+| Evidence `Verified` | Verify and post | Accounting reviewer | Exact external evidence; current Assessment; named target obligations; amount not above their remaining total | Immutable obligation-keyed Payment Posting | Correction requires exact-effect reversal | Projection and learner account refresh |
+| Attempt `Pending` | Start exact-due checkout | Owning Applicant/Student | Positive current due; immutable current-due obligation snapshot; PayMongo ready; no matching active attempt | Provider attempt and redirect | Browser return cannot confirm | Learner sees pending status |
+| Attempt `Confirmed` | Process exact valid signed paid webhook | Integration identity | Signature, amount, PHP, account, obligation snapshot, reference, and idempotency match | Automatic immutable obligation-keyed Payment Posting | Duplicate event is no-op | Projection refresh and one email |
 | Attempt `ReviewRequired` | Receive mismatch/recovery/refund/reversal evidence | System-derived | Evidence cannot safely auto-post | Payment Exception | No financial effect until authorized result | Learner sees safe review status only |
 | Pending attempt without provider event | Reconcile through the verified-external-payment path | Accounting reviewer | Exact provider/external source checked; account, amount, currency, and reference match; no existing posting | Manual-basis immutable Payment Posting linked to the pending attempt/reference | A later valid event with the same external reference is an idempotent no-op, not a second posting/email | Projection refreshes once; learner sees verified result rather than provider controls |
 | Posting reversed | Record authorized external correction | Accounting with reversal authority | Existing posting, authority, reason, impact preview | Append-only reversal and refreshed projections | Original remains visible | Ack becomes reversed/superseded |
@@ -277,12 +279,12 @@ No missing value is inferred from a global rule, per-unit rate, or percentage fa
 #### Manual external-payment evidence
 
 1. The Applicant or Student opens the owning Enrollment or Finance context.
-2. TALA shows the exact Term Account, current due, responsible office, and safe instructions.
-3. The learner supplies channel, claimed amount, paid time, external reference, and a private screenshot.
+2. TALA shows the exact Term Account, current due, named target obligations, responsible office, and safe instructions.
+3. The learner supplies channel, claimed amount, paid time, external reference, a private screenshot, and the owning context retains the bounded target obligations.
 4. TALA validates and stores the submission without posting payment or emailing.
 5. Accounting reviews the oldest/highest-risk exception first and checks the real external source.
-6. Accounting verifies the actual amount, rejects with a safe reason, or leaves the item under review.
-7. Verification posts once, refreshes projections, generates acknowledgment eligibility, and queues exactly one verified-payment email.
+6. Accounting verifies the actual amount and previews its deterministic application to the named obligations, rejects with a safe reason, or leaves the item under review.
+7. Confirmation posts once with each applied amount, refreshes projections, generates acknowledgment eligibility, and queues exactly one verified-payment email.
 
 Unreadable, wrong-account, duplicate-reference, mismatched, over-obligation, and conflicting submissions never post automatically. A failed upload preserves entered non-file fields where safe and clearly requests a new file. A failed posting states whether nothing was posted and preserves the review evidence.
 
@@ -299,11 +301,11 @@ Missing, stale, unsupported, conflicting, unreconciled, or excessive authority p
 
 #### Optional PayMongo checkout
 
-1. The learner may start checkout only for the exact positive current due.
+1. The learner may start checkout only for the exact positive current due bound to its immutable due-obligation snapshot.
 2. TALA records a local Pending attempt before redirecting.
 3. Success or cancellation return is informational.
 4. A signed provider event is persisted and validated.
-5. Exact valid paid evidence posts idempotently and changes the attempt to Confirmed.
+5. Exact valid paid evidence posts idempotently against that obligation snapshot and changes the attempt to Confirmed.
 6. Duplicate delivery changes nothing.
 7. Missing account, amount/currency/reference mismatch, recovery evidence, refund, chargeback, or reversal becomes `ReviewRequired`.
 8. If no signed event arrives, the attempt remains `Pending`; browser return and elapsed time do not prove payment.
@@ -559,10 +561,10 @@ No real student number, account number, wallet reference, proof image, provider 
 | 6 | Sam, changed registration | Exercise cost increase, no-additional-cost, and Course Drop branches | Successor clearance, authoritative confirmation, and Accounting review pending remain distinct | No automatic refund, credit, penalty, forfeiture, or COR rewrite occurs |
 | 7 | Ana, Clinic 4 Enrollment | Open payment requirement before Student creation | Same human-subject/RegistrationCase account, assessment basis, and due visible | Missing assessment shows `Unavailable` |
 | 8 | Ana, embedded upload | Submit private GCash evidence | `Under review`; no posting/email | Failed upload preserves safe fields and requests replacement |
-| 9 | Accounting, Payment Exceptions | Verify actual external source | One posting, projection refresh, one email | Mismatch/rejection posts nothing |
+| 9 | Accounting, Payment Exceptions | Verify actual external source and preview named obligation application | One obligation-keyed posting, projection refresh, one email | Excess beyond named targets, mismatch, or rejection posts nothing |
 | 10 | Registrar/Student | Finalize Clinic 4 enrollment | Same account gains Student identity; COR snapshot unchanged | Later due or coverage reversal does not reverse enrollment |
 | 11 | Student Finance | Review status, SOA, acknowledgment | Same assessment basis/source versions, separate payment/coverage activity, and as-of evidence | Output failure produces no partial artifact |
-| 12 | Lea, exact checkout | Return from browser, then receive signed event | Pending until webhook; one confirmed posting | Duplicate event is idempotent |
+| 12 | Lea, exact checkout | Return from browser, then receive signed event | Pending until webhook; one confirmed posting bound to the due-obligation snapshot | Duplicate event is idempotent |
 | 13 | Kai, exact checkout with missing webhook | Remain pending; Accounting checks the real provider source and records verified external payment | One posting linked to attempt/reference and one email | A later matching signed event creates no duplicate posting or email |
 | 14 | Jo and Pia | Review mismatch; reject/resubmit evidence | Exceptions and supersession retained | Raw provider/private data remains hidden |
 | 15 | Eva | Reach later due date | Finance becomes action-needed | Login/classes/exams/enrollment remain available |
@@ -582,9 +584,9 @@ Documentation closure does not execute this walkthrough. Later implementation ac
 | Authorized Individual Assessment | Accounting records externally calculated result for only the four authorized exception categories | Current Registration Case/proposal/change, exact course/unit snapshot, reason, authority/date, ordered nonnegative lines, reconciled total/obligations, enrollment amount, predecessor when applicable | **Record authorized individual assessment** shows account, selection version, exact amounts, Clinic 4 effect, and that no formula runs | Never edited/deleted. Missing/stale/unreconciled source makes projection `Unavailable`; correction creates successor |
 | Approved Coverage apply/supersede/reverse | Accounting records external result | Current Assessment/obligation, category/source, authority/date, positive applicable amount no greater than remaining named obligation, effective date, safe description | Named confirmation shows coverage—not payment—effect, remaining requirement/later obligations, and append-only consequence | Never edits/deletes. Excess/conflict/stale authority posts nothing; changed Assessment requires revalidation/successor. Reversal may create due but never revokes enrollment or creates hold |
 | Manual payment evidence submit/replace | Applicant/Student for own Term Account; Accounting reviews | Common private file; positive claimed PHP amount; paid time no more than five minutes in the future; normalized external reference using the shared code primitive; current account/channel | Submission needs no critical confirmation because it posts no payment; replacement identifies superseded evidence | A matching account/channel/reference/amount is a possible duplicate routed to review without posting. Every evidence attempt remains; no arbitrary resubmission cap while account action is available |
-| Verify/reject manual evidence | Accounting after checking real external source | Current evidence, account/Assessment, actual verified amount, external-check reference, safe rejection reason | **Verify payment** shows actual amount/account/projection/email/output effect; **Reject evidence** shows safe learner reason and no posting | Atomic/idempotent posting. Underpayment may post actual amount; excess/mismatch stays exception. Rejection never deletes evidence; stale/concurrent review posts nothing |
-| PayMongo attempt/webhook/reconciliation | Learner starts exact current-due checkout; integration posts only a valid signed event | PHP exact due; current Assessment/account; one matching pending account/amount attempt; signed/idempotent provider event; matching account/reference/currency/amount | Browser return is informational. Automatic success uses immutable provider event key; exceptions/reversals use named Staff confirmation | Provider-reported Cancelled/Expired/Failed permits a new attempt. Browser elapsed time alone never fabricates expiry. Duplicate delivery creates no duplicate posting/email; mismatch enters exception |
-| Payment/coverage reversal | Accounting records authorized external correction | Current posting/effect, authority, reason, amount/account, external result | **Record reversal** shows due/projection, acknowledgment supersession, and no refund/cash movement | Append-only; original remains. No lifetime cap when current authority exists. Refund/chargeback execution stays external |
+| Verify/reject manual evidence | Accounting after checking real external source | Current evidence, account/Assessment, actual verified amount, named target obligations and deterministic oldest-due-first application, external-check reference, safe rejection reason | **Verify payment** shows actual amount, each obligation effect, account/projection/email/output effect; **Reject evidence** shows safe learner reason and no posting | Atomic/idempotent obligation-keyed posting. Underpayment may post actual amount; excess beyond named targets or mismatch stays exception. Rejection never deletes evidence; stale/concurrent review posts nothing |
+| PayMongo attempt/webhook/reconciliation | Learner starts exact current-due checkout; integration posts only a valid signed event | PHP exact due; current Assessment/account and immutable due-obligation snapshot; one matching pending account/amount attempt; signed/idempotent provider event; matching account/reference/currency/amount | Browser return is informational. Automatic success uses immutable provider event and obligation-snapshot keys; exceptions/reversals use named Staff confirmation | Provider-reported Cancelled/Expired/Failed permits a new attempt. Browser elapsed time alone never fabricates expiry. Duplicate delivery creates no duplicate posting/email; mismatch enters exception |
+| Payment/coverage reversal | Accounting records authorized external correction | Current posting/effect, exact obligation applications, authority, reason, amount/account, external result | **Record reversal** shows each reversed obligation effect, due/projection, acknowledgment supersession, and no refund/cash movement | Append-only; original remains. No lifetime cap when current authority exists. Refund/chargeback execution stays external |
 | TOR clearance | Accounting | Exact Clinic 5 request/issuance reference, required amount/reference, `Cleared` or authority-backed `NotRequired` basis | Named confirmation shows only request-specific effect | No global hold; correction appends result. Clinic 5 consumes read-only projection |
 | SOA/acknowledgment/CSV | Authorized learner/Accounting purpose as defined; CSV retrieval remains initiating-actor only | Current immutable source; exact contextual scope; fixed columns; 10,000-row limit; purpose; per-record authorization; UTF-8 BOM/comma/CRLF; typed PHP/date representation; formula-safe text; no private paths/payloads/notes | **Generate/Export** shows exact scope, row-count estimate, purpose, fixed format, official/non-tax status where applicable, and access evidence | Output failure creates no partial/official-looking artifact. CSV zero rows records `NoRows` without a file; over-limit requires narrower filters; retry reuses normalized scope; exports audit actor, role, context/filters, purpose, row count, outcome, and time and send no email |
 | System Health/Governance | System Administrator read-only | Locally evidenced fact and as-of time only | No consequential provider/control confirmation exists | Missing evidence is `Unknown`/`Not checked by TALA`, never healthy. No arbitrary-recipient email, test charge, solver run, backup, restore, command, or attestation action |

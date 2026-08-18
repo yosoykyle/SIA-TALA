@@ -68,6 +68,11 @@ relevant canonical authority, current implementation, and Git state. Exclude
 completed, canceled, active, duplicate, and dependency-blocked work. Explain
 why the recommendation is dependency-ready and next on the critical path.
 
+Before drafting, run the protocol's bounded operability and feasibility check
+for the complete journey, including correction/recovery, human versus automatic
+actions, downstream propagation, integrations, and required companion artifacts.
+Stop for a targeted authority correction if a substantive gap is proven.
+
 Draft the outcome, owner, authority and UI IDs, scope, dependencies, material
 implementation order, acceptance criteria, verification and browser scenarios,
 exclusions, and stop conditions.
