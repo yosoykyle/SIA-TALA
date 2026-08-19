@@ -2,13 +2,28 @@
 
 namespace App\Models;
 
+use Database\Factories\ScheduleGenerationRunFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
+/**
+ * @property array<string, mixed> $input_snapshot
+ * @property array<string, mixed>|null $diagnostics
+ * @property array<string, mixed>|null $quality_measures
+ */
 class ScheduleGenerationRun extends Model
 {
+    /** @use HasFactory<ScheduleGenerationRunFactory> */
+    use HasFactory;
+
+    public const ContractVersion = 'tala-timetable-v2';
+
+    public const SolverVersion = 'cloud-cp-sat-tala-timetable-v2-lexicographic-v1';
+
+    public const QualityPolicyLexicographic = 'lexicographic_v1';
+
     protected $table = 'schedule_runs';
 
     public const StatusQueued = 'queued';
@@ -45,12 +60,20 @@ class ScheduleGenerationRun extends Model
         'requested_by',
         'input_snapshot',
         'input_hash',
+        'contract_version',
         'solver_version',
         'model_version',
+        'quality_policy',
         'runtime_ms',
         'objective_value',
+        'quality_measures',
         'diagnostics',
         'candidate_key',
+        'candidate_version',
+        'candidate_state',
+        'candidate_reviewed_by',
+        'candidate_reviewed_at',
+        'candidate_review_reason',
         'published_by',
         'published_at',
         'publication_version',
@@ -66,7 +89,10 @@ class ScheduleGenerationRun extends Model
             'input_snapshot' => 'array',
             'runtime_ms' => 'integer',
             'objective_value' => 'decimal:2',
+            'quality_measures' => 'array',
             'diagnostics' => 'array',
+            'candidate_version' => 'integer',
+            'candidate_reviewed_at' => 'datetime',
             'published_at' => 'datetime',
             'publication_version' => 'integer',
         ];
@@ -115,6 +141,10 @@ class ScheduleGenerationRun extends Model
     public function canBePublished(): bool
     {
         if (! in_array($this->status, self::publishableStatuses(), true)) {
+            return false;
+        }
+
+        if ($this->contract_version === self::ContractVersion && $this->candidate_state !== 'Accepted') {
             return false;
         }
 
@@ -214,6 +244,11 @@ class ScheduleGenerationRun extends Model
         return $this->belongsTo(User::class, 'published_by');
     }
 
+    public function candidateReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'candidate_reviewed_by');
+    }
+
     /** @return HasMany<CandidateScheduleRow, $this> */
     public function candidateRows(): HasMany
     {
@@ -232,15 +267,16 @@ class ScheduleGenerationRun extends Model
         return $this->hasMany(SectionMeeting::class, 'schedule_run_id');
     }
 
-    /** @return HasManyThrough<ScheduleRevisionEvent, SectionMeeting, $this> */
-    public function revisionEvents(): HasManyThrough
+    /** @return HasMany<PublishedTimetableVersion, $this> */
+    public function timetableVersions(): HasMany
     {
-        return $this->hasManyThrough(
-            ScheduleRevisionEvent::class,
-            SectionMeeting::class,
-            'schedule_run_id',
-            'section_meeting_id',
-        );
+        return $this->hasMany(PublishedTimetableVersion::class, 'schedule_run_id');
+    }
+
+    /** @return HasMany<ScheduleRevisionEvent, $this> */
+    public function revisionEvents(): HasMany
+    {
+        return $this->hasMany(ScheduleRevisionEvent::class, 'term_id', 'term_id');
     }
 
     /** @return HasMany<OperationalEvent, $this> */

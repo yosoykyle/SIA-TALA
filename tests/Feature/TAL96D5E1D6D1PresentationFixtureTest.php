@@ -58,7 +58,7 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
             ->where('lifecycle_status', StudentProfile::LifecycleInactive)
             ->count());
         $this->assertSame(9, User::role(User::StaffRoleFaculty)->count());
-        $this->assertSame(6, Room::query()->count());
+        $this->assertSame(10, Room::query()->count());
 
         $term = $this->presentationTerm();
 

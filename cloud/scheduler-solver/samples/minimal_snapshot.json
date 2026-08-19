@@ -1,5 +1,5 @@
 {
-  "contract_version": "tal94-demand-v2",
+  "contract_version": "tala-timetable-v2",
   "captured_at": "2026-06-29T08:00:00+08:00",
   "run_metadata": {
     "solver_run_id": 1,
@@ -79,6 +79,7 @@
       "component_type": "LECTURE",
       "required_duration_minutes": 60,
       "meeting_count": 1,
+      "meeting_pattern": "1x60",
       "modality": "FACE_TO_FACE",
       "expected_count": 30,
       "section_capacity": 30,
@@ -118,6 +119,7 @@
       "component_type": "LECTURE",
       "required_duration_minutes": 60,
       "meeting_count": 1,
+      "meeting_pattern": "1x60",
       "modality": "FACE_TO_FACE",
       "expected_count": 30,
       "section_capacity": 30,
@@ -228,13 +230,15 @@
     "respect_faculty_qualification_and_load"
   ],
   "soft_constraints": [
-    "prefer_earlier_time_blocks",
-    "reduce_faculty_idle_gaps",
-    "balance_faculty_load",
-    "use_rooms_efficiently"
+    "cohort_mode_switches",
+    "cohort_idle_time",
+    "faculty_load_imbalance",
+    "faculty_idle_time",
+    "room_seat_waste",
+    "stable_earlier_placement"
   ],
   "constraint_profile": {
-    "key": "balanced_v1",
+    "key": "lexicographic_v1",
     "version": 1,
     "hard_constraints": [
       "assign_every_ready_scheduling_demand_once",
@@ -246,12 +250,14 @@
       "respect_room_capacity_type_and_features",
       "respect_faculty_qualification_and_load"
     ],
-    "soft_weights": {
-      "prefer_earlier_time_blocks": 1,
-      "reduce_faculty_idle_gaps": 1,
-      "balance_faculty_load": 1,
-      "use_rooms_efficiently": 1
-    }
+    "objective_hierarchy": [
+      "cohort_mode_switches",
+      "cohort_idle_time",
+      "faculty_load_imbalance",
+      "faculty_idle_time",
+      "room_seat_waste",
+      "stable_earlier_placement"
+    ]
   },
   "fixed_assignments": [],
   "optimization_settings": {

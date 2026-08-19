@@ -63,7 +63,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertContains('Academic Readiness', $labels);
+        $this->assertContains('Catalog & Curricula', $labels);
 
         foreach (['Academic Years', 'Terms', 'Programs', 'Courses', 'Course Specifications', 'Curriculum Versions', 'Import Batches'] as $sourceRecordLabel) {
             $this->assertNotContains($sourceRecordLabel, $labels);
@@ -378,6 +378,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
                 'credit_units' => 3,
                 'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
                 'grading_profile_version' => 1,
+                'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
                 'allowed_modalities' => [
                     CourseSpecification::ModalityFaceToFace,
                     CourseSpecification::ModalityOnline,
@@ -386,6 +387,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
                 'components' => [[
                     'component_type' => CourseComponent::TypeLecture,
                     'weekly_contact_hours' => 3,
+                    'meeting_pattern' => '2x90',
                     'room_type_default' => CourseComponent::RoomTypeLectureRoom,
                     'required_room_feature_keys' => [],
                     'modality_restriction' => null,
@@ -441,11 +443,13 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
                 'credit_units' => 3,
                 'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
                 'grading_profile_version' => 1,
+                'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
                 'allowed_modalities' => [CourseSpecification::ModalityFaceToFace],
                 'same_faculty_default' => false,
                 'components' => [[
                     'component_type' => CourseComponent::TypeLecture,
                     'weekly_contact_hours' => 3,
+                    'meeting_pattern' => '2x90',
                     'room_type_default' => CourseComponent::RoomTypeLectureRoom,
                     'required_room_feature_keys' => [],
                     'modality_restriction' => null,

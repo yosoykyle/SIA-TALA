@@ -3,6 +3,7 @@
     'context' => null,
     'generatedAt' => null,
     'subtitle' => null,
+    'pageOrientation' => 'portrait',
 ])
 
 <!DOCTYPE html>
@@ -230,6 +231,7 @@
             }
 
             @page {
+                size: A4 {{ $pageOrientation }};
                 margin: 14mm;
             }
         }

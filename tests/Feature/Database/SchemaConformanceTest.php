@@ -25,17 +25,22 @@ final class SchemaConformanceTest extends TestCase
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
         'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
+        'external_competency_requirements',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
+        'faculty_availability_declarations',
         'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
         'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
         'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempts', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
-        'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'room_features', 'rooms',
-        'schedule_revision_events', 'schedule_runs',
-        'scheduling_demands', 'section_delivery_groups', 'section_meetings', 'sections',
+        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results',
+        'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
+        'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
+        'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
+        'section_term_cohort', 'sections',
         'student_lifecycle_changes', 'student_profiles', 'student_schedule_bindings',
-        'system_settings', 'term_offerings', 'terms',
+        'system_settings', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
+        'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms',
     ];
 
     protected function setUp(): void
@@ -56,9 +61,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(73, self::APPLICATION_TABLES);
+        $this->assertCount(86, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(91, $actual);
+        $this->assertCount(104, $actual);
         $this->assertSame($expected, $actual);
     }
 

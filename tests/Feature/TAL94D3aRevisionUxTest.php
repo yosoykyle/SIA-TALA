@@ -115,6 +115,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
                 'change_type' => ScheduleRevisionEvent::ChangeRoom,
                 'section_meeting_ids' => [$meeting->id],
                 'replacement_room_id' => $context['replacementRoom']->id,
+                'authority_reference' => 'SYNTH-REVISION-SIGNOFF-ROOM',
                 'reason' => 'The original room is unavailable.',
             ])
             ->assertMountedActionModalSee('Immediate effective date')
@@ -128,11 +129,11 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Published schedule revised');
 
-        $event = ScheduleRevisionEvent::query()
-            ->where('section_meeting_id', $meeting->id)
-            ->sole();
+        $event = ScheduleRevisionEvent::query()->sole();
+        $successorMeeting = SectionMeeting::query()->findOrFail($event->section_meeting_id);
 
-        $this->assertSame($context['replacementRoom']->id, $meeting->fresh()->room_id);
+        $this->assertSame($context['room']->id, $meeting->fresh()->room_id);
+        $this->assertSame($context['replacementRoom']->id, $successorMeeting->room_id);
         $this->assertSame(ScheduleRevisionEvent::ChangeRoom, $event->change_type);
         $this->assertSame(now()->toDateString(), $event->effective_date->toDateString());
         $this->assertSame($registrar->id, $event->changed_by);
@@ -155,7 +156,10 @@ final class TAL94D3aRevisionUxTest extends TestCase
             'replacement_faculty_user_id' => $replacementFaculty->id,
             'reason' => 'Faculty reassignment approved.',
         ]);
-        $this->assertSame($replacementFaculty->id, $facultyContext['meetings'][0]->fresh()->faculty_user_id);
+        $this->assertSame(
+            $replacementFaculty->id,
+            $this->currentMeeting($facultyContext['term'], $facultyContext['demand'])->faculty_user_id,
+        );
 
         $timeContext = $this->context();
         $this->callRevision($registrar, $timeContext['run'], [
@@ -166,8 +170,9 @@ final class TAL94D3aRevisionUxTest extends TestCase
             'ends_at' => '12:00:00',
             'reason' => 'Time change approved.',
         ]);
-        $this->assertSame(2, $timeContext['meetings'][0]->fresh()->day_of_week);
-        $this->assertSame('09:00:00', $timeContext['meetings'][0]->fresh()->starts_at);
+        $timeMeeting = $this->currentMeeting($timeContext['term'], $timeContext['demand']);
+        $this->assertSame(2, $timeMeeting->day_of_week);
+        $this->assertSame('09:00:00', $timeMeeting->starts_at);
 
         $modalityContext = $this->context();
         $modalityContext['meetings'][0]->forceFill([
@@ -180,8 +185,9 @@ final class TAL94D3aRevisionUxTest extends TestCase
             'replacement_room_id' => $modalityContext['room']->id,
             'reason' => 'Delivery modality corrected to the authoritative source.',
         ]);
-        $this->assertSame(TermOffering::ModalityFaceToFace, $modalityContext['meetings'][0]->fresh()->modality);
-        $this->assertSame($modalityContext['room']->id, $modalityContext['meetings'][0]->fresh()->room_id);
+        $modalityMeeting = $this->currentMeeting($modalityContext['term'], $modalityContext['demand']);
+        $this->assertSame(TermOffering::ModalityFaceToFace, $modalityMeeting->modality);
+        $this->assertSame($modalityContext['room']->id, $modalityMeeting->room_id);
 
         $cancellationContext = $this->context(meetingCount: 2);
         $this->callRevision($registrar, $cancellationContext['run'], [
@@ -191,9 +197,11 @@ final class TAL94D3aRevisionUxTest extends TestCase
         ]);
         $this->assertSame(Section::StateCancelled, $cancellationContext['section']->fresh()->state);
         $this->assertSame(SectionDeliveryGroup::StateCancelled, $cancellationContext['group']->fresh()->state);
-        $this->assertSame(2, SectionMeeting::query()
-            ->whereIn('id', collect($cancellationContext['meetings'])->pluck('id'))
-            ->where('state', SectionMeeting::StateCancelled)
+        $this->assertSame(0, SectionMeeting::query()
+            ->where('scheduling_demand_id', $cancellationContext['demand']->id)
+            ->whereHas('scheduleRun', fn ($query) => $query
+                ->where('term_id', $cancellationContext['term']->id)
+                ->where('status', ScheduleGenerationRun::StatusPublished))
             ->count());
     }
 
@@ -210,6 +218,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
                 'change_type' => ScheduleRevisionEvent::ChangeRoom,
                 'section_meeting_ids' => $meetingIds,
                 'replacement_room_id' => $context['replacementRoom']->id,
+                'authority_reference' => 'SYNTH-REVISION-SIGNOFF-STALE',
                 'reason' => 'This grouped preview will become stale.',
             ])
             ->assertMountedActionModalSee('Ready to apply');
@@ -236,7 +245,6 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $meeting = $context['meetings'][0];
-        $oldRoomId = $context['room']->id;
 
         $this->callRevision($registrar, $context['run'], [
             'change_type' => ScheduleRevisionEvent::ChangeRoom,
@@ -244,23 +252,25 @@ final class TAL94D3aRevisionUxTest extends TestCase
             'replacement_room_id' => $context['replacementRoom']->id,
             'reason' => 'Room changed after facilities review.',
         ]);
-        $first = ScheduleRevisionEvent::query()->where('section_meeting_id', $meeting->id)->sole();
+        $first = ScheduleRevisionEvent::query()->sole();
 
         $this->travel(1)->minute();
-        $this->callRevision($registrar, $context['run'], [
+        $currentRun = ScheduleGenerationRun::query()
+            ->where('term_id', $context['term']->id)
+            ->where('status', ScheduleGenerationRun::StatusPublished)
+            ->sole();
+        $currentMeeting = $this->currentMeeting($context['term'], $context['demand']);
+        $this->callRevision($registrar, $currentRun, [
             'change_type' => ScheduleRevisionEvent::ChangeTime,
-            'section_meeting_ids' => [$meeting->id],
+            'section_meeting_ids' => [$currentMeeting->id],
             'day_of_week' => 2,
             'starts_at' => '09:00:00',
             'ends_at' => '12:00:00',
             'reason' => 'Time changed after Registrar review.',
         ]);
         $second = ScheduleRevisionEvent::query()
-            ->where('section_meeting_id', $meeting->id)
             ->whereKeyNot($first->id)
             ->sole();
-
-        $context['room']->delete();
 
         Livewire::actingAs($academicHead)
             ->test(RevisionEventsRelationManager::class, [
@@ -282,7 +292,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->mountTableAction('view', $first)
             ->assertMountedActionModalSee('Before')
             ->assertMountedActionModalSee('After')
-            ->assertMountedActionModalSee('Room #'.$oldRoomId)
+            ->assertMountedActionModalSee($context['room']->code)
             ->assertMountedActionModalDontSee('old_snapshot_json')
             ->assertMountedActionModalDontSee('new_snapshot_json');
     }
@@ -290,11 +300,23 @@ final class TAL94D3aRevisionUxTest extends TestCase
     /** @param array<string, mixed> $data */
     private function callRevision(User $registrar, ScheduleGenerationRun $run, array $data): void
     {
+        $data['authority_reference'] ??= 'SYNTH-REVISION-SIGNOFF-'.Str::upper(Str::random(8));
+
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
             ->callAction('revisePublishedSchedule', data: $data)
             ->assertHasNoActionErrors()
             ->assertNotified('Published schedule revised');
+    }
+
+    private function currentMeeting(Term $term, SchedulingDemand $demand): SectionMeeting
+    {
+        return SectionMeeting::query()
+            ->where('scheduling_demand_id', $demand->id)
+            ->whereHas('scheduleRun', fn ($query) => $query
+                ->where('term_id', $term->id)
+                ->where('status', ScheduleGenerationRun::StatusPublished))
+            ->sole();
     }
 
     /** @return array<string, mixed> */
@@ -336,6 +358,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $component = CourseComponent::factory()->for($specification)->create([
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => 3.00,
+            'meeting_pattern' => $meetingCount === 2 ? '2x90' : '1x180',
             'room_type_default' => Room::TypeLectureRoom,
             'required_room_feature_keys' => [],
             'requires_consecutive_block' => false,
@@ -368,7 +391,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->for($component)
             ->for($group)
             ->create([
-                'required_duration_minutes' => 180,
+                'required_duration_minutes' => $meetingCount === 2 ? 90 : 180,
                 'meeting_count' => $meetingCount,
                 'modality' => TermOffering::ModalityFaceToFace,
                 'validation_state' => SchedulingDemand::ValidationReadyForReview,
@@ -396,7 +419,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
                 'room_id' => $room->id,
                 'day_of_week' => (($sequence - 1) * 2) + 1,
                 'starts_at' => '08:00:00',
-                'ends_at' => '11:00:00',
+                'ends_at' => $meetingCount === 2 ? '09:30:00' : '11:00:00',
                 'modality' => TermOffering::ModalityFaceToFace,
                 'state' => SectionMeeting::StateActive,
                 'published_at' => now()->subDay(),

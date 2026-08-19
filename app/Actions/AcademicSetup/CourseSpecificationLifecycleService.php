@@ -45,11 +45,16 @@ class CourseSpecificationLifecycleService
             $draft = CourseSpecification::query()->create([
                 'course_id' => $lockedSource->course_id,
                 'revision_code' => $normalizedRevisionCode,
+                'authority_reference' => $lockedSource->authority_reference,
+                'effective_from' => $lockedSource->effective_from,
+                'effective_until' => $lockedSource->effective_until,
                 'title' => $lockedSource->title,
                 'description' => $lockedSource->description,
                 'credit_units' => $lockedSource->credit_units,
                 'grading_profile_key' => $lockedSource->grading_profile_key,
                 'grading_profile_version' => $lockedSource->grading_profile_version,
+                'academic_classification' => $lockedSource->academic_classification,
+                'scheduling_treatment' => $lockedSource->scheduling_treatment,
                 'allowed_modalities' => $lockedSource->allowed_modalities,
                 'same_faculty_default' => $lockedSource->same_faculty_default,
                 'effective_term_id' => $lockedSource->effective_term_id,
@@ -144,12 +149,36 @@ class CourseSpecificationLifecycleService
             $errors[] = 'Allowed Modalities must contain only Face-to-Face and Online.';
         }
 
-        if (! $courseSpecification->components()->exists()) {
-            $errors[] = 'At least one Course Component is required.';
+        $schedulingTreatment = $courseSpecification->scheduling_treatment;
+        $hasComponents = $courseSpecification->components()->exists();
+
+        if (! array_key_exists((string) $schedulingTreatment, CourseSpecification::schedulingTreatmentOptions())) {
+            $errors[] = 'Select whether the course has recurring meetings or is externally arranged.';
+        } elseif ($schedulingTreatment === CourseSpecification::SchedulingRecurring && ! $hasComponents) {
+            $errors[] = 'Recurring courses require at least one Course Component.';
+        } elseif ($schedulingTreatment === CourseSpecification::SchedulingExternallyArranged && $hasComponents) {
+            $errors[] = 'Externally arranged courses cannot define recurring Course Components.';
         }
 
         if ($courseSpecification->components()->where('weekly_contact_hours', '<=', 0)->exists()) {
             $errors[] = 'Every Course Component must have contact hours greater than zero.';
+        }
+
+        foreach ($courseSpecification->components()->get() as $component) {
+            $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+
+            if ($meetingPattern === null) {
+                $errors[] = 'Every Course Component must define an approved weekly Meeting Pattern.';
+
+                continue;
+            }
+
+            $patternMinutes = $meetingPattern['count'] * $meetingPattern['duration_minutes'];
+            $weeklyMinutes = (int) round((float) $component->weekly_contact_hours * 60);
+
+            if ($patternMinutes !== $weeklyMinutes) {
+                $errors[] = 'Every Course Component Meeting Pattern must equal its weekly contact hours.';
+            }
         }
 
         if ($courseSpecification->components()
@@ -170,6 +199,7 @@ class CourseSpecificationLifecycleService
         return $component->only([
             'component_type',
             'weekly_contact_hours',
+            'meeting_pattern',
             'room_type_default',
             'required_room_feature_keys',
             'modality_restriction',

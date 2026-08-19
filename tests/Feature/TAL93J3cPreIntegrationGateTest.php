@@ -108,13 +108,13 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
                 'AdmissionApplicationResource', 'AdmissionCycleResource', 'AssessmentResource', 'CalendarEventResource',
-                'ClassPlanning', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
+                'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion', 'GraduationReviewBatchResource', 'ImportBatchResource', 'LedgerEntryResource',
                 'ProgramResource', 'ReportsAudit', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'AccountingAdjustmentResource', 'AssessmentResource', 'Dashboard', 'EnrollmentResource',
@@ -128,12 +128,12 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
                 'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'CalendarEventResource', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource',
+                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource',
                 'CurriculumVersionResource', 'Dashboard', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource', 'GraduationReviewBatchResource',
                 'ImportBatchResource', 'ProgramResource', 'ReportsAudit', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
                 'ActivityResource', 'Dashboard', 'DisposalReviewResource', 'EnrollmentResource', 'FaqEntryResource',
@@ -198,6 +198,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     {
         return [
             'Dashboard',
+            'CatalogCurriculaWorkbench',
+            'TermPlanningWorkbench',
             'AcademicApprovals',
             'AcademicReadiness',
             'ClassPlanning',

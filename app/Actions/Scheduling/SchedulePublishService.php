@@ -22,6 +22,7 @@ class SchedulePublishService
         private readonly ScheduleAssignmentRevalidationService $revalidator,
         private readonly SchedulePublicationImpactService $impactService,
         private readonly ScheduleReleaseNotificationService $releaseNotifications,
+        private readonly PublishTimetableVersion $publishTimetableVersion,
     ) {}
 
     public function publish(
@@ -29,11 +30,13 @@ class SchedulePublishService
         User $publisher,
         ?string $note = null,
         bool $acceptLowerQuality = false,
+        ?string $authorityReference = null,
     ): ScheduleGenerationRun {
         Gate::forUser($publisher)->authorize('publish', $run);
         $note = $this->normalizedNote($note);
+        $authorityReference = $this->normalizedNote($authorityReference);
 
-        $outcome = DB::transaction(function () use ($run, $publisher, $note, $acceptLowerQuality): array {
+        $outcome = DB::transaction(function () use ($run, $publisher, $note, $acceptLowerQuality, $authorityReference): array {
             Term::query()
                 ->whereKey($run->term_id)
                 ->lockForUpdate()
@@ -58,13 +61,13 @@ class SchedulePublishService
                 ->with([
                     'schedulingDemand.sectionDeliveryGroup',
                     'schedulingDemand.termOffering',
+                    'room',
                 ])
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
 
             $this->assertPublishable($lockedRun, $candidateRows);
-            $this->assertPublicationReason($candidateRows, $note, $acceptLowerQuality);
 
             $validation = $this->revalidator->validateCandidateSet(
                 $lockedRun,
@@ -81,6 +84,8 @@ class SchedulePublishService
                     'validation' => $validation,
                 ];
             }
+
+            $this->assertPublicationReason($lockedRun, $candidateRows, $note, $acceptLowerQuality, $authorityReference);
 
             $currentPublishedRun = $termRuns->first(
                 fn (ScheduleGenerationRun $termRun): bool => $termRun->status === ScheduleGenerationRun::StatusPublished
@@ -103,6 +108,7 @@ class SchedulePublishService
 
             $timestamp = CarbonImmutable::now(config('app.timezone'));
             $publicationVersion = ((int) ($termRuns->max('publication_version') ?? 0)) + 1;
+            $authorityReference = $this->authorityReference($lockedRun, $authorityReference);
 
             ScheduleGenerationRun::query()
                 ->where('term_id', $lockedRun->term_id)
@@ -113,9 +119,25 @@ class SchedulePublishService
                     'updated_at' => $timestamp,
                 ]);
 
+            $timetableVersion = $this->publishTimetableVersion->createLocked(
+                run: $lockedRun,
+                publisher: $publisher,
+                candidateRows: $candidateRows,
+                authorityReference: $authorityReference,
+                reason: $note,
+                sourceVersions: [
+                    'contract_version' => $lockedRun->contract_version,
+                    'solver_version' => $lockedRun->solver_version,
+                    'model_version' => $lockedRun->model_version,
+                    'input_hash' => $lockedRun->input_hash,
+                ],
+                impactSummary: $impact->toArray(),
+            );
+
             foreach ($candidateRows as $candidateRow) {
                 SectionMeeting::query()->create([
                     'schedule_run_id' => $lockedRun->id,
+                    'published_timetable_version_id' => $timetableVersion->id,
                     'scheduling_demand_id' => $candidateRow->scheduling_demand_id,
                     'meeting_sequence' => $candidateRow->meeting_sequence,
                     'faculty_user_id' => $candidateRow->faculty_user_id,
@@ -212,6 +234,13 @@ class SchedulePublishService
             ]);
         }
 
+        if ($run->contract_version === ScheduleGenerationRun::ContractVersion
+            && $run->candidate_state !== 'Accepted') {
+            throw ValidationException::withMessages([
+                'candidate_state' => 'The Registrar must explicitly accept this immutable candidate before publication.',
+            ]);
+        }
+
         if ($candidateRows->isEmpty()) {
             throw ValidationException::withMessages([
                 'candidate_schedule_rows' => 'A schedule run must contain reviewed candidate rows before publication.',
@@ -233,10 +262,19 @@ class SchedulePublishService
      * @param  Collection<int, CandidateScheduleRow>  $candidateRows
      */
     private function assertPublicationReason(
+        ScheduleGenerationRun $run,
         Collection $candidateRows,
         ?string $note,
         bool $acceptLowerQuality,
+        ?string $authorityReference,
     ): void {
+        if ($run->contract_version === ScheduleGenerationRun::ContractVersion
+            && ($note === null || $authorityReference === null)) {
+            throw ValidationException::withMessages([
+                'publication_note' => 'Publication requires a distinct external timetable sign-off reference and publication reason.',
+            ]);
+        }
+
         $hasWarnings = $candidateRows->contains(
             fn (CandidateScheduleRow $candidateRow): bool => $candidateRow->hasWarnings(),
         );
@@ -263,6 +301,17 @@ class SchedulePublishService
         }
 
         return $note === '' ? null : $note;
+    }
+
+    private function authorityReference(ScheduleGenerationRun $run, ?string $note): string
+    {
+        if ($run->contract_version === ScheduleGenerationRun::ContractVersion && $note === null) {
+            throw ValidationException::withMessages([
+                'publication_note' => 'Recorded external timetable sign-off is required before publication.',
+            ]);
+        }
+
+        return $note ?? "Legacy published schedule run {$run->id}";
     }
 
     /**

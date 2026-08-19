@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\ScheduleGenerationRuns\Pages;
 
-use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
+use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\SchedulePublicationImpactService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleSolverRetryService;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -17,10 +16,10 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
@@ -37,11 +36,12 @@ class ViewScheduleGenerationRun extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->acceptCandidateAction(),
             $this->publishScheduleAction(),
             ActionGroup::make([
+                $this->rejectCandidateAction(),
                 $this->retrySolverRunAction(),
                 $this->revisePublishedScheduleAction(),
-                $this->manualScheduleOverrideAction(),
             ])
                 ->label('More timetable actions')
                 ->icon(Heroicon::OutlinedEllipsisVertical)
@@ -127,6 +127,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                 'starts_at' => null,
                 'ends_at' => null,
                 'reason' => null,
+                'authority_reference' => null,
             ])
             ->schema(fn (): array => PublishedScheduleRevisionForm::schema($this->run()))
             ->visible(fn (): bool => $this->canRevisePublishedSchedule())
@@ -148,6 +149,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                             PublishedScheduleRevisionForm::section($run, $data),
                             $actor,
                             $reason,
+                            (string) ($data['authority_reference'] ?? ''),
                         )
                         : app(PublishedScheduleRevisionService::class)->revise(
                             $run,
@@ -155,6 +157,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                             $changeType,
                             PublishedScheduleRevisionForm::changes($run, $data),
                             $reason,
+                            (string) ($data['authority_reference'] ?? ''),
                         );
 
                     Notification::make()
@@ -165,74 +168,6 @@ class ViewScheduleGenerationRun extends ViewRecord
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title('Published schedule revision blocked')
-                        ->body($this->validationMessage($exception))
-                        ->danger()
-                        ->persistent()
-                        ->send();
-
-                    throw $exception;
-                } finally {
-                    $fresh = $run->fresh();
-
-                    if ($fresh instanceof ScheduleGenerationRun) {
-                        $this->record = $fresh;
-                    }
-
-                    $this->dispatch('schedule-run-updated');
-                }
-            });
-    }
-
-    public function manualScheduleOverrideAction(): Action
-    {
-        return Action::make('manualScheduleOverride')
-            ->label('Enter complete timetable')
-            ->icon(Heroicon::OutlinedWrenchScrewdriver)
-            ->color('warning')
-            ->modalHeading('Enter Complete Timetable')
-            ->modalDescription('This is the controlled Manual Schedule Override. Provide one complete replacement assignment set; TALA saves nothing unless every current hard constraint passes.')
-            ->modalSubmitActionLabel('Validate Complete Timetable')
-            ->modalWidth(Width::SevenExtraLarge)
-            ->fillForm(fn (): array => [
-                'assignments' => CandidateScheduleReviewForm::replacementRows($this->run()),
-                'override_authority' => null,
-                'override_reason' => null,
-            ])
-            ->schema(fn (): array => CandidateScheduleReviewForm::manualOverrideSchema($this->run()))
-            ->visible(fn (): bool => $this->canManualOverride())
-            ->action(function (array $data): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    abort(403);
-                }
-
-                $run = $this->run();
-                $assignments = $data['assignments'] ?? null;
-
-                if (! is_array($assignments)) {
-                    throw ValidationException::withMessages([
-                        'assignments' => 'A complete replacement assignment set is required.',
-                    ]);
-                }
-
-                try {
-                    $this->record = app(CandidateScheduleRowReviewService::class)->replace(
-                        $run,
-                        array_values($assignments),
-                        $actor,
-                        (string) ($data['override_authority'] ?? ''),
-                        (string) ($data['override_reason'] ?? ''),
-                    );
-
-                    Notification::make()
-                        ->title('Manual Schedule Override accepted')
-                        ->body('The complete replacement schedule passed current hard-constraint validation.')
-                        ->success()
-                        ->send();
-                } catch (ValidationException $exception) {
-                    Notification::make()
-                        ->title('Manual Schedule Override blocked')
                         ->body($this->validationMessage($exception))
                         ->danger()
                         ->persistent()
@@ -262,15 +197,18 @@ class ViewScheduleGenerationRun extends ViewRecord
             ->modalDescription(fn (): string => $this->publicationConfirmationDescription())
             ->modalSubmitActionLabel('Publish Timetable')
             ->schema([
+                TextInput::make('authority_reference')
+                    ->label('External timetable sign-off reference')
+                    ->required()
+                    ->maxLength(255),
                 Toggle::make('accept_lower_quality')
                     ->label('Accept lower soft-quality result')
                     ->helperText('Use only when all hard constraints pass but the selected candidate has a lower soft-quality score.'),
                 Textarea::make('publication_note')
-                    ->label('Publication note')
+                    ->label('Publication reason')
                     ->maxLength(2000)
-                    ->required(fn (Get $get): bool => $this->run()->publicationSummary()['warnings'] > 0
-                        || (bool) $get('accept_lower_quality'))
-                    ->helperText('Required when accepting advisory warnings or a lower soft-quality result.'),
+                    ->required()
+                    ->helperText('Record the attributable timetable sign-off and why this exact candidate is being published.'),
             ])
             ->visible(fn (): bool => $this->canPublish())
             ->action(function (array $data): void {
@@ -292,6 +230,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                         $publisher,
                         $data['publication_note'] ?? null,
                         (bool) ($data['accept_lower_quality'] ?? false),
+                        $data['authority_reference'] ?? null,
                     );
 
                     Notification::make()
@@ -319,6 +258,54 @@ class ViewScheduleGenerationRun extends ViewRecord
             });
     }
 
+    private function acceptCandidateAction(): Action
+    {
+        return $this->candidateReviewAction('acceptCandidate', 'Accept candidate', 'Accepted', 'success');
+    }
+
+    private function rejectCandidateAction(): Action
+    {
+        return $this->candidateReviewAction('rejectCandidate', 'Reject candidate', 'Rejected', 'danger');
+    }
+
+    private function candidateReviewAction(string $name, string $label, string $decision, string $color): Action
+    {
+        return Action::make($name)
+            ->label($label)
+            ->color($color)
+            ->requiresConfirmation()
+            ->modalHeading($label)
+            ->modalDescription('This attributable review remains non-official. Only a later explicit publication can make an accepted candidate authoritative.')
+            ->schema([
+                Textarea::make('candidate_review_reason')
+                    ->label('Review reason')
+                    ->required()
+                    ->maxLength(2000),
+            ])
+            ->visible(fn (): bool => $this->canReviewCandidate())
+            ->action(function (array $data) use ($decision): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    abort(403);
+                }
+
+                $service = app(ReviewTimetableCandidate::class);
+                $this->record = $decision === 'Accepted'
+                    ? $service->accept($this->run(), $actor, (string) $data['candidate_review_reason'])
+                    : $service->reject($this->run(), $actor, (string) $data['candidate_review_reason']);
+
+                Notification::make()
+                    ->title("Candidate {$decision}")
+                    ->body($decision === 'Accepted'
+                        ? 'The candidate remains non-official until separately published.'
+                        : 'The rejected candidate cannot be published.')
+                    ->color($decision === 'Accepted' ? 'success' : 'danger')
+                    ->send();
+                $this->dispatch('schedule-run-updated');
+            });
+    }
+
     private function canPublish(): bool
     {
         $publisher = auth()->user();
@@ -328,6 +315,17 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run instanceof ScheduleGenerationRun
             && Gate::forUser($publisher)->allows('publish', $run)
             && $run->canBePublished();
+    }
+
+    private function canReviewCandidate(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->run();
+
+        return $actor instanceof User
+            && $run->status === ScheduleGenerationRun::StatusUnderReview
+            && ! in_array($run->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)
+            && Gate::forUser($actor)->allows('reviewCandidates', $run);
     }
 
     private function canRetrySolver(): bool
@@ -347,21 +345,6 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run instanceof ScheduleGenerationRun
             && $run->isPublished()
             && Gate::forUser($actor)->allows('revise', SectionMeeting::class);
-    }
-
-    private function canManualOverride(): bool
-    {
-        $actor = auth()->user();
-        $run = $this->getRecord();
-
-        return $actor instanceof User
-            && $run instanceof ScheduleGenerationRun
-            && in_array($run->status, [
-                ScheduleGenerationRun::StatusUnderReview,
-                ScheduleGenerationRun::StatusBlocked,
-                ScheduleGenerationRun::StatusFailed,
-            ], true)
-            && Gate::forUser($actor)->allows('reviewCandidates', $run);
     }
 
     #[On('schedule-run-updated')]

@@ -144,6 +144,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
                 'components' => [[
                     'component_type' => CourseComponent::TypeLecture,
                     'weekly_contact_hours' => '3.00',
+                    'meeting_pattern' => '3x60',
                     'room_type_default' => CourseComponent::RoomTypeLectureRoom,
                     'modality_restriction' => null,
                     'requires_consecutive_block' => true,

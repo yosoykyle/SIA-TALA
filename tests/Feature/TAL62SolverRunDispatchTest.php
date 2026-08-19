@@ -123,7 +123,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
             ->pluck('id')
             ->all();
 
-        $this->assertSame('tal94-demand-v2', $snapshot['contract_version']);
+        $this->assertSame('tala-timetable-v2', $snapshot['contract_version']);
         $this->assertArrayHasKey('scheduling_demands', $snapshot);
         $this->assertArrayNotHasKey('curriculum_subject_demand', $snapshot);
         $this->assertSame($demandIds, collect($snapshot['scheduling_demands'])->pluck('scheduling_demand_id')->sort()->values()->all());
@@ -134,7 +134,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $run->refresh();
 
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
-        $this->assertSame('local-stub-tal94-demand-v2', $run->solver_version);
+        $this->assertSame('local-stub-tala-timetable-v2', $run->solver_version);
         $this->assertSame(2, CandidateScheduleRow::query()->where('schedule_run_id', $run->id)->count());
         $this->assertSame(
             $demandIds,
@@ -203,15 +203,18 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $run = $this->runService->generate($source['term'], $registrar);
         $snapshot = $this->arrayAttribute($run, 'input_snapshot');
 
-        $this->assertSame('tal94-demand-v2', $snapshot['contract_version']);
-        $this->assertSame('balanced_v1', $snapshot['constraint_profile']['key']);
+        $this->assertSame('tala-timetable-v2', $snapshot['contract_version']);
+        $this->assertSame('lexicographic_v1', $snapshot['constraint_profile']['key']);
         $this->assertSame(1, $snapshot['constraint_profile']['version']);
-        $this->assertEquals([
-            'prefer_earlier_time_blocks' => 1,
-            'reduce_faculty_idle_gaps' => 1,
-            'balance_faculty_load' => 1,
-            'use_rooms_efficiently' => 1,
-        ], $snapshot['constraint_profile']['soft_weights']);
+        $this->assertSame([
+            'cohort_mode_switches',
+            'cohort_idle_time',
+            'faculty_load_imbalance',
+            'faculty_idle_time',
+            'room_seat_waste',
+            'stable_earlier_placement',
+        ], $snapshot['constraint_profile']['objective_hierarchy']);
+        $this->assertArrayNotHasKey('soft_weights', $snapshot['constraint_profile']);
         $this->assertSame([1, 2, 4, 6], $snapshot['term']['scheduling_days']);
         $this->assertSame('08:00:00', $snapshot['term']['scheduling_day_starts_at']);
         $this->assertSame('18:00:00', $snapshot['term']['scheduling_day_ends_at']);
@@ -440,17 +443,15 @@ final class TAL62SolverRunDispatchTest extends TestCase
             'infeasible_reasons' => [],
             'warnings' => [],
             'runtime_seconds' => 0.21,
-            'objective_score' => 0,
+            'objective_score' => null,
             'objective_details' => [
-                'profile_key' => 'balanced_v1',
+                'profile_key' => 'lexicographic_v1',
                 'profile_version' => 1,
-                'terms' => [
-                    'prefer_earlier_time_blocks' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
-                    'reduce_faculty_idle_gaps' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
-                    'balance_faculty_load' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
-                    'use_rooms_efficiently' => ['raw' => 0, 'weight' => 1, 'weighted' => 0],
-                ],
-                'total' => 0,
+                'objective_hierarchy' => $snapshot['constraint_profile']['objective_hierarchy'],
+                'values' => array_fill_keys($snapshot['constraint_profile']['objective_hierarchy'], null),
+                'completed_levels' => [],
+                'scalar_score' => null,
+                'verification_only' => true,
             ],
             'solver_statistics' => [
                 'ortools_version' => '9.15.6755',
@@ -471,7 +472,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
                 'wall_time_seconds' => 0.02,
                 'worker_count' => 1,
                 'random_seed' => 20260718,
-                'result_source' => 'optimization',
+                'result_source' => 'lexicographic',
                 'search_stages' => [
                     'feasibility' => [
                         'status' => 'optimal',
@@ -497,8 +498,8 @@ final class TAL62SolverRunDispatchTest extends TestCase
                     ],
                 ],
             ],
-            'solver_version' => 'cloud-run-tal63',
-            'model_version' => 'tal94-demand-v2',
+            'solver_version' => 'local-stub-tala-timetable-v2',
+            'model_version' => 'tala-timetable-v2',
             'generated_at' => now()->toIso8601String(),
             'assigned_count' => 1,
             'unassigned_count' => 0,
@@ -519,7 +520,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
             ->where('schedule_run_id', $run->id)
             ->firstOrFail();
 
-        $this->assertSame('cloud-run-tal63', $run->solver_version);
+        $this->assertSame('local-stub-tala-timetable-v2', $run->solver_version);
         $this->assertSame((int) $demand['scheduling_demand_id'], $candidate->scheduling_demand_id);
         $this->assertSame(CandidateScheduleRow::StatusOk, $candidate->status);
         $this->assertSame(0, $diagnostics['solver_result']['summary']['rejected_count']);

@@ -161,7 +161,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
                 'faculty' => 14,
                 'offerings' => 77,
                 'sections' => 77,
-                'scheduling_demands' => 77,
+                'scheduling_demands' => 74,
             ],
             'MAX' => [
                 'students' => 600,
@@ -169,7 +169,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
                 'faculty' => 26,
                 'offerings' => 77,
                 'sections' => 172,
-                'scheduling_demands' => 172,
+                'scheduling_demands' => 166,
             ],
         ], collect($catalog->keys())
             ->mapWithKeys(fn (string $key): array => [$key => $catalog->manifest($key)['counts']])
@@ -231,7 +231,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_middle_scenario_is_executable_ready_and_rerunnable(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 77);
+        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
 
         $before = $this->operationalCounts();
         $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']);
@@ -242,7 +242,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_middle_scenario_seeds_the_complete_three_year_curriculum_without_scheduling_prior_terms(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 77);
+        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
 
         $actualCounts = DB::table('curriculum_entries')
             ->join('curriculum_versions', 'curriculum_versions.id', '=', 'curriculum_entries.curriculum_version_id')
@@ -277,7 +277,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         ], $actualCounts);
         $this->assertSame(158, CurriculumEntry::query()->count());
         $this->assertSame(77, TermOffering::query()->count());
-        $this->assertSame(77, SchedulingDemand::query()->count());
+        $this->assertSame(74, SchedulingDemand::query()->count());
 
         $dbmThc9 = $this->curriculumSpecification('DBM', 'Third Year', Term::TypeSecondSemester, 'THC09');
         $dthmThc9 = $this->curriculumSpecification('DTHM', 'Third Year', Term::TypeSecondSemester, 'THC09');
@@ -294,7 +294,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_registrar_dashboard_explains_the_academic_setup_and_scheduling_order(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 77);
+        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
 
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
         $this->actingAs($registrar);
@@ -309,9 +309,9 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             ->assertSee('3. Offerings & Sections')
             ->assertSee('77 offerings / 77 sections')
             ->assertSee('4. Teaching Resources')
-            ->assertSee('14 faculty / 6 rooms')
+            ->assertSee('14 faculty / 10 rooms')
             ->assertSee('5. Schedule Requirements')
-            ->assertSee('77 ready for review')
+            ->assertSee('74 ready for review')
             ->assertSee('6. Published Timetable')
             ->assertSee('Not published');
 
@@ -327,7 +327,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_curriculum_review_presents_the_source_order_and_course_facts_in_a_readable_table(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 77);
+        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
 
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
         $curriculum = CurriculumVersion::query()
@@ -475,7 +475,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_max_scenario_is_executable_and_reports_input_readiness_without_claiming_solver_feasibility(): void
     {
-        $output = $this->assertScenarioCreatesExpectedWorkload('MAX', 600, 20, 26, 77, 172);
+        $output = $this->assertScenarioCreatesExpectedWorkload('MAX', 600, 20, 26, 77, 166);
         $this->assertStringContainsString('readiness=PASS', $output);
         $this->assertStringContainsString('solver_feasibility=NOT_EVALUATED', $output);
         $this->assertStringContainsString('solver_optimality=NOT_EVALUATED', $output);
@@ -571,8 +571,9 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertStringContainsString('operating_grid=MON-SAT 07:00-21:00 Asia/Manila', $output);
         $this->assertSame($students, StudentProfile::query()->count());
         $this->assertSame($offerings, TermOffering::query()->count());
-        $this->assertSame($demands, Section::query()->count());
-        $this->assertSame($demands, SectionDeliveryGroup::query()->count());
+        $sectionCount = app(SchedulingAcceptanceScenarioCatalog::class)->manifest($scenario)['counts']['sections'];
+        $this->assertSame($sectionCount, Section::query()->count());
+        $this->assertSame($sectionCount, SectionDeliveryGroup::query()->count());
         $this->assertSame($demands, SchedulingDemand::query()->count());
         $this->assertSame(
             $faculty,

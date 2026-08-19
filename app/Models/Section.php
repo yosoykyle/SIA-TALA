@@ -6,6 +6,7 @@ use Database\Factories\SectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Section extends Model
@@ -21,14 +22,28 @@ class Section extends Model
 
     public const StateCancelled = 'CANCELLED';
 
+    public const SourceRegular = 'Regular';
+
+    public const SourceShared = 'Shared';
+
+    public const SourceAdditional = 'Additional';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
         'term_offering_id',
+        'term_calendar_package_id',
+        'course_specification_id',
         'code',
+        'class_reference',
+        'source',
+        'delivery_mode',
+        'authority_reference',
         'capacity',
         'state',
+        'confirmed_by',
+        'confirmed_at',
     ];
 
     /**
@@ -38,6 +53,7 @@ class Section extends Model
     {
         return [
             'capacity' => 'integer',
+            'confirmed_at' => 'datetime',
         ];
     }
 
@@ -52,10 +68,38 @@ class Section extends Model
         ];
     }
 
+    /** @return array<string, string> */
+    public static function sourceOptions(): array
+    {
+        return [
+            self::SourceRegular => 'Regular',
+            self::SourceShared => 'Shared',
+            self::SourceAdditional => 'Additional',
+        ];
+    }
+
     /** @return BelongsTo<TermOffering, $this> */
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);
+    }
+
+    /** @return BelongsTo<TermCalendarPackage, $this> */
+    public function calendarPackage(): BelongsTo
+    {
+        return $this->belongsTo(TermCalendarPackage::class, 'term_calendar_package_id');
+    }
+
+    /** @return BelongsTo<CourseSpecification, $this> */
+    public function courseRevision(): BelongsTo
+    {
+        return $this->belongsTo(CourseSpecification::class, 'course_specification_id');
+    }
+
+    /** @return BelongsToMany<TermCohort, $this> */
+    public function cohorts(): BelongsToMany
+    {
+        return $this->belongsToMany(TermCohort::class)->withPivot('expected_count')->withTimestamps();
     }
 
     /** @return HasMany<SectionDeliveryGroup, $this> */

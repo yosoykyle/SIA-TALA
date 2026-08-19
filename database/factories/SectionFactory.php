@@ -16,6 +16,7 @@ class SectionFactory extends Factory
         return [
             'term_offering_id' => TermOffering::factory(),
             'code' => fake()->unique()->bothify('BSIT-1?'),
+            'source' => Section::SourceRegular,
             'capacity' => 30,
             'state' => Section::StatePlanned,
         ];

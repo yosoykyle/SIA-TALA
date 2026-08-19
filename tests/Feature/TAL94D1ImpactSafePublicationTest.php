@@ -216,7 +216,10 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             ], $registrar);
             $this->fail('A published candidate row was mutable.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('status', $exception->errors());
+            $this->assertSame(
+                'Only the current non-stale candidate can be adjusted.',
+                $exception->errors()['candidate'][0] ?? null,
+            );
         }
 
         $candidate->refresh();

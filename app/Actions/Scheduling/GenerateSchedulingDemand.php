@@ -9,6 +9,7 @@ use App\Models\CourseSpecification;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
+use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -165,8 +166,26 @@ class GenerateSchedulingDemand
             ? Course::query()->find($specification->course_id)
             : null;
         $modality = filled($group->modality) ? (string) $group->modality : (string) $offering->modality;
-        $durationMinutes = max(1, (int) round((float) $component->weekly_contact_hours * 60));
+        $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+        $durationMinutes = $meetingPattern['duration_minutes']
+            ?? max(1, (int) round((float) $component->weekly_contact_hours * 60));
+        $meetingCount = $meetingPattern['count'] ?? 1;
+        $commitments = SchedulingCommitment::query()
+            ->where('term_id', $term->id)
+            ->where('section_id', $section->id)
+            ->lockForUpdate()
+            ->get();
+        $commitment = $commitments->count() === 1 ? $commitments->first() : null;
         $fixedInputs = $this->fixedInputs($group);
+
+        if ($commitment instanceof SchedulingCommitment) {
+            $fixedInputs = [
+                'fixed_faculty_user_id' => $commitment->faculty_user_id !== null ? (int) $commitment->faculty_user_id : $fixedInputs['fixed_faculty_user_id'],
+                'fixed_room_id' => $commitment->room_id !== null ? (int) $commitment->room_id : $fixedInputs['fixed_room_id'],
+                'fixed_day_of_week' => $commitment->day_of_week !== null ? (int) $commitment->day_of_week : $fixedInputs['fixed_day_of_week'],
+                'fixed_start_time' => $this->timeString($commitment->starts_at),
+            ];
+        }
         $roomTypeRequirement = $offering->room_type_override ?: $component->room_type_default;
         $facultyLoadOptions = $course instanceof Course
             ? $this->facultyLoadOptions($term, $course)
@@ -188,6 +207,8 @@ class GenerateSchedulingDemand
             'course_component_id' => (int) $component->id,
             'component_type' => $component->component_type,
             'weekly_contact_hours' => number_format((float) $component->weekly_contact_hours, 2, '.', ''),
+            'meeting_pattern' => $component->meeting_pattern,
+            'scheduling_commitment_id' => $commitment?->id,
             'expected_count' => (int) $group->expected_count,
             'section_capacity' => (int) $section->capacity,
             'offering_modality' => $offering->modality,
@@ -220,13 +241,29 @@ class GenerateSchedulingDemand
             durationMinutes: $durationMinutes,
         );
 
+        if ($commitments->count() > 1) {
+            $findings[] = $this->finding('multiple_section_commitments', 'blocking', 'section', $section->id, 'A Class Offering may have only one current exact scheduling commitment.');
+        } elseif ($commitment instanceof SchedulingCommitment) {
+            $commitmentStart = $this->minutesFromTime($this->timeString($commitment->starts_at));
+            $commitmentEnd = $this->minutesFromTime($this->timeString($commitment->ends_at));
+
+            if ($commitment->day_of_week === null
+                || $commitmentStart === null
+                || $commitmentEnd === null
+                || ($commitment->faculty_user_id === null && $commitment->room_id === null)) {
+                $findings[] = $this->finding('incomplete_section_commitment', 'blocking', 'scheduling_commitment', $commitment->id, 'An exact Class Offering commitment requires a day, start, end, and at least one committed Faculty or room.');
+            } elseif (($commitmentEnd - $commitmentStart) !== $durationMinutes) {
+                $findings[] = $this->finding('section_commitment_duration_mismatch', 'blocking', 'scheduling_commitment', $commitment->id, 'The exact Class Offering commitment duration must equal one Meeting Pattern block.');
+            }
+        }
+
         return [
             'term_offering_id' => $offering->id,
             'course_component_id' => $component->id,
             'section_delivery_group_id' => $group->id,
             'demand_key' => $this->demandKey($offering, $group, $component),
             'required_duration_minutes' => $durationMinutes,
-            'meeting_count' => 1,
+            'meeting_count' => $meetingCount,
             'modality' => $modality,
             'fixed_faculty_user_id' => $fixedInputs['fixed_faculty_user_id'],
             'fixed_room_id' => $fixedInputs['fixed_room_id'],
@@ -416,6 +453,14 @@ class GenerateSchedulingDemand
 
         if ((float) $component->weekly_contact_hours <= 0.0) {
             $findings[] = $this->finding('missing_component_contact_hours', 'blocking', 'course_component', $component->id, 'The Course Component must define positive weekly contact hours.');
+        }
+
+        $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+
+        if ($meetingPattern === null) {
+            $findings[] = $this->finding('missing_meeting_pattern', 'blocking', 'course_component', $component->id, 'The Course Component must define an approved weekly Meeting Pattern.');
+        } elseif (($meetingPattern['count'] * $meetingPattern['duration_minutes']) !== (int) round((float) $component->weekly_contact_hours * 60)) {
+            $findings[] = $this->finding('meeting_pattern_contact_hours_mismatch', 'blocking', 'course_component', $component->id, 'The weekly Meeting Pattern must equal the Course Component contact hours.');
         }
 
         if (filled($component->modality_restriction) && $component->modality_restriction !== $modality) {

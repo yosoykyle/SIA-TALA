@@ -2,9 +2,11 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -29,8 +31,8 @@ final class SchedulingBenchmarkSnapshotCapture
             $snapshot = $run->getAttribute('input_snapshot');
 
             if (! is_array($snapshot)
-                || ($snapshot['contract_version'] ?? null) !== 'tal94-demand-v2') {
-                throw new RuntimeException('The representative scheduling snapshot is not TAL-94 V2.');
+                || ($snapshot['contract_version'] ?? null) !== ScheduleGenerationRun::ContractVersion) {
+                throw new RuntimeException('The representative scheduling snapshot does not use the current timetable contract.');
             }
 
             $snapshot = $this->adaptCurrentMinSnapshotToHistoricalBenchmark($snapshot);
@@ -74,7 +76,7 @@ final class SchedulingBenchmarkSnapshotCapture
         if ($composition !== [
             'demands' => 54,
             'faculty' => 9,
-            'rooms' => 6,
+            'rooms' => 10,
             'time_slots' => 168,
         ]) {
             return $snapshot;
@@ -159,6 +161,17 @@ final class SchedulingBenchmarkSnapshotCapture
 
                 return $slot;
             })
+            ->all();
+        $snapshot['rooms'] = collect($snapshot['rooms'])
+            ->whereIn('room_type', [
+                Room::TypeLectureRoom,
+                Room::TypeLaboratory,
+                Room::TypeComputerLaboratory,
+            ])
+            ->groupBy('room_type')
+            ->flatMap(fn (Collection $rooms): Collection => $rooms->take(2))
+            ->sortBy('room_id')
+            ->values()
             ->all();
         $snapshot['term']['scheduling_day_ends_at'] = '20:00:00';
 

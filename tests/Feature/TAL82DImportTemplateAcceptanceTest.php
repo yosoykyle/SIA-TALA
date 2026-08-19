@@ -138,6 +138,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
                 'course_code' => 'IT101',
                 'component_type' => CourseComponent::TypeLecture,
                 'weekly_contact_hours' => '2.00',
+                'meeting_pattern' => '2x60',
                 'component_sequence' => '1',
                 'prerequisite_course_codes' => 'IT100',
             ]),
@@ -145,6 +146,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
                 'course_code' => 'IT101',
                 'component_type' => CourseComponent::TypeLaboratory,
                 'weekly_contact_hours' => '1.00',
+                'meeting_pattern' => '1x60',
                 'room_type_default' => CourseComponent::RoomTypeComputerLaboratory,
                 'required_room_feature_keys' => 'COMPUTER_UNITS|PROJECTOR',
                 'component_sequence' => '2',
@@ -228,6 +230,47 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
 
         $this->assertNotNull($acknowledged->acknowledged_at);
         $this->assertSame(ImportBatch::StatePosted, $posted->state);
+    }
+
+    #[Test]
+    public function externally_arranged_course_import_preserves_zero_recurring_components(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $path = AcademicImportService::CourseSpecificationDirectory.'/external-practicum.csv';
+        $blankComponents = [
+            'component_type' => '',
+            'weekly_contact_hours' => '',
+            'meeting_pattern' => '',
+            'room_type_default' => '',
+            'required_room_feature_keys' => '',
+            'modality_restriction' => '',
+            'requires_consecutive_block' => '',
+            'same_faculty' => '',
+            'component_sequence' => '',
+        ];
+
+        Storage::disk(AcademicImportService::Disk)->put($path, AcademicImportCsv::toCsv([
+            CourseSpecificationImportTemplate::headers(),
+            $this->validCourseSpecificationRow([
+                'course_code' => 'PRACT401',
+                'title' => 'Externally Arranged Internship',
+                'credit_units' => '6.00',
+                'scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged,
+                ...$blankComponents,
+            ]),
+        ]));
+
+        $batch = app(AcademicImportService::class)->createPreview(ImportBatch::TypeCourseSpecification, $path, $registrar);
+        $this->assertSame(0, $batch->error_count);
+
+        app(ImportBatchLifecycleService::class)->post($batch, $registrar);
+
+        $specification = CourseSpecification::query()->whereHas(
+            'course',
+            fn ($query) => $query->where('code', 'PRACT401'),
+        )->sole();
+        $this->assertSame(CourseSpecification::SchedulingExternallyArranged, $specification->scheduling_treatment);
+        $this->assertSame(0, $specification->components()->count());
     }
 
     #[Test]
@@ -855,12 +898,14 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
             'credit_units' => '3.00',
             'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
             'grading_profile_version' => '1',
+            'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
             'allowed_modalities' => CourseSpecification::ModalityFaceToFace,
             'same_faculty_default' => 'yes',
             'effective_term_label' => '',
             'state' => CourseSpecification::StateDraft,
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => '3.00',
+            'meeting_pattern' => '1x180',
             'room_type_default' => CourseComponent::RoomTypeLectureRoom,
             'required_room_feature_keys' => '',
             'modality_restriction' => '',

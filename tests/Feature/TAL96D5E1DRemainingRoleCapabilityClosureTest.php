@@ -368,8 +368,8 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
                     'Home',
                     'Admissions',
                     'Admission Cycles',
-                    'Academic Readiness',
-                    'Class Planning',
+                    'Catalog & Curricula',
+                    'Term Planning',
                     'Students & Enrollment',
                     'Grades & Completion',
                     'Reports',
@@ -385,7 +385,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             ],
             'academic head' => [
                 'role' => User::StaffRoleAcademicHead,
-                'expectedLabels' => ['Home', 'Academic Oversight', 'Approvals', 'Reports'],
+                'expectedLabels' => ['Home', 'Catalog & Curricula', 'Term Planning', 'Approvals', 'Reports'],
             ],
             'system super admin' => [
                 'role' => User::StaffRoleSystemSuperAdmin,

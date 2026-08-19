@@ -19,10 +19,9 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
-use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -536,6 +535,41 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         $this->assertContains('cohort_overlap', collect($validation->findings())->pluck('code')->all());
     }
 
+    public function test_every_cohort_attached_to_a_shared_class_is_independently_protected(): void
+    {
+        $context = $this->context(demandCount: 2);
+        $snapshot = $context['snapshot'];
+        $firstCohort = 88001;
+        $sharedCohort = 88002;
+        $snapshot['scheduling_demands'][0]['cohort_or_student_group_id'] = $firstCohort;
+        $snapshot['scheduling_demands'][0]['cohort_or_student_group_ids'] = [$firstCohort, $sharedCohort];
+        $snapshot['scheduling_demands'][1]['section_delivery_group_id'] += 1000;
+        $snapshot['scheduling_demands'][1]['cohort_or_student_group_id'] = $sharedCohort;
+        $snapshot['scheduling_demands'][1]['cohort_or_student_group_ids'] = [$sharedCohort];
+        $context['snapshot'] = $snapshot;
+        $context['run']->forceFill(['input_snapshot' => $snapshot])->save();
+
+        $result = $this->validResult($context);
+        foreach ($result['assignments'] as $index => $assignment) {
+            $result['assignments'][$index]['day'] = 1;
+            $result['assignments'][$index]['day_of_week'] = 1;
+            $result['assignments'][$index]['start_time'] = '08:00:00';
+            $result['assignments'][$index]['starts_at'] = '08:00:00';
+            $result['assignments'][$index]['end_time'] = '10:00:00';
+            $result['assignments'][$index]['ends_at'] = '10:00:00';
+            $result['assignments'][$index]['time_slot_id'] = 1;
+            $result['assignments'][$index]['time_block_reference'] = 'D1-0800';
+            $result['assignments'][$index]['time_block_key'] = 'D1-0800';
+            $result['assignments'][$index]['cohort_or_student_group_id'] = $snapshot['scheduling_demands'][$index]['cohort_or_student_group_id'];
+            $result['assignments'][$index]['cohort_or_student_group_ids'] = $snapshot['scheduling_demands'][$index]['cohort_or_student_group_ids'];
+        }
+
+        $validation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run']->fresh(), $result);
+
+        $this->assertContains('cohort_overlap', collect($validation->findings())->pluck('code')->all());
+    }
+
     public function test_native_non_solution_statuses_are_blocking_without_candidate_writes(): void
     {
         $context = $this->context();
@@ -577,26 +611,17 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         }
     }
 
-    public function test_atomic_replacement_rolls_back_when_persistence_throws(): void
+    public function test_duplicate_success_result_cannot_replace_an_immutable_retained_candidate(): void
     {
         $context = $this->context(demandCount: 2);
         $prior = $this->candidate($context, $context['demands'][0]);
         $result = $this->validResult($context);
-        $event = 'eloquent.created: '.CandidateScheduleRow::class;
-
-        Event::listen($event, function (CandidateScheduleRow $row) use ($context): void {
-            if ($row->scheduling_demand_id === $context['demands'][1]->id) {
-                throw new RuntimeException('Forced candidate persistence failure.');
-            }
-        });
 
         try {
             app(ScheduleCloudResultIngestor::class)->ingest($context['run'], $result);
-            $this->fail('The forced persistence failure did not occur.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('Forced candidate persistence failure.', $exception->getMessage());
-        } finally {
-            Event::forget($event);
+            $this->fail('A duplicate successful result replaced an immutable retained candidate.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
         }
 
         $this->assertModelExists($prior);

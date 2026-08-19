@@ -349,6 +349,7 @@ class AcademicImportService
                 'credit_units' => $firstRow['credit_units'],
                 'grading_profile_key' => $firstRow['grading_profile_key'],
                 'grading_profile_version' => $firstRow['grading_profile_version'],
+                'scheduling_treatment' => $firstRow['scheduling_treatment'],
                 'allowed_modalities' => $firstRow['allowed_modalities'],
                 'same_faculty_default' => $firstRow['same_faculty_default'],
                 'effective_term_id' => $firstRow['effective_term_id'],
@@ -381,9 +382,14 @@ class AcademicImportService
             $specification->requirements()->delete();
 
             foreach ($rows as $row) {
+                if ($row['scheduling_treatment'] === CourseSpecification::SchedulingExternallyArranged) {
+                    continue;
+                }
+
                 $specification->components()->create([
                     'component_type' => $row['component_type'],
                     'weekly_contact_hours' => $row['weekly_contact_hours'],
+                    'meeting_pattern' => $row['meeting_pattern'],
                     'room_type_default' => $row['room_type_default'],
                     'required_room_feature_keys' => $row['required_room_feature_keys'],
                     'modality_restriction' => $row['modality_restriction'],
@@ -484,7 +490,8 @@ class AcademicImportService
      */
     private function validateCourseSpecificationRow(array $row): array
     {
-        $errors = $this->requiredErrors($row, [
+        $schedulingTreatment = $this->schedulingTreatmentValue($row['scheduling_treatment'] ?? null);
+        $requiredFields = [
             'template_version',
             'template_type',
             'course_code',
@@ -493,12 +500,16 @@ class AcademicImportService
             'credit_units',
             'grading_profile_key',
             'grading_profile_version',
+            'scheduling_treatment',
             'allowed_modalities',
             'state',
-            'component_type',
-            'weekly_contact_hours',
-            'component_sequence',
-        ]);
+        ];
+
+        if ($schedulingTreatment === CourseSpecification::SchedulingRecurring) {
+            array_push($requiredFields, 'component_type', 'weekly_contact_hours', 'meeting_pattern', 'component_sequence');
+        }
+
+        $errors = $this->requiredErrors($row, $requiredFields);
         $warnings = [];
 
         if (($row['template_version'] ?? null) !== CourseSpecificationImportTemplate::Version) {
@@ -523,8 +534,13 @@ class AcademicImportService
             $errors[] = 'Grading Profile Key is not an approved value.';
         }
 
-        $componentType = $this->choiceValue($row['component_type'] ?? null);
-        if (! array_key_exists($componentType, CourseComponent::typeOptions())) {
+        if (! array_key_exists($schedulingTreatment, CourseSpecification::schedulingTreatmentOptions())) {
+            $errors[] = 'Scheduling Treatment must be Recurring or ExternallyArranged.';
+        }
+
+        $componentType = filled($row['component_type'] ?? null) ? $this->choiceValue($row['component_type']) : null;
+        if ($schedulingTreatment === CourseSpecification::SchedulingRecurring
+            && ! array_key_exists((string) $componentType, CourseComponent::typeOptions())) {
             $errors[] = 'Component Type must be LECTURE or LABORATORY.';
         }
 
@@ -543,17 +559,46 @@ class AcademicImportService
             $errors[] = 'Modality Restriction is not an approved modality.';
         }
 
-        foreach (['credit_units', 'weekly_contact_hours'] as $decimalField) {
+        foreach (['credit_units'] as $decimalField) {
             if (filled($row[$decimalField] ?? null) && (! is_numeric($row[$decimalField]) || (float) $row[$decimalField] <= 0)) {
                 $errors[] = str($decimalField)->replace('_', ' ')->headline().' must be greater than zero.';
             }
+        }
+
+        if ($schedulingTreatment === CourseSpecification::SchedulingRecurring
+            && filled($row['weekly_contact_hours'] ?? null)
+            && (! is_numeric($row['weekly_contact_hours']) || (float) $row['weekly_contact_hours'] <= 0)) {
+            $errors[] = 'Weekly Contact Hours must be greater than zero.';
+        }
+
+        if ($schedulingTreatment === CourseSpecification::SchedulingExternallyArranged
+            && collect([
+                'component_type', 'weekly_contact_hours', 'meeting_pattern', 'room_type_default',
+                'required_room_feature_keys', 'modality_restriction', 'requires_consecutive_block',
+                'same_faculty', 'component_sequence',
+            ])->contains(fn (string $field): bool => filled($row[$field] ?? null))) {
+            $errors[] = 'Externally arranged courses must leave recurring component fields blank.';
+        }
+
+        $meetingPattern = CourseComponent::parseMeetingPattern($row['meeting_pattern'] ?? null);
+        $weeklyMinutes = filled($row['weekly_contact_hours'] ?? null) && is_numeric($row['weekly_contact_hours'])
+            ? (int) round((float) $row['weekly_contact_hours'] * 60)
+            : null;
+
+        if ($schedulingTreatment === CourseSpecification::SchedulingRecurring && $meetingPattern === null) {
+            $errors[] = 'Meeting Pattern must be an approved value such as 1x180, 2x90, or 3x60.';
+        } elseif ($schedulingTreatment === CourseSpecification::SchedulingRecurring && $weeklyMinutes !== null
+            && ($meetingPattern['count'] * $meetingPattern['duration_minutes']) !== $weeklyMinutes) {
+            $errors[] = 'Meeting Pattern must equal Weekly Contact Hours.';
         }
 
         if (filled($row['grading_profile_version'] ?? null) && ! ctype_digit((string) $row['grading_profile_version'])) {
             $errors[] = 'Grading Profile Version must be a whole number.';
         }
 
-        if (filled($row['component_sequence'] ?? null) && ! ctype_digit((string) $row['component_sequence'])) {
+        if ($schedulingTreatment === CourseSpecification::SchedulingRecurring
+            && filled($row['component_sequence'] ?? null)
+            && ! ctype_digit((string) $row['component_sequence'])) {
             $errors[] = 'Component Sequence must be a whole number.';
         }
 
@@ -598,18 +643,26 @@ class AcademicImportService
                 'credit_units' => number_format((float) $row['credit_units'], 2, '.', ''),
                 'grading_profile_key' => $gradingProfileKey,
                 'grading_profile_version' => (int) ($row['grading_profile_version'] ?? 1),
+                'scheduling_treatment' => $schedulingTreatment,
                 'allowed_modalities' => $allowedModalities,
                 'same_faculty_default' => $this->booleanValue($row['same_faculty_default'] ?? null) ?? true,
                 'effective_term_id' => $term?->id,
                 'state' => CourseSpecification::StateDraft,
                 'component_type' => $componentType,
-                'weekly_contact_hours' => number_format((float) $row['weekly_contact_hours'], 2, '.', ''),
+                'weekly_contact_hours' => $schedulingTreatment === CourseSpecification::SchedulingRecurring
+                    ? number_format((float) $row['weekly_contact_hours'], 2, '.', '')
+                    : null,
+                'meeting_pattern' => $schedulingTreatment === CourseSpecification::SchedulingRecurring
+                    ? (string) $row['meeting_pattern']
+                    : null,
                 'room_type_default' => $roomType,
                 'required_room_feature_keys' => $this->listValue($row['required_room_feature_keys'] ?? null),
                 'modality_restriction' => $modalityRestriction,
                 'requires_consecutive_block' => $this->booleanValue($row['requires_consecutive_block'] ?? null) ?? false,
                 'same_faculty' => $this->booleanValue($row['same_faculty'] ?? null) ?? true,
-                'component_sequence' => (int) ($row['component_sequence'] ?? 1),
+                'component_sequence' => $schedulingTreatment === CourseSpecification::SchedulingRecurring
+                    ? (int) ($row['component_sequence'] ?? 1)
+                    : null,
                 'prerequisite_course_codes' => $this->simpleRequirementCodes($row['prerequisite_course_codes'] ?? null),
                 'corequisite_course_codes' => $this->simpleRequirementCodes($row['corequisite_course_codes'] ?? null),
             ],
@@ -789,6 +842,7 @@ class AcademicImportService
                     'credit_units',
                     'grading_profile_key',
                     'grading_profile_version',
+                    'scheduling_treatment',
                     'allowed_modalities',
                     'same_faculty_default',
                     'effective_term_id',
@@ -814,19 +868,22 @@ class AcademicImportService
                 $errors[] = $this->validationMessage(is_int($row['_source_row'] ?? null) ? $row['_source_row'] : null, "Active Course Specification {$row['course_code']} {$row['revision_code']} already exists and cannot be overwritten.", $row);
             }
 
-            $componentKey = $key.'|'.$row['component_type'];
-            if (isset($components[$componentKey])) {
-                $errors[] = $this->validationMessage(is_int($row['_source_row'] ?? null) ? $row['_source_row'] : null, "Duplicate component {$row['component_type']} for {$row['course_code']} {$row['revision_code']}.", $row);
-            }
+            if ($row['scheduling_treatment'] === CourseSpecification::SchedulingRecurring) {
+                $componentKey = $key.'|'.$row['component_type'];
+                if (isset($components[$componentKey])) {
+                    $errors[] = $this->validationMessage(is_int($row['_source_row'] ?? null) ? $row['_source_row'] : null, "Duplicate component {$row['component_type']} for {$row['course_code']} {$row['revision_code']}.", $row);
+                }
 
-            $components[$componentKey] = true;
-            $contactHours[$key] = ($contactHours[$key] ?? 0.0) + (float) $row['weekly_contact_hours'];
+                $components[$componentKey] = true;
+                $contactHours[$key] = ($contactHours[$key] ?? 0.0) + (float) $row['weekly_contact_hours'];
+            }
         }
 
         foreach ($rows as $row) {
             $key = $row['course_code'].'|'.$row['revision_code'];
 
-            if (abs(($contactHours[$key] ?? 0.0) - (float) $row['credit_units']) > 0.001) {
+            if ($row['scheduling_treatment'] === CourseSpecification::SchedulingRecurring
+                && abs(($contactHours[$key] ?? 0.0) - (float) $row['credit_units']) > 0.001) {
                 $warnings[] = $this->validationMessage(is_int($row['_source_row'] ?? null) ? $row['_source_row'] : null, "Total component contact hours do not match Credit Units for {$row['course_code']} {$row['revision_code']}; review before posting.", $row);
                 unset($contactHours[$key]);
             }
@@ -1146,6 +1203,11 @@ class AcademicImportService
             'credit_units' => $row['course_units'],
             'grading_profile_key' => $base->grading_profile_key,
             'grading_profile_version' => $base->grading_profile_version,
+            'authority_reference' => $base->authority_reference,
+            'effective_from' => $base->effective_from,
+            'effective_until' => $base->effective_until,
+            'academic_classification' => $base->academic_classification,
+            'scheduling_treatment' => $base->scheduling_treatment,
             'allowed_modalities' => $base->allowed_modalities,
             'same_faculty_default' => $base->same_faculty_default,
             'effective_term_id' => $base->effective_term_id,
@@ -1156,6 +1218,7 @@ class AcademicImportService
             $target->components()->create([
                 'component_type' => $component->component_type,
                 'weekly_contact_hours' => $component->weekly_contact_hours,
+                'meeting_pattern' => $component->meeting_pattern,
                 'room_type_default' => $component->room_type_default,
                 'required_room_feature_keys' => $component->required_room_feature_keys,
                 'modality_restriction' => $component->modality_restriction,
@@ -1374,6 +1437,15 @@ class AcademicImportService
             ->trim()
             ->lower()
             ->toString();
+    }
+
+    private function schedulingTreatmentValue(?string $value): string
+    {
+        return match (str($value ?? '')->trim()->lower()->replace([' ', '-', '_'], '')->toString()) {
+            'recurring' => CourseSpecification::SchedulingRecurring,
+            'externallyarranged' => CourseSpecification::SchedulingExternallyArranged,
+            default => '',
+        };
     }
 
     /**

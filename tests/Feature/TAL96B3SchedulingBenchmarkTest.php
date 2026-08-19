@@ -8,6 +8,7 @@ use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException
 use App\Actions\Scheduling\SchedulingBenchmarkDatasetFactory;
 use App\Actions\Scheduling\SchedulingBenchmarkEnvironmentGuard;
 use App\Actions\Scheduling\SchedulingBenchmarkSnapshotCapture;
+use App\Actions\Scheduling\SchedulingScenarioFeasibilityWitnessBuilder;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -47,6 +48,15 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
 
         $this->assertSame(0, ScheduleGenerationRun::query()->count());
         $this->assertSame(0, DB::table('jobs')->count());
+        $this->assertSame([
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
+            'constraint_profile' => ScheduleGenerationRun::QualityPolicyLexicographic,
+            'composition' => ['demands' => 54, 'faculty' => 12, 'rooms' => 6, 'time_slots' => 156],
+        ], [
+            'contract_version' => data_get($capture, 'snapshot.contract_version'),
+            'constraint_profile' => data_get($capture, 'snapshot.constraint_profile.key'),
+            'composition' => $factory->composition($capture['snapshot']),
+        ]);
 
         $expectedCompositions = [
             'reduced' => ['demands' => 27, 'faculty' => 6, 'rooms' => 3, 'time_slots' => 156],
@@ -60,8 +70,11 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
             $first = $factory->make($capture['snapshot'], $tier);
             $second = $factory->make($capture['snapshot'], $tier);
 
-            $this->assertSame('tal94-demand-v2', $first['contract_version']);
-            $this->assertSame('balanced_v1', data_get($first, 'constraint_profile.key'));
+            $this->assertSame(ScheduleGenerationRun::ContractVersion, $first['contract_version']);
+            $this->assertSame(
+                ScheduleGenerationRun::QualityPolicyLexicographic,
+                data_get($first, 'constraint_profile.key'),
+            );
             $this->assertSame($expectedComposition, $factory->composition($first));
             $this->assertSame($factory->normalizedHash($first), $factory->normalizedHash($second));
             $this->assertCount(
@@ -180,7 +193,7 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
             'tala_integrations.scheduling_solver.connect_timeout_seconds' => 10,
             'tala_integrations.scheduling_solver.benchmark' => $this->benchmarkMetadata(),
         ]);
-        $this->app->instance(SchedulingSolverClient::class, new LocalStubSchedulingSolverClient);
+        $this->app->instance(SchedulingSolverClient::class, $this->currentContractSolverClient());
 
         $before = $this->officialRecordCounts();
         $exitCode = Artisan::call('scheduling:benchmark-cloud-run', [
@@ -203,8 +216,8 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
         $this->assertStringContainsString('TAL-96B3 benchmark evidence ready.', $output);
 
         $this->assertSame('tal96b3-v2', $report['benchmark_version']);
-        $this->assertSame('tal94-demand-v2', $report['contract_version']);
-        $this->assertSame('balanced_v1', $report['constraint_profile']);
+        $this->assertSame(ScheduleGenerationRun::ContractVersion, $report['contract_version']);
+        $this->assertSame(ScheduleGenerationRun::QualityPolicyLexicographic, $report['constraint_profile']);
         $this->assertSame('cloud_run', data_get($report, 'target.driver'));
         $this->assertSame('tagged-solver.example.test', data_get($report, 'target.url_host'));
         $this->assertSame('tala-scheduler-solver-b3-test', data_get($report, 'target.revision'));
@@ -218,6 +231,17 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
         $this->assertIsFloat(data_get($report, 'tiers.representative.summary.runtime_seconds.p95'));
         $this->assertIsArray(data_get($report, 'tiers.representative.summary.relative_optimality_gap'));
         $this->assertIsArray(data_get($report, 'tiers.representative.summary.relative_percentage_deviation'));
+        $this->assertSame(
+            data_get($report, 'tiers.representative.runs.0.required_assignment_count'),
+            data_get($report, 'tiers.representative.runs.0.assigned_count'),
+        );
+        $this->assertSame(
+            ScheduleGenerationRun::QualityPolicyLexicographic,
+            data_get($report, 'tiers.representative.runs.0.objective_details.profile_key'),
+        );
+        $this->assertIsArray(
+            data_get($report, 'tiers.representative.runs.0.objective_details.objective_hierarchy'),
+        );
         $this->assertSame($before, $this->officialRecordCounts());
         $this->assertStringNotContainsString('example.test', str_replace('tagged-solver.example.test', '', $reportJson));
         $this->assertStringNotContainsString('credentials', mb_strtolower($reportJson));
@@ -286,11 +310,11 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
     {
         Storage::fake('local');
         $this->configureCloudRunBenchmark();
-        $this->app->instance(SchedulingSolverClient::class, new class(new LocalStubSchedulingSolverClient) implements SchedulingSolverClient
+        $this->app->instance(SchedulingSolverClient::class, new class($this->currentContractSolverClient()) implements SchedulingSolverClient
         {
             private int $contentionRun = 0;
 
-            public function __construct(private readonly LocalStubSchedulingSolverClient $delegate) {}
+            public function __construct(private readonly SchedulingSolverClient $delegate) {}
 
             public function solve(array $snapshot): array
             {
@@ -333,9 +357,9 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
     {
         Storage::fake('local');
         $this->configureCloudRunBenchmark();
-        $this->app->instance(SchedulingSolverClient::class, new class(new LocalStubSchedulingSolverClient) implements SchedulingSolverClient
+        $this->app->instance(SchedulingSolverClient::class, new class($this->currentContractSolverClient()) implements SchedulingSolverClient
         {
-            public function __construct(private readonly LocalStubSchedulingSolverClient $delegate) {}
+            public function __construct(private readonly SchedulingSolverClient $delegate) {}
 
             public function solve(array $snapshot): array
             {
@@ -386,11 +410,11 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
                 'profile' => $profile,
                 ...$resources,
             ]));
-            $this->app->instance(SchedulingSolverClient::class, new class($resources['worker_count'], new LocalStubSchedulingSolverClient) implements SchedulingSolverClient
+            $this->app->instance(SchedulingSolverClient::class, new class($resources['worker_count'], $this->currentContractSolverClient()) implements SchedulingSolverClient
             {
                 public function __construct(
                     private readonly int $workerCount,
-                    private readonly LocalStubSchedulingSolverClient $delegate,
+                    private readonly SchedulingSolverClient $delegate,
                 ) {}
 
                 public function solve(array $snapshot): array
@@ -432,9 +456,9 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
     {
         Storage::fake('local');
         $this->configureCloudRunBenchmark();
-        $this->app->instance(SchedulingSolverClient::class, new class(new LocalStubSchedulingSolverClient) implements SchedulingSolverClient
+        $this->app->instance(SchedulingSolverClient::class, new class($this->currentContractSolverClient()) implements SchedulingSolverClient
         {
-            public function __construct(private readonly LocalStubSchedulingSolverClient $delegate) {}
+            public function __construct(private readonly SchedulingSolverClient $delegate) {}
 
             public function solve(array $snapshot): array
             {
@@ -488,12 +512,12 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
         ];
 
         foreach ($cases as $solverStatus => $expected) {
-            $this->app->instance(SchedulingSolverClient::class, new class($solverStatus, $expected['timeout'], new LocalStubSchedulingSolverClient) implements SchedulingSolverClient
+            $this->app->instance(SchedulingSolverClient::class, new class($solverStatus, $expected['timeout'], $this->currentContractSolverClient()) implements SchedulingSolverClient
             {
                 public function __construct(
                     private readonly string $solverStatus,
                     private readonly bool $timedOut,
-                    private readonly LocalStubSchedulingSolverClient $delegate,
+                    private readonly SchedulingSolverClient $delegate,
                 ) {}
 
                 public function solve(array $snapshot): array
@@ -629,6 +653,41 @@ final class TAL96B3SchedulingBenchmarkTest extends TestCase
             $this->assertTrue($demandIds->contains((int) $qualification['scheduling_demand_id']));
             $this->assertTrue($courseIds->contains((int) $qualification['course_id']));
         }
+    }
+
+    private function currentContractSolverClient(): SchedulingSolverClient
+    {
+        return new class(app(SchedulingScenarioFeasibilityWitnessBuilder::class)) implements SchedulingSolverClient
+        {
+            public function __construct(
+                private readonly SchedulingScenarioFeasibilityWitnessBuilder $witnessBuilder,
+            ) {}
+
+            public function solve(array $snapshot): array
+            {
+                $result = (new LocalStubSchedulingSolverClient)->solve($snapshot);
+                $result['solver_version'] = ScheduleGenerationRun::SolverVersion;
+
+                if (in_array($result['solver_status'] ?? null, ['optimal', 'feasible'], true)) {
+                    $assignments = $this->witnessBuilder->build($snapshot);
+                    $result['assignments'] = $assignments;
+                    $result['hard_constraint_violations'] = [];
+                    $result['hard_violation_count'] = 0;
+                    $result['assigned_count'] = count($assignments);
+                    $result['unassigned_count'] = 0;
+                    $result['soft_constraint_scores']['assigned_count'] = count($assignments);
+                    $result['soft_constraint_scores']['conflict_count'] = 0;
+                    $result['solver_statistics']['candidate_count'] = count($assignments);
+                }
+
+                return $result;
+            }
+
+            public function probe(): array
+            {
+                return ['status' => 200, 'body' => 'ok'];
+            }
+        };
     }
 
     /**

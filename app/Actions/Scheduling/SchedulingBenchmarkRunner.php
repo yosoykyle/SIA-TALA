@@ -63,8 +63,8 @@ final class SchedulingBenchmarkRunner
         $report = [
             'benchmark_version' => 'tal96b3-v2',
             'generated_at' => now()->toIso8601String(),
-            'contract_version' => 'tal94-demand-v2',
-            'constraint_profile' => 'balanced_v1',
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
+            'constraint_profile' => ScheduleGenerationRun::QualityPolicyLexicographic,
             'target' => $target,
             'repetitions' => $repetitions,
             'health' => $this->probe(),
@@ -229,7 +229,7 @@ final class SchedulingBenchmarkRunner
             $blockingCodes,
             fn (string $code): bool => $code !== 'missing_persistence_source',
         ));
-        $demandCount = $this->datasetFactory->composition($snapshot)['demands'];
+        $requiredAssignmentCount = $this->datasetFactory->requiredAssignmentCount($snapshot);
         $assignedCount = $this->integer($solverResult['assigned_count'] ?? null);
         $unassignedCount = $this->integer($solverResult['unassigned_count'] ?? null);
         $hardViolationCount = $this->integer($solverResult['hard_violation_count'] ?? null);
@@ -242,12 +242,12 @@ final class SchedulingBenchmarkRunner
             $snapshot,
         );
         $telemetryComplete = $solverStatistics !== null;
-        $coveragePercent = $demandCount === 0
+        $coveragePercent = $requiredAssignmentCount === 0
             ? 0.0
-            : round(($assignedCount / $demandCount) * 100, 4);
+            : round(($assignedCount / $requiredAssignmentCount) * 100, 4);
         $accepted = in_array($solverStatus, self::UsableStatuses, true)
             && $coveragePercent === 100.0
-            && $assignedCount === $demandCount
+            && $assignedCount === $requiredAssignmentCount
             && $unassignedCount === 0
             && $hardViolationCount === 0
             && ! $timedOut
@@ -272,6 +272,7 @@ final class SchedulingBenchmarkRunner
             'solver_status' => $solverStatus,
             'assigned_count' => $assignedCount,
             'unassigned_count' => $unassignedCount,
+            'required_assignment_count' => $requiredAssignmentCount,
             'demand_coverage_percent' => $coveragePercent,
             'hard_violation_count' => $hardViolationCount,
             'timeout' => $timedOut,
@@ -456,12 +457,27 @@ final class SchedulingBenchmarkRunner
             return [];
         }
 
-        return [
+        $details = [
             'profile_key' => $value['profile_key'] ?? null,
             'profile_version' => $value['profile_version'] ?? null,
-            'terms' => is_array($value['terms'] ?? null) ? $value['terms'] : [],
-            'total' => $value['total'] ?? null,
         ];
+
+        foreach ([
+            'objective_hierarchy',
+            'values',
+            'completed_levels',
+            'scalar_score',
+            'verification_only',
+            'repair',
+            'terms',
+            'total',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                $details[$key] = $value[$key];
+            }
+        }
+
+        return $details;
     }
 
     /**

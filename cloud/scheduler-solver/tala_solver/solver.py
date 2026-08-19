@@ -10,9 +10,18 @@ from ortools import __version__ as ORTOOLS_VERSION
 from ortools.sat.python import cp_model
 
 
-CONTRACT_VERSION = "tal94-demand-v2"
-SOLVER_VERSION = "cloud-cp-sat-tal94-demand-v2-staged-search-v1"
-SOFT_TERMS = (
+LEGACY_CONTRACT_VERSION = "tal94-demand-v2"
+CONTRACT_VERSION = "tala-timetable-v2"
+SOLVER_VERSION = "cloud-cp-sat-tala-timetable-v2-lexicographic-v1"
+LEXICOGRAPHIC_TERMS = (
+    "cohort_mode_switches",
+    "cohort_idle_time",
+    "faculty_load_imbalance",
+    "faculty_idle_time",
+    "room_seat_waste",
+    "stable_earlier_placement",
+)
+LEGACY_SOFT_TERMS = (
     "prefer_earlier_time_blocks",
     "reduce_faculty_idle_gaps",
     "balance_faculty_load",
@@ -28,7 +37,7 @@ HARD_CONSTRAINTS = (
     "respect_room_capacity_type_and_features",
     "respect_faculty_qualification_and_load",
 )
-BALANCED_V1_WEIGHTS = {term: 1 for term in SOFT_TERMS}
+BALANCED_V1_WEIGHTS = {term: 1 for term in LEGACY_SOFT_TERMS}
 DEFAULT_SOLVER_WORKER_COUNT = 1
 DEFAULT_SOLVER_RANDOM_SEED = 20_260_718
 APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4, 8)
@@ -42,6 +51,8 @@ class Candidate:
     section_id: int
     section_delivery_group_id: int
     cohort_or_student_group_id: int
+    cohort_or_student_group_ids: tuple[int, ...]
+    modality: str
     subject_id: int | None
     course_component_id: int | None
     faculty_id: int
@@ -54,10 +65,12 @@ class Candidate:
     time_slot_id: int | None
     time_block_key: str
     meeting_sequence: int
+    meeting_pattern: str
     priority: int
     duration_minutes: int
     load_units_scaled: int
     room_capacity: int
+    expected_count: int
 
 
 @dataclass(frozen=True)
@@ -87,7 +100,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     solver_run_id = _solver_run_id(snapshot)
     runtime_configuration = solver_runtime_configuration()
 
-    if snapshot.get("contract_version") != CONTRACT_VERSION:
+    contract_version = snapshot.get("contract_version")
+    if contract_version not in {CONTRACT_VERSION, LEGACY_CONTRACT_VERSION}:
         return _result(
             snapshot=snapshot,
             solver_run_id=solver_run_id,
@@ -102,7 +116,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         )
 
     profile = snapshot.get("constraint_profile")
-    if (
+    legacy_profile = contract_version == LEGACY_CONTRACT_VERSION
+    if legacy_profile and (
         not isinstance(profile, dict)
         or profile.get("key") != "balanced_v1"
         or profile.get("version") != 1
@@ -117,8 +132,29 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             objective_score=None,
             timeout=False,
             started_at=started_at,
-            warnings=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
-            infeasible_reasons=[_reason("unsupported_constraint_profile", "Solver requires the unchanged balanced_v1 profile at version 1.")],
+            warnings=[_reason("unsupported_constraint_profile", "Legacy snapshots require the unchanged balanced_v1 profile at version 1.")],
+            infeasible_reasons=[_reason("unsupported_constraint_profile", "Legacy snapshots require the unchanged balanced_v1 profile at version 1.")],
+            runtime_configuration=runtime_configuration,
+        )
+
+    if not legacy_profile and (
+        not isinstance(profile, dict)
+        or profile.get("key") != "lexicographic_v1"
+        or profile.get("version") != 1
+        or tuple(profile.get("hard_constraints") or ()) != HARD_CONSTRAINTS
+        or tuple(profile.get("objective_hierarchy") or ()) != LEXICOGRAPHIC_TERMS
+        or "soft_weights" in profile
+    ):
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("unsupported_constraint_profile", "The timetable contract requires the fixed six-level lexicographic_v1 hierarchy.")],
+            infeasible_reasons=[_reason("unsupported_constraint_profile", "The timetable contract requires the fixed six-level lexicographic_v1 hierarchy.")],
             runtime_configuration=runtime_configuration,
         )
 
@@ -142,15 +178,16 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     demands = [
         {
             **demand,
-            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])],
+            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])][0],
+            "cohort_or_student_group_ids": list(cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])]),
         }
         for demand in demands
     ]
-    unsupported_demands = [
+    invalid_meeting_patterns = [
         demand for demand in demands
-        if _int_or_none(demand.get("meeting_count")) != 1
+        if not _has_valid_meeting_pattern(demand)
     ]
-    if unsupported_demands:
+    if invalid_meeting_patterns:
         return _result(
             snapshot=snapshot,
             solver_run_id=solver_run_id,
@@ -159,8 +196,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             objective_score=None,
             timeout=False,
             started_at=started_at,
-            warnings=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
-            infeasible_reasons=[_reason("unsupported_meeting_count", "The V2 model requires one generated Scheduling Demand per meeting block.")],
+            warnings=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to three equal-duration meetings.")],
+            infeasible_reasons=[_reason("invalid_meeting_pattern", "Every Scheduling Demand requires one to three equal-duration meetings.")],
             runtime_configuration=runtime_configuration,
         )
 
@@ -181,17 +218,33 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             infeasible_reasons=[_reason("invalid_faculty_load", "Every demand and eligible faculty row requires a numeric unit-load value.")],
             runtime_configuration=runtime_configuration,
         )
+
+    if not legacy_profile and any((_int_or_none(demand.get("expected_count")) or 0) <= 0 for demand in demands):
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[_reason("invalid_expected_count", "Every timetable demand requires a positive confirmed expected count.")],
+            infeasible_reasons=[_reason("invalid_expected_count", "Every timetable demand requires a positive confirmed expected count.")],
+            runtime_configuration=runtime_configuration,
+        )
     candidates, unassignable_reasons = _enumerate_candidates(snapshot, demands)
 
     if unassignable_reasons:
         assignments = [
             _conflict_assignment(
                 demand,
+                meeting_sequence,
                 unassignable_reasons.get(int(demand["scheduling_demand_id"])) or [
                     _reason("solver_unassigned", "No conflict-free candidate exists for this Scheduling Demand."),
                 ],
             )
             for demand in demands
+            for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
         ]
         return _result(
             snapshot=snapshot,
@@ -209,17 +262,33 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     model = cp_model.CpModel()
     variables = [model.new_bool_var(f"candidate_{index}") for index, _ in enumerate(candidates)]
 
-    for demand_id in {candidate.scheduling_demand_id for candidate in candidates}:
+    for demand_id, meeting_sequence in {_candidate_assignment_key(candidate) for candidate in candidates}:
         model.add(
             sum(
                 variables[index]
                 for index, candidate in enumerate(candidates)
-                if candidate.scheduling_demand_id == demand_id
+                if _candidate_assignment_key(candidate) == (demand_id, meeting_sequence)
             )
             == 1
         )
 
+    repair_error = _apply_repair_hard_requirement(snapshot, model, variables, candidates)
+    if repair_error is not None:
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="model_invalid",
+            assignments=[],
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[repair_error],
+            infeasible_reasons=[repair_error],
+            runtime_configuration=runtime_configuration,
+        )
+
     _add_no_overlap_constraints(model, variables, candidates)
+    _add_modality_transition_buffer_constraints(model, variables, candidates)
     _add_same_faculty_constraints(model, variables, candidates, demands)
     load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
 
@@ -241,9 +310,11 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             assignments = [
                 _conflict_assignment(
                     demand,
+                    meeting_sequence,
                     [_reason("solver_infeasible", "CP-SAT proved that no assignment satisfies every hard constraint.")],
                 )
                 for demand in demands
+                for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
             ]
             infeasible_reasons = [
                 item
@@ -303,6 +374,22 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         snapshot,
     )
     feasibility_objective_score = int(feasibility_objective_details["total"])
+
+    if not legacy_profile:
+        return _solve_lexicographic(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            model=model,
+            variables=variables,
+            candidates=candidates,
+            load_variables=load_variables,
+            feasibility_solver=feasibility_solver,
+            feasibility_selected=feasibility_selected,
+            feasibility_stage=feasibility_stage,
+            started_at=started_at,
+            timeout_seconds=timeout_seconds,
+            runtime_configuration=runtime_configuration,
+        )
 
     for variable in variables:
         model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
@@ -467,6 +554,133 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
     )
 
 
+def _solve_lexicographic(
+    snapshot: dict[str, Any],
+    solver_run_id: str,
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    load_variables: dict[int, cp_model.IntVar],
+    feasibility_solver: cp_model.CpSolver,
+    feasibility_selected: list[Candidate],
+    feasibility_stage: dict[str, Any],
+    started_at: float,
+    timeout_seconds: int,
+    runtime_configuration: SolverRuntimeConfiguration,
+) -> dict[str, Any]:
+    for variable in variables:
+        model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
+
+    objectives = _lexicographic_objectives(model, variables, candidates, load_variables)
+    repair_objective = _repair_change_objective(snapshot, variables, candidates)
+    if repair_objective is not None:
+        objectives.insert(0, ("changed_non_requested_meetings", repair_objective))
+    selected = feasibility_selected
+    result_solver = feasibility_solver
+    completed_levels: list[dict[str, Any]] = []
+    latest_stage = _not_run_stage_statistics()
+
+    for index, (name, expression) in enumerate(objectives):
+        elapsed = perf_counter() - started_at
+        remaining = max(0.0, float(timeout_seconds) - elapsed)
+
+        if remaining <= 0.001:
+            return _lexicographic_result(
+                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                "feasible", started_at, runtime_configuration, feasibility_stage,
+                latest_stage, completed_levels,
+                [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
+            )
+
+        model.maximize(expression)
+        solver = _configured_solver(
+            timeout_seconds=max(0.001, remaining / max(1, len(objectives) - index)),
+            runtime_configuration=runtime_configuration,
+        )
+        phase_started = perf_counter()
+        status = solver.solve(model)
+        latest_stage = _search_stage_statistics(
+            model=model,
+            solver=solver,
+            solver_status=status,
+            measured_wall_time_seconds=perf_counter() - phase_started,
+        )
+
+        if status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
+            return _lexicographic_result(
+                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                "feasible", started_at, runtime_configuration, feasibility_stage,
+                latest_stage, completed_levels,
+                [_reason("optimization_limit_reached", f"The hard-valid timetable was retained before completing {name}.")],
+            )
+
+        selected = _selected_candidates(candidates, variables, solver)
+        result_solver = solver
+        value = int(round(solver.objective_value))
+        completed_levels.append({
+            "name": name,
+            "status": _status_name(status),
+            "value": value,
+        })
+
+        if status != cp_model.OPTIMAL:
+            return _lexicographic_result(
+                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                "feasible", started_at, runtime_configuration, feasibility_stage,
+                latest_stage, completed_levels,
+                [_reason("lexicographic_level_feasible", f"{name} was bounded but not proved optimal; lower levels were not allowed to alter it.")],
+            )
+
+        model.add(expression == value)
+
+    return _lexicographic_result(
+        snapshot, solver_run_id, model, candidates, selected, result_solver,
+        "optimal", started_at, runtime_configuration, feasibility_stage,
+        latest_stage, completed_levels, [],
+    )
+
+
+def _lexicographic_result(
+    snapshot: dict[str, Any],
+    solver_run_id: str,
+    model: cp_model.CpModel,
+    candidates: list[Candidate],
+    selected: list[Candidate],
+    solver: cp_model.CpSolver,
+    status: str,
+    started_at: float,
+    runtime_configuration: SolverRuntimeConfiguration,
+    feasibility_stage: dict[str, Any],
+    optimization_stage: dict[str, Any],
+    completed_levels: list[dict[str, Any]],
+    warnings: list[dict[str, str]],
+) -> dict[str, Any]:
+    return _result(
+        snapshot=snapshot,
+        solver_run_id=solver_run_id,
+        solver_status=status,
+        assignments=[_assignment(candidate) for candidate in sorted(selected, key=_candidate_sort_key)],
+        objective_score=None,
+        timeout=False,
+        started_at=started_at,
+        warnings=warnings,
+        infeasible_reasons=[],
+        objective_details=_lexicographic_objective_details(snapshot, selected, completed_levels),
+        solver_statistics=_solver_statistics(
+            snapshot=snapshot,
+            candidates=candidates,
+            model=model,
+            result_solver=solver,
+            objective_score=None,
+            runtime_configuration=runtime_configuration,
+            result_source="lexicographic",
+            feasibility_stage=feasibility_stage,
+            optimization_stage=optimization_stage,
+        ),
+        runtime_configuration=runtime_configuration,
+    )
+
+
 def _configured_solver(
     timeout_seconds: float,
     runtime_configuration: SolverRuntimeConfiguration,
@@ -525,6 +739,123 @@ def _add_soft_objective(
     model.maximize(sum(objective_terms))
 
 
+def _lexicographic_objectives(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+    load_variables: dict[int, cp_model.IntVar],
+) -> list[tuple[str, cp_model.LinearExpr]]:
+    return [
+        ("cohort_mode_switches", sum(_cohort_mode_switch_objective_terms(model, variables, candidates))),
+        ("cohort_idle_time", sum(_cohort_idle_gap_objective_terms(model, variables, candidates))),
+        ("faculty_load_imbalance", sum(_load_balance_objective_terms(model, load_variables, 1))),
+        ("faculty_idle_time", sum(_idle_gap_objective_terms(model, variables, candidates, 1))),
+        (
+            "room_seat_waste",
+            sum(_room_efficiency_score(candidate) * variables[index] for index, candidate in enumerate(candidates)),
+        ),
+        (
+            "stable_earlier_placement",
+            sum(_earlier_candidate_score(candidate) * variables[index] for index, candidate in enumerate(candidates)),
+        ),
+    ]
+
+
+def _cohort_mode_switch_objective_terms(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+
+    for left_index, left in enumerate(candidates):
+        for right_index, right in enumerate(candidates):
+            common_cohort_ids = set(left.cohort_or_student_group_ids).intersection(right.cohort_or_student_group_ids)
+            if (
+                left_index == right_index
+                or not common_cohort_ids
+                or left.day_of_week != right.day_of_week
+                or left.modality == right.modality
+                or left.scheduling_demand_id == right.scheduling_demand_id
+                or left.ends_minute > right.starts_minute
+            ):
+                continue
+
+            for cohort_id in sorted(common_cohort_ids):
+                between = [
+                    middle_index
+                    for middle_index, middle in enumerate(candidates)
+                    if middle_index not in {left_index, right_index}
+                    and cohort_id in middle.cohort_or_student_group_ids
+                    and middle.day_of_week == left.day_of_week
+                    and middle.scheduling_demand_id not in {left.scheduling_demand_id, right.scheduling_demand_id}
+                    and middle.starts_minute >= left.ends_minute
+                    and middle.ends_minute <= right.starts_minute
+                ]
+                adjacent = model.new_bool_var(f"cohort_mode_switch_{cohort_id}_{left_index}_{right_index}")
+                model.add(adjacent <= variables[left_index])
+                model.add(adjacent <= variables[right_index])
+                for middle_index in between:
+                    model.add(adjacent <= 1 - variables[middle_index])
+                model.add(
+                    adjacent
+                    >= variables[left_index]
+                    + variables[right_index]
+                    - 1
+                    - sum(variables[middle_index] for middle_index in between)
+                )
+                terms.append(-adjacent)
+
+    return terms
+
+
+def _cohort_idle_gap_objective_terms(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+    cohort_days: dict[tuple[int, int], list[int]] = {}
+
+    for index, candidate in enumerate(candidates):
+        for cohort_id in candidate.cohort_or_student_group_ids:
+            cohort_days.setdefault((cohort_id, candidate.day_of_week), []).append(index)
+
+    for (cohort_id, day), indexes in cohort_days.items():
+        if len(indexes) < 2:
+            continue
+
+        horizon_start = min(candidates[index].starts_minute for index in indexes)
+        horizon_end = max(candidates[index].ends_minute for index in indexes)
+        active = model.new_bool_var(f"cohort_day_active_{cohort_id}_{day}")
+        model.add_max_equality(active, [variables[index] for index in indexes])
+        effective_starts: list[cp_model.IntVar] = []
+        effective_ends: list[cp_model.IntVar] = []
+
+        for index in indexes:
+            candidate = candidates[index]
+            effective_start = model.new_int_var(horizon_start, horizon_end, f"cohort_day_start_{cohort_id}_{day}_{index}")
+            effective_end = model.new_int_var(horizon_start, horizon_end, f"cohort_day_end_{cohort_id}_{day}_{index}")
+            model.add(effective_start == candidate.starts_minute).only_enforce_if(variables[index])
+            model.add(effective_start == horizon_end).only_enforce_if(variables[index].Not())
+            model.add(effective_end == candidate.ends_minute).only_enforce_if(variables[index])
+            model.add(effective_end == horizon_start).only_enforce_if(variables[index].Not())
+            effective_starts.append(effective_start)
+            effective_ends.append(effective_end)
+
+        first_start = model.new_int_var(horizon_start, horizon_end, f"cohort_first_{cohort_id}_{day}")
+        last_end = model.new_int_var(horizon_start, horizon_end, f"cohort_last_{cohort_id}_{day}")
+        idle = model.new_int_var(0, horizon_end - horizon_start, f"cohort_idle_{cohort_id}_{day}")
+        duration = sum(candidates[index].duration_minutes * variables[index] for index in indexes)
+        model.add_min_equality(first_start, effective_starts)
+        model.add_max_equality(last_end, effective_ends)
+        model.add(idle == last_end - first_start - duration).only_enforce_if(active)
+        model.add(idle == 0).only_enforce_if(active.Not())
+        terms.append(-idle)
+
+    return terms
+
+
 def evaluate_candidate_membership(
     snapshot: dict[str, Any],
     assignments: list[dict[str, Any]],
@@ -539,7 +870,8 @@ def evaluate_candidate_membership(
     demands = [
         {
             **demand,
-            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])],
+            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])][0],
+            "cohort_or_student_group_ids": list(cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])]),
         }
         for demand in demands
     ]
@@ -548,28 +880,31 @@ def evaluate_candidate_membership(
     results = [
         {
             "scheduling_demand_id": _int_or_none(assignment.get("scheduling_demand_id")),
+            "meeting_sequence": _int_or_none(assignment.get("meeting_sequence")) or 1,
             "admissible": _assignment_membership_key(assignment) in candidate_keys,
         }
         for assignment in assignments
         if isinstance(assignment, dict)
     ]
     admissible_count = sum(1 for result in results if result["admissible"])
-    expected_demand_ids = {
-        int(demand["scheduling_demand_id"])
+    expected_assignment_keys = {
+        (int(demand["scheduling_demand_id"]), meeting_sequence)
         for demand in demands
+        for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
     }
-    assigned_demand_ids = [
-        result["scheduling_demand_id"]
+    assigned_assignment_keys = [
+        (result["scheduling_demand_id"], result["meeting_sequence"])
         for result in results
     ]
     complete_demand_coverage = (
-        len(assigned_demand_ids) == len(expected_demand_ids)
-        and len(set(assigned_demand_ids)) == len(assigned_demand_ids)
-        and set(assigned_demand_ids) == expected_demand_ids
+        len(assigned_assignment_keys) == len(expected_assignment_keys)
+        and len(set(assigned_assignment_keys)) == len(assigned_assignment_keys)
+        and set(assigned_assignment_keys) == expected_assignment_keys
     )
 
     return {
-        "expected_demand_count": len(expected_demand_ids),
+        "expected_demand_count": len(demands),
+        "expected_assignment_count": len(expected_assignment_keys),
         "assignment_count": len(results),
         "admissible_count": admissible_count,
         "complete_demand_coverage": complete_demand_coverage,
@@ -596,7 +931,11 @@ def _result(
     conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
     warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
     assigned_count = len(assignments) - conflict_count
-    expected_demand_count = _list_count(snapshot.get("scheduling_demands"))
+    expected_assignment_count = sum(
+        _meeting_count(demand) or 1
+        for demand in snapshot.get("scheduling_demands", [])
+        if isinstance(demand, dict)
+    )
 
     return {
         "solver_run_id": solver_run_id,
@@ -620,7 +959,7 @@ def _result(
         "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "assigned_count": assigned_count,
-        "unassigned_count": max(0, expected_demand_count - assigned_count),
+        "unassigned_count": max(0, expected_assignment_count - assigned_count),
         "warning_count": warning_count,
         "timeout": timeout,
     }
@@ -835,8 +1174,8 @@ def _demands(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
 def _cohort_ids_by_delivery_group(
     snapshot: dict[str, Any],
     demands: list[dict[str, Any]],
-) -> dict[int, int] | None:
-    declared: dict[int, int] = {}
+) -> dict[int, tuple[int, ...]] | None:
+    declared: dict[int, set[int]] = {}
 
     for row in snapshot.get("student_cohort_groups", []):
         if not isinstance(row, dict):
@@ -848,38 +1187,41 @@ def _cohort_ids_by_delivery_group(
         if delivery_group_id is None or cohort_id is None:
             return None
 
-        if delivery_group_id in declared and declared[delivery_group_id] != cohort_id:
-            return None
+        declared.setdefault(delivery_group_id, set()).add(cohort_id)
 
-        declared[delivery_group_id] = cohort_id
-
-    resolved: dict[int, int] = {}
+    resolved: dict[int, tuple[int, ...]] = {}
 
     for demand in demands:
         delivery_group_id = _int_or_none(demand.get("section_delivery_group_id"))
         explicit_cohort_id = _int_or_none(demand.get("cohort_or_student_group_id"))
+        raw_explicit_ids = demand.get("cohort_or_student_group_ids")
+        explicit_cohort_ids = tuple(sorted({
+            cohort_id
+            for cohort_id in (
+                _int_or_none(value)
+                for value in raw_explicit_ids
+            )
+            if cohort_id is not None
+        })) if isinstance(raw_explicit_ids, list) else ()
 
         if delivery_group_id is None:
             return None
 
-        declared_cohort_id = declared.get(delivery_group_id)
+        declared_cohort_ids = tuple(sorted(declared.get(delivery_group_id, set())))
+        explicit = explicit_cohort_ids or ((explicit_cohort_id,) if explicit_cohort_id is not None else ())
 
-        if (
-            explicit_cohort_id is not None
-            and declared_cohort_id is not None
-            and explicit_cohort_id != declared_cohort_id
-        ):
+        if explicit and declared_cohort_ids and explicit != declared_cohort_ids:
             return None
 
-        cohort_id = explicit_cohort_id or declared_cohort_id
+        cohort_ids = explicit or declared_cohort_ids
 
-        if cohort_id is None:
+        if not cohort_ids:
             return None
 
-        if delivery_group_id in resolved and resolved[delivery_group_id] != cohort_id:
+        if delivery_group_id in resolved and resolved[delivery_group_id] != cohort_ids:
             return None
 
-        resolved[delivery_group_id] = cohort_id
+        resolved[delivery_group_id] = cohort_ids
 
     return resolved
 
@@ -1033,24 +1375,32 @@ def _enumerate_candidates(
         if reasons:
             unassignable_reasons[demand_id] = reasons
 
-        for faculty_id in faculty_ids:
-            for room_id in room_ids:
-                for slot in slots:
-                    candidate = _candidate(demand, faculty_id, room_id, slot, rooms.get(room_id, {}))
+        for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1):
+            for faculty_id in faculty_ids:
+                for room_id in room_ids:
+                    for slot in slots:
+                        candidate = _candidate(
+                            demand,
+                            meeting_sequence,
+                            faculty_id,
+                            room_id,
+                            slot,
+                            rooms.get(room_id, {}),
+                        )
 
-                    if candidate is None:
-                        continue
+                        if candidate is None:
+                            continue
 
-                    if not _inside_faculty_availability(candidate, availability):
-                        continue
+                        if not _inside_faculty_availability(candidate, availability):
+                            continue
 
-                    if _conflicts_existing(candidate, existing_commitments):
-                        continue
+                        if _conflicts_existing(candidate, existing_commitments):
+                            continue
 
-                    if _conflicts_calendar(candidate, calendar_blocks):
-                        continue
+                        if _conflicts_calendar(candidate, calendar_blocks):
+                            continue
 
-                    candidates.append(candidate)
+                        candidates.append(candidate)
 
     candidate_demand_ids = {candidate.scheduling_demand_id for candidate in candidates}
 
@@ -1097,6 +1447,7 @@ def _slots_for_demand(demand: dict[str, Any], time_slots: list[dict[str, Any]]) 
 def _candidate_membership_key(candidate: Candidate) -> tuple[Any, ...]:
     return (
         candidate.scheduling_demand_id,
+        candidate.meeting_sequence,
         candidate.term_offering_id,
         candidate.section_id,
         candidate.section_delivery_group_id,
@@ -1113,9 +1464,14 @@ def _candidate_membership_key(candidate: Candidate) -> tuple[Any, ...]:
     )
 
 
+def _candidate_assignment_key(candidate: Candidate) -> tuple[int, int]:
+    return candidate.scheduling_demand_id, candidate.meeting_sequence
+
+
 def _assignment_membership_key(assignment: dict[str, Any]) -> tuple[Any, ...]:
     return (
         _int_or_none(assignment.get("scheduling_demand_id")),
+        _int_or_none(assignment.get("meeting_sequence")) or 1,
         _int_or_none(assignment.get("term_offering_id")) or 0,
         _int_or_none(assignment.get("section_id")) or 0,
         _int_or_none(assignment.get("section_delivery_group_id")) or 0,
@@ -1149,6 +1505,7 @@ def _day_ends(time_slots: list[dict[str, Any]]) -> dict[int, int]:
 
 def _candidate(
     demand: dict[str, Any],
+    meeting_sequence: int,
     faculty_id: int,
     room_id: int | None,
     slot: dict[str, Any],
@@ -1170,6 +1527,17 @@ def _candidate(
         section_id=_int_or_none(demand.get("section_id")) or 0,
         section_delivery_group_id=_int_or_none(demand.get("section_delivery_group_id")) or 0,
         cohort_or_student_group_id=_int_or_none(demand.get("cohort_or_student_group_id")) or 0,
+        cohort_or_student_group_ids=tuple(
+            sorted({
+                cohort_id
+                for cohort_id in (
+                    _int_or_none(value)
+                    for value in demand.get("cohort_or_student_group_ids", [])
+                )
+                if cohort_id is not None
+            })
+        ) or (_int_or_none(demand.get("cohort_or_student_group_id")) or 0,),
+        modality=str(demand.get("modality") or "").upper(),
         subject_id=_int_or_none(demand.get("course_id") or demand.get("subject_id")),
         course_component_id=_int_or_none(demand.get("course_component_id")),
         faculty_id=faculty_id,
@@ -1181,11 +1549,13 @@ def _candidate(
         ends_minute=ends_minute,
         time_slot_id=_int_or_none(slot.get("time_slot_id")),
         time_block_key=str(slot.get("time_block_key") or f"D{day}-{starts_minute}"),
-        meeting_sequence=1,
+        meeting_sequence=meeting_sequence,
+        meeting_pattern=_meeting_pattern(demand),
         priority=_faculty_priority(demand, faculty_id),
         duration_minutes=duration,
         load_units_scaled=_decimal_scaled(demand.get("load_units")),
         room_capacity=_int_or_none(room.get("capacity")) or 0,
+        expected_count=_int_or_none(demand.get("expected_count")) or 0,
     )
 
 
@@ -1209,10 +1579,8 @@ def _add_no_overlap_constraints(
 
     for index, candidate in enumerate(candidates):
         interval = intervals[index]
-        cohort_days.setdefault(
-            (candidate.cohort_or_student_group_id, candidate.day_of_week),
-            [],
-        ).append(interval)
+        for cohort_id in candidate.cohort_or_student_group_ids:
+            cohort_days.setdefault((cohort_id, candidate.day_of_week), []).append(interval)
         faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(interval)
 
         if candidate.room_id is not None:
@@ -1224,13 +1592,179 @@ def _add_no_overlap_constraints(
                 model.add_no_overlap(resource_intervals)
 
 
+def _add_modality_transition_buffer_constraints(
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+) -> None:
+    for left_index, left in enumerate(candidates):
+        for right_index in range(left_index + 1, len(candidates)):
+            right = candidates[right_index]
+            if (
+                not set(left.cohort_or_student_group_ids).intersection(right.cohort_or_student_group_ids)
+                or left.day_of_week != right.day_of_week
+                or left.modality == right.modality
+                or left.scheduling_demand_id == right.scheduling_demand_id
+            ):
+                continue
+
+            left_to_right_gap = right.starts_minute - left.ends_minute
+            right_to_left_gap = left.starts_minute - right.ends_minute
+            if 0 <= left_to_right_gap < 30 or 0 <= right_to_left_gap < 30:
+                model.add(variables[left_index] + variables[right_index] <= 1)
+
+
+def _apply_repair_hard_requirement(
+    snapshot: dict[str, Any],
+    model: cp_model.CpModel,
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+) -> dict[str, str] | None:
+    operation = snapshot.get("operation")
+    if operation is None:
+        return None
+    if not isinstance(operation, dict) or operation.get("kind") not in {"generation", "repair"}:
+        return _reason("invalid_operation", "The timetable operation must be generation or repair.")
+    if operation.get("kind") == "generation":
+        return None
+
+    source = operation.get("source_candidate")
+    requested = operation.get("requested_assignment")
+    if (
+        not isinstance(source, dict)
+        or not isinstance(source.get("assignments"), list)
+        or not source.get("assignments")
+        or not isinstance(requested, dict)
+    ):
+        return _reason("invalid_repair_contract", "Repair requires an immutable source candidate and requested assignment.")
+
+    assignment_keys = {_candidate_assignment_key(candidate) for candidate in candidates}
+    baseline = _repair_baseline(operation)
+    if set(baseline) != assignment_keys:
+        return _reason("invalid_repair_coverage", "Repair source assignments must cover the complete exact-Term candidate.")
+
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
+    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    if requested_demand_id is None or requested_key not in assignment_keys:
+        return _reason("invalid_repair_request", "Repair requires one requested meeting from the source candidate.")
+
+    matching = [
+        variables[index]
+        for index, candidate in enumerate(candidates)
+        if _candidate_assignment_key(candidate) == requested_key
+        and _candidate_matches_assignment(candidate, requested)
+    ]
+    if not matching:
+        return _reason("repair_request_unavailable", "No hard-valid candidate matches the requested repair assignment.")
+
+    model.add(sum(matching) == 1)
+
+    return None
+
+
+def _repair_change_objective(
+    snapshot: dict[str, Any],
+    variables: list[cp_model.IntVar],
+    candidates: list[Candidate],
+) -> cp_model.LinearExpr | None:
+    operation = snapshot.get("operation")
+    if not isinstance(operation, dict) or operation.get("kind") != "repair":
+        return None
+
+    requested = operation.get("requested_assignment")
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id")) if isinstance(requested, dict) else None
+    requested_meeting_sequence = (
+        _int_or_none(requested.get("meeting_sequence")) or 1
+        if isinstance(requested, dict)
+        else 1
+    )
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    baseline = _repair_baseline(operation)
+    changed_terms = [
+        variables[index]
+        for index, candidate in enumerate(candidates)
+        if _candidate_assignment_key(candidate) != requested_key
+        and _candidate_assignment_key(candidate) in baseline
+        and not _candidate_matches_assignment(candidate, baseline[_candidate_assignment_key(candidate)])
+    ]
+
+    return -sum(changed_terms)
+
+
+def _repair_baseline(operation: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    source = operation.get("source_candidate")
+    assignments = source.get("assignments") if isinstance(source, dict) else None
+    if not isinstance(assignments, list):
+        return {}
+
+    baseline: dict[tuple[int, int], dict[str, Any]] = {}
+    for assignment in assignments:
+        if not isinstance(assignment, dict):
+            continue
+        demand_id = _int_or_none(assignment.get("scheduling_demand_id"))
+        meeting_sequence = _int_or_none(assignment.get("meeting_sequence")) or 1
+        key = (demand_id, meeting_sequence)
+        if demand_id is not None and key not in baseline:
+            baseline[key] = assignment
+
+    return baseline
+
+
+def _candidate_matches_assignment(candidate: Candidate, assignment: dict[str, Any]) -> bool:
+    return (
+        candidate.meeting_sequence == (_int_or_none(assignment.get("meeting_sequence")) or 1)
+        and candidate.day_of_week == _int_or_none(assignment.get("day_of_week") or assignment.get("day"))
+        and candidate.starts_at == _time_or_none(assignment.get("starts_at") or assignment.get("start_time"))
+        and candidate.ends_at == _time_or_none(assignment.get("ends_at") or assignment.get("end_time"))
+        and candidate.faculty_id == _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id"))
+        and candidate.room_id == _int_or_none(assignment.get("room_id"))
+    )
+
+
+def _repair_evidence(snapshot: dict[str, Any], selected: list[Candidate]) -> dict[str, Any] | None:
+    operation = snapshot.get("operation")
+    if not isinstance(operation, dict) or operation.get("kind") != "repair":
+        return None
+
+    source = operation.get("source_candidate") if isinstance(operation.get("source_candidate"), dict) else {}
+    requested = operation.get("requested_assignment") if isinstance(operation.get("requested_assignment"), dict) else {}
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
+    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    baseline = _repair_baseline(operation)
+    changes = []
+
+    for candidate in sorted(selected, key=_candidate_sort_key):
+        candidate_key = _candidate_assignment_key(candidate)
+        previous = baseline.get(candidate_key)
+        if previous is None or _candidate_matches_assignment(candidate, previous):
+            continue
+        changes.append({
+            "scheduling_demand_id": candidate.scheduling_demand_id,
+            "meeting_sequence": candidate.meeting_sequence,
+            "requested": candidate_key == requested_key,
+            "before": previous,
+            "after": _assignment(candidate),
+        })
+
+    return {
+        "source_run_id": source.get("run_id"),
+        "source_candidate_version": source.get("candidate_version"),
+        "requested_scheduling_demand_id": requested_demand_id,
+        "requested_meeting_sequence": requested_meeting_sequence,
+        "changed_non_requested_meetings": sum(1 for change in changes if not change["requested"]),
+        "changes": changes,
+    }
+
+
 def _add_same_faculty_constraints(
     model: cp_model.CpModel,
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
     demands: list[dict[str, Any]],
 ) -> None:
-    grouped_demands: dict[tuple[int, int], list[int]] = {}
+    grouped_assignments: dict[tuple[int, int], list[tuple[int, int]]] = {}
 
     for demand in demands:
         if not bool(demand.get("same_faculty_required")):
@@ -1243,36 +1777,36 @@ def _add_same_faculty_constraints(
         if demand_id is None or term_offering_id is None or group_id is None:
             continue
 
-        grouped_demands.setdefault((term_offering_id, group_id), []).append(demand_id)
+        grouped_assignments.setdefault((term_offering_id, group_id), []).extend(
+            (demand_id, meeting_sequence)
+            for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
+        )
 
-    for demand_ids in grouped_demands.values():
-        if len(demand_ids) < 2:
+    for assignment_keys in grouped_assignments.values():
+        assignment_keys = sorted(set(assignment_keys))
+        if len(assignment_keys) < 2:
             continue
 
         faculty_ids = {
             candidate.faculty_id
             for candidate in candidates
-            if candidate.scheduling_demand_id in demand_ids
+            if _candidate_assignment_key(candidate) in assignment_keys
         }
 
-        for left_demand_id in demand_ids:
-            for right_demand_id in demand_ids:
-                if left_demand_id >= right_demand_id:
-                    continue
+        for left_key, right_key in zip(assignment_keys, assignment_keys[1:]):
+            for faculty_id in faculty_ids:
+                left_terms = [
+                    variables[index]
+                    for index, candidate in enumerate(candidates)
+                    if _candidate_assignment_key(candidate) == left_key and candidate.faculty_id == faculty_id
+                ]
+                right_terms = [
+                    variables[index]
+                    for index, candidate in enumerate(candidates)
+                    if _candidate_assignment_key(candidate) == right_key and candidate.faculty_id == faculty_id
+                ]
 
-                for faculty_id in faculty_ids:
-                    left_terms = [
-                        variables[index]
-                        for index, candidate in enumerate(candidates)
-                        if candidate.scheduling_demand_id == left_demand_id and candidate.faculty_id == faculty_id
-                    ]
-                    right_terms = [
-                        variables[index]
-                        for index, candidate in enumerate(candidates)
-                        if candidate.scheduling_demand_id == right_demand_id and candidate.faculty_id == faculty_id
-                    ]
-
-                    model.add(sum(left_terms) == sum(right_terms))
+                model.add(sum(left_terms) == sum(right_terms))
 
 
 def _add_faculty_load_constraints(
@@ -1419,6 +1953,7 @@ def _assignment(candidate: Candidate) -> dict[str, Any]:
         "section_id": candidate.section_id,
         "section_delivery_group_id": candidate.section_delivery_group_id,
         "cohort_or_student_group_id": candidate.cohort_or_student_group_id,
+        "cohort_or_student_group_ids": list(candidate.cohort_or_student_group_ids),
         "subject_id": candidate.subject_id,
         "course_component_id": candidate.course_component_id,
         "faculty_id": candidate.faculty_id,
@@ -1434,7 +1969,7 @@ def _assignment(candidate: Candidate) -> dict[str, Any]:
         "time_block_reference": candidate.time_block_key,
         "time_block_key": candidate.time_block_key,
         "meeting_sequence": candidate.meeting_sequence,
-        "meeting_pattern": "single_block",
+        "meeting_pattern": candidate.meeting_pattern,
         "assignment_status": "ok",
         "violations": [],
         "warnings": [],
@@ -1443,7 +1978,11 @@ def _assignment(candidate: Candidate) -> dict[str, Any]:
     }
 
 
-def _conflict_assignment(demand: dict[str, Any], violations: list[dict[str, str]]) -> dict[str, Any]:
+def _conflict_assignment(
+    demand: dict[str, Any],
+    meeting_sequence: int,
+    violations: list[dict[str, str]],
+) -> dict[str, Any]:
     return {
         "scheduling_demand_id": _int_or_none(demand.get("scheduling_demand_id")),
         "term_offering_id": _int_or_none(demand.get("term_offering_id")),
@@ -1464,8 +2003,8 @@ def _conflict_assignment(demand: dict[str, Any], violations: list[dict[str, str]
         "time_slot_id": None,
         "time_block_reference": None,
         "time_block_key": None,
-        "meeting_sequence": 1,
-        "meeting_pattern": "single_block",
+        "meeting_sequence": meeting_sequence,
+        "meeting_pattern": _meeting_pattern(demand),
         "assignment_status": "conflict",
         "violations": violations,
         "warnings": [],
@@ -1488,11 +2027,34 @@ def _duration_minutes(demand: dict[str, Any]) -> int:
         value = source.get("weekly_contact_hours")
 
         try:
-            return max(30, int(float(value) * 60))
+            weekly_duration_minutes = max(30, int(float(value) * 60))
+
+            return max(30, weekly_duration_minutes // (_meeting_count(demand) or 1))
         except (TypeError, ValueError):
             return 60
 
     return max(30, int(value))
+
+
+def _meeting_count(demand: dict[str, Any]) -> int | None:
+    meeting_count = _int_or_none(demand.get("meeting_count"))
+
+    if meeting_count is None or meeting_count < 1 or meeting_count > 3:
+        return None
+
+    return meeting_count
+
+
+def _has_valid_meeting_pattern(demand: dict[str, Any]) -> bool:
+    meeting_count = _meeting_count(demand)
+
+    return meeting_count is not None and _duration_minutes(demand) >= 30
+
+
+def _meeting_pattern(demand: dict[str, Any]) -> str:
+    meeting_count = _meeting_count(demand) or 1
+
+    return f"{meeting_count}x{_duration_minutes(demand)}"
 
 
 def _faculty_priority(demand: dict[str, Any], faculty_id: int) -> int:
@@ -1622,10 +2184,13 @@ def _earlier_candidate_score(candidate: Candidate) -> int:
 
 
 def _room_efficiency_score(candidate: Candidate) -> int:
-    if candidate.room_id is None or candidate.room_capacity <= 0:
-        return 100
+    if candidate.room_id is None:
+        return 0
 
-    return max(0, 1_000 - candidate.room_capacity)
+    if candidate.expected_count <= 0:
+        return max(0, 1_000 - candidate.room_capacity)
+
+    return -max(0, candidate.room_capacity - candidate.expected_count)
 
 
 def _objective_details(
@@ -1695,14 +2260,86 @@ def _objective_details(
     }
 
 
+def _lexicographic_objective_details(
+    snapshot: dict[str, Any],
+    selected: list[Candidate],
+    completed_levels: list[dict[str, Any]],
+) -> dict[str, Any]:
+    cohort_days: dict[tuple[int, int], list[Candidate]] = {}
+    faculty_days: dict[tuple[int, int], list[Candidate]] = {}
+    faculty_loads: dict[int, dict[tuple[int, int], int]] = {}
+
+    for candidate in selected:
+        for cohort_id in candidate.cohort_or_student_group_ids:
+            cohort_days.setdefault((cohort_id, candidate.day_of_week), []).append(candidate)
+        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(candidate)
+        faculty_loads.setdefault(candidate.faculty_id, {})[
+            (candidate.term_offering_id, candidate.section_delivery_group_id)
+        ] = candidate.load_units_scaled
+
+    def idle_minutes(groups: dict[tuple[int, int], list[Candidate]]) -> int:
+        total = 0
+        for rows in groups.values():
+            if rows:
+                total += max(candidate.ends_minute for candidate in rows) - min(candidate.starts_minute for candidate in rows) - sum(candidate.duration_minutes for candidate in rows)
+        return total
+
+    mode_switches = 0
+    for rows in cohort_days.values():
+        ordered = sorted(rows, key=lambda candidate: (candidate.starts_minute, candidate.ends_minute))
+        mode_switches += sum(
+            1 for left, right in zip(ordered, ordered[1:])
+            if left.modality != right.modality
+        )
+
+    loads = [sum(group_loads.values()) for group_loads in faculty_loads.values()]
+    load_imbalance = sum(
+        abs(left - right)
+        for left_index, left in enumerate(loads)
+        for right in loads[left_index + 1:]
+    )
+
+    details = {
+        "profile_key": "lexicographic_v1",
+        "profile_version": 1,
+        "objective_hierarchy": list(LEXICOGRAPHIC_TERMS),
+        "values": {
+            "cohort_mode_switches": mode_switches,
+            "cohort_idle_time": idle_minutes(cohort_days),
+            "faculty_load_imbalance": load_imbalance,
+            "faculty_idle_time": idle_minutes(faculty_days),
+            "room_seat_waste": -sum(_room_efficiency_score(candidate) for candidate in selected),
+            "stable_earlier_placement": sum(_earlier_candidate_score(candidate) for candidate in selected),
+        },
+        "completed_levels": completed_levels,
+        "scalar_score": None,
+    }
+
+    repair = _repair_evidence(snapshot, selected)
+    if repair is not None:
+        details["repair"] = repair
+
+    return details
+
+
 def _empty_objective_details(snapshot: dict[str, Any]) -> dict[str, Any]:
     profile = snapshot.get("constraint_profile") if isinstance(snapshot.get("constraint_profile"), dict) else {}
     weights = profile.get("soft_weights") if isinstance(profile.get("soft_weights"), dict) else {}
 
+    if profile.get("key") == "lexicographic_v1":
+        return {
+            "profile_key": "lexicographic_v1",
+            "profile_version": 1,
+            "objective_hierarchy": list(LEXICOGRAPHIC_TERMS),
+            "values": {term: None for term in LEXICOGRAPHIC_TERMS},
+            "completed_levels": [],
+            "scalar_score": None,
+        }
+
     return {
         "profile_key": profile.get("key"),
         "profile_version": profile.get("version"),
-        "terms": {term: {"raw": None, "weight": int(weights.get(term, 1))} for term in SOFT_TERMS},
+        "terms": {term: {"raw": None, "weight": int(weights.get(term, 1))} for term in LEGACY_SOFT_TERMS},
     }
 
 

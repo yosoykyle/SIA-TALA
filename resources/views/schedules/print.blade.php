@@ -1,15 +1,21 @@
 <x-official-output-layout
     :title="$schedule['title']"
-    :subtitle="'Current published schedule for '.$schedule['owner']"
+    :subtitle="$schedule['version_label'].' · '.$schedule['version_state']"
     :generated-at="$schedule['generated_at']"
+    page-orientation="landscape"
 >
     <p class="schedule-owner">
-        This document shows the current published schedule available to <strong>{{ $schedule['owner'] }}</strong>.
-        Use the Student Hub or Faculty Workspace to confirm later revisions.
+        This A4 landscape output is bound to <strong>{{ $schedule['version_label'] }}</strong>
+        for <strong>{{ $schedule['owner'] }}</strong>.
+        @if ($schedule['version_state'] === \App\Models\PublishedTimetableVersion::StateSuperseded)
+            <strong>Superseded history — not the current official timetable.</strong>
+        @else
+            Use the Student Hub or Faculty Workspace to confirm later revisions.
+        @endif
     </p>
 
     @if ($schedule['rows'] === [])
-        <div class="schedule-empty">No current published schedule is available for this account.</div>
+        <div class="schedule-empty">No schedule is available for this exact timetable version.</div>
     @else
         <div class="official-output-table">
             <table class="schedule-table">

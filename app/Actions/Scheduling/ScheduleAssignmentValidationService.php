@@ -11,7 +11,8 @@ use Illuminate\Validation\Rule;
 
 final class ScheduleAssignmentValidationService
 {
-    private const ContractVersion = 'tal94-demand-v2';
+    /** @var list<string> */
+    private const ContractVersions = ['tal94-demand-v2', ScheduleGenerationRun::ContractVersion];
 
     /** @var list<string> */
     private const NativeStatuses = ['optimal', 'feasible', 'infeasible', 'model_invalid', 'unknown'];
@@ -112,6 +113,7 @@ final class ScheduleAssignmentValidationService
     /** @var list<string> */
     private const OptionalAssignmentKeys = [
         'cohort_or_student_group_id',
+        'cohort_or_student_group_ids',
     ];
 
     /**
@@ -132,12 +134,12 @@ final class ScheduleAssignmentValidationService
             );
         }
 
-        if (($snapshot['contract_version'] ?? null) !== self::ContractVersion) {
+        if (! in_array(($snapshot['contract_version'] ?? null), self::ContractVersions, true)) {
             $findings[] = $this->finding(
                 run: $run,
                 code: 'input_snapshot_contract_mismatch',
                 constraint: 'solver_response_contract',
-                message: 'Result validation requires an immutable TAL-94 V2 input snapshot.',
+                message: 'Result validation requires a supported immutable scheduling snapshot.',
                 sourceField: 'input_snapshot.contract_version',
             );
         }
@@ -173,6 +175,24 @@ final class ScheduleAssignmentValidationService
                 message: 'The solver model version does not match the captured snapshot contract.',
                 sourceField: 'model_version',
             );
+        }
+
+        if (($snapshot['contract_version'] ?? null) === ScheduleGenerationRun::ContractVersion) {
+            $solverVersion = (string) ($solverResult['solver_version'] ?? '');
+            $driver = (string) config('tala_integrations.scheduling_solver.driver');
+            $solverIdentityMatches = $driver === 'local_stub'
+                ? str_starts_with($solverVersion, 'local-stub-')
+                : $solverVersion === ScheduleGenerationRun::SolverVersion;
+
+            if (! $solverIdentityMatches) {
+                $findings[] = $this->finding(
+                    run: $run,
+                    code: 'solver_version_mismatch',
+                    constraint: 'solver_response_contract',
+                    message: 'The solver identity does not match the configured timetable driver and contract family.',
+                    sourceField: 'solver_version',
+                );
+            }
         }
 
         $findings = [...$findings, ...$this->counterFindings($run, $solverResult, $assignments)];
@@ -260,6 +280,8 @@ final class ScheduleAssignmentValidationService
             'response.assignments.*.section_id' => ['nullable', 'integer'],
             'response.assignments.*.section_delivery_group_id' => ['nullable', 'integer'],
             'response.assignments.*.cohort_or_student_group_id' => ['nullable', 'integer'],
+            'response.assignments.*.cohort_or_student_group_ids' => ['sometimes', 'array'],
+            'response.assignments.*.cohort_or_student_group_ids.*' => ['integer'],
             'response.assignments.*.subject_id' => ['nullable', 'integer'],
             'response.assignments.*.course_component_id' => ['nullable', 'integer'],
             'response.assignments.*.faculty_id' => ['nullable', 'integer'],
@@ -315,7 +337,7 @@ final class ScheduleAssignmentValidationService
             'response.solver_statistics.result_source' => [
                 'required',
                 'string',
-                Rule::in(['none', 'feasibility_fallback', 'optimization']),
+                Rule::in(['none', 'feasibility_fallback', 'optimization', 'lexicographic']),
             ],
             'response.solver_statistics.search_stages' => [
                 'required',
@@ -455,6 +477,29 @@ final class ScheduleAssignmentValidationService
                 message: 'Objective details do not identify the captured constraint profile.',
                 sourceField: 'objective_details',
             );
+        }
+
+        if (($profile['key'] ?? null) === 'lexicographic_v1') {
+            $expectedHierarchy = $this->listValue($profile['objective_hierarchy'] ?? null);
+            $reportedHierarchy = $this->listValue($details['objective_hierarchy'] ?? null);
+            $values = $this->arrayValue($details['values'] ?? null);
+
+            if ($reportedHierarchy !== $expectedHierarchy
+                || array_keys($values) !== $expectedHierarchy
+                || array_key_exists('terms', $details)
+                || array_key_exists('total', $details)
+                || ($details['scalar_score'] ?? null) !== null
+                || ($solverResult['objective_score'] ?? null) !== null) {
+                $findings[] = $this->finding(
+                    run: $run,
+                    code: 'lexicographic_evidence_mismatch',
+                    constraint: 'solver_response_contract',
+                    message: 'Objective evidence must preserve the fixed six-level hierarchy without weights or a scalar accuracy score.',
+                    sourceField: 'objective_details',
+                );
+            }
+
+            return $findings;
         }
 
         foreach ($expectedWeights as $name => $expectedWeight) {
@@ -683,6 +728,7 @@ final class ScheduleAssignmentValidationService
 
         $findings = [...$findings, ...$this->persistenceFindings($run, $demands->keys()->map(fn (mixed $id): int => (int) $id)->all())];
         $findings = [...$findings, ...$this->overlapFindings($run, $normalizedAssignments)];
+        $findings = [...$findings, ...$this->modalityTransitionFindings($run, $normalizedAssignments)];
         $findings = [...$findings, ...$this->sameFacultyFindings($run, $demands->all(), $normalizedAssignments)];
         $findings = [...$findings, ...$this->facultyLoadFindings($run, $snapshot, $demands->all(), $normalizedAssignments)];
 
@@ -740,7 +786,13 @@ final class ScheduleAssignmentValidationService
         $demandCohortId = $this->integerValue(
             $demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id'] ?? null,
         );
+        $demandCohortIds = $this->integerList(
+            $demand['cohort_or_student_group_ids'] ?? [$demandCohortId],
+        );
         $assignmentCohortId = $this->integerValue($assignment['cohort_or_student_group_id'] ?? null);
+        $assignmentCohortIds = $this->integerList(
+            $assignment['cohort_or_student_group_ids'] ?? [$assignmentCohortId],
+        );
 
         if (array_key_exists('cohort_or_student_group_id', $assignment)
             && $assignmentCohortId !== $demandCohortId) {
@@ -754,6 +806,21 @@ final class ScheduleAssignmentValidationService
                 sourceType: 'scheduling_demand',
                 sourceId: $demandId,
                 sourceField: 'cohort_or_student_group_id',
+            );
+        }
+
+        if (array_key_exists('cohort_or_student_group_ids', $assignment)
+            && $assignmentCohortIds !== $demandCohortIds) {
+            $findings[] = $this->finding(
+                run: $run,
+                code: 'cohort_or_student_group_ids_mismatch',
+                constraint: 'assignment_identity',
+                message: 'The assignment cohort memberships do not match the captured shared-class demand.',
+                demandId: $demandId,
+                meetingSequence: $sequence,
+                sourceType: 'scheduling_demand',
+                sourceId: $demandId,
+                sourceField: 'cohort_or_student_group_ids',
             );
         }
 
@@ -844,6 +911,8 @@ final class ScheduleAssignmentValidationService
             'term_offering_id' => $this->integerValue($assignment['term_offering_id'] ?? null),
             'section_delivery_group_id' => $this->integerValue($assignment['section_delivery_group_id'] ?? null),
             'cohort_or_student_group_id' => $demandCohortId,
+            'cohort_or_student_group_ids' => $demandCohortIds,
+            'modality' => mb_strtoupper((string) ($demand['modality'] ?? '')),
             'faculty_user_id' => $facultyId,
             'room_id' => $roomId,
             'day_of_week' => $day,
@@ -1179,7 +1248,6 @@ final class ScheduleAssignmentValidationService
                 $checks = [
                     'faculty_overlap' => ['faculty_user_id', 'faculty_no_overlap'],
                     'room_overlap' => ['room_id', 'room_no_overlap'],
-                    'cohort_overlap' => ['cohort_or_student_group_id', 'section_delivery_group_no_overlap'],
                     'delivery_group_overlap' => ['section_delivery_group_id', 'section_delivery_group_no_overlap'],
                 ];
 
@@ -1200,6 +1268,75 @@ final class ScheduleAssignmentValidationService
                         sourceField: $field,
                     );
                 }
+
+                if (array_intersect(
+                    $this->integerList($left['cohort_or_student_group_ids'] ?? []),
+                    $this->integerList($right['cohort_or_student_group_ids'] ?? []),
+                ) !== []) {
+                    $findings[] = $this->finding(
+                        run: $run,
+                        code: 'cohort_overlap',
+                        constraint: 'section_delivery_group_no_overlap',
+                        message: 'Cohort overlap was found in the candidate set.',
+                        demandId: $this->integerValue($right['scheduling_demand_id'] ?? null),
+                        meetingSequence: $this->integerValue($right['meeting_sequence'] ?? null),
+                        sourceType: 'scheduling_demand',
+                        sourceId: $this->integerValue($right['scheduling_demand_id'] ?? null),
+                        sourceField: 'cohort_or_student_group_ids',
+                    );
+                }
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $assignments
+     * @return list<array<string, mixed>>
+     */
+    private function modalityTransitionFindings(ScheduleGenerationRun $run, array $assignments): array
+    {
+        $findings = [];
+
+        foreach ($assignments as $leftIndex => $left) {
+            foreach (array_slice($assignments, $leftIndex + 1) as $right) {
+                if (array_intersect(
+                    $this->integerList($left['cohort_or_student_group_ids'] ?? []),
+                    $this->integerList($right['cohort_or_student_group_ids'] ?? []),
+                ) === []
+                    || ($left['day_of_week'] ?? null) !== ($right['day_of_week'] ?? null)
+                    || ($left['modality'] ?? null) === ($right['modality'] ?? null)) {
+                    continue;
+                }
+
+                $leftStart = $this->timeSeconds($left['starts_at'] ?? null);
+                $leftEnd = $this->timeSeconds($left['ends_at'] ?? null);
+                $rightStart = $this->timeSeconds($right['starts_at'] ?? null);
+                $rightEnd = $this->timeSeconds($right['ends_at'] ?? null);
+
+                if ($leftStart === null || $leftEnd === null || $rightStart === null || $rightEnd === null) {
+                    continue;
+                }
+
+                $leftToRight = $rightStart - $leftEnd;
+                $rightToLeft = $leftStart - $rightEnd;
+
+                if (! (($leftToRight >= 0 && $leftToRight < 1800) || ($rightToLeft >= 0 && $rightToLeft < 1800))) {
+                    continue;
+                }
+
+                $findings[] = $this->finding(
+                    run: $run,
+                    code: 'cohort_modality_transition_buffer',
+                    constraint: 'cohort_modality_transition_buffer',
+                    message: 'The cohort requires at least 30 minutes between Online and On-campus meetings.',
+                    demandId: $this->integerValue($right['scheduling_demand_id'] ?? null),
+                    meetingSequence: $this->integerValue($right['meeting_sequence'] ?? null),
+                    sourceType: 'scheduling_demand',
+                    sourceId: $this->integerValue($right['scheduling_demand_id'] ?? null),
+                    sourceField: 'modality',
+                );
             }
         }
 
@@ -1584,5 +1721,17 @@ final class ScheduleAssignmentValidationService
     private function listValue(mixed $value): array
     {
         return is_array($value) && array_is_list($value) ? $value : [];
+    }
+
+    /** @return list<int> */
+    private function integerList(mixed $value): array
+    {
+        return collect($this->listValue($value))
+            ->filter(fn (mixed $item): bool => is_numeric($item) && (int) $item > 0)
+            ->map(fn (mixed $item): int => (int) $item)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 }

@@ -5,7 +5,9 @@ namespace App\Actions\Scheduling;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
 use App\Models\Enrollment;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
+use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
@@ -21,14 +23,22 @@ class BuildOfficialScheduleOutput
     ) {}
 
     /**
-     * @return array{title:string,owner:string,generated_at:string,rows:list<array<string, string>>}
+     * @return array{title:string,owner:string,generated_at:string,version_label:string,version_state:string,rows:list<array<string, string>>}
      */
     public function forFaculty(User $faculty, Request $request): array
     {
         abort_unless($faculty->hasRole(User::StaffRoleFaculty), 403);
 
+        $requestedVersionId = $request->integer('timetable_version');
+        $availableVersions = PublishedTimetableVersion::query()
+            ->whereHas('meetings', fn ($query) => $query->where('faculty_user_id', $faculty->id))
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('published_at')
+            ->get();
+        $version = $requestedVersionId > 0
+            ? $availableVersions->firstWhere('id', $requestedVersionId)
+            : ($availableVersions->count() === 1 ? $availableVersions->sole() : null);
         $meetings = SectionMeeting::query()
-            ->activeOfficial()
             ->with([
                 'scheduleRun',
                 'schedulingDemand.termOffering.term',
@@ -39,6 +49,14 @@ class BuildOfficialScheduleOutput
                 'room',
             ])
             ->where('faculty_user_id', $faculty->id)
+            ->when(
+                $version instanceof PublishedTimetableVersion,
+                fn ($query) => $query->where('published_timetable_version_id', $version->id),
+                fn ($query) => $requestedVersionId === 0 && $availableVersions->isEmpty()
+                    ? $query->whereNull('published_timetable_version_id')
+                        ->whereHas('scheduleRun', fn ($runQuery) => $runQuery->where('status', ScheduleGenerationRun::StatusPublished))
+                    : $query->whereRaw('1 = 0'),
+            )
             ->orderBy('day_of_week')
             ->orderBy('starts_at')
             ->orderBy('id')
@@ -58,7 +76,7 @@ class BuildOfficialScheduleOutput
                 'copy_context' => 'FACULTY_COPY',
                 'schedule_version' => $versions->count() === 1 ? $versions->first() : null,
                 'filter_summary' => json_encode([
-                    'official_only' => true,
+                    'timetable_version_id' => $version?->id,
                     'faculty_user_id' => $faculty->id,
                 ], JSON_THROW_ON_ERROR),
                 'row_count' => $meetings->count(),
@@ -75,6 +93,15 @@ class BuildOfficialScheduleOutput
             'title' => 'Faculty Assigned Schedule',
             'owner' => $faculty->name,
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
+            'version_label' => match (true) {
+                $version instanceof PublishedTimetableVersion => $version->term?->label.' · Timetable v'.$version->version,
+                $availableVersions->count() > 1 => 'Select one exact Term and timetable version',
+                $meetings->isNotEmpty() => 'Legacy published timetable baseline',
+                default => 'No current published schedule is available for this account.',
+            },
+            'version_state' => $version instanceof PublishedTimetableVersion
+                ? $version->state
+                : ($meetings->isNotEmpty() ? 'Published' : 'Unavailable'),
             'rows' => $meetings
                 ->map(fn (SectionMeeting $meeting): array => $this->meetingRow($meeting))
                 ->values()
@@ -83,7 +110,7 @@ class BuildOfficialScheduleOutput
     }
 
     /**
-     * @return array{title:string,owner:string,generated_at:string,rows:list<array<string, string>>}
+     * @return array{title:string,owner:string,generated_at:string,version_label:string,version_state:string,rows:list<array<string, string>>}
      */
     public function forStudent(User $student, Request $request): array
     {
@@ -120,11 +147,19 @@ class BuildOfficialScheduleOutput
             RecordStudentScheduleAccess::ActionPrint,
             $enrollment,
         );
+        $versionId = $bindings->pluck('sectionMeeting.published_timetable_version_id')->filter()->unique()->first();
+        $version = PublishedTimetableVersion::query()->whereKey($versionId)->first();
 
         return [
             'title' => 'Student Class Schedule',
             'owner' => $student->name,
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
+            'version_label' => $version instanceof PublishedTimetableVersion
+                ? $version->term?->label.' · Timetable v'.$version->version
+                : ((string) $enrollment?->term?->label ?: 'No current published schedule is available for this account.'),
+            'version_state' => $version instanceof PublishedTimetableVersion
+                ? $version->state
+                : ($bindings->isNotEmpty() ? 'Published' : 'Unavailable'),
             'rows' => $bindings
                 ->map(function (StudentScheduleBinding $binding): array {
                     $meeting = $binding->sectionMeeting;

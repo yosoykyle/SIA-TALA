@@ -48,7 +48,7 @@ final class TAL96D5E1B1FixtureTruthTest extends TestCase
         ]));
     }
 
-    public function test_current_manifests_use_77_demands_without_rewriting_historical_v1(): void
+    public function test_current_manifests_exclude_externally_arranged_work_without_rewriting_historical_v1(): void
     {
         $catalog = new SchedulingAcceptanceScenarioCatalog;
         $middle = $catalog->manifest(SchedulingAcceptanceScenarioCatalog::Middle);
@@ -56,12 +56,12 @@ final class TAL96D5E1B1FixtureTruthTest extends TestCase
 
         $this->assertSame(77, $middle['counts']['offerings']);
         $this->assertSame(77, $middle['counts']['sections']);
-        $this->assertSame(77, $middle['counts']['scheduling_demands']);
+        $this->assertSame(74, $middle['counts']['scheduling_demands']);
         $this->assertSame(241.0, $middle['faculty_evidence']['total_teaching_units']);
 
         $this->assertSame(77, $max['counts']['offerings']);
         $this->assertSame(172, $max['counts']['sections']);
-        $this->assertSame(172, $max['counts']['scheduling_demands']);
+        $this->assertSame(166, $max['counts']['scheduling_demands']);
         $this->assertSame(534.0, $max['faculty_evidence']['total_teaching_units']);
 
         $this->assertSame(

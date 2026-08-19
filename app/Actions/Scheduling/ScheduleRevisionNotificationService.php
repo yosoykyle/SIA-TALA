@@ -16,7 +16,10 @@ use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 final class ScheduleRevisionNotificationService
 {
@@ -91,11 +94,59 @@ final class ScheduleRevisionNotificationService
                 continue;
             }
 
+            $this->queue($deliveryEvent, $recipient);
+        }
+    }
+
+    public function resend(OperationalEvent $event, User $actor): OperationalEvent
+    {
+        return DB::transaction(function () use ($event, $actor): OperationalEvent {
+            $locked = OperationalEvent::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->event_type !== OperationalEvent::TypeScheduleRevisionEmail
+                || $locked->status !== OperationalEvent::StatusFailed) {
+                throw ValidationException::withMessages([
+                    'notification' => 'Only a failed timetable revision notification can be resent.',
+                ]);
+            }
+
+            if ((int) $locked->user_id !== (int) $actor->id
+                && ! $actor->hasRole(User::StaffRoleRegistrar)) {
+                abort(403);
+            }
+
+            $recipient = User::query()->whereKey($locked->user_id)->firstOrFail();
+            $locked->forceFill([
+                'status' => OperationalEvent::StatusPending,
+                'processed_at' => null,
+                'failed_at' => null,
+                'diagnostics' => null,
+            ])->save();
+            DB::afterCommit(fn () => $this->queue($locked, $recipient));
+
+            return $locked->fresh();
+        }, 3);
+    }
+
+    private function queue(OperationalEvent $event, User $recipient): void
+    {
+        try {
             Mail::to($recipient)->queue(new ScheduleRevisionMail(
-                operationalEventId: (int) $deliveryEvent->id,
+                operationalEventId: (int) $event->id,
                 recipientName: (string) $recipient->name,
-                revisionPayload: $payload,
+                revisionPayload: is_array($event->payload) ? $event->payload : [],
             ));
+        } catch (Throwable $exception) {
+            $event->forceFill([
+                'status' => OperationalEvent::StatusFailed,
+                'processed_at' => now(),
+                'sent_at' => null,
+                'failed_at' => now(),
+                'diagnostics' => [
+                    'reason' => 'Mail could not be queued.',
+                    'exception_type' => class_basename($exception),
+                ],
+            ])->save();
         }
     }
 

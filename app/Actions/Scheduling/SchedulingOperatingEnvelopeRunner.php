@@ -156,13 +156,20 @@ final class SchedulingOperatingEnvelopeRunner
             ->filter(fn (mixed $assignment): bool => is_array($assignment))
             ->values()
             ->all();
+        $requiredAssignmentCount = 0;
+
+        foreach ($snapshot['scheduling_demands'] ?? [] as $demand) {
+            if (is_array($demand)) {
+                $requiredAssignmentCount += max(1, $this->integer($demand['meeting_count'] ?? 1));
+            }
+        }
         $telemetryComplete = $this->telemetryMatches(
             statistics: $statistics,
             composition: $composition,
             target: $target,
         );
         $operationallyValid = in_array($solverStatus, self::AcceptedStatuses, true)
-            && $assignedCount === $composition['demands']
+            && $assignedCount === $requiredAssignmentCount
             && $unassignedCount === 0
             && $hardViolationCount === 0
             && ! $timedOut
@@ -196,9 +203,9 @@ final class SchedulingOperatingEnvelopeRunner
             'meets_strict_study_acceptance' => $meetsStrictStudyAcceptance,
             'assigned_count' => $assignedCount,
             'unassigned_count' => $unassignedCount,
-            'demand_coverage_percent' => $composition['demands'] === 0
+            'demand_coverage_percent' => $requiredAssignmentCount === 0
                 ? 0.0
-                : round(($assignedCount / $composition['demands']) * 100, 4),
+                : round(($assignedCount / $requiredAssignmentCount) * 100, 4),
             'hard_violation_count' => $hardViolationCount,
             'laravel_hard_constraints_pass' => $blockingCodes === [],
             'blocking_finding_codes' => $blockingCodes,

@@ -208,11 +208,13 @@ class CurriculumWorkbenchService
      *     credit_units: float|int|string,
      *     grading_profile_key: string,
      *     grading_profile_version: int,
+     *     scheduling_treatment: string,
      *     allowed_modalities: list<string>,
      *     same_faculty_default: bool,
      *     components: list<array{
      *         component_type: string,
      *         weekly_contact_hours: float|int|string,
+     *         meeting_pattern: string,
      *         room_type_default: string|null,
      *         required_room_feature_keys: list<string>,
      *         modality_restriction: string|null,
@@ -230,12 +232,18 @@ class CurriculumWorkbenchService
             'credit_units' => ['required', 'numeric', 'gt:0'],
             'grading_profile_key' => ['required', Rule::in(array_keys(CourseSpecification::gradingProfileOptions()))],
             'grading_profile_version' => ['required', 'integer', 'min:1'],
+            'scheduling_treatment' => ['required', Rule::in(array_keys(CourseSpecification::schedulingTreatmentOptions()))],
             'allowed_modalities' => ['required', 'array', 'min:1'],
             'allowed_modalities.*' => ['required', Rule::in(array_keys(CourseSpecification::modalityOptions()))],
             'same_faculty_default' => ['required', 'boolean'],
-            'components' => ['required', 'array', 'min:1'],
+            'components' => [
+                'array',
+                Rule::requiredIf(($data['scheduling_treatment'] ?? null) === CourseSpecification::SchedulingRecurring),
+                Rule::prohibitedIf(($data['scheduling_treatment'] ?? null) === CourseSpecification::SchedulingExternallyArranged),
+            ],
             'components.*.component_type' => ['required', Rule::in(array_keys(CourseComponent::typeOptions()))],
             'components.*.weekly_contact_hours' => ['required', 'numeric', 'gt:0'],
+            'components.*.meeting_pattern' => ['required', Rule::in(array_keys(CourseComponent::meetingPatternOptions()))],
             'components.*.room_type_default' => ['nullable', Rule::in(array_keys(CourseComponent::roomTypeOptions()))],
             'components.*.required_room_feature_keys' => ['nullable', 'array'],
             'components.*.required_room_feature_keys.*' => ['string', 'max:255'],
@@ -250,12 +258,14 @@ class CurriculumWorkbenchService
             'credit_units' => $validated['credit_units'],
             'grading_profile_key' => (string) $validated['grading_profile_key'],
             'grading_profile_version' => (int) $validated['grading_profile_version'],
+            'scheduling_treatment' => (string) $validated['scheduling_treatment'],
             'allowed_modalities' => array_values($validated['allowed_modalities']),
             'same_faculty_default' => (bool) $validated['same_faculty_default'],
-            'components' => collect($validated['components'])
+            'components' => collect($validated['components'] ?? [])
                 ->map(fn (array $component): array => [
                     'component_type' => (string) $component['component_type'],
                     'weekly_contact_hours' => $component['weekly_contact_hours'],
+                    'meeting_pattern' => (string) $component['meeting_pattern'],
                     'room_type_default' => filled($component['room_type_default'] ?? null)
                         ? (string) $component['room_type_default']
                         : null,

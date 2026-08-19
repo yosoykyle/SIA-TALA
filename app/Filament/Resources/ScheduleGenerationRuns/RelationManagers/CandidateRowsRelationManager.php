@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\RelationManagers;
 
 use App\Actions\Scheduling\CandidateScheduleRowReviewService;
+use App\Actions\Scheduling\RequestTimetableRepair;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\CandidateScheduleReviewForm;
 use App\Models\CandidateScheduleRow;
 use App\Models\ScheduleGenerationRun;
@@ -120,6 +121,11 @@ class CandidateRowsRelationManager extends RelationManager
                     ->color(fn (string $state): string => self::statusColor($state))
                     ->formatStateUsing(fn (string $state): string => self::statusOptions()[$state] ?? str($state)->headline()->toString())
                     ->sortable(),
+                TextColumn::make('change_type')
+                    ->label('Repair impact')
+                    ->badge()
+                    ->placeholder('Original')
+                    ->color(fn (?string $state): string => in_array($state, ['RequestedRepair', 'RepairImpact'], true) ? 'warning' : 'gray'),
                 TextColumn::make('schedulingDemand.courseComponent.courseSpecification.course.code')
                     ->label('Course')
                     ->placeholder('-')
@@ -193,6 +199,7 @@ class CandidateRowsRelationManager extends RelationManager
                     ViewAction::make()
                         ->label('Review evidence'),
                     $this->correctAssignmentAction(),
+                    $this->findValidRepairAction(),
                 ]),
             ])
             ->toolbarActions([])
@@ -249,6 +256,58 @@ class CandidateRowsRelationManager extends RelationManager
                 } finally {
                     $this->dispatch('schedule-run-updated');
                 }
+            });
+    }
+
+    private function findValidRepairAction(): Action
+    {
+        return Action::make('findValidRepair')
+            ->label('Find valid repair')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('warning')
+            ->modalHeading('Find a Whole-Term Repair')
+            ->modalDescription('The requested meeting is fixed as a hard requirement. Other meetings may move only in a previewable immutable candidate; nothing official changes until the whole repair is accepted and published.')
+            ->modalSubmitActionLabel('Queue Repair Preview')
+            ->modalWidth(Width::FiveExtraLarge)
+            ->fillForm(fn (CandidateScheduleRow $record): array => [
+                'scheduling_demand_id' => $record->scheduling_demand_id,
+                'faculty_user_id' => $record->faculty_user_id,
+                'room_id' => $record->room_id,
+                'day_of_week' => $record->day_of_week,
+                'starts_at' => $record->starts_at,
+                'ends_at' => $record->ends_at,
+                'override_authority' => null,
+                'override_reason' => null,
+            ])
+            ->schema(fn (): array => CandidateScheduleReviewForm::correctionSchema($this->ownerRun()))
+            ->visible(fn (CandidateScheduleRow $record): bool => $this->canCorrect($record))
+            ->action(function (array $data, CandidateScheduleRow $record): void {
+                $actor = auth()->user();
+
+                if (! $actor instanceof User) {
+                    abort(403);
+                }
+
+                app(RequestTimetableRepair::class)->execute(
+                    requestedRow: $record,
+                    actor: $actor,
+                    assignment: [
+                        'faculty_user_id' => (int) $data['faculty_user_id'],
+                        'room_id' => filled($data['room_id'] ?? null) ? (int) $data['room_id'] : null,
+                        'day_of_week' => (int) $data['day_of_week'],
+                        'starts_at' => (string) $data['starts_at'],
+                        'ends_at' => (string) $data['ends_at'],
+                    ],
+                    reason: (string) $data['override_reason'],
+                    authority: (string) $data['override_authority'],
+                );
+
+                Notification::make()
+                    ->title('Repair preview queued')
+                    ->body('The source candidate remains unchanged. Review every reported impact before accepting the successor.')
+                    ->success()
+                    ->send();
+                $this->dispatch('schedule-run-updated');
             });
     }
 

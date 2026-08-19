@@ -46,22 +46,41 @@ class SchedulingScenarioFeasibilityWitnessBuilder
         });
 
         $assignments = [];
+        $usedPlacements = [];
 
         foreach ($demands as $demand) {
             $demandId = (int) $demand['scheduling_demand_id'];
             $facultyId = $facultyByDemand[$demandId] ?? null;
-            $candidate = $this->bestTimeAndRoom($snapshot, $demand, $facultyId, $assignments);
+            $meetingCount = max(1, (int) ($demand['meeting_count'] ?? 1));
 
-            if ($candidate === null) {
-                throw new RuntimeException("No deterministic timetable witness could place demand {$demandId}.");
+            foreach (range(1, $meetingCount) as $meetingSequence) {
+                $candidate = $this->bestTimeAndRoom($snapshot, $demand, $facultyId, $usedPlacements);
+
+                if ($candidate === null) {
+                    throw new RuntimeException(
+                        "No deterministic timetable witness could place demand {$demandId} meeting {$meetingSequence}.",
+                    );
+                }
+
+                $assignments[] = $this->assignment(
+                    $demand,
+                    $facultyId,
+                    $candidate,
+                    $meetingSequence,
+                );
+                $usedPlacements[] = $candidate;
             }
-
-            $assignments[] = $this->assignment($demand, $facultyId, $candidate);
         }
 
         usort(
             $assignments,
-            fn (array $left, array $right): int => $left['scheduling_demand_id'] <=> $right['scheduling_demand_id'],
+            fn (array $left, array $right): int => [
+                $left['scheduling_demand_id'],
+                $left['meeting_sequence'],
+            ] <=> [
+                $right['scheduling_demand_id'],
+                $right['meeting_sequence'],
+            ],
         );
 
         return $assignments;
@@ -166,7 +185,9 @@ class SchedulingScenarioFeasibilityWitnessBuilder
         foreach ($demands as $demand) {
             if (($demand['room_required'] ?? false) === true) {
                 $type = (string) ($demand['room_type_requirement'] ?? '');
-                $minutes[$type] = ($minutes[$type] ?? 0) + (int) ($demand['required_duration_minutes'] ?? 0);
+                $minutes[$type] = ($minutes[$type] ?? 0)
+                    + ((int) ($demand['required_duration_minutes'] ?? 0)
+                        * max(1, (int) ($demand['meeting_count'] ?? 1)));
             }
         }
 
@@ -217,6 +238,7 @@ class SchedulingScenarioFeasibilityWitnessBuilder
                     'faculty_user_id' => $facultyId,
                     'cohort_or_student_group_id' => (int) ($demand['cohort_or_student_group_id'] ?? $demand['section_delivery_group_id']),
                     'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+                    'modality' => (string) ($demand['modality'] ?? ''),
                     'day_of_week' => $day,
                     'starts_at' => $startsAt,
                     'ends_at' => $endsAt,
@@ -275,16 +297,27 @@ class SchedulingScenarioFeasibilityWitnessBuilder
     private function overlaps(array $candidate, array $used): bool
     {
         foreach ($used as $assignment) {
-            if ((int) $assignment['day_of_week'] !== (int) $candidate['day_of_week']
-                || $candidate['starts_at'] >= $assignment['ends_at']
-                || $candidate['ends_at'] <= $assignment['starts_at']) {
+            if ((int) $assignment['day_of_week'] !== (int) $candidate['day_of_week']) {
                 continue;
             }
 
-            if ((int) $assignment['faculty_user_id'] === (int) $candidate['faculty_user_id']
-                || (int) $assignment['cohort_or_student_group_id'] === (int) $candidate['cohort_or_student_group_id']
+            $sameCohort = (int) $assignment['cohort_or_student_group_id']
+                === (int) $candidate['cohort_or_student_group_id'];
+            $timesOverlap = $candidate['starts_at'] < $assignment['ends_at']
+                && $candidate['ends_at'] > $assignment['starts_at'];
+
+            if ($timesOverlap && (
+                (int) $assignment['faculty_user_id'] === (int) $candidate['faculty_user_id']
+                || $sameCohort
                 || (int) $assignment['section_delivery_group_id'] === (int) $candidate['section_delivery_group_id']
-                || $candidate['room_id'] !== null && $assignment['room_id'] === $candidate['room_id']) {
+                || $candidate['room_id'] !== null && $assignment['room_id'] === $candidate['room_id']
+            )) {
+                return true;
+            }
+
+            if ($sameCohort
+                && ($assignment['modality'] ?? '') !== ($candidate['modality'] ?? '')
+                && $this->transitionGapMinutes($candidate, $assignment) < 30) {
                 return true;
             }
         }
@@ -324,8 +357,16 @@ class SchedulingScenarioFeasibilityWitnessBuilder
      * @param  array<string, int|string|null>  $time
      * @return array<string, mixed>
      */
-    private function assignment(array $demand, int $facultyId, array $time): array
-    {
+    private function assignment(
+        array $demand,
+        int $facultyId,
+        array $time,
+        int $meetingSequence,
+    ): array {
+        $meetingCount = max(1, (int) ($demand['meeting_count'] ?? 1));
+        $meetingPattern = (string) ($demand['meeting_pattern']
+            ?? "{$meetingCount}x{$demand['required_duration_minutes']}");
+
         return [
             'scheduling_demand_id' => (int) $demand['scheduling_demand_id'],
             'term_offering_id' => (int) $demand['term_offering_id'],
@@ -346,8 +387,8 @@ class SchedulingScenarioFeasibilityWitnessBuilder
             'time_slot_id' => $time['time_slot_id'],
             'time_block_reference' => $time['time_block_key'],
             'time_block_key' => $time['time_block_key'],
-            'meeting_sequence' => 1,
-            'meeting_pattern' => 'single_block',
+            'meeting_sequence' => $meetingSequence,
+            'meeting_pattern' => $meetingPattern,
             'assignment_status' => 'ok',
             'violations' => [],
             'warnings' => [],
@@ -366,6 +407,23 @@ class SchedulingScenarioFeasibilityWitnessBuilder
     private function minutesBetween(string $startsAt, string $endsAt): int
     {
         return $this->minutesFromMidnight($endsAt) - $this->minutesFromMidnight($startsAt);
+    }
+
+    /**
+     * @param  array<string, mixed>  $left
+     * @param  array<string, mixed>  $right
+     */
+    private function transitionGapMinutes(array $left, array $right): int
+    {
+        if ($left['starts_at'] >= $right['ends_at']) {
+            return $this->minutesBetween($right['ends_at'], $left['starts_at']);
+        }
+
+        if ($right['starts_at'] >= $left['ends_at']) {
+            return $this->minutesBetween($left['ends_at'], $right['starts_at']);
+        }
+
+        return 0;
     }
 
     private function minutesFromMidnight(string $time): int

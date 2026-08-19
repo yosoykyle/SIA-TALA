@@ -9,6 +9,7 @@ use App\Http\Controllers\FacultySchedulePrintController;
 use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\StudentSchedulePrintController;
+use App\Http\Controllers\TimetableVersionPrintController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
@@ -43,4 +44,6 @@ Route::middleware('auth')->group(function (): void {
         ->name('faculty.schedule.print');
     Route::get('/outputs/schedules/student', StudentSchedulePrintController::class)
         ->name('student.schedule.print');
+    Route::get('/outputs/schedules/timetable/{version}', TimetableVersionPrintController::class)
+        ->name('timetable.version.print');
 });

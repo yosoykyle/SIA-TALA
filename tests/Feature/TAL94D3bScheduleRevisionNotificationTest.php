@@ -241,7 +241,14 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             }
 
             $this->assertCount(1, $mail->scheduleChanges);
-            $this->assertSame($context['meetings'][0]->id, $mail->scheduleChanges[0]['section_meeting_id']);
+            $successorMeeting = SectionMeeting::query()
+                ->whereKey($mail->scheduleChanges[0]['section_meeting_id'])
+                ->firstOrFail();
+            $this->assertNotSame($context['meetings'][0]->id, $successorMeeting->id);
+            $this->assertSame(
+                $context['meetings'][0]->scheduling_demand_id,
+                $successorMeeting->scheduling_demand_id,
+            );
             $mail->assertSeeInHtml($context['course']->code)
                 ->assertSeeInHtml($context['section']->code)
                 ->assertDontSeeInHtml($reason)
@@ -357,6 +364,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         $component = CourseComponent::factory()->for($specification)->create([
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => 3.00,
+            'meeting_pattern' => $meetingCount === 2 ? '2x90' : '1x180',
             'room_type_default' => Room::TypeLectureRoom,
             'required_room_feature_keys' => [],
             'requires_consecutive_block' => false,
@@ -389,7 +397,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             ->for($component)
             ->for($group)
             ->create([
-                'required_duration_minutes' => 180,
+                'required_duration_minutes' => $meetingCount === 2 ? 90 : 180,
                 'meeting_count' => $meetingCount,
                 'modality' => TermOffering::ModalityFaceToFace,
                 'validation_state' => SchedulingDemand::ValidationReadyForReview,
@@ -415,7 +423,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
                 'room_id' => $room->id,
                 'day_of_week' => (($sequence - 1) * 2) + 1,
                 'starts_at' => '08:00:00',
-                'ends_at' => '11:00:00',
+                'ends_at' => $meetingCount === 2 ? '09:30:00' : '11:00:00',
                 'modality' => TermOffering::ModalityFaceToFace,
                 'state' => SectionMeeting::StateActive,
                 'published_at' => now()->subDay(),

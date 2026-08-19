@@ -23,6 +23,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRelatedRecords;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -108,8 +109,10 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                         $modalities = collect(is_array($allowedModalities) ? $allowedModalities : [])
                             ->map(fn (string $modality): string => CourseSpecification::modalityOptions()[$modality] ?? str($modality)->headline())
                             ->implode(', ');
+                        $treatment = CourseSpecification::schedulingTreatmentOptions()[$specification->scheduling_treatment]
+                            ?? 'Scheduling treatment missing';
 
-                        return "{$state} · ".($modalities === '' ? 'No modalities' : $modalities);
+                        return "{$state} · {$treatment} · ".($modalities === '' ? 'No modalities' : $modalities);
                     })
                     ->wrap(),
                 TextColumn::make('readiness')
@@ -223,6 +226,7 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                     'credit_units' => $specification->credit_units,
                     'grading_profile_key' => $specification->grading_profile_key,
                     'grading_profile_version' => $specification->grading_profile_version,
+                    'scheduling_treatment' => $specification->scheduling_treatment,
                     'allowed_modalities' => $specification->allowed_modalities,
                     'same_faculty_default' => $specification->same_faculty_default,
                     'components' => $specification->components
@@ -230,6 +234,7 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                         ->map(fn (CourseComponent $component): array => [
                             'component_type' => $component->component_type,
                             'weekly_contact_hours' => $component->weekly_contact_hours,
+                            'meeting_pattern' => $component->meeting_pattern,
                             'room_type_default' => $component->room_type_default,
                             'required_room_feature_keys' => $component->required_room_feature_keys,
                             'modality_restriction' => $component->modality_restriction,
@@ -344,6 +349,11 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                 ->integer()
                 ->minValue(1)
                 ->required(),
+            Select::make('scheduling_treatment')
+                ->label('Scheduling Treatment')
+                ->options(CourseSpecification::schedulingTreatmentOptions())
+                ->live()
+                ->required(),
             CheckboxList::make('allowed_modalities')
                 ->label('Allowed Delivery Modalities')
                 ->options(CourseSpecification::modalityOptions())
@@ -354,7 +364,7 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                 ->required(),
             Repeater::make('components')
                 ->label('Course Components')
-                ->helperText('At least one Lecture or Laboratory component is required for scheduling.')
+                ->helperText('Recurring courses require components; externally arranged courses intentionally have none.')
                 ->schema([
                     Select::make('component_type')
                         ->label('Component Type')
@@ -365,6 +375,10 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                         ->numeric()
                         ->minValue(0.25)
                         ->step(0.25)
+                        ->required(),
+                    Select::make('meeting_pattern')
+                        ->label('Weekly Meeting Pattern')
+                        ->options(CourseComponent::meetingPatternOptions())
                         ->required(),
                     Select::make('room_type_default')
                         ->label('Default Room Type')
@@ -388,8 +402,7 @@ class ReviewCurriculumVersion extends ManageRelatedRecords
                 ])
                 ->columns(2)
                 ->defaultItems(1)
-                ->minItems(1)
-                ->required()
+                ->visible(fn (Get $get): bool => $get('scheduling_treatment') !== CourseSpecification::SchedulingExternallyArranged)
                 ->addActionLabel('Add component'),
         ];
     }

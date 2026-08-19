@@ -122,6 +122,13 @@ final class PublishedScheduleRevisionForm
                 ->label('Immediate effective date')
                 ->content(CarbonImmutable::now(config('app.timezone'))->toFormattedDateString())
                 ->helperText('The effective date is system-derived when the revision is applied.'),
+            Textarea::make('authority_reference')
+                ->label('External timetable sign-off reference')
+                ->helperText('Record the attributable authority for this complete successor version.')
+                ->rows(2)
+                ->maxLength(255)
+                ->required()
+                ->columnSpanFull(),
             Textarea::make('reason')
                 ->label('Approved Reason')
                 ->helperText('Record the institutionally approved operational reason for this revision.')

@@ -15,6 +15,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class CourseSpecificationForm
@@ -63,6 +64,12 @@ class CourseSpecificationForm
                         ->minValue(1)
                         ->default(1)
                         ->required(),
+                    Select::make('scheduling_treatment')
+                        ->label('Scheduling Treatment')
+                        ->options(CourseSpecification::schedulingTreatmentOptions())
+                        ->default(CourseSpecification::SchedulingRecurring)
+                        ->live()
+                        ->required(),
                     CheckboxList::make('allowed_modalities')
                         ->options(CourseSpecification::modalityOptions())
                         ->columns(3)
@@ -94,6 +101,10 @@ class CourseSpecificationForm
                                 ->minValue(0.25)
                                 ->step(0.25)
                                 ->required(),
+                            Select::make('meeting_pattern')
+                                ->label('Weekly Meeting Pattern')
+                                ->options(CourseComponent::meetingPatternOptions())
+                                ->required(),
                             Select::make('room_type_default')
                                 ->options(CourseComponent::roomTypeOptions())
                                 ->searchable()
@@ -117,6 +128,7 @@ class CourseSpecificationForm
                         ])
                         ->columns(4)
                         ->defaultItems(1)
+                        ->visible(fn (Get $get): bool => $get('scheduling_treatment') !== CourseSpecification::SchedulingExternallyArranged)
                         ->addActionLabel('Add component'),
                 ])
                 ->columnSpanFull(),

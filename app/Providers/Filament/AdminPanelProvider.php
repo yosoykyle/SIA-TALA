@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
+use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
@@ -11,6 +12,7 @@ use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
+use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
 use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
@@ -145,6 +147,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Dashboard::class,
+                CatalogCurriculaWorkbench::class,
+                TermPlanningWorkbench::class,
                 AcademicApprovals::class,
                 AcademicReadiness::class,
                 ClassPlanning::class,
@@ -190,8 +194,8 @@ class AdminPanelProvider extends PanelProvider
                 'Home' => Dashboard::class,
                 'Admissions' => AdmissionApplicationResource::class,
                 'Admission Cycles' => AdmissionCycleResource::class,
-                'Academic Readiness' => AcademicReadiness::class,
-                'Class Planning' => ClassPlanning::class,
+                'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
+                'Term Planning' => TermPlanningWorkbench::class,
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,
                 'Reports' => ReportsAudit::class,
@@ -211,7 +215,8 @@ class AdminPanelProvider extends PanelProvider
             ],
             $user->hasRole(User::StaffRoleAcademicHead) => [
                 'Home' => Dashboard::class,
-                'Academic Oversight' => AcademicReadiness::class,
+                'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
+                'Term Planning' => TermPlanningWorkbench::class,
                 'Approvals' => AcademicApprovals::class,
                 'Reports' => ReportsAudit::class,
             ],

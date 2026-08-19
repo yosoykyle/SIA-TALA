@@ -143,13 +143,22 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
             ->all());
 
         $this->assertSame(111, Course::query()->count());
-        $this->assertSame(CourseSpecification::query()->count(), CourseComponent::query()->count());
+        $this->assertSame(
+            CourseSpecification::query()
+                ->where('scheduling_treatment', CourseSpecification::SchedulingRecurring)
+                ->count(),
+            CourseComponent::query()->count(),
+        );
+        $this->assertGreaterThan(0, CourseSpecification::query()
+            ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)
+            ->whereDoesntHave('components')
+            ->count());
         $this->assertSame(3, CurriculumVersion::query()->count());
         $this->assertSame(158, CurriculumEntry::query()->count());
         $this->assertSame(54, TermOffering::query()->count());
         $this->assertSame(54, Section::query()->count());
         $this->assertSame(54, SectionDeliveryGroup::query()->count());
-        $this->assertSame(6, Room::query()->count());
+        $this->assertSame(10, Room::query()->count());
         $this->assertSame(58, FacultyQualification::query()->count());
         $this->assertSame(9, FacultyTermLoadOverride::query()->count());
         $this->assertSame(54, SchedulingDemand::query()->count());

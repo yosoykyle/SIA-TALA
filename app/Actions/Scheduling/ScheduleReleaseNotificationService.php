@@ -5,12 +5,15 @@ namespace App\Actions\Scheduling;
 use App\Mail\ScheduleReleasedMail;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
+use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 final class ScheduleReleaseNotificationService
@@ -42,12 +45,26 @@ final class ScheduleReleaseNotificationService
             return;
         }
 
+        $publishedVersion = PublishedTimetableVersion::query()
+            ->where('schedule_run_id', $run->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->first();
+        $relatedRecordType = $publishedVersion instanceof PublishedTimetableVersion
+            ? PublishedTimetableVersion::class
+            : ScheduleGenerationRun::class;
+        $relatedRecordId = $publishedVersion instanceof PublishedTimetableVersion
+            ? (int) $publishedVersion->id
+            : (int) $run->id;
+        $sourceKey = $publishedVersion instanceof PublishedTimetableVersion
+            ? "timetable-version:{$publishedVersion->id}"
+            : "published-run:{$run->id}";
+
         foreach ($recipients as $recipient) {
             $this->recordRecipient(
                 recipient: $recipient,
-                externalId: "schedule-release:published-run:{$run->id}:user:{$recipient->id}",
-                relatedRecordType: ScheduleGenerationRun::class,
-                relatedRecordId: (int) $run->id,
+                externalId: "schedule-release:{$sourceKey}:user:{$recipient->id}",
+                relatedRecordType: $relatedRecordType,
+                relatedRecordId: $relatedRecordId,
                 trigger: 'published_run',
                 termId: (int) $run->term_id,
                 termLabel: (string) $term->label,
@@ -81,6 +98,39 @@ final class ScheduleReleaseNotificationService
             termLabel: (string) $enrollment->term?->label,
             scheduleUrl: route('filament.student.pages.schedule-view'),
         );
+    }
+
+    public function resend(OperationalEvent $event, User $actor): OperationalEvent
+    {
+        $outcome = DB::transaction(function () use ($event, $actor): array {
+            $locked = OperationalEvent::query()->whereKey($event->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->event_type !== OperationalEvent::TypeScheduleReleasedEmail
+                || $locked->status !== OperationalEvent::StatusFailed) {
+                throw ValidationException::withMessages([
+                    'notification' => 'Only a failed timetable release notification can be resent.',
+                ]);
+            }
+
+            if ((int) $locked->user_id !== (int) $actor->id
+                && ! $actor->hasRole(User::StaffRoleRegistrar)) {
+                abort(403);
+            }
+
+            $recipient = User::query()->whereKey($locked->user_id)->firstOrFail();
+            $locked->forceFill([
+                'status' => OperationalEvent::StatusPending,
+                'processed_at' => null,
+                'failed_at' => null,
+                'diagnostics' => null,
+            ])->save();
+
+            return ['event' => $locked->fresh(), 'recipient' => $recipient];
+        }, 3);
+
+        $this->queue($outcome['event'], $outcome['recipient']);
+
+        return $outcome['event']->fresh();
     }
 
     /**
@@ -124,6 +174,7 @@ final class ScheduleReleaseNotificationService
                     'trigger' => $trigger,
                     'term_id' => $termId,
                     'term_label' => $termLabel,
+                    'schedule_url' => $scheduleUrl,
                 ],
             ],
         );
@@ -132,6 +183,11 @@ final class ScheduleReleaseNotificationService
             return;
         }
 
+        $this->queue($deliveryEvent, $recipient);
+    }
+
+    private function queue(OperationalEvent $deliveryEvent, User $recipient): void
+    {
         $email = trim((string) $recipient->email);
 
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
@@ -141,11 +197,12 @@ final class ScheduleReleaseNotificationService
         }
 
         try {
+            $payload = is_array($deliveryEvent->payload) ? $deliveryEvent->payload : [];
             Mail::to($recipient)->queue(new ScheduleReleasedMail(
                 operationalEventId: (int) $deliveryEvent->id,
                 recipientName: (string) $recipient->name,
-                termLabel: $termLabel,
-                scheduleUrl: $scheduleUrl,
+                termLabel: (string) ($payload['term_label'] ?? 'Published timetable'),
+                scheduleUrl: (string) ($payload['schedule_url'] ?? route('filament.admin.pages.faculty-schedule')),
             ));
         } catch (Throwable $exception) {
             $this->markFailed($deliveryEvent, 'Mail could not be queued.', $exception);

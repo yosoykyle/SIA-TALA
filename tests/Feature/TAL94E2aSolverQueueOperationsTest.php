@@ -287,10 +287,15 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
 
         $job = new ScheduleSolverDispatchJob((int) $run->id);
         $job->setJob($queueJob);
+        $snapshotService = Mockery::mock(ScheduleSolverSnapshotService::class);
+        $snapshotService->shouldReceive('captureForRun')
+            ->zeroOrMoreTimes()
+            ->with(Mockery::on(fn (ScheduleGenerationRun $captured): bool => $captured->is($run)))
+            ->andReturn($run->input_snapshot);
 
         try {
             $job->handle(
-                app(ScheduleSolverSnapshotService::class),
+                $snapshotService,
                 $client,
                 app(ScheduleCloudResultIngestor::class),
                 app(ScheduleSolverDispatchLifecycleService::class),

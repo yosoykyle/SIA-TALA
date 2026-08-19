@@ -120,9 +120,19 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         );
         $event = $events->sole();
         $meeting = $context['meetings'][0]->fresh();
+        $successorMeeting = SectionMeeting::query()
+            ->activeOfficial()
+            ->where('scheduling_demand_id', $meeting->scheduling_demand_id)
+            ->sole();
 
-        $this->assertSame($context['replacementRoom']->id, $meeting->room_id);
-        $this->assertSame($meeting->id, $binding['binding']->fresh()->section_meeting_id);
+        $this->assertSame($context['room']->id, $meeting->room_id);
+        $this->assertSame($context['replacementRoom']->id, $successorMeeting->room_id);
+        $this->assertFalse($binding['binding']->fresh()->is_active);
+        $this->assertDatabaseHas('student_schedule_bindings', [
+            'course_enrollment_id' => $binding['binding']->course_enrollment_id,
+            'section_meeting_id' => $successorMeeting->id,
+            'is_active' => true,
+        ]);
         $this->assertSame($context['room']->id, $event->old_snapshot_json['room_id']);
         $this->assertSame($context['replacementRoom']->id, $event->new_snapshot_json['room_id']);
         $this->assertSame(now()->toDateString(), $event->effective_date->toDateString());
@@ -133,8 +143,9 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             $revisionStartedAt->copy()->startOfSecond(),
             now()->endOfSecond(),
         ));
-        $this->assertSame(ScheduleGenerationRun::StatusPublished, $context['run']->fresh()->status);
+        $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
         $this->assertSame(1, $context['run']->fresh()->publication_version);
+        $this->assertSame(2, $successorMeeting->scheduleRun->publication_version);
 
         $activity = DB::table('activity_log')->where('event', 'published_schedule_revised')->sole();
         $properties = json_decode((string) $activity->properties, true, flags: JSON_THROW_ON_ERROR);
@@ -177,7 +188,8 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             ]],
             'Faculty reassignment approved.',
         );
-        $this->assertSame($replacementFaculty->id, $facultyContext['meetings'][0]->fresh()->faculty_user_id);
+        $this->assertNotSame($replacementFaculty->id, $facultyContext['meetings'][0]->fresh()->faculty_user_id);
+        $this->assertSame($replacementFaculty->id, SectionMeeting::query()->activeOfficial()->where('scheduling_demand_id', $facultyContext['meetings'][0]->scheduling_demand_id)->sole()->faculty_user_id);
 
         $timeContext = $this->context();
         app(PublishedScheduleRevisionService::class)->revise(
@@ -192,8 +204,9 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             ]],
             'Time change approved.',
         );
-        $this->assertSame(2, $timeContext['meetings'][0]->fresh()->day_of_week);
-        $this->assertSame('09:00:00', $timeContext['meetings'][0]->fresh()->starts_at);
+        $timeSuccessor = SectionMeeting::query()->activeOfficial()->where('scheduling_demand_id', $timeContext['meetings'][0]->scheduling_demand_id)->sole();
+        $this->assertSame(2, $timeSuccessor->day_of_week);
+        $this->assertSame('09:00:00', $timeSuccessor->starts_at);
 
         $modalityContext = $this->context();
         $modalityContext['meetings'][0]->forceFill([
@@ -211,8 +224,9 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             ]],
             'Delivery modality corrected to the authoritative offering.',
         );
-        $this->assertSame(TermOffering::ModalityFaceToFace, $modalityContext['meetings'][0]->fresh()->modality);
-        $this->assertSame($modalityContext['room']->id, $modalityContext['meetings'][0]->fresh()->room_id);
+        $modalitySuccessor = SectionMeeting::query()->activeOfficial()->where('scheduling_demand_id', $modalityContext['meetings'][0]->scheduling_demand_id)->sole();
+        $this->assertSame(TermOffering::ModalityFaceToFace, $modalitySuccessor->modality);
+        $this->assertSame($modalityContext['room']->id, $modalitySuccessor->room_id);
     }
 
     public function test_multi_meeting_revision_is_atomic_on_success_and_failure(): void
@@ -236,7 +250,8 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
 
         $this->assertCount(2, $events);
         $this->assertSame(2, SectionMeeting::query()
-            ->whereIn('id', collect($context['meetings'])->pluck('id'))
+            ->activeOfficial()
+            ->whereIn('scheduling_demand_id', collect($context['meetings'])->pluck('scheduling_demand_id'))
             ->where('room_id', $context['replacementRoom']->id)
             ->count());
 
@@ -443,14 +458,18 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $this->assertCount(2, $events);
         $this->assertSame(Section::StateCancelled, $context['section']->fresh()->state);
         $this->assertSame(SectionDeliveryGroup::StateCancelled, $context['group']->fresh()->state);
-        $this->assertSame(2, SectionMeeting::query()
+        $this->assertSame(0, SectionMeeting::query()
+            ->activeOfficial()
+            ->whereIn('scheduling_demand_id', collect($context['meetings'])->pluck('scheduling_demand_id'))
+            ->count());
+        $this->assertSame(0, SectionMeeting::query()
             ->whereIn('id', collect($context['meetings'])->pluck('id'))
             ->where('state', SectionMeeting::StateCancelled)
             ->count());
         $this->assertSame(2, ScheduleRevisionEvent::query()
             ->where('change_type', ScheduleRevisionEvent::ChangeSectionCancellation)
             ->count());
-        $this->assertSame(ScheduleGenerationRun::StatusPublished, $context['run']->fresh()->status);
+        $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
         $this->assertSame(1, $context['run']->fresh()->publication_version);
         $this->assertSame(1, DB::table('activity_log')->where('event', 'published_section_cancelled')->count());
     }
@@ -494,6 +513,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $component = CourseComponent::factory()->for($specification)->create([
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => 3.00,
+            'meeting_pattern' => $meetingCount === 2 ? '2x90' : '1x180',
             'room_type_default' => Room::TypeLectureRoom,
             'required_room_feature_keys' => [],
             'requires_consecutive_block' => false,
@@ -526,7 +546,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
             ->for($component)
             ->for($group)
             ->create([
-                'required_duration_minutes' => 180,
+                'required_duration_minutes' => $meetingCount === 2 ? 90 : 180,
                 'meeting_count' => $meetingCount,
                 'modality' => TermOffering::ModalityFaceToFace,
                 'validation_state' => SchedulingDemand::ValidationReadyForReview,
@@ -554,7 +574,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
                 'room_id' => $room->id,
                 'day_of_week' => (($sequence - 1) * 2) + 1,
                 'starts_at' => '08:00:00',
-                'ends_at' => '11:00:00',
+                'ends_at' => $meetingCount === 2 ? '09:30:00' : '11:00:00',
                 'modality' => TermOffering::ModalityFaceToFace,
                 'state' => SectionMeeting::StateActive,
                 'published_at' => now()->subDay(),

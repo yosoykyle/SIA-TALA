@@ -433,7 +433,10 @@ final class TAL66SchedulePublicationTest extends TestCase
     ): SchedulingDemand {
         $offering = TermOffering::factory()->for($term)->create(['modality' => $modality]);
         $specification = CourseSpecification::factory()->create();
-        $component = CourseComponent::factory()->for($specification)->create(['weekly_contact_hours' => 2.00]);
+        $component = CourseComponent::factory()->for($specification)->create([
+            'weekly_contact_hours' => $meetingCount === 2 ? 4.00 : 2.00,
+            'meeting_pattern' => $meetingCount === 2 ? '2x120' : '1x120',
+        ]);
         $section = Section::factory()->for($offering, 'termOffering')->create();
         $group = SectionDeliveryGroup::factory()->for($section)->create(['modality' => $modality]);
 

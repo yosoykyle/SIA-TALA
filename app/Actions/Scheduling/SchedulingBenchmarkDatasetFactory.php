@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\ScheduleGenerationRun;
 use Illuminate\Support\Arr;
 use RuntimeException;
 
@@ -153,6 +154,13 @@ final class SchedulingBenchmarkDatasetFactory
             'rooms' => count($this->list($snapshot['rooms'] ?? null)),
             'time_slots' => count($this->list($snapshot['time_slots'] ?? null)),
         ];
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    public function requiredAssignmentCount(array $snapshot): int
+    {
+        return (int) collect($this->list($snapshot['scheduling_demands'] ?? null))
+            ->sum(fn (array $demand): int => max(1, (int) ($demand['meeting_count'] ?? 1)));
     }
 
     /**
@@ -588,8 +596,8 @@ final class SchedulingBenchmarkDatasetFactory
     /** @param array<string, mixed> $snapshot */
     private function assertRepresentativeSnapshot(array $snapshot): void
     {
-        if (($snapshot['contract_version'] ?? null) !== 'tal94-demand-v2'
-            || data_get($snapshot, 'constraint_profile.key') !== 'balanced_v1'
+        if (($snapshot['contract_version'] ?? null) !== ScheduleGenerationRun::ContractVersion
+            || data_get($snapshot, 'constraint_profile.key') !== ScheduleGenerationRun::QualityPolicyLexicographic
             || $this->composition($snapshot) !== [
                 'demands' => 54,
                 'faculty' => 12,

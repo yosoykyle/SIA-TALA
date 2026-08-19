@@ -18,6 +18,7 @@ class SectionMeeting extends Model
      */
     protected $fillable = [
         'schedule_run_id',
+        'published_timetable_version_id',
         'scheduling_demand_id',
         'meeting_sequence',
         'faculty_user_id',
@@ -52,6 +53,13 @@ class SectionMeeting extends Model
             ->where('state', self::StateActive)
             ->whereHas('scheduleRun', function (Builder $query): void {
                 $query->where('status', ScheduleGenerationRun::StatusPublished);
+            })
+            ->where(function (Builder $query): void {
+                $query->whereHas('timetableVersion', function (Builder $query): void {
+                    $query->where('state', PublishedTimetableVersion::StatePublished);
+                })->orWhere(function (Builder $query): void {
+                    $query->whereNull('published_timetable_version_id');
+                });
             });
     }
 
@@ -83,6 +91,12 @@ class SectionMeeting extends Model
     public function scheduleRun(): BelongsTo
     {
         return $this->belongsTo(ScheduleGenerationRun::class, 'schedule_run_id');
+    }
+
+    /** @return BelongsTo<PublishedTimetableVersion, $this> */
+    public function timetableVersion(): BelongsTo
+    {
+        return $this->belongsTo(PublishedTimetableVersion::class, 'published_timetable_version_id');
     }
 
     /** @return BelongsTo<SchedulingDemand, $this> */

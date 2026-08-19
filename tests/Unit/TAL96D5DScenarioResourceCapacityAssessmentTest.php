@@ -58,18 +58,18 @@ final class TAL96D5DScenarioResourceCapacityAssessmentTest extends TestCase
         $this->assertStringContainsString('necessary', $audit['limitation']);
     }
 
-    public function test_max_catalog_keeps_six_rooms_with_the_corrected_two_two_two_type_mix(): void
+    public function test_coordinated_catalog_keeps_ten_rooms_with_workload_specific_type_mix(): void
     {
         $catalog = new SchedulingAcceptanceScenarioCatalog;
         $roomTypes = collect($catalog->roomDefinitions(SchedulingAcceptanceScenarioCatalog::Max))
             ->countBy(fn (array $room): string => $room[2]);
 
-        $this->assertCount(6, $catalog->roomDefinitions(SchedulingAcceptanceScenarioCatalog::Max));
-        $this->assertSame(2, $roomTypes[Room::TypeLectureRoom]);
-        $this->assertSame(2, $roomTypes[Room::TypeLaboratory]);
-        $this->assertSame(2, $roomTypes[Room::TypeComputerLaboratory]);
+        $this->assertCount(10, $catalog->roomDefinitions(SchedulingAcceptanceScenarioCatalog::Max));
+        $this->assertSame(4, $roomTypes[Room::TypeLectureRoom]);
+        $this->assertSame(3, $roomTypes[Room::TypeLaboratory]);
+        $this->assertSame(3, $roomTypes[Room::TypeComputerLaboratory]);
         $this->assertArrayNotHasKey(Room::TypeSpecialRoom, $roomTypes->all());
-        $this->assertCount(6, $catalog->roomDefinitions(SchedulingAcceptanceScenarioCatalog::Middle));
+        $this->assertCount(10, $catalog->roomDefinitions(SchedulingAcceptanceScenarioCatalog::Middle));
     }
 
     /**

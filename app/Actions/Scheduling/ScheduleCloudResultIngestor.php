@@ -59,11 +59,33 @@ final class ScheduleCloudResultIngestor
                 return $summary;
             }
 
-            CandidateScheduleRow::query()
-                ->where('schedule_run_id', $lockedRun->id)
-                ->delete();
+            if ($lockedRun->status === ScheduleGenerationRun::StatusUnderReview
+                && $preservedCount > 0) {
+                throw ValidationException::withMessages([
+                    'status' => 'This immutable candidate result has already been retained for review.',
+                ]);
+            }
+
+            $snapshot = $lockedRun->input_snapshot;
+            $operation = is_array($snapshot['operation'] ?? null) ? $snapshot['operation'] : [];
+            $source = is_array($operation['source_candidate'] ?? null) ? $operation['source_candidate'] : [];
+            $baseline = collect(is_array($source['assignments'] ?? null) ? $source['assignments'] : [])
+                ->filter(fn (mixed $assignment): bool => is_array($assignment))
+                ->keyBy(fn (array $assignment): string => $assignment['scheduling_demand_id'].':'.($assignment['meeting_sequence'] ?? 1));
 
             foreach ($validation->candidateRows() as $candidateRow) {
+                $identity = $candidateRow['scheduling_demand_id'].':'.$candidateRow['meeting_sequence'];
+                $previous = $baseline->get($identity);
+
+                if (($operation['kind'] ?? null) === 'repair' && is_array($previous)) {
+                    $candidateRow['supersedes_candidate_row_id'] = $previous['candidate_row_id'] ?? null;
+                    $candidateRow['change_type'] = $this->assignmentChanged($candidateRow, $previous)
+                        ? (((int) $candidateRow['scheduling_demand_id'] === (int) ($operation['requested_assignment']['scheduling_demand_id'] ?? 0)) ? 'RequestedRepair' : 'RepairImpact')
+                        : 'Unchanged';
+                    $candidateRow['override_authority'] = $operation['authority_reference'] ?? null;
+                    $candidateRow['override_reason'] = $operation['reason'] ?? null;
+                }
+
                 CandidateScheduleRow::query()->create($candidateRow);
             }
 
@@ -79,6 +101,19 @@ final class ScheduleCloudResultIngestor
 
             return $summary;
         }, 3);
+    }
+
+    /**
+     * @param  array<string, mixed>  $candidate
+     * @param  array<string, mixed>  $previous
+     */
+    private function assignmentChanged(array $candidate, array $previous): bool
+    {
+        return (int) $candidate['day_of_week'] !== (int) ($previous['day_of_week'] ?? $previous['day'] ?? 0)
+            || (string) $candidate['starts_at'] !== (string) ($previous['starts_at'] ?? $previous['start_time'] ?? '')
+            || (string) $candidate['ends_at'] !== (string) ($previous['ends_at'] ?? $previous['end_time'] ?? '')
+            || (int) $candidate['faculty_user_id'] !== (int) ($previous['faculty_user_id'] ?? $previous['faculty_id'] ?? 0)
+            || ($candidate['room_id'] !== null ? (int) $candidate['room_id'] : null) !== (($previous['room_id'] ?? null) !== null ? (int) $previous['room_id'] : null);
     }
 
     /**

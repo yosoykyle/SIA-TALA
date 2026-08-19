@@ -102,8 +102,10 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         $this->assertSame('12:00:00', $corrected->ends_at);
         $this->assertSame('Registrar scheduling memorandum', $corrected->override_authority);
         $this->assertSame('Corrected the assigned start time after faculty confirmation.', $corrected->override_reason);
-        $this->assertNull($corrected->scores);
-        $this->assertSame(CandidateScheduleRow::StatusWarning, $corrected->status);
+        $this->assertSame([], $corrected->scores);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $corrected->status);
+        $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
+        $this->assertSame('08:00:00', $candidate->fresh()->starts_at);
         $this->assertSame('kept', $diagnostics['solver_result']['marker']);
         $this->assertSame('accepted', $diagnostics['current_revalidation']['status']);
         $this->assertDatabaseHas('activity_log', [
@@ -131,16 +133,10 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         } catch (ValidationException) {
             $preserved = CandidateScheduleRow::query()->sole();
             $run = $context['run']->fresh();
-            $diagnostics = $run->getAttribute('diagnostics');
-
             $this->assertSame($candidate->id, $preserved->id);
             $this->assertSame('08:00:00', $preserved->starts_at);
             $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
-            $this->assertSame('blocked', $diagnostics['current_revalidation']['status']);
-            $this->assertContains(
-                'faculty_not_eligible',
-                collect($diagnostics['current_revalidation']['findings'])->pluck('code')->all(),
-            );
+            $this->assertArrayNotHasKey('current_revalidation', $run->diagnostics);
             $this->assertDatabaseMissing('activity_log', [
                 'subject_type' => ScheduleGenerationRun::class,
                 'subject_id' => $run->id,
@@ -149,49 +145,25 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         }
     }
 
-    public function test_complete_manual_override_is_saved_but_an_incomplete_set_is_atomic_and_blocked(): void
+    public function test_generic_manual_override_is_retired_and_writes_nothing(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $complete = $this->context(runStatus: ScheduleGenerationRun::StatusBlocked);
+        $context = $this->context(runStatus: ScheduleGenerationRun::StatusBlocked);
 
-        $run = app(CandidateScheduleRowReviewService::class)->replace(
-            $complete['run'],
-            [$this->assignment($complete, 0, startsAt: '10:00:00', endsAt: '13:00:00')],
-            $registrar,
-            'Academic Head approved override memo',
-            'Recorded a complete feasible schedule after the solver returned infeasible.',
-        );
-        $row = $run->candidateRows()->sole();
-
-        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->status);
-        $this->assertSame('Academic Head approved override memo', $row->override_authority);
-        $this->assertSame(CandidateScheduleRow::StatusWarning, $row->status);
-        $this->assertDatabaseHas('activity_log', [
-            'subject_id' => $run->id,
-            'event' => 'manual_schedule_override',
-        ]);
-
-        $incomplete = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusBlocked);
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Generic Manual Schedule Override is retired.');
 
         try {
             app(CandidateScheduleRowReviewService::class)->replace(
-                $incomplete['run'],
-                [$this->assignment($incomplete, 0)],
+                $context['run'],
+                [$this->assignment($context, 0)],
                 $registrar,
                 'Registrar override memo',
-                'This deliberately incomplete proposal must be rejected.',
+                'The obsolete whole-set path must remain unreachable.',
             );
-            $this->fail('An incomplete Manual Schedule Override was saved.');
-        } catch (ValidationException) {
-            $blockedRun = $incomplete['run']->fresh();
-            $diagnostics = $blockedRun->getAttribute('diagnostics');
-
-            $this->assertSame(ScheduleGenerationRun::StatusBlocked, $blockedRun->status);
-            $this->assertSame(0, $blockedRun->candidateRows()->count());
-            $this->assertContains(
-                'missing_assignment',
-                collect($diagnostics['current_revalidation']['findings'])->pluck('code')->all(),
-            );
+        } finally {
+            $this->assertSame(0, $context['run']->candidateRows()->count());
+            $this->assertSame(ScheduleGenerationRun::StatusBlocked, $context['run']->fresh()->status);
         }
     }
 
@@ -206,7 +178,10 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
         $this->assertValidationCode($room, 'room_not_suitable');
 
         $duration = $this->context();
-        $duration['components'][0]->update(['weekly_contact_hours' => 4.00]);
+        $duration['components'][0]->update([
+            'weekly_contact_hours' => 2.00,
+            'meeting_pattern' => '1x120',
+        ]);
         $this->assertValidationCode($duration, 'assignment_duration_mismatch');
 
         $calendar = $this->context();

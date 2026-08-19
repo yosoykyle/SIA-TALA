@@ -20,6 +20,9 @@ class CourseSpecificationInfolist
                     TextEntry::make('revision_code')->label('Revision'),
                     TextEntry::make('title')->label('Subject Title'),
                     TextEntry::make('credit_units')->label('Units'),
+                    TextEntry::make('scheduling_treatment')
+                        ->label('Scheduling Treatment')
+                        ->formatStateUsing(fn (?string $state): string => CourseSpecification::schedulingTreatmentOptions()[$state] ?? '-'),
                     TextEntry::make('state')
                         ->badge()
                         ->formatStateUsing(fn (?string $state): string => CourseSpecification::stateOptions()[$state] ?? str((string) $state)->headline()->toString()),
@@ -31,11 +34,14 @@ class CourseSpecificationInfolist
                             ->map(fn (CourseComponent $component): string => collect([
                                 CourseComponent::typeOptions()[$component->component_type] ?? $component->component_type,
                                 $component->weekly_contact_hours.' hour(s)',
+                                CourseComponent::meetingPatternOptions()[$component->meeting_pattern] ?? $component->meeting_pattern,
                                 $component->room_type_default,
                             ])->filter()->implode(' | '))
                             ->implode("\n"))
                         ->columnSpanFull()
-                        ->placeholder('-'),
+                        ->placeholder(fn (CourseSpecification $record): string => $record->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
+                            ? 'Externally arranged — no recurring master-timetable meeting.'
+                            : '-'),
                     TextEntry::make('requirement_summary')
                         ->label('Requirements')
                         ->state(fn (CourseSpecification $record): string => $record->requirements()

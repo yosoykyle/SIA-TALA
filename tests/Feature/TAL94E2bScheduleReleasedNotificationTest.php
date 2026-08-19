@@ -19,6 +19,7 @@ use App\Models\FacultyQualification;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -97,10 +98,11 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
 
         $this->assertSame('PENDING', $deliveryEvent->status);
         $this->assertSame($assignedFaculty->id, $deliveryEvent->user_id);
-        $this->assertSame(ScheduleGenerationRun::class, $deliveryEvent->related_record_type);
-        $this->assertSame($published->id, $deliveryEvent->related_record_id);
+        $publishedVersion = PublishedTimetableVersion::query()->where('schedule_run_id', $published->id)->sole();
+        $this->assertSame(PublishedTimetableVersion::class, $deliveryEvent->related_record_type);
+        $this->assertSame($publishedVersion->id, $deliveryEvent->related_record_id);
         $this->assertSame(
-            "schedule-release:published-run:{$published->id}:user:{$assignedFaculty->id}",
+            "schedule-release:timetable-version:{$publishedVersion->id}:user:{$assignedFaculty->id}",
             $deliveryEvent->external_id,
         );
 
@@ -219,6 +221,32 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
             'smtp_password',
             json_encode($diagnostics, JSON_THROW_ON_ERROR),
         );
+    }
+
+    public function test_failed_release_notification_can_be_resent_once_by_its_recipient_or_registrar(): void
+    {
+        Mail::fake();
+        $recipient = $this->staff(User::StaffRoleFaculty);
+        $event = OperationalEvent::factory()->forUser($recipient)->create([
+            'event_type' => OperationalEvent::TypeScheduleReleasedEmail,
+            'status' => OperationalEvent::StatusFailed,
+            'failed_at' => now(),
+            'processed_at' => now(),
+            'payload' => [
+                'term_label' => 'Retry Term',
+                'schedule_url' => route('filament.admin.pages.faculty-schedule'),
+            ],
+        ]);
+
+        $resent = app(ScheduleReleaseNotificationService::class)->resend($event, $recipient);
+
+        $this->assertSame(OperationalEvent::StatusPending, $resent->status);
+        $this->assertNull($resent->failed_at);
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(ScheduleReleasedMail::class, fn (ScheduleReleasedMail $mail): bool => $mail->hasTo($recipient->email));
+
+        $this->expectException(ValidationException::class);
+        app(ScheduleReleaseNotificationService::class)->resend($resent, $this->staff(User::StaffRoleRegistrar));
     }
 
     public function test_tracked_mail_sent_and_failed_hooks_record_transport_evidence_for_release_and_revision_mail(): void
@@ -363,7 +391,10 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         $specification = CourseSpecification::factory()->create();
         $component = CourseComponent::factory()
             ->for($specification)
-            ->create(['weekly_contact_hours' => 2.00]);
+            ->create([
+                'weekly_contact_hours' => 2.00,
+                'meeting_pattern' => '2x60',
+            ]);
         $section = Section::factory()
             ->for($offering, 'termOffering')
             ->create(['capacity' => 30]);
@@ -386,7 +417,7 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
             ->create([
                 'modality' => TermOffering::ModalityFaceToFace,
                 'meeting_count' => 2,
-                'required_duration_minutes' => 120,
+                'required_duration_minutes' => 60,
             ]);
         $run = ScheduleGenerationRun::query()->create([
             'term_id' => $term->id,
@@ -398,8 +429,8 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         ]);
 
         foreach ([
-            [1, 1, '08:00:00', '10:00:00'],
-            [2, 2, '10:00:00', '12:00:00'],
+            [1, 1, '08:00:00', '09:00:00'],
+            [2, 2, '10:00:00', '11:00:00'],
         ] as [$sequence, $day, $startsAt, $endsAt]) {
             CandidateScheduleRow::query()->create([
                 'schedule_run_id' => $run->id,

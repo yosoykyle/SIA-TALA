@@ -3,32 +3,41 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CalendarEvent;
+use App\Models\CandidateScheduleRow;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
+use App\Models\ResourceUnavailability;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
+use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class ScheduleSolverSnapshotService
 {
-    private const ContractVersion = 'tal94-demand-v2';
+    private const ContractVersion = ScheduleGenerationRun::ContractVersion;
 
     private const DefaultDayStartsAt = '07:00:00';
 
     private const DefaultDayEndsAt = '21:00:00';
+
+    public function __construct(private readonly ReadyTermPlanningProjection $readiness) {}
 
     /**
      * @return array<string, mixed>
@@ -58,6 +67,20 @@ class ScheduleSolverSnapshotService
 
             $this->assertDemandReadiness($term);
 
+            $hasCanonicalClasses = Section::query()
+                ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $term->id))
+                ->exists();
+
+            if ($hasCanonicalClasses) {
+                $readiness = $this->readiness->forTerm($term);
+
+                if (! $readiness['ready']) {
+                    throw ValidationException::withMessages([
+                        'term_planning' => collect($readiness['blockers'])->pluck('reason')->implode(' '),
+                    ]);
+                }
+            }
+
             $demands = $this->readyDemandsForTerm($term);
 
             if ($demands->isEmpty()) {
@@ -72,8 +95,154 @@ class ScheduleSolverSnapshotService
             $lockedRun->forceFill([
                 'input_snapshot' => $snapshot,
                 'input_hash' => hash('sha256', $encodedSnapshot),
+                'contract_version' => self::ContractVersion,
+                'quality_policy' => ScheduleGenerationRun::QualityPolicyLexicographic,
             ])->save();
 
+            $run->refresh();
+
+            return $snapshot;
+        }, 3);
+    }
+
+    /**
+     * @param  array{faculty_user_id:int,room_id?:int|null,day_of_week:int,starts_at:string,ends_at:string}  $assignment
+     * @return array<string, mixed>
+     */
+    public function captureRepairForRun(
+        ScheduleGenerationRun $run,
+        ScheduleGenerationRun $sourceRun,
+        CandidateScheduleRow $requestedRow,
+        array $assignment,
+        User $actor,
+        string $reason,
+        string $authority,
+    ): array {
+        $assignment['starts_at'] = $this->hourMinute($assignment['starts_at']);
+        $assignment['ends_at'] = $this->hourMinute($assignment['ends_at']);
+        $validated = Validator::make($assignment, [
+            'faculty_user_id' => ['required', 'integer'],
+            'room_id' => ['nullable', 'integer'],
+            'day_of_week' => ['required', 'integer', 'between:1,7'],
+            'starts_at' => ['required', 'date_format:H:i'],
+            'ends_at' => ['required', 'date_format:H:i', 'after:starts_at'],
+        ])->validate();
+        $reason = trim($reason);
+        $authority = trim($authority);
+
+        if ($reason === '' || $authority === '') {
+            throw ValidationException::withMessages([
+                'repair' => 'Repair requires an attributable reason and authority reference.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($run, $sourceRun, $requestedRow, $validated, $actor, $reason, $authority): array {
+            $lockedRun = ScheduleGenerationRun::query()->lockForUpdate()->findOrFail($run->id);
+            $lockedSource = ScheduleGenerationRun::query()->lockForUpdate()->findOrFail($sourceRun->id);
+            $sourceSnapshot = $this->arrayValue($lockedSource->input_snapshot);
+
+            if ($lockedSource->status !== ScheduleGenerationRun::StatusUnderReview
+                || ($sourceSnapshot['contract_version'] ?? null) !== self::ContractVersion) {
+                throw ValidationException::withMessages([
+                    'source_candidate' => 'Repair requires the current immutable timetable-v2 candidate.',
+                ]);
+            }
+
+            $sourceRows = CandidateScheduleRow::query()
+                ->where('schedule_run_id', $lockedSource->id)
+                ->orderBy('scheduling_demand_id')
+                ->orderBy('meeting_sequence')
+                ->lockForUpdate()
+                ->get();
+            $target = $sourceRows->firstWhere('id', $requestedRow->id);
+
+            if (! $target instanceof CandidateScheduleRow || $sourceRows->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'source_candidate' => 'The requested repair source is stale or incomplete.',
+                ]);
+            }
+
+            $demands = collect($this->listValue($sourceSnapshot['scheduling_demands'] ?? null))
+                ->filter(fn (mixed $demand): bool => is_array($demand))
+                ->keyBy(fn (array $demand): int => (int) $demand['scheduling_demand_id']);
+            $baseline = $sourceRows->map(function (CandidateScheduleRow $row) use ($demands): array {
+                $demand = $demands->get((int) $row->scheduling_demand_id);
+
+                if (! is_array($demand)) {
+                    throw ValidationException::withMessages([
+                        'source_candidate' => 'The repair source no longer matches its immutable demand snapshot.',
+                    ]);
+                }
+
+                return [
+                    'candidate_row_id' => (int) $row->id,
+                    'scheduling_demand_id' => (int) $row->scheduling_demand_id,
+                    'meeting_sequence' => (int) $row->meeting_sequence,
+                    'term_offering_id' => (int) $demand['term_offering_id'],
+                    'section_id' => (int) $demand['section_id'],
+                    'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+                    'cohort_or_student_group_id' => (int) $demand['cohort_or_student_group_id'],
+                    'cohort_or_student_group_ids' => $demand['cohort_or_student_group_ids'] ?? [(int) $demand['cohort_or_student_group_id']],
+                    'subject_id' => $demand['course_id'] ?? null,
+                    'course_component_id' => $demand['course_component_id'] ?? null,
+                    'faculty_id' => (int) $row->faculty_user_id,
+                    'faculty_user_id' => (int) $row->faculty_user_id,
+                    'room_id' => $row->room_id !== null ? (int) $row->room_id : null,
+                    'day' => (int) $row->day_of_week,
+                    'day_of_week' => (int) $row->day_of_week,
+                    'start_time' => $this->timeString($row->starts_at),
+                    'starts_at' => $this->timeString($row->starts_at),
+                    'end_time' => $this->timeString($row->ends_at),
+                    'ends_at' => $this->timeString($row->ends_at),
+                    'time_block_reference' => $row->time_block_key,
+                    'time_block_key' => $row->time_block_key,
+                ];
+            })->values()->all();
+            $requestedDemand = $demands->get((int) $target->scheduling_demand_id);
+
+            if (! is_array($requestedDemand)) {
+                throw ValidationException::withMessages(['source_candidate' => 'The requested repair demand is unavailable.']);
+            }
+
+            $snapshot = [
+                ...$sourceSnapshot,
+                'captured_at' => now()->toIso8601String(),
+                'run_metadata' => [
+                    ...$this->arrayValue($sourceSnapshot['run_metadata'] ?? null),
+                    'solver_run_id' => (int) $lockedRun->id,
+                    'requested_by' => (int) $actor->id,
+                ],
+                'operation' => [
+                    'kind' => 'repair',
+                    'source_candidate' => [
+                        'run_id' => (int) $lockedSource->id,
+                        'candidate_version' => (int) $lockedSource->candidate_version,
+                        'assignments' => $baseline,
+                    ],
+                    'requested_assignment' => [
+                        'scheduling_demand_id' => (int) $target->scheduling_demand_id,
+                        'meeting_sequence' => (int) $target->meeting_sequence,
+                        'faculty_user_id' => (int) $validated['faculty_user_id'],
+                        'room_id' => $validated['room_id'] ?? null,
+                        'day_of_week' => (int) $validated['day_of_week'],
+                        'starts_at' => $validated['starts_at'].':00',
+                        'ends_at' => $validated['ends_at'].':00',
+                    ],
+                    'reason' => $reason,
+                    'authority_reference' => $authority,
+                ],
+            ];
+            $encoded = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+            $lockedRun->forceFill([
+                'input_snapshot' => $snapshot,
+                'input_hash' => hash('sha256', $encoded),
+                'contract_version' => self::ContractVersion,
+                'quality_policy' => ScheduleGenerationRun::QualityPolicyLexicographic,
+                'candidate_version' => ((int) $lockedSource->candidate_version) + 1,
+                'candidate_state' => 'RepairQueued',
+                'candidate_review_reason' => $reason,
+            ])->save();
             $run->refresh();
 
             return $snapshot;
@@ -104,19 +273,21 @@ class ScheduleSolverSnapshotService
             ->values()
             ->all();
 
-        if (array_diff($excludedDemandIds, $demandIds) !== []) {
+        $demands = $this->demandsForTerm($term, $demandIds);
+        $availableDemandIds = $demands->modelKeys();
+
+        if (array_diff($excludedDemandIds, $availableDemandIds) !== []) {
             throw ValidationException::withMessages([
                 'scheduling_demands' => 'Only demands captured by the selected run may be excluded from live validation.',
             ]);
         }
 
-        $demands = $this->demandsForTerm($term, $demandIds);
         $cohortIdsByDeliveryGroup = $this->cohortIdsByDeliveryGroup($demands);
         $demands = $demands->reject(
             fn (SchedulingDemand $demand): bool => in_array((int) $demand->id, $excludedDemandIds, true),
         );
 
-        if ($demands->isEmpty() && count($excludedDemandIds) !== count($demandIds)) {
+        if ($demands->isEmpty() && count($excludedDemandIds) !== count($availableDemandIds)) {
             throw ValidationException::withMessages([
                 'scheduling_demands' => 'Schedule revalidation requires current Scheduling Demand rows.',
             ]);
@@ -164,7 +335,7 @@ class ScheduleSolverSnapshotService
                 'courseComponent.courseSpecification.course',
                 'fixedFaculty',
                 'fixedRoom',
-                'sectionDeliveryGroup.section',
+                'sectionDeliveryGroup.section.cohorts',
                 'termOffering.curriculumEntry.curriculumVersion',
                 'termOffering.curriculumEntry.courseSpecification.course',
             ])
@@ -218,6 +389,11 @@ class ScheduleSolverSnapshotService
         ?array $cohortIdsByDeliveryGroup = null,
     ): array {
         $timeSlots = $this->timeSlots($term);
+        $calendarPackage = TermCalendarPackage::query()
+            ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
         $demandPayload = $this->schedulingDemandsPayload(
             $demands,
             $term,
@@ -247,6 +423,20 @@ class ScheduleSolverSnapshotService
                 'scheduling_day_ends_at' => $this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt,
                 'default_max_units' => $term->default_max_units,
             ],
+            'term_calendar_package' => $calendarPackage instanceof TermCalendarPackage ? [
+                'term_calendar_package_id' => (int) $calendarPackage->id,
+                'version' => (int) $calendarPackage->version,
+                'authority_reference' => $calendarPackage->authority_reference,
+                'authority_date' => $this->dateString($calendarPackage->authority_date),
+                'administrative_starts_on' => $this->dateString($calendarPackage->administrative_starts_on),
+                'administrative_ends_on' => $this->dateString($calendarPackage->administrative_ends_on),
+                'classes_start_on' => $this->dateString($calendarPackage->classes_start_on),
+                'classes_end_on' => $this->dateString($calendarPackage->classes_end_on),
+                'special_term_schedule_basis' => $calendarPackage->special_term_schedule_basis,
+                'window_ids' => $calendarPackage->windows->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
+                'teaching_grid_row_ids' => $calendarPackage->teachingGridRows->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
+                'dated_exception_ids' => $calendarPackage->datedExceptions->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
+            ] : null,
             'time_slots' => $timeSlots,
             'subjects' => $this->subjectsPayload($demandPayload),
             'scheduling_demands' => $demandPayload,
@@ -255,17 +445,18 @@ class ScheduleSolverSnapshotService
             'rooms' => $this->roomsPayload(),
             'faculty' => $this->facultyPayload($demandPayload),
             'faculty_qualifications' => $this->facultyQualificationsPayload($demandPayload),
-            'faculty_availability' => [],
+            'faculty_availability' => $this->facultyAvailabilityPayload($term),
             'term_offerings' => $this->termOfferingsPayload($demandPayload),
             'student_cohort_groups' => $this->studentCohortGroupsPayload($demandPayload),
             'calendar_blocks' => $this->calendarBlocksPayload($term),
+            'dated_exceptions' => $this->datedExceptionsPayload($term),
             'hard_constraints' => $this->hardConstraints(),
             'soft_constraints' => $this->softConstraints(),
             'constraint_profile' => [
-                'key' => 'balanced_v1',
+                'key' => 'lexicographic_v1',
                 'version' => 1,
                 'hard_constraints' => $this->hardConstraints(),
-                'soft_weights' => array_fill_keys($this->softConstraints(), 1),
+                'objective_hierarchy' => $this->softConstraints(),
             ],
             'fixed_assignments' => $this->fixedAssignmentsPayload($demandPayload),
             'optimization_settings' => [
@@ -281,7 +472,37 @@ class ScheduleSolverSnapshotService
      */
     private function timeSlots(Term $term): array
     {
-        $slotMinutes = max(1, (int) $term->scheduling_slot_minutes);
+        $calendarPackage = TermCalendarPackage::query()
+            ->with('teachingGridRows')
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
+        $slotMinutes = $calendarPackage instanceof TermCalendarPackage ? 30 : max(1, (int) $term->scheduling_slot_minutes);
+        if ($calendarPackage instanceof TermCalendarPackage && $calendarPackage->teachingGridRows->isNotEmpty()) {
+            $slots = [];
+            $id = 1;
+
+            foreach ($calendarPackage->teachingGridRows->sortBy(
+                fn ($gridRow): string => sprintf('%02d|%s', (int) $gridRow->day_of_week, (string) $gridRow->starts_at),
+            ) as $gridRow) {
+                $dayStart = $this->minutes($this->timeString($gridRow->starts_at) ?? self::DefaultDayStartsAt);
+                $dayEnd = $this->minutes($this->timeString($gridRow->ends_at) ?? self::DefaultDayEndsAt);
+
+                for ($startsAt = $dayStart; $startsAt + $slotMinutes <= $dayEnd; $startsAt += $slotMinutes) {
+                    $slots[] = [
+                        'time_slot_id' => $id++,
+                        'time_block_key' => 'D'.$gridRow->day_of_week.'-'.$this->compactTime($startsAt),
+                        'day_of_week' => (int) $gridRow->day_of_week,
+                        'starts_at' => $this->time($startsAt),
+                        'ends_at' => $this->time($startsAt + $slotMinutes),
+                        'duration_minutes' => $slotMinutes,
+                    ];
+                }
+            }
+
+            return $slots;
+        }
+
         $dayStart = $this->minutes($this->timeString($term->scheduling_day_starts_at) ?? self::DefaultDayStartsAt);
         $dayEnd = $this->minutes($this->timeString($term->scheduling_day_ends_at) ?? self::DefaultDayEndsAt);
         $slots = [];
@@ -315,8 +536,14 @@ class ScheduleSolverSnapshotService
         bool $useCurrentSources,
         array $cohortIdsByDeliveryGroup,
     ): array {
+        $commitmentsBySection = SchedulingCommitment::query()
+            ->where('term_id', $term->id)
+            ->whereNotNull('section_id')
+            ->get()
+            ->groupBy(fn (SchedulingCommitment $commitment): int => (int) $commitment->section_id);
+
         return $demands
-            ->map(function ($demand) use ($term, $useCurrentSources, $cohortIdsByDeliveryGroup): array {
+            ->map(function ($demand) use ($term, $useCurrentSources, $cohortIdsByDeliveryGroup, $commitmentsBySection): array {
                 $group = $demand->getRelationValue('sectionDeliveryGroup');
                 $group = $group instanceof SectionDeliveryGroup ? $group : null;
                 $section = $group?->getRelationValue('section');
@@ -339,6 +566,16 @@ class ScheduleSolverSnapshotService
                 $modality = $useCurrentSources
                     ? (filled($group?->modality) ? (string) $group->modality : (string) $offering?->modality)
                     : (string) $demand->modality;
+                $cohortIds = $cohortIdsByDeliveryGroup[(int) $demand->section_delivery_group_id];
+                $cohortExpectedCounts = $section instanceof Section && $section->relationLoaded('cohorts') && $section->cohorts->isNotEmpty()
+                    ? $section->cohorts->mapWithKeys(fn ($cohort): array => [
+                        (int) $cohort->id => (int) $cohort->pivot->getAttribute('expected_count'),
+                    ])->all()
+                    : [(int) $cohortIds[0] => (int) ($source['expected_count'] ?? $group->expected_count ?? 0)];
+                $expectedCount = array_sum($cohortExpectedCounts);
+                $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+                $sectionCommitments = $commitmentsBySection->get((int) $section->id, collect());
+                $sectionCommitment = $sectionCommitments->count() === 1 ? $sectionCommitments->first() : null;
 
                 return [
                     'scheduling_demand_id' => (int) $demand->id,
@@ -346,18 +583,23 @@ class ScheduleSolverSnapshotService
                     'term_offering_id' => (int) $demand->term_offering_id,
                     'section_id' => $section?->id !== null ? (int) $section->id : (int) ($source['section_id'] ?? 0),
                     'section_delivery_group_id' => (int) $demand->section_delivery_group_id,
-                    'cohort_or_student_group_id' => $cohortIdsByDeliveryGroup[(int) $demand->section_delivery_group_id],
+                    'cohort_or_student_group_id' => (int) $cohortIds[0],
+                    'cohort_or_student_group_ids' => array_map('intval', $cohortIds),
+                    'cohort_expected_counts' => $cohortExpectedCounts,
                     'course_id' => $course?->id !== null ? (int) $course->id : $this->nullableInt($source['course_id'] ?? null),
                     'course_code' => $course->code ?? ($source['course_code'] ?? null),
                     'course_component_id' => (int) $demand->course_component_id,
                     'component_type' => $component->component_type ?? ($source['component_type'] ?? null),
-                    'required_duration_minutes' => $useCurrentSources && $component instanceof CourseComponent
-                        ? max(1, (int) round((float) $component->weekly_contact_hours * 60))
+                    'required_duration_minutes' => $useCurrentSources && $meetingPattern !== null
+                        ? $meetingPattern['duration_minutes']
                         : (int) $demand->required_duration_minutes,
-                    'meeting_count' => (int) $demand->meeting_count,
+                    'meeting_count' => $useCurrentSources && $meetingPattern !== null
+                        ? $meetingPattern['count']
+                        : (int) $demand->meeting_count,
+                    'meeting_pattern' => $component->meeting_pattern,
                     'modality' => $modality,
                     'validation_state' => $demand->validation_state,
-                    'expected_count' => (int) ($source['expected_count'] ?? $group->expected_count ?? 0),
+                    'expected_count' => $expectedCount,
                     'section_capacity' => (int) ($source['section_capacity'] ?? $section->capacity ?? 0),
                     'room_type_requirement' => $source['room_type_requirement'] ?? null,
                     'required_room_feature_keys' => collect($component->required_room_feature_keys ?? [])
@@ -377,10 +619,19 @@ class ScheduleSolverSnapshotService
                         ->values()
                         ->all(),
                     'faculty_load_options' => $facultyOptions,
-                    'fixed_faculty_user_id' => $demand->fixed_faculty_user_id !== null ? (int) $demand->fixed_faculty_user_id : null,
-                    'fixed_room_id' => $demand->fixed_room_id !== null ? (int) $demand->fixed_room_id : null,
-                    'fixed_day_of_week' => $demand->fixed_day_of_week !== null ? (int) $demand->fixed_day_of_week : null,
-                    'fixed_start_time' => $this->timeString($demand->fixed_start_time),
+                    'scheduling_commitment_id' => $sectionCommitment instanceof SchedulingCommitment ? $sectionCommitment->id : null,
+                    'fixed_faculty_user_id' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->faculty_user_id !== null
+                        ? (int) $sectionCommitment->faculty_user_id
+                        : ($demand->fixed_faculty_user_id !== null ? (int) $demand->fixed_faculty_user_id : null),
+                    'fixed_room_id' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->room_id !== null
+                        ? (int) $sectionCommitment->room_id
+                        : ($demand->fixed_room_id !== null ? (int) $demand->fixed_room_id : null),
+                    'fixed_day_of_week' => $sectionCommitment instanceof SchedulingCommitment && $sectionCommitment->day_of_week !== null
+                        ? (int) $sectionCommitment->day_of_week
+                        : ($demand->fixed_day_of_week !== null ? (int) $demand->fixed_day_of_week : null),
+                    'fixed_start_time' => $this->timeString(
+                        $sectionCommitment instanceof SchedulingCommitment ? $sectionCommitment->starts_at : $demand->fixed_start_time,
+                    ),
                     'source_snapshot' => $source,
                 ];
             })
@@ -415,6 +666,7 @@ class ScheduleSolverSnapshotService
             'course_component_id' => (int) $demand->course_component_id,
             'component_type' => $component->component_type,
             'weekly_contact_hours' => $component->weekly_contact_hours,
+            'meeting_pattern' => $component->meeting_pattern,
             'expected_count' => (int) $group->expected_count,
             'section_capacity' => (int) $section->capacity,
             'offering_modality' => $offering->modality,
@@ -607,11 +859,12 @@ class ScheduleSolverSnapshotService
     {
         return collect($demands)
             ->unique('section_delivery_group_id')
-            ->map(fn (array $demand): array => [
-                'cohort_or_student_group_id' => (int) $demand['cohort_or_student_group_id'],
-                'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
-                'expected_count' => (int) $demand['expected_count'],
-            ])
+            ->flatMap(fn (array $demand): array => collect($demand['cohort_or_student_group_ids'])
+                ->map(fn (mixed $cohortId): array => [
+                    'cohort_or_student_group_id' => (int) $cohortId,
+                    'section_delivery_group_id' => (int) $demand['section_delivery_group_id'],
+                    'expected_count' => (int) ($demand['cohort_expected_counts'][(int) $cohortId] ?? 0),
+                ])->all())
             ->values()
             ->all();
     }
@@ -621,10 +874,38 @@ class ScheduleSolverSnapshotService
      * delivery group that represents the same program, year level, and cohort code.
      *
      * @param  EloquentCollection<int, SchedulingDemand>  $demands
-     * @return array<int, int>
+     * @return array<int, list<int>>
      */
     private function cohortIdsByDeliveryGroup(EloquentCollection $demands): array
     {
+        $canonical = [];
+
+        foreach ($demands as $demand) {
+            $group = $demand->getRelationValue('sectionDeliveryGroup');
+            $section = $group instanceof SectionDeliveryGroup ? $group->getRelationValue('section') : null;
+
+            if (! $section instanceof Section || ! $section->relationLoaded('cohorts') || $section->cohorts->isEmpty()) {
+                continue;
+            }
+
+            $canonical[(int) $demand->section_delivery_group_id] = $section->cohorts
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+        }
+
+        if ($canonical !== []) {
+            if (count($canonical) !== $demands->pluck('section_delivery_group_id')->unique()->count()) {
+                throw ValidationException::withMessages([
+                    'student_cohort_groups' => 'Every canonical Class Offering requires at least one confirmed Term Cohort.',
+                ]);
+            }
+
+            return $canonical;
+        }
+
         $identities = $demands->map(function (SchedulingDemand $demand): array {
             $group = $demand->getRelationValue('sectionDeliveryGroup');
             $offering = $demand->getRelationValue('termOffering');
@@ -656,7 +937,7 @@ class ScheduleSolverSnapshotService
                 $cohortId = (int) $rows->min('section_delivery_group_id');
 
                 foreach ($rows as $row) {
-                    $cohortIds[(int) $row['section_delivery_group_id']] = $cohortId;
+                    $cohortIds[(int) $row['section_delivery_group_id']] = [$cohortId];
                 }
 
                 return $cohortIds;
@@ -668,7 +949,7 @@ class ScheduleSolverSnapshotService
      */
     private function calendarBlocksPayload(Term $term): array
     {
-        return CalendarEvent::query()
+        $legacy = CalendarEvent::query()
             ->whereBelongsTo($term)
             ->recurringSchedulingBlocks()
             ->where('state', CalendarEvent::StateActive)
@@ -687,6 +968,120 @@ class ScheduleSolverSnapshotService
                 'day_of_week' => (int) $event->day_of_week,
                 'starts_at' => $this->timeString($event->starts_at),
                 'ends_at' => $this->timeString($event->ends_at),
+            ])
+            ->values()
+            ->all();
+        $resourceBlocks = ResourceUnavailability::query()
+            ->where('term_id', $term->id)
+            ->whereNull('effective_on')
+            ->whereNotNull('day_of_week')
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->get()
+            ->map(fn (ResourceUnavailability $record): array => [
+                'resource_unavailability_id' => (int) $record->id,
+                'event_type' => 'ResourceUnavailability',
+                'scope_type' => $record->room_id !== null ? 'Room' : 'Faculty',
+                'room_id' => $record->room_id !== null ? (int) $record->room_id : null,
+                'faculty_user_id' => $record->faculty_user_id !== null ? (int) $record->faculty_user_id : null,
+                'authority' => $record->authority_reference,
+                'day_of_week' => $record->day_of_week,
+                'starts_at' => $this->timeString($record->starts_at),
+                'ends_at' => $this->timeString($record->ends_at),
+            ])->all();
+        $package = TermCalendarPackage::query()
+            ->with('teachingGridRows')
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
+        $packageBlocks = [];
+
+        if ($package instanceof TermCalendarPackage) {
+            foreach ($package->teachingGridRows as $gridRow) {
+                foreach ($this->listValue($gridRow->breaks) as $break) {
+                    if (! is_array($break) || blank($break['starts_at'] ?? null) || blank($break['ends_at'] ?? null)) {
+                        continue;
+                    }
+
+                    $packageBlocks[] = [
+                        'term_teaching_grid_row_id' => (int) $gridRow->id,
+                        'event_type' => 'TeachingGridBreak',
+                        'scope_type' => 'Institution',
+                        'room_id' => null,
+                        'faculty_user_id' => null,
+                        'authority' => $package->authority_reference,
+                        'day_of_week' => (int) $gridRow->day_of_week,
+                        'starts_at' => $this->timeString($break['starts_at']),
+                        'ends_at' => $this->timeString($break['ends_at']),
+                    ];
+                }
+            }
+
+        }
+
+        return [...$packageBlocks, ...$legacy, ...$resourceBlocks];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function datedExceptionsPayload(Term $term): array
+    {
+        $package = TermCalendarPackage::query()
+            ->with('datedExceptions')
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
+        $calendarExceptions = $package instanceof TermCalendarPackage
+            ? $package->datedExceptions->map(fn ($exception): array => [
+                'term_dated_exception_id' => (int) $exception->id,
+                'source_type' => 'TermDatedException',
+                'starts_on' => $this->dateString($exception->starts_on),
+                'ends_on' => $this->dateString($exception->ends_on),
+                'blocks_teaching' => (bool) $exception->blocks_teaching,
+                'authority_reference' => $exception->authority_reference,
+            ])->all()
+            : [];
+        $resourceExceptions = ResourceUnavailability::query()
+            ->where('term_id', $term->id)
+            ->whereNotNull('effective_on')
+            ->get()
+            ->map(fn (ResourceUnavailability $record): array => [
+                'resource_unavailability_id' => (int) $record->id,
+                'source_type' => 'ResourceUnavailability',
+                'effective_on' => $this->dateString($record->effective_on),
+                'room_id' => $record->room_id !== null ? (int) $record->room_id : null,
+                'faculty_user_id' => $record->faculty_user_id !== null ? (int) $record->faculty_user_id : null,
+                'starts_at' => $this->timeString($record->starts_at),
+                'ends_at' => $this->timeString($record->ends_at),
+                'authority_reference' => $record->authority_reference,
+            ])->all();
+
+        return [...$calendarExceptions, ...$resourceExceptions];
+    }
+
+    private function hourMinute(mixed $value): mixed
+    {
+        if (! is_string($value) || ! preg_match('/^\d{2}:\d{2}(?::\d{2})?$/', $value)) {
+            return $value;
+        }
+
+        return mb_substr($value, 0, 5);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function facultyAvailabilityPayload(Term $term): array
+    {
+        return FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->orderBy('faculty_user_id')
+            ->orderByDesc('version')
+            ->get()
+            ->unique('faculty_user_id')
+            ->map(fn (FacultyAvailabilityDeclaration $record): array => [
+                'faculty_user_id' => (int) $record->faculty_user_id,
+                'declaration_version' => (int) $record->version,
+                'declaration' => $record->declaration,
+                'hard_unavailability' => $record->hard_unavailability ?? [],
+                'declared_at' => $record->declared_at->toIso8601String(),
             ])
             ->values()
             ->all();
@@ -715,10 +1110,12 @@ class ScheduleSolverSnapshotService
     private function softConstraints(): array
     {
         return [
-            'prefer_earlier_time_blocks',
-            'reduce_faculty_idle_gaps',
-            'balance_faculty_load',
-            'use_rooms_efficiently',
+            'cohort_mode_switches',
+            'cohort_idle_time',
+            'faculty_load_imbalance',
+            'faculty_idle_time',
+            'room_seat_waste',
+            'stable_earlier_placement',
         ];
     }
 
@@ -771,6 +1168,12 @@ class ScheduleSolverSnapshotService
     private function arrayValue(mixed $value): array
     {
         return is_array($value) ? $value : [];
+    }
+
+    /** @return list<mixed> */
+    private function listValue(mixed $value): array
+    {
+        return is_array($value) ? array_values($value) : [];
     }
 
     private function dateString(mixed $value): ?string

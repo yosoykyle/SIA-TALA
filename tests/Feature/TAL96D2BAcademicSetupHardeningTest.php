@@ -151,6 +151,30 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
     }
 
     #[Test]
+    public function externally_arranged_courses_activate_without_fabricated_recurring_meetings(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $external = CourseSpecification::factory()->create([
+            'state' => CourseSpecification::StateDraft,
+            'scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged,
+        ]);
+
+        $active = app(CourseSpecificationLifecycleService::class)->activate($registrar, $external);
+
+        $this->assertSame(CourseSpecification::StateActive, $active->state);
+        $this->assertSame(0, $active->components()->count());
+
+        $invalid = CourseSpecification::factory()->create([
+            'state' => CourseSpecification::StateDraft,
+            'scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged,
+        ]);
+        CourseComponent::factory()->for($invalid)->create();
+
+        $this->expectException(ValidationException::class);
+        app(CourseSpecificationLifecycleService::class)->activate($registrar, $invalid);
+    }
+
+    #[Test]
     public function lifecycle_actions_replace_direct_state_editing_on_the_staff_surfaces(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -191,12 +215,14 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
                 'credit_units' => '3.00',
                 'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
                 'grading_profile_version' => 1,
+                'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
                 'allowed_modalities' => [CourseSpecification::ModalityFaceToFace],
                 'same_faculty_default' => false,
                 'state' => CourseSpecification::StateActive,
                 'components' => [[
                     'component_type' => CourseComponent::TypeLecture,
                     'weekly_contact_hours' => '3.00',
+                    'meeting_pattern' => '2x90',
                     'room_type_default' => CourseComponent::RoomTypeLectureRoom,
                     'required_room_feature_keys' => [],
                     'modality_restriction' => null,
@@ -433,6 +459,7 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         $specification->components()->create([
             'component_type' => CourseComponent::TypeLecture,
             'weekly_contact_hours' => '3.00',
+            'meeting_pattern' => '2x90',
             'room_type_default' => CourseComponent::RoomTypeLectureRoom,
             'required_room_feature_keys' => [],
             'modality_restriction' => null,

@@ -6,6 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
+/**
+ * @property array<string, mixed>|null $scores
+ * @property array<string, mixed>|null $warnings
+ * @property array<string, mixed>|null $violations
+ */
 class CandidateScheduleRow extends Model
 {
     public const StatusOk = 'ok';
@@ -19,6 +24,7 @@ class CandidateScheduleRow extends Model
      */
     protected $fillable = [
         'schedule_run_id',
+        'supersedes_candidate_row_id',
         'scheduling_demand_id',
         'meeting_sequence',
         'faculty_user_id',
@@ -28,6 +34,7 @@ class CandidateScheduleRow extends Model
         'ends_at',
         'time_block_key',
         'status',
+        'change_type',
         'scores',
         'warnings',
         'violations',
@@ -122,11 +129,19 @@ class CandidateScheduleRow extends Model
         return is_array($items) && $items !== [];
     }
 
+    /** @return BelongsTo<ScheduleGenerationRun, $this> */
     public function scheduleRun(): BelongsTo
     {
         return $this->belongsTo(ScheduleGenerationRun::class, 'schedule_run_id');
     }
 
+    /** @return BelongsTo<CandidateScheduleRow, $this> */
+    public function supersedes(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'supersedes_candidate_row_id');
+    }
+
+    /** @return BelongsTo<ScheduleGenerationRun, $this> */
     public function generationRun(): BelongsTo
     {
         return $this->scheduleRun();

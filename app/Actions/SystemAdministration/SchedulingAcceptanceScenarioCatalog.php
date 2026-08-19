@@ -38,6 +38,15 @@ final class SchedulingAcceptanceScenarioCatalog
         return $normalized;
     }
 
+    public function isExternallyArranged(string $program, string $courseCode): bool
+    {
+        return in_array(strtoupper($program).'|'.strtoupper($courseCode), [
+            'DIT|HMPRAC02',
+            'DTHM|HMPRAC02',
+            'DTHM|HMPRAC03',
+        ], true);
+    }
+
     /**
      * @return array{
      *     scenario:string,
@@ -94,6 +103,11 @@ final class SchedulingAcceptanceScenarioCatalog
         $sectionCount = collect($cohorts)->sum(
             fn (array $cohort): int => count($cohort['courses']),
         );
+        $demandCount = collect($cohorts)->sum(
+            fn (array $cohort): int => collect($cohort['courses'])
+                ->reject(fn (string $courseCode): bool => $this->isExternallyArranged($cohort['program'], $courseCode))
+                ->count(),
+        );
         $facultyEvidence = $this->facultyEvidence($scenario);
 
         return [
@@ -106,7 +120,7 @@ final class SchedulingAcceptanceScenarioCatalog
                 'faculty' => $facultyEvidence['synthetic_scheduling_faculty'],
                 'offerings' => $scopeCourseCounts->sum(),
                 'sections' => $sectionCount,
-                'scheduling_demands' => $sectionCount,
+                'scheduling_demands' => $demandCount,
             ],
             'faculty_evidence' => $facultyEvidence,
             'curriculum_evidence' => $this->curriculumEvidence(),
@@ -170,13 +184,7 @@ final class SchedulingAcceptanceScenarioCatalog
         return $cohorts;
     }
 
-    /**
-     * The MAX fixture keeps the same six-room count as MIN and MIDDLE, but its
-     * room-type mix follows the constructed workload instead of retaining an
-     * unused special room and an aggregate laboratory shortfall.
-     *
-     * @return list<array{string, string, string}>
-     */
+    /** @return list<array{string, string, string}> */
     public function roomDefinitions(string $scenario): array
     {
         $scenario = $this->normalize($scenario);
@@ -185,10 +193,14 @@ final class SchedulingAcceptanceScenarioCatalog
             return [
                 ['LEC-101', 'Lecture Room 101', Room::TypeLectureRoom],
                 ['LEC-102', 'Lecture Room 102', Room::TypeLectureRoom],
+                ['LEC-103', 'Lecture Room 103', Room::TypeLectureRoom],
+                ['LEC-104', 'Lecture Room 104', Room::TypeLectureRoom],
                 ['LAB-101', 'Applied Skills Laboratory 1', Room::TypeLaboratory],
                 ['LAB-102', 'Applied Skills Laboratory 2', Room::TypeLaboratory],
+                ['LAB-103', 'Applied Skills Laboratory 3', Room::TypeLaboratory],
                 ['COMP-101', 'Computer Laboratory 1', Room::TypeComputerLaboratory],
                 ['COMP-102', 'Computer Laboratory 2', Room::TypeComputerLaboratory],
+                ['COMP-103', 'Computer Laboratory 3', Room::TypeComputerLaboratory],
             ];
         }
 
@@ -196,9 +208,13 @@ final class SchedulingAcceptanceScenarioCatalog
             ['LEC-101', 'Lecture Room 101', Room::TypeLectureRoom],
             ['LEC-102', 'Lecture Room 102', Room::TypeLectureRoom],
             ['LEC-103', 'Lecture Room 103', Room::TypeLectureRoom],
-            ['LAB-101', 'Applied Skills Laboratory', Room::TypeLaboratory],
-            ['COMP-101', 'Computer Laboratory', Room::TypeComputerLaboratory],
-            ['SPEC-101', 'Specialized Demonstration Room', Room::TypeSpecialRoom],
+            ['LEC-104', 'Lecture Room 104', Room::TypeLectureRoom],
+            ['LAB-101', 'Applied Skills Laboratory 1', Room::TypeLaboratory],
+            ['LAB-102', 'Applied Skills Laboratory 2', Room::TypeLaboratory],
+            ['COMP-101', 'Computer Laboratory 1', Room::TypeComputerLaboratory],
+            ['COMP-102', 'Computer Laboratory 2', Room::TypeComputerLaboratory],
+            ['SPEC-101', 'Specialized Demonstration Room 1', Room::TypeSpecialRoom],
+            ['SPEC-102', 'Specialized Demonstration Room 2', Room::TypeSpecialRoom],
         ];
     }
 

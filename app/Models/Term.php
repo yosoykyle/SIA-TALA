@@ -81,6 +81,18 @@ class Term extends Model
         return $this->hasMany(TermOffering::class);
     }
 
+    /** @return HasMany<TermCalendarPackage, $this> */
+    public function calendarPackages(): HasMany
+    {
+        return $this->hasMany(TermCalendarPackage::class);
+    }
+
+    /** @return HasMany<PublishedTimetableVersion, $this> */
+    public function timetableVersions(): HasMany
+    {
+        return $this->hasMany(PublishedTimetableVersion::class);
+    }
+
     public function facultyTermLoadOverrides(): HasMany
     {
         return $this->hasMany(FacultyTermLoadOverride::class);

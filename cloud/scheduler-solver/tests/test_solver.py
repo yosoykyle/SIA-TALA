@@ -53,7 +53,7 @@ class SolveSnapshotTest(unittest.TestCase):
             {"optimal", "feasible"},
         )
         self.assertEqual(
-            "optimization",
+            "lexicographic",
             result["solver_statistics"]["result_source"],
         )
 
@@ -132,7 +132,7 @@ class SolveSnapshotTest(unittest.TestCase):
             result["solver_statistics"]["search_stages"]["optimization"]["status"],
         )
         self.assertEqual(
-            "feasibility_fallback",
+            "lexicographic",
             result["solver_statistics"]["result_source"],
         )
 
@@ -363,22 +363,25 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual("conflict", assignment["assignment_status"])
         self.assertEqual("solver_unassigned", assignment["violations"][0]["type"])
 
-    def test_v2_profile_reports_all_balanced_objective_terms(self) -> None:
+    def test_v2_profile_reports_the_fixed_lexicographic_hierarchy_without_weights(self) -> None:
         result = solve_snapshot(self.snapshot(), timeout_seconds=10)
 
         self.assertIn(result["solver_status"], {"optimal", "feasible"})
         details = result["objective_details"]
-        self.assertEqual("balanced_v1", details["profile_key"])
+        self.assertEqual("lexicographic_v1", details["profile_key"])
         self.assertEqual(
-            {
-                "prefer_earlier_time_blocks",
-                "reduce_faculty_idle_gaps",
-                "balance_faculty_load",
-                "use_rooms_efficiently",
-            },
-            set(details["terms"]),
+            [
+                "cohort_mode_switches",
+                "cohort_idle_time",
+                "faculty_load_imbalance",
+                "faculty_idle_time",
+                "room_seat_waste",
+                "stable_earlier_placement",
+            ],
+            details["objective_hierarchy"],
         )
-        self.assertEqual(result["objective_score"], details["total"])
+        self.assertIsNone(result["objective_score"])
+        self.assertIsNone(details["scalar_score"])
 
     def test_solver_statistics_are_typed_allowlisted_and_reproducible(self) -> None:
         snapshot = self.snapshot()
@@ -421,7 +424,7 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertGreater(statistics["model_constraint_count"], 0)
         self.assertGreater(statistics["no_overlap_constraint_count"], 0)
         self.assertIsInstance(statistics["best_objective_bound"], float)
-        self.assertEqual(0.0, statistics["relative_optimality_gap"])
+        self.assertIsNone(statistics["relative_optimality_gap"])
         self.assertIsInstance(statistics["boolean_variable_count"], int)
         self.assertIsInstance(statistics["branch_count"], int)
         self.assertIsInstance(statistics["conflict_count"], int)
@@ -549,9 +552,110 @@ class SolveSnapshotTest(unittest.TestCase):
 
         self.assertIn(result["solver_status"], {"optimal", "feasible"})
         self.assertEqual(
-            -120,
-            result["objective_details"]["terms"]["reduce_faculty_idle_gaps"]["raw"],
+            120,
+            result["objective_details"]["values"]["faculty_idle_time"],
         )
+
+    def test_cohort_mode_switches_count_only_adjacent_selected_meetings(self) -> None:
+        snapshot = self.scaled_snapshot(demand_count=4, slot_count=9)
+        modalities = ["FACE_TO_FACE", "ONLINE", "ONLINE", "FACE_TO_FACE"]
+
+        for index, demand in enumerate(snapshot["scheduling_demands"]):
+            demand.update({
+                "section_delivery_group_id": 41_000 + index,
+                "cohort_or_student_group_id": 999,
+                "modality": modalities[index],
+                "room_required": modalities[index] == "FACE_TO_FACE",
+                "fixed_room_id": 301 if modalities[index] == "FACE_TO_FACE" else None,
+                "fixed_day_of_week": 1,
+                "fixed_start_time": self.time_from_minutes(7 * 60 + (index * 60)),
+                "required_duration_minutes": 30,
+            })
+
+        snapshot["student_cohort_groups"] = [
+            {
+                "cohort_or_student_group_id": 999,
+                "section_delivery_group_id": demand["section_delivery_group_id"],
+                "expected_count": demand["expected_count"],
+            }
+            for demand in snapshot["scheduling_demands"]
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["objective_details"]["values"]["cohort_mode_switches"])
+
+    def test_cross_modality_transition_requires_a_thirty_minute_cohort_buffer(self) -> None:
+        snapshot = self.scaled_snapshot(demand_count=2, slot_count=4)
+        first, second = snapshot["scheduling_demands"]
+
+        for demand in (first, second):
+            demand.update({
+                "cohort_or_student_group_id": 999,
+                "fixed_day_of_week": 1,
+                "required_duration_minutes": 30,
+            })
+        first.update({"modality": "FACE_TO_FACE", "room_required": True, "fixed_room_id": 301, "fixed_start_time": "07:00:00"})
+        second.update({"modality": "ONLINE", "room_required": False, "fixed_room_id": None, "fixed_start_time": "07:30:00"})
+        snapshot["student_cohort_groups"] = [
+            {"cohort_or_student_group_id": 999, "section_delivery_group_id": demand["section_delivery_group_id"], "expected_count": 30}
+            for demand in (first, second)
+        ]
+
+        blocked = solve_snapshot(snapshot, timeout_seconds=10)
+        second["fixed_start_time"] = "08:00:00"
+        accepted = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", blocked["solver_status"])
+        self.assertIn(accepted["solver_status"], {"optimal", "feasible"})
+
+    def test_room_seat_waste_uses_confirmed_expected_count(self) -> None:
+        snapshot = self.scaled_snapshot(demand_count=1, slot_count=2)
+        snapshot["rooms"] = [
+            {"room_id": 301, "room_type": "LECTURE_ROOM", "capacity": 60, "feature_keys": []},
+            {"room_id": 302, "room_type": "LECTURE_ROOM", "capacity": 40, "feature_keys": []},
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(302, result["assignments"][0]["room_id"])
+        self.assertEqual(10, result["objective_details"]["values"]["room_seat_waste"])
+
+    def test_repair_fixes_the_request_and_minimizes_changed_other_meetings_first(self) -> None:
+        snapshot = self.snapshot()
+        baseline_result = solve_snapshot(snapshot, timeout_seconds=10)
+        self.assertIn(baseline_result["solver_status"], {"optimal", "feasible"})
+
+        baseline = baseline_result["assignments"]
+        requested = copy.deepcopy(baseline[0])
+        occupied = baseline[1]
+        requested.update({
+            "day_of_week": occupied["day_of_week"],
+            "starts_at": occupied["starts_at"],
+            "ends_at": occupied["ends_at"],
+        })
+        snapshot["operation"] = {
+            "kind": "repair",
+            "source_candidate": {
+                "run_id": 1,
+                "candidate_version": 1,
+                "assignments": baseline,
+            },
+            "requested_assignment": requested,
+        }
+
+        repaired = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(repaired["solver_status"], {"optimal", "feasible"})
+        repaired_requested = next(
+            row for row in repaired["assignments"]
+            if row["scheduling_demand_id"] == requested["scheduling_demand_id"]
+        )
+        self.assertEqual(requested["starts_at"], repaired_requested["starts_at"])
+        self.assertEqual(1, repaired["objective_details"]["repair"]["changed_non_requested_meetings"])
+        self.assertEqual("changed_non_requested_meetings", repaired["objective_details"]["completed_levels"][0]["name"])
 
     def test_exact_coverage_makes_conflicting_fixed_demands_infeasible(self) -> None:
         snapshot = self.snapshot()
@@ -609,13 +713,29 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertIn(result["solver_status"], {"optimal", "feasible"})
         self.assertEqual(2, result["assigned_count"])
 
-    def test_unsupported_meeting_count_is_model_invalid(self) -> None:
-        snapshot = self.snapshot()
-        snapshot["scheduling_demands"][0]["meeting_count"] = 2
+    def test_two_ninety_minute_meetings_are_expanded_without_overlap_for_one_faculty(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=90)
 
         result = solve_snapshot(snapshot, timeout_seconds=10)
 
-        self.assertEqual("model_invalid", result["solver_status"])
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["assigned_count"])
+        self.assertEqual([1, 2], [row["meeting_sequence"] for row in result["assignments"]])
+        self.assertEqual({"2x90"}, {row["meeting_pattern"] for row in result["assignments"]})
+        self.assertEqual(1, len({row["faculty_id"] for row in result["assignments"]}))
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+
+    def test_three_sixty_minute_meetings_are_expanded_without_overlap_for_one_faculty(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=3, meeting_duration_minutes=60)
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(3, result["assigned_count"])
+        self.assertEqual([1, 2, 3], [row["meeting_sequence"] for row in result["assignments"]])
+        self.assertEqual({"3x60"}, {row["meeting_pattern"] for row in result["assignments"]})
+        self.assertEqual(1, len({row["faculty_id"] for row in result["assignments"]}))
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
 
     def test_inconsistent_shared_cohort_mapping_is_model_invalid(self) -> None:
         snapshot = self.snapshot()
@@ -630,6 +750,41 @@ class SolveSnapshotTest(unittest.TestCase):
             result["infeasible_reasons"][0]["type"],
         )
 
+    def test_shared_class_membership_blocks_overlap_for_every_attached_cohort(self) -> None:
+        snapshot = self.snapshot()
+        first, second = snapshot["scheduling_demands"]
+        first["cohort_or_student_group_id"] = 110
+        first["cohort_or_student_group_ids"] = [110, 999]
+        second["section_delivery_group_id"] = 111
+        second["cohort_or_student_group_id"] = 999
+        second["cohort_or_student_group_ids"] = [999]
+        snapshot["section_delivery_groups"].append({
+            "section_delivery_group_id": 111,
+            "section_id": second["section_id"],
+            "expected_count": second["expected_count"],
+            "modality": second["modality"],
+        })
+        snapshot["student_cohort_groups"] = [
+            {"cohort_or_student_group_id": 110, "section_delivery_group_id": 110, "expected_count": 15},
+            {"cohort_or_student_group_id": 999, "section_delivery_group_id": 110, "expected_count": 15},
+            {"cohort_or_student_group_id": 999, "section_delivery_group_id": 111, "expected_count": 30},
+        ]
+        snapshot["rooms"].append({
+            **snapshot["rooms"][0],
+            "room_id": 302,
+            "code": "R-102",
+            "name": "Room 102",
+        })
+        for demand, room_id in ((first, 301), (second, 302)):
+            demand["fixed_room_id"] = room_id
+            demand["fixed_day_of_week"] = 1
+            demand["fixed_start_time"] = "08:00:00"
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+        self.assertEqual(0, result["assigned_count"])
+
     def test_unsupported_contract_is_model_invalid(self) -> None:
         snapshot = self.snapshot()
         snapshot["contract_version"] = "unknown"
@@ -640,7 +795,7 @@ class SolveSnapshotTest(unittest.TestCase):
 
     def test_tampered_profile_is_model_invalid(self) -> None:
         snapshot = self.snapshot()
-        snapshot["constraint_profile"]["soft_weights"]["balance_faculty_load"] = 99
+        snapshot["constraint_profile"]["objective_hierarchy"].reverse()
 
         result = solve_snapshot(snapshot, timeout_seconds=10)
 
@@ -706,6 +861,37 @@ class SolveSnapshotTest(unittest.TestCase):
     def time_from_minutes(self, value: int) -> str:
         return f"{value // 60:02d}:{value % 60:02d}:00"
 
+    def meeting_pattern_snapshot(
+        self,
+        meeting_count: int,
+        meeting_duration_minutes: int,
+    ) -> dict[str, Any]:
+        snapshot = self.snapshot()
+        demand = snapshot["scheduling_demands"][0]
+        demand["meeting_count"] = meeting_count
+        demand["required_duration_minutes"] = meeting_duration_minutes
+        demand["same_faculty_required"] = True
+        demand["eligible_faculty_user_ids"] = [200, 201]
+        demand["faculty_load_options"] = [
+            {"faculty_user_id": faculty_id, "max_allowed_units": "24.00"}
+            for faculty_id in (200, 201)
+        ]
+        snapshot["scheduling_demands"] = [demand]
+        snapshot["time_slots"] = [
+            {
+                "time_slot_id": (day * 100) + index,
+                "time_block_key": f"D{day}-{start_minute}",
+                "day_of_week": day,
+                "starts_at": self.time_from_minutes(start_minute),
+                "ends_at": self.time_from_minutes(start_minute + 30),
+                "duration_minutes": 30,
+            }
+            for day in range(1, meeting_count + 1)
+            for index, start_minute in enumerate(range(480, 720, 30), start=1)
+        ]
+
+        return snapshot
+
     def assert_laravel_assignment_contract(self, row: dict[str, Any]) -> None:
         required_keys = {
             "scheduling_demand_id",
@@ -723,6 +909,7 @@ class SolveSnapshotTest(unittest.TestCase):
             "ends_at",
             "time_block_key",
             "meeting_sequence",
+            "meeting_pattern",
             "assignment_status",
             "violations",
             "warnings",
@@ -738,6 +925,7 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertRegex(row["ends_at"], r"^\d{2}:\d{2}:\d{2}$")
         self.assertIsInstance(row["time_block_key"], str)
         self.assertGreaterEqual(row["meeting_sequence"], 1)
+        self.assertRegex(row["meeting_pattern"], r"^[1-3]x\d+$")
         self.assertIn(row["assignment_status"], {"ok", "warning", "conflict"})
         self.assertIsInstance(row["violations"], list)
         self.assertIsInstance(row["warnings"], list)

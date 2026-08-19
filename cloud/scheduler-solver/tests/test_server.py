@@ -24,8 +24,8 @@ class SolverServerTest(unittest.TestCase):
             {
                 "status": "ok",
                 "service": "tala-scheduler-solver",
-                "contract_version": "tal94-demand-v2",
-                "solver_version": "cloud-cp-sat-tal94-demand-v2-staged-search-v1",
+                "contract_version": "tala-timetable-v2",
+                "solver_version": "cloud-cp-sat-tala-timetable-v2-lexicographic-v1",
             },
             response.get_json(),
         )
@@ -38,7 +38,7 @@ class SolverServerTest(unittest.TestCase):
         self.assertIn(payload["solver_status"], {"optimal", "feasible"})
         self.assertEqual(2, payload["assigned_count"])
         self.assertEqual(0, payload["unassigned_count"])
-        self.assertEqual("tal94-demand-v2", payload["model_version"])
+        self.assertEqual("tala-timetable-v2", payload["model_version"])
 
     def test_solver_timeout_comes_from_the_bounded_environment_setting(self) -> None:
         with (

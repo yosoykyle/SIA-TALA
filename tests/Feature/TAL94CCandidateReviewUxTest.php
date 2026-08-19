@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Scheduling\CandidateScheduleRowReviewService;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\CandidateRowsRelationManager;
@@ -27,6 +28,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -70,7 +72,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
-            ->assertActionVisible('manualScheduleOverride');
+            ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($registrar)
             ->test(CandidateRowsRelationManager::class, [
@@ -86,7 +88,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
         Livewire::actingAs($academicHead)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
-            ->assertActionHidden('manualScheduleOverride');
+            ->assertActionDoesNotExist('manualScheduleOverride');
 
         Livewire::actingAs($academicHead)
             ->test(CandidateRowsRelationManager::class, [
@@ -161,16 +163,23 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertHasNoActionErrors()
             ->assertNotified('Candidate assignment corrected');
 
-        $corrected = $context['run']->candidateRows()->sole();
-        $diagnostics = $context['run']->fresh()->getAttribute('diagnostics');
+        $successor = ScheduleGenerationRun::query()
+            ->where('term_id', $context['term']->id)
+            ->whereKeyNot($context['run']->id)
+            ->latest('id')
+            ->firstOrFail();
+        $corrected = $successor->candidateRows()->sole();
+        $diagnostics = $successor->diagnostics;
 
         $this->assertSame('09:00:00', $corrected->starts_at);
         $this->assertSame('Registrar scheduling memorandum', $corrected->override_authority);
-        $this->assertSame(CandidateScheduleRow::StatusWarning, $corrected->status);
+        $this->assertSame(CandidateScheduleRow::StatusOk, $corrected->status);
+        $this->assertSame(ScheduleGenerationRun::StatusSuperseded, $context['run']->fresh()->status);
+        $this->assertSame('08:00:00', $candidate->fresh()->starts_at);
         $this->assertSame('accepted', $diagnostics['current_revalidation']['status']);
         $this->assertSame('original-result-preserved', $diagnostics['solver_result']['marker']);
         $this->assertDatabaseHas('activity_log', [
-            'subject_id' => $context['run']->id,
+            'subject_id' => $successor->id,
             'event' => 'candidate_correction',
             'causer_id' => $registrar->id,
         ]);
@@ -200,131 +209,54 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertNotified('Candidate correction blocked');
 
         $preserved = $context['run']->candidateRows()->sole();
-        $diagnostics = $context['run']->fresh()->getAttribute('diagnostics');
-
         $this->assertSame($candidate->id, $preserved->id);
         $this->assertSame('08:00:00', $preserved->starts_at);
-        $this->assertSame('blocked', $diagnostics['current_revalidation']['status']);
-        $this->assertContains(
-            'faculty_not_eligible',
-            collect($diagnostics['current_revalidation']['findings'])->pluck('code')->all(),
-        );
+        $this->assertArrayNotHasKey('current_revalidation', $context['run']->fresh()->diagnostics);
         $this->assertDatabaseMissing('activity_log', [
             'subject_id' => $context['run']->id,
             'event' => 'candidate_correction',
         ]);
     }
 
-    public function test_manual_override_action_requires_a_complete_valid_set_and_records_evidence_atomically(): void
+    public function test_generic_manual_override_action_is_retired_without_mutating_blocked_or_failed_runs(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $incomplete = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusBlocked);
+        $blocked = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusBlocked);
+        $failed = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusFailed);
 
-        $incompleteComponent = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $incomplete['run']->getRouteKey()])
-            ->assertActionVisible('manualScheduleOverride')
-            ->mountAction('manualScheduleOverride');
-        $incompleteAssignments = $incompleteComponent->get('mountedActions.0.data.assignments');
-        $incompleteKeys = array_keys($incompleteAssignments);
-        $firstLabel = $incompleteAssignments[$incompleteKeys[0]]['assignment_label'];
+        foreach ([$blocked, $failed] as $context) {
+            Livewire::actingAs($registrar)
+                ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+                ->assertOk()
+                ->assertActionDoesNotExist('manualScheduleOverride');
 
-        $this->assertStringStartsWith('CC', $firstLabel);
-        $this->assertStringContainsString('Lecture | Meeting 1', $firstLabel);
-        $this->assertStringNotContainsString('L E C T U R E', $firstLabel);
-
-        $incompleteAssignments[$incompleteKeys[0]] = [
-            ...$incompleteAssignments[$incompleteKeys[0]],
-            ...$this->assignment($incomplete, 0),
-        ];
-
-        $incompleteComponent
-            ->setActionData([
-                'assignments' => $incompleteAssignments,
-                'override_authority' => 'Registrar override memorandum',
-                'override_reason' => 'This deliberately incomplete proposal must be rejected.',
-            ])
-            ->callMountedAction()
-            ->assertHasActionErrors();
-
-        $blockedRun = $incomplete['run']->fresh();
-
-        $this->assertSame(ScheduleGenerationRun::StatusBlocked, $blockedRun->status);
-        $this->assertSame(0, $incomplete['run']->candidateRows()->count());
-        $this->assertArrayNotHasKey('current_revalidation', $blockedRun->diagnostics);
-
-        $complete = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusFailed);
-
-        $completeComponent = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $complete['run']->getRouteKey()])
-            ->mountAction('manualScheduleOverride');
-        $completeAssignments = $completeComponent->get('mountedActions.0.data.assignments');
-
-        foreach (array_keys($completeAssignments) as $index => $key) {
-            $completeAssignments[$key] = [
-                ...$completeAssignments[$key],
-                ...$this->assignment($complete, $index, dayOfWeek: $index + 1),
-            ];
+            $this->assertSame(0, $context['run']->candidateRows()->count());
+            $this->assertDatabaseMissing('activity_log', [
+                'subject_id' => $context['run']->id,
+                'event' => 'manual_schedule_override',
+            ]);
         }
-
-        $completeComponent
-            ->setActionData([
-                'assignments' => $completeAssignments,
-                'override_authority' => 'Academic Head approved override memorandum',
-                'override_reason' => 'Recorded the complete feasible schedule after solver review.',
-            ])
-            ->callMountedAction()
-            ->assertHasNoActionErrors()
-            ->assertNotified('Manual Schedule Override accepted');
-
-        $accepted = $complete['run']->fresh();
-
-        $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $accepted->status);
-        $this->assertSame(2, $accepted->candidateRows()->count());
-        $this->assertSame(2, $accepted->candidateRows()->whereNotNull('override_authority')->count());
-        $this->assertSame('accepted', $accepted->diagnostics['current_revalidation']['status']);
-        $this->assertDatabaseHas('activity_log', [
-            'subject_id' => $accepted->id,
-            'event' => 'manual_schedule_override',
-            'causer_id' => $registrar->id,
-        ]);
     }
 
-    public function test_conflicting_complete_override_is_blocked_with_structured_findings_and_no_partial_rows(): void
+    public function test_retired_manual_override_service_rejects_calls_without_writing_rows(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $context = $this->context(demandCount: 2, runStatus: ScheduleGenerationRun::StatusBlocked);
-        $component = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
-            ->mountAction('manualScheduleOverride');
-        $assignments = $component->get('mountedActions.0.data.assignments');
 
-        foreach (array_keys($assignments) as $index => $key) {
-            $assignments[$key] = [
-                ...$assignments[$key],
-                ...$this->assignment($context, $index),
-            ];
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Generic Manual Schedule Override is retired.');
+
+        try {
+            app(CandidateScheduleRowReviewService::class)->replace(
+                $context['run'],
+                [$this->assignment($context, 0)],
+                $registrar,
+                'Registrar override memorandum',
+                'The obsolete whole-set path must remain unreachable.',
+            );
+        } finally {
+            $this->assertSame(0, $context['run']->candidateRows()->count());
         }
-
-        $component
-            ->setActionData([
-                'assignments' => $assignments,
-                'override_authority' => 'Registrar override memorandum',
-                'override_reason' => 'This overlapping complete set must fail atomically.',
-            ])
-            ->callMountedAction()
-            ->assertNotified('Manual Schedule Override blocked');
-
-        $blocked = $context['run']->fresh();
-        $codes = collect($blocked->diagnostics['current_revalidation']['findings'])->pluck('code')->all();
-
-        $this->assertSame(ScheduleGenerationRun::StatusBlocked, $blocked->status);
-        $this->assertSame(0, $blocked->candidateRows()->count());
-        $this->assertContains('faculty_overlap', $codes);
-        $this->assertContains('room_overlap', $codes);
-        $this->assertDatabaseMissing('activity_log', [
-            'subject_id' => $blocked->id,
-            'event' => 'manual_schedule_override',
-        ]);
     }
 
     public function test_run_view_prioritizes_latest_validation_and_keeps_original_solver_provenance_without_raw_json(): void

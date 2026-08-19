@@ -41,8 +41,8 @@ final class SchedulingOperatingEnvelopeSnapshotCapture
             $snapshot = $run->getAttribute('input_snapshot');
 
             if (! is_array($snapshot)
-                || ($snapshot['contract_version'] ?? null) !== 'tal94-demand-v2') {
-                throw new RuntimeException('The captured scheduling snapshot is not TAL-94 V2.');
+                || ($snapshot['contract_version'] ?? null) !== ScheduleGenerationRun::ContractVersion) {
+                throw new RuntimeException('The captured scheduling snapshot does not use the current timetable contract.');
             }
 
             $composition = $this->composition($snapshot);

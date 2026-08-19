@@ -14,6 +14,8 @@
 
 **Operator-navigation revision date:** 31 July 2026 — exact Registrar UI path, seeded presentation-checkpoint expectations, status-dependent actions, and recovery guidance added; solver equations and historical benchmark evidence are unchanged
 
+**Slice 3 implementation revision date:** 19 August 2026 — current `tala-timetable-v2` contract, six-level lexicographic objective, immutable publication/revision boundary, and verification-only local execution reconciled. Dated `tal94-demand-v2` benchmark evidence remains historical and is not reinterpreted.
+
 ## Contents
 
 1. [Technical summary](#1-technical-summary)
@@ -54,7 +56,7 @@ Every displayed equation includes an **Interpretation** defining its symbols and
 | Feasible | All mandatory rules are satisfied, although the search has not proved that no better-ranked timetable exists. |
 | Optimal | All mandatory rules are satisfied and CP-SAT has proved that no better objective value exists for the tested model and input. |
 | Snapshot | The immutable copy of the exact scheduling input sent to the solver for one run. |
-| Profile | The approved list of hard-rule identifiers and soft-objective weights. It is separate from the input/output data-contract version. |
+| Profile | The approved hard-rule identifiers and ordered objective hierarchy. It is separate from the input/output data-contract version and has no user-editable weights. |
 | Slot | One permitted 30-minute start-grid unit. A multi-hour meeting occupies several consecutive units but remains one assignment. |
 | Incumbent | The best valid timetable CP-SAT has found so far during a run. |
 | Bound | CP-SAT's mathematical limit on how good an undiscovered solution could still be. |
@@ -77,8 +79,8 @@ Exact identifiers are retained so another researcher or operator can trace a cla
 | Revision tag | `d5d-final-cfg-02-mem-v2` | An optional readable routing label used to reach a particular zero-traffic research revision without sending production traffic to it. |
 | Container-image digest | `sha256:2291720…` | A content-derived identifier for the exact packaged solver image. A digest identifies software contents, whereas a revision also includes deployed configuration. |
 | Experimental configuration label | `TARGET-CFG-01` or `FINAL-CFG-02-MEM` | A project-defined shorthand for a disclosed CPU, memory, worker, concurrency, and timeout combination. It is not a Google Cloud product tier. |
-| Data-contract version | `tal94-demand-v2` | The agreed structure and meaning of the Laravel request and Python response. |
-| Optimization-profile version | `balanced_v1`, version `1` | The approved hard-rule catalog and soft-objective weights used with the data contract. |
+| Data-contract version | `tala-timetable-v2` | The current structure and meaning of the Laravel request and Python response. Dated `tal94-demand-v2` evidence remains historical. |
+| Optimization-profile version | `lexicographic_v1`, version `1` | The fixed six-level objective hierarchy used with the current data contract. |
 | Snapshot SHA-256 | A 64-character hexadecimal hash | A content fingerprint of one immutable scheduling input. Matching hashes mean the compared captured inputs are byte-for-byte equivalent under the stated canonicalization. |
 | Random seed | `20260718` | A reproducibility control for randomized search choices. It does not select a timetable in advance or guarantee identical multi-worker results. |
 | Run ratio | `3/3` | Three accepted requests out of three executed requests. It does not mean that CP-SAT performed only three internal search attempts. |
@@ -92,28 +94,56 @@ Google Cloud documents that a service configuration change creates an immutable 
 
 TALA uses constraint programming to generate a **candidate** academic timetable. It does not allow the optimization service to create official meetings directly. Laravel remains the authoritative application: it validates source records, captures an immutable run snapshot, dispatches the computation, independently validates the returned result, stores candidate rows, requires authorized human review, revalidates mutable records, and only then publishes official `section_meetings`.
 
-The Python service uses Google OR-Tools CP-SAT to select one feasible candidate assignment for every ready Scheduling Demand. Each candidate combines a demand with a qualified faculty member, a suitable room or no-room option, a day, and a start time. Boolean variables represent whether those candidates are selected. Hard constraints make invalid combinations impossible; a fixed four-term objective ranks the remaining valid schedules.
+The Python service uses Google OR-Tools CP-SAT to select one feasible candidate assignment for every ready Scheduling Demand. Each candidate combines a demand with a qualified faculty member, a suitable room or no-room option, a day, and a start time. Boolean variables represent whether those candidates are selected. Hard constraints make invalid combinations impossible; a fixed six-level lexicographic objective ranks the remaining valid schedules.
 
-The implemented search first finds a timetable using only the hard constraints. It then supplies that complete timetable as a solution hint while optimizing the unchanged objective with the remaining time. This execution order changes neither the equations nor their meaning.
+The implemented search first finds a timetable using only the hard constraints. It then optimizes the six objective levels in order and fixes every proved higher-level optimum before solving the next level. A lower priority therefore cannot worsen a higher one.
 
 ### 1.1 Data Contract and Optimization Profile
 
 Two independently versioned components govern the Laravel-to-Python integration.
 
-The `tal94-demand-v2` **data contract** specifies the structure and meaning of the immutable scheduling snapshot and solver response. It defines the required identifiers, Scheduling Demand fields, resource and calendar inputs, assignment fields, counters, warnings, infeasibility reasons, objective details, and model metadata exchanged by both services.
+The `tala-timetable-v2` **data contract** specifies the structure and meaning of the immutable scheduling snapshot and solver response. It defines the required identifiers, Scheduling Demand fields, exact-Term calendar, cohort, Faculty, room, commitment, correction/repair, assignment, diagnostic, objective-vector, and model metadata exchanged by both services.
 
 Laravel writes this value to `contract_version`; the solver rejects an incompatible value; and Laravel verifies the returned `model_version` before accepting assignments. The contract version identifies the integration interface, not the release version of the complete TALA application.
 
-The `balanced_v1` **optimization profile** specifies the active rule configuration carried within that contract. It fixes the accepted hard-constraint identifiers and assigns a weight of one to each implemented soft objective. The solver rejects any change to the profile key, profile version, ordered hard-constraint list, or weight set. Profile version 1 therefore denotes the first approved optimization preset for this interface; it does not identify the solver or application release.
+The `lexicographic_v1` **optimization profile** fixes the accepted hard-constraint identifiers and the exact ordered objective hierarchy. The solver rejects an altered order, omitted level, added weight, or changed profile identity. Profile version 1 identifies the first approved hierarchy for this interface; it is not the application or deployment version.
 
 | Identifier | Meaning | Current value |
 | --- | --- | --- |
-| Model input/output contract | The shape and meaning of the complete Laravel-to-Python request and Python-to-Laravel response | `tal94-demand-v2` |
-| Optimization profile | The approved rule preset carried inside the request: hard-constraint catalog plus soft-objective weights | `balanced_v1`, version `1` |
+| Model input/output contract | The shape and meaning of the complete Laravel-to-Python request and Python-to-Laravel response | `tala-timetable-v2` |
+| Optimization profile | The approved rule preset carried inside the request: hard-constraint catalog plus ordered objective hierarchy | `lexicographic_v1`, version `1` |
 
 Independent versioning separates interface compatibility from optimization policy. A later profile may revise ranking priorities without changing the exchanged schema, whereas a later data contract may introduce fields or semantics that require coordinated Laravel and Python changes.
 
-### 1.2 Representative Solver Exchange
+### 1.2 Current Slice 3 formulation and applicability rule
+
+Let $D$ be the ready Scheduling Demands produced only by Course Specifications classified as `Recurring`; an explicitly `ExternallyArranged` course contributes no recurring master-timetable demand. Each demand $d$ has an approved meeting pattern $(m_d,\ell_d)$: $m_d$ weekly meetings, each lasting $\ell_d$ minutes. The required meeting identities are $Q=\{(d,q)\mid d\in D,\ 1\le q\le m_d\}$. The current candidate set is $C$, and $C_{d,q}\subseteq C$ contains the admissible Faculty/room/day/time choices for sequence $q$ of demand $d$. For each candidate $c$, $x_c\in\{0,1\}$ records selection. Exact coverage is:
+
+$$
+\sum_{c \in C_{d,q}} x_c = 1 \qquad \forall (d,q) \in Q.
+$$
+
+The implemented authority vocabulary includes patterns such as `1x180`, `2x90`, and `3x60`; Laravel rejects a pattern whose total minutes disagree with the active Course Revision. CP-SAT optional intervals and `NoOverlap` enforce the complete hard-rule catalog for logical cohorts, Faculty, and physical rooms. Candidate enumeration also enforces the exact-Term grid and dated blocks, fixed assignments and commitments, room capacity/type/features, Faculty qualification/load/availability, per-sequence duration, required modality, and same-Faculty linkage where required. Laravel independently reconstructs demand-plus-sequence identity and complete coverage and repeats every hard-rule check before a candidate can be retained or published.
+
+For a hard-valid timetable, the current ordered vector is:
+
+$$
+\operatorname{lexmin}(M, C, L, F, R, -E),
+$$
+
+where $M$ is cohort modality transitions, $C$ is cohort idle minutes, $L$ is pairwise Faculty load imbalance, $F$ is Faculty idle minutes, $R$ is room-seat waste, and $E$ rewards stable earlier day/time placement. The solver handles one level at a time. After CP-SAT proves a level optimum, an equality fixes that value before the next level is introduced. If a level is only feasible or reaches its limit, lower levels do not run; the complete hard-valid incumbent is returned as `feasible` with the unfinished level recorded. No weighted total or accuracy score is produced.
+
+Candidate correction and repair remain non-official. A local adjustment fixes every non-requested meeting and succeeds as one complete successor or writes nothing. Explicit repair fixes the requested meeting, minimizes changes to other meetings before the ordinary six levels, previews the complete impact, and requires authorized whole-successor acceptance. Laravel revalidates the full timetable in both cases. Publication requires recorded external sign-off and creates an immutable version-owned meeting set; later change creates a complete successor version, never an in-place edit.
+
+Native CP-SAT outcomes map to `optimal`, `feasible`, `infeasible`, `unknown`, and `model_invalid`; provider, transport, or application execution failure is represented by Laravel as `technical_failure`. Only `optimal` and `feasible` with exact coverage and zero independently verified hard violations can enter human review. Neither status authorizes publication.
+
+The source default is one worker, fixed seed `20260718`, and a maximum 300-second solver budget. The Python suite and temporary local/loopback execution verify contract and model behavior only. Historical Cloud measurements in Sections 10–11 belong to `tal94-demand-v2`/`balanced_v1`; they do not prove that `tala-timetable-v2` is deployed, capacity-qualified, or active. Cloud build, tagged validation, and promotion require the separately authorized post-publication deployment workflow.
+
+The 19 August 2026 source-level compatibility screen solved the minimal current fixture as `optimal` with 2/2 assignments, 6 candidates, 48 variables, and 94 constraints in about 85 ms. A deterministic 54-demand/120-slot screen using one worker and a 10-second CP-SAT budget returned `feasible` with 54/54 assignments, 6,480 candidates, 32,675 variables, and 65,241 constraints in about 16.2 seconds wall time. These counts and durations support build and tagged-qualification readiness; they are not native container-memory evidence and therefore neither replace the historical Cloud measurements nor prove the new revision active. The preserved 8-vCPU/16-GiB envelope remains the deployment candidate until separately authorized tagged evidence confirms or invalidates it.
+
+Sections that retain four weighted terms, scalar totals, old revision names, or dated benchmark values document the historical contract and its experiments. They remain reproducibility evidence, not the current formulation. This section and the current source/fixtures govern implementation consistency until those historical sections are deliberately reorganized without rewriting their evidence.
+
+### 1.3 Historical representative solver exchange
 
 This section presents an abbreviated Laravel-to-solver exchange using a two-demand illustrative fixture. Its purpose is to document the contract fields without reproducing the substantially larger 54-demand client-representative benchmark dataset reported in Section 11.
 
@@ -1881,6 +1911,6 @@ Class, method, file, and test names are included for implementation reviewers. T
 
 ---
 
-**Version applicability.** This formulation applies to the implemented `tal94-demand-v2` contract, `balanced_v1` version-1 profile, and dated Cloud Run evidence through the accepted 28 July 2026 corrected-MAX staged-search result.
+**Version applicability.** Section 1.2 applies to the current `tala-timetable-v2` contract and `lexicographic_v1` profile. The retained weighted equations and Cloud measurements apply only to the historical `tal94-demand-v2`/`balanced_v1` evidence through the accepted 28 July 2026 corrected-MAX staged-search result; they are not activation or capacity proof for the current source.
 
 Runtime-resource changes and semantics-preserving implementation optimizations do not by themselves change the equations. Any approved change to the data contract, optimization profile, hard-constraint semantics, objective semantics, or material workload requires a corresponding formulation or empirical-evidence revision.

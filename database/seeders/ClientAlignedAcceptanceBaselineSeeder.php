@@ -441,6 +441,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         string $revisionCode,
         array $definition,
     ): CourseSpecification {
+        $schedulingTreatment = $this->schedulingTreatment($definition);
         $specification = CourseSpecification::query()->create([
             'course_id' => $course->id,
             'revision_code' => $revisionCode,
@@ -449,17 +450,24 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'credit_units' => $definition['units'],
             'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
             'grading_profile_version' => 1,
+            'scheduling_treatment' => $schedulingTreatment,
             'allowed_modalities' => [TermOffering::ModalityOnline, TermOffering::ModalityFaceToFace],
             'same_faculty_default' => true,
             'effective_term_id' => $term->id,
             'state' => CourseSpecification::StateActive,
         ]);
+
+        if ($schedulingTreatment === CourseSpecification::SchedulingExternallyArranged) {
+            return $specification;
+        }
+
         CourseComponent::query()->create([
             'course_specification_id' => $specification->id,
             'component_type' => $definition['room_type'] === Room::TypeLectureRoom
                 ? CourseComponent::TypeLecture
                 : CourseComponent::TypeLaboratory,
             'weekly_contact_hours' => $definition['units'],
+            'meeting_pattern' => $this->meetingPattern($course, $definition),
             'room_type_default' => $definition['room_type'],
             'required_room_feature_keys' => [],
             'modality_restriction' => null,
@@ -469,6 +477,36 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         ]);
 
         return $specification;
+    }
+
+    /** @param array{title:string,units:float,modality:string,room_type:string} $definition */
+    private function schedulingTreatment(array $definition): string
+    {
+        return str($definition['title'])->contains(['Internship', 'Work-Related Training', 'Practicum'])
+            ? CourseSpecification::SchedulingExternallyArranged
+            : CourseSpecification::SchedulingRecurring;
+    }
+
+    /** @param array{title:string,units:float,modality:string,room_type:string} $definition */
+    private function meetingPattern(Course $course, array $definition): string
+    {
+        $weeklyMinutes = (int) round($definition['units'] * 60);
+
+        if ($weeklyMinutes === 180) {
+            if ($definition['room_type'] !== Room::TypeLectureRoom) {
+                return '1x180';
+            }
+
+            return in_array($course->code, ['GE04', 'GE05', 'GE06'], true) ? '3x60' : '2x90';
+        }
+
+        return match ($weeklyMinutes) {
+            60 => '1x60',
+            90 => '1x90',
+            120 => '2x60',
+            240 => '2x120',
+            default => '1x'.$weeklyMinutes,
+        };
     }
 
     /**
@@ -946,12 +984,14 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             && Course::query()->where('state', Course::StateActive)->count() === $courseCount
             && CourseSpecification::query()->count() === $specificationCount
             && CourseSpecification::query()->where('state', CourseSpecification::StateActive)->count() === $specificationCount
-            && CourseComponent::query()->count() === $specificationCount
+            && CourseComponent::query()->count() === CourseSpecification::query()
+                ->where('scheduling_treatment', CourseSpecification::SchedulingRecurring)
+                ->count()
             && CurriculumVersion::query()->count() === 3
             && CurriculumVersion::query()->where('state', CurriculumVersion::StateActive)->count() === 3
             && CurriculumEntry::query()->count() === $curriculumEntryCount
-            && Room::query()->count() === 6
-            && Room::query()->where('is_active', true)->count() === 6
+            && Room::query()->count() === 10
+            && Room::query()->where('is_active', true)->count() === 10
             && FacultyQualification::query()->count() === $qualificationCount
             && FacultyQualification::query()->where('is_active', true)->count() === $qualificationCount
             && FacultyTermLoadOverride::query()->count() === $counts['faculty']
@@ -1266,6 +1306,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             ->where('credit_units', $definition['units'])
             ->where('grading_profile_key', CourseSpecification::GradingProfileCollegeStandard)
             ->where('grading_profile_version', 1)
+            ->where('scheduling_treatment', $this->schedulingTreatment($definition))
             ->where('same_faculty_default', true)
             ->where('state', CourseSpecification::StateActive)
             ->first();
@@ -1278,12 +1319,17 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             return false;
         }
 
+        if ($specification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged) {
+            return ! $specification->components()->exists();
+        }
+
         $component = CourseComponent::query()
             ->whereBelongsTo($specification)
             ->where('component_type', $definition['room_type'] === Room::TypeLectureRoom
                 ? CourseComponent::TypeLecture
                 : CourseComponent::TypeLaboratory)
             ->where('weekly_contact_hours', $definition['units'])
+            ->where('meeting_pattern', $this->meetingPattern($course, $definition))
             ->where('room_type_default', $definition['room_type'])
             ->whereNull('modality_restriction')
             ->where('requires_consecutive_block', $definition['units'] >= 4)
@@ -1485,13 +1531,26 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                         ->where('state', SectionDeliveryGroup::StateReady)
                         ->first();
 
-                    if (! $group instanceof SectionDeliveryGroup
-                        || ! SchedulingDemand::query()
-                            ->whereBelongsTo($offering)
-                            ->whereBelongsTo($group, 'sectionDeliveryGroup')
-                            ->where('modality', $modality)
-                            ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
-                            ->exists()) {
+                    if (! $group instanceof SectionDeliveryGroup) {
+                        return false;
+                    }
+
+                    $demandQuery = SchedulingDemand::query()
+                        ->whereBelongsTo($offering)
+                        ->whereBelongsTo($group, 'sectionDeliveryGroup');
+
+                    if ($this->scenarioCatalog->isExternallyArranged($scope['program'], $courseCode)) {
+                        if ($demandQuery->exists()) {
+                            return false;
+                        }
+
+                        continue;
+                    }
+
+                    if (! $demandQuery
+                        ->where('modality', $modality)
+                        ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
+                        ->exists()) {
                         return false;
                     }
                 }

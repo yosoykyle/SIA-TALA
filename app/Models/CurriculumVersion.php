@@ -33,6 +33,10 @@ class CurriculumVersion extends Model
         'effective_entry_term_id',
         'state',
         'approval_reference',
+        'authority_date',
+        'effective_from',
+        'effective_until',
+        'content_hash',
         'approved_by',
         'approved_at',
     ];
@@ -44,6 +48,9 @@ class CurriculumVersion extends Model
     {
         return [
             'approved_at' => 'datetime',
+            'authority_date' => 'date',
+            'effective_from' => 'date',
+            'effective_until' => 'date',
         ];
     }
 

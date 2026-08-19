@@ -27,17 +27,26 @@ class CourseSpecification extends Model
 
     public const ModalityOnline = 'ONLINE';
 
+    public const SchedulingRecurring = 'Recurring';
+
+    public const SchedulingExternallyArranged = 'ExternallyArranged';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
         'course_id',
         'revision_code',
+        'authority_reference',
+        'effective_from',
+        'effective_until',
         'title',
         'description',
         'credit_units',
         'grading_profile_key',
         'grading_profile_version',
+        'academic_classification',
+        'scheduling_treatment',
         'allowed_modalities',
         'same_faculty_default',
         'effective_term_id',
@@ -54,6 +63,8 @@ class CourseSpecification extends Model
             'grading_profile_version' => 'integer',
             'allowed_modalities' => 'array',
             'same_faculty_default' => 'boolean',
+            'effective_from' => 'date',
+            'effective_until' => 'date',
         ];
     }
 
@@ -123,6 +134,15 @@ class CourseSpecification extends Model
         return [
             self::ModalityFaceToFace => 'Face-to-Face',
             self::ModalityOnline => 'Online',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function schedulingTreatmentOptions(): array
+    {
+        return [
+            self::SchedulingRecurring => 'Recurring master-timetable meetings',
+            self::SchedulingExternallyArranged => 'Externally arranged — no recurring meeting',
         ];
     }
 }

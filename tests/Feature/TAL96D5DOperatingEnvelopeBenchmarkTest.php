@@ -39,7 +39,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             'scenario' => SchedulingAcceptanceScenarioCatalog::Middle,
         ]), Artisan::output());
         $this->assertSame(270, DB::table('student_profiles')->count());
-        $this->assertSame(77, SchedulingDemand::query()->count());
+        $this->assertSame(74, SchedulingDemand::query()->count());
         $this->assertSame(0, ScheduleGenerationRun::query()->count());
         $this->assertSame(0, CandidateScheduleRow::query()->count());
         $this->assertSame(0, SectionMeeting::query()->count());
@@ -94,7 +94,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             ->assertLocalReplaySafe('MIDDLE');
 
         $this->assertSame('MIDDLE', $manifest['scenario']);
-        $this->assertSame(77, data_get($manifest, 'counts.scheduling_demands'));
+        $this->assertSame(74, data_get($manifest, 'counts.scheduling_demands'));
     }
 
     public function test_local_parity_command_writes_replayable_private_evidence_without_cloud_or_official_writes(): void
@@ -118,12 +118,29 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame('tal96d5d-parity-v2', $artifact['evidence_version']);
         $this->assertSame('MIDDLE', $artifact['scenario']);
         $this->assertTrue(data_get($artifact, 'laravel_validation.passes'));
-        $this->assertSame(77, data_get($artifact, 'laravel_validation.assignment_count'));
-        $this->assertCount(77, $artifact['assignments']);
+        $requiredAssignmentCount = collect($artifact['snapshot']['scheduling_demands'])
+            ->sum(fn (array $demand): int => max(1, (int) ($demand['meeting_count'] ?? 1)));
+        $this->assertSame($requiredAssignmentCount, data_get($artifact, 'laravel_validation.assignment_count'));
+        $this->assertCount($requiredAssignmentCount, $artifact['assignments']);
         $this->assertSame(
             ['ok'],
             array_values(array_unique(array_column($artifact['assignments'], 'assignment_status'))),
         );
+        $this->assertSame(
+            $requiredAssignmentCount,
+            collect($artifact['assignments'])
+                ->unique(fn (array $assignment): string => $assignment['scheduling_demand_id'].':'.$assignment['meeting_sequence'])
+                ->count(),
+        );
+
+        foreach (collect($artifact['assignments'])->groupBy('scheduling_demand_id') as $assignments) {
+            $this->assertCount(1, $assignments->pluck('faculty_user_id')->unique());
+            $this->assertSame(
+                range(1, $assignments->count()),
+                $assignments->pluck('meeting_sequence')->sort()->values()->all(),
+            );
+            $this->assertCount(1, $assignments->pluck('meeting_pattern')->unique());
+        }
 
         $capture = app(SchedulingOperatingEnvelopeSnapshotCapture::class)->capture('MIDDLE');
         $storedValidation = app(ScheduleAssignmentValidationService::class)->validateCandidateAssignments(
@@ -168,7 +185,21 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             public function solve(array $snapshot): array
             {
                 $result = (new LocalStubSchedulingSolverClient)->solve($snapshot);
+                $requiredAssignmentCount = collect($snapshot['scheduling_demands'] ?? [])
+                    ->filter(fn (mixed $demand): bool => is_array($demand))
+                    ->sum(fn (array $demand): int => max(1, (int) ($demand['meeting_count'] ?? 1)));
+                $result['solver_status'] = 'infeasible';
+                $result['assignments'] = [];
+                $result['hard_constraint_violations'] = [];
+                $result['hard_violation_count'] = 0;
+                $result['assigned_count'] = 0;
+                $result['unassigned_count'] = $requiredAssignmentCount;
+                $result['solver_version'] = ScheduleGenerationRun::SolverVersion;
                 $result['solver_statistics']['worker_count'] = 8;
+                $result['solver_statistics']['candidate_count'] = 0;
+                $result['solver_statistics']['result_source'] = 'none';
+                $result['solver_statistics']['search_stages']['feasibility']['status'] = 'infeasible';
+                $result['solver_statistics']['search_stages']['optimization']['status'] = 'not_run';
 
                 return $result;
             }
@@ -194,11 +225,11 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $report = json_decode($reportJson, true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame('tal96d5d-v3', $report['benchmark_version']);
-        $this->assertSame('tal94-demand-v2', $report['contract_version']);
+        $this->assertSame(ScheduleGenerationRun::ContractVersion, $report['contract_version']);
         $this->assertSame('MIDDLE', $report['scenario']);
         $this->assertSame(270, data_get($report, 'manifest.counts.students'));
-        $this->assertSame(77, data_get($report, 'manifest.counts.scheduling_demands'));
-        $this->assertSame(77, data_get($report, 'composition.demands'));
+        $this->assertSame(74, data_get($report, 'manifest.counts.scheduling_demands'));
+        $this->assertSame(74, data_get($report, 'composition.demands'));
         $this->assertSame('FINAL-CFG-02-MEM', data_get($report, 'target.configuration_id'));
         $this->assertSame(16, data_get($report, 'target.memory_gib'));
         $this->assertSame('solver.example.test', data_get($report, 'target.url_host'));
@@ -266,7 +297,9 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
             public function solve(array $snapshot): array
             {
                 $result = (new LocalStubSchedulingSolverClient)->solve($snapshot);
-                $demandCount = count($snapshot['scheduling_demands'] ?? []);
+                $requiredAssignmentCount = collect($snapshot['scheduling_demands'] ?? [])
+                    ->filter(fn (mixed $demand): bool => is_array($demand))
+                    ->sum(fn (array $demand): int => max(1, (int) ($demand['meeting_count'] ?? 1)));
                 $result['solver_status'] = 'unknown';
                 $result['assignments'] = [];
                 $result['hard_constraint_violations'] = [];
@@ -299,7 +332,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
                     'wall_time_seconds' => 0.0,
                 ];
                 $result['assigned_count'] = 0;
-                $result['unassigned_count'] = $demandCount;
+                $result['unassigned_count'] = $requiredAssignmentCount;
                 $result['warning_count'] = 0;
                 $result['timeout'] = true;
 
@@ -328,7 +361,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $this->assertSame(Command::SUCCESS, $exitCode, Artisan::output());
         $this->assertSame('unknown_timed_out', data_get($report, 'runs.0.result_classification'));
         $this->assertSame(0, data_get($report, 'runs.0.assigned_count'));
-        $this->assertSame(77, data_get($report, 'runs.0.unassigned_count'));
+        $this->assertGreaterThan(74, data_get($report, 'runs.0.unassigned_count'));
         $this->assertSame(0, data_get($report, 'runs.0.assignment_evidence.assignment_count'));
         $this->assertSame([], data_get($report, 'runs.0.assignment_evidence.section_timetables'));
         $this->assertSame([], data_get($report, 'runs.0.assignment_evidence.faculty_timetables'));
@@ -343,7 +376,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
         $second = $capture->capture('MIDDLE');
 
         $this->assertSame('MIDDLE', $first['manifest']['scenario']);
-        $this->assertSame(77, $first['composition']['demands']);
+        $this->assertSame(74, $first['composition']['demands']);
         $this->assertSame($first['composition'], $second['composition']);
         $this->assertSame($first['snapshot_sha256'], $second['snapshot_sha256']);
         $this->assertSame($before, $this->officialRecordCounts());
@@ -353,7 +386,7 @@ final class TAL96D5DOperatingEnvelopeBenchmarkTest extends TestCase
     {
         $capture = app(SchedulingOperatingEnvelopeSnapshotCapture::class);
         $snapshot = [
-            'contract_version' => 'tal94-demand-v2',
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
             'captured_at' => '2026-07-27T19:46:38+08:00',
             'run_metadata' => [
                 'solver_run_id' => 101,

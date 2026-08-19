@@ -2,7 +2,7 @@
 
 > **Implementation evidence — not product or architecture authority.** This README describes the current solver code and runtime contract for bounded reconciliation. PRD 03 and the TALA Architecture Specification govern desired behavior and deployment boundaries.
 
-This directory contains TALA's private Python scheduling service. It uses Google OR-Tools Constraint Programming–Satisfiability (CP-SAT) to produce candidate schedules from Laravel's versioned `tal94-demand-v2` snapshot. It is deterministic constraint optimization, not machine learning, and it never publishes an official schedule.
+This directory contains TALA's private Python scheduling service. It uses Google OR-Tools Constraint Programming–Satisfiability (CP-SAT) to produce candidate schedules from Laravel's versioned `tala-timetable-v2` snapshot. It is deterministic constraint optimization, not machine learning, and it never publishes an official schedule. The older `tal94-demand-v2` interface remains readable only for historical replay and compatibility evidence.
 
 Laravel remains authoritative: it captures the immutable input snapshot, queues dispatch, treats the response as untrusted integration output, revalidates every assignment, stores candidate rows, and requires Registrar review and publication before creating official `section_meetings`.
 
@@ -10,21 +10,21 @@ Laravel remains authoritative: it captures the immutable input snapshot, queues 
 
 - Runtime image: Python 3.12 slim, Flask, Gunicorn, and OR-Tools 9.15.6755.
 - `GET /health`: returns service, contract, and solver-version metadata.
-- `POST /solve`: accepts one `tal94-demand-v2` JavaScript Object Notation (JSON) snapshot and returns structured solver results.
+- `POST /solve`: accepts one `tala-timetable-v2` JavaScript Object Notation (JSON) snapshot and returns structured solver results.
 - Input unit: `scheduling_demands`.
-- Output unit: `assignments` keyed by `scheduling_demand_id`.
+- Output unit: `assignments` keyed by the pair `scheduling_demand_id` and `meeting_sequence`.
 - Container port: the Cloud Run `PORT` environment variable; local default `8080`.
 - Solver budget: `SOLVER_TIMEOUT_SECONDS`, clamped to 1-300 seconds by the service.
 - Current promoted Cloud Run request timeout: 360 seconds. The solver budget remains capped at 300 seconds so response serialization can complete within that provider limit.
 - Current promoted solver budget: 300 seconds.
-- Search configuration: fixed random seed `20260718`; the runtime allowlist is one, two, four, or eight CP-SAT workers. The code default and historical TAL-96B2 local experiment use one worker; the current promoted Cloud Run revision uses eight workers. Earlier two-worker and staged eight-worker profiles remain historical evidence below.
+- Search configuration: fixed random seed `20260718`; the runtime allowlist is one, two, four, or eight CP-SAT workers. The source default is one worker. Provider statements later in this document describe the still-deployed historical service and must not be read as activation evidence for this source contract.
 - Response evidence: one strict `solver_statistics` object containing allowlisted input/model/search counts, best bound, relative gap, deterministic time, wall time, worker count, seed, `result_source`, and separate feasibility/optimization stage telemetry. Raw solver logs are never part of the response contract.
 
 The solver may return `optimal`, `feasible`, `infeasible`, `model_invalid`, or `unknown`. A feasible result is a valid candidate, not proof of mathematical optimality and not an instruction to publish.
 
 ## Scalable CP-SAT Formulation
 
-Each feasible demand/faculty/room/time combination has a Boolean selection variable and an optional fixed-size interval. Exactly one candidate is selected for every ready demand.
+Each recurring Course Specification produces Scheduling Demands carrying one approved meeting pattern such as `1x180`, `2x90`, or `3x60`. A Course Specification explicitly classified as `ExternallyArranged` produces no recurring master-timetable demand; Laravel preserves that authority rather than inventing a meeting. The service expands each received recurring pattern into stable meeting-sequence requirements. Each feasible sequence/faculty/room/time combination has a Boolean selection variable and an optional fixed-size interval, and exactly one candidate is selected for every required sequence. All sequences of one demand keep the same Faculty when the snapshot requires it.
 
 Hard overlap rules use CP-SAT `NoOverlap` groups by day for:
 
@@ -36,23 +36,31 @@ Every assignment retains its course-specific `section_delivery_group_id` for rec
 
 This replaces candidate-pair conflict construction. Model growth is therefore bounded by candidate choices and resource/day groups instead of growing quadratically with every candidate pair.
 
-The `balanced_v1` profile remains unchanged:
+The `lexicographic_v1` profile fixes this hierarchy without editable weights:
 
-- prefer earlier time blocks;
-- reduce faculty idle gaps;
-- balance faculty load; and
-- use rooms efficiently.
+1. minimize cohort mode switches;
+2. minimize cohort idle time;
+3. minimize Faculty load imbalance;
+4. minimize Faculty idle time;
+5. minimize room-seat waste; and
+6. preserve stable earlier placement.
 
 Faculty idle time is calculated per faculty/day as the span between the first start and last end minus selected teaching duration. This counts only actual gaps between meetings and avoids double-counting non-adjacent meeting pairs.
 
-### Equation-preserving staged search
+### Feasibility-first lexicographic search
 
-The service executes the unchanged model in two search stages so a large soft-objective search cannot erase a hard-valid timetable:
+The service first finds one complete hard-valid timetable, then optimizes each hierarchy level in order:
 
 1. **Feasibility stage:** build the candidate variables and every approved hard constraint, but do not add the soft objective. If this stage returns `UNKNOWN`, the response contains no assignments or conflict placeholders and makes no infeasibility claim.
-2. **Optimization stage:** retain the same model, add a complete solution hint from the hard-valid assignment, add the unchanged `balanced_v1` objective, and use only the remaining solver budget. If optimization returns `UNKNOWN`, the service returns the validated first-stage timetable as `FEASIBLE` with an `optimization_limit_reached` warning.
+2. **Lexicographic levels:** optimize the current level, fix its proved optimum before entering the next level, and divide only the remaining 300-second budget among unfinished levels. A merely `FEASIBLE` level stops lower-priority optimization, so a lower priority can never worsen that incumbent. If a level returns `UNKNOWN`, the last complete hard-valid timetable is retained as `FEASIBLE` with explicit incomplete-level evidence.
 
-This is a search-control change, not a new equation, constraint, objective term, fixture, data-contract version, or publication rule. `result_source` identifies whether the returned rows came from optimization or the feasibility fallback, while `search_stages` records the two outcomes independently.
+`objective_details` reports the ordered vector and completed levels, not a weighted total or accuracy score. Laravel independently checks the contract/profile identity, exact hierarchy, coverage, hard rules, and typed evidence before retaining a candidate. Temporary direct Python, stub, or loopback execution is verification only; operational runtime remains the private Cloud Run boundary and the new source is not active there until separately deployed and validated.
+
+### Slice 3 local compatibility screen
+
+On 19 August 2026, the current `tala-timetable-v2` source completed the minimal snapshot as `optimal` with 2/2 assignments, 6 candidates, 48 model variables, and 94 model constraints in about 85 ms. A deterministic 54-demand/120-slot scaled source screen using one worker and a 10-second solver budget returned `feasible` with 54/54 assignments, 6,480 candidates, 32,675 variables, and 65,241 constraints in 16.71 seconds process elapsed time. Windows process-tree sampling during that exact local screen observed a 123.85 MiB peak working set. This is native local-process evidence, not container or Cloud telemetry, and therefore cannot qualify Cloud capacity or promotion by itself.
+
+The current model size, complete 54-demand result, local runtime, and local peak working set show no source-level trigger to shrink or enlarge the preserved private 8-vCPU/16-GiB candidate envelope. Only the separately authorized tagged Cloud activation can qualify container memory, Cloud runtime, and promotion for this exact source revision. Historical `tal94-demand-v2` measurements remain historical and are not silently reinterpreted.
 
 ## Local Python Tests
 

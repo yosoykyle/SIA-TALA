@@ -12,10 +12,11 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
      */
     public function solve(array $snapshot): array
     {
+        $isLexicographic = ($snapshot['contract_version'] ?? null) === 'tala-timetable-v2';
         $assignments = [];
         $used = [];
 
-        foreach ($this->demands($snapshot) as $demand) {
+        foreach ($this->meetingRequirements($snapshot) as $demand) {
             $assignment = $this->assignmentFor($snapshot, $demand, $used);
             $assignments[] = $assignment;
 
@@ -31,16 +32,16 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             ->flatMap(fn (array $assignment): array => $assignment['violations'] ?? [])
             ->values()
             ->all();
-        $objectiveScore = $conflictCount === 0 ? count($assignments) : null;
-        $resultSource = $conflictCount === 0 ? 'optimization' : 'none';
+        $objectiveScore = $conflictCount === 0 && ! $isLexicographic ? count($assignments) : null;
+        $resultSource = $conflictCount === 0 ? ($isLexicographic ? 'feasibility_fallback' : 'optimization') : 'none';
         $searchStages = $this->searchStages(
             feasibilityStatus: $conflictCount === 0 ? 'optimal' : 'infeasible',
-            optimizationStatus: $conflictCount === 0 ? 'optimal' : 'not_run',
+            optimizationStatus: $conflictCount === 0 ? ($isLexicographic ? 'not_run' : 'optimal') : 'not_run',
         );
 
         return [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
-            'solver_status' => $conflictCount > 0 ? 'infeasible' : 'optimal',
+            'solver_status' => $conflictCount > 0 ? 'infeasible' : ($isLexicographic ? 'feasible' : 'optimal'),
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
             'assignments' => $assignments,
             'hard_constraint_violations' => $hardViolations,
@@ -77,8 +78,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'result_source' => $resultSource,
                 'search_stages' => $searchStages,
             ],
-            'solver_version' => 'local-stub-tal94-demand-v2',
-            'model_version' => 'tal94-demand-v2',
+            'solver_version' => $isLexicographic ? 'local-stub-tala-timetable-v2' : 'local-stub-tal94-demand-v2',
+            'model_version' => (string) ($snapshot['contract_version'] ?? 'tal94-demand-v2'),
             'generated_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
             'assigned_count' => count($assignments) - $conflictCount,
             'unassigned_count' => $conflictCount,
@@ -138,6 +139,29 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
 
     /**
      * @param  array<string, mixed>  $snapshot
+     * @return list<array<string, mixed>>
+     */
+    private function meetingRequirements(array $snapshot): array
+    {
+        return collect($this->demands($snapshot))
+            ->flatMap(function (array $demand): array {
+                $meetingCount = max(1, (int) ($demand['meeting_count'] ?? 1));
+                $meetingPattern = (string) ($demand['meeting_pattern'] ?? "{$meetingCount}x{$demand['required_duration_minutes']}");
+
+                return collect(range(1, $meetingCount))
+                    ->map(fn (int $sequence): array => [
+                        ...$demand,
+                        '_meeting_sequence' => $sequence,
+                        '_meeting_pattern' => $meetingPattern,
+                    ])
+                    ->all();
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
      * @param  array<string, mixed>  $demand
      * @param  list<array<string, mixed>>  $used
      * @return array<string, mixed>
@@ -184,8 +208,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'time_slot_id' => $time['time_slot_id'] ?? null,
             'time_block_reference' => $time['time_block_key'] ?? null,
             'time_block_key' => $time['time_block_key'] ?? null,
-            'meeting_sequence' => 1,
-            'meeting_pattern' => 'single_block',
+            'meeting_sequence' => (int) ($demand['_meeting_sequence'] ?? 1),
+            'meeting_pattern' => (string) ($demand['_meeting_pattern'] ?? '1x'.$demand['required_duration_minutes']),
             'assignment_status' => $violations === [] ? 'ok' : 'conflict',
             'violations' => $violations,
             'warnings' => [],
@@ -210,6 +234,22 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
         $weights = is_array($profile['soft_weights'] ?? null)
             ? $profile['soft_weights']
             : [];
+
+        if (($profile['key'] ?? null) === 'lexicographic_v1') {
+            $hierarchy = is_array($profile['objective_hierarchy'] ?? null)
+                ? array_values($profile['objective_hierarchy'])
+                : [];
+
+            return [
+                'profile_key' => 'lexicographic_v1',
+                'profile_version' => 1,
+                'objective_hierarchy' => $hierarchy,
+                'values' => array_fill_keys($hierarchy, null),
+                'completed_levels' => [],
+                'scalar_score' => null,
+                'verification_only' => true,
+            ];
+        }
 
         if ($objectiveScore === null) {
             return [
@@ -319,7 +359,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
 
             return [
                 'time_slot_id' => null,
-                'time_block_key' => 'fixed-'.$demand['scheduling_demand_id'],
+                'time_block_key' => 'fixed-'.$demand['scheduling_demand_id'].'-'.($demand['_meeting_sequence'] ?? 1),
                 'day_of_week' => (int) $demand['fixed_day_of_week'],
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,

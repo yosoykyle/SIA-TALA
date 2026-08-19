@@ -190,7 +190,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->for($fixture['course'])
             ->create(['is_active' => true]);
 
-        app(PublishedScheduleRevisionService::class)->revise(
+        $events = app(PublishedScheduleRevisionService::class)->revise(
             $fixture['run'],
             $registrar,
             ScheduleRevisionEvent::ChangeRoom,
@@ -200,28 +200,39 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ]],
             'Room replacement approved for cross-role acceptance.',
         );
-        app(PublishedScheduleRevisionService::class)->revise(
-            $fixture['run'],
+        $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
+        $currentRun = ScheduleGenerationRun::query()->findOrFail($currentMeeting->schedule_run_id);
+
+        $events = app(PublishedScheduleRevisionService::class)->revise(
+            $currentRun,
             $registrar,
             ScheduleRevisionEvent::ChangeTime,
             [[
-                'section_meeting_id' => $fixture['meeting']->id,
+                'section_meeting_id' => $currentMeeting->id,
                 'day_of_week' => 2,
                 'starts_at' => '09:00:00',
                 'ends_at' => '12:00:00',
             ]],
             'Time replacement approved for cross-role acceptance.',
         );
-        app(PublishedScheduleRevisionService::class)->revise(
-            $fixture['run'],
+        $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
+        $currentRun = ScheduleGenerationRun::query()->findOrFail($currentMeeting->schedule_run_id);
+
+        $events = app(PublishedScheduleRevisionService::class)->revise(
+            $currentRun,
             $registrar,
             ScheduleRevisionEvent::ChangeFacultyReassignment,
             [[
-                'section_meeting_id' => $fixture['meeting']->id,
+                'section_meeting_id' => $currentMeeting->id,
                 'faculty_user_id' => $replacementFaculty->id,
             ]],
             'Faculty replacement approved for cross-role acceptance.',
         );
+        $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
+        $currentBinding = StudentScheduleBinding::query()
+            ->where('course_enrollment_id', $fixture['courseEnrollment']->id)
+            ->where('is_active', true)
+            ->sole();
 
         Livewire::actingAs($fixture['faculty'])
             ->test(FacultySchedule::class)
@@ -229,14 +240,14 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($replacementFaculty)
             ->test(FacultySchedule::class)
-            ->assertCanSeeTableRecords([$fixture['meeting']])
+            ->assertCanSeeTableRecords([$currentMeeting])
             ->assertSee('Tuesday')
             ->assertSee('9:00 AM - 12:00 PM')
             ->assertSee($replacementRoom->code);
 
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$fixture['binding']])
+            ->assertCanSeeTableRecords([$currentBinding])
             ->assertSee($replacementFaculty->name)
             ->assertSee('Tuesday')
             ->assertSee('9:00 AM - 12:00 PM')
