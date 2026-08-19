@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import os
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -31,7 +33,11 @@ class SolverServerTest(unittest.TestCase):
         )
 
     def test_valid_v2_snapshot_is_solved_through_the_http_boundary(self) -> None:
-        response = self.client.post("/solve", json=self.snapshot())
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            response = self.client.post("/solve", json=self.snapshot())
+
         payload = response.get_json()
 
         self.assertEqual(200, response.status_code)
@@ -46,6 +52,50 @@ class SolverServerTest(unittest.TestCase):
         self.assertIn("result_construction", phase_timings)
         self.assertIn("serialization", phase_timings)
         self.assertTrue(all(isinstance(value, int) and value >= 0 for value in phase_timings.values()))
+
+        required_phases = {
+            "parsing",
+            "normalization",
+            "candidate_enumeration",
+            "hard_model_construction",
+            "objective_construction",
+            "feasibility_search",
+            "lexicographic_search_cohort_mode_switches",
+            "lexicographic_search_cohort_idle_time",
+            "lexicographic_search_faculty_load_imbalance",
+            "lexicographic_search_faculty_idle_time",
+            "lexicographic_search_room_seat_waste",
+            "lexicographic_search_stable_earlier_placement",
+            "result_construction",
+            "serialization",
+        }
+        self.assertEqual(set(), required_phases - set(phase_timings))
+
+        log_lines = output.getvalue().splitlines()
+        self.assertEqual(1, len(log_lines))
+        structured_log = json.loads(log_lines[0])
+        self.assertEqual(
+            {
+                "elapsed_ms",
+                "event",
+                "message",
+                "metrics",
+                "phase",
+                "phase_timings_ms",
+                "request_id",
+                "severity",
+                "snapshot_sha256",
+                "status",
+            },
+            set(structured_log),
+        )
+        self.assertEqual("INFO", structured_log["severity"])
+        self.assertEqual("completed", structured_log["phase"])
+        self.assertEqual(payload["solver_status"], structured_log["status"])
+        self.assertEqual(phase_timings, structured_log["phase_timings_ms"])
+        self.assertIsInstance(structured_log["metrics"], dict)
+        self.assertNotIn("snapshot", structured_log)
+        self.assertNotIn("assignments", structured_log)
 
     def test_solver_budget_comes_from_the_bounded_environment_setting(self) -> None:
         with (
@@ -76,9 +126,14 @@ class SolverServerTest(unittest.TestCase):
     def test_budget_exhaustion_returns_a_bounded_retryable_technical_failure(self) -> None:
         from tala_solver.runtime import RequestBudgetExceeded
 
-        with patch(
-            "tala_solver.server.solve_snapshot",
-            side_effect=RequestBudgetExceeded("candidate_enumeration"),
+        output = io.StringIO()
+
+        with (
+            patch(
+                "tala_solver.server.solve_snapshot",
+                side_effect=RequestBudgetExceeded("candidate_enumeration"),
+            ),
+            redirect_stdout(output),
         ):
             response = self.client.post(
                 "/solve",
@@ -94,6 +149,11 @@ class SolverServerTest(unittest.TestCase):
             json.loads(response.headers["X-TALA-Solver-Phase-Timings"]),
             dict,
         )
+        structured_log = json.loads(output.getvalue().strip())
+        self.assertEqual("WARNING", structured_log["severity"])
+        self.assertEqual("error", structured_log["status"])
+        self.assertEqual("solver_request_budget_exhausted", structured_log["failure_code"])
+        self.assertEqual("candidate_enumeration", structured_log["phase"])
 
     def test_app_startup_rejects_an_invalid_solver_runtime_configuration(self) -> None:
         with patch.dict(os.environ, {"SOLVER_WORKER_COUNT": "3"}):
@@ -130,9 +190,12 @@ class SolverServerTest(unittest.TestCase):
                 self.assertEqual(expected_code, payload["code"])
 
     def test_internal_solver_failure_is_logged_but_not_returned_to_the_caller(self) -> None:
+        output = io.StringIO()
+
         with (
             patch("tala_solver.server.solve_snapshot", side_effect=RuntimeError("private solver detail")),
             self.assertLogs("tala_solver.server", level="ERROR") as captured,
+            redirect_stdout(output),
         ):
             response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
 
@@ -142,6 +205,11 @@ class SolverServerTest(unittest.TestCase):
         self.assertEqual("internal_error", payload["code"])
         self.assertNotIn("private solver detail", response.get_data(as_text=True))
         self.assertIn("private solver detail", "\n".join(captured.output))
+        structured_log = json.loads(output.getvalue().strip())
+        self.assertEqual("ERROR", structured_log["severity"])
+        self.assertEqual("error", structured_log["status"])
+        self.assertEqual("internal_error", structured_log["failure_code"])
+        self.assertNotIn("private solver detail", output.getvalue())
 
     def snapshot(self) -> dict[str, object]:
         path = Path(__file__).resolve().parents[1] / "samples" / "minimal_snapshot.json"

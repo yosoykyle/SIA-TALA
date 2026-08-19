@@ -77,12 +77,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             minimum: 1,
             maximum: 1,
         );
-        $expectedWorkerCount = $this->boundedIntegerSetting(
-            'TALA_96B2_EXPECTED_WORKER_COUNT',
-            default: 1,
-            minimum: 1,
-            maximum: 4,
-        );
+        $expectedWorkerCount = $this->expectedWorkerCount();
 
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
@@ -436,6 +431,20 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         }
     }
 
+    public function test_approved_eight_worker_cloud_profile_is_supported_by_the_acceptance_guard(): void
+    {
+        $previous = getenv('TALA_96B2_EXPECTED_WORKER_COUNT');
+        putenv('TALA_96B2_EXPECTED_WORKER_COUNT=8');
+
+        try {
+            $this->assertSame(8, $this->expectedWorkerCount());
+        } finally {
+            $previous === false
+                ? putenv('TALA_96B2_EXPECTED_WORKER_COUNT')
+                : putenv("TALA_96B2_EXPECTED_WORKER_COUNT={$previous}");
+        }
+    }
+
     private function cohortCode(SectionMeeting $meeting): string
     {
         $cohortCode = $meeting->schedulingDemand->sectionDeliveryGroup->name;
@@ -482,6 +491,16 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $this->assertNotSame('', $value, "{$key} is required for TAL-96B2 cloud acceptance.");
 
         return $value;
+    }
+
+    private function expectedWorkerCount(): int
+    {
+        return $this->boundedIntegerSetting(
+            'TALA_96B2_EXPECTED_WORKER_COUNT',
+            default: 1,
+            minimum: 1,
+            maximum: 8,
+        );
     }
 
     private function boundedIntegerSetting(string $key, int $default, int $minimum, int $maximum): int

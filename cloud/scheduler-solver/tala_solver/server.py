@@ -88,9 +88,13 @@ def create_app() -> Flask:
                 response_body = app.json.dumps(result)
             request_context.checkpoint_total("serialization")
         except RequestBudgetExceeded as exception:
-            app.logger.warning(
-                "Scheduling solver request budget exhausted.",
-                extra=_safe_log_context(request_context, exception.phase),
+            _emit_structured_request_log(
+                request_context,
+                severity="WARNING",
+                message="Scheduling solver request budget exhausted.",
+                phase=exception.phase,
+                status="error",
+                failure_code="solver_request_budget_exhausted",
             )
 
             response, status_code = _error(
@@ -105,6 +109,14 @@ def create_app() -> Flask:
             return response, status_code
         except Exception:
             app.logger.exception("Scheduling solver request failed.")
+            _emit_structured_request_log(
+                request_context,
+                severity="ERROR",
+                message="Scheduling solver request failed.",
+                phase="failed",
+                status="error",
+                failure_code="internal_error",
+            )
 
             return _error(
                 500,
@@ -117,9 +129,12 @@ def create_app() -> Flask:
 
         response.headers["X-TALA-Provider-Request-ID"] = request_context.request_id or ""
         response.headers["X-TALA-Solver-Phase-Timings"] = _phase_timings_header(request_context)
-        app.logger.info(
-            "Scheduling solver request completed.",
-            extra=_safe_log_context(request_context, "completed"),
+        _emit_structured_request_log(
+            request_context,
+            severity="INFO",
+            message="Scheduling solver request completed.",
+            phase="completed",
+            status=str(result.get("solver_status", "unknown")),
         )
 
         return response
@@ -165,6 +180,32 @@ def _safe_log_context(context: SolverRequestContext, phase: str) -> dict[str, ob
         "metrics": context.metrics(),
         "elapsed_ms": round(context.elapsed_seconds() * 1000),
     }
+
+
+def _emit_structured_request_log(
+    context: SolverRequestContext,
+    *,
+    severity: str,
+    message: str,
+    phase: str,
+    status: str,
+    failure_code: str | None = None,
+) -> None:
+    payload = {
+        "severity": severity,
+        "message": message,
+        "event": "tala_scheduler_solver_request",
+        "status": status,
+        **_safe_log_context(context, phase),
+    }
+
+    if failure_code is not None:
+        payload["failure_code"] = failure_code
+
+    print(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True),
+        flush=True,
+    )
 
 
 def _phase_timings_header(context: SolverRequestContext) -> str:
