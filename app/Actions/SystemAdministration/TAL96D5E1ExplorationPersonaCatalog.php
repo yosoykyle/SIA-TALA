@@ -14,9 +14,9 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
-use InvalidArgumentException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use InvalidArgumentException;
 
 /**
  * Defines and inspects the guarded TAL-96D5E1 first-time exploration accounts.
@@ -35,7 +35,7 @@ final class TAL96D5E1ExplorationPersonaCatalog
     public const CheckpointPublished = 'published';
 
     public function __construct(
-        private readonly SchedulingAcceptanceScenarioCatalog $scenarios,
+        private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
     ) {}
 
     /**
@@ -225,7 +225,7 @@ final class TAL96D5E1ExplorationPersonaCatalog
             ->whereIn('student_number', ['DTHM-3A-001', 'DIT-3A-001'])
             ->where('lifecycle_status', StudentProfile::LifecycleInactive)
             ->count();
-        $cohorts = collect(array_keys($this->scenarios->cohorts(SchedulingAcceptanceScenarioCatalog::Min)))
+        $cohorts = collect(array_keys($this->canonicalDataset->cohorts()))
             ->filter(fn (string $cohortCode): bool => StudentProfile::query()
                 ->where('student_number', 'like', $cohortCode.'-%')
                 ->exists())
@@ -354,7 +354,7 @@ final class TAL96D5E1ExplorationPersonaCatalog
             'section_meetings' => $sectionMeetings,
             'scheduled_offerings' => $scheduledOfferings,
             'open_sections' => $openSections,
-            'representative_official_courses' => $officialEnrollment?->course_enrollments_count ?? 0,
+            'representative_official_courses' => $officialEnrollment->course_enrollments_count ?? 0,
             'representative_active_bindings' => $activeBindings,
             'accepted_candidate_ready' => $acceptedCandidateReady,
             'published_checkpoint_ready' => $publishedCheckpointReady,

@@ -19,7 +19,7 @@ final class SeedTAL96D5BAcceptanceState extends Command
 {
     protected $signature = 'acceptance:seed-tal96d5b-states';
 
-    protected $description = 'Add deterministic operational cases to the verified client-aligned MIN fixture.';
+    protected $description = 'Add deterministic operational cases to the Canonical TALA Scheduling Dataset.';
 
     public function handle(
         AcceptanceBaselineEnvironmentGuard $environmentGuard,

@@ -25,7 +25,7 @@ class SolverServerTest(unittest.TestCase):
                 "status": "ok",
                 "service": "tala-scheduler-solver",
                 "contract_version": "tala-timetable-v2",
-                "solver_version": "cloud-cp-sat-tala-timetable-v2-lexicographic-v1",
+                "solver_version": "cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2",
             },
             response.get_json(),
         )
@@ -39,10 +39,17 @@ class SolverServerTest(unittest.TestCase):
         self.assertEqual(2, payload["assigned_count"])
         self.assertEqual(0, payload["unassigned_count"])
         self.assertEqual("tala-timetable-v2", payload["model_version"])
+        phase_timings = json.loads(response.headers["X-TALA-Solver-Phase-Timings"])
+        self.assertIn("parsing", phase_timings)
+        self.assertIn("candidate_enumeration", phase_timings)
+        self.assertIn("hard_model_construction", phase_timings)
+        self.assertIn("result_construction", phase_timings)
+        self.assertIn("serialization", phase_timings)
+        self.assertTrue(all(isinstance(value, int) and value >= 0 for value in phase_timings.values()))
 
-    def test_solver_timeout_comes_from_the_bounded_environment_setting(self) -> None:
+    def test_solver_budget_comes_from_the_bounded_environment_setting(self) -> None:
         with (
-            patch.dict(os.environ, {"SOLVER_TIMEOUT_SECONDS": "45"}),
+            patch.dict(os.environ, {"SOLVER_REQUEST_BUDGET_SECONDS": "45"}),
             patch("tala_solver.server.solve_snapshot") as solve,
         ):
             solve.return_value = {"solver_status": "optimal", "assignments": []}
@@ -50,14 +57,12 @@ class SolverServerTest(unittest.TestCase):
             response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
 
         self.assertEqual(200, response.status_code)
-        solve.assert_called_once_with(
-            {"contract_version": "tal94-demand-v2"},
-            timeout_seconds=45,
-        )
+        context = solve.call_args.kwargs["request_context"]
+        self.assertEqual(45.0, context.budget_seconds)
 
-    def test_solver_timeout_is_clamped_to_the_approved_300_second_search_cap(self) -> None:
+    def test_solver_budget_is_clamped_to_the_approved_300_second_request_cap(self) -> None:
         with (
-            patch.dict(os.environ, {"SOLVER_TIMEOUT_SECONDS": "360"}),
+            patch.dict(os.environ, {"SOLVER_REQUEST_BUDGET_SECONDS": "360"}),
             patch("tala_solver.server.solve_snapshot") as solve,
         ):
             solve.return_value = {"solver_status": "optimal", "assignments": []}
@@ -65,9 +70,29 @@ class SolverServerTest(unittest.TestCase):
             response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
 
         self.assertEqual(200, response.status_code)
-        solve.assert_called_once_with(
-            {"contract_version": "tal94-demand-v2"},
-            timeout_seconds=300,
+        context = solve.call_args.kwargs["request_context"]
+        self.assertEqual(300.0, context.budget_seconds)
+
+    def test_budget_exhaustion_returns_a_bounded_retryable_technical_failure(self) -> None:
+        from tala_solver.runtime import RequestBudgetExceeded
+
+        with patch(
+            "tala_solver.server.solve_snapshot",
+            side_effect=RequestBudgetExceeded("candidate_enumeration"),
+        ):
+            response = self.client.post(
+                "/solve",
+                json={"contract_version": "tala-timetable-v2"},
+                headers={
+                    "X-TALA-Solver-Request-ID": "schedule-solver:run:1:cycle:1:attempt:1",
+                },
+            )
+
+        self.assertEqual(503, response.status_code)
+        self.assertEqual("solver_request_budget_exhausted", response.get_json()["code"])
+        self.assertIsInstance(
+            json.loads(response.headers["X-TALA-Solver-Phase-Timings"]),
+            dict,
         )
 
     def test_app_startup_rejects_an_invalid_solver_runtime_configuration(self) -> None:

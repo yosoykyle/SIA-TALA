@@ -2,14 +2,14 @@
 
 namespace Tests\Unit;
 
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
+use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use PHPUnit\Framework\TestCase;
 
 final class TAL96D5E1B1FixtureTruthTest extends TestCase
 {
     public function test_current_catalog_uses_the_approved_23_third_year_rows(): void
     {
-        $catalog = new SchedulingAcceptanceScenarioCatalog;
+        $catalog = new CanonicalTalaSchedulingDataset;
 
         $this->assertSame([
             'THC09',
@@ -48,40 +48,28 @@ final class TAL96D5E1B1FixtureTruthTest extends TestCase
         ]));
     }
 
-    public function test_current_manifests_exclude_externally_arranged_work_without_rewriting_historical_v1(): void
+    public function test_canonical_manifest_has_one_unambiguous_current_dataset(): void
     {
-        $catalog = new SchedulingAcceptanceScenarioCatalog;
-        $middle = $catalog->manifest(SchedulingAcceptanceScenarioCatalog::Middle);
-        $max = $catalog->manifest(SchedulingAcceptanceScenarioCatalog::Max);
+        $catalog = new CanonicalTalaSchedulingDataset;
+        $manifest = $catalog->manifest();
 
-        $this->assertSame(77, $middle['counts']['offerings']);
-        $this->assertSame(77, $middle['counts']['sections']);
-        $this->assertSame(74, $middle['counts']['scheduling_demands']);
-        $this->assertSame(241.0, $middle['faculty_evidence']['total_teaching_units']);
-
-        $this->assertSame(77, $max['counts']['offerings']);
-        $this->assertSame(172, $max['counts']['sections']);
-        $this->assertSame(166, $max['counts']['scheduling_demands']);
-        $this->assertSame(534.0, $max['faculty_evidence']['total_teaching_units']);
-
-        $this->assertSame(
-            'TAL96D5D_SYNTHETIC_V1',
-            $middle['curriculum_evidence']['historical_fixture']['version'],
-        );
-        $this->assertSame(
-            80,
-            $middle['curriculum_evidence']['historical_fixture']['scheduling_demands'],
-        );
-        $this->assertSame(
-            'HISTORICAL_ONLY',
-            $middle['curriculum_evidence']['historical_fixture']['status'],
-        );
+        $this->assertSame('CANONICAL_TALA_SCHEDULING_DATASET', $manifest['dataset']);
+        $this->assertSame(47, $manifest['counts']['students']);
+        $this->assertSame(6, $manifest['counts']['cohorts']);
+        $this->assertSame(9, $manifest['counts']['faculty']);
+        $this->assertSame(54, $manifest['counts']['offerings']);
+        $this->assertSame(54, $manifest['counts']['sections']);
+        $this->assertSame(54, $manifest['counts']['scheduling_demands']);
+        $this->assertSame(162.0, $manifest['faculty_evidence']['total_teaching_units']);
+        $this->assertSame(19.0, $manifest['faculty_evidence']['maximum_constructed_load']);
+        $this->assertCount(10, $catalog->roomDefinitions());
+        $this->assertArrayNotHasKey('historical_fixture', $manifest['curriculum_evidence']);
     }
 
     public function test_manifest_records_source_subtotal_discrepancies_without_inventing_a_course(): void
     {
-        $catalog = new SchedulingAcceptanceScenarioCatalog;
-        $evidence = $catalog->manifest(SchedulingAcceptanceScenarioCatalog::Middle)['curriculum_evidence'];
+        $catalog = new CanonicalTalaSchedulingDataset;
+        $evidence = $catalog->manifest()['curriculum_evidence'];
 
         $this->assertSame('COURSE_ROWS', $evidence['total_authority']);
         $this->assertSame('DO_NOT_INVENT', $evidence['missing_course_policy']);

@@ -14,7 +14,7 @@
 
 **Operator-navigation revision date:** 31 July 2026 — exact Registrar UI path, seeded presentation-checkpoint expectations, status-dependent actions, and recovery guidance added; solver equations and historical benchmark evidence are unchanged
 
-**Slice 3 implementation revision date:** 19 August 2026 — current `tala-timetable-v2` contract, six-level lexicographic objective, immutable publication/revision boundary, and verification-only local execution reconciled. Dated `tal94-demand-v2` benchmark evidence remains historical and is not reinterpreted.
+**Slice 3 corrective revision date:** 19 August 2026 — current `tala-timetable-v2` contract, six-level lexicographic objective, one request deadline, indexed model construction, Canonical TALA Scheduling Dataset, immutable publication/revision boundary, and verification-only local execution reconciled. Dated benchmark evidence remains historical and is not reinterpreted.
 
 ## Contents
 
@@ -137,9 +137,9 @@ Candidate correction and repair remain non-official. A local adjustment fixes ev
 
 Native CP-SAT outcomes map to `optimal`, `feasible`, `infeasible`, `unknown`, and `model_invalid`; provider, transport, or application execution failure is represented by Laravel as `technical_failure`. Only `optimal` and `feasible` with exact coverage and zero independently verified hard violations can enter human review. Neither status authorizes publication.
 
-The source default is one worker, fixed seed `20260718`, and a maximum 300-second solver budget. The Python suite and temporary local/loopback execution verify contract and model behavior only. Historical Cloud measurements in Sections 10–11 belong to `tal94-demand-v2`/`balanced_v1`; they do not prove that `tala-timetable-v2` is deployed, capacity-qualified, or active. Cloud build, tagged validation, and promotion require the separately authorized post-publication deployment workflow.
+The source default is one worker and fixed seed `20260718`. One monotonic 300-second request deadline starts at the Flask handler entry and covers parsing, normalization, candidate generation, model construction, all CP-SAT stages, result construction, and serialization; the final 15 seconds are reserved for a typed response. Source identity is `cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2`. The Python suite and temporary local/loopback execution verify contract and model behavior only. Historical Cloud measurements in Sections 10–11 belong to earlier source/contracts; they do not prove that the current source is deployed, capacity-qualified, or active. Cloud build, tagged validation, and promotion require the separately authorized post-publication deployment workflow.
 
-The 19 August 2026 source-level compatibility screen solved the minimal current fixture as `optimal` with 2/2 assignments, 6 candidates, 48 variables, and 94 constraints in about 85 ms. A deterministic 54-demand/120-slot screen using one worker and a 10-second CP-SAT budget returned `feasible` with 54/54 assignments, 6,480 candidates, 32,675 variables, and 65,241 constraints in about 16.2 seconds wall time. These counts and durations support build and tagged-qualification readiness; they are not native container-memory evidence and therefore neither replace the historical Cloud measurements nor prove the new revision active. The preserved 8-vCPU/16-GiB envelope remains the deployment candidate until separately authorized tagged evidence confirms or invalidates it.
+The current implementation uses grouped demand-sequence, cohort/day, Faculty/day, room/day, offering-group, and placement indexes instead of repeated global candidate scans. Deterministic differential tests compare hard-rule and objective results with a small reference evaluator, while the canonical journey requires complete coverage and zero Python or Laravel hard violations. These source-level gates support build and tagged-qualification readiness; they are not native container-memory evidence and neither replace the historical Cloud measurements nor prove the new revision active. The preserved 8-vCPU/16-GiB envelope remains the deployment candidate until separately authorized tagged evidence confirms or invalidates it.
 
 Sections that retain four weighted terms, scalar totals, old revision names, or dated benchmark values document the historical contract and its experiments. They remain reproducibility evidence, not the current formulation. This section and the current source/fixtures govern implementation consistency until those historical sections are deliberately reorganized without rewriting their evidence.
 
@@ -1410,11 +1410,11 @@ $$
 
 The returned `objective_score` and `objective_details.total` are both `18900`. The exact selection between the two symmetric subject-to-time assignments is not institutionally significant; exact coverage, non-overlap, and the reconciled total are the material properties.
 
-## 11. Controlled benchmark experiment and operating envelope
+## 11. Historical controlled benchmark experiment and operating envelope
 
 ### 11.1 Evaluation purpose and scale basis
 
-The empirical evaluation is a **controlled benchmark experiment**. Defined workloads and measures provide a consistent basis for comparing Cloud Run profiles, while deliberate variation of resource settings, workload size, and search duration permits observation of their effects. The evaluation is neither a survey of institutions, an algorithm competition, nor a predictive-accuracy test.
+The completed empirical evaluation was a **controlled benchmark experiment**. Defined workloads and measures provided a consistent basis for comparing Cloud Run profiles, while deliberate variation of resource settings, workload size, and search duration permitted observation of their effects. The evaluation was neither a survey of institutions, an algorithm competition, nor a predictive-accuracy test. Its results are retained historical evidence, not active product datasets or required executable machinery.
 
 The experiment answers three bounded questions: whether the implemented TALA pipeline produces valid client-scale schedules; which Cloud Run profile gives the strongest client-scale solution quality without unnecessary resources; and what larger synthetic workload is repeatably accepted before a time, model, or memory boundary is observed. It does not position TALA as a direct replacement for enterprise whole-university timetabling and does not treat optimization as predictive classification.
 
@@ -1533,7 +1533,7 @@ The Registrar projection contained all 54 published meetings because the Registr
 
 Each Student projection contained only active official meetings bound to that student's enrollments. Representative Student projections therefore contained 10 meetings for `DTBM-1A`, 8 for `DIT-1A`, and 10 for `DTHM-1A`, rather than all 54 meetings or the other cohorts' tables. These cross-role counts show that the candidate was both mathematically valid and consumable by the role-specific application views.
 
-The later faculty-evidence correction changes the rerunnable MIN fixture to nine faculty. It does not rewrite this recorded 12-faculty Cloud result, and this reconciliation claims no replacement solver result.
+The later faculty-evidence correction changed the former MIN research fixture to nine faculty. That executable fixture is now retired. The correction does not rewrite this recorded 12-faculty Cloud result and claims no replacement solver result.
 
 Delivery modality is an academic property of the applicable term offering or delivery group. It is not an individual student's solver preference. The Student schedule therefore shows the student's complete set of bound meetings and labels each row's modality.
 
@@ -1568,7 +1568,7 @@ All tiers retain the same weekly time grid.
 
 The client has six logical attendance cohorts. The baseline contains 54 course-specific sections and delivery groups because each cohort-course requirement receives its own offering, section, delivery-group record, and demand. Forty distinct subjects produce 54 offerings because some subjects occur in more than one cohort.
 
-The proportional labels describe copied scheduling structures, not doubled or quadrupled student populations. The 12-faculty value in this historical table is intentionally retained. It is not the current nine-faculty MIN fixture or a claim about the reconciled roster.
+The proportional labels describe copied scheduling structures, not doubled or quadrupled student populations. The 12-faculty value in this historical table is intentionally retained. It is not the current nine-Faculty Canonical TALA Scheduling Dataset or a claim about the reconciled roster.
 
 CP-SAT expands those business inputs into a larger mathematical model. A **candidate assignment** is one permitted demand/faculty/room/time combination. **Model variables** include the candidate-selection variables and auxiliary variables used to express the constraints and objective; therefore, variable count is much larger than demand count.
 
@@ -1586,9 +1586,9 @@ The benchmark establishes neither a universal minimum nor a maximum institution 
 
 The experiment did not preserve temporary database rows or published schedules. They were created only in the guarded `test_tala_db` environment and were rolled back or removed after evidence capture. This prevents synthetic benchmark data from polluting operational records.
 
-The reproducibility mechanism was **not** deleted. The versioned project retains deterministic baseline definitions, snapshot capture, tier construction, the benchmark runner, and automated checks for the disclosed counts and transformations.
+Temporary database rows and active benchmark/replay machinery were deliberately retired after the experiment. Reproducibility evidence remains in these disclosed tables and limitations, archived sanitized artifacts, immutable revision and image identifiers, Issue history, and Git history. The current codebase does not retain commands, seeders, scenario selectors, or services solely to regenerate completed research.
 
-A future authorized rerun can recreate the test baseline, capture the logical 54-demand snapshot, generate selected tiers in memory, submit sequential requests to a pinned image and profile, save a sanitized report, and roll back the test database. Exact result distributions must be measured again whenever the solver image, resource profile, search limit, constraints, or institutional inputs change.
+Any future research rerun is new approved experimental work. It must restore or build a bounded harness from the archived method, pin the exact image and profile, isolate the test database, save sanitized evidence, and remove temporary state. It must not be inferred from the current product acceptance path.
 
 ### 11.2 Experimental controls and measures
 
@@ -1746,14 +1746,14 @@ This is a bounded experiment estimate, not a monthly forecast or invoice. It exc
 
 ### 11.6 Population operating-envelope study
 
-**Purpose.** The population study answers a different question from the proportional experiments. The proportional tiers isolate solver-model growth by transforming one baseline snapshot. The `MIN`, `MIDDLE`, and `MAX` scenarios instead construct complete, rerunnable school-operation fixtures whose student, cohort, faculty, offering, and scheduling-demand records can also support system demonstrations.
+**Historical purpose.** The completed population study answered a different question from the proportional experiments. The proportional tiers isolated solver-model growth by transforming one baseline snapshot. The former `MIN`, `MIDDLE`, and `MAX` labels described controlled research fixtures; they are preserved below only so the recorded results remain interpretable. They are no longer active selectors, seed data, product environments, or system-demonstration machinery.
 
 Student headcount supplies the institutional scale narrative. The solver does not optimize one decision variable per student; it receives **scheduling demands** and expands them into candidate assignments, variables, and constraints. Those model measures govern compute difficulty more directly than student count alone.
 
 | Scenario | Population and basis | Executable scheduling composition | Constructed model scale |
 | --- | --- | --- | --- |
 | `MIN` | 47 current students, the lowest client-reported population | 6 cohorts; 9 client-reported and synthetic scheduling faculty; 54 demands; 6 rooms; 168 half-hour slots | 11,340 candidates; 34,335 variables; 68,592 constraints |
-| `MIDDLE` | 270 synthetic students, selected as the normal demonstration and growth-planning workload | 9 cohorts; 14 synthetic scheduling faculty; 80 demands; 6 rooms; 168 half-hour slots | 56,112 candidates; 169,043 variables; 337,725 constraints |
+| `MIDDLE` | 270 synthetic students, then selected as a demonstration and growth-planning workload | 9 cohorts; 14 synthetic scheduling faculty; 80 demands; 6 rooms; 168 half-hour slots | 56,112 candidates; 169,043 variables; 337,725 constraints |
 | `MAX` | 600 students from the client's reported 2022–2023 high point | 20 cohorts; 178 demands; 6 rooms; 168 half-hour slots; 26 synthetic scheduling faculty | 192,492 candidates; 579,437 variables; 1,157,585 constraints in the corrected fixture's completed exploratory model build |
 
 The reported historical MAX headcount of 14 faculty is preserved as client evidence but is not treated as an executable staffing plan. At a 21-unit ceiling, 532 teaching units require at least 26 faculty by arithmetic alone (`ceil(532 / 21) = 26`) before qualifications and availability are considered.

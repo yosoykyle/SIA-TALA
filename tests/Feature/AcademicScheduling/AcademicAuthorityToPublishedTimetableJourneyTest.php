@@ -6,6 +6,7 @@ use App\Actions\AcademicSetup\ActivateProgramAuthority;
 use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Scheduling\AdjustCandidateMeeting;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
@@ -192,7 +193,9 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'candidate_state' => 'Queued',
         ]);
         $snapshot = app(ScheduleSolverSnapshotService::class)->captureForRun($run);
-        $solverResult = app(LocalStubSchedulingSolverClient::class)->solve($snapshot);
+        $solverResult = app(LocalStubSchedulingSolverClient::class)
+            ->solve(new SchedulingSolverRequest($snapshot, 'slice3-journey'))
+            ->payload();
         $this->assertSame(ScheduleGenerationRun::ContractVersion, $snapshot['contract_version']);
         $this->assertSame('feasible', $solverResult['solver_status'], json_encode($solverResult['assignments'], JSON_THROW_ON_ERROR));
         $ingestSummary = app(ScheduleCloudResultIngestor::class)->ingest($run, $solverResult);

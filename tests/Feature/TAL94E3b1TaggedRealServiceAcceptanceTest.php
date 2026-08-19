@@ -224,7 +224,7 @@ final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
             'tala_integrations.scheduling_solver.url' => $tagUrl,
             'tala_integrations.scheduling_solver.audience' => $audience,
             'tala_integrations.scheduling_solver.credentials_path' => $credentialsPath,
-            'tala_integrations.scheduling_solver.timeout_seconds' => 300,
+            'tala_integrations.scheduling_solver.timeout_seconds' => 330,
             'tala_integrations.scheduling_solver.connect_timeout_seconds' => 10,
         ]);
         $this->app->forgetInstance(SchedulingSolverClient::class);
@@ -248,7 +248,7 @@ final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
                 'TALA_SCHEDULING_SOLVER_URL' => $tagUrl,
                 'TALA_SCHEDULING_SOLVER_AUDIENCE' => $audience,
                 'TALA_SCHEDULING_SOLVER_CREDENTIALS' => $credentialsPath,
-                'TALA_SCHEDULING_SOLVER_TIMEOUT_SECONDS' => '300',
+                'TALA_SCHEDULING_SOLVER_HTTP_TIMEOUT_SECONDS' => '330',
                 'TALA_SCHEDULING_SOLVER_CONNECT_TIMEOUT_SECONDS' => '10',
             ])
             ->run([

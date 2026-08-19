@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
@@ -9,10 +10,12 @@ from typing import Any
 from ortools import __version__ as ORTOOLS_VERSION
 from ortools.sat.python import cp_model
 
+from tala_solver.runtime import RequestBudgetExceeded, SolverRequestContext
+
 
 LEGACY_CONTRACT_VERSION = "tal94-demand-v2"
 CONTRACT_VERSION = "tala-timetable-v2"
-SOLVER_VERSION = "cloud-cp-sat-tala-timetable-v2-lexicographic-v1"
+SOLVER_VERSION = "cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2"
 LEXICOGRAPHIC_TERMS = (
     "cohort_mode_switches",
     "cohort_idle_time",
@@ -79,6 +82,16 @@ class SolverRuntimeConfiguration:
     random_seed: int
 
 
+@dataclass(frozen=True)
+class CandidateIndexes:
+    by_assignment: dict[tuple[int, int], tuple[int, ...]]
+    by_cohort_day: dict[tuple[int, int], tuple[int, ...]]
+    by_faculty_day: dict[tuple[int, int], tuple[int, ...]]
+    by_room_day: dict[tuple[int, int], tuple[int, ...]]
+    by_offering_group_faculty: dict[tuple[int, int, int], tuple[int, ...]]
+    by_placement: dict[tuple[Any, ...], tuple[int, ...]]
+
+
 def solver_runtime_configuration() -> SolverRuntimeConfiguration:
     return SolverRuntimeConfiguration(
         worker_count=_approved_environment_integer(
@@ -94,11 +107,22 @@ def solver_runtime_configuration() -> SolverRuntimeConfiguration:
     )
 
 
-def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict[str, Any]:
+def solve_snapshot(
+    snapshot: dict[str, Any],
+    timeout_seconds: int = 300,
+    *,
+    request_context: SolverRequestContext | None = None,
+) -> dict[str, Any]:
     started_at = perf_counter()
     timeout_seconds = max(1, min(int(timeout_seconds), 300))
+    request_context = request_context or SolverRequestContext(
+        timeout_seconds,
+        response_reserve_seconds=0,
+    )
     solver_run_id = _solver_run_id(snapshot)
     runtime_configuration = solver_runtime_configuration()
+
+    request_context.checkpoint("normalization")
 
     contract_version = snapshot.get("contract_version")
     if contract_version not in {CONTRACT_VERSION, LEGACY_CONTRACT_VERSION}:
@@ -158,8 +182,9 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             runtime_configuration=runtime_configuration,
         )
 
-    demands = _demands(snapshot)
-    cohort_ids_by_delivery_group = _cohort_ids_by_delivery_group(snapshot, demands)
+    with request_context.measure("normalization"):
+        demands = _demands(snapshot)
+        cohort_ids_by_delivery_group = _cohort_ids_by_delivery_group(snapshot, demands)
 
     if cohort_ids_by_delivery_group is None:
         return _result(
@@ -175,14 +200,15 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             runtime_configuration=runtime_configuration,
         )
 
-    demands = [
-        {
-            **demand,
-            "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])][0],
-            "cohort_or_student_group_ids": list(cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])]),
-        }
-        for demand in demands
-    ]
+    with request_context.measure("normalization"):
+        demands = [
+            {
+                **demand,
+                "cohort_or_student_group_id": cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])][0],
+                "cohort_or_student_group_ids": list(cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])]),
+            }
+            for demand in demands
+        ]
     invalid_meeting_patterns = [
         demand for demand in demands
         if not _has_valid_meeting_pattern(demand)
@@ -232,7 +258,13 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             infeasible_reasons=[_reason("invalid_expected_count", "Every timetable demand requires a positive confirmed expected count.")],
             runtime_configuration=runtime_configuration,
         )
-    candidates, unassignable_reasons = _enumerate_candidates(snapshot, demands)
+    with request_context.measure("candidate_enumeration"):
+        candidates, unassignable_reasons = _enumerate_candidates(
+            snapshot,
+            demands,
+            request_context,
+        )
+    request_context.record_metric("candidate_count", len(candidates))
 
     if unassignable_reasons:
         assignments = [
@@ -259,45 +291,49 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             runtime_configuration=runtime_configuration,
         )
 
-    model = cp_model.CpModel()
-    variables = [model.new_bool_var(f"candidate_{index}") for index, _ in enumerate(candidates)]
+    with request_context.measure("hard_model_construction"):
+        model = cp_model.CpModel()
+        variables = [model.new_bool_var(f"candidate_{index}") for index, _ in enumerate(candidates)]
+        indexes = _candidate_indexes(candidates)
 
-    for demand_id, meeting_sequence in {_candidate_assignment_key(candidate) for candidate in candidates}:
-        model.add(
-            sum(
-                variables[index]
-                for index, candidate in enumerate(candidates)
-                if _candidate_assignment_key(candidate) == (demand_id, meeting_sequence)
+        for candidate_indexes in indexes.by_assignment.values():
+            model.add(sum(variables[index] for index in candidate_indexes) == 1)
+
+        repair_error = _apply_repair_hard_requirement(snapshot, model, variables, candidates)
+        if repair_error is not None:
+            return _result(
+                snapshot=snapshot,
+                solver_run_id=solver_run_id,
+                solver_status="model_invalid",
+                assignments=[],
+                objective_score=None,
+                timeout=False,
+                started_at=started_at,
+                warnings=[repair_error],
+                infeasible_reasons=[repair_error],
+                runtime_configuration=runtime_configuration,
             )
-            == 1
-        )
 
-    repair_error = _apply_repair_hard_requirement(snapshot, model, variables, candidates)
-    if repair_error is not None:
-        return _result(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            solver_status="model_invalid",
-            assignments=[],
-            objective_score=None,
-            timeout=False,
-            started_at=started_at,
-            warnings=[repair_error],
-            infeasible_reasons=[repair_error],
-            runtime_configuration=runtime_configuration,
+        _add_no_overlap_constraints(model, variables, candidates, indexes)
+        _add_modality_transition_buffer_constraints(
+            model,
+            variables,
+            candidates,
+            indexes,
+            request_context,
         )
-
-    _add_no_overlap_constraints(model, variables, candidates)
-    _add_modality_transition_buffer_constraints(model, variables, candidates)
-    _add_same_faculty_constraints(model, variables, candidates, demands)
-    load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
+        _add_same_faculty_constraints(model, variables, candidates, demands, indexes)
+        load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
+        request_context.record_metric("model_variable_count", len(model.proto.variables))
+        request_context.record_metric("model_constraint_count", len(model.proto.constraints))
 
     feasibility_solver = _configured_solver(
-        timeout_seconds=float(timeout_seconds),
+        timeout_seconds=max(0.001, request_context.remaining_search_seconds()),
         runtime_configuration=runtime_configuration,
     )
     feasibility_started_at = perf_counter()
-    feasibility_status = feasibility_solver.solve(model)
+    with request_context.measure("feasibility_search"):
+        feasibility_status = feasibility_solver.solve(model)
     feasibility_stage = _search_stage_statistics(
         model=model,
         solver=feasibility_solver,
@@ -387,24 +423,23 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
             feasibility_selected=feasibility_selected,
             feasibility_stage=feasibility_stage,
             started_at=started_at,
-            timeout_seconds=timeout_seconds,
+            request_context=request_context,
+            indexes=indexes,
             runtime_configuration=runtime_configuration,
         )
 
     for variable in variables:
         model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
 
-    _add_soft_objective(
-        model=model,
-        variables=variables,
-        candidates=candidates,
-        load_variables=load_variables,
-    )
+    with request_context.measure("objective_construction"):
+        _add_soft_objective(
+            model=model,
+            variables=variables,
+            candidates=candidates,
+            load_variables=load_variables,
+        )
 
-    remaining_seconds = max(
-        0.0,
-        float(timeout_seconds) - float(feasibility_stage["wall_time_seconds"] or 0.0),
-    )
+    remaining_seconds = request_context.remaining_search_seconds()
 
     if remaining_seconds <= 0.001:
         return _result(
@@ -445,7 +480,8 @@ def solve_snapshot(snapshot: dict[str, Any], timeout_seconds: int = 300) -> dict
         runtime_configuration=runtime_configuration,
     )
     optimization_started_at = perf_counter()
-    optimization_status = optimization_solver.solve(model)
+    with request_context.measure("optimization_search"):
+        optimization_status = optimization_solver.solve(model)
     optimization_stage = _search_stage_statistics(
         model=model,
         solver=optimization_solver,
@@ -565,24 +601,42 @@ def _solve_lexicographic(
     feasibility_selected: list[Candidate],
     feasibility_stage: dict[str, Any],
     started_at: float,
-    timeout_seconds: int,
+    request_context: SolverRequestContext,
+    indexes: CandidateIndexes,
     runtime_configuration: SolverRuntimeConfiguration,
 ) -> dict[str, Any]:
     for variable in variables:
         model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
 
-    objectives = _lexicographic_objectives(model, variables, candidates, load_variables)
-    repair_objective = _repair_change_objective(snapshot, variables, candidates)
-    if repair_objective is not None:
-        objectives.insert(0, ("changed_non_requested_meetings", repair_objective))
     selected = feasibility_selected
     result_solver = feasibility_solver
     completed_levels: list[dict[str, Any]] = []
     latest_stage = _not_run_stage_statistics()
 
+    try:
+        with request_context.measure("objective_construction"):
+            objectives = _lexicographic_objectives(
+                model,
+                variables,
+                candidates,
+                load_variables,
+                indexes,
+                request_context,
+            )
+            repair_objective = _repair_change_objective(snapshot, variables, candidates)
+            if repair_objective is not None:
+                objectives.insert(0, ("changed_non_requested_meetings", repair_objective))
+    except RequestBudgetExceeded:
+        return _lexicographic_result(
+            snapshot, solver_run_id, model, candidates, selected, result_solver,
+            "feasible", started_at, runtime_configuration, feasibility_stage,
+            latest_stage, completed_levels,
+            [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
+            request_context,
+        )
+
     for index, (name, expression) in enumerate(objectives):
-        elapsed = perf_counter() - started_at
-        remaining = max(0.0, float(timeout_seconds) - elapsed)
+        remaining = request_context.remaining_search_seconds()
 
         if remaining <= 0.001:
             return _lexicographic_result(
@@ -590,6 +644,7 @@ def _solve_lexicographic(
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
+                request_context,
             )
 
         model.maximize(expression)
@@ -598,7 +653,17 @@ def _solve_lexicographic(
             runtime_configuration=runtime_configuration,
         )
         phase_started = perf_counter()
-        status = solver.solve(model)
+        try:
+            with request_context.measure(f"lexicographic_search_{name}"):
+                status = solver.solve(model)
+        except RequestBudgetExceeded:
+            return _lexicographic_result(
+                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                "feasible", started_at, runtime_configuration, feasibility_stage,
+                latest_stage, completed_levels,
+                [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
+                request_context,
+            )
         latest_stage = _search_stage_statistics(
             model=model,
             solver=solver,
@@ -612,6 +677,7 @@ def _solve_lexicographic(
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("optimization_limit_reached", f"The hard-valid timetable was retained before completing {name}.")],
+                request_context,
             )
 
         selected = _selected_candidates(candidates, variables, solver)
@@ -629,6 +695,7 @@ def _solve_lexicographic(
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("lexicographic_level_feasible", f"{name} was bounded but not proved optimal; lower levels were not allowed to alter it.")],
+                request_context,
             )
 
         model.add(expression == value)
@@ -636,7 +703,7 @@ def _solve_lexicographic(
     return _lexicographic_result(
         snapshot, solver_run_id, model, candidates, selected, result_solver,
         "optimal", started_at, runtime_configuration, feasibility_stage,
-        latest_stage, completed_levels, [],
+        latest_stage, completed_levels, [], request_context,
     )
 
 
@@ -654,6 +721,7 @@ def _lexicographic_result(
     optimization_stage: dict[str, Any],
     completed_levels: list[dict[str, Any]],
     warnings: list[dict[str, str]],
+    request_context: SolverRequestContext,
 ) -> dict[str, Any]:
     return _result(
         snapshot=snapshot,
@@ -678,6 +746,7 @@ def _lexicographic_result(
             optimization_stage=optimization_stage,
         ),
         runtime_configuration=runtime_configuration,
+        request_context=request_context,
     )
 
 
@@ -744,9 +813,21 @@ def _lexicographic_objectives(
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
     load_variables: dict[int, cp_model.IntVar],
+    indexes: CandidateIndexes,
+    request_context: SolverRequestContext,
 ) -> list[tuple[str, cp_model.LinearExpr]]:
     return [
-        ("cohort_mode_switches", sum(_cohort_mode_switch_objective_terms(model, variables, candidates))),
+        (
+            "cohort_mode_switches",
+            sum(
+                _cohort_mode_switch_objective_terms(
+                    model,
+                    variables,
+                    indexes,
+                    request_context,
+                )
+            ),
+        ),
         ("cohort_idle_time", sum(_cohort_idle_gap_objective_terms(model, variables, candidates))),
         ("faculty_load_imbalance", sum(_load_balance_objective_terms(model, load_variables, 1))),
         ("faculty_idle_time", sum(_idle_gap_objective_terms(model, variables, candidates, 1))),
@@ -764,47 +845,100 @@ def _lexicographic_objectives(
 def _cohort_mode_switch_objective_terms(
     model: cp_model.CpModel,
     variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
+    indexes: CandidateIndexes,
+    request_context: SolverRequestContext,
 ) -> list[cp_model.LinearExpr]:
     terms: list[cp_model.LinearExpr] = []
+    placement_variables: dict[tuple[Any, ...], cp_model.IntVar] = {}
 
-    for left_index, left in enumerate(candidates):
-        for right_index, right in enumerate(candidates):
-            common_cohort_ids = set(left.cohort_or_student_group_ids).intersection(right.cohort_or_student_group_ids)
-            if (
-                left_index == right_index
-                or not common_cohort_ids
-                or left.day_of_week != right.day_of_week
-                or left.modality == right.modality
-                or left.scheduling_demand_id == right.scheduling_demand_id
-                or left.ends_minute > right.starts_minute
-            ):
+    for placement_index, (placement_key, candidate_indexes) in enumerate(indexes.by_placement.items()):
+        placement = model.new_bool_var(f"placement_{placement_index}")
+        model.add_max_equality(placement, [variables[index] for index in candidate_indexes])
+        placement_variables[placement_key] = placement
+
+    placements_by_cohort_day_start: dict[
+        tuple[int, int],
+        dict[int, list[tuple[Any, ...]]],
+    ] = {}
+    for placement_key in indexes.by_placement:
+        cohort_ids = placement_key[2]
+        day = int(placement_key[3])
+        starts_minute = int(placement_key[4])
+        for cohort_id in cohort_ids:
+            placements_by_cohort_day_start.setdefault(
+                (int(cohort_id), day),
+                {},
+            ).setdefault(starts_minute, []).append(placement_key)
+
+    modality_codes = {
+        modality: index
+        for index, modality in enumerate(
+            sorted({str(key[6]) for key in indexes.by_placement}),
+            start=1,
+        )
+    }
+    maximum_mode = max(modality_codes.values(), default=1)
+
+    for (cohort_id, day), placements_by_start in placements_by_cohort_day_start.items():
+        previous_mode: cp_model.IntVar | None = None
+
+        for position, placement_keys in enumerate(
+            dict(sorted(placements_by_start.items())).values()
+        ):
+            request_context.checkpoint("objective_construction")
+            placement_keys = sorted(set(placement_keys))
+            current_selected = [placement_variables[key] for key in placement_keys]
+            starts_here = model.new_bool_var(
+                f"cohort_starts_{cohort_id}_{day}_{position}"
+            )
+            model.add(starts_here == sum(current_selected))
+            current_mode = model.new_int_var(
+                0,
+                maximum_mode,
+                f"cohort_mode_{cohort_id}_{day}_{position}",
+            )
+            model.add(
+                current_mode
+                == sum(
+                    modality_codes[str(key[6])] * placement_variables[key]
+                    for key in placement_keys
+                )
+            )
+            last_mode = model.new_int_var(
+                0,
+                maximum_mode,
+                f"cohort_last_mode_{cohort_id}_{day}_{position}",
+            )
+
+            if previous_mode is None:
+                model.add(last_mode == current_mode)
+                previous_mode = last_mode
                 continue
 
-            for cohort_id in sorted(common_cohort_ids):
-                between = [
-                    middle_index
-                    for middle_index, middle in enumerate(candidates)
-                    if middle_index not in {left_index, right_index}
-                    and cohort_id in middle.cohort_or_student_group_ids
-                    and middle.day_of_week == left.day_of_week
-                    and middle.scheduling_demand_id not in {left.scheduling_demand_id, right.scheduling_demand_id}
-                    and middle.starts_minute >= left.ends_minute
-                    and middle.ends_minute <= right.starts_minute
-                ]
-                adjacent = model.new_bool_var(f"cohort_mode_switch_{cohort_id}_{left_index}_{right_index}")
-                model.add(adjacent <= variables[left_index])
-                model.add(adjacent <= variables[right_index])
-                for middle_index in between:
-                    model.add(adjacent <= 1 - variables[middle_index])
-                model.add(
-                    adjacent
-                    >= variables[left_index]
-                    + variables[right_index]
-                    - 1
-                    - sum(variables[middle_index] for middle_index in between)
-                )
-                terms.append(-adjacent)
+            model.add(last_mode == current_mode).only_enforce_if(starts_here)
+            model.add(last_mode == previous_mode).only_enforce_if(starts_here.Not())
+            has_previous = model.new_bool_var(
+                f"cohort_has_previous_{cohort_id}_{day}_{position}"
+            )
+            model.add(previous_mode != 0).only_enforce_if(has_previous)
+            model.add(previous_mode == 0).only_enforce_if(has_previous.Not())
+            changed = model.new_bool_var(
+                f"cohort_mode_changed_{cohort_id}_{day}_{position}"
+            )
+            model.add(current_mode != previous_mode).only_enforce_if(changed)
+            model.add(current_mode == previous_mode).only_enforce_if(changed.Not())
+            switch = model.new_bool_var(
+                f"cohort_mode_switch_{cohort_id}_{day}_{position}"
+            )
+            model.add_bool_and([starts_here, has_previous, changed]).only_enforce_if(switch)
+            model.add_bool_or([
+                starts_here.Not(),
+                has_previous.Not(),
+                changed.Not(),
+                switch,
+            ])
+            terms.append(-switch)
+            previous_mode = last_mode
 
     return terms
 
@@ -875,7 +1009,11 @@ def evaluate_candidate_membership(
         }
         for demand in demands
     ]
-    candidates, _ = _enumerate_candidates(snapshot, demands)
+    candidates, _ = _enumerate_candidates(
+        snapshot,
+        demands,
+        SolverRequestContext(300),
+    )
     candidate_keys = {_candidate_membership_key(candidate) for candidate in candidates}
     results = [
         {
@@ -926,43 +1064,56 @@ def _result(
     objective_details: dict[str, Any] | None = None,
     solver_statistics: dict[str, Any] | None = None,
     runtime_configuration: SolverRuntimeConfiguration | None = None,
+    request_context: SolverRequestContext | None = None,
 ) -> dict[str, Any]:
-    runtime_configuration = runtime_configuration or solver_runtime_configuration()
-    conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
-    warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
-    assigned_count = len(assignments) - conflict_count
-    expected_assignment_count = sum(
-        _meeting_count(demand) or 1
-        for demand in snapshot.get("scheduling_demands", [])
-        if isinstance(demand, dict)
+    measurement = (
+        request_context.measure("result_construction", reserve_response=False)
+        if request_context is not None
+        else nullcontext()
     )
 
-    return {
-        "solver_run_id": solver_run_id,
-        "solver_status": solver_status,
-        "candidate_schedule_id": f"cp-sat-{solver_run_id or 'unknown'}",
-        "assignments": assignments,
-        "hard_constraint_violations": infeasible_reasons,
-        "hard_violation_count": conflict_count,
-        "soft_constraint_scores": {
+    with measurement:
+        runtime_configuration = runtime_configuration or solver_runtime_configuration()
+        conflict_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "conflict")
+        warning_count = sum(1 for assignment in assignments if assignment["assignment_status"] == "warning")
+        assigned_count = len(assignments) - conflict_count
+        expected_assignment_count = sum(
+            _meeting_count(demand) or 1
+            for demand in snapshot.get("scheduling_demands", [])
+            if isinstance(demand, dict)
+        )
+
+        result = {
+            "solver_run_id": solver_run_id,
+            "solver_status": solver_status,
+            "candidate_schedule_id": f"cp-sat-{solver_run_id or 'unknown'}",
+            "assignments": assignments,
+            "hard_constraint_violations": infeasible_reasons,
+            "hard_violation_count": conflict_count,
+            "soft_constraint_scores": {
+                "assigned_count": assigned_count,
+                "conflict_count": conflict_count,
+                "prefer_earlier_time_blocks": _earlier_time_score(assignments),
+            },
+            "infeasible_reasons": infeasible_reasons,
+            "warnings": warnings,
+            "runtime_seconds": round(perf_counter() - started_at, 6),
+            "objective_score": objective_score,
+            "objective_details": objective_details or _empty_objective_details(snapshot),
+            "solver_statistics": solver_statistics or _empty_solver_statistics(snapshot, runtime_configuration),
+            "solver_version": SOLVER_VERSION,
+            "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "assigned_count": assigned_count,
-            "conflict_count": conflict_count,
-            "prefer_earlier_time_blocks": _earlier_time_score(assignments),
-        },
-        "infeasible_reasons": infeasible_reasons,
-        "warnings": warnings,
-        "runtime_seconds": round(perf_counter() - started_at, 6),
-        "objective_score": objective_score,
-        "objective_details": objective_details or _empty_objective_details(snapshot),
-        "solver_statistics": solver_statistics or _empty_solver_statistics(snapshot, runtime_configuration),
-        "solver_version": SOLVER_VERSION,
-        "model_version": str(snapshot.get("contract_version") or CONTRACT_VERSION),
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "assigned_count": assigned_count,
-        "unassigned_count": max(0, expected_assignment_count - assigned_count),
-        "warning_count": warning_count,
-        "timeout": timeout,
-    }
+            "unassigned_count": max(0, expected_assignment_count - assigned_count),
+            "warning_count": warning_count,
+            "timeout": timeout,
+        }
+
+    if request_context is not None:
+        request_context.checkpoint_total("result_construction")
+
+    return result
 
 
 def _empty_solver_statistics(
@@ -1343,16 +1494,18 @@ def _room_suits_demand(demand: dict[str, Any], room: dict[str, Any]) -> bool:
 def _enumerate_candidates(
     snapshot: dict[str, Any],
     demands: list[dict[str, Any]],
+    request_context: SolverRequestContext,
 ) -> tuple[list[Candidate], dict[int, list[dict[str, str]]]]:
     rooms = _rooms(snapshot)
     time_slots = _time_slots(snapshot)
     availability = _faculty_availability(snapshot)
-    existing_commitments = _existing_commitments(snapshot)
-    calendar_blocks = _calendar_blocks(snapshot)
+    existing_commitments = _commitment_indexes(_existing_commitments(snapshot))
+    calendar_blocks = _calendar_block_indexes(_calendar_blocks(snapshot))
     candidates: list[Candidate] = []
     unassignable_reasons: dict[int, list[dict[str, str]]] = {}
 
     for demand in demands:
+        request_context.checkpoint("candidate_enumeration")
         demand_id = _int_or_none(demand.get("scheduling_demand_id"))
 
         if demand_id is None:
@@ -1379,6 +1532,8 @@ def _enumerate_candidates(
             for faculty_id in faculty_ids:
                 for room_id in room_ids:
                     for slot in slots:
+                        if len(candidates) % 500 == 0:
+                            request_context.checkpoint("candidate_enumeration")
                         candidate = _candidate(
                             demand,
                             meeting_sequence,
@@ -1394,10 +1549,16 @@ def _enumerate_candidates(
                         if not _inside_faculty_availability(candidate, availability):
                             continue
 
-                        if _conflicts_existing(candidate, existing_commitments):
+                        if _conflicts_existing(
+                            candidate,
+                            _relevant_commitments(candidate, existing_commitments),
+                        ):
                             continue
 
-                        if _conflicts_calendar(candidate, calendar_blocks):
+                        if _conflicts_calendar(
+                            candidate,
+                            _relevant_calendar_blocks(candidate, calendar_blocks),
+                        ):
                             continue
 
                         candidates.append(candidate)
@@ -1413,6 +1574,119 @@ def _enumerate_candidates(
             ]
 
     return candidates, unassignable_reasons
+
+
+def _candidate_indexes(candidates: list[Candidate]) -> CandidateIndexes:
+    by_assignment: dict[tuple[int, int], list[int]] = {}
+    by_cohort_day: dict[tuple[int, int], list[int]] = {}
+    by_faculty_day: dict[tuple[int, int], list[int]] = {}
+    by_room_day: dict[tuple[int, int], list[int]] = {}
+    by_offering_group_faculty: dict[tuple[int, int, int], list[int]] = {}
+    by_placement: dict[tuple[Any, ...], list[int]] = {}
+
+    for index, candidate in enumerate(candidates):
+        by_assignment.setdefault(_candidate_assignment_key(candidate), []).append(index)
+        for cohort_id in candidate.cohort_or_student_group_ids:
+            by_cohort_day.setdefault((cohort_id, candidate.day_of_week), []).append(index)
+        by_faculty_day.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(index)
+        if candidate.room_id is not None:
+            by_room_day.setdefault((candidate.room_id, candidate.day_of_week), []).append(index)
+        by_offering_group_faculty.setdefault(
+            (
+                candidate.term_offering_id,
+                candidate.section_delivery_group_id,
+                candidate.faculty_id,
+            ),
+            [],
+        ).append(index)
+        placement_key = (
+            candidate.scheduling_demand_id,
+            candidate.meeting_sequence,
+            candidate.cohort_or_student_group_ids,
+            candidate.day_of_week,
+            candidate.starts_minute,
+            candidate.ends_minute,
+            candidate.modality,
+        )
+        by_placement.setdefault(placement_key, []).append(index)
+
+    freeze = lambda values: {key: tuple(indexes) for key, indexes in values.items()}
+
+    return CandidateIndexes(
+        by_assignment=freeze(by_assignment),
+        by_cohort_day=freeze(by_cohort_day),
+        by_faculty_day=freeze(by_faculty_day),
+        by_room_day=freeze(by_room_day),
+        by_offering_group_faculty=freeze(by_offering_group_faculty),
+        by_placement=freeze(by_placement),
+    )
+
+
+def _commitment_indexes(
+    commitments: list[dict[str, Any]],
+) -> dict[tuple[str, int, int], list[dict[str, Any]]]:
+    indexes: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+    for commitment in commitments:
+        day = _int_or_none(commitment.get("day_of_week"))
+        if day is None:
+            continue
+        resources = {
+            "delivery_group": _int_or_none(commitment.get("section_delivery_group_id")),
+            "faculty": _int_or_none(commitment.get("faculty_id") or commitment.get("faculty_user_id")),
+            "room": _int_or_none(commitment.get("room_id")),
+        }
+        for resource, resource_id in resources.items():
+            if resource_id is not None:
+                indexes.setdefault((resource, resource_id, day), []).append(commitment)
+    return indexes
+
+
+def _relevant_commitments(
+    candidate: Candidate,
+    indexes: dict[tuple[str, int, int], list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    keys = [
+        ("delivery_group", candidate.section_delivery_group_id, candidate.day_of_week),
+        ("faculty", candidate.faculty_id, candidate.day_of_week),
+    ]
+    if candidate.room_id is not None:
+        keys.append(("room", candidate.room_id, candidate.day_of_week))
+
+    return list({id(item): item for key in keys for item in indexes.get(key, [])}.values())
+
+
+def _calendar_block_indexes(
+    blocks: list[dict[str, Any]],
+) -> dict[tuple[str, int | None, int], list[dict[str, Any]]]:
+    indexes: dict[tuple[str, int | None, int], list[dict[str, Any]]] = {}
+    for block in blocks:
+        day, _, _ = _block_window(block)
+        if day is None:
+            continue
+        room_id = _int_or_none(block.get("room_id"))
+        faculty_id = _int_or_none(block.get("faculty_user_id") or block.get("faculty_id"))
+        if room_id is not None:
+            key = ("room", room_id, day)
+        elif faculty_id is not None:
+            key = ("faculty", faculty_id, day)
+        else:
+            key = ("global", None, day)
+        indexes.setdefault(key, []).append(block)
+    return indexes
+
+
+def _relevant_calendar_blocks(
+    candidate: Candidate,
+    indexes: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    keys: list[tuple[str, int | None, int]] = [
+        ("global", None, candidate.day_of_week),
+        ("faculty", candidate.faculty_id, candidate.day_of_week),
+    ]
+    if candidate.room_id is not None:
+        keys.append(("room", candidate.room_id, candidate.day_of_week))
+
+    return [item for key in keys for item in indexes.get(key, [])]
 
 
 def _slots_for_demand(demand: dict[str, Any], time_slots: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1563,6 +1837,7 @@ def _add_no_overlap_constraints(
     model: cp_model.CpModel,
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
+    indexes: CandidateIndexes,
 ) -> None:
     intervals = [
         model.new_optional_fixed_size_interval_var(
@@ -1573,21 +1848,13 @@ def _add_no_overlap_constraints(
         )
         for index, candidate in enumerate(candidates)
     ]
-    cohort_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
-    faculty_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
-    room_days: dict[tuple[int, int], list[cp_model.IntervalVar]] = {}
-
-    for index, candidate in enumerate(candidates):
-        interval = intervals[index]
-        for cohort_id in candidate.cohort_or_student_group_ids:
-            cohort_days.setdefault((cohort_id, candidate.day_of_week), []).append(interval)
-        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(interval)
-
-        if candidate.room_id is not None:
-            room_days.setdefault((candidate.room_id, candidate.day_of_week), []).append(interval)
-
-    for grouped_intervals in (cohort_days, faculty_days, room_days):
-        for resource_intervals in grouped_intervals.values():
+    for grouped_indexes in (
+        indexes.by_cohort_day,
+        indexes.by_faculty_day,
+        indexes.by_room_day,
+    ):
+        for candidate_indexes in grouped_indexes.values():
+            resource_intervals = [intervals[index] for index in candidate_indexes]
             if len(resource_intervals) > 1:
                 model.add_no_overlap(resource_intervals)
 
@@ -1596,22 +1863,30 @@ def _add_modality_transition_buffer_constraints(
     model: cp_model.CpModel,
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
+    indexes: CandidateIndexes,
+    request_context: SolverRequestContext,
 ) -> None:
-    for left_index, left in enumerate(candidates):
-        for right_index in range(left_index + 1, len(candidates)):
-            right = candidates[right_index]
-            if (
-                not set(left.cohort_or_student_group_ids).intersection(right.cohort_or_student_group_ids)
-                or left.day_of_week != right.day_of_week
-                or left.modality == right.modality
-                or left.scheduling_demand_id == right.scheduling_demand_id
-            ):
-                continue
+    seen_pairs: set[tuple[int, int]] = set()
+    for candidate_indexes in indexes.by_cohort_day.values():
+        request_context.checkpoint("hard_model_construction")
+        for position, left_index in enumerate(candidate_indexes):
+            left = candidates[left_index]
+            for right_index in candidate_indexes[position + 1:]:
+                pair = (min(left_index, right_index), max(left_index, right_index))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                right = candidates[right_index]
+                if (
+                    left.modality == right.modality
+                    or left.scheduling_demand_id == right.scheduling_demand_id
+                ):
+                    continue
 
-            left_to_right_gap = right.starts_minute - left.ends_minute
-            right_to_left_gap = left.starts_minute - right.ends_minute
-            if 0 <= left_to_right_gap < 30 or 0 <= right_to_left_gap < 30:
-                model.add(variables[left_index] + variables[right_index] <= 1)
+                left_to_right_gap = right.starts_minute - left.ends_minute
+                right_to_left_gap = left.starts_minute - right.ends_minute
+                if 0 <= left_to_right_gap < 30 or 0 <= right_to_left_gap < 30:
+                    model.add(variables[left_index] + variables[right_index] <= 1)
 
 
 def _apply_repair_hard_requirement(
@@ -1763,6 +2038,7 @@ def _add_same_faculty_constraints(
     variables: list[cp_model.IntVar],
     candidates: list[Candidate],
     demands: list[dict[str, Any]],
+    indexes: CandidateIndexes,
 ) -> None:
     grouped_assignments: dict[tuple[int, int], list[tuple[int, int]]] = {}
 
@@ -1788,22 +2064,22 @@ def _add_same_faculty_constraints(
             continue
 
         faculty_ids = {
-            candidate.faculty_id
-            for candidate in candidates
-            if _candidate_assignment_key(candidate) in assignment_keys
+            candidates[index].faculty_id
+            for assignment_key in assignment_keys
+            for index in indexes.by_assignment.get(assignment_key, ())
         }
 
         for left_key, right_key in zip(assignment_keys, assignment_keys[1:]):
             for faculty_id in faculty_ids:
                 left_terms = [
                     variables[index]
-                    for index, candidate in enumerate(candidates)
-                    if _candidate_assignment_key(candidate) == left_key and candidate.faculty_id == faculty_id
+                    for index in indexes.by_assignment.get(left_key, ())
+                    if candidates[index].faculty_id == faculty_id
                 ]
                 right_terms = [
                     variables[index]
-                    for index, candidate in enumerate(candidates)
-                    if _candidate_assignment_key(candidate) == right_key and candidate.faculty_id == faculty_id
+                    for index in indexes.by_assignment.get(right_key, ())
+                    if candidates[index].faculty_id == faculty_id
                 ]
 
                 model.add(sum(left_terms) == sum(right_terms))

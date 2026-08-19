@@ -6,6 +6,8 @@ use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -15,6 +17,19 @@ use Tests\TestCase;
 
 final class TAL94E1SchedulingSolverTransportTest extends TestCase
 {
+    public function test_solver_phase_timing_header_is_strictly_allowlisted(): void
+    {
+        $this->assertSame([], SchedulingSolverResponse::parseSolverPhaseTimings(
+            '{"parsing":2,"private url":1}',
+        ));
+        $this->assertSame([], SchedulingSolverResponse::parseSolverPhaseTimings(
+            '{"parsing":"2"}',
+        ));
+        $this->assertSame(['parsing' => 2], SchedulingSolverResponse::parseSolverPhaseTimings(
+            '{"parsing":2}',
+        ));
+    }
+
     public function test_local_http_driver_resolves_in_testing_environment(): void
     {
         config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
@@ -38,24 +53,37 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
                 'service' => 'tala-scheduler-solver',
                 'model_version' => 'tal94-demand-v2',
             ]),
-            'http://127.0.0.1:8080/solve' => Http::response([
-                'solver_run_id' => 55,
-                'solver_status' => 'optimal',
-                'assignments' => [],
-            ]),
+            'http://127.0.0.1:8080/solve' => Http::response(
+                [
+                    'solver_run_id' => 55,
+                    'solver_status' => 'optimal',
+                    'assignments' => [],
+                ],
+                headers: [
+                    'X-TALA-Provider-Request-ID' => 'provider-request-55',
+                    'X-TALA-Solver-Phase-Timings' => '{"parsing":2,"candidate_enumeration":14,"serialization":1}',
+                ],
+            ),
         ]);
 
         $client = $this->localClient();
 
         $probe = $client->probe();
-        $result = $client->solve([
+        $solverResponse = $client->solve($this->request([
             'contract_version' => 'tal94-demand-v2',
             'run_metadata' => ['solver_run_id' => 55],
-        ]);
+        ]));
+        $result = $solverResponse->payload();
 
         $this->assertSame(200, $probe['status']);
         $this->assertStringContainsString('tal94-demand-v2', $probe['body']);
         $this->assertSame('optimal', $result['solver_status']);
+        $this->assertSame('provider-request-55', $solverResponse->providerRequestId());
+        $this->assertSame([
+            'parsing' => 2,
+            'candidate_enumeration' => 14,
+            'serialization' => 1,
+        ], $solverResponse->solverPhaseTimings());
 
         Http::assertSent(fn (Request $request): bool => $request->url() === 'http://127.0.0.1:8080/health'
             && $request->method() === 'GET'
@@ -63,6 +91,8 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->url() === 'http://127.0.0.1:8080/solve'
             && $request->method() === 'POST'
             && ! $request->hasHeader('Authorization')
+            && $request->hasHeader('X-TALA-Solver-Request-ID', 'test-solver-request')
+            && $request->hasHeader('X-TALA-Snapshot-SHA256')
             && $request['contract_version'] === 'tal94-demand-v2');
         Http::assertSentCount(2);
     }
@@ -122,7 +152,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
             $this->fail('A failed solver response did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame('Local scheduling solver request failed.', $exception->getMessage());
@@ -146,7 +176,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
             $this->fail("HTTP {$status} did not throw a typed solver transport exception.");
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame($classification, $exception->classification());
@@ -168,7 +198,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
             $this->fail('A connection failure did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationConnection, $exception->classification());
@@ -179,7 +209,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         Http::assertSentCount(1);
 
         try {
-            $this->localClient()->solve(['contract_version' => 'tal94-demand-v2']);
+            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
             $this->fail('A malformed solver response did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationMalformedResponse, $exception->classification());
@@ -209,7 +239,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         );
 
         try {
-            $client->solve(['contract_version' => 'tal94-demand-v2']);
+            $client->solve($this->request(['contract_version' => 'tal94-demand-v2']));
             $this->fail('A credential failure did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationCredential, $exception->classification());
@@ -256,6 +286,37 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         $this->assertNull(config('tala_integrations.scheduling_solver.auth'));
     }
 
+    public function test_exact_budget_exhaustion_code_is_retryable_and_redacted(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://127.0.0.1:8080/solve' => Http::response([
+                'code' => 'solver_request_budget_exhausted',
+                'private' => 'must-not-leak',
+            ], 503, [
+                'X-TALA-Provider-Request-ID' => 'provider-budget-1',
+                'X-TALA-Solver-Phase-Timings' => '{"parsing":2,"candidate_enumeration":285000}',
+            ]),
+        ]);
+
+        try {
+            $this->localClient()->solve($this->request(['contract_version' => 'tala-timetable-v2']));
+            $this->fail('A request-budget failure did not throw.');
+        } catch (SchedulingSolverTransportException $exception) {
+            $this->assertSame(SchedulingSolverTransportException::ClassificationRequestBudget, $exception->classification());
+            $this->assertTrue($exception->isRetryable());
+            $this->assertSame(503, $exception->statusCode());
+            $this->assertStringNotContainsString('must-not-leak', $exception->getMessage());
+            $this->assertSame('provider-budget-1', $exception->safeDiagnostics()['provider_request_id']);
+            $this->assertSame([
+                'parsing' => 2,
+                'candidate_enumeration' => 285_000,
+            ], $exception->safeDiagnostics()['solver_phase_ms']);
+        }
+
+        Http::assertSentCount(1);
+    }
+
     /**
      * @return array<string, array{string}>
      */
@@ -296,5 +357,11 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
             connectTimeoutSeconds: 2,
             environment: 'testing',
         );
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function request(array $snapshot): SchedulingSolverRequest
+    {
+        return new SchedulingSolverRequest($snapshot, 'test-solver-request');
     }
 }

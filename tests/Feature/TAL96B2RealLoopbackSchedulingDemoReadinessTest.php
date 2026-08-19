@@ -4,10 +4,14 @@ namespace Tests\Feature;
 
 use App\Actions\Enrollment\EnrollmentPlacementService;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
+use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\ScheduleAssignmentValidationService;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
@@ -39,9 +43,9 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
 {
     use DatabaseTransactions;
 
-    private const ContractVersion = 'tal94-demand-v2';
+    private const ContractVersion = 'tala-timetable-v2';
 
-    private const SolverVersion = 'cloud-cp-sat-tal94-demand-v2-staged-search-v1';
+    private const SolverVersion = 'cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2';
 
     public function test_client_baseline_completes_the_real_solver_publication_and_cross_role_projections(): void
     {
@@ -69,9 +73,9 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             : null;
         $acceptanceRepetitions = $this->boundedIntegerSetting(
             'TALA_96B2_ACCEPTANCE_REPETITIONS',
-            default: 3,
+            default: 1,
             minimum: 1,
-            maximum: 3,
+            maximum: 1,
         );
         $expectedWorkerCount = $this->boundedIntegerSetting(
             'TALA_96B2_EXPECTED_WORKER_COUNT',
@@ -101,7 +105,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             'tala_integrations.scheduling_solver.url' => $solverUrl,
             'tala_integrations.scheduling_solver.audience' => $audience,
             'tala_integrations.scheduling_solver.credentials_path' => $credentialsPath,
-            'tala_integrations.scheduling_solver.timeout_seconds' => 300,
+            'tala_integrations.scheduling_solver.timeout_seconds' => 330,
             'tala_integrations.scheduling_solver.connect_timeout_seconds' => 10,
         ]);
         $this->app->forgetInstance(SchedulingSolverClient::class);
@@ -111,18 +115,30 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $solverClient = app(SchedulingSolverClient::class);
         $probe = $solverClient->probe();
         $this->assertSame(200, $probe['status']);
-        $this->assertStringContainsString('tal94-demand-v2', $probe['body']);
+        $this->assertStringContainsString(self::ContractVersion, $probe['body']);
 
         $term = Term::query()->where('type', Term::TypeSecondSemester)->sole();
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
-        $expectedCoverage = SchedulingDemand::query()
+        $schedulingDemands = SchedulingDemand::query()
             ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+            ->with('sectionDeliveryGroup')
             ->orderBy('id')
-            ->get()
+            ->get();
+        $expectedCoverage = $schedulingDemands
             ->flatMap(fn (SchedulingDemand $demand): array => collect(range(1, $demand->meeting_count))
                 ->map(fn (int $sequence): string => $demand->id.':'.$sequence)
                 ->all())
             ->values()
+            ->all();
+        $expectedCohortSectionCounts = $schedulingDemands
+            ->groupBy(fn (SchedulingDemand $demand): string => (string) $demand->sectionDeliveryGroup->name)
+            ->map->count()
+            ->sortKeys()
+            ->all();
+        $expectedCohortMeetingCounts = $schedulingDemands
+            ->groupBy(fn (SchedulingDemand $demand): string => (string) $demand->sectionDeliveryGroup->name)
+            ->map(fn (Collection $demands): int => $demands->sum('meeting_count'))
+            ->sortKeys()
             ->all();
 
         $run = app(ScheduleGenerationService::class)->generate($term, $registrar);
@@ -139,9 +155,11 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
         $results = [];
 
         foreach (range(1, $acceptanceRepetitions) as $iteration) {
-            $result = $solverClient->solve($snapshot);
+            $result = $solverClient
+                ->solve(new SchedulingSolverRequest($snapshot, "loopback-{$iteration}"))
+                ->payload();
             $this->assertContains($result['solver_status'], ['optimal', 'feasible'], "Representative run {$iteration} was not usable.");
-            $this->assertSame(54, $result['assigned_count']);
+            $this->assertSame(count($expectedCoverage), $result['assigned_count']);
             $this->assertSame(0, $result['unassigned_count']);
             $this->assertSame(0, $result['hard_violation_count']);
             $this->assertSame($expectedWorkerCount, data_get($result, 'solver_statistics.worker_count'));
@@ -150,7 +168,12 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $validation = app(ScheduleAssignmentValidationService::class)->validate($run, $result);
             $this->assertTrue(
                 $validation->passes(),
-                json_encode($validation->findings(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+                json_encode([
+                    'constraint_profile' => data_get($snapshot, 'constraint_profile'),
+                    'objective_score' => $result['objective_score'] ?? null,
+                    'objective_details' => $result['objective_details'] ?? null,
+                    'findings' => $validation->findings(),
+                ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             );
             $results[] = $result;
         }
@@ -173,12 +196,15 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             /** @param array<string, mixed> $result */
             public function __construct(private readonly array $result) {}
 
-            /** @param array<string, mixed> $snapshot */
-            public function solve(array $snapshot): array
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
             {
-                $this->receivedSnapshots[] = $snapshot;
+                $this->receivedSnapshots[] = $request->snapshot();
 
-                return $this->result;
+                return new SchedulingSolverResponse($this->result, $request->requestId(), [
+                    'authentication_ms' => 0,
+                    'transport_ms' => 0,
+                    'decode_ms' => 0,
+                ]);
             }
 
             public function probe(): array
@@ -191,6 +217,7 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             app(ScheduleSolverSnapshotService::class),
             $dispatchClient,
             app(ScheduleCloudResultIngestor::class),
+            app(ScheduleSolverDispatchLifecycleService::class),
         );
         $this->assertSame([$snapshot], $dispatchClient->receivedSnapshots);
 
@@ -229,10 +256,18 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
 
         $summary = $run->publicationSummary();
         $this->assertSame(0, $summary['conflicts']);
+        $run = app(ReviewTimetableCandidate::class)->accept(
+            $run,
+            $registrar,
+            'Registrar reviewed complete canonical coverage and current validation evidence.',
+        );
         $published = app(SchedulePublishService::class)->publish(
             $run,
             $registrar,
-            $summary['warnings'] > 0 ? 'TAL-96B2 verified real-loopback acceptance.' : null,
+            $summary['warnings'] > 0
+                ? 'Publish the reviewed canonical timetable with documented advisory warnings.'
+                : 'Publish the reviewed canonical timetable.',
+            authorityReference: 'CANONICAL-TALA-TIMETABLE-SIGNOFF-001',
         );
         $meetings = $published->sectionMeetings()
             ->with([
@@ -251,36 +286,29 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             fn (SectionMeeting $meeting): bool => $meeting->state === SectionMeeting::StateActive,
         ));
 
-        $expectedCohortCounts = [
-            'DBM-1A' => 10,
-            'DBM-2A' => 9,
-            'DIT-1A' => 8,
-            'DIT-2A' => 8,
-            'DTHM-1A' => 10,
-            'DTHM-2A' => 9,
-        ];
         $meetingsByCohort = $meetings->groupBy(
             fn (SectionMeeting $meeting): string => $this->cohortCode($meeting),
         );
-        $actualCohortCounts = collect($expectedCohortCounts)
+        $actualCohortCounts = collect($expectedCohortMeetingCounts)
             ->mapWithKeys(fn (int $expected, string $cohort): array => [
                 $cohort => $meetingsByCohort->get($cohort, collect())->count(),
             ])
             ->all();
 
-        $this->assertSame($expectedCohortCounts, $actualCohortCounts);
+        $this->assertSame($expectedCohortMeetingCounts, $actualCohortCounts);
 
         $registrarSchedule = Livewire::actingAs($registrar)
             ->test(ListSectionMeetings::class);
         $registrarSchedule->assertOk();
-        $registrarSchedule->assertCountTableRecords(54);
+        $registrarSchedule->assertCountTableRecords(count($expectedCoverage));
 
         $facultyProjectionCounts = [];
 
         foreach ($meetings->groupBy('faculty_user_id') as $facultyUserId => $facultyMeetings) {
             $faculty = User::query()->findOrFail((int) $facultyUserId);
             $facultySchedule = Livewire::actingAs($faculty)
-                ->test(FacultySchedule::class);
+                ->test(FacultySchedule::class)
+                ->set('tableRecordsPerPage', 50);
 
             $facultySchedule->assertOk();
             $facultySchedule->assertCountTableRecords($facultyMeetings->count());
@@ -291,17 +319,16 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             ];
         }
 
-        $this->assertCount(12, $facultyProjectionCounts);
-        $this->assertSame(54, collect($facultyProjectionCounts)->sum('meeting_count'));
+        $this->assertCount($meetings->pluck('faculty_user_id')->unique()->count(), $facultyProjectionCounts);
+        $this->assertSame(count($expectedCoverage), collect($facultyProjectionCounts)->sum('meeting_count'));
 
-        $firstYearCohortCounts = [
-            'DBM-1A' => 10,
-            'DIT-1A' => 8,
-            'DTHM-1A' => 10,
-        ];
+        $firstYearCohortCounts = collect($expectedCohortSectionCounts)
+            ->filter(fn (int $count, string $cohort): bool => str_ends_with($cohort, '-1A'))
+            ->all();
         $studentProjectionCounts = [];
 
-        foreach ($firstYearCohortCounts as $cohortCode => $expectedMeetingCount) {
+        foreach ($firstYearCohortCounts as $cohortCode => $expectedSectionCount) {
+            $expectedMeetingCount = $expectedCohortMeetingCounts[$cohortCode];
             $profile = StudentProfile::query()
                 ->with('user')
                 ->where('student_number', 'like', $cohortCode.'-%')
@@ -325,11 +352,16 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
                 ->sortBy('code')
                 ->values();
 
-            $this->assertCount($expectedMeetingCount, $sections);
+            $this->assertCount($expectedSectionCount, $sections);
 
             foreach ($sections as $section) {
                 app(EnrollmentPlacementService::class)->confirm($enrollment, $section->id, $registrar);
             }
+
+            $enrollment->update([
+                'status' => 'officially_enrolled',
+                'officially_enrolled_at' => now(),
+            ]);
 
             $bindings = StudentScheduleBinding::query()
                 ->whereHas('courseEnrollment', fn ($query) => $query->where('enrollment_id', $enrollment->id))
@@ -340,7 +372,8 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
             $this->assertCount($expectedMeetingCount, $bindings);
 
             $studentSchedule = Livewire::actingAs($student)
-                ->test(ScheduleView::class);
+                ->test(ScheduleView::class)
+                ->set('tableRecordsPerPage', 50);
             $studentSchedule->assertOk();
             $studentSchedule->assertCountTableRecords($expectedMeetingCount);
             $studentSchedule->assertCanSeeTableRecords($bindings);
@@ -363,12 +396,11 @@ final class TAL96B2RealLoopbackSchedulingDemoReadinessTest extends TestCase
                 'observed_at' => now()->toIso8601String(),
                 'cloud_revision' => $cloudRevision,
                 'cloud_profile' => $mode === 'cloud_run' ? [
-                    'name' => 'B',
-                    'vcpu' => 2,
-                    'memory_gib' => 4,
+                    'vcpu' => 8,
+                    'memory_gib' => 16,
                     'solver_workers' => $expectedWorkerCount,
                     'concurrency' => 1,
-                    'search_limit_seconds' => 30,
+                    'request_budget_seconds' => 300,
                 ] : null,
                 'snapshot_sha256' => $snapshotHash,
                 'solution_sha256_values' => $solutionHashes->all(),

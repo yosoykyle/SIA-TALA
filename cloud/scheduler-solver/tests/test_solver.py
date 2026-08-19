@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import os
 import unittest
@@ -11,12 +10,12 @@ from unittest.mock import patch
 
 from ortools.sat.python import cp_model
 
-from tala_solver.replay import replay_artifact
 from tala_solver.solver import (
     evaluate_candidate_membership,
     solve_snapshot,
     solver_runtime_configuration,
 )
+from tala_solver.runtime import RequestBudgetExceeded
 
 
 class SolveSnapshotTest(unittest.TestCase):
@@ -55,6 +54,22 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual(
             "lexicographic",
             result["solver_statistics"]["result_source"],
+        )
+
+    def test_request_budget_exhaustion_after_feasibility_keeps_the_complete_timetable(self) -> None:
+        with patch(
+            "tala_solver.solver._lexicographic_objectives",
+            side_effect=RequestBudgetExceeded("objective_construction"),
+        ):
+            result = solve_snapshot(self.snapshot(), timeout_seconds=10)
+
+        self.assertEqual("feasible", result["solver_status"])
+        self.assertEqual(2, result["assigned_count"])
+        self.assertEqual(0, result["unassigned_count"])
+        self.assertEqual(0, result["hard_violation_count"])
+        self.assertEqual(
+            "optimization_budget_exhausted",
+            result["warnings"][0]["type"],
         )
 
     def test_unknown_feasibility_search_returns_no_false_conflict_timetable(self) -> None:
@@ -238,34 +253,6 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertFalse(rejected["all_admissible"])
         self.assertEqual(1, rejected["admissible_count"])
 
-    def test_private_replay_artifact_requires_an_untampered_payload_hash(self) -> None:
-        snapshot = self.snapshot()
-        assignments = solve_snapshot(snapshot, timeout_seconds=10)["assignments"]
-        payload = {"snapshot": snapshot, "assignments": assignments}
-        payload_hash = hashlib.sha256(
-            json.dumps(
-                payload,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8"),
-        ).hexdigest()
-        artifact = {
-            "evidence_version": "tal96d5d-parity-v1",
-            "scenario": "MIN",
-            "payload_sha256": payload_hash,
-            **payload,
-        }
-
-        replay = replay_artifact(artifact)
-
-        self.assertTrue(replay["all_admissible"])
-
-        artifact["assignments"][0]["starts_at"] = "08:13:00"
-
-        with self.assertRaisesRegex(ValueError, "payload hash"):
-            replay_artifact(artifact)
-
     def test_same_section_group_and_room_assignments_do_not_overlap(self) -> None:
         snapshot = self.snapshot()
 
@@ -382,6 +369,17 @@ class SolveSnapshotTest(unittest.TestCase):
         )
         self.assertIsNone(result["objective_score"])
         self.assertIsNone(details["scalar_score"])
+
+    def test_indexed_solver_matches_a_small_reference_hard_rule_and_objective_evaluator(self) -> None:
+        snapshot = self.snapshot()
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+        self.assertEqual(
+            self.reference_objective_values(snapshot, result["assignments"]),
+            result["objective_details"]["values"],
+        )
 
     def test_solver_statistics_are_typed_allowlisted_and_reproducible(self) -> None:
         snapshot = self.snapshot()
@@ -951,6 +949,94 @@ class SolveSnapshotTest(unittest.TestCase):
                     violations.append(f"rows {left_index} and {right_index} overlap for one room")
 
         return violations
+
+    def reference_objective_values(
+        self,
+        snapshot: dict[str, Any],
+        rows: list[dict[str, Any]],
+    ) -> dict[str, int]:
+        demands = {
+            int(demand["scheduling_demand_id"]): demand
+            for demand in snapshot["scheduling_demands"]
+        }
+        rooms = {
+            int(room["room_id"]): room
+            for room in snapshot["rooms"]
+        }
+        cohort_ids_by_delivery_group: dict[int, list[int]] = {}
+
+        for group in snapshot["student_cohort_groups"]:
+            cohort_ids_by_delivery_group.setdefault(
+                int(group["section_delivery_group_id"]),
+                [],
+            ).append(int(group["cohort_or_student_group_id"]))
+        cohort_days: dict[tuple[int, int], list[tuple[int, int, str]]] = {}
+        faculty_days: dict[tuple[int, int], list[tuple[int, int]]] = {}
+        faculty_loads: dict[int, dict[tuple[int, int], int]] = {}
+        room_seat_waste = 0
+        stable_earlier_placement = 0
+
+        for row in rows:
+            demand = demands[int(row["scheduling_demand_id"])]
+            starts = self.minutes(row["starts_at"])
+            ends = self.minutes(row["ends_at"])
+            day = int(row["day_of_week"])
+            faculty_id = int(row["faculty_id"])
+            cohort_ids = demand.get("cohort_or_student_group_ids") or [
+                *cohort_ids_by_delivery_group[int(demand["section_delivery_group_id"])]
+            ]
+
+            for cohort_id in cohort_ids:
+                cohort_days.setdefault((int(cohort_id), day), []).append(
+                    (starts, ends, str(demand["modality"]))
+                )
+
+            faculty_days.setdefault((faculty_id, day), []).append((starts, ends))
+            faculty_loads.setdefault(faculty_id, {})[
+                (int(demand["term_offering_id"]), int(demand["section_delivery_group_id"]))
+            ] = round(float(demand["load_units"]) * 100)
+
+            if row["room_id"] is not None:
+                room = rooms[int(row["room_id"])]
+                room_seat_waste += max(
+                    0,
+                    int(room["capacity"]) - int(demand["expected_count"]),
+                )
+
+            stable_earlier_placement += max(0, 10_000 - ((day * 1_000) + starts))
+
+        def idle_minutes(groups: dict[tuple[int, int], list[tuple[int, int] | tuple[int, int, str]]]) -> int:
+            return sum(
+                max(row[1] for row in group)
+                - min(row[0] for row in group)
+                - sum(row[1] - row[0] for row in group)
+                for group in groups.values()
+            )
+
+        mode_switches = sum(
+            sum(
+                1
+                for left, right in zip(ordered, ordered[1:])
+                if left[2] != right[2]
+            )
+            for group in cohort_days.values()
+            for ordered in [sorted(group)]
+        )
+        loads = [sum(group_loads.values()) for group_loads in faculty_loads.values()]
+        load_imbalance = sum(
+            abs(left - right)
+            for left_index, left in enumerate(loads)
+            for right in loads[left_index + 1:]
+        )
+
+        return {
+            "cohort_mode_switches": mode_switches,
+            "cohort_idle_time": idle_minutes(cohort_days),
+            "faculty_load_imbalance": load_imbalance,
+            "faculty_idle_time": idle_minutes(faculty_days),
+            "room_seat_waste": room_seat_waste,
+            "stable_earlier_placement": stable_earlier_placement,
+        }
 
     def overlaps(self, left: dict[str, Any], right: dict[str, Any]) -> bool:
         return (

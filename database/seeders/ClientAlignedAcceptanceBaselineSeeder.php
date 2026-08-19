@@ -7,8 +7,8 @@ use App\Actions\Registrar\BuildTermOfferings;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\TermSchedulingReadinessService;
+use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Actions\SystemAdministration\ClientCurriculumFixtureCatalog;
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use App\Actions\SystemAdministration\SchedulingFacultyCapacityAssessment;
 use App\Models\AcademicYear;
 use App\Models\AdmissionCycle;
@@ -60,8 +60,6 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     public const StateConflict = 'conflict';
 
-    private string $scenario = SchedulingAcceptanceScenarioCatalog::Min;
-
     public function __construct(
         private readonly DatabaseSeeder $databaseSeeder,
         private readonly AdmissionRequirementPolicySeeder $admissionRequirementPolicySeeder,
@@ -71,16 +69,9 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         private readonly GenerateSchedulingDemand $demandGenerator,
         private readonly TermSchedulingReadinessService $readinessService,
         private readonly ClientCurriculumFixtureCatalog $curriculumFixtureCatalog,
-        private readonly SchedulingAcceptanceScenarioCatalog $scenarioCatalog,
+        private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
         private readonly SchedulingFacultyCapacityAssessment $facultyCapacityAssessment,
     ) {}
-
-    public function forScenario(string $scenario): self
-    {
-        $this->scenario = $this->scenarioCatalog->normalize($scenario);
-
-        return $this;
-    }
 
     public function state(): string
     {
@@ -154,7 +145,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
     /**
      * @return array{
-     *     scenario:string,
+     *     dataset:string,
      *     basis:string,
      *     limitation:string,
      *     counts:array{students:int,cohorts:int,faculty:int,offerings:int,sections:int,scheduling_demands:int,admission_requirement_policies:int},
@@ -177,7 +168,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      */
     public function manifest(): array
     {
-        $manifest = $this->scenarioCatalog->manifest($this->scenario);
+        $manifest = $this->canonicalDataset->manifest();
         $assessment = $this->facultyCapacityAssessment();
         $evidence = $manifest['faculty_evidence'];
 
@@ -189,21 +180,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             || $assessment['unassigned_workloads'] !== $evidence['unassignable_workloads']
         ) {
             throw new RuntimeException(
-                "The {$this->scenario} faculty evidence no longer matches the constructed scheduling workload.",
-            );
-        }
-
-        if (
-            $this->scenario === SchedulingAcceptanceScenarioCatalog::Max
-            && $this->facultyCapacityAssessment->firstPassingFacultyCount(
-                workloads: $this->facultyWorkloads(),
-                startingFacultyCount: $evidence['arithmetic_faculty_lower_bound'],
-                maximumFacultyCount: $evidence['synthetic_scheduling_faculty'],
-                maxUnits: $evidence['max_units_per_faculty'],
-            ) !== $evidence['synthetic_scheduling_faculty']
-        ) {
-            throw new RuntimeException(
-                'The MAX synthetic faculty roster is no longer the first sufficient bounded construction.',
+                'The canonical Faculty evidence no longer matches the constructed scheduling workload.',
             );
         }
 
@@ -1539,7 +1516,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                         ->whereBelongsTo($offering)
                         ->whereBelongsTo($group, 'sectionDeliveryGroup');
 
-                    if ($this->scenarioCatalog->isExternallyArranged($scope['program'], $courseCode)) {
+                    if ($this->canonicalDataset->isExternallyArranged($scope['program'], $courseCode)) {
                         if ($demandQuery->exists()) {
                             return false;
                         }
@@ -1736,47 +1713,27 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     {
         return $this->facultyCapacityAssessment->assess(
             workloads: $this->facultyWorkloads(),
-            facultyCount: $this->scenarioCatalog->manifest($this->scenario)['counts']['faculty'],
+            facultyCount: $this->canonicalDataset->manifest()['counts']['faculty'],
             maxUnits: 21.0,
         );
     }
 
     /**
-     * MIN keeps each course's total demand together so its nine-faculty result
-     * remains conservative. Larger synthetic scenarios model each cohort-course
-     * demand separately, matching the scheduling demand boundary.
+     * Keeps each course's total demand together so the nine-Faculty canonical
+     * result remains conservative.
      *
      * @return list<array{key:string,course_code:string,units:float}>
      */
     private function facultyWorkloads(): array
     {
-        if ($this->scenario === SchedulingAcceptanceScenarioCatalog::Min) {
-            return collect($this->courseDemandWeights())
-                ->map(fn (float $units, string $courseCode): array => [
-                    'key' => $courseCode,
-                    'course_code' => $courseCode,
-                    'units' => $units,
-                ])
-                ->values()
-                ->all();
-        }
-
-        $catalog = $this->courseCatalog();
-        $workloads = [];
-
-        foreach ($this->cohorts() as $cohortKey => $cohort) {
-            foreach ($cohort['courses'] as $courseCode) {
-                $workloads[] = [
-                    'key' => $cohortKey.':'.$courseCode,
-                    'course_code' => $courseCode,
-                    'units' => (float) ($courseCode === 'NSTP02' && $cohort['program'] === 'DBM'
-                        ? 2
-                        : $catalog[$courseCode]['units']),
-                ];
-            }
-        }
-
-        return $workloads;
+        return collect($this->courseDemandWeights())
+            ->map(fn (float $units, string $courseCode): array => [
+                'key' => $courseCode,
+                'course_code' => $courseCode,
+                'units' => $units,
+            ])
+            ->values()
+            ->all();
     }
 
     /** @return array<int, list<string>> */
@@ -1786,33 +1743,11 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
 
         if ($assessment['readiness'] !== 'PASS') {
             throw new RuntimeException(
-                "The {$this->scenario} workload cannot be assigned within its synthetic faculty roster.",
+                'The canonical workload cannot be assigned within its synthetic Faculty roster.',
             );
         }
 
         $qualificationMap = $assessment['faculty_course_codes'];
-
-        if ($this->scenario !== SchedulingAcceptanceScenarioCatalog::Min) {
-            $facultyCount = count($qualificationMap);
-
-            foreach (array_keys($this->courseCatalog()) as $courseIndex => $courseCode) {
-                $qualifiedFaculty = array_keys(array_filter(
-                    $qualificationMap,
-                    fn (array $courseCodes): bool => in_array($courseCode, $courseCodes, true),
-                ));
-
-                for ($offset = 0; count($qualifiedFaculty) < 3 && $offset < $facultyCount; $offset++) {
-                    $facultyIndex = ($courseIndex + $offset) % $facultyCount;
-
-                    if (in_array($facultyIndex, $qualifiedFaculty, true)) {
-                        continue;
-                    }
-
-                    $qualificationMap[$facultyIndex][] = $courseCode;
-                    $qualifiedFaculty[] = $facultyIndex;
-                }
-            }
-        }
 
         return array_map(function (array $courseCodes): array {
             $courseCodes = array_values(array_unique($courseCodes));
@@ -1972,7 +1907,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 ];
             }
 
-            foreach ($this->scenarioCatalog->courseCodes($programCode, $yearLevel) as $courseCode) {
+            foreach ($this->canonicalDataset->courseCodes($programCode, $yearLevel) as $courseCode) {
                 $placements[] = [
                     'year_level' => $yearLevel,
                     'term_label' => 'Second Semester',
@@ -2000,7 +1935,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
     /** @return list<array{string, string, string}> */
     private function roomDefinitions(): array
     {
-        return $this->scenarioCatalog->roomDefinitions($this->scenario);
+        return $this->canonicalDataset->roomDefinitions();
     }
 
     /**
@@ -2008,7 +1943,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      */
     private function cohorts(): array
     {
-        return $this->scenarioCatalog->cohorts($this->scenario);
+        return $this->canonicalDataset->cohorts();
     }
 
     /**

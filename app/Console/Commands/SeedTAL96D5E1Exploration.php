@@ -21,7 +21,7 @@ final class SeedTAL96D5E1Exploration extends Command
         {--check : Inspect the exploration catalogue without writing}
         {--checkpoint=auto : Expected checkpoint: auto, pristine, accepted-candidate, or published}';
 
-    protected $description = 'Prepare deterministic defense personas on the verified client-aligned MIN fixture.';
+    protected $description = 'Prepare deterministic defense personas on the Canonical TALA Scheduling Dataset.';
 
     public function handle(
         AcceptanceBaselineEnvironmentGuard $environmentGuard,

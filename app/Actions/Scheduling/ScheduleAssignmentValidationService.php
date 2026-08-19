@@ -483,9 +483,11 @@ final class ScheduleAssignmentValidationService
             $expectedHierarchy = $this->listValue($profile['objective_hierarchy'] ?? null);
             $reportedHierarchy = $this->listValue($details['objective_hierarchy'] ?? null);
             $values = $this->arrayValue($details['values'] ?? null);
+            $reportedValueKeys = array_keys($values);
 
             if ($reportedHierarchy !== $expectedHierarchy
-                || array_keys($values) !== $expectedHierarchy
+                || array_diff($reportedValueKeys, $expectedHierarchy) !== []
+                || array_diff($expectedHierarchy, $reportedValueKeys) !== []
                 || array_key_exists('terms', $details)
                 || array_key_exists('total', $details)
                 || ($details['scalar_score'] ?? null) !== null

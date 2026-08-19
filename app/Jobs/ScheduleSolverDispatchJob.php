@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
@@ -44,9 +46,8 @@ class ScheduleSolverDispatchJob implements ShouldQueue
         ScheduleSolverSnapshotService $snapshotService,
         SchedulingSolverClient $solverClient,
         ScheduleCloudResultIngestor $resultIngestor,
-        ?ScheduleSolverDispatchLifecycleService $lifecycleService = null,
+        ScheduleSolverDispatchLifecycleService $lifecycleService,
     ): void {
-        $lifecycleService ??= app(ScheduleSolverDispatchLifecycleService::class);
         $attempt = max(1, $this->attempts());
         $context = $lifecycleService->claim($this->scheduleGenerationRunId, $attempt);
 
@@ -57,15 +58,34 @@ class ScheduleSolverDispatchJob implements ShouldQueue
         $startedAt = hrtime(true);
 
         try {
+            $snapshotStartedAt = hrtime(true);
             $snapshot = $snapshotService->captureForRun($context['run']);
-            $solverResult = $solverClient->solve($snapshot);
+            $snapshotMs = $this->elapsedMilliseconds($snapshotStartedAt);
+            $solverResponse = $solverClient->solve(new SchedulingSolverRequest(
+                snapshot: $snapshot,
+                requestId: (string) $context['event']->external_id,
+            ));
+            $solverResult = $solverResponse->payload();
+            $ingestionStartedAt = hrtime(true);
             $ingestionSummary = $resultIngestor->ingest($context['run'], $solverResult);
+            $validationMs = max(0, (int) ($ingestionSummary['validation_ms'] ?? 0));
+            $ingestionMs = max(
+                0,
+                $this->elapsedMilliseconds($ingestionStartedAt) - $validationMs,
+            );
 
             $lifecycleService->markProcessed(
                 $context['run'],
                 $context['event'],
                 $this->elapsedMilliseconds($startedAt),
-                $this->resultSummary($solverResult),
+                $this->resultSummary(
+                    $solverResult,
+                    $solverResponse,
+                    $snapshotMs,
+                    $validationMs,
+                    $ingestionMs,
+                    $this->elapsedMilliseconds($startedAt),
+                ),
                 $this->ingestionSummary($ingestionSummary),
             );
         } catch (Throwable $exception) {
@@ -133,10 +153,17 @@ class ScheduleSolverDispatchJob implements ShouldQueue
      * @param  array<string, mixed>  $solverResult
      * @return array<string, mixed>
      */
-    private function resultSummary(array $solverResult): array
-    {
+    private function resultSummary(
+        array $solverResult,
+        SchedulingSolverResponse $solverResponse,
+        int $snapshotMs,
+        int $validationMs,
+        int $ingestionMs,
+        int $totalMs,
+    ): array {
         return [
             'solver_status' => $solverResult['solver_status'] ?? null,
+            'solver_version' => $solverResult['solver_version'] ?? null,
             'candidate_schedule_id' => $solverResult['candidate_schedule_id'] ?? null,
             'assigned_count' => $this->integerResult($solverResult, 'assigned_count'),
             'unassigned_count' => $this->integerResult($solverResult, 'unassigned_count'),
@@ -148,6 +175,15 @@ class ScheduleSolverDispatchJob implements ShouldQueue
             'assignment_count' => is_countable($solverResult['assignments'] ?? null)
                 ? count($solverResult['assignments'])
                 : null,
+            'provider_request_id' => $solverResponse->providerRequestId(),
+            'attempt_timings' => [
+                'snapshot_ms' => max(0, $snapshotMs),
+                ...$solverResponse->timings(),
+                'solver_phase_ms' => $solverResponse->solverPhaseTimings(),
+                'validation_ms' => max(0, $validationMs),
+                'ingestion_ms' => max(0, $ingestionMs),
+                'total_ms' => max(0, $totalMs),
+            ],
         ];
     }
 

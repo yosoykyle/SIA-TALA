@@ -20,7 +20,7 @@ class ScheduleGenerationRun extends Model
 
     public const ContractVersion = 'tala-timetable-v2';
 
-    public const SolverVersion = 'cloud-cp-sat-tala-timetable-v2-lexicographic-v1';
+    public const SolverVersion = 'cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2';
 
     public const QualityPolicyLexicographic = 'lexicographic_v1';
 

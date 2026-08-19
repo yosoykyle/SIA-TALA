@@ -41,7 +41,7 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * Adds deterministic presentation personas to the verified client-aligned MIN fixture.
+ * Adds deterministic presentation personas to the Canonical TALA Scheduling Dataset.
  *
  * This seeder has no application UI and never invokes CP-SAT or an external
  * provider. Its command guard limits execution to testing/MySQL/test_tala_db.

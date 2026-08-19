@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Scheduling\SectionDeliveryGroupService;
 use App\Actions\Scheduling\SectionPlanningService;
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
+use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Filament\Resources\CurriculumVersions\Pages\ViewCurriculumVersion;
 use App\Filament\Widgets\RegistrarOperationalReadinessWidget;
 use App\Models\AcademicYear;
@@ -142,159 +142,28 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         }
     }
 
-    public function test_scenario_catalog_defines_deterministic_min_middle_and_max_workloads(): void
+    public function test_canonical_dataset_defines_the_current_scheduling_workload(): void
     {
-        $catalog = app(SchedulingAcceptanceScenarioCatalog::class);
+        $dataset = app(CanonicalTalaSchedulingDataset::class);
+        $manifest = $dataset->manifest();
 
+        $this->assertSame('CANONICAL_TALA_SCHEDULING_DATASET', $manifest['dataset']);
         $this->assertSame([
-            'MIN' => [
-                'students' => 47,
-                'cohorts' => 6,
-                'faculty' => 9,
-                'offerings' => 54,
-                'sections' => 54,
-                'scheduling_demands' => 54,
-            ],
-            'MIDDLE' => [
-                'students' => 270,
-                'cohorts' => 9,
-                'faculty' => 14,
-                'offerings' => 77,
-                'sections' => 77,
-                'scheduling_demands' => 74,
-            ],
-            'MAX' => [
-                'students' => 600,
-                'cohorts' => 20,
-                'faculty' => 26,
-                'offerings' => 77,
-                'sections' => 172,
-                'scheduling_demands' => 166,
-            ],
-        ], collect($catalog->keys())
-            ->mapWithKeys(fn (string $key): array => [$key => $catalog->manifest($key)['counts']])
-            ->all());
-
-        foreach ($catalog->keys() as $key) {
-            $manifest = $catalog->manifest($key);
-
-            $this->assertSame([1, 2, 3, 4, 5, 6], $manifest['operating_grid']['days']);
-            $this->assertSame('07:00:00', $manifest['operating_grid']['starts_at']);
-            $this->assertSame('21:00:00', $manifest['operating_grid']['ends_at']);
-            $this->assertSame(30, $manifest['operating_grid']['slot_minutes']);
-            $this->assertNotSame('', $manifest['basis']);
-            $this->assertNotSame('', $manifest['limitation']);
-            $this->assertSame('PASS', $manifest['faculty_evidence']['bounded_readiness']);
-            $this->assertSame([], $manifest['faculty_evidence']['unassignable_workloads']);
-            $this->assertSame(
-                'FULL_OPERATING_GRID',
-                $manifest['faculty_evidence']['availability_assumption'],
-            );
-            $this->assertLessThanOrEqual(
-                $manifest['faculty_evidence']['max_units_per_faculty'],
-                $manifest['faculty_evidence']['maximum_constructed_load'],
-            );
-        }
-
-        $this->assertSame([
-            'MIN' => [
-                'client_reported_faculty' => 9,
-                'synthetic_scheduling_faculty' => 9,
-                'total_teaching_units' => 162.0,
-                'arithmetic_faculty_lower_bound' => 8,
-            ],
-            'MIDDLE' => [
-                'client_reported_faculty' => null,
-                'synthetic_scheduling_faculty' => 14,
-                'total_teaching_units' => 241.0,
-                'arithmetic_faculty_lower_bound' => 12,
-            ],
-            'MAX' => [
-                'client_reported_faculty' => 14,
-                'synthetic_scheduling_faculty' => 26,
-                'total_teaching_units' => 534.0,
-                'arithmetic_faculty_lower_bound' => 26,
-            ],
-        ], collect($catalog->keys())
-            ->mapWithKeys(function (string $key) use ($catalog): array {
-                $evidence = $catalog->manifest($key)['faculty_evidence'];
-
-                return [$key => [
-                    'client_reported_faculty' => $evidence['client_reported_faculty'],
-                    'synthetic_scheduling_faculty' => $evidence['synthetic_scheduling_faculty'],
-                    'total_teaching_units' => $evidence['total_teaching_units'],
-                    'arithmetic_faculty_lower_bound' => $evidence['arithmetic_faculty_lower_bound'],
-                ]];
-            })
-            ->all());
-    }
-
-    public function test_middle_scenario_is_executable_ready_and_rerunnable(): void
-    {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
-
-        $before = $this->operationalCounts();
-        $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']);
-
-        $this->assertSame(Command::SUCCESS, $exitCode, Artisan::output());
-        $this->assertSame($before, $this->operationalCounts());
-    }
-
-    public function test_middle_scenario_seeds_the_complete_three_year_curriculum_without_scheduling_prior_terms(): void
-    {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
-
-        $actualCounts = DB::table('curriculum_entries')
-            ->join('curriculum_versions', 'curriculum_versions.id', '=', 'curriculum_entries.curriculum_version_id')
-            ->join('programs', 'programs.id', '=', 'curriculum_versions.program_id')
-            ->selectRaw('programs.code, curriculum_entries.year_level, curriculum_entries.term_type, COUNT(*) as entry_count')
-            ->groupBy('programs.code', 'curriculum_entries.year_level', 'curriculum_entries.term_type')
-            ->get()
-            ->mapWithKeys(fn ($row): array => [
-                implode('|', [$row->code, $row->year_level, $row->term_type]) => (int) $row->entry_count,
-            ])
-            ->all();
-
-        $this->assertSame([
-            'DBM|First Year|FIRST_SEMESTER' => 10,
-            'DBM|First Year|SECOND_SEMESTER' => 10,
-            'DBM|Second Year|FIRST_SEMESTER' => 9,
-            'DBM|Second Year|SECOND_SEMESTER' => 9,
-            'DBM|Third Year|FIRST_SEMESTER' => 7,
-            'DBM|Third Year|SECOND_SEMESTER' => 8,
-            'DIT|First Year|FIRST_SEMESTER' => 9,
-            'DIT|First Year|SECOND_SEMESTER' => 8,
-            'DIT|Second Year|FIRST_SEMESTER' => 9,
-            'DIT|Second Year|SECOND_SEMESTER' => 8,
-            'DIT|Third Year|FIRST_SEMESTER' => 9,
-            'DIT|Third Year|SECOND_SEMESTER' => 7,
-            'DTHM|First Year|FIRST_SEMESTER' => 10,
-            'DTHM|First Year|SECOND_SEMESTER' => 10,
-            'DTHM|Second Year|FIRST_SEMESTER' => 9,
-            'DTHM|Second Year|SECOND_SEMESTER' => 9,
-            'DTHM|Third Year|FIRST_SEMESTER' => 9,
-            'DTHM|Third Year|SECOND_SEMESTER' => 8,
-        ], $actualCounts);
-        $this->assertSame(158, CurriculumEntry::query()->count());
-        $this->assertSame(77, TermOffering::query()->count());
-        $this->assertSame(74, SchedulingDemand::query()->count());
-
-        $dbmThc9 = $this->curriculumSpecification('DBM', 'Third Year', Term::TypeSecondSemester, 'THC09');
-        $dthmThc9 = $this->curriculumSpecification('DTHM', 'Third Year', Term::TypeSecondSemester, 'THC09');
-
-        $this->assertSame($dbmThc9->course_id, $dthmThc9->course_id);
-        $this->assertSame('International Business and Trade', $dbmThc9->title);
-        $this->assertSame(
-            'Multi-Cultural Diversity in the Workplace for the Tourism Professional',
-            $dthmThc9->title,
-        );
-        $this->assertSame('3.00', $dbmThc9->credit_units);
-        $this->assertSame('3.00', $dthmThc9->credit_units);
+            'students' => 47,
+            'cohorts' => 6,
+            'faculty' => 9,
+            'offerings' => 54,
+            'sections' => 54,
+            'scheduling_demands' => 54,
+        ], $manifest['counts']);
+        $this->assertCount(10, $dataset->roomDefinitions());
+        $this->assertSame('PASS', $manifest['faculty_evidence']['bounded_readiness']);
+        $this->assertSame([], $manifest['faculty_evidence']['unassignable_workloads']);
     }
 
     public function test_registrar_dashboard_explains_the_academic_setup_and_scheduling_order(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
+        $this->assertCanonicalDatasetCreatesExpectedWorkload();
 
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
         $this->actingAs($registrar);
@@ -307,11 +176,11 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
             ->assertSee('2. Active Curricula')
             ->assertSee('3 programs ready')
             ->assertSee('3. Offerings & Sections')
-            ->assertSee('77 offerings / 77 sections')
+            ->assertSee('54 offerings / 54 sections')
             ->assertSee('4. Teaching Resources')
-            ->assertSee('14 faculty / 10 rooms')
+            ->assertSee('9 faculty / 10 rooms')
             ->assertSee('5. Schedule Requirements')
-            ->assertSee('74 ready for review')
+            ->assertSee('54 ready for review')
             ->assertSee('6. Published Timetable')
             ->assertSee('Not published');
 
@@ -327,7 +196,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_curriculum_review_presents_the_source_order_and_course_facts_in_a_readable_table(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIDDLE', 270, 9, 14, 77, 74);
+        $this->assertCanonicalDatasetCreatesExpectedWorkload();
 
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
         $curriculum = CurriculumVersion::query()
@@ -356,7 +225,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
 
     public function test_exploration_personas_are_grounded_in_owner_correct_prior_term_records(): void
     {
-        $this->assertScenarioCreatesExpectedWorkload('MIN', 47, 6, 9, 54, 54);
+        $this->assertCanonicalDatasetCreatesExpectedWorkload();
 
         $exitCode = Artisan::call('acceptance:seed-tal96d5e1-exploration');
         $output = Artisan::output();
@@ -473,116 +342,23 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertTrue(GraduationReviewMember::query()->where('is_active', true)->exists());
     }
 
-    public function test_max_scenario_is_executable_and_reports_input_readiness_without_claiming_solver_feasibility(): void
+    private function assertCanonicalDatasetCreatesExpectedWorkload(): string
     {
-        $output = $this->assertScenarioCreatesExpectedWorkload('MAX', 600, 20, 26, 77, 166);
-        $this->assertStringContainsString('readiness=PASS', $output);
-        $this->assertStringContainsString('solver_feasibility=NOT_EVALUATED', $output);
-        $this->assertStringContainsString('solver_optimality=NOT_EVALUATED', $output);
-    }
-
-    public function test_scenario_inspection_is_read_only_and_conflicting_scenario_selection_fails_closed(): void
-    {
-        $before = $this->operationalCounts();
-        $inspectionExitCode = Artisan::call('acceptance:seed-scheduling-scenario', [
-            'scenario' => 'MAX',
-            '--check' => true,
-        ]);
-        $inspectionOutput = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $inspectionExitCode, $inspectionOutput);
-        $this->assertStringContainsString('outcome=inspection_only', $inspectionOutput);
-        $this->assertStringContainsString('scenario=MAX', $inspectionOutput);
-        $this->assertStringContainsString('target_students=600', $inspectionOutput);
-        $this->assertSame($before, $this->operationalCounts());
-
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']));
-        $middleCounts = $this->operationalCounts();
-        $conflictExitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MAX']);
-
-        $this->assertSame(Command::FAILURE, $conflictExitCode);
-        $this->assertStringContainsString('partial, conflicting, or another scenario', Artisan::output());
-        $this->assertSame($middleCounts, $this->operationalCounts());
-    }
-
-    public function test_scenario_rerun_fails_closed_after_an_operator_edits_a_manifest_source_record(): void
-    {
-        $this->assertSame(
-            Command::SUCCESS,
-            Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']),
-        );
-        $group = SectionDeliveryGroup::query()->where('name', 'DIT-1A')->firstOrFail();
-        $group->update(['name' => 'Edited Cohort']);
-        $before = $this->operationalCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']);
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial, conflicting, or another scenario', Artisan::output());
-        $this->assertSame('Edited Cohort', $group->fresh()?->name);
-        $this->assertSame($before, $this->operationalCounts());
-    }
-
-    public function test_scenario_rerun_fails_closed_when_the_admission_policy_fixture_is_incomplete(): void
-    {
-        $this->assertSame(
-            Command::SUCCESS,
-            Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']),
-        );
-        AdmissionRequirementPolicy::query()
-            ->where('requirement_type', 'FORM_137')
-            ->delete();
-        $before = $this->operationalCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => 'MIDDLE']);
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial, conflicting, or another scenario', Artisan::output());
-        $this->assertSame(9, AdmissionRequirementPolicy::query()->count());
-        $this->assertSame($before, $this->operationalCounts());
-    }
-
-    private function assertScenarioCreatesExpectedWorkload(
-        string $scenario,
-        int $students,
-        int $cohorts,
-        int $faculty,
-        int $offerings,
-        int $demands,
-    ): string {
-        $exitCode = Artisan::call('acceptance:seed-scheduling-scenario', ['scenario' => $scenario]);
+        $exitCode = Artisan::call('acceptance:seed-client-baseline');
         $output = Artisan::output();
 
         $this->assertSame(Command::SUCCESS, $exitCode, $output);
         $this->assertStringContainsString('outcome=created', $output);
-        $this->assertStringContainsString("scenario={$scenario}", $output);
-        $this->assertStringContainsString("students={$students}", $output);
-        $this->assertStringContainsString("cohorts={$cohorts}", $output);
-        $this->assertStringContainsString("faculty={$faculty}", $output);
-        $this->assertStringContainsString("synthetic_scheduling_faculty={$faculty}", $output);
-        $this->assertStringContainsString('total_teaching_units=', $output);
-        $this->assertStringContainsString('arithmetic_faculty_lower_bound=', $output);
-        $this->assertStringContainsString('faculty_availability_assumption=FULL_OPERATING_GRID', $output);
-        $this->assertStringContainsString('bounded_faculty_readiness=PASS', $output);
-        $this->assertStringContainsString('unassignable_workloads=[]', $output);
-        $this->assertStringContainsString("term_offerings={$offerings}", $output);
-        $this->assertStringContainsString("scheduling_demands={$demands}", $output);
+        $this->assertStringContainsString('students=47', $output);
+        $this->assertStringContainsString('scheduling_demands=54', $output);
         $this->assertStringContainsString('admission_requirement_policies=10', $output);
-        $this->assertStringContainsString('operating_grid=MON-SAT 07:00-21:00 Asia/Manila', $output);
-        $this->assertSame($students, StudentProfile::query()->count());
-        $this->assertSame($offerings, TermOffering::query()->count());
-        $sectionCount = app(SchedulingAcceptanceScenarioCatalog::class)->manifest($scenario)['counts']['sections'];
-        $this->assertSame($sectionCount, Section::query()->count());
-        $this->assertSame($sectionCount, SectionDeliveryGroup::query()->count());
-        $this->assertSame($demands, SchedulingDemand::query()->count());
-        $this->assertSame(
-            $faculty,
-            User::role(User::StaffRoleFaculty)->count(),
-        );
-        $this->assertSame(
-            $cohorts,
-            SectionDeliveryGroup::query()->distinct()->count('name'),
-        );
+        $this->assertSame(47, StudentProfile::query()->count());
+        $this->assertSame(54, TermOffering::query()->count());
+        $this->assertSame(54, Section::query()->count());
+        $this->assertSame(54, SectionDeliveryGroup::query()->count());
+        $this->assertSame(54, SchedulingDemand::query()->count());
+        $this->assertSame(9, User::role(User::StaffRoleFaculty)->count());
+        $this->assertSame(6, SectionDeliveryGroup::query()->distinct()->count('name'));
         $this->assertSame(10, AdmissionRequirementPolicy::query()->count());
         $this->assertSame(
             7,
@@ -603,7 +379,7 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
                 ->count(),
         );
         $this->assertSame(
-            $demands,
+            54,
             SchedulingDemand::query()
                 ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
                 ->count(),
@@ -615,44 +391,6 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertSame('21:00:00', $term->scheduling_day_ends_at);
 
         return $output;
-    }
-
-    /** @return array<string, int> */
-    private function operationalCounts(): array
-    {
-        return [
-            'users' => User::query()->count(),
-            'students' => StudentProfile::query()->count(),
-            'programs' => Program::query()->count(),
-            'courses' => Course::query()->count(),
-            'curriculum_entries' => CurriculumEntry::query()->count(),
-            'offerings' => TermOffering::query()->count(),
-            'sections' => Section::query()->count(),
-            'groups' => SectionDeliveryGroup::query()->count(),
-            'demands' => SchedulingDemand::query()->count(),
-            'admission_requirement_policies' => AdmissionRequirementPolicy::query()->count(),
-        ];
-    }
-
-    private function curriculumSpecification(
-        string $programCode,
-        string $yearLevel,
-        string $termType,
-        string $courseCode,
-    ): CourseSpecification {
-        return CourseSpecification::query()
-            ->whereHas('course', fn ($query) => $query->where('code', $courseCode))
-            ->whereHas(
-                'curriculumEntries.curriculumVersion.program',
-                fn ($query) => $query->where('code', $programCode),
-            )
-            ->whereHas(
-                'curriculumEntries',
-                fn ($query) => $query
-                    ->where('year_level', $yearLevel)
-                    ->where('term_type', $termType),
-            )
-            ->sole();
     }
 
     private function priorReleasedOutcomeExists(

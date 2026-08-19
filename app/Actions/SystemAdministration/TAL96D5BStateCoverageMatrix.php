@@ -48,7 +48,7 @@ final class TAL96D5BStateCoverageMatrix
             'academic' => [
                 'persona' => 'AY 2025-2026 / Second Semester',
                 'disposition' => 'fixture_record',
-                'evidence' => 'Client-aligned MIN contains 54 offerings and 54 ready scheduling demands.',
+                'evidence' => 'The Canonical TALA Scheduling Dataset contains 54 offerings and 54 ready Scheduling Demands.',
                 'represented' => SchedulingDemand::query()
                     ->where('validation_state', SchedulingDemand::ValidationReadyForReview)
                     ->count() === 54,
@@ -82,7 +82,7 @@ final class TAL96D5BStateCoverageMatrix
                 'represented' => true,
             ],
             'scheduling' => [
-                'persona' => 'Client-aligned MIN 54-demand workload',
+                'persona' => 'Canonical TALA 54-demand workload',
                 'disposition' => 'human_gate',
                 'evidence' => 'All inputs are ready; candidate generation and publication require the separately approved one-time Cloud Run functional solve.',
                 'represented' => SchedulingDemand::query()->count() === 54,

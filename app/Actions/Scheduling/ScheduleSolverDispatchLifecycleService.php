@@ -107,6 +107,8 @@ final class ScheduleSolverDispatchLifecycleService
                     ...$eventDiagnostics,
                     'outcome' => 'processed',
                     'duration_ms' => max(0, $durationMs),
+                    'provider_request_id' => $resultSummary['provider_request_id'] ?? null,
+                    'timings' => $resultSummary['attempt_timings'] ?? [],
                     'retryable' => false,
                     'final' => true,
                 ],

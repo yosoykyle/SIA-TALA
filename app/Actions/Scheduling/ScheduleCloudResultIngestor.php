@@ -35,12 +35,15 @@ final class ScheduleCloudResultIngestor
                 ]);
             }
 
+            $validationStartedAt = hrtime(true);
             $validation = $this->validator->validate($lockedRun, $solverResult);
+            $validationMs = max(0, (int) round((hrtime(true) - $validationStartedAt) / 1_000_000));
             $preservedCount = CandidateScheduleRow::query()
                 ->where('schedule_run_id', $lockedRun->id)
                 ->count();
             $summary = [
                 ...$validation->summary(),
+                'validation_ms' => $validationMs,
                 'ingested_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
                 'preserved_candidate_row_count' => $validation->passes() ? 0 : $preservedCount,
             ];

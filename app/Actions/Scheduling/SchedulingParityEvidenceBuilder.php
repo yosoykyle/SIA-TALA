@@ -27,7 +27,7 @@ final class SchedulingParityEvidenceBuilder
 
         return [
             'evidence_version' => 'tal96d5d-parity-v2',
-            'scenario' => (string) data_get($capture, 'manifest.scenario'),
+            'dataset' => (string) data_get($capture, 'manifest.dataset'),
             'contract_version' => (string) data_get($capture, 'snapshot.contract_version'),
             'manifest' => $capture['manifest'],
             'composition' => $capture['composition'],

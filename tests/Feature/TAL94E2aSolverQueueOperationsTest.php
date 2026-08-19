@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleGenerationService;
@@ -322,7 +324,7 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
                 private readonly object $counter,
             ) {}
 
-            public function solve(array $snapshot): array
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
             {
                 $this->counter->calls++;
 

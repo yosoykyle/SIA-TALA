@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleGenerationService;
+use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -88,15 +91,11 @@ final class TAL62SolverRunDispatchTest extends TestCase
              */
             public array $snapshots = [];
 
-            /**
-             * @param  array<string, mixed>  $snapshot
-             * @return array<string, mixed>
-             */
-            public function solve(array $snapshot): array
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
             {
-                $this->snapshots[] = $snapshot;
+                $this->snapshots[] = $request->snapshot();
 
-                return (new LocalStubSchedulingSolverClient)->solve($snapshot);
+                return (new LocalStubSchedulingSolverClient)->solve($request);
             }
 
             /**
@@ -114,6 +113,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
             app(ScheduleSolverSnapshotService::class),
             $client,
             app(ScheduleCloudResultIngestor::class),
+            app(ScheduleSolverDispatchLifecycleService::class),
         );
 
         $snapshot = $client->snapshots[0];
@@ -334,15 +334,12 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $client = new class implements SchedulingSolverClient
         {
-            /**
-             * @param  array<string, mixed>  $snapshot
-             * @return array<string, mixed>
-             */
-            public function solve(array $snapshot): array
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
             {
+                $snapshot = $request->snapshot();
                 $demand = $snapshot['scheduling_demands'][0];
 
-                return [
+                return new SchedulingSolverResponse([
                     'solver_status' => 'optimal',
                     'assigned_count' => 1,
                     'unassigned_count' => 0,
@@ -359,7 +356,11 @@ final class TAL62SolverRunDispatchTest extends TestCase
                         'ends_at' => '10:00:00',
                         'status' => 'ok',
                     ]],
-                ];
+                ], $request->requestId(), [
+                    'authentication_ms' => 0,
+                    'transport_ms' => 0,
+                    'decode_ms' => 0,
+                ]);
             }
 
             /**
@@ -377,6 +378,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
             app(ScheduleSolverSnapshotService::class),
             $client,
             app(ScheduleCloudResultIngestor::class),
+            app(ScheduleSolverDispatchLifecycleService::class),
         );
 
         $run->refresh();

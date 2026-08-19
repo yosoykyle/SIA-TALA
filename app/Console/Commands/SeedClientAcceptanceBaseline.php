@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Actions\SystemAdministration\AcceptanceBaselineEnvironmentGuard;
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
 use Database\Seeders\ClientAlignedAcceptanceBaselineSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +10,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Retains the TAL-96B1 MIN-fixture command as the TAL-96D2C compatibility entry point.
+ * Seeds the Canonical TALA Scheduling Dataset for acceptance journeys.
  *
  * This command has no application UI, is restricted to testing on test_tala_db,
  * and prepares acceptance records without invoking the scheduling solver.
@@ -29,7 +28,6 @@ final class SeedClientAcceptanceBaseline extends Command
     ): int {
         try {
             $environmentGuard->assertSafe();
-            $seeder->forScenario(SchedulingAcceptanceScenarioCatalog::Min);
             $state = $seeder->state();
 
             if ($this->option('check')) {

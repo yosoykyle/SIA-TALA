@@ -3,6 +3,7 @@
 namespace Tests\Feature\AcademicScheduling;
 
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\RequestTimetableRepair;
@@ -88,7 +89,9 @@ final class Slice3ConformanceGapsTest extends TestCase
             'duration_minutes' => 30,
         ];
 
-        $result = app(LocalStubSchedulingSolverClient::class)->solve($snapshot);
+        $result = app(LocalStubSchedulingSolverClient::class)
+            ->solve(new SchedulingSolverRequest($snapshot, 'slice3-conformance'))
+            ->payload();
         $firstDemandAssignments = collect($result['assignments'])
             ->where('scheduling_demand_id', 5001)
             ->sortBy('meeting_sequence')

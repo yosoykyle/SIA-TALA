@@ -4,13 +4,8 @@ namespace App\Actions\Integrations\SchedulingSolver;
 
 interface SchedulingSolverClient
 {
-    /**
-     * @param  array<string, mixed>  $snapshot
-     * @return array<string, mixed>
-     *
-     * @throws SchedulingSolverTransportException
-     */
-    public function solve(array $snapshot): array;
+    /** @throws SchedulingSolverTransportException */
+    public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse;
 
     /**
      * @return array{status:int, body:string}

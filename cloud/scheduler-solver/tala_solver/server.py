@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import re
+from uuid import uuid4
 
 from flask import Flask, Response, jsonify, request
 from werkzeug.exceptions import BadRequest, HTTPException
@@ -11,6 +15,11 @@ from tala_solver.solver import (
     solve_snapshot,
     solver_runtime_configuration,
 )
+from tala_solver.runtime import RequestBudgetExceeded, SolverRequestContext
+
+
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9:._-]{1,160}$")
+SNAPSHOT_HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
 def create_app() -> Flask:
@@ -28,6 +37,13 @@ def create_app() -> Flask:
 
     @app.post("/solve")
     def solve() -> tuple[Response, int] | Response:
+        request_context = SolverRequestContext(
+            budget_seconds=_solver_request_budget_seconds(),
+            response_reserve_seconds=15,
+            request_id=_request_id(),
+            snapshot_sha256=_snapshot_hash_header(),
+        )
+
         if not request.is_json:
             return _error(
                 400,
@@ -37,7 +53,9 @@ def create_app() -> Flask:
             )
 
         try:
-            snapshot = request.get_json()
+            with request_context.measure("parsing"):
+                raw_request = request.get_data(cache=True)
+                snapshot = request.get_json()
         except BadRequest:
             return _error(
                 400,
@@ -55,7 +73,36 @@ def create_app() -> Flask:
             )
 
         try:
-            result = solve_snapshot(snapshot, timeout_seconds=_solver_timeout_seconds())
+            supplied_hash = request_context.snapshot_sha256
+            actual_hash = hashlib.sha256(raw_request).hexdigest()
+            if supplied_hash is not None and supplied_hash != actual_hash:
+                return _error(
+                    400,
+                    "bad_request",
+                    "snapshot_hash_mismatch",
+                    "Snapshot integrity validation failed.",
+                )
+
+            result = solve_snapshot(snapshot, request_context=request_context)
+            with request_context.measure("serialization", reserve_response=False):
+                response_body = app.json.dumps(result)
+            request_context.checkpoint_total("serialization")
+        except RequestBudgetExceeded as exception:
+            app.logger.warning(
+                "Scheduling solver request budget exhausted.",
+                extra=_safe_log_context(request_context, exception.phase),
+            )
+
+            response, status_code = _error(
+                503,
+                "error",
+                "solver_request_budget_exhausted",
+                "The scheduling solver exhausted its bounded request budget.",
+            )
+            response.headers["X-TALA-Provider-Request-ID"] = request_context.request_id or ""
+            response.headers["X-TALA-Solver-Phase-Timings"] = _phase_timings_header(request_context)
+
+            return response, status_code
         except Exception:
             app.logger.exception("Scheduling solver request failed.")
 
@@ -66,7 +113,16 @@ def create_app() -> Flask:
                 "The scheduling solver could not process the request.",
             )
 
-        return jsonify(result)
+        response = app.response_class(response_body, mimetype="application/json")
+
+        response.headers["X-TALA-Provider-Request-ID"] = request_context.request_id or ""
+        response.headers["X-TALA-Solver-Phase-Timings"] = _phase_timings_header(request_context)
+        app.logger.info(
+            "Scheduling solver request completed.",
+            extra=_safe_log_context(request_context, "completed"),
+        )
+
+        return response
 
     @app.errorhandler(404)
     def not_found(_: HTTPException) -> tuple[Response, int]:
@@ -79,13 +135,44 @@ def create_app() -> Flask:
     return app
 
 
-def _solver_timeout_seconds() -> int:
+def _solver_request_budget_seconds() -> int:
     try:
-        configured = int(os.environ.get("SOLVER_TIMEOUT_SECONDS", "300"))
+        configured = int(os.environ.get("SOLVER_REQUEST_BUDGET_SECONDS", "300"))
     except ValueError:
         configured = 300
 
     return max(1, min(configured, 300))
+
+
+def _request_id() -> str:
+    supplied = request.headers.get("X-TALA-Solver-Request-ID", "")
+
+    return supplied if REQUEST_ID_PATTERN.fullmatch(supplied) else str(uuid4())
+
+
+def _snapshot_hash_header() -> str | None:
+    supplied = request.headers.get("X-TALA-Snapshot-SHA256", "").lower()
+
+    return supplied if SNAPSHOT_HASH_PATTERN.fullmatch(supplied) else None
+
+
+def _safe_log_context(context: SolverRequestContext, phase: str) -> dict[str, object]:
+    return {
+        "request_id": context.request_id,
+        "snapshot_sha256": context.snapshot_sha256,
+        "phase": phase,
+        "phase_timings_ms": context.phase_timings_ms(),
+        "metrics": context.metrics(),
+        "elapsed_ms": round(context.elapsed_seconds() * 1000),
+    }
+
+
+def _phase_timings_header(context: SolverRequestContext) -> str:
+    return json.dumps(
+        context.phase_timings_ms(),
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 
 def _error(status_code: int, status: str, code: str, message: str) -> tuple[Response, int]:

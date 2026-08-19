@@ -25,13 +25,19 @@ final class SchedulingSolverTransportException extends RuntimeException
 
     public const ClassificationMalformedResponse = 'malformed_response';
 
+    public const ClassificationMalformedRequest = 'malformed_request';
+
+    public const ClassificationRequestBudget = 'request_budget_exhausted';
+
     public const ClassificationUnexpected = 'unexpected';
 
+    /** @param  array<string, mixed>  $safeContext */
     private function __construct(
         string $message,
         private readonly string $failureClassification,
         private readonly bool $retryable,
         private readonly ?int $httpStatusCode = null,
+        private readonly array $safeContext = [],
         ?Throwable $previous = null,
     ) {
         parent::__construct($message, 0, $previous);
@@ -43,7 +49,7 @@ final class SchedulingSolverTransportException extends RuntimeException
         ?int $statusCode = null,
         ?Throwable $previous = null,
     ): self {
-        return new self($message, $classification, true, $statusCode, $previous);
+        return new self($message, $classification, true, $statusCode, [], $previous);
     }
 
     public static function permanent(
@@ -52,7 +58,24 @@ final class SchedulingSolverTransportException extends RuntimeException
         ?int $statusCode = null,
         ?Throwable $previous = null,
     ): self {
-        return new self($message, $classification, false, $statusCode, $previous);
+        return new self($message, $classification, false, $statusCode, [], $previous);
+    }
+
+    /** @param  array<string, int>  $solverPhaseTimings */
+    public static function requestBudgetExceeded(
+        ?string $providerRequestId,
+        array $solverPhaseTimings,
+    ): self {
+        return new self(
+            'Scheduling solver exhausted its bounded request budget.',
+            self::ClassificationRequestBudget,
+            true,
+            503,
+            [
+                'provider_request_id' => $providerRequestId,
+                'solver_phase_ms' => $solverPhaseTimings,
+            ],
+        );
     }
 
     public static function fromHttpFailure(Throwable $exception, string $message): self
@@ -109,7 +132,7 @@ final class SchedulingSolverTransportException extends RuntimeException
     }
 
     /**
-     * @return array{classification:string,retryable:bool,status_code:int|null}
+     * @return array<string, mixed>
      */
     public function safeDiagnostics(): array
     {
@@ -117,6 +140,7 @@ final class SchedulingSolverTransportException extends RuntimeException
             'classification' => $this->classification(),
             'retryable' => $this->isRetryable(),
             'status_code' => $this->statusCode(),
+            ...$this->safeContext,
         ];
     }
 }

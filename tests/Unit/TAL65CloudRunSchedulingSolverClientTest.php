@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -70,7 +71,7 @@ final class TAL65CloudRunSchedulingSolverClientTest extends TestCase
             ],
         ];
 
-        $result = $client->solve($snapshot);
+        $result = $client->solve(new SchedulingSolverRequest($snapshot, 'tal65-unit'))->payload();
 
         $this->assertInstanceOf(CloudRunSchedulingSolverClient::class, $client);
         $this->assertSame('optimal', $result['solver_status']);

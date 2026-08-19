@@ -27,7 +27,7 @@ use RuntimeException;
  * Adds deterministic TAL-96D4B grade and lifecycle states to an existing acceptance baseline.
  *
  * This opt-in overlay is never called by DatabaseSeeder and does not create or replace a
- * MIN, MIDDLE, or MAX scheduling scenario.
+ * Canonical TALA Scheduling Dataset.
  */
 final class TAL96D4BAcceptanceStateSeeder extends Seeder
 {

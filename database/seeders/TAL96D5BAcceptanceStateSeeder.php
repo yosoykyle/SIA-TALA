@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentConfirmationService;
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
+use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -27,10 +27,10 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * Adds deterministic operational presentation cases to the client-aligned MIN fixture.
+ * Adds deterministic operational presentation cases to the Canonical TALA Scheduling Dataset.
  *
  * This opt-in test-only overlay is never called by DatabaseSeeder. It does not
- * create, replace, or resize MIN, MIDDLE, or MAX, and it never invokes CP-SAT.
+ * create, replace, or resize the canonical dataset, and it never invokes CP-SAT.
  */
 final class TAL96D5BAcceptanceStateSeeder extends Seeder
 {
@@ -40,7 +40,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         private readonly TAL96D4BAcceptanceStateSeeder $gradeAndLifecycleStates,
         private readonly EnrollmentAssessmentService $assessmentService,
         private readonly PaymentConfirmationService $paymentConfirmationService,
-        private readonly SchedulingAcceptanceScenarioCatalog $scenarios,
+        private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
     ) {}
 
     public function run(): void
@@ -259,7 +259,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
     {
         $facultyCount = User::role(User::StaffRoleFaculty)->count();
         $currentStudentCount = collect(array_keys(
-            $this->scenarios->cohorts(SchedulingAcceptanceScenarioCatalog::Min),
+            $this->canonicalDataset->cohorts(),
         ))->sum(fn (string $cohortCode): int => StudentProfile::query()
             ->where('student_number', 'like', $cohortCode.'-%')
             ->count());
@@ -272,7 +272,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             || $demandCount !== 54
             || $facultyCount !== 9) {
             throw new RuntimeException(
-                'Presentation cases require the client-aligned MIN fixture: 47 current students, 54 offerings, 54 scheduling demands, and 9 faculty.',
+                'Presentation cases require the Canonical TALA Scheduling Dataset: 47 current Students, 54 offerings, 54 Scheduling Demands, and 9 Faculty.',
             );
         }
     }

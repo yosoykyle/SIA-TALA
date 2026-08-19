@@ -4,6 +4,7 @@ namespace App\Actions\SystemAdministration;
 
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Models\OperationalEvent;
+use App\Models\ScheduleGenerationRun;
 use App\Support\DisplayDateTime;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
@@ -270,6 +271,10 @@ final class IntegrationHealthPresenter
                 ->where('event_domain', OperationalEvent::DomainIntegration)
                 ->where('integration', OperationalEvent::IntegrationSchedulingSolver),
         );
+        $lastObservedSolverIdentity = ScheduleGenerationRun::query()
+            ->whereNotNull('solver_version')
+            ->latest('updated_at')
+            ->value('solver_version');
         $reference = match ($driver) {
             'local_stub' => [
                 'Transport' => 'In-process deterministic test double',
@@ -310,6 +315,11 @@ final class IntegrationHealthPresenter
             },
             reference: [
                 ...$reference,
+                'Expected source identity' => ScheduleGenerationRun::SolverVersion,
+                'Last observed candidate identity' => is_string($lastObservedSolverIdentity)
+                    ? $lastObservedSolverIdentity
+                    : 'None observed',
+                'Active deployment identity' => 'Not verified; requires separate deployment evidence',
                 'Last successful event' => $evidence['last_success'] ?? 'None observed',
                 'Last attention event' => $evidence['last_attention'] ?? 'None observed',
                 'Open exceptions' => (string) $evidence['open_count'],
@@ -360,6 +370,8 @@ final class IntegrationHealthPresenter
     }
 
     /**
+     * @param  Builder<OperationalEvent>  $events
+     * @param  Builder<OperationalEvent>|null  $openEvents
      * @return array{label:string,color:string,last_success:?string,last_attention:?string,open_count:int}
      */
     private function observedEvidence(Builder $events, ?Builder $openEvents = null): array
@@ -394,8 +406,16 @@ final class IntegrationHealthPresenter
                 $lastProcessed instanceof OperationalEvent => 'success',
                 default => 'gray',
             },
-            'last_success' => $this->eventTimestamp($lastProcessed?->processed_at ?? $lastProcessed?->occurred_at),
-            'last_attention' => $this->eventTimestamp($lastAttention?->failed_at ?? $lastAttention?->occurred_at),
+            'last_success' => $this->eventTimestamp(
+                $lastProcessed instanceof OperationalEvent
+                    ? ($lastProcessed->processed_at ?? $lastProcessed->occurred_at)
+                    : null,
+            ),
+            'last_attention' => $this->eventTimestamp(
+                $lastAttention instanceof OperationalEvent
+                    ? ($lastAttention->failed_at ?? $lastAttention->occurred_at)
+                    : null,
+            ),
             'open_count' => $openCount,
         ];
     }

@@ -6,12 +6,9 @@ use Carbon\CarbonImmutable;
 
 class LocalStubSchedulingSolverClient implements SchedulingSolverClient
 {
-    /**
-     * @param  array<string, mixed>  $snapshot
-     * @return array<string, mixed>
-     */
-    public function solve(array $snapshot): array
+    public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
     {
+        $snapshot = $request->snapshot();
         $isLexicographic = ($snapshot['contract_version'] ?? null) === 'tala-timetable-v2';
         $assignments = [];
         $used = [];
@@ -39,7 +36,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             optimizationStatus: $conflictCount === 0 ? ($isLexicographic ? 'not_run' : 'optimal') : 'not_run',
         );
 
-        return [
+        $payload = [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
             'solver_status' => $conflictCount > 0 ? 'infeasible' : ($isLexicographic ? 'feasible' : 'optimal'),
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
@@ -86,6 +83,16 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'warning_count' => 0,
             'timeout' => false,
         ];
+
+        return new SchedulingSolverResponse(
+            payload: $payload,
+            providerRequestId: $request->requestId(),
+            timings: [
+                'authentication_ms' => 0,
+                'transport_ms' => 0,
+                'decode_ms' => 0,
+            ],
+        );
     }
 
     /**
@@ -239,12 +246,14 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             $hierarchy = is_array($profile['objective_hierarchy'] ?? null)
                 ? array_values($profile['objective_hierarchy'])
                 : [];
+            $values = array_fill_keys($hierarchy, null);
+            ksort($values);
 
             return [
                 'profile_key' => 'lexicographic_v1',
                 'profile_version' => 1,
                 'objective_hierarchy' => $hierarchy,
-                'values' => array_fill_keys($hierarchy, null),
+                'values' => $values,
                 'completed_levels' => [],
                 'scalar_score' => null,
                 'verification_only' => true,

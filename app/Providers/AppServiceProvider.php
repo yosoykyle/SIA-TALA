@@ -111,7 +111,7 @@ class AppServiceProvider extends ServiceProvider
                 audience: config('tala_integrations.scheduling_solver.audience') !== null
                     ? (string) config('tala_integrations.scheduling_solver.audience')
                     : null,
-                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 300),
+                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 330),
                 connectTimeoutSeconds: (int) config('tala_integrations.scheduling_solver.connect_timeout_seconds', 10),
             );
         });
@@ -121,7 +121,7 @@ class AppServiceProvider extends ServiceProvider
                 baseUrl: config('tala_integrations.scheduling_solver.url') !== null
                     ? (string) config('tala_integrations.scheduling_solver.url')
                     : null,
-                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 300),
+                timeoutSeconds: (int) config('tala_integrations.scheduling_solver.timeout_seconds', 330),
                 connectTimeoutSeconds: (int) config('tala_integrations.scheduling_solver.connect_timeout_seconds', 10),
                 environment: $app->environment(),
             );

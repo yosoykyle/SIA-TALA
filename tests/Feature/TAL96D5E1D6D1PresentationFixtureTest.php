@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Actions\SystemAdministration\SchedulingAcceptanceScenarioCatalog;
+use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Actions\SystemAdministration\TAL96D5E1ExplorationPersonaCatalog;
 use App\Models\CurriculumEntry;
 use App\Models\Room;
@@ -76,8 +76,7 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
         );
         $this->assertSame(158, CurriculumEntry::query()->count());
 
-        $manifest = app(SchedulingAcceptanceScenarioCatalog::class)
-            ->manifest(SchedulingAcceptanceScenarioCatalog::Min);
+        $manifest = app(CanonicalTalaSchedulingDataset::class)->manifest();
 
         $this->assertSame([
             'students' => 47,
