@@ -109,6 +109,8 @@ Complete #NN
 
 This marks the Issue `In Progress`, implements the bounded scope, researches when needed, verifies, remediates in-scope failures, cleans the intended diff, and creates one local commit. It does not push, merge, or deploy.
 
+Before material implementation, establish or validate a working coverage map from every Issue acceptance criterion to the applicable authority, required behavior and actions, reachable UI or output, and proportionate evidence. Maintain it as findings change; the main journey, aggregate tests, or related code do not prove criterion coverage by themselves.
+
 Before calling Complete successful, classify every Issue acceptance criterion as `Verified`, `Partial`, or `Unverified` with current evidence. Any criterion not `Verified` keeps the Issue `In Progress` and blocks Publish, merge, closure, and `Done`; tests and status automation do not substitute for criterion-level acceptance.
 
 When the result and outgoing scope are accepted:

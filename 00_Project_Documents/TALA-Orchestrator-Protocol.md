@@ -69,14 +69,15 @@ A planning request without an issue number works the same way but has no GitHub 
 `Complete #NN` explicitly authorizes Codex to mark the named issue `In Progress` and then:
 
 1. Inspect the relevant authority and current implementation.
-2. Research when existing authority is insufficient, conflicting, time-sensitive, security-critical, or likely wrong.
-3. Make bounded local changes.
-4. Run proportionate non-destructive verification in the configured project environment.
-5. Remediate and re-check in-scope failures.
-6. Inspect and clean the intended diff without touching unrelated work.
-7. Build a criterion-by-criterion acceptance ledger for the owning Issue. Classify every acceptance criterion as `Verified`, `Partial`, or `Unverified` and cite current attributable evidence; automated or browser results may support entries but never auto-satisfy a semantic criterion.
-8. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
-9. Report the result, evidence, exclusions, remaining risk, and publication boundary.
+2. Before material implementation, establish a working coverage map for every owning-Issue acceptance criterion. Reuse the accepted Plan where it already supplies the mapping; connect each criterion to its applicable governing authority, required domain behavior and ordering, human and automatic actions, UI or output reachability, and proportionate positive, negative, boundary, recovery, stale or concurrent, integration, browser, companion-artifact, external-action, and stop-condition evidence. Maintain the map as implementation decisions or findings change. A passing main journey, aggregate tests, or related code never proves criterion coverage by itself.
+3. Research when existing authority is insufficient, conflicting, time-sensitive, security-critical, or likely wrong.
+4. Make bounded local changes.
+5. Run proportionate non-destructive verification in the configured project environment.
+6. Remediate and re-check in-scope failures.
+7. Inspect and clean the intended diff without touching unrelated work.
+8. Build a criterion-by-criterion acceptance ledger for the owning Issue. Classify every acceptance criterion as `Verified`, `Partial`, or `Unverified` and cite current attributable evidence; automated or browser results may support entries but never auto-satisfy a semantic criterion.
+9. Create one bounded local commit after verification evidence is current. Use a clear subject that identifies the bounded outcome; add a concise body only when important rationale, constraints, exclusions, or consequences are not apparent from the subject, owning Issue, and diff. Reference the owning Issue when applicable.
+10. Report the result, evidence, exclusions, remaining risk, and publication boundary.
 
 Complete leaves the issue open and its project item short of `Done`. It never authorizes a push, pull request, merge, deployment, destructive operation, dependency, credential, external cost, public-access change, or material scope expansion.
 
