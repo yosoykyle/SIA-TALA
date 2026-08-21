@@ -8,6 +8,7 @@ use App\Filament\Student\Pages\HoldsView;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\CorVersion;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -19,6 +20,9 @@ use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -128,10 +132,7 @@ final class TAL70CorOutputTest extends TestCase
         $schedulePrintAction = collect($schedulePage->getCachedHeaderActions())
             ->first(fn ($action): bool => $action->getName() === 'printSchedule');
 
-        $this->assertTrue($schedulePage->getTable()->isStackedOnMobile());
         $this->assertNotNull($schedulePrintAction);
-        $this->assertSame('sm', $schedulePrintAction->getLabeledFromBreakpoint());
-        $this->assertSame('Print or save the current class schedule as PDF', $schedulePrintAction->getTooltip());
 
         $holdsPage = Livewire::actingAs($student)->test(HoldsView::class)->instance();
 
@@ -188,7 +189,7 @@ final class TAL70CorOutputTest extends TestCase
         $this->assertTrue($output['available']);
     }
 
-    public function test_cor_reports_each_subject_modality_and_a_mixed_course_delivery_summary(): void
+    public function test_immutable_cor_does_not_absorb_a_later_unfinalized_course_row(): void
     {
         $fixture = $this->officialCorFixture();
         $course = Course::factory()->create(['code' => fake()->unique()->bothify('ONL###')]);
@@ -222,9 +223,9 @@ final class TAL70CorOutputTest extends TestCase
 
         $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
-        $this->assertSame('Mixed', $output['state']['course_delivery_mix']);
-        $this->assertEqualsCanonicalizing(
-            ['Face-to-Face', 'Online'],
+        $this->assertStringContainsString('Published timetable version #', $output['state']['course_delivery_mix']);
+        $this->assertSame(
+            ['Face-to-Face'],
             collect($output['subjects'])->pluck('modality')->unique()->values()->all(),
         );
     }
@@ -424,6 +425,21 @@ final class TAL70CorOutputTest extends TestCase
             'effective_from' => now()->toDateString(),
             'source' => StudentScheduleBinding::SourceRegistrarPlacement,
         ]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
+        PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '10:00:00',
+            'modality' => TermOffering::ModalityFaceToFace,
+        ]);
+        $courseEnrollment->update([
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
+            'is_current' => true,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
             'version' => 1,
@@ -491,6 +507,69 @@ final class TAL70CorOutputTest extends TestCase
             'description' => 'Posted payment',
             'posted_at' => now(),
             'state' => 'posted',
+        ]);
+        $proposal = RegistrationProposalVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'selection_basis' => Enrollment::SelectionStandardCurriculum,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'source_snapshot' => ['source' => 'tal70-canonical-regression'],
+            'content_hash' => hash('sha256', uniqid('tal70-proposal', true)),
+            'prepared_by' => $student->id,
+            'prepared_at' => now(),
+        ]);
+        $snapshot = [
+            'case_reference' => $enrollment->case_reference,
+            'student_number' => $profile->student_number,
+            'student_name' => collect([$profile->first_name, $profile->middle_name, $profile->last_name])->filter()->implode(' '),
+            'program_id' => $program->id,
+            'program_code' => $program->code,
+            'program_name' => $program->name,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'term_id' => $term->id,
+            'term_label' => $term->label,
+            'proposal_version_id' => $proposal->id,
+            'published_timetable_version_id' => $timetable->id,
+            'assessment_id' => $assessment->id,
+            'assessment_total' => '9000.00',
+            'fees' => [['label' => 'Posted payment', 'amount' => '4500.00']],
+            'courses' => [[
+                'course_enrollment_id' => $courseEnrollment->id,
+                'proposal_item_id' => null,
+                'section_id' => $section->id,
+                'section_code' => $section->code,
+                'course_code' => $course->code,
+                'course_title' => $specification->title,
+                'units' => '3.00',
+                'meetings' => [[
+                    'day_of_week' => 1,
+                    'starts_at' => '08:00:00',
+                    'ends_at' => '10:00:00',
+                    'room_label' => $room->code,
+                    'faculty_name' => $faculty->name,
+                    'modality' => 'Face-to-Face',
+                ]],
+            ]],
+            'issued_at' => now()->toIso8601String(),
+        ];
+        $cor = CorVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'registration_proposal_version_id' => $proposal->id,
+            'assessment_id' => $assessment->id,
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $this->staff(User::StaffRoleRegistrar)->id,
+            'issued_at' => now(),
+        ]);
+        $enrollment->update([
+            'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
         ]);
 
         return [

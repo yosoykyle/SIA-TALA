@@ -151,7 +151,7 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         }
     }
 
-    public function test_finance_cleared_handover_activates_the_clean_student_number_account(): void
+    public function test_early_finance_handover_is_retired_without_changing_identity_or_roles(): void
     {
         $user = User::factory()->create([
             'status' => User::StatusApplicantApproved,
@@ -166,19 +166,23 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
             ->for($studentProfile)
             ->create(['status' => 'pre_enrolled']);
 
-        $result = app(StudentEnrollmentService::class)->completeFinanceClearedHandover(
-            $enrollment,
-            clearedAt: CarbonImmutable::parse('2026-07-06 09:00:00'),
-        );
+        try {
+            app(StudentEnrollmentService::class)->completeFinanceClearedHandover(
+                $enrollment,
+                clearedAt: CarbonImmutable::parse('2026-07-06 09:00:00'),
+            );
+            $this->fail('The retired early handover path was reachable.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('enrollment', $exception->errors());
+        }
 
-        $this->assertSame('pre_enrolled', $result->status);
-        $this->assertSame('SIA-2026-8701', $user->refresh()->username);
-        $this->assertSame(User::StatusActive, $user->status);
-        $this->assertTrue($user->hasRole('student'));
-        $this->assertFalse($user->hasRole('applicant'));
+        $this->assertSame('applicant-login', $user->fresh()->username);
+        $this->assertSame(User::StatusApplicantApproved, $user->status);
+        $this->assertFalse($user->hasRole('student'));
+        $this->assertTrue($user->hasRole('applicant'));
     }
 
-    public function test_cor_readiness_uses_active_course_enrollments_and_schedule_bindings(): void
+    public function test_cor_readiness_requires_canonical_outcome_and_immutable_cor_instead_of_schedule_bindings(): void
     {
         $user = User::factory()->create(['status' => User::StatusActive]);
         $user->assignRole('student');
@@ -196,7 +200,8 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
 
         $readiness = app(StudentEnrollmentService::class)->corReadiness($enrollment);
 
-        $this->assertTrue($readiness['ready']);
-        $this->assertSame([], $readiness['blockers']);
+        $this->assertFalse($readiness['ready']);
+        $this->assertContains('enrollment_not_official', $readiness['blockers']);
+        $this->assertContains('cor_version_missing', $readiness['blockers']);
     }
 }

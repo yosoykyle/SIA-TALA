@@ -14,7 +14,7 @@ final readonly class ScheduleRevisionImpact
         private int $affectedStudents,
         private int $affectedFaculty,
         private array $findings,
-        private int $activeBindings = 0,
+        private int $activeOfficialRegistrations = 0,
         private int $capacityHoldingReservations = 0,
     ) {}
 
@@ -45,9 +45,9 @@ final readonly class ScheduleRevisionImpact
         return $this->findings;
     }
 
-    public function activeBindings(): int
+    public function activeOfficialRegistrations(): int
     {
-        return $this->activeBindings;
+        return $this->activeOfficialRegistrations;
     }
 
     public function capacityHoldingReservations(): int
@@ -57,15 +57,15 @@ final readonly class ScheduleRevisionImpact
 
     public function passes(): bool
     {
-        return $this->activeBindings === 0
+        return $this->activeOfficialRegistrations === 0
             && $this->capacityHoldingReservations === 0
             && collect($this->findings)->where('severity', 'blocking')->isEmpty();
     }
 
     public function blockingMessage(): string
     {
-        if ($this->activeBindings > 0) {
-            return 'Section cancellation is blocked by active student schedule bindings.';
+        if ($this->activeOfficialRegistrations > 0) {
+            return 'Section cancellation is blocked by active official course registrations.';
         }
 
         if ($this->capacityHoldingReservations > 0) {
@@ -87,7 +87,7 @@ final readonly class ScheduleRevisionImpact
             'changed_meetings' => count($this->meetingChanges),
             'affected_students' => $this->affectedStudents,
             'affected_faculty' => $this->affectedFaculty,
-            'active_bindings' => $this->activeBindings,
+            'active_official_registrations' => $this->activeOfficialRegistrations,
             'capacity_holding_reservations' => $this->capacityHoldingReservations,
             'passes' => $this->passes(),
             'findings' => $this->findings,

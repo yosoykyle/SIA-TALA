@@ -3,6 +3,7 @@
 namespace App\Actions\Integrations\Payments;
 
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\PaymentAllocationService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
@@ -10,6 +11,7 @@ use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
@@ -20,6 +22,7 @@ final class PayMongoPaymentPostingService
     public function __construct(
         private readonly DecimalMoney $money,
         private readonly EnrollmentFinanceClearanceService $financeClearanceService,
+        private readonly EnrollmentPaymentRequirementProjection $paymentRequirementProjection,
         private readonly PaymentAllocationService $paymentAllocationService,
         private readonly PaymentPostedNotificationService $paymentPostedNotificationService,
     ) {}
@@ -80,6 +83,7 @@ final class PayMongoPaymentPostingService
             [
                 'student_profile_id' => $attempt->student_profile_id,
                 'term_id' => $enrollment->term_id,
+                'term_account_id' => $assessment->term_account_id,
                 'method' => 'paymongo',
                 'channel' => $attempt->channel,
                 'amount' => $normalizedAmount,
@@ -110,13 +114,22 @@ final class PayMongoPaymentPostingService
         }
 
         $attempt->forceFill(['status' => 'paid', 'paid_at' => $timestamp])->save();
-        $clearance = $this->financeClearanceService->clearIfEligible(
-            enrollment: $enrollment,
-            studentProfile: $student->refresh(),
-            currentBalance: $this->ledgerBalanceFor($student),
-            actor: $actor,
-            timestamp: $timestamp,
-        );
+        if ($assessment->term_account_id !== null) {
+            $projection = $this->paymentRequirementProjection->forEnrollment($enrollment->refresh());
+            TermAccount::query()->whereKey($assessment->term_account_id)->update([
+                'state' => $projection['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen,
+            ]);
+            $financeCleared = $projection['state'] === 'Cleared';
+        } else {
+            $clearance = $this->financeClearanceService->clearIfEligible(
+                enrollment: $enrollment,
+                studentProfile: $student->refresh(),
+                currentBalance: $this->ledgerBalanceFor($student),
+                actor: $actor,
+                timestamp: $timestamp,
+            );
+            $financeCleared = $clearance['finance_cleared'];
+        }
 
         if ($ledgerEntries->contains(fn (LedgerEntry $entry): bool => $entry->wasRecentlyCreated)) {
             $this->paymentPostedNotificationService->record($payment);
@@ -126,7 +139,7 @@ final class PayMongoPaymentPostingService
             'status' => $wasPosted ? 'duplicate' : 'posted',
             'payment' => $payment,
             'ledger_entry' => $ledgerEntry,
-            'finance_cleared' => $clearance['finance_cleared'],
+            'finance_cleared' => $financeCleared,
         ];
     }
 

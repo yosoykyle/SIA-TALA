@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentHubPriorityResolver;
+use App\Models\Assessment;
 use App\Models\ChecklistItem;
+use App\Models\CorVersion;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
@@ -13,6 +15,9 @@ use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -334,6 +339,45 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
             'registered_at' => now()->subDay(),
             'officially_enrolled_at' => now(),
         ]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
+        $assessment = Assessment::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_account_id' => null,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+        ]);
+        $snapshot = [
+            'student_number' => $profile->student_number,
+            'student_name' => collect([$profile->first_name, $profile->last_name])->filter()->implode(' '),
+            'program_id' => $program->id,
+            'program_code' => $program->code,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'term_label' => $term->label,
+            'published_timetable_version_id' => $timetable->id,
+            'courses' => [],
+            'fees' => [],
+        ];
+        $cor = CorVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'registration_proposal_version_id' => $proposal->id,
+            'assessment_id' => $assessment->id,
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $this->staff(User::StaffRoleRegistrar)->id,
+            'issued_at' => now(),
+        ]);
+        $enrollment->update([
+            'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
+        ]);
 
         return [
             'student' => $student,
@@ -426,6 +470,27 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
             'state' => $meetingState,
             'published_at' => now(),
         ]);
+        $timetable = PublishedTimetableVersion::query()
+            ->where('term_id', $term->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->firstOrFail();
+        $courseEnrollment->update([
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
+            'is_current' => true,
+        ]);
+        if ($runStatus === ScheduleGenerationRun::StatusPublished && $meetingState === SectionMeeting::StateActive) {
+            PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([
+                'section_id' => $section->id,
+                'faculty_user_id' => $faculty->id,
+                'room_id' => $room->id,
+                'day_of_week' => 1,
+                'starts_at' => '08:00:00',
+                'ends_at' => '10:00:00',
+                'modality' => TermOffering::ModalityFaceToFace,
+            ]);
+        }
 
         return StudentScheduleBinding::query()->create([
             'course_enrollment_id' => $courseEnrollment->id,

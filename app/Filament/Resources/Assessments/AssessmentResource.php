@@ -31,6 +31,16 @@ class AssessmentResource extends Resource
 
     protected static ?int $navigationSort = 11;
 
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationGroup(): string|UnitEnum|null
     {
         $user = auth()->user();

@@ -310,7 +310,7 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $this->assertSame(1, StudentScheduleBinding::query()->count());
     }
 
-    public function test_filament_action_visibility_and_confirmation_behavior_follow_policy(): void
+    public function test_legacy_placement_action_is_retired_from_the_canonical_registration_surface(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
@@ -325,15 +325,20 @@ final class TAL67EnrollmentPlacementTest extends TestCase
         $cohortCode = (string) $section->deliveryGroups()->value('name');
         $this->openEnrollmentWindow($term);
 
-        Livewire::actingAs($registrar)
+        $registrarActions = collect(Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionVisible('confirmPlacement')
-            ->callAction('confirmPlacement', data: ['cohort_code' => $cohortCode])
-            ->assertNotified('Placement confirmed');
+            ->instance()
+            ->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action]);
+        $academicHeadActions = collect(Livewire::actingAs($academicHead)
+            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->instance()
+            ->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action]);
 
-        Livewire::actingAs($academicHead)
-            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionHidden('confirmPlacement');
+        $this->assertArrayNotHasKey('confirmPlacement', $registrarActions->all());
+        $this->assertArrayNotHasKey('confirmPlacement', $academicHeadActions->all());
+        $this->assertNotEmpty($cohortCode);
     }
 
     public function test_regular_cohort_options_keep_multi_year_term_offerings_in_the_earliest_eligible_year(): void

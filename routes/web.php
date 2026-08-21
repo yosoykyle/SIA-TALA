@@ -8,6 +8,7 @@ use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
 use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\PaymentAcknowledgementController;
+use App\Http\Controllers\PaymentEvidenceDownloadController;
 use App\Http\Controllers\StudentSchedulePrintController;
 use App\Http\Controllers\TimetableVersionPrintController;
 use App\Models\FaqEntry;
@@ -40,6 +41,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('finance.billing-slip');
     Route::get('/outputs/finance/payment-acknowledgement/{payment}', PaymentAcknowledgementController::class)
         ->name('finance.payments.acknowledgement');
+    Route::get('/finance/payment-evidence/{evidence}', PaymentEvidenceDownloadController::class)
+        ->name('finance.payment-evidence.download');
     Route::get('/outputs/schedules/faculty', FacultySchedulePrintController::class)
         ->name('faculty.schedule.print');
     Route::get('/outputs/schedules/student', StudentSchedulePrintController::class)

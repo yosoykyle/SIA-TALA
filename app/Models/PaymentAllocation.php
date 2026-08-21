@@ -18,6 +18,7 @@ class PaymentAllocation extends Model
      */
     protected $fillable = [
         'payment_id',
+        'assessment_obligation_id',
         'assessment_line_id',
         'payment_schedule_row_id',
         'prior_balance_ledger_entry_id',
@@ -32,6 +33,12 @@ class PaymentAllocation extends Model
         return [
             'amount' => 'decimal:2',
         ];
+    }
+
+    /** @return BelongsTo<AssessmentObligation, $this> */
+    public function assessmentObligation(): BelongsTo
+    {
+        return $this->belongsTo(AssessmentObligation::class);
     }
 
     /** @return BelongsTo<Payment, $this> */
@@ -66,9 +73,10 @@ class PaymentAllocation extends Model
 
     public function targetLabel(): string
     {
-        $this->loadMissing(['assessmentLine', 'paymentScheduleRow', 'priorBalanceLedgerEntry']);
+        $this->loadMissing(['assessmentObligation', 'assessmentLine', 'paymentScheduleRow', 'priorBalanceLedgerEntry']);
 
         return match (true) {
+            $this->assessmentObligation instanceof AssessmentObligation => (string) $this->assessmentObligation->label,
             $this->assessmentLine instanceof AssessmentLine => (string) $this->assessmentLine->description_snapshot,
             $this->paymentScheduleRow instanceof PaymentScheduleRow => str((string) $this->paymentScheduleRow->category)
                 ->replace('_', ' ')

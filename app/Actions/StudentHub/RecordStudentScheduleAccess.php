@@ -3,8 +3,10 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\StudentScheduleBinding;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,28 +44,32 @@ class RecordStudentScheduleAccess
 
         $enrollment = $currentEnrollment;
 
-        $bindings = StudentScheduleBinding::query()
-            ->activeOfficial()
-            ->forEnrollment($enrollment)
-            ->with([
-                'courseEnrollment.enrollment.studentProfile',
-                'sectionMeeting.scheduleRun',
-            ])
+        $registrations = CourseEnrollment::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
+            ->whereNotNull('published_timetable_version_id')
             ->get();
 
-        if ($bindings->isEmpty()) {
+        if ($registrations->isEmpty()) {
             return;
         }
 
-        $versions = $bindings
-            ->map(function (StudentScheduleBinding $binding): ?int {
-                $version = $binding->sectionMeeting?->scheduleRun?->publication_version;
+        $currentVersion = PublishedTimetableVersion::query()
+            ->where('term_id', $enrollment->term_id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->first();
 
-                return $version !== null ? (int) $version : null;
-            })
-            ->filter(fn (?int $version): bool => $version !== null)
-            ->unique()
-            ->values();
+        if (! $currentVersion instanceof PublishedTimetableVersion) {
+            return;
+        }
+
+        $rowCount = PublishedTimetableMeeting::query()
+            ->where('published_timetable_version_id', $currentVersion->id)
+            ->whereIn('section_id', $registrations->pluck('section_id')->unique())
+            ->count();
 
         DB::table('output_access_logs')->insert([
             'output_type' => self::OutputType,
@@ -74,8 +80,8 @@ class RecordStudentScheduleAccess
             'actor_role' => $student->getRoleNames()->first(),
             'action' => $action,
             'copy_context' => self::CopyStudent,
-            'schedule_version' => $versions->count() === 1 ? $versions->first() : null,
-            'row_count' => $bindings->count(),
+            'schedule_version' => $currentVersion->version,
+            'row_count' => $rowCount,
             'purpose' => $action === self::ActionPrint
                 ? 'Student opened the current published class schedule for printing or saving as PDF.'
                 : 'Student viewed the current published class schedule.',

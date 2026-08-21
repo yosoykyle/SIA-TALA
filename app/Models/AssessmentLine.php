@@ -14,6 +14,8 @@ class AssessmentLine extends Model
     protected $fillable = [
         'assessment_id',
         'fee_rule_id',
+        'fee_plan_charge_id',
+        'obligation_code',
         'course_enrollment_id',
         'source_line_key',
         'description_snapshot',
@@ -33,6 +35,12 @@ class AssessmentLine extends Model
             'rate' => 'decimal:2',
             'amount' => 'decimal:2',
         ];
+    }
+
+    /** @return BelongsTo<FeePlanCharge, $this> */
+    public function feePlanCharge(): BelongsTo
+    {
+        return $this->belongsTo(FeePlanCharge::class);
     }
 
     /** @return BelongsTo<Assessment, $this> */

@@ -7,7 +7,6 @@ use App\Models\CourseEnrollment;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -294,59 +293,74 @@ final class ScheduleAssignmentRevalidationService
             return [];
         }
 
-        $studentIdsByMeeting = StudentScheduleBinding::query()
-            ->where('is_active', true)
-            ->whereIn('section_meeting_id', $sourceMeetingIds->all())
-            ->whereHas('courseEnrollment', fn ($query) => $query->where('status', CourseEnrollment::StatusActive))
-            ->with('courseEnrollment.enrollment')
+        $sourceMeetings = SectionMeeting::query()
+            ->whereIn('id', $sourceMeetingIds)
+            ->with('schedulingDemand.sectionDeliveryGroup')
             ->get()
-            ->groupBy('section_meeting_id')
-            ->map(fn (Collection $bindings): array => $bindings
-                ->pluck('courseEnrollment.enrollment.student_profile_id')
-                ->map(fn (mixed $id): int => (int) $id)
+            ->keyBy('id');
+        $unaffectedMeetings = SectionMeeting::query()
+            ->where('state', SectionMeeting::StateActive)
+            ->whereHas('scheduleRun', fn ($query) => $query
+                ->where('status', ScheduleGenerationRun::StatusPublished)
+                ->where('term_id', $run->term_id))
+            ->when($excludedMeetingIds !== [], fn ($query) => $query->whereNotIn('id', $excludedMeetingIds))
+            ->with('schedulingDemand.sectionDeliveryGroup')
+            ->get();
+        $sectionIds = $sourceMeetings
+            ->merge($unaffectedMeetings)
+            ->map(fn (SectionMeeting $meeting): int => (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id)
+            ->filter()
+            ->unique();
+        $registrationsBySection = CourseEnrollment::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereHas('enrollment', fn ($query) => $query->where('term_id', $run->term_id))
+            ->with('enrollment')
+            ->get()
+            ->groupBy('section_id');
+        $studentIdsByMeeting = $sourceMeetings->mapWithKeys(function (SectionMeeting $meeting) use ($registrationsBySection): array {
+            $sectionId = (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id;
+            $studentIds = $registrationsBySection->get($sectionId, new Collection)
+                ->map(fn (CourseEnrollment $registration): int => (int) $registration->enrollment?->credential_user_id)
                 ->filter()
                 ->unique()
                 ->values()
-                ->all());
-        $unaffected = StudentScheduleBinding::query()
-            ->where('is_active', true)
-            ->whereHas('courseEnrollment', fn ($query) => $query->where('status', CourseEnrollment::StatusActive))
-            ->whereHas('sectionMeeting', function ($query) use ($run, $excludedMeetingIds): void {
-                $query->where('state', SectionMeeting::StateActive)
-                    ->whereHas('scheduleRun', fn ($query) => $query
-                        ->where('status', ScheduleGenerationRun::StatusPublished)
-                        ->where('term_id', $run->term_id))
-                    ->when($excludedMeetingIds !== [], fn ($query) => $query->whereNotIn('id', $excludedMeetingIds));
-            })
-            ->with(['courseEnrollment.enrollment', 'sectionMeeting'])
-            ->get();
+                ->all();
+
+            return [(int) $meeting->id => $studentIds];
+        });
         $findings = [];
 
         foreach ($assignments as $assignment) {
             $sourceMeetingId = $this->integerValue($assignment['source_section_meeting_id'] ?? null);
             $studentIds = $sourceMeetingId !== null ? ($studentIdsByMeeting->get($sourceMeetingId) ?? []) : [];
 
-            foreach ($unaffected as $binding) {
-                $studentId = (int) $binding->courseEnrollment?->enrollment?->student_profile_id;
-                $meeting = $binding->sectionMeeting;
+            foreach ($unaffectedMeetings as $meeting) {
+                $sectionId = (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id;
+                $unaffectedStudentIds = $registrationsBySection->get($sectionId, new Collection)
+                    ->map(fn (CourseEnrollment $registration): int => (int) $registration->enrollment?->credential_user_id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
 
-                if (! in_array($studentId, $studentIds, true)
-                    || ! $meeting instanceof SectionMeeting
+                if (array_intersect($studentIds, $unaffectedStudentIds) === []
                     || $sourceMeetingId === (int) $meeting->id
                     || ! $this->overlaps($assignment, $meeting->getAttributes())) {
                     continue;
                 }
 
                 $findings[] = [
-                    'code' => 'active_student_binding_overlap',
+                    'code' => 'active_student_registration_overlap',
                     'severity' => 'blocking',
                     'constraint' => 'student_no_overlap',
                     'message' => 'The proposed live assignment conflicts with another active meeting for an affected student.',
                     'scheduling_demand_id' => $this->integerValue($assignment['scheduling_demand_id'] ?? null),
                     'meeting_sequence' => $this->integerValue($assignment['meeting_sequence'] ?? null),
-                    'source_type' => 'student_schedule_binding',
-                    'source_id' => (int) $binding->id,
-                    'source_field' => 'section_meeting_id',
+                    'source_type' => 'official_course_registration',
+                    'source_id' => $sectionId,
+                    'source_field' => 'section_id',
                 ];
             }
         }

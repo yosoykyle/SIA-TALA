@@ -65,6 +65,8 @@ class OperationalEvent extends Model
 
     public const TypeAdmissionApplicationWithdrawn = 'admission_application_withdrawn';
 
+    public const TypeOfficialEnrollmentEmail = 'official_enrollment_email';
+
     public const StatusPending = 'PENDING';
 
     public const StatusProcessed = 'PROCESSED';

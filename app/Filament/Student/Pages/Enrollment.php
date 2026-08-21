@@ -2,354 +2,251 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
-use App\Actions\Enrollment\EnrollmentPlacementService;
-use App\Actions\Enrollment\EnrollmentProposalService;
-use App\Actions\Enrollment\SubjectSuggestionService;
-use App\Models\CourseEnrollment;
+use App\Actions\Enrollment\CancelRegistrationCase;
+use App\Actions\Enrollment\ConfirmRegistrationProposal;
+use App\Actions\Enrollment\RegistrationNotificationLedger;
+use App\Actions\Enrollment\RegistrationReadinessQuery;
+use App\Actions\Enrollment\StartRegistrationCase;
+use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Models\Enrollment as EnrollmentRecord;
-use App\Models\ScheduleGenerationRun;
-use App\Models\Section;
-use App\Models\SectionMeeting;
+use App\Models\OperationalEvent;
+use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Actions\BulkAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\Http\UploadedFile;
 use Throwable;
 
-class Enrollment extends Page implements HasTable
+class Enrollment extends Page
 {
-    use InteractsWithTable;
-
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-check';
 
     protected static ?string $navigationLabel = 'Enrollment';
 
     protected static ?string $title = 'Enrollment';
 
-    protected string $view = 'filament.student.pages.generic-table';
+    protected string $view = 'filament.student.pages.enrollment';
 
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('student') ?? false;
     }
 
-    /**
-     * @return list<Action>
-     */
+    /** @return list<Action> */
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('startRegistration')
+                ->label('Start registration')
+                ->icon('heroicon-o-play')
+                ->visible(fn (): bool => ! $this->currentEnrollment() instanceof EnrollmentRecord)
+                ->schema([
+                    Select::make('term_id')
+                        ->label('Term')
+                        ->options(Term::query()->orderByDesc('starts_on')->pluck('label', 'id'))
+                        ->required()
+                        ->searchable(),
+                    Select::make('selection_basis')
+                        ->label('Registration basis')
+                        ->options([
+                            EnrollmentRecord::SelectionStandardCurriculum => 'Standard Curriculum',
+                            EnrollmentRecord::SelectionIndividuallyAdvised => 'Individually Advised',
+                        ])
+                        ->default(EnrollmentRecord::SelectionStandardCurriculum)
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    $user = $this->actor();
+                    $profile = StudentProfile::query()->where('user_id', $user->id)->firstOrFail();
+
+                    try {
+                        app(StartRegistrationCase::class)->forContinuingStudent(
+                            $profile,
+                            Term::query()->findOrFail($data['term_id']),
+                            $user,
+                            $data['selection_basis'],
+                        );
+                        Notification::make()->title('Registration started')->body('The Registrar can now prepare the exact-Term proposal.')->success()->send();
+                    } catch (Throwable $exception) {
+                        $this->failure('Registration was not started', $exception);
+                    }
+                }),
+            Action::make('confirmProposal')
+                ->label('Confirm current proposal')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalDescription('Confirm the complete course, class, schedule, and unit proposal shown on this page. Any later material revision requires a new confirmation.')
+                ->visible(fn (): bool => $this->currentEnrollment()?->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued)
+                ->action(function (): void {
+                    $enrollment = $this->currentEnrollment();
+
+                    if (! $enrollment instanceof EnrollmentRecord || ! $enrollment->currentProposalVersion instanceof RegistrationProposalVersion) {
+                        return;
+                    }
+
+                    try {
+                        app(ConfirmRegistrationProposal::class)->execute($enrollment->currentProposalVersion, $this->actor());
+                        Notification::make()->title('Proposal confirmed')->body('The Registrar can now protect the complete placement.')->success()->send();
+                    } catch (Throwable $exception) {
+                        $this->failure('Proposal was not confirmed', $exception);
+                    }
+                }),
+            Action::make('cancelRegistration')
+                ->label('Cancel registration')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeInProgress)
+                ->schema([Textarea::make('reason')->required()->maxLength(2000)])
+                ->action(function (array $data): void {
+                    $enrollment = $this->currentEnrollment();
+                    if (! $enrollment instanceof EnrollmentRecord) {
+                        return;
+                    }
+
+                    try {
+                        app(CancelRegistrationCase::class)->execute($enrollment, $this->actor(), $data['reason'], $enrollment->lock_version);
+                        Notification::make()->title('Registration cancelled')->body('Held capacity was released; the case and history remain available.')->success()->send();
+                    } catch (Throwable $exception) {
+                        $this->failure('Registration was not cancelled', $exception);
+                    }
+                }),
+            Action::make('submitPaymentEvidence')
+                ->label('Submit payment evidence')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->visible(function (): bool {
+                    $enrollment = $this->currentEnrollment();
+
+                    return $enrollment instanceof EnrollmentRecord
+                        && $enrollment->termAccount !== null
+                        && $enrollment->termAccount->state !== 'Cleared';
+                })
+                ->schema([
+                    FileUpload::make('evidence')
+                        ->label('Private payment evidence')
+                        ->storeFiles(false)
+                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                        ->maxSize(10240)
+                        ->required(),
+                    TextInput::make('claimed_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
+                    TextInput::make('payment_reference')->maxLength(255),
+                ])
+                ->action(function (array $data): void {
+                    $enrollment = $this->currentEnrollment();
+                    $file = $data['evidence'] ?? null;
+                    abort_unless($enrollment instanceof EnrollmentRecord
+                        && $enrollment->termAccount !== null
+                        && $file instanceof UploadedFile, 404);
+
+                    try {
+                        app(SubmitPaymentEvidence::class)->execute(
+                            $enrollment->termAccount,
+                            $this->actor(),
+                            $file,
+                            (string) $data['claimed_amount'],
+                            $data['payment_reference'] ?? null,
+                        );
+                        Notification::make()->title('Payment evidence submitted')->body('Accounting review remains required.')->success()->send();
+                    } catch (Throwable $exception) {
+                        $this->failure('Payment evidence was not submitted', $exception);
+                    }
+                }),
             Action::make('viewClassSchedule')
-                ->label('Class Schedule')
+                ->label('Class schedule')
                 ->icon('heroicon-o-calendar-days')
-                ->url(ScheduleView::getUrl(panel: 'student')),
+                ->url(ScheduleView::getUrl(panel: 'student'))
+                ->visible(fn (): bool => $this->currentEnrollment()?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled),
             Action::make('viewCor')
                 ->label('Current COR')
                 ->icon('heroicon-o-document-text')
-                ->url(CorView::getUrl(panel: 'student')),
+                ->url(CorView::getUrl(panel: 'student'))
+                ->visible(fn (): bool => $this->currentEnrollment()?->current_cor_version_id !== null),
+            Action::make('resendOfficialEnrollmentEmail')
+                ->label('Resend enrollment email')
+                ->icon('heroicon-o-arrow-path')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->failedOfficialEnrollmentNotification() instanceof OperationalEvent)
+                ->action(function (): void {
+                    $event = $this->failedOfficialEnrollmentNotification();
+                    if (! $event instanceof OperationalEvent) {
+                        return;
+                    }
+
+                    try {
+                        app(RegistrationNotificationLedger::class)->resend($event, $this->actor());
+                        Notification::make()->title('Enrollment email queued again')->success()->send();
+                    } catch (Throwable $exception) {
+                        $this->failure('Enrollment email was not resent', $exception);
+                    }
+                }),
         ];
     }
 
-    public function getSubheading(): ?string
+    /** @return array<string, mixed> */
+    protected function getViewData(): array
     {
         $enrollment = $this->currentEnrollment();
+        $readiness = $enrollment instanceof EnrollmentRecord
+            ? app(RegistrationReadinessQuery::class)->for($enrollment)
+            : null;
 
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return 'No enrollment record is active. Contact the Registrar when the enrollment period opens.';
-        }
-
-        $context = app(EnrollmentAcademicContextResolver::class)->forEnrollment($enrollment);
-        $cohortCode = $enrollment->student_type === 'irregular'
-            ? null
-            : app(EnrollmentPlacementService::class)->recommendedRegularCohortCode($enrollment);
-
-        return collect([
-            'Current Term: '.($context['term_label'] ?? 'Not recorded'),
-            'Enrollment Status: '.$context['enrollment_status_label'],
-            'Enrollment Type: '.$context['enrollment_type_label'],
-            'Curriculum Level: '.$context['curriculum_level_label'],
-            'Course Delivery Mix: '.$context['course_delivery_mix'],
-            $enrollment->status_reason !== null ? 'Reason: '.$enrollment->status_reason : null,
-            'Responsible Office: '.$context['responsible_office'],
-            'Next Action: '.$context['next_action'],
-            $enrollment->student_type === 'irregular'
-                ? 'Your selections are proposals until the Registrar confirms capacity.'
-                : ($cohortCode !== null
-                    ? "Proposed cohort {$cohortCode}. The Registrar confirms the complete published block."
-                    : 'No complete published cohort block is currently available. Contact the Registrar.'),
-        ])->filter()->implode(' — ');
-    }
-
-    public function table(Table $table): Table
-    {
-        $enrollment = $this->currentEnrollment();
-
-        return $table
-            ->query($this->eligibleSectionsQuery($enrollment))
-            ->columns([
-                TextColumn::make('subject')
-                    ->label('Subject')
-                    ->state(fn (Section $record): string => collect([
-                        $record->termOffering?->course()?->code,
-                        $record->termOffering?->courseSpecification()?->title,
-                    ])->filter()->implode(' — '))
-                    ->weight('bold')
-                    ->wrap(),
-                TextColumn::make('description')
-                    ->label('Description')
-                    ->state(fn (Section $record): ?string => $record->termOffering?->courseSpecification()?->title)
-                    ->wrap()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('code')
-                    ->label('Section')
-                    ->searchable(),
-                TextColumn::make('cohort')
-                    ->label('Cohort')
-                    ->state(fn (Section $record): string => $record->deliveryGroups->pluck('name')->filter()->implode(', '))
-                    ->badge()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('termOffering.modality')
-                    ->label('Modality')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str((string) $state)->replace('_', ' ')->headline()->toString())
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('credit_units')
-                    ->label('Units')
-                    ->state(fn (Section $record): mixed => $record->termOffering?->courseSpecification()?->credit_units)
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('schedule')
-                    ->state(fn (Section $record): string => $this->sectionSummary($enrollment, $record)['schedule'] ?? 'Unpublished')
-                    ->wrap(),
-                TextColumn::make('remaining_capacity')
-                    ->label('Seats Left')
-                    ->state(fn (Section $record): string => (string) ($this->sectionSummary($enrollment, $record)['remaining'] ?? 0)),
-                TextColumn::make('section_status')
-                    ->label('Status / Next Step')
-                    ->state(fn (Section $record): string => $this->sectionStatus($enrollment, $record))
-                    ->badge()
-                    ->color(fn (string $state): string => $this->sectionStatusColor($state))
-                    ->wrap(),
-            ])
-            ->toolbarActions([
-                BulkAction::make('proposeSections')
-                    ->label('Replace complete proposal')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->requiresConfirmation()
-                    ->modalHeading('Replace complete section proposal')
-                    ->modalDescription('Submitting replaces your complete proposal. Select every section you want to keep. The Registrar reviews the complete set, and no capacity is reserved until confirmation.')
-                    ->visible(fn (): bool => $enrollment instanceof EnrollmentRecord
-                        && $enrollment->student_type === 'irregular'
-                        && app(EnrollmentPlacementService::class)->placementIsMutable($enrollment))
-                    ->deselectRecordsAfterCompletion()
-                    ->action(function (Collection $records) use ($enrollment): void {
-                        $actor = auth()->user();
-
-                        if (! $enrollment instanceof EnrollmentRecord || ! $actor instanceof User) {
-                            return;
-                        }
-
-                        try {
-                            app(EnrollmentProposalService::class)->replace(
-                                $enrollment,
-                                $records->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
-                                $actor,
-                            );
-                            Notification::make()
-                                ->title('Section proposal saved')
-                                ->body('The Registrar must confirm placement before capacity is reserved.')
-                                ->success()
-                                ->send();
-                            $this->resetTable();
-                        } catch (Throwable $exception) {
-                            Notification::make()
-                                ->title('Section proposal not saved')
-                                ->body($exception->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-            ])
-            ->checkIfRecordIsSelectableUsing(fn (Section $record): bool => $enrollment instanceof EnrollmentRecord
-                && $enrollment->student_type === 'irregular'
-                && app(EnrollmentPlacementService::class)->placementIsMutable($enrollment)
-                && $this->eligibleOfferingIds($enrollment)->contains((int) $record->term_offering_id)
-                && $this->selectionBlocker($enrollment, $record) === null)
-            ->emptyStateHeading($enrollment instanceof EnrollmentRecord
-                ? 'No published curriculum sections'
-                : 'Enrollment has not started')
-            ->emptyStateDescription($enrollment instanceof EnrollmentRecord
-                ? 'Your curriculum, academic progression, or the published schedule currently has no selectable sections. Contact the Registrar if this is unexpected.'
-                : 'The Registrar must start an enrollment record before sections can be displayed.')
-            ->emptyStateIcon('heroicon-o-clipboard-document-list')
-            ->stackedOnMobile();
+        return [
+            'enrollment' => $enrollment,
+            'readiness' => $readiness,
+            'proposal' => $enrollment?->currentProposalVersion?->loadMissing(['items.section', 'items.reservation', 'confirmation']),
+        ];
     }
 
     private function currentEnrollment(): ?EnrollmentRecord
     {
-        $user = auth()->user();
-
-        if (! $user instanceof User) {
-            return null;
-        }
-
-        $profile = StudentProfile::query()
-            ->where('user_id', $user->id)
+        return EnrollmentRecord::query()
+            ->with([
+                'term',
+                'currentProposalVersion.items.section',
+                'currentProposalVersion.items.reservation',
+                'currentProposalVersion.confirmation',
+                'termAccount',
+                'currentCorVersion',
+            ])
+            ->where('credential_user_id', $this->actor()->id)
+            ->latest('updated_at')
             ->first();
+    }
 
-        return $profile instanceof StudentProfile
-            ? app(EnrollmentAcademicContextResolver::class)->currentEnrollmentForProfile($profile)
+    private function actor(): User
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        return $actor;
+    }
+
+    private function failedOfficialEnrollmentNotification(): ?OperationalEvent
+    {
+        $enrollment = $this->currentEnrollment();
+
+        return $enrollment instanceof EnrollmentRecord
+            ? OperationalEvent::query()
+                ->where('event_domain', OperationalEvent::DomainNotifications)
+                ->where('event_type', OperationalEvent::TypeOfficialEnrollmentEmail)
+                ->where('related_record_type', EnrollmentRecord::class)
+                ->where('related_record_id', $enrollment->id)
+                ->where('status', OperationalEvent::StatusFailed)
+                ->latest('id')
+                ->first()
             : null;
     }
 
-    private function eligibleSectionsQuery(?EnrollmentRecord $enrollment): Builder
+    private function failure(string $title, Throwable $exception): void
     {
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return Section::query()->whereRaw('1 = 0');
-        }
-
-        $query = Section::query()
-            ->with([
-                'termOffering.curriculumEntry.courseSpecification.course',
-                'deliveryGroups',
-            ])
-            ->where('state', Section::StateOpen)
-            ->whereHas('termOffering', fn (Builder $query) => $query
-                ->where('term_id', $enrollment->term_id)
-                ->whereHas('curriculumEntry', fn (Builder $query) => $query
-                    ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id)))
-            ->whereHas('deliveryGroups.schedulingDemands.sectionMeetings', fn (Builder $query) => $query
-                ->where('state', SectionMeeting::StateActive)
-                ->whereHas('scheduleRun', fn (Builder $query) => $query
-                    ->where('status', ScheduleGenerationRun::StatusPublished)))
-            ->orderBy('code');
-
-        if ($enrollment->student_type !== 'irregular') {
-            $cohortCode = app(EnrollmentPlacementService::class)
-                ->recommendedRegularCohortCode($enrollment);
-
-            if ($cohortCode === null) {
-                return $query->whereRaw('1 = 0');
-            }
-
-            $query->whereHas('deliveryGroups', fn (Builder $query) => $query->where('name', $cohortCode));
-        }
-
-        return $query;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function sectionSummary(?EnrollmentRecord $enrollment, Section $section): array
-    {
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return [];
-        }
-
-        return app(EnrollmentPlacementService::class)->sectionOperationalSummary($section);
-    }
-
-    /**
-     * @return Collection<int, int>
-     */
-    private function eligibleOfferingIds(EnrollmentRecord $enrollment): Collection
-    {
-        $suggestions = app(SubjectSuggestionService::class)->suggestForEnrollment($enrollment);
-
-        return collect([
-            ...($suggestions['suggested'] ?? []),
-            ...($suggestions['back_subjects'] ?? []),
-        ])
-            ->pluck('term_offering_id')
-            ->filter()
-            ->map(fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->values();
-    }
-
-    private function eligibilityMessage(?EnrollmentRecord $enrollment, Section $section): string
-    {
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return 'No active enrollment';
-        }
-
-        $suggestions = app(SubjectSuggestionService::class)->suggestForEnrollment($enrollment);
-
-        if ($this->eligibleOfferingIds($enrollment)->contains((int) $section->term_offering_id)) {
-            return 'Eligible';
-        }
-
-        $courseId = $section->termOffering?->course()?->id;
-        $blocker = collect($suggestions['blocked'] ?? [])
-            ->first(fn (array $item): bool => (int) ($item['course_id'] ?? 0) === (int) $courseId);
-
-        if (is_array($blocker)) {
-            return collect($blocker['blockers'] ?? [])
-                ->map(fn (array $item): string => str((string) ($item['reason'] ?? 'academic rule'))->replace('_', ' ')->headline()->toString())
-                ->unique()
-                ->implode('; ');
-        }
-
-        $setupBlockers = collect($suggestions['setup_blockers'] ?? [])
-            ->map(fn (mixed $item): string => str((string) $item)->replace('_', ' ')->headline()->toString())
-            ->implode('; ');
-
-        return $setupBlockers !== '' ? $setupBlockers : 'Not eligible for current progression';
-    }
-
-    private function sectionStatus(?EnrollmentRecord $enrollment, Section $section): string
-    {
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return 'Enrollment has not started';
-        }
-
-        if ($enrollment->student_type !== 'irregular') {
-            return 'Registrar confirmation pending';
-        }
-
-        $eligibility = $this->eligibilityMessage($enrollment, $section);
-
-        if ($eligibility !== 'Eligible') {
-            return $eligibility;
-        }
-
-        if ($blocker = $this->selectionBlocker($enrollment, $section)) {
-            return $blocker;
-        }
-
-        $isProposed = CourseEnrollment::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('proposed_section_id', $section->id)
-            ->where('status', CourseEnrollment::StatusActive)
-            ->exists();
-
-        return $isProposed ? 'Included in your proposal' : 'Available to select';
-    }
-
-    private function sectionStatusColor(string $status): string
-    {
-        return match ($status) {
-            'Available to select' => 'success',
-            'Included in your proposal', 'Registrar confirmation pending' => 'warning',
-            default => 'danger',
-        };
-    }
-
-    private function selectionBlocker(?EnrollmentRecord $enrollment, Section $section): ?string
-    {
-        if (! $enrollment instanceof EnrollmentRecord) {
-            return 'No active enrollment';
-        }
-
-        return app(EnrollmentPlacementService::class)->sectionSelectionBlocker($enrollment, $section);
+        Notification::make()->title($title)->body($exception->getMessage())->danger()->send();
     }
 }

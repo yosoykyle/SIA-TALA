@@ -4,6 +4,7 @@ namespace App\Actions\Finance;
 
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
@@ -129,10 +130,32 @@ class PaymentAllocationService
 
     private function eligibleBalance(Enrollment $enrollment): string
     {
+        $assessment = Assessment::query()
+            ->with(['obligations.paymentAllocations', 'obligations.coverages'])
+            ->where('enrollment_id', $enrollment->id)
+            ->where('state', Assessment::StateActive)
+            ->whereNotNull('term_account_id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($assessment instanceof Assessment && $assessment->obligations->isNotEmpty()) {
+            return $assessment->obligations->reduce(function (string $balance, AssessmentObligation $obligation): string {
+                $allocated = $this->money->normalize((string) $obligation->paymentAllocations->sum('amount'));
+                $covered = $this->money->normalize((string) $obligation->coverages->whereNull('reversed_at')->sum('amount'));
+                $outstanding = $this->money->subtract((string) $obligation->amount, $this->money->add($allocated, $covered));
+
+                return $this->money->add(
+                    $balance,
+                    $this->money->greaterThanZero($outstanding) ? $outstanding : '0.00',
+                );
+            }, '0.00');
+        }
+
         $balance = '0.00';
 
         foreach (LedgerEntry::query()
-            ->where('student_profile_id', $enrollment->student_profile_id)
+            ->where('enrollment_id', $enrollment->id)
+            ->where('term_id', $enrollment->term_id)
             ->where('state', 'posted')
             ->lockForUpdate()
             ->get() as $entry) {
@@ -157,9 +180,38 @@ class PaymentAllocationService
         $assessment = Assessment::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('state', Assessment::StateActive)
-            ->with(['paymentScheduleRows', 'lines'])
+            ->with(['paymentScheduleRows', 'lines', 'obligations.paymentAllocations', 'obligations.coverages'])
             ->lockForUpdate()
             ->firstOrFail();
+
+        if ($assessment->term_account_id !== null && $assessment->obligations->isNotEmpty()) {
+            $remaining = $amount;
+            $targets = [];
+
+            foreach ($assessment->obligations->sortBy([
+                ['required_for_enrollment', 'desc'],
+                ['id', 'asc'],
+            ]) as $obligation) {
+                $allocated = $this->money->normalize((string) $obligation->paymentAllocations->sum('amount'));
+                $covered = $this->money->normalize((string) $obligation->coverages->whereNull('reversed_at')->sum('amount'));
+                $outstanding = $this->money->subtract((string) $obligation->amount, $this->money->add($allocated, $covered));
+                $remaining = $this->appendTarget(
+                    $targets,
+                    AssessmentObligation::class,
+                    $obligation->id,
+                    (string) $obligation->label,
+                    $this->money->greaterThanZero($outstanding) ? $outstanding : '0.00',
+                    $remaining,
+                );
+            }
+
+            if ($this->money->greaterThanZero($remaining)) {
+                throw new RuntimeException('Payment amount cannot exceed the eligible allocation targets.');
+            }
+
+            return $targets;
+        }
+
         $remaining = $amount;
         $targets = [];
         $assessmentLineIds = $assessment->lines->pluck('id');
@@ -208,7 +260,8 @@ class PaymentAllocationService
 
         if ($this->money->greaterThanZero($remaining)) {
             $priorBalanceEntries = LedgerEntry::query()
-                ->where('student_profile_id', $enrollment->student_profile_id)
+                ->where('enrollment_id', $enrollment->id)
+                ->where('term_id', $enrollment->term_id)
                 ->where('state', 'posted')
                 ->where(function ($query): void {
                     $query->whereIn('direction', [
@@ -325,7 +378,7 @@ class PaymentAllocationService
     /**
      * @param  array{target_type:string,target_id:int,description?:string,amount:string}  $target
      * @return array{
-     *     columns:array{assessment_line_id:?int,payment_schedule_row_id:?int,prior_balance_ledger_entry_id:?int},
+     *     columns:array{assessment_obligation_id:?int,assessment_line_id:?int,payment_schedule_row_id:?int,prior_balance_ledger_entry_id:?int},
      *     enrollment_id:?int,
      *     term_id:?int
      * }
@@ -338,6 +391,19 @@ class PaymentAllocationService
         $record = null;
 
         $valid = match ($type) {
+            AssessmentObligation::class => ($record = AssessmentObligation::query()
+                ->whereKey($id)
+                ->whereHas('assessment', fn ($query) => $query
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('term_account_id', $enrollment->termAccount()->value('id'))
+                    ->where('state', Assessment::StateActive))
+                ->lockForUpdate()
+                ->first()) instanceof AssessmentObligation
+                    && ($targetOutstanding = $this->remainingFor(
+                        'assessment_obligation_id',
+                        $record->id,
+                        (string) $record->amount,
+                    )) !== '',
             AssessmentLine::class => ($record = AssessmentLine::query()
                 ->whereKey($id)
                 ->whereHas('assessment', fn ($query) => $query
@@ -365,7 +431,8 @@ class PaymentAllocationService
                     )) !== '',
             LedgerEntry::class => ($record = LedgerEntry::query()
                 ->whereKey($id)
-                ->where('student_profile_id', $enrollment->student_profile_id)
+                ->where('enrollment_id', $enrollment->id)
+                ->where('term_id', $enrollment->term_id)
                 ->where('state', 'posted')
                 ->where(function ($query): void {
                     $query->whereIn('direction', [
@@ -395,6 +462,7 @@ class PaymentAllocationService
 
         return [
             'columns' => [
+                'assessment_obligation_id' => $type === AssessmentObligation::class ? $id : null,
                 'assessment_line_id' => $type === AssessmentLine::class ? $id : null,
                 'payment_schedule_row_id' => $type === PaymentScheduleRow::class ? $id : null,
                 'prior_balance_ledger_entry_id' => $type === LedgerEntry::class ? $id : null,

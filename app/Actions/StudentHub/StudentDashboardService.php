@@ -5,15 +5,17 @@ namespace App\Actions\StudentHub;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\FaqEntry;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Support\DecimalMoney;
 use App\Support\DisplayDateTime;
@@ -131,7 +133,7 @@ class StudentDashboardService
             'term_id' => (int) $enrollment->term_id,
             'term_name' => $enrollment->term?->label,
             'status' => $enrollment->status,
-            'student_type' => $enrollment->student_type,
+            'selection_basis' => $enrollment->selection_basis,
             'curriculum_level' => $context['curriculum_level_label'],
             'curriculum_levels' => $context['curriculum_levels'],
             'sections' => $context['section_labels'],
@@ -150,39 +152,53 @@ class StudentDashboardService
      */
     private function scheduleFor(Enrollment $enrollment): array
     {
-        return StudentScheduleBinding::query()
+        $registrations = CourseEnrollment::query()
             ->with([
-                'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
-                'sectionMeeting.scheduleRun',
-                'sectionMeeting.schedulingDemand.sectionDeliveryGroup.section',
-                'sectionMeeting.faculty',
-                'sectionMeeting.room',
+                'termOffering.curriculumEntry.courseSpecification.course',
+                'section',
             ])
-            ->activeOfficial()
-            ->forEnrollment($enrollment)
+            ->where('enrollment_id', $enrollment->id)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
             ->get()
-            ->filter(fn (StudentScheduleBinding $binding): bool => $binding->sectionMeeting instanceof SectionMeeting)
-            ->sortBy(fn (StudentScheduleBinding $binding): string => sprintf(
-                '%02d-%s-%010d',
-                (int) $binding->sectionMeeting->day_of_week,
-                (string) $binding->sectionMeeting->starts_at,
-                (int) $binding->sectionMeeting->id,
-            ))
-            ->map(function (StudentScheduleBinding $binding): array {
-                $meeting = $binding->sectionMeeting;
-                $courseEnrollment = $binding->courseEnrollment;
+            ->keyBy(fn (CourseEnrollment $registration): int => (int) $registration->section_id);
+
+        if ($registrations->isEmpty()) {
+            return [];
+        }
+
+        $currentVersion = PublishedTimetableVersion::query()
+            ->where('term_id', $enrollment->term_id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->first();
+
+        if (! $currentVersion instanceof PublishedTimetableVersion) {
+            return [];
+        }
+
+        return PublishedTimetableMeeting::query()
+            ->with(['faculty', 'room', 'classOffering'])
+            ->where('published_timetable_version_id', $currentVersion->id)
+            ->whereIn('section_id', $registrations->keys())
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('meeting_sequence')
+            ->get()
+            ->map(function (PublishedTimetableMeeting $meeting) use ($registrations): array {
+                $courseEnrollment = $registrations->get((int) $meeting->section_id);
                 $termOffering = $courseEnrollment?->termOffering;
                 $courseSpecification = $termOffering?->curriculumEntry?->courseSpecification;
                 $course = $courseSpecification?->course;
-                $deliveryGroup = $meeting->schedulingDemand?->sectionDeliveryGroup;
-                $section = $deliveryGroup?->section;
+                $section = $courseEnrollment?->section;
 
                 return [
                     'section_meeting_id' => (int) $meeting->id,
                     'term_id' => $termOffering?->term_id !== null ? (int) $termOffering->term_id : null,
                     'section_id' => $section?->id !== null ? (int) $section->id : null,
-                    'section_delivery_group_id' => $deliveryGroup?->id !== null ? (int) $deliveryGroup->id : null,
-                    'section_delivery_group_name' => $deliveryGroup?->name,
+                    'section_delivery_group_id' => null,
+                    'section_delivery_group_name' => $section?->code,
                     'subject_id' => $course?->id !== null ? (int) $course->id : null,
                     'subject_code' => $course?->code,
                     'subject_description' => $courseSpecification?->title ?: $courseSpecification?->description,
@@ -193,7 +209,7 @@ class StudentDashboardService
                     'starts_at' => $this->timeValue($meeting->starts_at),
                     'ends_at' => $this->timeValue($meeting->ends_at),
                     'time_label' => $this->timeRange($meeting->starts_at, $meeting->ends_at),
-                    'room' => $meeting->room?->code,
+                    'room' => ($meeting->room !== null ? $meeting->room->code : null) ?? $meeting->location_label,
                     'modality' => $meeting->modality,
                     'modality_label' => SectionMeeting::modalityOptions()[$meeting->modality] ?? $meeting->modality,
                 ];

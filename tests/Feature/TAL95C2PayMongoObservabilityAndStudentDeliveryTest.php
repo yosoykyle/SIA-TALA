@@ -7,6 +7,7 @@ use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Mail\PaymentPostedMail;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
@@ -14,6 +15,7 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -322,8 +324,15 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
         $profile = StudentProfile::factory()->for($student)->create();
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create(['status' => 'pending_payment']);
+        $account = TermAccount::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+            'state' => TermAccount::StateOpen,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -333,6 +342,13 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             'required_downpayment' => '1000.00',
             'activated_by' => $accounting->id,
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'code' => 'CURRENT_DUE',
+            'label' => 'Current enrollment payment',
+            'amount' => '1000.00',
+            'required_for_enrollment' => true,
         ]);
         LedgerEntry::query()->create([
             'student_profile_id' => $profile->id,

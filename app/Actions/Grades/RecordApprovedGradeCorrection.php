@@ -11,7 +11,10 @@ use RuntimeException;
 
 class RecordApprovedGradeCorrection
 {
-    public function __construct(private readonly GradePolicyService $policy) {}
+    public function __construct(
+        private readonly GradePolicyService $policy,
+        private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
+    ) {}
 
     public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
     {
@@ -31,7 +34,7 @@ class RecordApprovedGradeCorrection
                 default => $this->policy->outcomeForAverage($this->averageForNumericCode($correctedCode)),
             };
 
-            $locked->outcomeEvents()->create([
+            $event = $locked->outcomeEvents()->create([
                 'event_type' => GradeOutcomeEvent::TypePostedCorrection,
                 'previous_value' => is_numeric($locked->current_outcome_code) ? (float) $locked->current_outcome_code : null,
                 'new_value' => $outcome['value'],
@@ -48,6 +51,7 @@ class RecordApprovedGradeCorrection
                 'current_outcome_code' => $outcome['code'],
                 'current_outcome_category' => $outcome['category'],
             ]);
+            $this->impactReviews->execute($locked, $event, $actor);
 
             return $locked->fresh('outcomeEvents');
         });

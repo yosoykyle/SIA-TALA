@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\EnrollmentGateEvaluator;
 use App\Actions\Enrollment\FinalizeOfficialEnrollment;
-use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\Assessment;
 use App\Models\CourseComponent;
@@ -13,7 +11,6 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
@@ -71,62 +68,26 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     }
 
     #[Test]
-    public function registrar_records_official_enrollment_and_exposes_cor_source_records(): void
+    public function legacy_gate_records_cannot_bypass_canonical_proposal_and_assessment_sources(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $recordedAt = CarbonImmutable::parse('2026-07-06 11:00:00');
+        $reservations = EnrollmentSeatReservation::query()->where('enrollment_id', $fixture['enrollment']->id)->count();
 
-        $result = app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar, 'Cleared at counter.', $recordedAt);
+        try {
+            app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar);
+            $this->fail('Legacy gate records bypassed canonical finalization sources.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
 
-        $this->assertSame('officially_enrolled', $result->status);
-        $this->assertNotNull($result->officially_enrolled_at);
-
-        $enrollment = $fixture['enrollment']->fresh();
-        $this->assertSame('officially_enrolled', $enrollment->status);
-        $this->assertNotNull($enrollment->officially_enrolled_at);
-
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateFinalApproval,
-            'result' => EnrollmentGateResult::ResultPassed,
-            'rule_version' => EnrollmentGateResult::RuleVersionTal87D,
-        ]);
-
-        // Every capacity-holding reservation is converted; none remain reserved/pending.
-        $this->assertSame(2, EnrollmentSeatReservation::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('status', EnrollmentSeatReservation::StatusConverted)
-            ->whereNotNull('converted_at')
-            ->count());
-        $this->assertSame(0, EnrollmentSeatReservation::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
-            ->count());
-
-        // Official schedule bindings remain active.
-        $this->assertSame(2, StudentScheduleBinding::query()
-            ->whereHas('courseEnrollment', fn ($query) => $query->where('enrollment_id', $enrollment->id))
-            ->where('is_active', true)
-            ->count());
-
-        $this->assertDatabaseHas('activity_log', [
-            'subject_type' => Enrollment::class,
-            'subject_id' => $enrollment->id,
-            'event' => 'official_enrollment_recorded',
-            'causer_id' => $registrar->id,
-        ]);
-
-        // COR / Student Hub source contract is satisfied.
-        $readiness = app(StudentEnrollmentService::class)->corReadiness($enrollment);
-        $this->assertTrue($readiness['ready'], 'COR readiness blockers: '.implode(',', $readiness['blockers']));
-
-        $cor = app(BuildCorOutput::class)->forEnrollment($enrollment, $registrar, BuildCorOutput::CopyRegistrar);
-        $this->assertTrue($cor['available']);
+        $this->assertSame($reservations, EnrollmentSeatReservation::query()->where('enrollment_id', $fixture['enrollment']->id)->count());
+        $this->assertNotSame(Enrollment::OutcomeOfficiallyEnrolled, $fixture['enrollment']->fresh()->canonical_outcome);
+        $this->assertNull($fixture['enrollment']->fresh()->current_cor_version_id);
     }
 
     #[Test]
-    public function registrar_action_truthfully_reports_available_current_cor_and_schedule(): void
+    public function registrar_surface_exposes_only_the_canonical_finalization_action(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -139,26 +100,19 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
 
         $this->assertInstanceOf(ViewEnrollment::class, $page);
 
-        $officializeAction = collect($page->getCachedHeaderActions())
+        $actions = collect($page->getCachedHeaderActions())
             ->reject(fn ($action): bool => $action instanceof ActionGroup)
-            ->first(fn ($action): bool => $action->getName() === 'recordOfficialEnrollment');
+            ->map(fn ($action): string => $action->getName())
+            ->values()
+            ->all();
 
-        $this->assertNotNull($officializeAction);
-        $this->assertSame('md', $officializeAction->getLabeledFromBreakpoint());
-        $this->assertSame('Record official enrollment', $officializeAction->getTooltip());
-
-        $component->callAction('recordOfficialEnrollment', ['remark' => 'Verified at the Registrar counter.']);
-
-        $this->assertSessionNotification(
-            'Official enrollment recorded',
-            'The enrollment is official. The current COR and class schedule are available in the Student Hub.',
-        );
-
-        $this->assertSame('officially_enrolled', $enrollment->fresh()->status);
+        $this->assertSame(['finalizeOfficialEnrollment'], $actions);
+        $this->assertNotContains('recordOfficialEnrollment', $actions);
+        $component->assertActionHidden('finalizeOfficialEnrollment');
     }
 
     #[Test]
-    public function registrar_action_reports_when_official_enrollment_succeeds_but_cor_is_blocked(): void
+    public function legacy_cor_hold_does_not_make_an_incomplete_case_finalizable(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -179,16 +133,14 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
             'effective_at' => now()->subMinute(),
         ]);
 
-        Livewire::actingAs($registrar)
+        $component = Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->callAction('recordOfficialEnrollment');
+            ->assertActionHidden('finalizeOfficialEnrollment');
 
-        $this->assertSessionNotification(
-            'Official enrollment recorded',
-            'The enrollment is official, but the current COR is not available yet: Contact Accounting before printing your COR.',
-        );
-
-        $this->assertSame('officially_enrolled', $enrollment->fresh()->status);
+        $actions = collect($component->instance()->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => $action instanceof ActionGroup ? $action->getFlatActions() : [$action->getName() => $action]);
+        $this->assertArrayNotHasKey('recordOfficialEnrollment', $actions->all());
+        $this->assertNotSame(Enrollment::OutcomeOfficiallyEnrolled, $enrollment->fresh()->canonical_outcome);
     }
 
     #[Test]
@@ -201,7 +153,7 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
             app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar);
             $this->fail('Expected a ValidationException for the unresolved finance gate.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('gates', $exception->errors());
+            $this->assertArrayHasKey('readiness', $exception->errors());
         }
 
         $enrollment = $fixture['enrollment']->fresh();
@@ -214,29 +166,20 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     }
 
     #[Test]
-    public function finalizing_an_already_official_enrollment_is_idempotent(): void
+    public function legacy_official_status_without_immutable_sources_is_not_treated_as_canonical_completion(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $recordedAt = CarbonImmutable::parse('2026-07-06 11:00:00');
+        $fixture['enrollment']->update(['status' => 'officially_enrolled', 'officially_enrolled_at' => now()]);
 
-        app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar, null, $recordedAt);
-        $firstTimestamp = $fixture['enrollment']->fresh()->officially_enrolled_at;
+        try {
+            app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment']->fresh(), $registrar);
+            $this->fail('A legacy status was accepted as canonical finalization.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
 
-        app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment']->fresh(), $registrar, null, $recordedAt->addHour());
-        $secondTimestamp = $fixture['enrollment']->fresh()->officially_enrolled_at;
-
-        $this->assertNotNull($firstTimestamp);
-        $this->assertTrue($firstTimestamp->equalTo($secondTimestamp), 'Official enrollment timestamp must not change on re-finalize.');
-        $this->assertSame(2, EnrollmentSeatReservation::query()
-            ->where('enrollment_id', $fixture['enrollment']->id)
-            ->where('status', EnrollmentSeatReservation::StatusConverted)
-            ->count());
-        $this->assertSame(1, DB::table('activity_log')
-            ->where('subject_type', Enrollment::class)
-            ->where('subject_id', $fixture['enrollment']->id)
-            ->where('event', 'official_enrollment_recorded')
-            ->count());
+        $this->assertNull($fixture['enrollment']->fresh()->current_cor_version_id);
     }
 
     #[Test]
@@ -258,7 +201,7 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     }
 
     #[Test]
-    public function seat_occupancy_is_conserved_when_reservation_is_converted(): void
+    public function incomplete_legacy_source_rejection_preserves_seat_occupancy(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -270,33 +213,37 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
         $before = $this->sectionOccupancy((int) $section->id, $offeringId);
         $this->assertSame(1, $before);
 
-        app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar);
+        try {
+            app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar);
+            $this->fail('Incomplete legacy source was finalized.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
 
         $after = $this->sectionOccupancy((int) $section->id, $offeringId);
-        $this->assertSame(1, $after, 'Seat occupancy must be conserved after reservation conversion (no leak or double-count).');
-        $this->assertSame(0, EnrollmentSeatReservation::query()
+        $this->assertSame(1, $after, 'Rejected finalization must not leak or double-count seats.');
+        $this->assertSame(1, EnrollmentSeatReservation::query()
             ->where('section_id', $section->id)
             ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
             ->count());
     }
 
     #[Test]
-    public function gate_refresh_after_official_enrollment_keeps_final_approval_passed(): void
+    public function persisted_generic_gate_results_do_not_authorize_canonical_finalization(): void
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment'], $registrar);
-
         app(EnrollmentGateEvaluator::class)->persist($fixture['enrollment']->fresh(), CarbonImmutable::parse('2026-07-06 12:00:00'));
 
-        $enrollment = $fixture['enrollment']->fresh();
-        $this->assertSame('officially_enrolled', $enrollment->status);
-        $this->assertDatabaseHas('enrollment_gate_results', [
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateFinalApproval,
-            'result' => EnrollmentGateResult::ResultPassed,
-        ]);
+        try {
+            app(FinalizeOfficialEnrollment::class)->execute($fixture['enrollment']->fresh(), $registrar);
+            $this->fail('Persisted generic gates authorized canonical finalization.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('readiness', $exception->errors());
+        }
+
+        $this->assertNotSame(Enrollment::OutcomeOfficiallyEnrolled, $fixture['enrollment']->fresh()->canonical_outcome);
     }
 
     #[Test]

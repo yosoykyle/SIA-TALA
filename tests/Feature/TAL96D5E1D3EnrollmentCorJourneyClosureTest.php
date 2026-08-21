@@ -8,11 +8,13 @@ use App\Actions\StudentHub\StudentDashboardService;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Student\Pages\Enrollment as StudentEnrollmentPage;
+use App\Models\CorVersion;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\Program;
+use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
@@ -46,7 +48,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
     public function test_source_derived_context_reports_mixed_curriculum_levels_and_course_delivery_mix(): void
     {
         $fixture = $this->academicContextFixture(
-            studentType: 'irregular',
+            selectionBasis: Enrollment::SelectionIndividuallyAdvised,
             levelsAndModalities: [
                 ['1', TermOffering::ModalityOnline],
                 ['2', TermOffering::ModalityFaceToFace],
@@ -58,7 +60,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertSame($fixture['enrollment']->id, $context['enrollment_id']);
         $this->assertSame($fixture['term']->label, $context['term_label']);
         $this->assertSame('Officially Enrolled', $context['enrollment_status_label']);
-        $this->assertSame('Irregular', $context['enrollment_type_label']);
+        $this->assertSame('Individually Advised', $context['enrollment_type_label']);
         $this->assertSame($fixture['program']->code, $context['program_code']);
         $this->assertSame($fixture['profile']->curriculumVersion->name, $context['curriculum_name']);
         $this->assertSame(['1', '2'], $context['curriculum_levels']);
@@ -68,7 +70,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertSame('Mixed', $context['course_delivery_mix']);
         $this->assertSame('Registrar Office', $context['responsible_office']);
         $this->assertSame(
-            'Enrollment is official. No further enrollment processing is required.',
+            'Official enrollment is complete.',
             $context['next_action'],
         );
         $this->assertArrayNotHasKey('student_modality', $context);
@@ -77,7 +79,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
     public function test_regular_single_level_context_remains_truthful(): void
     {
         $fixture = $this->academicContextFixture(
-            studentType: 'regular',
+            selectionBasis: Enrollment::SelectionStandardCurriculum,
             levelsAndModalities: [
                 ['2', TermOffering::ModalityOnline],
                 ['2', TermOffering::ModalityOnline],
@@ -91,10 +93,10 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertSame('Online', $context['course_delivery_mix']);
     }
 
-    public function test_student_dashboard_and_cor_share_the_source_derived_academic_context(): void
+    public function test_student_dashboard_uses_current_sources_while_cor_uses_its_immutable_snapshot(): void
     {
         $fixture = $this->academicContextFixture(
-            studentType: 'irregular',
+            selectionBasis: Enrollment::SelectionIndividuallyAdvised,
             levelsAndModalities: [
                 ['1', TermOffering::ModalityOnline],
                 ['3', TermOffering::ModalityFaceToFace],
@@ -134,11 +136,19 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertArrayNotHasKey('lis_status', $dashboard['enrollment']['current']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame('Mixed Levels (1, 3)', $cor['state']['curriculum_level']);
-        $this->assertSame('Mixed Levels (1, 3)', $cor['summary']['curriculum_level']);
-        $this->assertSame('Mixed', $cor['state']['course_delivery_mix']);
+        $this->assertSame(
+            'Recorded curriculum version #'.$fixture['profile']->curriculum_version_id,
+            $cor['state']['curriculum_level'],
+        );
+        $this->assertSame(
+            'Published timetable version #'.$fixture['timetable']->id,
+            $cor['state']['course_delivery_mix'],
+        );
         $this->assertStringContainsString('Curriculum Level', $print);
-        $this->assertStringContainsString('Mixed Levels (1, 3)', $print);
+        $this->assertStringContainsString(
+            'Recorded curriculum version #'.$fixture['profile']->curriculum_version_id,
+            $print,
+        );
         $this->assertStringContainsString('Course Delivery Mix', $print);
         $this->assertStringNotContainsString('Student Modality', $print);
     }
@@ -146,8 +156,8 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
     public function test_enrollment_queue_filters_by_term_and_program(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $target = $this->academicContextFixture('irregular', [['1', TermOffering::ModalityOnline]]);
-        $other = $this->academicContextFixture('regular', [['2', TermOffering::ModalityFaceToFace]]);
+        $target = $this->academicContextFixture(Enrollment::SelectionIndividuallyAdvised, [['1', TermOffering::ModalityOnline]]);
+        $other = $this->academicContextFixture(Enrollment::SelectionStandardCurriculum, [['2', TermOffering::ModalityFaceToFace]]);
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
@@ -184,26 +194,26 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         ]);
         $activeEnrollment = Enrollment::factory()->for($profile)->for($activeTerm)->create([
             'status' => 'capacity_pending',
-            'student_type' => 'irregular',
+            'student_type' => null,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
             'status_reason' => 'Waiting for compatible published sections.',
         ]);
         Enrollment::factory()->for($profile)->for($closedTerm)->create([
             'status' => 'pending_payment',
-            'student_type' => 'irregular',
+            'student_type' => null,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
             'status_reason' => 'Historical enrollment must not become current.',
         ]);
         $solverRunsBefore = ScheduleGenerationRun::query()->count();
 
         Livewire::actingAs($student)
             ->test(StudentEnrollmentPage::class)
-            ->assertSee('Current Term: D3 Active Waiting Term')
-            ->assertSee('Capacity Pending')
-            ->assertSee('Enrollment Type: Irregular')
-            ->assertSee('Curriculum Level: Not recorded')
-            ->assertSee('Course Delivery Mix: Not recorded')
-            ->assertSee('Waiting for compatible published sections')
-            ->assertSee('Responsible Office: Registrar Office')
-            ->assertSee('Next Action: Confirm a published section with available capacity');
+            ->assertSee('D3 Active Waiting Term')
+            ->assertSee('In Progress')
+            ->assertSee('Individually Advised')
+            ->assertSee('The Registrar has not prepared the current proposal yet.')
+            ->assertSee('Five checkpoints')
+            ->assertSee('Current proposal');
 
         $this->assertSame(0, CourseEnrollment::query()->where('enrollment_id', $activeEnrollment->id)->count());
         $this->assertSame(0, EnrollmentSeatReservation::query()->where('enrollment_id', $activeEnrollment->id)->count());
@@ -213,11 +223,11 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
     public function test_student_record_list_exposes_and_filters_current_enrollment_context(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $target = $this->academicContextFixture('irregular', [
+        $target = $this->academicContextFixture(Enrollment::SelectionIndividuallyAdvised, [
             ['1', TermOffering::ModalityOnline],
             ['2', TermOffering::ModalityFaceToFace],
         ]);
-        $other = $this->academicContextFixture('regular', [['3', TermOffering::ModalityFaceToFace]]);
+        $other = $this->academicContextFixture(Enrollment::SelectionStandardCurriculum, [['3', TermOffering::ModalityFaceToFace]]);
         $newerActiveTerm = Term::factory()->create([
             'label' => 'D3 Later Active Term',
             'starts_on' => '2101-01-01',
@@ -257,9 +267,9 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
 
     /**
      * @param  list<array{0:string,1:string}>  $levelsAndModalities
-     * @return array{student:User,program:Program,profile:StudentProfile,term:Term,enrollment:Enrollment}
+     * @return array{student:User,program:Program,profile:StudentProfile,term:Term,enrollment:Enrollment,timetable:PublishedTimetableVersion}
      */
-    private function academicContextFixture(string $studentType, array $levelsAndModalities): array
+    private function academicContextFixture(string $selectionBasis, array $levelsAndModalities): array
     {
         $student = User::factory()->create([
             'status' => User::StatusActive,
@@ -285,10 +295,13 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             ->for($term)
             ->create([
                 'status' => 'officially_enrolled',
-                'student_type' => $studentType,
+                'student_type' => null,
+                'selection_basis' => $selectionBasis,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
                 'registered_at' => now()->subDay(),
                 'officially_enrolled_at' => now(),
             ]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
 
         foreach ($levelsAndModalities as $index => [$level, $modality]) {
             $entry = CurriculumEntry::factory()
@@ -318,8 +331,11 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             $courseEnrollment = CourseEnrollment::query()->create([
                 'enrollment_id' => $enrollment->id,
                 'term_offering_id' => $offering->id,
-                'proposed_section_id' => $section->id,
-                'proposed_at' => now()->subDay(),
+                'section_id' => $section->id,
+                'published_timetable_version_id' => $timetable->id,
+                'change_source' => 'TAL96D5E1D3 canonical fixture',
+                'effective_from' => now()->subDay(),
+                'is_current' => true,
                 'status' => CourseEnrollment::StatusActive,
                 'units_snapshot' => '3.00',
                 'added_at' => now(),
@@ -336,7 +352,23 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             ]);
         }
 
-        return compact('student', 'program', 'profile', 'term', 'enrollment');
+        $cor = CorVersion::factory()->for($enrollment)->create([
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => [
+                'student_number' => $profile->student_number,
+                'student_name' => $student->getFilamentName(),
+                'program_id' => $program->id,
+                'program_code' => $program->code,
+                'curriculum_version_id' => $profile->curriculum_version_id,
+                'term_label' => $term->label,
+                'published_timetable_version_id' => $timetable->id,
+                'courses' => [],
+                'fees' => [],
+            ],
+        ]);
+        $enrollment->update(['current_cor_version_id' => $cor->id]);
+
+        return compact('student', 'program', 'profile', 'term', 'enrollment', 'timetable');
     }
 
     private function staff(string $role): User

@@ -3,11 +3,11 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
+use App\Models\CourseEnrollment;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\TermOffering;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\ValidationException;
@@ -19,9 +19,9 @@ final class SchedulePublicationImpactService
         $currentPublishedRun = $this->currentPublishedRun($run);
         $candidateRows = $this->candidateRows($run);
         $currentMeetings = $this->currentMeetings($currentPublishedRun);
-        $activeBindings = $this->activeBindings($currentMeetings);
+        $activeRegistrations = $this->activeOfficialRegistrations($currentMeetings);
 
-        return $this->calculate($currentPublishedRun, $candidateRows, $currentMeetings, $activeBindings);
+        return $this->calculate($currentPublishedRun, $candidateRows, $currentMeetings, $activeRegistrations);
     }
 
     /**
@@ -32,9 +32,9 @@ final class SchedulePublicationImpactService
         Collection $candidateRows,
     ): SchedulePublicationImpact {
         $currentMeetings = $this->currentMeetings($currentPublishedRun, lock: true);
-        $activeBindings = $this->activeBindings($currentMeetings, lock: true);
+        $activeRegistrations = $this->activeOfficialRegistrations($currentMeetings, lock: true);
 
-        return $this->calculate($currentPublishedRun, $candidateRows, $currentMeetings, $activeBindings);
+        return $this->calculate($currentPublishedRun, $candidateRows, $currentMeetings, $activeRegistrations);
     }
 
     public function modalityFor(CandidateScheduleRow $candidateRow): string
@@ -110,18 +110,25 @@ final class SchedulePublicationImpactService
 
     /**
      * @param  Collection<int, SectionMeeting>  $currentMeetings
-     * @return Collection<int, StudentScheduleBinding>
+     * @return Collection<int, CourseEnrollment>
      */
-    private function activeBindings(Collection $currentMeetings, bool $lock = false): Collection
+    private function activeOfficialRegistrations(Collection $currentMeetings, bool $lock = false): Collection
     {
         if ($currentMeetings->isEmpty()) {
             return new Collection;
         }
 
-        $query = StudentScheduleBinding::query()
-            ->whereIn('section_meeting_id', $currentMeetings->modelKeys())
-            ->where('is_active', true)
-            ->with('courseEnrollment.enrollment')
+        $sectionIds = $currentMeetings
+            ->loadMissing('schedulingDemand.sectionDeliveryGroup')
+            ->map(fn (SectionMeeting $meeting): int => (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id)
+            ->filter()
+            ->unique();
+
+        $query = CourseEnrollment::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->with('enrollment')
             ->orderBy('id');
 
         if ($lock) {
@@ -134,13 +141,13 @@ final class SchedulePublicationImpactService
     /**
      * @param  Collection<int, CandidateScheduleRow>  $candidateRows
      * @param  Collection<int, SectionMeeting>  $currentMeetings
-     * @param  Collection<int, StudentScheduleBinding>  $activeBindings
+     * @param  Collection<int, CourseEnrollment>  $activeRegistrations
      */
     private function calculate(
         ?ScheduleGenerationRun $currentPublishedRun,
         Collection $candidateRows,
         Collection $currentMeetings,
-        Collection $activeBindings,
+        Collection $activeRegistrations,
     ): SchedulePublicationImpact {
         $candidateByKey = $candidateRows->keyBy(
             fn (CandidateScheduleRow $row): string => $this->assignmentKey($row->scheduling_demand_id, $row->meeting_sequence),
@@ -181,9 +188,9 @@ final class SchedulePublicationImpactService
             $affectedFacultyIds[(int) $removedMeeting->faculty_user_id] = true;
         }
 
-        $affectedStudentIds = $activeBindings
-            ->map(fn (StudentScheduleBinding $binding): ?int => $binding->courseEnrollment?->enrollment?->student_profile_id)
-            ->filter(fn (?int $studentProfileId): bool => $studentProfileId !== null)
+        $affectedStudentIds = $activeRegistrations
+            ->map(fn (CourseEnrollment $registration): ?int => $registration->enrollment?->credential_user_id)
+            ->filter(fn (?int $userId): bool => $userId !== null)
             ->unique()
             ->values();
 
@@ -193,7 +200,7 @@ final class SchedulePublicationImpactService
             removedAssignments: $removedMeetings->count(),
             unchangedAssignments: $unchangedAssignments,
             affectedFaculty: count($affectedFacultyIds),
-            activeBindings: $activeBindings->count(),
+            activeOfficialRegistrations: $activeRegistrations->count(),
             affectedStudents: $affectedStudentIds->count(),
             currentPublicationVersion: $currentPublishedRun?->publication_version,
         );

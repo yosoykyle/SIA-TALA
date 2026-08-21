@@ -1,12 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Access to an undefined property App\\Models\\StudentProfile\:\:\$hard_copy_received\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Enrollment/EnrollmentHardCopyReceiptService.php
-
-		-
 			message: '#^Instanceof between App\\Models\\User and Illuminate\\Contracts\\Auth\\MustVerifyEmail will always evaluate to true\.$#'
 			identifier: instanceof.alwaysTrue
 			count: 1

@@ -100,8 +100,8 @@ class SchedulePublishService
                 throw ValidationException::withMessages([
                     'publication_impact' => sprintf(
                         'Full replacement is blocked because the current published schedule has %d active student %s. Use the controlled live-revision workflow instead.',
-                        $impact->activeBindings(),
-                        $impact->activeBindings() === 1 ? 'binding' : 'bindings',
+                        $impact->activeOfficialRegistrations(),
+                        $impact->activeOfficialRegistrations() === 1 ? 'official registration' : 'official registrations',
                     ),
                 ]);
             }

@@ -23,6 +23,8 @@ class CurrentOfficialEnrollmentResolver
             ->join('terms', 'terms.id', '=', 'enrollments.term_id')
             ->where('enrollments.student_profile_id', $profile->id)
             ->where('enrollments.status', 'officially_enrolled')
+            ->where('enrollments.canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+            ->whereNotNull('enrollments.current_cor_version_id')
             ->whereNotNull('enrollments.officially_enrolled_at')
             ->where('terms.state', Term::StateActive)
             ->orderByDesc('terms.starts_on')

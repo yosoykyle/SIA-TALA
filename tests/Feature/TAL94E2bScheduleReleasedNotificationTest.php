@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\FinalizeOfficialEnrollment;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Mail\ScheduleReleasedMail;
@@ -19,6 +18,7 @@ use App\Models\FacultyQualification;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -31,7 +31,6 @@ use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -116,14 +115,9 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
     {
         Mail::fake();
 
-        $registrar = $this->staff(User::StaffRoleRegistrar);
         $fixture = $this->officialEnrollmentContext();
 
-        $result = app(FinalizeOfficialEnrollment::class)->execute(
-            $fixture['enrollment'],
-            $registrar,
-            recordedAt: CarbonImmutable::parse('2026-07-14 10:00:00'),
-        );
+        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']);
 
         Mail::assertQueuedCount(1);
         Mail::assertQueued(
@@ -144,17 +138,13 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         $this->assertSame('PENDING', $deliveryEvent->status);
         $this->assertSame($fixture['student']->id, $deliveryEvent->user_id);
         $this->assertSame(Enrollment::class, $deliveryEvent->related_record_type);
-        $this->assertSame($result->id, $deliveryEvent->related_record_id);
+        $this->assertSame($fixture['enrollment']->id, $deliveryEvent->related_record_id);
         $this->assertSame(
-            "schedule-release:official-enrollment:{$result->id}:user:{$fixture['student']->id}",
+            "schedule-release:official-enrollment:{$fixture['enrollment']->id}:user:{$fixture['student']->id}",
             $deliveryEvent->external_id,
         );
 
-        app(FinalizeOfficialEnrollment::class)->execute(
-            $result->fresh(),
-            $registrar,
-            recordedAt: CarbonImmutable::parse('2026-07-14 11:00:00'),
-        );
+        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']->fresh());
 
         Mail::assertQueuedCount(1);
         $this->assertSame(1, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
@@ -353,21 +343,13 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         Mail::assertNothingQueued();
     }
 
-    public function test_failed_official_enrollment_creates_no_release_mail_or_delivery_evidence(): void
+    public function test_non_official_registration_creates_no_release_mail_or_delivery_evidence(): void
     {
         Mail::fake();
 
         $fixture = $this->officialEnrollmentContext(withPostedPayment: false);
 
-        try {
-            app(FinalizeOfficialEnrollment::class)->execute(
-                $fixture['enrollment'],
-                $this->staff(User::StaffRoleRegistrar),
-            );
-            $this->fail('Expected the unresolved Finance Gate to block official enrollment.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('gates', $exception->errors());
-        }
+        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']);
 
         $this->assertNotSame('officially_enrolled', $fixture['enrollment']->fresh()->status);
         $this->assertSame(0, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
@@ -470,7 +452,11 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         $enrollment = Enrollment::factory()
             ->for($profile)
             ->for($term)
-            ->create(['status' => 'pending_review']);
+            ->create([
+                'credential_user_id' => $student->id,
+                'canonical_outcome' => $withPostedPayment ? Enrollment::OutcomeOfficiallyEnrolled : Enrollment::OutcomeInProgress,
+                'status' => $withPostedPayment ? 'officially_enrolled' : 'pending_review',
+            ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
             'version' => 1,
@@ -588,9 +574,36 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+            'is_current' => true,
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
+        ]);
+        $timetableVersion = PublishedTimetableVersion::query()->create([
+            'term_id' => $term->id,
+            'schedule_run_id' => $run->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'authority_reference' => 'TAL94E2B-AUTHORITY',
+            'publication_reason' => 'Canonical notification fixture.',
+            'source_versions' => [],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', 'tal94e2b-'.$enrollment->id),
+            'published_by' => $faculty->id,
+            'published_at' => now(),
+        ]);
+        PublishedTimetableMeeting::query()->create([
+            'published_timetable_version_id' => $timetableVersion->id,
+            'section_id' => $section->id,
+            'scheduling_demand_id' => $demand->id,
+            'faculty_user_id' => $faculty->id,
+            'meeting_sequence' => 1,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '10:00:00',
+            'modality' => TermOffering::ModalityOnline,
+            'location_label' => 'Online',
         ]);
         EnrollmentSeatReservation::query()->create([
             'enrollment_id' => $enrollment->id,

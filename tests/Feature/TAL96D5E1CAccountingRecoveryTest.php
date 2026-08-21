@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Actions\Finance\StudentAccountPresenter;
 use App\Filament\Pages\PayMongoReconciliation;
-use App\Filament\Resources\Assessments\Pages\ViewAssessment;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\LedgerEntries\Pages\ListLedgerEntries;
 use App\Filament\Resources\LedgerEntries\Pages\ViewLedgerEntry;
 use App\Filament\Resources\PaymentAttempts\Pages\ListPaymentAttempts;
@@ -60,8 +60,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $this->actingAs($accounting)
             ->get('/admin')
             ->assertOk()
-            ->assertSeeText('Fee Setup')
-            ->assertSeeText('Student Accounts')
+            ->assertSeeText('Fee Plans')
+            ->assertSeeText('Enrollment Clearance')
             ->assertSeeText('Payment Exceptions')
             ->assertDontSeeText('Accounting Adjustments')
             ->assertDontSeeText('Financial Accommodations')
@@ -91,17 +91,12 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::actingAs($accounting)
-            ->test(ViewAssessment::class, ['record' => $assessment->getRouteKey()])
-            ->assertSee('Student Account')
-            ->assertSee('Current Position')
-            ->assertSee('Finance Gate')
-            ->assertSee('Responsible Office')
-            ->assertSee('Next Action')
-            ->assertSee('Account Activity')
-            ->assertSee('Payment Attempts')
-            ->assertSee('Payments and OR Reconciliation')
-            ->assertSee('Adjustments and Reversals')
-            ->assertSee('Financial Accommodation');
+            ->test(ViewEnrollment::class, ['record' => $assessment->enrollment->getRouteKey()])
+            ->assertSee('Registration Case')
+            ->assertSee('Five finalization checkpoints')
+            ->assertSee('Accounting clearance')
+            ->assertSee('Current proposal and protected placement')
+            ->assertSee('Official result and history');
     }
 
     #[Test]

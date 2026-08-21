@@ -101,7 +101,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             'removed_assignments' => 1,
             'unchanged_assignments' => 1,
             'affected_faculty' => 2,
-            'active_bindings' => 1,
+            'active_official_registrations' => 1,
             'affected_students' => 1,
             'current_publication_version' => 1,
         ], $impact->toArray());
@@ -123,12 +123,12 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         $newRun = $this->scheduleRun($term);
         $candidate = $this->candidate($newRun, $source['demand'], startsAt: '10:00:00', endsAt: '12:00:00');
 
-        $this->assertSame(0, $this->impactService->preview($newRun)->activeBindings());
+        $this->assertSame(0, $this->impactService->preview($newRun)->activeOfficialRegistrations());
         $binding = $this->activeBinding($term, $source['offering'], $priorMeeting);
 
         try {
             $this->publisher->publish($newRun, $registrar);
-            $this->fail('Publication with an active student binding was not blocked.');
+            $this->fail('Publication with an active official registration was not blocked.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('publication_impact', $exception->errors());
         }
@@ -248,7 +248,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             ->assertActionVisible('publishSchedule')
             ->mountAction('publishSchedule')
             ->assertMountedActionModalSee('1 changed assignment')
-            ->assertMountedActionModalSee('1 active student binding')
+            ->assertMountedActionModalSee('1 active student official registration')
             ->assertMountedActionModalSee('Full replacement is blocked');
     }
 
@@ -380,10 +380,16 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         $enrollment = Enrollment::factory()
             ->for($studentProfile)
             ->for($term)
-            ->create(['status' => 'pending_payment']);
+            ->create([
+                'credential_user_id' => $studentProfile->user_id,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'status' => 'officially_enrolled',
+            ]);
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $offering->id,
+            'section_id' => $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id,
+            'is_current' => true,
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),

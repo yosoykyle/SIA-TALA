@@ -10,10 +10,10 @@ use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
+use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
-use App\Filament\Resources\FeeRules\FeeRuleResource;
+use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
@@ -90,8 +90,8 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
             ->count();
 
         return [
-            $this->stat('1. Fee Setup', 'Configure charges', 'Review effective fee rules before assessment.', FeeRuleResource::getUrl('index')),
-            $this->stat('2. Student Accounts', "{$activeAssessments} active", 'Assess obligations and inspect the account ledger.', AssessmentResource::getUrl('index')),
+            $this->stat('1. Fee Plans', 'Publish fixed charges', 'Review the exact Program-and-Term plan before assessment.', FeePlanResource::getUrl('index')),
+            $this->stat('2. Enrollment Clearance', "{$activeAssessments} active", 'Assess exact-Term obligations and review clearance evidence.', EnrollmentResource::getUrl('index')),
             $this->stat('3. Payment Exceptions', 'Review queue', 'Resolve failed or recovered evidence without bypassing verification.', PayMongoReconciliation::getUrl()),
             $this->stat('4. Reports', 'Finance evidence', 'Open authorized fixed reports and audited exports.', ReportsAudit::getUrl()),
         ];

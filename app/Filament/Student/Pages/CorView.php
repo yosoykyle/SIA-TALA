@@ -3,7 +3,9 @@
 namespace App\Filament\Student\Pages;
 
 use App\Actions\Cor\BuildCorOutput;
+use App\Models\CorVersion;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Pages\Page;
@@ -123,6 +125,26 @@ class CorView extends Page
                 ->url(fn (): string => route('cor.print', $this->cor['summary']['enrollment_id'] ?? 0))
                 ->openUrlInNewTab()
                 ->visible(fn (): bool => ($this->cor['available'] ?? false) === true),
+            Action::make('printHistory')
+                ->label('Print COR history')
+                ->icon('heroicon-o-document-duplicate')
+                ->visible(fn (): bool => ($this->cor['available'] ?? false) === true
+                    && CorVersion::query()->where('enrollment_id', $this->cor['summary']['enrollment_id'] ?? 0)->count() > 1)
+                ->schema([
+                    Select::make('version')
+                        ->label('Immutable COR version')
+                        ->options(fn (): array => CorVersion::query()
+                            ->where('enrollment_id', $this->cor['summary']['enrollment_id'] ?? 0)
+                            ->orderByDesc('version')
+                            ->pluck('version', 'version')
+                            ->mapWithKeys(fn (mixed $version): array => [(int) $version => 'COR version '.$version])
+                            ->all())
+                        ->required(),
+                ])
+                ->action(fn (array $data) => $this->redirect(route('cor.print', [
+                    'enrollment' => $this->cor['summary']['enrollment_id'] ?? 0,
+                    'version' => (int) $data['version'],
+                ]))),
         ];
     }
 }

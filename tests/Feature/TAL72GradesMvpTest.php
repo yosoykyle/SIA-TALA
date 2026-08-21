@@ -22,13 +22,11 @@ use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
-use App\Models\ScheduleGenerationRun;
-use App\Models\SchedulingDemand;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationCaseEvent;
 use App\Models\Section;
-use App\Models\SectionDeliveryGroup;
-use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -225,6 +223,98 @@ class TAL72GradesMvpTest extends TestCase
     }
 
     #[Test]
+    public function released_result_changes_open_one_review_for_each_affected_later_registration_case(): void
+    {
+        $fixture = $this->gradeFixture();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $sourceCourse = $fixture['termOffering']->curriculumEntry->courseSpecification->course;
+        $affectedTerm = Term::factory()->create([
+            'starts_on' => $fixture['term']->starts_on->addMonths(5),
+            'ends_on' => $fixture['term']->ends_on->addMonths(5),
+        ]);
+        $affectedSpecification = CourseSpecification::factory()->create([
+            'state' => CourseSpecification::StateActive,
+        ]);
+        CourseRequirement::factory()->create([
+            'course_specification_id' => $affectedSpecification->id,
+            'related_course_id' => $sourceCourse->id,
+            'rule_type' => CourseRequirement::TypePrerequisite,
+            'state' => CourseRequirement::StateActive,
+        ]);
+        $affectedEntry = CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $fixture['profile']->curriculum_version_id,
+            'course_specification_id' => $affectedSpecification->id,
+        ]);
+        $affectedOffering = TermOffering::factory()->create([
+            'term_id' => $affectedTerm->id,
+            'curriculum_entry_id' => $affectedEntry->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+        $affectedCase = Enrollment::factory()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'credential_user_id' => $fixture['student']->id,
+            'term_id' => $affectedTerm->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+        ]);
+        $affectedCourse = CourseEnrollment::query()->create([
+            'enrollment_id' => $affectedCase->id,
+            'term_offering_id' => $affectedOffering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => 3,
+            'added_at' => now(),
+        ]);
+
+        $unrelatedTerm = Term::factory()->create([
+            'starts_on' => $fixture['term']->starts_on->addMonths(10),
+            'ends_on' => $fixture['term']->ends_on->addMonths(10),
+        ]);
+        $unrelatedEntry = CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $fixture['profile']->curriculum_version_id,
+        ]);
+        $unrelatedOffering = TermOffering::factory()->create([
+            'term_id' => $unrelatedTerm->id,
+            'curriculum_entry_id' => $unrelatedEntry->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+        $unrelatedCase = Enrollment::factory()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'credential_user_id' => $fixture['student']->id,
+            'term_id' => $unrelatedTerm->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+        ]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $unrelatedCase->id,
+            'term_offering_id' => $unrelatedOffering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => 3,
+            'added_at' => now(),
+        ]);
+
+        $roster = app(GenerateGradeRoster::class)->execute($fixture['termOffering'], $fixture['section'], $fixture['faculty']);
+        $row = $roster->rows()->firstOrFail();
+        app(SaveGradeRosterControlledOutcome::class)->execute($row, 'INC', $fixture['faculty']);
+        app(SubmitGradeRoster::class)->execute($roster->fresh(), $fixture['faculty']);
+        app(PostAndReleaseGradeRoster::class)->execute($roster->fresh(), $registrar);
+        app(RecordIncResolution::class)->execute($row->fresh(), '3.00', 'Approved completion', 'Completed requirements.', 'INC-IMPACT-001', $registrar);
+        app(RecordApprovedGradeCorrection::class)->execute($row->fresh(), '2.75', 'Approved correction', 'Corrected released result.', 'CORR-IMPACT-001', $registrar);
+
+        $this->assertSame(3, RegistrationCaseEvent::query()
+            ->where('enrollment_id', $affectedCase->id)
+            ->where('event_type', 'AcademicResultImpactReviewOpened')
+            ->count());
+        $this->assertSame(0, RegistrationCaseEvent::query()
+            ->where('enrollment_id', $unrelatedCase->id)
+            ->where('event_type', 'AcademicResultImpactReviewOpened')
+            ->count());
+        $this->assertTrue($affectedCourse->fresh()->is_current);
+        $this->assertSame(1, $affectedCase->courseEnrollments()->count());
+    }
+
+    #[Test]
     public function subject_suggestions_use_released_grade_roster_rows_and_block_temporary_outcomes(): void
     {
         $fixture = $this->subjectSuggestionFixture();
@@ -306,62 +396,39 @@ class TAL72GradesMvpTest extends TestCase
             'state' => TermOffering::StateScheduled,
         ]);
         $section = Section::factory()->create(['term_offering_id' => $termOffering->id]);
-        $deliveryGroup = SectionDeliveryGroup::factory()->create(['section_id' => $section->id]);
-        $component = CourseComponent::factory()->create(['course_specification_id' => $courseSpecification->id]);
-        $demand = SchedulingDemand::query()->create([
-            'term_offering_id' => $termOffering->id,
-            'course_component_id' => $component->id,
-            'section_delivery_group_id' => $deliveryGroup->id,
-            'demand_key' => fake()->unique()->uuid(),
-            'required_duration_minutes' => 180,
-            'meeting_count' => 1,
-            'modality' => TermOffering::ModalityOnline,
-            'validation_state' => SchedulingDemand::ValidationReadyForReview,
-        ]);
-        $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => ScheduleGenerationRun::StatusPublished,
-            'input_snapshot' => [],
-            'input_hash' => hash('sha256', fake()->uuid()),
-            'solver_version' => 'test',
-            'published_at' => now(),
-        ]);
+        CourseComponent::factory()->create(['course_specification_id' => $courseSpecification->id]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
         $enrollment = Enrollment::factory()->create([
             'student_profile_id' => $profile->id,
+            'credential_user_id' => $student->id,
             'term_id' => $term->id,
             'status' => 'officially_enrolled',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
             'officially_enrolled_at' => now(),
         ]);
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $termOffering->id,
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
             'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'effective_from' => now(),
             'units_snapshot' => 3,
             'added_at' => now(),
         ]);
         $meetings = $linkedMeetings ? [1, 2] : [1];
 
         foreach ($meetings as $sequence) {
-            $meeting = SectionMeeting::query()->create([
-                'schedule_run_id' => $run->id,
-                'scheduling_demand_id' => $demand->id,
+            PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([
+                'section_id' => $section->id,
                 'meeting_sequence' => $sequence,
                 'faculty_user_id' => $faculty->id,
                 'room_id' => null,
                 'day_of_week' => $sequence,
-                'starts_at' => '08:00',
-                'ends_at' => '09:00',
+                'starts_at' => '08:00:00',
+                'ends_at' => '09:00:00',
                 'modality' => TermOffering::ModalityOnline,
-                'state' => SectionMeeting::StateActive,
-                'published_at' => now(),
-            ]);
-            StudentScheduleBinding::query()->create([
-                'course_enrollment_id' => $courseEnrollment->id,
-                'section_meeting_id' => $meeting->id,
-                'is_active' => true,
-                'effective_from' => now()->toDateString(),
-                'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-                'released_at' => now(),
             ]);
         }
 

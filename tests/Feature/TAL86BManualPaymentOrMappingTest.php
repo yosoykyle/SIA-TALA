@@ -4,13 +4,12 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\MapOfficialReceiptToPayment;
 use App\Actions\Finance\PaymentConfirmationService;
-use App\Filament\Resources\Assessments\Pages\ViewAssessment;
+use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAllocation;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -51,46 +50,13 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         }
     }
 
-    public function test_accounting_records_manual_payment_from_active_assessment_and_posts_one_ledger_payment(): void
+    public function test_retired_assessment_resource_cannot_bypass_the_registration_clearance_surface(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
-        $fixture = $this->activeAssessmentFixture();
+        $this->actingAs($accounting);
 
-        Livewire::actingAs($accounting)
-            ->test(ViewAssessment::class, ['record' => $fixture['assessment']->getRouteKey()])
-            ->assertActionVisible('recordManualPayment')
-            ->callAction('recordManualPayment', data: [
-                'amount' => '500.00',
-                'channel' => 'cash',
-                'payment_reference' => 'MANUAL-CASH-86B-001',
-                'or_number' => 'OR-86B-001',
-                'paid_at' => '2026-06-12 10:30:00',
-            ])
-            ->assertNotified('Manual payment recorded');
-
-        $payment = Payment::query()
-            ->where('student_profile_id', $fixture['profile']->id)
-            ->where('term_id', $fixture['term']->id)
-            ->sole();
-        $ledgerEntry = LedgerEntry::query()
-            ->where('enrollment_id', $fixture['enrollment']->id)
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->sole();
-
-        $this->assertSame('verified', $payment->evidence_status);
-        $this->assertSame('MANUAL-CASH-86B-001', $payment->provider_reference);
-        $this->assertSame('OR-86B-001', $payment->or_number);
-        $this->assertSame('cash', $payment->channel);
-        $this->assertSame($accounting->id, $payment->verified_by);
-        $this->assertSame($payment->id, $ledgerEntry->payment_id);
-        $this->assertSame(PaymentAllocation::class, $ledgerEntry->source_type);
-        $this->assertSame($ledgerEntry->payment_allocation_id, $ledgerEntry->source_id);
-        $this->assertSame('posted', $ledgerEntry->state);
-        $this->assertSame('500.00', (string) $ledgerEntry->amount);
-        $this->assertSame(1, LedgerEntry::query()
-            ->where('enrollment_id', $fixture['enrollment']->id)
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->count());
+        $this->assertFalse(AssessmentResource::canAccess());
+        $this->assertFalse(AssessmentResource::shouldRegisterNavigation());
     }
 
     public function test_duplicate_manual_payment_reference_and_or_number_are_rejected_without_reposting(): void
@@ -182,9 +148,8 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $fixture = $this->activeAssessmentFixture();
         $payment = $this->verifiedPostedPayment($fixture);
 
-        Livewire::actingAs($registrar)
-            ->test(ViewAssessment::class, ['record' => $fixture['assessment']->getRouteKey()])
-            ->assertDontSee('Record Manual Payment');
+        $this->actingAs($registrar);
+        $this->assertFalse(AssessmentResource::canAccess());
 
         $this->assertFalse(Gate::forUser($registrar)->allows('mapOfficialReceipt', $payment));
 

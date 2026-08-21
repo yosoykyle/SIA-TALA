@@ -48,6 +48,24 @@ class CalendarPhaseGateService
         return CarbonImmutable::instance($window->end_at);
     }
 
+    public function finalEnrollmentCutoff(int $termId): CarbonImmutable
+    {
+        $this->assertTermExists($termId);
+        $window = $this->windowQuery($termId, CalendarEvent::ProcessEnrollment)
+            ->orderByDesc('end_at')
+            ->first();
+
+        if (! $window instanceof CalendarEvent || ! $window->end_at instanceof \DateTimeInterface) {
+            throw new CalendarGateViolation(
+                'Enrollment final cutoff is not configured for this term.',
+                'enrollment_final_cutoff',
+                ['term_id' => $termId, 'window_configured' => false],
+            );
+        }
+
+        return CarbonImmutable::instance($window->end_at);
+    }
+
     public function assertSchedulingWindowOpen(int $termId, ?CarbonImmutable $at = null): void
     {
         $this->resolveWindow(
@@ -84,6 +102,18 @@ class CalendarPhaseGateService
 
             throw $exception;
         }
+    }
+
+    public function assertAddDropAdjustmentWindowOpen(int $termId, ?CarbonImmutable $at = null): void
+    {
+        $this->resolveWindow(
+            termId: $termId,
+            processKey: CalendarEvent::ProcessAddDropAdjustment,
+            gate: 'add_drop_adjustment_window',
+            missingMessage: 'Add / Drop / Adjustment window is not configured for this term.',
+            closedMessage: 'Add / Drop / Adjustment is outside the configured window.',
+            at: $at,
+        );
     }
 
     /**

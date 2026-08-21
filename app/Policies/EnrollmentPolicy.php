@@ -9,7 +9,7 @@ class EnrollmentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole([
+        return $user->canAuthenticate() && ($user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
@@ -19,7 +19,7 @@ class EnrollmentPolicy
             'evaluate-transferees',
             'create-assessments',
             'process-payments',
-        ]);
+        ]));
     }
 
     public function view(User $user, Enrollment $enrollment): bool
@@ -54,7 +54,7 @@ class EnrollmentPolicy
 
     public function assess(User $user, Enrollment $enrollment): bool
     {
-        return $user->hasRole(User::StaffRoleAccounting);
+        return $user->canAuthenticate() && $user->hasRole(User::StaffRoleAccounting);
     }
 
     public function confirmPayment(User $user, Enrollment $enrollment): bool
@@ -78,7 +78,7 @@ class EnrollmentPolicy
 
     public function confirmPlacement(User $user, Enrollment $enrollment): bool
     {
-        return $user->hasAnyRole([
+        return $user->canAuthenticate() && $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleSystemSuperAdmin,
         ]);
@@ -86,7 +86,7 @@ class EnrollmentPolicy
 
     public function refreshGates(User $user, Enrollment $enrollment): bool
     {
-        return $user->hasAnyRole([
+        return $user->canAuthenticate() && $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleSystemSuperAdmin,
         ]);
@@ -94,7 +94,7 @@ class EnrollmentPolicy
 
     public function officiallyEnroll(User $user, Enrollment $enrollment): bool
     {
-        return $user->hasAnyRole([
+        return $user->canAuthenticate() && $user->hasAnyRole([
             User::StaffRoleRegistrar,
             User::StaffRoleSystemSuperAdmin,
         ]);

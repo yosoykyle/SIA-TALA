@@ -6,8 +6,8 @@ use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -15,7 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 final class RevisePublishedTimetable
 {
-    public function __construct(private readonly ScheduleAssignmentRevalidationService $revalidator) {}
+    public function __construct(
+        private readonly ScheduleAssignmentRevalidationService $revalidator,
+        private readonly TimetableRevisionImpactGuard $impactGuard,
+    ) {}
 
     /**
      * @param  array<int, array{faculty_user_id?: int, room_id?: int|null, day_of_week?: int, starts_at?: string, ends_at?: string, modality?: string, location_label?: string, remove?: bool}>  $changesByMeetingId
@@ -27,10 +30,19 @@ final class RevisePublishedTimetable
         string $authorityReference,
         string $reason,
         bool $allowSectionCancellation = false,
+        ?TimetableRevision $preparedRevision = null,
     ): PublishedTimetableVersion {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
+        $preparedRevision ??= $this->impactGuard->prepare(
+            $current,
+            $actor,
+            $changesByMeetingId,
+            $authorityReference,
+            $reason,
+            $allowSectionCancellation,
+        );
 
-        return DB::transaction(function () use ($current, $actor, $changesByMeetingId, $authorityReference, $reason, $allowSectionCancellation): PublishedTimetableVersion {
+        return DB::transaction(function () use ($current, $actor, $changesByMeetingId, $authorityReference, $reason, $allowSectionCancellation, $preparedRevision): PublishedTimetableVersion {
             Term::query()->whereKey($current->term_id)->lockForUpdate()->firstOrFail();
             $locked = PublishedTimetableVersion::query()->whereKey($current)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
@@ -38,6 +50,8 @@ final class RevisePublishedTimetable
             if ($locked->state !== PublishedTimetableVersion::StatePublished) {
                 throw ValidationException::withMessages(['timetable_version' => 'Only the current Published Timetable Version can be revised.']);
             }
+
+            $preparedRevision = $this->impactGuard->assertReady($preparedRevision, $locked, $changesByMeetingId);
 
             $authorityReference = trim($authorityReference);
             $reason = trim($reason);
@@ -140,6 +154,7 @@ final class RevisePublishedTimetable
                 'publication_reason' => $reason,
                 'source_versions' => $locked->source_versions,
                 'impact_summary' => [
+                    'timetable_revision_id' => $preparedRevision->id,
                     'changed_meeting_ids' => array_map('intval', array_keys($changesByMeetingId)),
                     'changed_count' => count($changesByMeetingId),
                 ],
@@ -164,13 +179,7 @@ final class RevisePublishedTimetable
                 ]);
 
                 if ($successorMeeting->scheduling_demand_id !== null) {
-                    $legacyMeeting = SectionMeeting::query()
-                        ->where('schedule_run_id', $sourceRun->id)
-                        ->where('scheduling_demand_id', $successorMeeting->scheduling_demand_id)
-                        ->where('meeting_sequence', $successorMeeting->meeting_sequence)
-                        ->lockForUpdate()
-                        ->first();
-                    $projectedMeeting = SectionMeeting::query()->create([
+                    SectionMeeting::query()->create([
                         'schedule_run_id' => $successorRun->id,
                         'published_timetable_version_id' => $successor->id,
                         'scheduling_demand_id' => $successorMeeting->scheduling_demand_id,
@@ -184,63 +193,15 @@ final class RevisePublishedTimetable
                         'state' => SectionMeeting::StateActive,
                         'published_at' => now(),
                     ]);
-
-                    if ($legacyMeeting instanceof SectionMeeting) {
-                        $this->carryStudentBindings(
-                            $legacyMeeting,
-                            $projectedMeeting,
-                            $actor,
-                            $reason,
-                        );
-                    }
                 }
             }
 
             $locked->forceFill(['state' => PublishedTimetableVersion::StateSuperseded])->save();
             $sourceRun->forceFill(['status' => ScheduleGenerationRun::StatusSuperseded])->save();
+            $this->impactGuard->markPublished($preparedRevision, $successor, $actor);
 
             return $successor->fresh('meetings');
         }, attempts: 5);
-    }
-
-    private function carryStudentBindings(
-        SectionMeeting $source,
-        SectionMeeting $successor,
-        User $actor,
-        string $reason,
-    ): void {
-        $timestamp = now();
-        $bindings = StudentScheduleBinding::query()
-            ->where('section_meeting_id', $source->id)
-            ->where('is_active', true)
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
-
-        foreach ($bindings as $binding) {
-            $binding->forceFill([
-                'is_active' => false,
-                'effective_until' => $timestamp->toDateString(),
-                'released_by' => $actor->id,
-                'released_at' => $timestamp,
-                'release_reason' => 'Superseded by immutable timetable revision: '.$reason,
-            ])->save();
-            StudentScheduleBinding::query()->firstOrCreate(
-                [
-                    'course_enrollment_id' => $binding->course_enrollment_id,
-                    'section_meeting_id' => $successor->id,
-                ],
-                [
-                    'is_active' => true,
-                    'effective_from' => $timestamp->toDateString(),
-                    'effective_until' => null,
-                    'source' => $binding->source,
-                    'released_by' => null,
-                    'released_at' => null,
-                    'release_reason' => null,
-                ],
-            );
-        }
     }
 
     /** @param list<array<string, mixed>> $meetings */

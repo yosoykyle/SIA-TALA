@@ -10,7 +10,7 @@ final readonly class SchedulePublicationImpact
         private int $removedAssignments,
         private int $unchangedAssignments,
         private int $affectedFaculty,
-        private int $activeBindings,
+        private int $activeOfficialRegistrations,
         private int $affectedStudents,
         private ?int $currentPublicationVersion,
     ) {}
@@ -40,9 +40,9 @@ final readonly class SchedulePublicationImpact
         return $this->affectedFaculty;
     }
 
-    public function activeBindings(): int
+    public function activeOfficialRegistrations(): int
     {
-        return $this->activeBindings;
+        return $this->activeOfficialRegistrations;
     }
 
     public function affectedStudents(): int
@@ -57,7 +57,7 @@ final readonly class SchedulePublicationImpact
 
     public function blocksFullReplacement(): bool
     {
-        return $this->activeBindings > 0;
+        return $this->activeOfficialRegistrations > 0;
     }
 
     /**
@@ -67,7 +67,7 @@ final readonly class SchedulePublicationImpact
      *     removed_assignments: int,
      *     unchanged_assignments: int,
      *     affected_faculty: int,
-     *     active_bindings: int,
+     *     active_official_registrations: int,
      *     affected_students: int,
      *     current_publication_version: int|null
      * }
@@ -80,7 +80,7 @@ final readonly class SchedulePublicationImpact
             'removed_assignments' => $this->removedAssignments,
             'unchanged_assignments' => $this->unchangedAssignments,
             'affected_faculty' => $this->affectedFaculty,
-            'active_bindings' => $this->activeBindings,
+            'active_official_registrations' => $this->activeOfficialRegistrations,
             'affected_students' => $this->affectedStudents,
             'current_publication_version' => $this->currentPublicationVersion,
         ];

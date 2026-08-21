@@ -40,7 +40,7 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
     }
 
     #[Test]
-    public function min_operational_overlay_is_guarded_idempotent_and_preserves_scheduling_inputs(): void
+    public function canonical_operational_overlay_is_guarded_idempotent_and_preserves_scheduling_inputs(): void
     {
         $term = $this->presentationTerm();
         $before = $this->schedulingFingerprint($term);
@@ -88,19 +88,15 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
     }
 
     #[Test]
-    public function min_overlay_exposes_named_enrollment_finance_grade_and_lifecycle_states(): void
+    public function canonical_overlay_exposes_named_enrollment_finance_grade_and_lifecycle_states(): void
     {
         $this->artisan('acceptance:seed-tal96d5b-states')->assertSuccessful();
 
-        $this->assertEnrollmentState('DBM-2A-001', 'pending', 'irregular');
-        $dueState = $this->enrollmentFor('DIT-1A-001');
-        $this->assertContains($dueState->status, ['pending_payment', 'pre_enrolled']);
-        $this->assertSame('regular', $dueState->student_type);
-        $partialState = $this->enrollmentFor('DIT-1A-002');
-        $this->assertContains($partialState->status, ['pending_payment', 'pre_enrolled']);
-        $this->assertSame('regular', $partialState->student_type);
-        $this->assertEnrollmentState('DIT-2A-001', 'pre_enrolled', 'regular');
-        $this->assertEnrollmentState('DTHM-1A-001', 'cancelled', 'regular');
+        $this->assertEnrollmentState('DBM-2A-001', 'pending', Enrollment::SelectionIndividuallyAdvised, Enrollment::OutcomeInProgress);
+        $this->assertEnrollmentState('DIT-1A-001', 'pending_payment', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeInProgress);
+        $this->assertEnrollmentState('DIT-1A-002', 'pending_payment', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeInProgress);
+        $this->assertEnrollmentState('DIT-2A-001', 'pending_payment', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeInProgress);
+        $this->assertEnrollmentState('DTHM-1A-001', 'cancelled', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeCancelled);
 
         $dueEnrollment = $this->enrollmentFor('DIT-1A-001');
         $partialEnrollment = $this->enrollmentFor('DIT-1A-002');
@@ -256,12 +252,13 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         ];
     }
 
-    private function assertEnrollmentState(string $studentNumber, string $status, string $studentType): void
+    private function assertEnrollmentState(string $studentNumber, string $status, string $selectionBasis, string $outcome): void
     {
         $enrollment = $this->enrollmentFor($studentNumber);
 
         $this->assertSame($status, $enrollment->status);
-        $this->assertSame($studentType, $enrollment->student_type);
+        $this->assertSame($selectionBasis, $enrollment->selection_basis);
+        $this->assertSame($outcome, $enrollment->canonical_outcome);
     }
 
     private function enrollmentFor(string $studentNumber): Enrollment

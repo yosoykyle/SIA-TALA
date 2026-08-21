@@ -7,12 +7,16 @@ use App\Actions\Grades\RecordIncResolution;
 use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
 use App\Filament\Resources\GradeRosters\RelationManagers\RowsRelationManager;
 use App\Models\CourseEnrollment;
+use App\Models\CourseRequirement;
+use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\Section;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -56,6 +60,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         $faculty = $this->staff(User::StaffRoleFaculty);
         $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
         $row = $roster->rows()->sole();
+        $nextCase = $this->pendingRegistrationCaseFor($roster);
 
         app(RecordIncResolution::class)->execute($row, '3.00', 'Registrar approved removal', 'Completed removal exam.', 'INC-001', $registrar);
 
@@ -72,6 +77,11 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'reason' => 'Completed removal exam.',
             'evidence_reference' => 'INC-001',
             'recorded_by' => $registrar->id,
+        ]);
+        $this->assertDatabaseHas('registration_case_events', [
+            'enrollment_id' => $nextCase->id,
+            'event_type' => 'AcademicResultImpactReviewOpened',
+            'actor_id' => $registrar->id,
         ]);
     }
 
@@ -121,6 +131,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         $faculty = $this->staff(User::StaffRoleFaculty);
         $roster = $this->releasedRosterWithRow($faculty, '1.75', GradeRosterRow::CategoryPassing);
         $row = $roster->rows()->sole();
+        $nextCase = $this->pendingRegistrationCaseFor($roster);
 
         app(RecordApprovedGradeCorrection::class)->execute($row, '2.75', 'Approved correction form', 'Physical correction approved.', 'CORR-001', $registrar);
 
@@ -135,6 +146,11 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'previous_category' => GradeRosterRow::CategoryPassing,
             'evidence_reference' => 'CORR-001',
             'recorded_by' => $registrar->id,
+        ]);
+        $this->assertDatabaseHas('registration_case_events', [
+            'enrollment_id' => $nextCase->id,
+            'event_type' => 'AcademicResultImpactReviewOpened',
+            'actor_id' => $registrar->id,
         ]);
     }
 
@@ -322,8 +338,10 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'last_name' => $studentLastName,
         ]);
         $enrollment = Enrollment::factory()->create([
+            'credential_user_id' => $student->id,
             'student_profile_id' => $profile->id,
             'term_id' => $termOffering->term_id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
             'status' => 'officially_enrolled',
             'officially_enrolled_at' => now(),
         ]);
@@ -353,6 +371,52 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         ]);
 
         return $roster;
+    }
+
+    private function pendingRegistrationCaseFor(GradeRoster $roster): Enrollment
+    {
+        $source = $roster->rows()->sole()->courseEnrollment->enrollment;
+        $sourceCourse = $roster->termOffering->curriculumEntry->courseSpecification->course;
+        $dependentTerm = Term::factory()->create([
+            'starts_on' => $source->term->starts_on->addMonths(5),
+            'ends_on' => $source->term->ends_on->addMonths(5),
+        ]);
+        $dependentSpecification = CourseSpecification::factory()->create([
+            'state' => CourseSpecification::StateActive,
+        ]);
+        CourseRequirement::factory()->create([
+            'course_specification_id' => $dependentSpecification->id,
+            'related_course_id' => $sourceCourse->id,
+            'rule_type' => CourseRequirement::TypePrerequisite,
+            'state' => CourseRequirement::StateActive,
+        ]);
+        $dependentEntry = CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $source->studentProfile->curriculum_version_id,
+            'course_specification_id' => $dependentSpecification->id,
+        ]);
+        $dependentOffering = TermOffering::factory()->create([
+            'term_id' => $dependentTerm->id,
+            'curriculum_entry_id' => $dependentEntry->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+
+        $nextCase = Enrollment::factory()->create([
+            'credential_user_id' => $source->credential_user_id,
+            'student_profile_id' => $source->student_profile_id,
+            'term_id' => $dependentTerm->id,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'status' => 'pending',
+        ]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $nextCase->id,
+            'term_offering_id' => $dependentOffering->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => 3,
+            'added_at' => now(),
+        ]);
+
+        return $nextCase;
     }
 
     private function staff(string $role): User

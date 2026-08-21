@@ -11,7 +11,10 @@ use RuntimeException;
 
 class RecordIncResolution
 {
-    public function __construct(private readonly GradePolicyService $policy) {}
+    public function __construct(
+        private readonly GradePolicyService $policy,
+        private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
+    ) {}
 
     public function execute(GradeRosterRow $row, string $replacementCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
     {
@@ -30,7 +33,7 @@ class RecordIncResolution
                 ? throw new RuntimeException('INC resolution requires a replacement or lapsed result.')
                 : ($replacementCode === 'P' ? $this->policy->controlledOutcome('P') : $this->policy->outcomeForAverage($this->averageForNumericCode($replacementCode)));
 
-            $locked->outcomeEvents()->create([
+            $event = $locked->outcomeEvents()->create([
                 'event_type' => GradeOutcomeEvent::TypeIncResolution,
                 'previous_value' => null,
                 'new_value' => $outcome['value'],
@@ -47,6 +50,7 @@ class RecordIncResolution
                 'current_outcome_code' => $outcome['code'],
                 'current_outcome_category' => $outcome['category'],
             ]);
+            $this->impactReviews->execute($locked, $event, $actor);
 
             return $locked->fresh('outcomeEvents');
         });

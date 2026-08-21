@@ -279,12 +279,18 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
             '13:00:00',
         );
         $student = StudentProfile::factory()->create(['program_id' => $context['programs'][0]->id]);
-        $enrollment = Enrollment::factory()->for($student)->for($context['term'])->create();
+        $enrollment = Enrollment::factory()->for($student)->for($context['term'])->create([
+            'credential_user_id' => $student->user_id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'status' => 'officially_enrolled',
+        ]);
 
         foreach ([$sourceMeeting, $unaffectedMeeting] as $index => $meeting) {
             $courseEnrollment = CourseEnrollment::query()->create([
                 'enrollment_id' => $enrollment->id,
                 'term_offering_id' => $context['offerings'][$index]->id,
+                'section_id' => $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id,
+                'is_current' => true,
                 'status' => CourseEnrollment::StatusActive,
                 'units_snapshot' => '3.00',
                 'added_at' => now(),
@@ -318,7 +324,7 @@ final class TAL94B2ControlledRevalidationTest extends TestCase
 
         $this->assertFalse($validation->passes());
         $this->assertContains('live_room_overlap', $codes);
-        $this->assertContains('active_student_binding_overlap', $codes);
+        $this->assertContains('active_student_registration_overlap', $codes);
         $this->assertIsArray($roomFinding);
         $this->assertSame('room_id', $roomFinding['source_field']);
     }

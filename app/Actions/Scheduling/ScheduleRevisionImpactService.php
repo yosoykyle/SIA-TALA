@@ -2,13 +2,13 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\CourseEnrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Validation\ValidationException;
@@ -75,8 +75,8 @@ final class ScheduleRevisionImpactService
             ]);
         }
 
-        $bindings = $this->activeBindings($selected->modelKeys(), $lock);
-        $studentIdsByMeeting = $this->studentIdsByMeeting($bindings);
+        $registrations = $this->activeOfficialRegistrations($selected, $lock);
+        $studentIdsByMeeting = $this->studentIdsByMeeting($selected, $registrations);
         $meetingChanges = [];
         $proposedSnapshots = [];
 
@@ -168,9 +168,9 @@ final class ScheduleRevisionImpactService
             ->unique()
             ->values()
             ->all();
-        $bindings = $this->activeBindings($cancelledMeetingIds, $lock);
+        $registrations = $this->activeOfficialRegistrations($cancelledMeetings, $lock);
         $reservations = $this->capacityHoldingReservations((int) $section->id, $lock);
-        $studentIdsByMeeting = $this->studentIdsByMeeting($bindings);
+        $studentIdsByMeeting = $this->studentIdsByMeeting($cancelledMeetings, $registrations);
         $meetingChanges = $cancelledMeetings
             ->map(function (SectionMeeting $meeting) use ($studentIdsByMeeting): array {
                 $old = $this->snapshot($meeting);
@@ -204,7 +204,7 @@ final class ScheduleRevisionImpactService
             affectedStudents: collect($studentIdsByMeeting)->flatten()->unique()->count(),
             affectedFaculty: $cancelledMeetings->pluck('faculty_user_id')->unique()->count(),
             findings: $validation->findings(),
-            activeBindings: $bindings->count(),
+            activeOfficialRegistrations: $registrations->count(),
             capacityHoldingReservations: $reservations->count(),
         );
     }
@@ -242,19 +242,26 @@ final class ScheduleRevisionImpactService
     }
 
     /**
-     * @param  list<int>  $meetingIds
-     * @return EloquentCollection<int, StudentScheduleBinding>
+     * @param  EloquentCollection<int, SectionMeeting>  $meetings
+     * @return EloquentCollection<int, CourseEnrollment>
      */
-    private function activeBindings(array $meetingIds, bool $lock): EloquentCollection
+    private function activeOfficialRegistrations(EloquentCollection $meetings, bool $lock): EloquentCollection
     {
-        if ($meetingIds === []) {
+        $sectionIds = $meetings
+            ->map(fn (SectionMeeting $meeting): int => (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($sectionIds->isEmpty()) {
             return new EloquentCollection;
         }
 
-        $query = StudentScheduleBinding::query()
-            ->whereIn('section_meeting_id', $meetingIds)
-            ->where('is_active', true)
-            ->with('courseEnrollment.enrollment')
+        $query = CourseEnrollment::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->with('enrollment')
             ->orderBy('id');
 
         if ($lock) {
@@ -280,25 +287,31 @@ final class ScheduleRevisionImpactService
     }
 
     /**
-     * @param  EloquentCollection<int, StudentScheduleBinding>  $bindings
+     * @param  EloquentCollection<int, SectionMeeting>  $meetings
+     * @param  EloquentCollection<int, CourseEnrollment>  $registrations
      * @return array<int, list<int>>
      */
-    private function studentIdsByMeeting(EloquentCollection $bindings): array
+    private function studentIdsByMeeting(EloquentCollection $meetings, EloquentCollection $registrations): array
     {
         $studentIds = [];
+        $studentIdsBySection = $registrations
+            ->groupBy('section_id')
+            ->map(fn (EloquentCollection $sectionRegistrations): array => $sectionRegistrations
+                ->map(fn (CourseEnrollment $registration): int => (int) $registration->enrollment?->credential_user_id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all());
 
-        foreach ($bindings as $binding) {
-            $meetingId = (int) $binding->section_meeting_id;
-            $studentId = (int) $binding->courseEnrollment?->enrollment?->student_profile_id;
+        foreach ($meetings as $meeting) {
+            $sectionId = (int) $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id;
 
-            if ($meetingId > 0 && $studentId > 0) {
-                $studentIds[$meetingId][$studentId] = $studentId;
+            if ($sectionId > 0) {
+                $studentIds[(int) $meeting->id] = $studentIdsBySection->get($sectionId, []);
             }
         }
 
-        return collect($studentIds)
-            ->map(fn (array $ids): array => array_values($ids))
-            ->all();
+        return $studentIds;
     }
 
     /**

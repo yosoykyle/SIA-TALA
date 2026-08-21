@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -19,6 +20,7 @@ use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\DecimalMoney;
@@ -107,7 +109,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('posted', $result['status']);
         $this->assertTrue($result['finance_cleared']);
-        $this->assertSame('pre_enrolled', $assessment->enrollment->fresh()->status);
+        $this->assertSame('pending_payment', $assessment->enrollment->fresh()->status);
         $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
@@ -439,8 +441,34 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $enrollment = $this->placedEnrollmentWithCourseUnits([3.00, 2.00]);
         $this->configureMvpFeeRules($enrollment);
         $assessment = $this->assessments->generateDraft($enrollment, $accounting, CarbonImmutable::parse('2026-06-10'));
+        $assessment = $this->assessments->activate($assessment, $accounting, CarbonImmutable::parse('2026-06-11 09:00:00'));
+        $account = TermAccount::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $enrollment->credential_user_id,
+            'term_id' => $enrollment->term_id,
+            'state' => TermAccount::StateOpen,
+        ]);
+        $assessment->update(['term_account_id' => $account->id]);
+        $required = (string) $assessment->required_downpayment;
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'code' => 'CURRENT_DUE',
+            'label' => 'Current enrollment payment',
+            'amount' => $required,
+            'required_for_enrollment' => true,
+        ]);
+        $remaining = app(DecimalMoney::class)->subtract((string) $assessment->total, $required);
+        if (app(DecimalMoney::class)->greaterThanZero($remaining)) {
+            AssessmentObligation::query()->create([
+                'assessment_id' => $assessment->id,
+                'code' => 'LATER_BALANCE',
+                'label' => 'Later enrollment balance',
+                'amount' => $remaining,
+                'required_for_enrollment' => false,
+            ]);
+        }
 
-        return $this->assessments->activate($assessment, $accounting, CarbonImmutable::parse('2026-06-11 09:00:00'));
+        return $assessment->refresh();
     }
 
     private function paymentAttempt(Assessment $assessment, string $amount, string $checkoutSessionId): PaymentAttempt

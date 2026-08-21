@@ -89,7 +89,7 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
         $this->assertSame('Finance: Payment still requires Accounting confirmation.', $summary->compactStatus($enrollment));
     }
 
-    public function test_staff_gate_review_surface_is_read_only_policy_aligned_and_keeps_placement_action_scoped(): void
+    public function test_staff_registration_surface_uses_canonical_case_facts_and_hides_generic_gate_actions(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
@@ -135,27 +135,22 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertSee('Enrollment Gate Review')
-            ->assertSee('Finance')
-            ->assertSee('Failed')
-            ->assertSee('Accounting Office')
-            ->assertSee('Payment still requires Accounting confirmation.')
-            ->assertSee('Not Checked')
-            ->assertSee('Final Approval')
-            ->assertActionVisible('confirmPlacement');
+            ->assertSee('Registration Case')
+            ->assertSee('Five finalization checkpoints')
+            ->assertDontSee('Enrollment Gate Review');
 
         foreach ([$academicHead, $accounting] as $viewer) {
             Livewire::actingAs($viewer)
                 ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-                ->assertSee('Enrollment Gate Review')
-                ->assertActionHidden('confirmPlacement');
+                ->assertSee('Registration Case')
+                ->assertDontSee('Enrollment Gate Review');
         }
 
         Livewire::actingAs($registrar)
             ->test(ListEnrollments::class)
             ->filterTable('term', $enrollment->term_id)
-            ->assertSee('Next Step')
-            ->assertSee('Finance: Payment still requires Accounting confirmation.');
+            ->assertSee('Registration Case')
+            ->assertDontSee('Finance: Payment still requires Accounting confirmation.');
     }
 
     private function staff(string $role): User

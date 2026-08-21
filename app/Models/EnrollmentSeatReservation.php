@@ -24,8 +24,10 @@ class EnrollmentSeatReservation extends Model
      */
     protected $fillable = [
         'enrollment_id',
+        'registration_proposal_item_id',
         'course_enrollment_id',
         'section_id',
+        'published_timetable_version_id',
         'status',
         'reserved_at',
         'released_at',
@@ -47,6 +49,18 @@ class EnrollmentSeatReservation extends Model
             'deadline' => 'datetime',
             'lock_version' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<RegistrationProposalItem, $this> */
+    public function proposalItem(): BelongsTo
+    {
+        return $this->belongsTo(RegistrationProposalItem::class, 'registration_proposal_item_id');
+    }
+
+    /** @return BelongsTo<PublishedTimetableVersion, $this> */
+    public function publishedTimetableVersion(): BelongsTo
+    {
+        return $this->belongsTo(PublishedTimetableVersion::class);
     }
 
     /**

@@ -5,6 +5,7 @@ namespace Tests\Feature\AcademicScheduling;
 use App\Actions\AcademicSetup\ActivateProgramAuthority;
 use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
+use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Scheduling\AdjustCandidateMeeting;
@@ -12,6 +13,7 @@ use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
+use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\RevisePublishedTimetable;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
@@ -28,12 +30,16 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
 use App\Models\Program;
 use App\Models\ProgramAuthority;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationCaseEvent;
+use App\Models\RegistrationProposalItem;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -46,6 +52,7 @@ use App\Models\TermCalendarWindow;
 use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -403,11 +410,75 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'modality' => 'FACE_TO_FACE',
             'location_label' => 'Room 101',
         ]);
+        $section = Section::query()->findOrFail($meeting->section_id);
+        $credential = User::factory()->create(['status' => User::StatusActive]);
+        $case = Enrollment::factory()->create([
+            'credential_user_id' => $credential->id,
+            'student_profile_id' => null,
+            'term_id' => $term->id,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'current_proposal_version_id' => null,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->for($case)->create([
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $version->id,
+            'curriculum_version_id' => $section->termOffering->curriculumEntry->curriculum_version_id,
+            'prepared_by' => $registrar->id,
+        ]);
+        RegistrationProposalItem::factory()->for($proposal, 'proposalVersion')->create([
+            'term_offering_id' => $section->term_offering_id,
+            'section_id' => $section->id,
+        ]);
+        $case->update(['current_proposal_version_id' => $proposal->id]);
 
+        $changes = [$meeting->id => ['starts_at' => '10:00:00', 'ends_at' => '11:30:00']];
+        try {
+            app(RevisePublishedTimetable::class)->execute(
+                $version,
+                $registrar,
+                $changes,
+                'SYNTH-SIGNOFF-002',
+                'Approved room-conflict correction.',
+            );
+            $this->fail('A timetable revision with unresolved placement impacts must remain Draft.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('revision', $exception->errors());
+        }
+
+        $revision = TimetableRevision::query()->where('source_version_id', $version->id)->sole();
+        $opened = RegistrationCaseEvent::query()
+            ->where('enrollment_id', $case->id)
+            ->where('event_type', 'TimetableRevisionImpactReviewOpened')
+            ->where('authority_reference', 'timetable-revision:'.$revision->id)
+            ->sole();
+        $this->assertSame(TimetableRevision::StateDraft, $revision->state);
+        $this->assertSame(PublishedTimetableVersion::StatePublished, $version->fresh()->state);
+        $this->assertSame(1, PublishedTimetableVersion::query()->where('term_id', $term->id)->count());
+
+        try {
+            app(RecordRegistrationSourceImpactReview::class)->resolve(
+                $case,
+                $opened,
+                $registrar,
+                'Retained without validated impact evidence.',
+            );
+            $this->fail('A timetable impact review was resolved through the generic source-review path.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('impact_review', $exception->errors());
+        }
+
+        app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+            $revision,
+            $case,
+            $opened,
+            $registrar,
+            ResolveTimetableRevisionRegistrationImpact::OutcomeRetainedWithAcknowledgement,
+            'SYNTH-PLACEMENT-ACK-001',
+        );
         $successor = app(RevisePublishedTimetable::class)->execute(
             $version,
             $registrar,
-            [$meeting->id => ['starts_at' => '10:00:00', 'ends_at' => '11:30:00']],
+            $changes,
             'SYNTH-SIGNOFF-002',
             'Approved room-conflict correction.',
         );
@@ -418,6 +489,17 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame($version->id, $successor->supersedes_version_id);
         $this->assertSame('10:00:00', (string) $successor->meetings->sole()->starts_at);
         $this->assertSame($meeting->id, $successor->meetings->sole()->supersedes_meeting_id);
+        $this->assertDatabaseHas('registration_case_events', [
+            'enrollment_id' => $case->id,
+            'event_type' => 'TimetableRevisionImpactReviewOpened',
+            'authority_reference' => 'timetable-revision:'.$revision->id,
+        ]);
+        $this->assertSame(1, RegistrationCaseEvent::query()
+            ->where('enrollment_id', $case->id)
+            ->where('event_type', 'TimetableRevisionImpactReviewOpened')
+            ->count());
+        $this->assertSame(TimetableRevision::StatePublished, $revision->fresh()->state);
+        $this->assertSame($successor->id, $revision->fresh()->successor_version_id);
     }
 
     public function test_canonical_workbenches_are_connected_and_academic_head_is_read_only(): void

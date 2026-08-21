@@ -5,6 +5,7 @@ namespace App\Actions\Scheduling;
 use App\Mail\ScheduleRevisionMail;
 use App\Models\Course;
 use App\Models\CourseComponent;
+use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\OperationalEvent;
 use App\Models\Room;
@@ -13,7 +14,6 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
@@ -158,24 +158,26 @@ final class ScheduleRevisionNotificationService
     {
         $eventsByRecipient = [];
         $recipientKinds = [];
-        $eventsByMeeting = $events->keyBy(fn (ScheduleRevisionEvent $event): int => (int) $event->section_meeting_id);
-        $bindings = StudentScheduleBinding::query()
-            ->whereIn('section_meeting_id', $eventsByMeeting->keys())
-            ->where('is_active', true)
-            ->with('courseEnrollment.enrollment.studentProfile')
-            ->orderBy('id')
+        $eventsBySection = $events
+            ->groupBy(fn (ScheduleRevisionEvent $event): int => (int) $event->sectionMeeting?->schedulingDemand?->sectionDeliveryGroup?->section_id)
+            ->filter(fn (EloquentCollection $events, int $sectionId): bool => $sectionId > 0);
+        $officialRegistrations = CourseEnrollment::query()
+            ->with('enrollment.credentialUser')
+            ->whereIn('section_id', $eventsBySection->keys())
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
             ->get();
 
-        foreach ($bindings as $binding) {
-            $userId = (int) $binding->courseEnrollment?->enrollment?->studentProfile?->user_id;
-            $event = $eventsByMeeting->get((int) $binding->section_meeting_id);
-
-            if ($userId <= 0 || ! $event instanceof ScheduleRevisionEvent) {
+        foreach ($officialRegistrations as $registration) {
+            $userId = (int) $registration->enrollment?->credential_user_id;
+            if ($userId <= 0) {
                 continue;
             }
 
-            $eventsByRecipient[$userId][(int) $event->id] = $event;
-            $recipientKinds[$userId]['student'] = true;
+            foreach ($eventsBySection->get((int) $registration->section_id, new EloquentCollection) as $event) {
+                $eventsByRecipient[$userId][(int) $event->id] = $event;
+                $recipientKinds[$userId]['student'] = true;
+            }
         }
 
         foreach ($events as $event) {

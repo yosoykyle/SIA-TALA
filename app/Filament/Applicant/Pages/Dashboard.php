@@ -4,14 +4,24 @@ namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
+use App\Actions\Enrollment\CancelRegistrationCase;
+use App\Actions\Enrollment\ConfirmRegistrationProposal;
+use App\Actions\Enrollment\StartRegistrationCase;
+use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
+use App\Models\Enrollment;
 use App\Models\OperationalEvent;
 use App\Models\Program;
+use App\Models\RegistrationProposalVersion;
+use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Tables\Columns\TextColumn;
@@ -19,8 +29,10 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class Dashboard extends BaseDashboard implements HasTable
 {
@@ -31,6 +43,146 @@ class Dashboard extends BaseDashboard implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('startRegistration')
+                ->label('Start enrollment')
+                ->icon('heroicon-o-play')
+                ->visible(function (): bool {
+                    $application = $this->currentApplication();
+
+                    return $application instanceof AdmissionApplication
+                        && ! $this->registrationCase() instanceof Enrollment
+                        && app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'];
+                })
+                ->schema([
+                    Select::make('selection_basis')
+                        ->label('Registration basis')
+                        ->options([
+                            Enrollment::SelectionStandardCurriculum => 'Standard Curriculum',
+                            Enrollment::SelectionIndividuallyAdvised => 'Individually Advised',
+                        ])
+                        ->default(Enrollment::SelectionStandardCurriculum)
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    $application = $this->currentApplication();
+                    $applicant = Auth::user();
+                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
+
+                    app(StartRegistrationCase::class)->forReadyApplicant(
+                        $application,
+                        Term::query()->findOrFail($application->term_id),
+                        $applicant,
+                        (string) $data['selection_basis'],
+                    );
+                    Notification::make()
+                        ->title('Enrollment started')
+                        ->body('The Registrar can now prepare the exact-Term proposal. No Student identity was created yet.')
+                        ->success()
+                        ->send();
+                }),
+            Action::make('confirmRegistrationProposal')
+                ->label('Confirm enrollment proposal')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalDescription(fn (): string => $this->registrationProposalSummary())
+                ->visible(fn (): bool => $this->registrationCase()?->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued)
+                ->action(function (): void {
+                    $case = $this->registrationCase();
+                    $applicant = Auth::user();
+                    abort_unless($case instanceof Enrollment
+                        && $case->currentProposalVersion instanceof RegistrationProposalVersion
+                        && $applicant instanceof User, 404);
+
+                    app(ConfirmRegistrationProposal::class)->execute($case->currentProposalVersion, $applicant);
+                    Notification::make()
+                        ->title('Enrollment proposal confirmed')
+                        ->body('The Registrar can now protect the complete placement. Any material revision requires a new confirmation.')
+                        ->success()
+                        ->send();
+                }),
+            Action::make('cancelRegistration')
+                ->label('Cancel enrollment')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->visible(function (): bool {
+                    $case = $this->registrationCase();
+
+                    return $case instanceof Enrollment
+                        && $case->canonical_outcome === Enrollment::OutcomeInProgress
+                        && $case->currentProposalVersion?->confirmation === null;
+                })
+                ->schema([
+                    Textarea::make('reason')->label('Reason')->required()->maxLength(2000),
+                ])
+                ->action(function (array $data): void {
+                    $case = $this->registrationCase();
+                    $applicant = Auth::user();
+                    abort_unless($case instanceof Enrollment && $applicant instanceof User, 404);
+
+                    try {
+                        app(CancelRegistrationCase::class)->execute(
+                            $case,
+                            $applicant,
+                            (string) $data['reason'],
+                            $case->lock_version,
+                        );
+                        Notification::make()
+                            ->title('Enrollment cancelled')
+                            ->body('The Registration Case and its history remain available. Registrar authority is required to reopen it.')
+                            ->success()
+                            ->send();
+                    } catch (Throwable $exception) {
+                        Notification::make()
+                            ->title('Enrollment was not cancelled')
+                            ->body($exception->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+            Action::make('submitPaymentEvidence')
+                ->label('Submit payment evidence')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->visible(function (): bool {
+                    $case = $this->registrationCase();
+
+                    return $case instanceof Enrollment
+                        && $case->termAccount !== null
+                        && $case->termAccount->state !== 'Cleared';
+                })
+                ->schema([
+                    FileUpload::make('evidence')
+                        ->label('Private payment evidence')
+                        ->storeFiles(false)
+                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                        ->maxSize(10240)
+                        ->required(),
+                    TextInput::make('claimed_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
+                    TextInput::make('payment_reference')->maxLength(255),
+                ])
+                ->action(function (array $data): void {
+                    $case = $this->registrationCase();
+                    $applicant = Auth::user();
+                    $file = $data['evidence'] ?? null;
+                    abort_unless($case instanceof Enrollment
+                        && $case->termAccount !== null
+                        && $applicant instanceof User
+                        && $file instanceof UploadedFile, 404);
+
+                    app(SubmitPaymentEvidence::class)->execute(
+                        $case->termAccount,
+                        $applicant,
+                        $file,
+                        (string) $data['claimed_amount'],
+                        $data['payment_reference'] ?? null,
+                    );
+                    Notification::make()
+                        ->title('Payment evidence submitted')
+                        ->body('Accounting must verify and allocate this evidence before it can clear an obligation.')
+                        ->success()
+                        ->send();
+                }),
             Action::make('resendFailedNotification')
                 ->label('Resend failed update')
                 ->icon('heroicon-o-paper-airplane')
@@ -159,6 +311,37 @@ class Dashboard extends BaseDashboard implements HasTable
             ->where('user_id', Auth::id())
             ->latest('updated_at')
             ->first();
+    }
+
+    private function registrationCase(): ?Enrollment
+    {
+        $application = $this->currentApplication();
+        if (! $application instanceof AdmissionApplication) {
+            return null;
+        }
+
+        return Enrollment::query()
+            ->with(['currentProposalVersion.items.section', 'currentProposalVersion.confirmation', 'termAccount'])
+            ->where('admission_application_id', $application->id)
+            ->where('credential_user_id', $application->user_id)
+            ->where('term_id', $application->term_id)
+            ->first();
+    }
+
+    private function registrationProposalSummary(): string
+    {
+        $proposal = $this->registrationCase()?->currentProposalVersion;
+        if (! $proposal instanceof RegistrationProposalVersion) {
+            return 'The current proposal is unavailable. Refresh before confirming.';
+        }
+
+        return 'Confirm proposal version '.$proposal->version.': '.$proposal->items
+            ->map(fn ($item): string => collect([
+                $item->course_code_snapshot,
+                $item->section?->code,
+                $item->units_snapshot.' units',
+            ])->filter()->implode(' · '))
+            ->implode('; ').'.';
     }
 
     /** @return array<string, mixed> */

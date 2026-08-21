@@ -2,15 +2,17 @@
 
 namespace App\Filament\Resources\Enrollments\Pages;
 
-use App\Actions\Enrollment\StartEnrollment;
+use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\AdmissionApplication;
+use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Collection;
@@ -74,15 +76,27 @@ class ListEnrollments extends ListRecords
                             ->mapWithKeys(fn (Term $term): array => [$term->id => $term->label])
                             ->all())
                         ->required(),
-                    Select::make('student_type')
-                        ->label('Enrollment type')
+                    Select::make('selection_basis')
+                        ->label('Registration basis')
                         ->options([
-                            'regular' => 'Regular',
-                            'irregular' => 'Irregular',
-                            'returnee' => 'Returnee',
-                            'transferee' => 'Transferee',
+                            Enrollment::SelectionStandardCurriculum => 'Standard Curriculum',
+                            Enrollment::SelectionIndividuallyAdvised => 'Individually Advised',
                         ])
+                        ->default(Enrollment::SelectionStandardCurriculum)
                         ->required(),
+                    Select::make('start_method')
+                        ->label('Start authority')
+                        ->options([
+                            'RegistrarAssisted' => 'Registrar-assisted within the registration window',
+                            'LateAuthority' => 'Authorized late start outside the registration window',
+                        ])
+                        ->default('RegistrarAssisted')
+                        ->required(),
+                    TextInput::make('authority_reference')
+                        ->label('Assisted or late authority reference')
+                        ->helperText('Record the learner channel/evidence or the explicit late-start authority.')
+                        ->required()
+                        ->maxLength(255),
                 ])
                 ->action(function (array $data): void {
                     $actor = auth()->user();
@@ -96,11 +110,13 @@ class ListEnrollments extends ListRecords
                     }
 
                     try {
-                        $enrollment = app(StartEnrollment::class)->executeContinuing(
+                        $enrollment = app(StartRegistrationCase::class)->forContinuingStudent(
                             $profile,
                             $term,
-                            (string) $data['student_type'],
                             $actor,
+                            (string) $data['selection_basis'],
+                            (string) $data['start_method'],
+                            (string) $data['authority_reference'],
                         );
 
                         if (! $enrollment->wasRecentlyCreated) {
@@ -115,7 +131,7 @@ class ListEnrollments extends ListRecords
 
                         Notification::make()
                             ->title('Enrollment started')
-                            ->body('The source record is ready for proposal and placement review.')
+                            ->body('The exact-Term Registration Case is ready for proposal and placement review.')
                             ->success()
                             ->send();
                     } catch (Throwable $exception) {

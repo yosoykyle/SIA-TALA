@@ -2,15 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\StudentAccountPresenter;
 use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
-use App\Filament\Resources\Assessments\Pages\ViewAssessment;
+use App\Filament\Resources\Assessments\AssessmentResource;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
@@ -19,16 +23,17 @@ use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
-use App\Models\PaymentScheduleRow;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\Repeater;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -57,27 +62,28 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
-    public function test_manual_bank_transfer_posts_without_an_or_and_remains_pending_or_reconciliation(): void
+    public function test_manual_bank_transfer_evidence_posts_to_an_exact_obligation_without_an_or(): void
     {
         $fixture = $this->activeAssessmentFixture();
+        $obligation = $fixture['assessment']->obligations()->orderBy('id')->firstOrFail();
+        $evidence = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['assessment']->term_account_id,
+            'claimed_amount' => '600.00',
+            'submitted_by' => $fixture['profile']->user_id,
+        ]);
 
-        Livewire::actingAs($fixture['accounting'])
-            ->test(ViewAssessment::class, ['record' => $fixture['assessment']->getRouteKey()])
-            ->callAction('recordManualPayment', data: [
-                'amount' => '600.00',
-                'channel' => 'bank_transfer',
-                'payment_reference' => 'BANK-D5E1D5-001',
-                'paid_at' => now()->subHour()->format('Y-m-d H:i:s'),
-            ])
-            ->assertHasNoActionErrors()
-            ->assertNotified('Manual payment recorded');
-
-        $payment = Payment::query()->where('provider_reference', 'BANK-D5E1D5-001')->sole();
+        $payment = app(ReviewPaymentEvidence::class)->verify(
+            $evidence,
+            $fixture['accounting'],
+            [$obligation->id => '600.00'],
+        );
 
         $this->assertNull($payment->or_number);
         $this->assertSame('bank_transfer', $payment->channel);
+        $this->assertSame($fixture['assessment']->term_account_id, $payment->term_account_id);
         $this->assertSame('600.00', PaymentAllocation::query()
             ->where('payment_id', $payment->id)
+            ->where('assessment_obligation_id', $obligation->id)
             ->sum('amount'));
     }
 
@@ -181,43 +187,27 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             'posted_at' => now()->subMonths(4),
             'state' => 'posted',
         ]);
-        $this->attachAcademicContext(
-            enrollment: $fixture['enrollment'],
-            yearLevel: '3',
-            sectionCode: 'D5-CURRENT',
-        );
+        try {
+            app(PaymentConfirmationService::class)->confirmManualPayment(
+                enrollmentId: $fixture['enrollment']->id,
+                amount: '1500.00',
+                channel: 'bank_transfer',
+                paymentReference: 'BANK-D5E1D5-PRIOR-DEBT',
+                actor: $fixture['accounting'],
+                confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
+                allocations: [[
+                    'target_type' => LedgerEntry::class,
+                    'target_id' => $priorBalance->id,
+                    'amount' => '1500.00',
+                ]],
+            );
+            $this->fail('A current-Term payment must reject a prior-Term allocation target.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Payment allocation target is not eligible.', $exception->getMessage());
+        }
 
-        $result = app(PaymentConfirmationService::class)->confirmManualPayment(
-            enrollmentId: $fixture['enrollment']->id,
-            amount: '1500.00',
-            channel: 'bank_transfer',
-            paymentReference: 'BANK-D5E1D5-PRIOR-DEBT',
-            actor: $fixture['accounting'],
-            confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
-            allocations: [[
-                'target_type' => LedgerEntry::class,
-                'target_id' => $priorBalance->id,
-                'amount' => '1500.00',
-            ]],
-        );
-
-        $paymentLedgerEntry = LedgerEntry::query()
-            ->where('payment_id', $result['payment_id'])
-            ->sole();
-        $acknowledgement = app(FinanceEvidenceService::class)->paymentAcknowledgement(
-            Payment::query()->findOrFail($result['payment_id']),
-            $fixture['accounting'],
-            FinanceEvidenceService::CopyAccounting,
-        );
-
-        $this->assertFalse($result['finance_cleared']);
-        $this->assertSame('0.00', $result['total_confirmed_payments']);
+        $this->assertFalse(Payment::query()->where('provider_reference', 'BANK-D5E1D5-PRIOR-DEBT')->exists());
         $this->assertSame('pending_payment', $fixture['enrollment']->fresh()->status);
-        $this->assertSame($priorEnrollment->id, $paymentLedgerEntry->enrollment_id);
-        $this->assertSame($priorTerm->id, $paymentLedgerEntry->term_id);
-        $this->assertSame('Level 3', $acknowledgement['summary']['year_level']);
-        $this->assertSame('D5-CURRENT', $acknowledgement['summary']['section']);
-        $this->assertSame($fixture['term']->label, $acknowledgement['summary']['term']);
     }
 
     public function test_payment_table_eager_loads_academic_context_without_per_payment_course_queries(): void
@@ -285,69 +275,64 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $this->assertSame([], $queries);
     }
 
-    public function test_accounting_can_add_or_remove_rows_in_a_multi_target_allocation_editor(): void
+    public function test_legacy_assessment_payment_editor_is_retired_in_favor_of_enrollment_clearance(): void
     {
         $fixture = $this->activeAssessmentFixture();
 
-        Livewire::actingAs($fixture['accounting'])
-            ->test(ViewAssessment::class, ['record' => $fixture['assessment']->getRouteKey()])
-            ->mountAction('recordManualPayment')
-            ->assertSchemaComponentExists(
-                'allocations',
-                checkComponentUsing: fn (Repeater $component): bool => $component->isAddable()
-                    && $component->isDeletable(),
-            );
+        $this->actingAs($fixture['accounting']);
+        $this->assertFalse(AssessmentResource::canAccess());
+
+        $actions = collect(Livewire::actingAs($fixture['accounting'])
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
+            ->instance()
+            ->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => $action instanceof ActionGroup
+                ? $action->getFlatActions()
+                : [$action->getName() => $action]);
+
+        $this->assertArrayHasKey('verifyPaymentEvidence', $actions->all());
     }
 
-    public function test_current_due_follows_the_outstanding_schedule_allocation_before_the_remaining_balance(): void
+    public function test_current_due_follows_exact_obligation_satisfaction_before_the_remaining_balance(): void
     {
         $fixture = $this->activeAssessmentFixture();
-        PaymentScheduleRow::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'sequence' => 1,
-            'category' => PaymentScheduleRow::CategoryDownpayment,
-            'due_date' => now()->subDay()->toDateString(),
-            'amount' => '1000.00',
-            'state' => PaymentScheduleRow::StateDue,
+        $obligations = $fixture['assessment']->obligations()->orderBy('id')->get();
+        $firstEvidence = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['assessment']->term_account_id,
+            'claimed_amount' => '600.00',
+            'submitted_by' => $fixture['profile']->user_id,
         ]);
 
-        app(PaymentConfirmationService::class)->confirmManualPayment(
-            enrollmentId: $fixture['enrollment']->id,
-            amount: '600.00',
-            channel: 'bank_transfer',
-            paymentReference: 'BANK-D5E1D5-CURRENT-DUE-PARTIAL',
-            actor: $fixture['accounting'],
-            confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHours(2),
-        );
-
-        $partial = app(FinanceEvidenceService::class)->financeForAssessment(
-            $fixture['assessment']->fresh(),
+        app(ReviewPaymentEvidence::class)->verify(
+            $firstEvidence,
             $fixture['accounting'],
-            FinanceEvidenceService::CopyAccounting,
+            [$obligations[0]->id => '600.00'],
         );
+        $partial = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($fixture['enrollment']);
 
-        $this->assertSame('400.00', $partial['current_due_amount']);
-        $this->assertSame('PHP 400.00', $partial['state']['current_due']);
-        $this->assertSame('Downpayment', $partial['state']['current_due_source']);
+        $this->assertSame('PartiallySatisfied', $partial['state']);
+        $this->assertSame('600.00', $partial['payment_applied']);
+        $this->assertSame('900.00', $partial['balance']);
 
-        app(PaymentConfirmationService::class)->confirmManualPayment(
-            enrollmentId: $fixture['enrollment']->id,
-            amount: '400.00',
-            channel: 'bank_transfer',
-            paymentReference: 'BANK-D5E1D5-CURRENT-DUE-COMPLETE',
-            actor: $fixture['accounting'],
-            confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHour(),
-        );
-
-        $complete = app(FinanceEvidenceService::class)->financeForAssessment(
-            $fixture['assessment']->fresh(),
+        $secondEvidence = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['assessment']->term_account_id,
+            'supersedes_version_id' => $firstEvidence->id,
+            'version' => 2,
+            'path' => 'registration-payment-evidence/'.$fixture['assessment']->term_account_id.'/second-synthetic.pdf',
+            'checksum' => hash('sha256', 'second-synthetic-payment-evidence-'.$fixture['assessment']->term_account_id),
+            'claimed_amount' => '400.00',
+            'submitted_by' => $fixture['profile']->user_id,
+        ]);
+        app(ReviewPaymentEvidence::class)->verify(
+            $secondEvidence,
             $fixture['accounting'],
-            FinanceEvidenceService::CopyAccounting,
+            [$obligations[0]->id => '400.00'],
         );
+        $complete = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($fixture['enrollment']);
 
-        $this->assertSame('500.00', $complete['current_due_amount']);
-        $this->assertSame('PHP 500.00', $complete['state']['current_due']);
-        $this->assertSame('Current Balance', $complete['state']['current_due_source']);
+        $this->assertSame('PartiallySatisfied', $complete['state']);
+        $this->assertSame('1000.00', $complete['payment_applied']);
+        $this->assertSame('500.00', $complete['balance']);
     }
 
     public function test_partial_payment_with_a_mapped_or_does_not_claim_or_mapping_is_pending(): void
@@ -403,60 +388,45 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ->assertSee('data-label="Date Posted"', false);
     }
 
-    public function test_automatic_allocation_does_not_retarget_assessment_lines_already_paid_through_the_schedule(): void
+    public function test_automatic_provider_allocation_does_not_retarget_a_satisfied_obligation(): void
     {
         $fixture = $this->activeAssessmentFixture();
-        $scheduleRow = PaymentScheduleRow::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'sequence' => 1,
-            'category' => PaymentScheduleRow::CategoryDownpayment,
-            'due_date' => now()->subDay()->toDateString(),
-            'amount' => '1500.00',
-            'state' => PaymentScheduleRow::StateDue,
+        $obligations = $fixture['assessment']->obligations()->orderBy('id')->get();
+        $evidence = PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $fixture['assessment']->term_account_id,
+            'claimed_amount' => '1000.00',
+            'submitted_by' => $fixture['profile']->user_id,
         ]);
-
-        $first = app(PaymentConfirmationService::class)->confirmManualPayment(
-            enrollmentId: $fixture['enrollment']->id,
-            amount: '1500.00',
-            channel: 'bank_transfer',
-            paymentReference: 'BANK-D5E1D5-SCHEDULE-FULL',
-            actor: $fixture['accounting'],
-            confirmedAt: CarbonImmutable::now(config('app.timezone'))->subHours(2),
+        app(ReviewPaymentEvidence::class)->verify(
+            $evidence,
+            $fixture['accounting'],
+            [$obligations[0]->id => '1000.00'],
         );
 
-        $this->assertSame($scheduleRow->id, PaymentAllocation::query()
-            ->where('payment_id', $first['payment_id'])
-            ->sole()
-            ->payment_schedule_row_id);
-
-        $penalty = LedgerEntry::query()->create([
+        $attempt = PaymentAttempt::query()->create([
+            'assessment_id' => $fixture['assessment']->id,
             'student_profile_id' => $fixture['profile']->id,
-            'term_id' => $fixture['term']->id,
-            'enrollment_id' => $fixture['enrollment']->id,
-            'direction' => LedgerEntry::DirectionPenalty,
-            'category' => 'late_payment_penalty',
-            'amount' => '200.00',
-            'source_type' => Enrollment::class,
-            'source_id' => $fixture['enrollment']->id,
-            'description' => 'Late payment penalty',
-            'posted_at' => now()->subHour(),
-            'state' => 'posted',
+            'channel' => 'gcash',
+            'provider' => 'paymongo',
+            'internal_reference' => 'TALA-D5E1D5-SECOND-OBLIGATION',
+            'amount' => '500.00',
+            'currency' => 'PHP',
+            'status' => 'pending',
         ]);
-
-        $second = app(PaymentConfirmationService::class)->confirmManualPayment(
-            enrollmentId: $fixture['enrollment']->id,
-            amount: '200.00',
-            channel: 'bank_transfer',
-            paymentReference: 'BANK-D5E1D5-PENALTY',
-            actor: $fixture['accounting'],
-            confirmedAt: CarbonImmutable::now(config('app.timezone'))->subMinutes(30),
+        $posted = app(PayMongoPaymentPostingService::class)->post(
+            attempt: $attempt,
+            amount: '500.00',
+            providerReference: 'paymongo:D5E1D5-SECOND-OBLIGATION',
+            actor: null,
+            timestamp: CarbonImmutable::now(config('app.timezone'))->subMinute(),
+            description: 'Verified PayMongo payment',
         );
         $allocation = PaymentAllocation::query()
-            ->where('payment_id', $second['payment_id'])
+            ->where('payment_id', $posted['payment']->id)
             ->sole();
 
-        $this->assertSame($penalty->id, $allocation->prior_balance_ledger_entry_id);
-        $this->assertNull($allocation->assessment_line_id);
+        $this->assertSame($obligations[1]->id, $allocation->assessment_obligation_id);
+        $this->assertNull($allocation->prior_balance_ledger_entry_id);
     }
 
     public function test_payment_above_the_eligible_outstanding_total_is_rejected_without_partial_writes(): void
@@ -590,8 +560,15 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ->for($profile)
             ->for($term)
             ->create(['status' => 'pending_payment']);
+        $account = TermAccount::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+            'state' => TermAccount::StateOpen,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -649,6 +626,16 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             return $assessmentLine;
         })->values()->all();
 
+        foreach ($lines as $line) {
+            AssessmentObligation::query()->create([
+                'assessment_id' => $assessment->id,
+                'code' => (string) $line->source_line_key,
+                'label' => (string) $line->description_snapshot,
+                'amount' => (string) $line->amount,
+                'required_for_enrollment' => true,
+            ]);
+        }
+
         return compact('accounting', 'profile', 'term', 'enrollment', 'assessment', 'lines');
     }
 
@@ -679,6 +666,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+            'is_current' => true,
             'proposed_section_id' => $section->id,
             'proposed_at' => now()->subDay(),
             'status' => CourseEnrollment::StatusActive,

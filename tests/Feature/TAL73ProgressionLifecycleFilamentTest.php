@@ -122,7 +122,7 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
     }
 
     #[Test]
-    public function registrar_sees_focused_standing_and_unit_load_actions(): void
+    public function registrar_sees_standing_action_but_not_the_retired_generic_unit_load_exception(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $profile = StudentProfile::factory()->create();
@@ -132,8 +132,11 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
 
         Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
             ->assertActionVisible('confirmStanding');
-        Livewire::test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionVisible('unitLoadException');
+        $actions = collect(Livewire::test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+            ->instance()
+            ->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action]);
+        $this->assertArrayNotHasKey('unitLoadException', $actions->all());
     }
 
     #[Test]
@@ -148,7 +151,9 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
             'student_profile_id' => $profile->id,
             'term_id' => $priorTerm->id,
             'status' => 'officially_enrolled',
-            'student_type' => 'irregular',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+            'student_type' => null,
         ]);
         $lifecycleChange = StudentLifecycleChange::factory()->create([
             'student_profile_id' => $profile->id,
@@ -211,7 +216,7 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
             ->assertSee('PHP 15,000.00')
             ->assertSee('Open Enrollment')
             ->assertSee('Open Grade Roster')
-            ->assertSee('Open Assessment')
+            ->assertSee('Open Registration Case')
             ->assertSee('Open Lifecycle Record')
             ->assertSee('Approved temporary leave.')
             ->assertSee('Academic review required.')

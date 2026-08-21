@@ -3,7 +3,7 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\Cor\BuildCorOutput;
-use App\Actions\Enrollment\EnrollmentGateReviewSummary;
+use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentStatusResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
@@ -11,13 +11,11 @@ use App\Filament\Student\Pages\GradesView;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
-use App\Models\ScheduleGenerationRun;
-use App\Models\SectionMeeting;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Notifications\DatabaseNotification;
@@ -32,10 +30,9 @@ use Illuminate\Notifications\DatabaseNotification;
  * blocked, payment pending or rejected, COR blocked, and informational
  * notices.
  *
- * TAL-91C additionally implements the Capacity Pending tier and the
- * Pending Review gate-reason tier, both reusing already-persisted
- * `EnrollmentGateResult` rows via {@see EnrollmentGateReviewSummary} rather
- * than evaluating any new gate logic.
+ * TAL-91C additionally implements the Capacity Pending and Pending Review
+ * tiers. Slice 4 projects those tiers from the canonical Registration Case
+ * readiness facts instead of the retired persisted gate engine.
  *
  * TAL-91E implements the remaining tiers 6-10: missing requirements
  * (reusing {@see ChecklistItem} and its `isResolved()` logic), active
@@ -53,7 +50,7 @@ class StudentHubPriorityResolver
     public function __construct(
         private readonly HoldEvaluationService $holds,
         private readonly FinanceEvidenceService $finance,
-        private readonly EnrollmentGateReviewSummary $gateReviewSummary,
+        private readonly RegistrationReadinessQuery $registrationReadiness,
         private readonly BuildCorOutput $corOutput,
     ) {}
 
@@ -87,13 +84,18 @@ class StudentHubPriorityResolver
             return $paymentTier;
         }
 
-        $capacityPendingTier = $this->capacityPendingTier($currentEnrollment);
+        $registrationReadiness = $currentEnrollment instanceof Enrollment
+            && $currentEnrollment->canonical_outcome === Enrollment::OutcomeInProgress
+            && ! in_array($currentEnrollment->status, ['completed', 'cancelled', 'dropped', 'withdrawn'], true)
+                ? $this->registrationReadiness->for($currentEnrollment)
+                : null;
+        $capacityPendingTier = $this->capacityPendingTier($currentEnrollment, $registrationReadiness);
 
         if ($capacityPendingTier !== null) {
             return $capacityPendingTier;
         }
 
-        $pendingReviewTier = $this->pendingReviewTier($currentEnrollment);
+        $pendingReviewTier = $this->pendingReviewTier($currentEnrollment, $registrationReadiness);
 
         if ($pendingReviewTier !== null) {
             return $pendingReviewTier;
@@ -243,11 +245,15 @@ class StudentHubPriorityResolver
     /**
      * Capacity Pending tier (PRD `12_student_hub.md` §12.2 tier 4, rule 7).
      *
+     * @param  array{ready:bool,proposal:bool,confirmation:bool,placement:bool,finance:bool,identity:bool,blockers:list<string>}|null  $readiness
      * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
      */
-    private function capacityPendingTier(?Enrollment $currentEnrollment): ?array
+    private function capacityPendingTier(?Enrollment $currentEnrollment, ?array $readiness): ?array
     {
-        if (! $currentEnrollment instanceof Enrollment || $currentEnrollment->status !== 'capacity_pending') {
+        if (! $currentEnrollment instanceof Enrollment
+            || $readiness === null
+            || $readiness['proposal'] !== true
+            || $readiness['placement'] === true) {
             return null;
         }
 
@@ -260,29 +266,33 @@ class StudentHubPriorityResolver
     }
 
     /**
-     * Pending-Review gate-reason tier (PRD `12_student_hub.md` §12.2 rule 8). Reuses
-     * already-persisted {@see EnrollmentGateResult} rows via
-     * {@see EnrollmentGateReviewSummary} rather than evaluating any new gate logic.
+     * Pending-Review tier (PRD `12_student_hub.md` §12.2 rule 8), projected from
+     * the canonical Registration Case readiness facts.
      *
+     * @param  array{ready:bool,proposal:bool,confirmation:bool,placement:bool,finance:bool,identity:bool,blockers:list<string>}|null  $readiness
      * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
      */
-    private function pendingReviewTier(?Enrollment $currentEnrollment): ?array
+    private function pendingReviewTier(?Enrollment $currentEnrollment, ?array $readiness): ?array
     {
-        if (! $currentEnrollment instanceof Enrollment || $currentEnrollment->status !== 'pending_review') {
+        if (! $currentEnrollment instanceof Enrollment || $readiness === null || $readiness['ready'] === true) {
             return null;
         }
 
-        $reason = $this->gateReviewSummary->studentFacingReason($currentEnrollment);
-
-        if ($reason === null) {
-            return null;
-        }
+        $blocker = $readiness['blockers'][0] ?? 'Registration review';
+        $accountingBlocker = $blocker === 'Accounting clearance';
 
         return [
             'tier' => 'Pending Review',
-            'student_reason' => $reason['reason'],
+            'student_reason' => match ($blocker) {
+                'Confirmed Registration Proposal' => 'Your Registration Proposal is waiting for confirmation.',
+                'Current Published Timetable source' => 'Your Registration Proposal must be reconciled with the current Published Timetable.',
+                'Complete current placement' => 'Your confirmed Registration Proposal still needs complete section placement.',
+                'Accounting clearance' => 'Your exact-Term assessment or payment requirement is not yet cleared.',
+                'Authoritative learner identity' => 'Your Registration Case needs an authoritative learner identity review.',
+                default => 'Your Registration Case requires office review.',
+            },
             'required_action' => null,
-            'office_to_contact' => $reason['office'],
+            'office_to_contact' => $accountingBlocker ? 'Accounting Office' : 'Registrar Office',
         ];
     }
 
@@ -363,21 +373,23 @@ class StudentHubPriorityResolver
             return null;
         }
 
-        $hasPublishedActiveSchedule = StudentScheduleBinding::query()
-            ->where('is_active', true)
-            ->whereHas('courseEnrollment', function (Builder $query) use ($currentEnrollment): void {
-                $query
-                    ->where('enrollment_id', $currentEnrollment->id)
-                    ->where('status', CourseEnrollment::StatusActive);
-            })
-            ->whereHas('sectionMeeting', function (Builder $query): void {
-                $query
-                    ->where('state', SectionMeeting::StateActive)
-                    ->whereHas('scheduleRun', function (Builder $query): void {
-                        $query->where('status', ScheduleGenerationRun::StatusPublished);
-                    });
-            })
-            ->exists();
+        $currentVersionId = PublishedTimetableVersion::query()
+            ->where('term_id', $currentEnrollment->term_id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->value('id');
+        $sectionIds = CourseEnrollment::query()
+            ->where('enrollment_id', $currentEnrollment->id)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
+            ->pluck('section_id');
+        $hasPublishedActiveSchedule = $currentVersionId !== null
+            && $sectionIds->isNotEmpty()
+            && PublishedTimetableMeeting::query()
+                ->where('published_timetable_version_id', $currentVersionId)
+                ->whereIn('section_id', $sectionIds)
+                ->exists();
 
         if (! $hasPublishedActiveSchedule) {
             return null;

@@ -8,6 +8,7 @@ use App\Models\Assessment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
@@ -96,7 +97,15 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
                 && $money->greaterThanZero((string) $ledgerEntry->amount)
                 && $money->normalize((string) $ledgerEntry->amount) === $attemptAmount,
             'processed_provider_event' => $providerEvent instanceof OperationalEvent,
-            'finance_gate_effect' => in_array($assessment?->enrollment?->status, ['pre_enrolled', 'officially_enrolled'], true),
+            'payment_applied_to_current_obligation' => $ledgerEntry instanceof LedgerEntry
+                && $assessment instanceof Assessment
+                && $assessment->term_account_id !== null
+                && (int) $payment->term_account_id === (int) $assessment->term_account_id
+                && PaymentAllocation::query()
+                    ->where('payment_id', $payment->id)
+                    ->whereNotNull('assessment_obligation_id')
+                    ->whereHas('assessmentObligation', fn ($query) => $query->where('assessment_id', $assessment->id))
+                    ->count() === PaymentAllocation::query()->where('payment_id', $payment->id)->count(),
             'notification_evidence' => $notificationEvent instanceof OperationalEvent,
         ];
 

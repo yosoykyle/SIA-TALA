@@ -8,7 +8,6 @@ use App\Models\AdmissionRequirement;
 use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
 use App\Models\OfficialCredentialResult;
-use App\Models\StudentProfile;
 use Illuminate\Support\Collection;
 
 /**
@@ -150,10 +149,9 @@ class ReadyApplicantProjectionQuery
     public function registrationHasStarted(AdmissionApplication $application): bool
     {
         return Enrollment::query()
+            ->where('credential_user_id', $application->user_id)
+            ->where('admission_application_id', $application->id)
             ->where('term_id', $application->term_id)
-            ->whereIn('student_profile_id', StudentProfile::query()
-                ->select('id')
-                ->where('applicant_intake_id', $application->id))
             ->exists();
     }
 

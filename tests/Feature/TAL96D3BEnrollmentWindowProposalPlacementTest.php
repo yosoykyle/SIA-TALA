@@ -29,8 +29,6 @@ use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\Testing\TestAction;
-use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -750,7 +748,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertSame('capacity_pending', $expiryEnrollment->fresh()->status);
     }
 
-    public function test_irregular_student_enrollment_page_lists_eligible_sections_and_saves_a_proposal(): void
+    public function test_student_enrollment_page_is_a_guided_case_status_journey_without_section_shopping(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);
@@ -765,25 +763,15 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'student_type' => 'irregular',
                 'status' => 'pending_review',
             ]);
-        $section = $this->publishedSectionFor($term, $profile);
-        $this->openEnrollmentWindow($term);
+        $component = $this->studentEnrollmentComponent($student)
+            ->assertOk()
+            ->assertSee($enrollment->case_reference)
+            ->assertSee('Five checkpoints')
+            ->assertSee('The Registrar has not prepared the current proposal yet.');
 
-        $this->actingAs($student);
-
-        $component = app(LivewireManager::class)->test(StudentEnrollmentPage::class);
-        $component->assertOk();
-        $component
-            ->assertCanSeeTableRecords([$section])
-            ->selectTableRecords([$section])
-            ->callAction(TestAction::make('proposeSections')->table()->bulk())
-            ->assertNotified('Section proposal saved');
-
-        $this->assertDatabaseHas('course_enrollments', [
-            'enrollment_id' => $enrollment->id,
-            'term_offering_id' => $section->term_offering_id,
-            'proposed_section_id' => $section->id,
-        ]);
+        $this->assertFalse(method_exists($component->instance(), 'getTable'));
         $this->assertSame(0, EnrollmentSeatReservation::query()->whereBelongsTo($enrollment)->count());
+        $this->assertSame(0, CourseEnrollment::query()->whereBelongsTo($enrollment)->count());
     }
 
     public function test_terminal_enrollments_reject_placement_and_repeated_cancellation_without_side_effects(): void
@@ -909,7 +897,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertSame(0, EnrollmentSeatReservation::query()->whereBelongsTo($enrollment)->count());
     }
 
-    public function test_staff_confirmation_action_is_hidden_for_terminal_or_unproposed_irregular_enrollments(): void
+    public function test_retired_staff_confirmation_action_is_absent_for_every_registration_case_state(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $terminalEnrollment = Enrollment::factory()->create(['status' => 'officially_enrolled']);
@@ -918,16 +906,17 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             'status' => 'pending_review',
         ]);
 
-        Livewire::actingAs($registrar)
-            ->test(ViewEnrollment::class, ['record' => $terminalEnrollment->getRouteKey()])
-            ->assertActionHidden('confirmPlacement');
-
-        Livewire::actingAs($registrar)
-            ->test(ViewEnrollment::class, ['record' => $unproposedIrregularEnrollment->getRouteKey()])
-            ->assertActionHidden('confirmPlacement');
+        foreach ([$terminalEnrollment, $unproposedIrregularEnrollment] as $enrollment) {
+            $actions = collect(Livewire::actingAs($registrar)
+                ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
+                ->instance()
+                ->getCachedHeaderActions())
+                ->flatMap(fn ($action): array => $action instanceof ActionGroup ? $action->getFlatActions() : [$action->getName() => $action]);
+            $this->assertArrayNotHasKey('confirmPlacement', $actions->all());
+        }
     }
 
-    public function test_student_proposal_action_is_hidden_for_a_terminal_irregular_enrollment(): void
+    public function test_student_section_shopping_action_is_absent_from_terminal_registration(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);
@@ -946,11 +935,11 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->openEnrollmentWindow($term);
         $component = $this->studentEnrollmentComponent($student);
 
-        $component->assertOk();
-        $component->assertActionHidden(TestAction::make('proposeSections')->table()->bulk());
+        $component->assertOk()->assertSee('Five checkpoints');
+        $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
 
-    public function test_regular_student_page_presents_one_read_only_complete_cohort_proposal(): void
+    public function test_student_page_uses_the_controlled_selection_basis_instead_of_regular_cohort_policy(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);
@@ -965,26 +954,16 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'student_type' => 'regular',
                 'status' => 'capacity_pending',
             ]);
-        $firstProposedSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 1, cohortCode: 'DIT-1A');
-        $secondProposedSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 2, cohortCode: 'DIT-1A');
-        $otherCohortSection = $this->alternativePublishedSection(
-            $firstProposedSection,
-            dayOfWeek: 3,
-            cohortCode: 'DIT-1B',
-        );
-
         $this->actingAs($student);
 
         $component = app(LivewireManager::class)->test(StudentEnrollmentPage::class);
-        $component->assertOk();
-        $component
-            ->assertSee('Proposed cohort DIT-1A')
-            ->assertCanSeeTableRecords([$firstProposedSection, $secondProposedSection])
-            ->assertCanNotSeeTableRecords([$otherCohortSection])
-            ->assertActionHidden(TestAction::make('proposeSections')->table()->bulk());
+        $component->assertOk()
+            ->assertSee('Standard Curriculum')
+            ->assertDontSee('Proposed cohort DIT-1A');
+        $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
 
-    public function test_student_enrollment_table_prioritizes_decision_fields_and_stacks_on_mobile(): void
+    public function test_student_registration_is_not_exposed_as_a_bulk_selectable_table(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);
@@ -1002,25 +981,14 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->publishedSectionFor($term, $profile);
         $this->openEnrollmentWindow($term);
 
-        $page = $this->studentEnrollmentComponent($student)->instance();
-        $table = $page->getTable();
-        $columns = $table->getColumns();
+        $component = $this->studentEnrollmentComponent($student)
+            ->assertSee('Current proposal')
+            ->assertSee('Five checkpoints');
 
-        $this->assertTrue($table->isStackedOnMobile());
-        $this->assertSame(
-            ['subject', 'code', 'schedule', 'remaining_capacity', 'section_status'],
-            collect($columns)
-                ->reject(fn ($column): bool => $column->isToggledHiddenByDefault())
-                ->keys()
-                ->values()
-                ->all(),
-        );
-        $this->assertTrue($columns['description']->isToggledHiddenByDefault());
-        $this->assertTrue($columns['termOffering.modality']->isToggledHiddenByDefault());
-        $this->assertTrue($columns['credit_units']->isToggledHiddenByDefault());
+        $this->assertFalse(method_exists($component->instance(), 'getTable'));
     }
 
-    public function test_irregular_proposal_rejects_conflicts_within_the_submitted_set_but_allows_replacing_the_previous_set(): void
+    public function test_student_page_does_not_expose_the_retired_bulk_replace_proposal_action(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $student = User::factory()->create(['status' => User::StatusActive]);
@@ -1035,53 +1003,10 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
                 'student_type' => 'irregular',
                 'status' => 'pending_review',
             ]);
-        $firstSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 1);
-        $conflictingSection = $this->publishedSectionFor($term, $profile, dayOfWeek: 1);
-        $this->openEnrollmentWindow($term);
-        $proposals = app(EnrollmentProposalService::class);
-
-        try {
-            $proposals->replace($enrollment, [$firstSection->id, $conflictingSection->id], $student);
-            $this->fail('Conflicting Student-proposed sections were persisted.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('conflict', $exception->errors());
-        }
-
+        $component = $this->studentEnrollmentComponent($student);
+        $component->assertOk()->assertSee($enrollment->case_reference);
+        $this->assertFalse(method_exists($component->instance(), 'getTable'));
         $this->assertSame(0, CourseEnrollment::query()->whereBelongsTo($enrollment)->count());
-        $component = $this->studentEnrollmentComponent($student);
-        $component
-            ->selectTableRecords([$firstSection, $conflictingSection])
-            ->callAction(TestAction::make('proposeSections')->table()->bulk())
-            ->assertNotified(
-                Notification::make()
-                    ->title('Section proposal not saved')
-                    ->body("Selected sections {$firstSection->code} and {$conflictingSection->code} overlap.")
-                    ->danger(),
-            );
-
-        $proposals->replace($enrollment, [$firstSection->id], $student);
-        $component = $this->studentEnrollmentComponent($student);
-
-        $component->assertOk();
-        $table = $component->instance()->getTable();
-        $action = collect($table->getToolbarActions())
-            ->first(fn ($action): bool => $action->getName() === 'proposeSections');
-
-        $this->assertNotNull($action);
-        $this->assertSame('Replace complete proposal', $action->getLabel());
-        $this->assertStringContainsString('replaces your complete proposal', (string) $action->getModalDescription());
-        $this->assertTrue($table->isRecordSelectable($conflictingSection));
-
-        $proposals->replace($enrollment, [$conflictingSection->id], $student);
-
-        $this->assertSame(CourseEnrollment::StatusDropped, CourseEnrollment::query()
-            ->whereBelongsTo($enrollment)
-            ->where('term_offering_id', $firstSection->term_offering_id)
-            ->value('status'));
-        $this->assertSame($conflictingSection->id, CourseEnrollment::query()
-            ->whereBelongsTo($enrollment)
-            ->where('term_offering_id', $conflictingSection->term_offering_id)
-            ->value('proposed_section_id'));
     }
 
     public function test_registrar_can_start_a_continuing_enrollment_from_the_staff_list(): void
@@ -1096,15 +1021,51 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'start_method' => 'RegistrarAssisted',
+                'authority_reference' => 'SYN-ASSISTED-REGISTRATION-001',
             ])
             ->assertNotified('Enrollment started');
 
         $this->assertDatabaseHas('enrollments', [
             'student_profile_id' => $profile->id,
             'term_id' => $term->id,
-            'student_type' => 'regular',
+            'selection_basis' => Enrollment::SelectionStandardCurriculum,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
             'status' => 'pending_review',
+        ]);
+    }
+
+    public function test_registrar_staff_list_records_an_exact_late_start_authority(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $profile = StudentProfile::factory()->create();
+
+        Livewire::actingAs($registrar)
+            ->test(ListEnrollments::class)
+            ->callAction('startContinuingEnrollment', data: [
+                'student_profile_id' => $profile->id,
+                'term_id' => $term->id,
+                'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+                'start_method' => 'LateAuthority',
+                'authority_reference' => 'SYN-LATE-START-UI-001',
+            ])
+            ->assertNotified('Enrollment started');
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'start_method' => 'LateAuthority',
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+        $this->assertDatabaseHas('registration_case_events', [
+            'enrollment_id' => Enrollment::query()
+                ->where('student_profile_id', $profile->id)
+                ->where('term_id', $term->id)
+                ->value('id'),
+            'event_type' => 'Started',
+            'authority_reference' => 'SYN-LATE-START-UI-001',
         ]);
     }
 
@@ -1119,7 +1080,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->for($term)
             ->create([
                 'status' => 'pending_review',
-                'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
             ]);
 
         Livewire::actingAs($registrar)
@@ -1127,7 +1088,9 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'start_method' => 'RegistrarAssisted',
+                'authority_reference' => 'SYN-ASSISTED-REGISTRATION-003',
             ])
             ->assertNotified('Enrollment already exists');
 
@@ -1149,6 +1112,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->for($term)
             ->create([
                 'status' => 'cancelled',
+                'canonical_outcome' => Enrollment::OutcomeCancelled,
                 'status_reason' => 'Student withdrew the request.',
             ]);
 
@@ -1157,9 +1121,11 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             ->callAction('startContinuingEnrollment', data: [
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,
-                'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'start_method' => 'RegistrarAssisted',
+                'authority_reference' => 'SYN-ASSISTED-REGISTRATION-004',
             ])
-            ->assertNotified('Enrollment not started');
+            ->assertNotified('Enrollment already exists');
 
         $enrollment->refresh();
 
@@ -1186,7 +1152,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertSame('Accounting Office', $summary->responsibleOffice($pendingPayment));
     }
 
-    public function test_staff_enrollment_actions_remain_discoverable_in_the_mobile_table_layout(): void
+    public function test_staff_enrollment_list_keeps_one_view_action_and_assisted_start_recovery(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $component = Livewire::actingAs($registrar)->test(ListEnrollments::class);
@@ -1201,17 +1167,13 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         $this->assertTrue($table->isStackedOnMobile());
         $this->assertCount(1, $recordActions);
-        $this->assertInstanceOf(ActionGroup::class, $recordActions[0]);
-        $this->assertSame(
-            ['view', 'confirmPlacement', 'replacePlacement', 'cancelPlacement'],
-            array_keys($recordActions[0]->getFlatActions()),
-        );
+        $this->assertSame('view', $recordActions[0]->getName());
         $this->assertNotNull($startAction);
         $this->assertSame('md', $startAction->getLabeledFromBreakpoint());
         $this->assertSame('Start continuing enrollment', $startAction->getTooltip());
     }
 
-    public function test_enrollment_record_exposes_one_primary_path_and_groups_supporting_actions(): void
+    public function test_enrollment_record_exposes_canonical_primary_and_grouped_recovery_actions(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $enrollment = Enrollment::factory()->create([
@@ -1230,11 +1192,19 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
 
         $this->assertNotNull($supporting);
         $this->assertSame(
-            ['cancelPlacement', 'replacePlacement', 'refreshGateResults', 'academicException', 'unitLoadException', 'printCor'],
+            [
+                'prepareProposal', 'prepareAdjustmentProposal', 'issueProposal', 'recordAssistedConfirmation', 'placeProposal',
+                'createAssessment', 'recordIndividualAssessment', 'recordApprovedCoverage',
+                'downloadPaymentEvidence', 'verifyPaymentEvidence', 'rejectPaymentEvidence',
+                'resolveImpactReview', 'resendOfficialEnrollmentEmail', 'confirmNoAdditionalCost',
+                'recordLateAuthority', 'adjustRegistration', 'dropCourse', 'cancelCase',
+                'recordLateReopenAuthority', 'reopenCase',
+                'printCor', 'printCorHistory',
+            ],
             array_keys($supporting->getFlatActions()),
         );
         $this->assertSame(
-            ['confirmPlacement', 'recordOfficialEnrollment'],
+            ['finalizeOfficialEnrollment'],
             $actions
                 ->reject(fn ($action): bool => $action instanceof ActionGroup)
                 ->map(fn ($action): string => $action->getName())
@@ -1243,7 +1213,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         );
     }
 
-    public function test_enrollment_record_never_exposes_placement_and_officialization_as_simultaneous_primary_actions(): void
+    public function test_enrollment_record_never_exposes_retired_placement_or_gate_officialization_actions(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateActive]);
@@ -1259,18 +1229,15 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->publishedSectionFor($term, $profile, cohortCode: 'DIT-1A');
         $this->openEnrollmentWindow($term);
 
-        Livewire::actingAs($registrar)
+        $actions = collect(Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionVisible('confirmPlacement')
-            ->assertActionHidden('recordOfficialEnrollment');
+            ->instance()
+            ->getCachedHeaderActions())
+            ->flatMap(fn ($action): array => $action instanceof ActionGroup ? $action->getFlatActions() : [$action->getName() => $action]);
 
-        app(EnrollmentPlacementService::class)->confirmRegularCohort($enrollment, 'DIT-1A', $registrar);
-        $enrollment->update(['status' => 'ready_for_official_enrollment']);
-
-        Livewire::actingAs($registrar)
-            ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
-            ->assertActionHidden('confirmPlacement')
-            ->assertActionVisible('recordOfficialEnrollment');
+        $this->assertArrayNotHasKey('confirmPlacement', $actions->all());
+        $this->assertArrayNotHasKey('recordOfficialEnrollment', $actions->all());
+        $this->assertArrayNotHasKey('refreshGateResults', $actions->all());
     }
 
     public function test_expired_reservation_recovery_command_is_available_to_operations(): void

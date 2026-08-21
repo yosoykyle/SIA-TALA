@@ -3,12 +3,13 @@
 namespace App\Actions\Scheduling;
 
 use App\Mail\ScheduleReleasedMail;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\OperationalEvent;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -78,13 +79,23 @@ final class ScheduleReleaseNotificationService
         $enrollment->loadMissing(['studentProfile.user.roles', 'term']);
         $recipient = $enrollment->studentProfile?->user;
 
-        if ($enrollment->status !== 'officially_enrolled'
+        $officialSectionIds = CourseEnrollment::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
+            ->pluck('section_id');
+        $hasCurrentOfficialMeeting = PublishedTimetableMeeting::query()
+            ->whereIn('section_id', $officialSectionIds)
+            ->whereHas('timetableVersion', fn ($query) => $query
+                ->where('term_id', $enrollment->term_id)
+                ->where('state', PublishedTimetableVersion::StatePublished))
+            ->exists();
+
+        if ($enrollment->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
             || ! $recipient instanceof User
             || ! $recipient->hasRole('student')
-            || ! StudentScheduleBinding::query()
-                ->activeOfficial()
-                ->forEnrollment($enrollment)
-                ->exists()) {
+            || ! $hasCurrentOfficialMeeting) {
             return;
         }
 

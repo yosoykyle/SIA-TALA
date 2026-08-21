@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
+use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\Scheduling\ScheduleRevisionImpactService;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -14,6 +15,7 @@ use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\FacultyQualification;
 use App\Models\Program;
+use App\Models\RegistrationCaseEvent;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -25,8 +27,10 @@ use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -111,7 +115,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $this->assertSame($context['room']->id, $context['meetings'][0]->fresh()->room_id);
 
         $revisionStartedAt = now();
-        $events = app(PublishedScheduleRevisionService::class)->revise(
+        $events = $this->publishPreparedRevision(
             $context['run'],
             $registrar,
             ScheduleRevisionEvent::ChangeRoom,
@@ -127,12 +131,9 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
 
         $this->assertSame($context['room']->id, $meeting->room_id);
         $this->assertSame($context['replacementRoom']->id, $successorMeeting->room_id);
-        $this->assertFalse($binding['binding']->fresh()->is_active);
-        $this->assertDatabaseHas('student_schedule_bindings', [
-            'course_enrollment_id' => $binding['binding']->course_enrollment_id,
-            'section_meeting_id' => $successorMeeting->id,
-            'is_active' => true,
-        ]);
+        $this->assertTrue($binding['courseEnrollment']->fresh()->is_current);
+        $this->assertSame($context['section']->id, $binding['courseEnrollment']->fresh()->section_id);
+        $this->assertSame(1, StudentScheduleBinding::query()->where('course_enrollment_id', $binding['courseEnrollment']->id)->count());
         $this->assertSame($context['room']->id, $event->old_snapshot_json['room_id']);
         $this->assertSame($context['replacementRoom']->id, $event->new_snapshot_json['room_id']);
         $this->assertSame(now()->toDateString(), $event->effective_date->toDateString());
@@ -418,7 +419,7 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         );
 
         $this->assertFalse($blocked->passes());
-        $this->assertSame(1, $blocked->activeBindings());
+        $this->assertSame(0, $blocked->activeOfficialRegistrations());
         $this->assertSame(1, $blocked->capacityHoldingReservations());
 
         try {
@@ -607,10 +608,16 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         $enrollment = Enrollment::factory()
             ->for($student)
             ->for($context['term'])
-            ->create(['status' => 'pending_payment']);
+            ->create([
+                'credential_user_id' => $student->user_id,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'status' => 'officially_enrolled',
+            ]);
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $context['offering']->id,
+            'section_id' => $context['section']->id,
+            'is_current' => true,
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
@@ -624,6 +631,52 @@ final class TAL94D2ControlledLiveRevisionTest extends TestCase
         ]);
 
         return compact('enrollment', 'courseEnrollment', 'binding');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return EloquentCollection<int, ScheduleRevisionEvent>
+     */
+    private function publishPreparedRevision(
+        ScheduleGenerationRun $run,
+        User $registrar,
+        string $changeType,
+        array $changes,
+        string $reason,
+    ): EloquentCollection {
+        try {
+            return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
+        } catch (ValidationException $exception) {
+            if (! array_key_exists('revision', $exception->errors())) {
+                throw $exception;
+            }
+        }
+
+        $revision = TimetableRevision::query()
+            ->where('state', TimetableRevision::StateDraft)
+            ->whereHas('sourceVersion', fn ($query) => $query->where('schedule_run_id', $run->id))
+            ->latest('id')
+            ->firstOrFail();
+        $sourceReference = 'timetable-revision:'.$revision->id;
+
+        foreach ($revision->impact_snapshot['affected_registration_case_ids'] ?? [] as $caseId) {
+            $case = Enrollment::query()->findOrFail($caseId);
+            $opened = RegistrationCaseEvent::query()
+                ->where('enrollment_id', $case->id)
+                ->where('event_type', 'TimetableRevisionImpactReviewOpened')
+                ->where('authority_reference', $sourceReference)
+                ->sole();
+            app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+                $revision,
+                $case,
+                $opened,
+                $registrar,
+                ResolveTimetableRevisionRegistrationImpact::OutcomeRetainedWithAcknowledgement,
+                'TAL94D2-ACK-'.$case->id,
+            );
+        }
+
+        return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
     }
 
     private function staff(string $role): User

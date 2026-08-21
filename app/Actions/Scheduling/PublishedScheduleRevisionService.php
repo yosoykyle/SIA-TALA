@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -22,6 +23,7 @@ final class PublishedScheduleRevisionService
         private ScheduleRevisionImpactService $impactService,
         private ScheduleRevisionNotificationService $notificationService,
         private RevisePublishedTimetable $reviseTimetable,
+        private TimetableRevisionImpactGuard $impactGuard,
     ) {}
 
     /**
@@ -38,14 +40,21 @@ final class PublishedScheduleRevisionService
     ): EloquentCollection {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
         $reason = $this->reason($reason);
+        $preview = $this->impactService->preview($run, $changeType, $changes);
+        $this->assertPasses($preview);
+        $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
+        $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
+        $authority = $this->authorityReference($run, $authorityReference);
+        $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason);
+        DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
 
-        return DB::transaction(function () use ($run, $actor, $changeType, $changes, $reason, $authorityReference): EloquentCollection {
+        return DB::transaction(function () use ($run, $actor, $changeType, $changes, $reason, $authorityReference, $preparedRevision): EloquentCollection {
             $lockedRun = $this->lockedPublishedRun($run);
             Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
             $impact = $this->impactService->lockForRevision($lockedRun, $changeType, $changes);
             $this->assertPasses($impact);
             $timestamp = CarbonImmutable::now(config('app.timezone'));
-            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference);
+            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference, $preparedRevision);
 
             $this->recordActivity(
                 run: $lockedRun,
@@ -73,8 +82,15 @@ final class PublishedScheduleRevisionService
     ): EloquentCollection {
         Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
         $reason = $this->reason($reason);
+        $preview = $this->impactService->previewCancellation($run, $section);
+        $this->assertHardRulesPass($preview);
+        $currentVersion = $this->canonicalVersionForRun($run, $actor, CarbonImmutable::now(config('app.timezone')));
+        $canonicalChanges = $this->canonicalChanges($currentVersion, $preview);
+        $authority = $this->authorityReference($run, $authorityReference);
+        $preparedRevision = $this->impactGuard->prepare($currentVersion, $actor, $canonicalChanges, $authority, $reason, true);
+        DB::transaction(fn (): TimetableRevision => $this->impactGuard->assertReady($preparedRevision, $currentVersion, $canonicalChanges));
 
-        return DB::transaction(function () use ($run, $section, $actor, $reason, $authorityReference): EloquentCollection {
+        return DB::transaction(function () use ($run, $section, $actor, $reason, $authorityReference, $preparedRevision): EloquentCollection {
             $lockedRun = $this->lockedPublishedRun($run);
             Gate::forUser($actor)->authorize('revise', SectionMeeting::class);
             $lockedSection = Section::query()
@@ -93,7 +109,7 @@ final class PublishedScheduleRevisionService
             $impact = $this->impactService->lockForCancellation($lockedRun, $lockedSection);
             $this->assertPasses($impact);
             $timestamp = CarbonImmutable::now(config('app.timezone'));
-            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference);
+            $events = $this->applyMeetingChanges($lockedRun, $actor, $reason, $timestamp, $impact, $authorityReference, $preparedRevision);
 
             foreach ($groups as $group) {
                 $group->forceFill(['state' => SectionDeliveryGroup::StateCancelled])->save();
@@ -164,6 +180,17 @@ final class PublishedScheduleRevisionService
         ]);
     }
 
+    private function assertHardRulesPass(ScheduleRevisionImpact $impact): void
+    {
+        $finding = collect($impact->findings())->firstWhere('severity', 'blocking');
+
+        if (is_array($finding)) {
+            throw ValidationException::withMessages([
+                'schedule_revision' => (string) ($finding['message'] ?? 'The proposed live revision failed hard-constraint validation.'),
+            ]);
+        }
+    }
+
     /** @return EloquentCollection<int, ScheduleRevisionEvent> */
     private function applyMeetingChanges(
         ScheduleGenerationRun $run,
@@ -172,40 +199,11 @@ final class PublishedScheduleRevisionService
         CarbonImmutable $timestamp,
         ScheduleRevisionImpact $impact,
         ?string $authorityReference = null,
+        ?TimetableRevision $preparedRevision = null,
     ): EloquentCollection {
         $currentVersion = $this->canonicalVersionForRun($run, $actor, $timestamp);
-        $canonicalChanges = [];
-
-        foreach ($impact->meetingChanges() as $change) {
-            $meeting = SectionMeeting::query()->findOrFail($change['section_meeting_id']);
-            $canonical = $currentVersion->meetings()
-                ->where('scheduling_demand_id', $meeting->scheduling_demand_id)
-                ->where('meeting_sequence', $meeting->meeting_sequence)
-                ->firstOrFail();
-            $new = $change['new'];
-            $canonicalChanges[$canonical->id] = [
-                'faculty_user_id' => $new['faculty_user_id'],
-                'room_id' => $new['room_id'],
-                'day_of_week' => $new['day_of_week'],
-                'starts_at' => $new['starts_at'],
-                'ends_at' => $new['ends_at'],
-                'modality' => $new['modality'],
-                'location_label' => $new['modality'] === 'ONLINE' ? 'Online' : (string) ($new['room_id'] ?? 'Assigned room'),
-                'remove' => $new['state'] === SectionMeeting::StateCancelled,
-            ];
-        }
-
-        $authority = trim((string) $authorityReference);
-
-        if ($authority === '') {
-            if ($run->contract_version === ScheduleGenerationRun::ContractVersion) {
-                throw ValidationException::withMessages([
-                    'authority_reference' => 'Recorded external revision sign-off is required.',
-                ]);
-            }
-
-            $authority = "Legacy revision authority for run {$run->id}";
-        }
+        $canonicalChanges = $this->canonicalChanges($currentVersion, $impact);
+        $authority = $this->authorityReference($run, $authorityReference);
 
         $successor = $this->reviseTimetable->execute(
             $currentVersion,
@@ -214,6 +212,7 @@ final class PublishedScheduleRevisionService
             $authority,
             $reason,
             $impact->changeType() === ScheduleRevisionEvent::ChangeSectionCancellation,
+            $preparedRevision,
         );
         $events = [];
 
@@ -245,6 +244,50 @@ final class PublishedScheduleRevisionService
         }
 
         return new EloquentCollection($events);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function canonicalChanges(PublishedTimetableVersion $currentVersion, ScheduleRevisionImpact $impact): array
+    {
+        $canonicalChanges = [];
+
+        foreach ($impact->meetingChanges() as $change) {
+            $meeting = SectionMeeting::query()->findOrFail($change['section_meeting_id']);
+            $canonical = $currentVersion->meetings()
+                ->where('scheduling_demand_id', $meeting->scheduling_demand_id)
+                ->where('meeting_sequence', $meeting->meeting_sequence)
+                ->firstOrFail();
+            $new = $change['new'];
+            $canonicalChanges[$canonical->id] = [
+                'faculty_user_id' => $new['faculty_user_id'],
+                'room_id' => $new['room_id'],
+                'day_of_week' => $new['day_of_week'],
+                'starts_at' => $new['starts_at'],
+                'ends_at' => $new['ends_at'],
+                'modality' => $new['modality'],
+                'location_label' => $new['modality'] === 'ONLINE' ? 'Online' : (string) ($new['room_id'] ?? 'Assigned room'),
+                'remove' => $new['state'] === SectionMeeting::StateCancelled,
+            ];
+        }
+
+        return $canonicalChanges;
+    }
+
+    private function authorityReference(ScheduleGenerationRun $run, ?string $authorityReference): string
+    {
+        $authority = trim((string) $authorityReference);
+
+        if ($authority !== '') {
+            return $authority;
+        }
+
+        if ($run->contract_version === ScheduleGenerationRun::ContractVersion) {
+            throw ValidationException::withMessages([
+                'authority_reference' => 'Recorded external revision sign-off is required.',
+            ]);
+        }
+
+        return "Legacy revision authority for run {$run->id}";
     }
 
     private function canonicalVersionForRun(

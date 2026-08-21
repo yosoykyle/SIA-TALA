@@ -14,6 +14,7 @@ use App\Actions\Integrations\Payments\PayMongoWebhookSignatureVerifier;
 use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
@@ -23,6 +24,7 @@ use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
@@ -473,7 +475,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertStringContainsString('single_verified_payment=PASS', $firstOutput);
         $this->assertStringContainsString('ledger_entry_linked=PASS', $firstOutput);
         $this->assertStringContainsString('processed_provider_event=PASS', $firstOutput);
-        $this->assertStringContainsString('finance_gate_effect=PASS', $firstOutput);
+        $this->assertStringContainsString('payment_applied_to_current_obligation=PASS', $firstOutput);
         $this->assertStringContainsString('notification_evidence=PASS', $firstOutput);
     }
 
@@ -698,8 +700,15 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+        $account = TermAccount::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+            'state' => TermAccount::StateOpen,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -708,6 +717,13 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '1000.00',
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'code' => 'CURRENT_DUE',
+            'label' => 'Current enrollment payment',
+            'amount' => '1000.00',
+            'required_for_enrollment' => true,
         ]);
         LedgerEntry::query()->create([
             'student_profile_id' => $profile->id,
@@ -753,8 +769,15 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+        $account = TermAccount::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+            'state' => TermAccount::StateOpen,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -763,6 +786,13 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'code' => 'CURRENT_DUE',
+            'label' => 'Current enrollment payment',
+            'amount' => '2000.00',
+            'required_for_enrollment' => true,
         ]);
         PaymentScheduleRow::query()->create([
             'assessment_id' => $assessment->id,

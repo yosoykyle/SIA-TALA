@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Database\Factories\CourseEnrollmentFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CourseEnrollment extends Model
 {
+    /** @use HasFactory<CourseEnrollmentFactory> */
+    use HasFactory;
+
     public const StatusActive = 'active';
 
     public const StatusDropped = 'dropped';
@@ -21,6 +26,14 @@ class CourseEnrollment extends Model
     protected $fillable = [
         'enrollment_id',
         'term_offering_id',
+        'section_id',
+        'registration_proposal_item_id',
+        'published_timetable_version_id',
+        'supersedes_course_enrollment_id',
+        'change_source',
+        'effective_from',
+        'effective_until',
+        'is_current',
         'proposed_section_id',
         'proposed_at',
         'status',
@@ -37,12 +50,33 @@ class CourseEnrollment extends Model
     protected function casts(): array
     {
         return [
+            'effective_from' => 'datetime',
+            'effective_until' => 'datetime',
+            'is_current' => 'boolean',
             'units_snapshot' => 'decimal:2',
             'proposed_at' => 'datetime',
             'added_at' => 'datetime',
             'dropped_at' => 'datetime',
             'withdrawn_at' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<Section, $this> */
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
+    }
+
+    /** @return BelongsTo<RegistrationProposalItem, $this> */
+    public function proposalItem(): BelongsTo
+    {
+        return $this->belongsTo(RegistrationProposalItem::class, 'registration_proposal_item_id');
+    }
+
+    /** @return BelongsTo<PublishedTimetableVersion, $this> */
+    public function publishedTimetableVersion(): BelongsTo
+    {
+        return $this->belongsTo(PublishedTimetableVersion::class);
     }
 
     /** @return BelongsTo<Enrollment, $this> */

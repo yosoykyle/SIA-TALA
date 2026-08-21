@@ -257,7 +257,11 @@ class AdmissionReviewReadinessActionsTest extends TestCase
             'applicant_intake_id' => $application->id,
             'program_id' => $application->program_id,
         ]);
-        Enrollment::factory()->for($student)->create(['term_id' => $application->term_id]);
+        Enrollment::factory()->for($student)->create([
+            'credential_user_id' => $application->user_id,
+            'admission_application_id' => $application->id,
+            'term_id' => $application->term_id,
+        ]);
 
         $this->expectException(ValidationException::class);
         $lifecycle->withdrawByApplicant($reopened, $applicant, null);

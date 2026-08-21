@@ -6,12 +6,15 @@ use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\CorVersion;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
@@ -256,6 +259,44 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        $issuer = $this->staff(User::StaffRoleRegistrar);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create([
+            'published_by' => $issuer->id,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->for($enrollment)->create([
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'prepared_by' => $issuer->id,
+        ]);
+        $snapshot = [
+            'student_number' => $profile->student_number,
+            'student_name' => collect([$profile->first_name, $profile->middle_name, $profile->last_name])->filter()->implode(' '),
+            'program_id' => $program->id,
+            'program_code' => $program->code,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'term_label' => $term->label,
+            'published_timetable_version_id' => $timetable->id,
+            'fees' => [],
+            'courses' => [],
+        ];
+        $cor = CorVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'registration_proposal_version_id' => $proposal->id,
+            'assessment_id' => $assessment->id,
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $issuer->id,
+            'issued_at' => now(),
+        ]);
+        $enrollment->update([
+            'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
         ]);
         $feeRule = FeeRule::query()->create([
             'code' => 'TUITION',

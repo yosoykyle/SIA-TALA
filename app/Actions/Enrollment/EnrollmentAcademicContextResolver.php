@@ -4,7 +4,7 @@ namespace App\Actions\Enrollment;
 
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\EnrollmentSeatReservation;
+use App\Models\RegistrationProposalItem;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 class EnrollmentAcademicContextResolver
 {
-    public function __construct(private EnrollmentGateReviewSummary $gateReviewSummary) {}
+    public function __construct(private RegistrationReadinessQuery $readiness) {}
 
     /**
      * @return array<string, mixed>|null
@@ -126,13 +126,13 @@ class EnrollmentAcademicContextResolver
             'studentProfile.program',
             'studentProfile.curriculumVersion',
             'courseEnrollments.termOffering.curriculumEntry',
-            'courseEnrollments.proposedSection.deliveryGroups',
-            'courseEnrollments.seatReservations.section.deliveryGroups',
-            'gateResults',
+            'courseEnrollments.section.deliveryGroups',
+            'currentProposalVersion.items.section.deliveryGroups',
         ]);
 
         $activeCourses = $enrollment->courseEnrollments
-            ->filter(fn (CourseEnrollment $courseEnrollment): bool => $courseEnrollment->status === CourseEnrollment::StatusActive)
+            ->filter(fn (CourseEnrollment $courseEnrollment): bool => $courseEnrollment->status === CourseEnrollment::StatusActive
+                && $courseEnrollment->is_current)
             ->values();
         $curriculumLevels = $activeCourses
             ->map(fn (CourseEnrollment $courseEnrollment): ?string => $courseEnrollment->termOffering?->curriculumEntry?->year_level)
@@ -147,13 +147,20 @@ class EnrollmentAcademicContextResolver
             ->unique()
             ->values();
         $sections = $activeCourses
-            ->flatMap(fn (CourseEnrollment $courseEnrollment): array => $this->sectionsFor($courseEnrollment))
+            ->map(fn (CourseEnrollment $courseEnrollment): ?Section => $courseEnrollment->section)
+            ->merge($enrollment->currentProposalVersion?->items
+                ->map(fn (RegistrationProposalItem $item): ?Section => $item->section) ?? collect())
+            ->filter()
             ->unique(fn (Section $section): int => (int) $section->getKey())
             ->sortBy('code')
             ->values();
         $profile = $enrollment->studentProfile;
         $program = $profile->program;
         $curriculum = $profile->curriculumVersion;
+        $readiness = $enrollment->canonical_outcome === Enrollment::OutcomeInProgress
+            ? $this->readiness->for($enrollment)
+            : null;
+        $firstBlocker = $readiness['blockers'][0] ?? null;
 
         return [
             'enrollment_id' => (int) $enrollment->getKey(),
@@ -161,9 +168,9 @@ class EnrollmentAcademicContextResolver
             'term_label' => $enrollment->term?->label,
             'enrollment_status' => (string) $enrollment->status,
             'enrollment_status_label' => Str::headline((string) $enrollment->status),
-            'enrollment_type' => $enrollment->student_type,
-            'enrollment_type_label' => filled($enrollment->student_type)
-                ? Str::headline((string) $enrollment->student_type)
+            'enrollment_type' => $enrollment->selection_basis,
+            'enrollment_type_label' => filled($enrollment->selection_basis)
+                ? Str::headline((string) $enrollment->selection_basis)
                 : 'Not recorded',
             'program_id' => $program?->getKey() !== null ? (int) $program->getKey() : null,
             'program_code' => $program?->code,
@@ -182,34 +189,13 @@ class EnrollmentAcademicContextResolver
                 ->values()
                 ->all(),
             'course_delivery_mix' => $this->courseDeliveryMix($modalities),
-            'responsible_office' => $this->gateReviewSummary->responsibleOffice($enrollment),
-            'next_action' => $this->gateReviewSummary->nextStep($enrollment),
+            'responsible_office' => $firstBlocker === 'Accounting clearance' ? 'Accounting Office' : 'Registrar Office',
+            'next_action' => $firstBlocker !== null
+                ? 'Resolve: '.$firstBlocker.'.'
+                : ($enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
+                    ? 'Official enrollment is complete.'
+                    : 'No current registration action is required.'),
         ];
-    }
-
-    /**
-     * @return list<Section>
-     */
-    private function sectionsFor(CourseEnrollment $courseEnrollment): array
-    {
-        $confirmed = $courseEnrollment->seatReservations
-            ->filter(fn (EnrollmentSeatReservation $reservation): bool => in_array($reservation->status, [
-                EnrollmentSeatReservation::StatusActive,
-                EnrollmentSeatReservation::StatusPending,
-                EnrollmentSeatReservation::StatusConverted,
-            ], true))
-            ->map(fn (EnrollmentSeatReservation $reservation): ?Section => $reservation->section)
-            ->filter()
-            ->values()
-            ->all();
-
-        if ($confirmed !== []) {
-            return $confirmed;
-        }
-
-        return $courseEnrollment->proposedSection instanceof Section
-            ? [$courseEnrollment->proposedSection]
-            : [];
     }
 
     /**

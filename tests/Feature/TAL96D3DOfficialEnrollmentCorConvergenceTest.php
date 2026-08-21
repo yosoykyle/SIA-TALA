@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
+use App\Models\CorVersion;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -35,6 +36,8 @@ final class TAL96D3DOfficialEnrollmentCorConvergenceTest extends TestCase
             'status' => 'officially_enrolled',
             'officially_enrolled_at' => now()->subDay(),
         ]);
+        $this->makeCanonical($historical);
+        $this->makeCanonical($current);
 
         $resolved = app(CurrentOfficialEnrollmentResolver::class)->forProfile($profile);
 
@@ -71,7 +74,7 @@ final class TAL96D3DOfficialEnrollmentCorConvergenceTest extends TestCase
             'state' => Term::StateActive,
             'starts_on' => now()->toDateString(),
         ]);
-        Enrollment::factory()->for($profile)->for($olderTerm)->create([
+        $older = Enrollment::factory()->for($profile)->for($olderTerm)->create([
             'status' => 'officially_enrolled',
             'officially_enrolled_at' => now(),
         ]);
@@ -79,10 +82,21 @@ final class TAL96D3DOfficialEnrollmentCorConvergenceTest extends TestCase
             'status' => 'officially_enrolled',
             'officially_enrolled_at' => now()->subDay(),
         ]);
+        $this->makeCanonical($older);
+        $this->makeCanonical($expected);
 
         $resolved = app(CurrentOfficialEnrollmentResolver::class)->forProfile($profile);
 
         $this->assertNotNull($resolved);
         $this->assertTrue($resolved->is($expected));
+    }
+
+    private function makeCanonical(Enrollment $enrollment): void
+    {
+        $cor = CorVersion::factory()->for($enrollment)->create();
+        $enrollment->update([
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_cor_version_id' => $cor->id,
+        ]);
     }
 }

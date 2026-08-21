@@ -2,12 +2,12 @@
 
 namespace App\Actions\Finance;
 
-use App\Actions\Enrollment\StudentEnrollmentService;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
@@ -16,7 +16,6 @@ class EnrollmentFinanceClearanceService
 {
     public function __construct(
         private readonly DecimalMoney $money,
-        private readonly StudentEnrollmentService $studentEnrollmentService,
     ) {}
 
     /**
@@ -36,14 +35,9 @@ class EnrollmentFinanceClearanceService
         $financeCleared = $readiness['finance_cleared'];
 
         if ($financeCleared) {
-            if (! in_array($enrollment->status, ['pre_enrolled', 'officially_enrolled'], true)) {
-                $enrollment->forceFill([
-                    'status' => 'pre_enrolled',
-                    'registered_at' => $enrollment->registered_at ?? $timestamp,
-                ])->save();
-            }
-
-            $enrollment = $this->studentEnrollmentService->completeFinanceClearedHandover($enrollment, $actor, $timestamp);
+            TermAccount::query()
+                ->where('enrollment_id', $enrollment->id)
+                ->update(['state' => TermAccount::StateCleared]);
         }
 
         return [

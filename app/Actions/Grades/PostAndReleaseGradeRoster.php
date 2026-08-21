@@ -11,7 +11,10 @@ use RuntimeException;
 
 class PostAndReleaseGradeRoster
 {
-    public function __construct(private readonly GradePolicyService $policy) {}
+    public function __construct(
+        private readonly GradePolicyService $policy,
+        private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
+    ) {}
 
     public function execute(GradeRoster $roster, User $actor, string $authority = 'Registrar Post & Release'): GradeRoster
     {
@@ -20,7 +23,7 @@ class PostAndReleaseGradeRoster
         }
 
         return DB::transaction(function () use ($roster, $actor, $authority): GradeRoster {
-            $locked = GradeRoster::query()->with('rows')->lockForUpdate()->findOrFail($roster->id);
+            $locked = GradeRoster::query()->with('rows.courseEnrollment.enrollment')->lockForUpdate()->findOrFail($roster->id);
 
             if ($locked->state !== GradeRoster::StateSubmitted) {
                 throw new RuntimeException('Only submitted rosters can be posted and released.');
@@ -37,7 +40,7 @@ class PostAndReleaseGradeRoster
 
                 $deadline = $outcome['code'] === 'INC' ? $this->policy->incDeadline()->toDateString() : null;
 
-                $row->outcomeEvents()->create([
+                $outcomeEvent = $row->outcomeEvents()->create([
                     'event_type' => GradeOutcomeEvent::TypeInitialRelease,
                     'previous_value' => null,
                     'new_value' => $outcome['value'],
@@ -54,6 +57,8 @@ class PostAndReleaseGradeRoster
                     'current_outcome_category' => $outcome['category'],
                     'released_at' => now(),
                 ]);
+
+                $this->impactReviews->execute($row, $outcomeEvent, $actor);
             }
 
             $locked->update([

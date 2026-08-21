@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
+use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\Scheduling\ScheduleRevisionNotificationService;
 use App\Filament\Resources\OperationalEvents\Pages\ListOperationalEvents;
 use App\Filament\Resources\OperationalEvents\Pages\ViewOperationalEvent;
@@ -17,6 +18,7 @@ use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
 use App\Models\Program;
+use App\Models\RegistrationCaseEvent;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -25,11 +27,12 @@ use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
+use App\Models\TimetableRevision;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -79,7 +82,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         $inactiveStudent = $this->activeBinding($context, [$context['meetings'][1]], active: false);
         $reason = 'The original rooms are unavailable due to confidential maintenance details.';
 
-        $events = app(PublishedScheduleRevisionService::class)->revise(
+        $events = $this->publishPreparedRevision(
             $context['run'],
             $registrar,
             ScheduleRevisionEvent::ChangeRoom,
@@ -133,7 +136,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             ->for($context['course'])
             ->create(['is_active' => true]);
 
-        app(PublishedScheduleRevisionService::class)->revise(
+        $this->publishPreparedRevision(
             $context['run'],
             $registrar,
             ScheduleRevisionEvent::ChangeFacultyReassignment,
@@ -224,7 +227,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         $otherStudent = $this->activeBinding($context, [$context['meetings'][1]]);
         $reason = 'Private operational justification that must not leave the audit boundary.';
 
-        app(PublishedScheduleRevisionService::class)->revise(
+        $this->publishPreparedRevision(
             $context['run'],
             $this->staff(User::StaffRoleRegistrar),
             ScheduleRevisionEvent::ChangeRoom,
@@ -240,14 +243,14 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
                 return false;
             }
 
-            $this->assertCount(1, $mail->scheduleChanges);
-            $successorMeeting = SectionMeeting::query()
-                ->whereKey($mail->scheduleChanges[0]['section_meeting_id'])
-                ->firstOrFail();
-            $this->assertNotSame($context['meetings'][0]->id, $successorMeeting->id);
-            $this->assertSame(
-                $context['meetings'][0]->scheduling_demand_id,
-                $successorMeeting->scheduling_demand_id,
+            $this->assertCount(2, $mail->scheduleChanges);
+            $successorMeetings = SectionMeeting::query()
+                ->whereIn('id', collect($mail->scheduleChanges)->pluck('section_meeting_id'))
+                ->get();
+            $this->assertCount(2, $successorMeetings);
+            $this->assertEqualsCanonicalizing(
+                collect($context['meetings'])->pluck('scheduling_demand_id')->all(),
+                $successorMeetings->pluck('scheduling_demand_id')->all(),
             );
             $mail->assertSeeInHtml($context['course']->code)
                 ->assertSeeInHtml($context['section']->code)
@@ -457,26 +460,68 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         $enrollment = Enrollment::factory()
             ->for($student)
             ->for($context['term'])
-            ->create(['status' => 'pending_payment']);
-        $courseEnrollment = CourseEnrollment::query()->create([
+            ->create([
+                'credential_user_id' => $user->id,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'status' => 'officially_enrolled',
+            ]);
+        CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $context['offering']->id,
-            'status' => CourseEnrollment::StatusActive,
+            'section_id' => $context['section']->id,
+            'is_current' => $active,
+            'status' => $active ? CourseEnrollment::StatusActive : CourseEnrollment::StatusDropped,
             'units_snapshot' => '3.00',
             'added_at' => now(),
         ]);
 
-        foreach ($meetings as $meeting) {
-            StudentScheduleBinding::query()->create([
-                'course_enrollment_id' => $courseEnrollment->id,
-                'section_meeting_id' => $meeting->id,
-                'is_active' => $active,
-                'effective_from' => now()->toDateString(),
-                'source' => StudentScheduleBinding::SourceRegistrarPlacement,
-            ]);
+        return $user;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return EloquentCollection<int, ScheduleRevisionEvent>
+     */
+    private function publishPreparedRevision(
+        ScheduleGenerationRun $run,
+        User $registrar,
+        string $changeType,
+        array $changes,
+        string $reason,
+    ): EloquentCollection {
+        try {
+            return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
+        } catch (ValidationException $exception) {
+            if (! array_key_exists('revision', $exception->errors())) {
+                throw $exception;
+            }
         }
 
-        return $user;
+        $revision = TimetableRevision::query()
+            ->where('state', TimetableRevision::StateDraft)
+            ->whereHas('sourceVersion', fn ($query) => $query->where('schedule_run_id', $run->id))
+            ->latest('id')
+            ->firstOrFail();
+        $sourceReference = 'timetable-revision:'.$revision->id;
+
+        foreach ($revision->impact_snapshot['affected_registration_case_ids'] ?? [] as $caseId) {
+            $case = Enrollment::query()->findOrFail($caseId);
+            $opened = RegistrationCaseEvent::query()
+                ->where('enrollment_id', $case->id)
+                ->where('event_type', 'TimetableRevisionImpactReviewOpened')
+                ->where('authority_reference', $sourceReference)
+                ->sole();
+            app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+                $revision,
+                $case,
+                $opened,
+                $registrar,
+                ResolveTimetableRevisionRegistrationImpact::OutcomeRetainedWithAcknowledgement,
+                'TAL94D3B-ACK-'.$case->id,
+            );
+        }
+
+        return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
     }
 
     private function staff(string $role): User

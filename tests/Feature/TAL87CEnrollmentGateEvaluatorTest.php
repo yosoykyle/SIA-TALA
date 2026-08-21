@@ -153,45 +153,30 @@ final class TAL87CEnrollmentGateEvaluatorTest extends TestCase
     }
 
     #[Test]
-    public function refresh_and_typed_exception_actions_follow_staff_boundaries(): void
+    public function generic_gate_and_exception_actions_are_retired_from_the_canonical_surface(): void
     {
         $fixture = $this->clearSourceGateFixture(withPostedPayment: false);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $accounting = $this->staff(User::StaffRoleAccounting);
 
-        Livewire::actingAs($registrar)
+        $registrarComponent = Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
-            ->assertActionVisible('refreshGateResults')
-            ->callAction('refreshGateResults')
-            ->assertNotified('Enrollment gate results refreshed');
+            ->assertSee('Registration Case');
+        $academicHeadComponent = Livewire::actingAs($academicHead)
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()]);
+        $accountingComponent = Livewire::actingAs($accounting)
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()]);
 
-        Livewire::actingAs($academicHead)
-            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
-            ->assertActionVisible('academicException')
-            ->callAction('academicException', data: [
-                'exception_type' => EnrollmentException::TypePrerequisite,
-                'target_term_offering_id' => $fixture['offerings']->first()->id,
-                'original_rule' => 'PREREQUISITE:CS101',
-                'authority' => 'Academic Head Resolution 2026-07',
-                'reason' => 'Approved after transcript review.',
-                'evidence_reference' => 'ACAD-EX-001',
-                'expires_at' => now()->addMonth()->toDateTimeString(),
-            ])
-            ->assertNotified('Academic exception recorded');
-
-        $this->assertDatabaseHas('enrollment_exceptions', [
-            'enrollment_id' => $fixture['enrollment']->id,
-            'exception_type' => EnrollmentException::TypePrerequisite,
-            'target_term_offering_id' => $fixture['offerings']->first()->id,
-            'state' => EnrollmentException::StateActive,
-        ]);
-
-        Livewire::actingAs($accounting)
-            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->getRouteKey()])
-            ->assertActionHidden('refreshGateResults')
-            ->assertActionHidden('academicException')
-            ->assertActionHidden('unitLoadException');
+        foreach ([$registrarComponent, $academicHeadComponent, $accountingComponent] as $component) {
+            $actionNames = collect($component->instance()->getCachedHeaderActions())
+                ->flatMap(fn ($action): array => method_exists($action, 'getFlatActions') ? $action->getFlatActions() : [$action->getName() => $action])
+                ->keys()
+                ->all();
+            $this->assertNotContains('refreshGateResults', $actionNames);
+            $this->assertNotContains('academicException', $actionNames);
+            $this->assertNotContains('unitLoadException', $actionNames);
+        }
 
         $this->expectExceptionMessage('generic gate overrides and unit-load exceptions are not accepted here');
         app(RecordAcademicException::class)->record($fixture['enrollment'], [

@@ -110,12 +110,12 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function revisePublishedScheduleAction(): Action
     {
         return Action::make('revisePublishedSchedule')
-            ->label('Revise published timetable')
+            ->label('Prepare / publish timetable revision')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('warning')
             ->modalHeading('Revise Published Timetable')
-            ->modalDescription('Preview one controlled live revision. TALA locks and revalidates the complete published schedule before applying any change.')
-            ->modalSubmitActionLabel('Validate and Apply Revision')
+            ->modalDescription('Prepare one immutable Draft revision and its exact Clinic 4 impact work. The same action publishes only after every affected registration outcome is resolved and the whole timetable passes revalidation again.')
+            ->modalSubmitActionLabel('Prepare or Publish Revision')
             ->modalWidth(Width::SevenExtraLarge)
             ->fillForm(fn (): array => [
                 'change_type' => null,
@@ -404,8 +404,8 @@ class ViewScheduleGenerationRun extends ViewRecord
 
         return $description.' '.sprintf(
             'Full replacement is blocked because the current schedule has %d active student %s across %d affected %s. Use the controlled live-revision workflow instead.',
-            $impact->activeBindings(),
-            $impact->activeBindings() === 1 ? 'binding' : 'bindings',
+            $impact->activeOfficialRegistrations(),
+            $impact->activeOfficialRegistrations() === 1 ? 'official registration' : 'official registrations',
             $impact->affectedStudents(),
             $impact->affectedStudents() === 1 ? 'student' : 'students',
         );

@@ -2,88 +2,80 @@
 
 namespace App\Filament\Resources\Enrollments\Tables;
 
-use App\Actions\Enrollment\EnrollmentGateReviewSummary;
-use App\Actions\Enrollment\EnrollmentPlacementService;
+use App\Actions\Enrollment\RegistrationShortageProjection;
 use App\Models\Enrollment;
-use App\Models\EnrollmentSeatReservation;
 use App\Models\Program;
-use App\Models\User;
-use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
+use App\Models\RegistrationProposalVersion;
+use App\Models\TermAccount;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Notifications\Notification;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
-use Throwable;
 
 class EnrollmentsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['studentProfile.program', 'term', 'gateResults']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'credentialUser',
+                'admissionApplication.program',
+                'studentProfile.program',
+                'term',
+                'currentProposalVersion.confirmation',
+                'currentProposalVersion.items.reservation',
+                'termAccount.assessments',
+            ]))
+            ->defaultSort('updated_at', 'desc')
             ->columns([
-                TextColumn::make('studentProfile.last_name')
-                    ->label('Student')
-                    ->state(fn (Enrollment $record): string => collect([
-                        $record->studentProfile?->last_name,
-                        $record->studentProfile?->first_name,
-                    ])->filter()->implode(', '))
+                TextColumn::make('learner')
+                    ->label('Learner')
+                    ->state(fn (Enrollment $record): string => $record->credentialUser?->getFilamentName() ?? 'Identity unavailable')
                     ->description(fn (Enrollment $record): string => collect([
                         $record->studentProfile?->student_number,
-                        $record->studentProfile?->program?->code,
+                        $record->admissionApplication?->application_reference,
+                        $record->credentialUser?->email,
                     ])->filter()->implode(' · '))
-                    ->searchable()
-                    ->sortable(),
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(function (Builder $query) use ($search): void {
+                        $query->where('case_reference', 'like', "%{$search}%")
+                            ->orWhereHas('credentialUser', fn (Builder $query): Builder => $query
+                                ->where('name', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%"))
+                            ->orWhereHas('studentProfile', fn (Builder $query): Builder => $query
+                                ->where('student_number', 'like', "%{$search}%"))
+                            ->orWhereHas('admissionApplication', fn (Builder $query): Builder => $query
+                                ->where('application_reference', 'like', "%{$search}%"));
+                    }))
+                    ->wrap(),
+                TextColumn::make('case_reference')
+                    ->label('Registration Case')
+                    ->copyable()
+                    ->searchable(),
                 TextColumn::make('term.label')
                     ->label('Term')
-                    ->searchable()
                     ->sortable(),
-                TextColumn::make('status')
+                TextColumn::make('selection_basis')
+                    ->label('Selection basis')
                     ->badge()
-                    ->colors([
-                        'gray' => 'not_started',
-                        'warning' => ['pending_review', 'pending_payment'],
-                        'info' => 'capacity_pending',
-                        'success' => 'ready_for_official_enrollment',
-                        'primary' => 'officially_enrolled',
-                        'danger' => ['cancelled', 'dropped', 'withdrawn'],
-                    ])
-                    ->formatStateUsing(fn (?string $state): string => filled($state)
-                        ? Str::headline($state)
-                        : 'Unknown')
-                    ->searchable(),
-                TextColumn::make('student_type')
-                    ->label('Enrollment Type')
+                    ->formatStateUsing(fn (?string $state): string => filled($state) ? Str::headline($state) : 'Not selected'),
+                TextColumn::make('stage')
+                    ->state(fn (Enrollment $record): string => self::stage($record))
+                    ->description(fn (Enrollment $record): string => self::nextAction($record))
                     ->badge()
-                    ->placeholder('-')
-                    ->formatStateUsing(fn (?string $state): string => filled($state)
-                        ? Str::headline($state)
-                        : 'Unknown')
-                    ->searchable(),
-                TextColumn::make('gate_review')
-                    ->label('Next Step')
-                    ->state(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->nextStep($record))
-                    ->description(fn (Enrollment $record): string => 'Responsible: '.app(EnrollmentGateReviewSummary::class)->responsibleOffice($record))
-                    ->color(fn (Enrollment $record): string => app(EnrollmentGateReviewSummary::class)->compactStatusColor($record))
+                    ->color(fn (Enrollment $record): string => match (self::stage($record)) {
+                        'Officially enrolled' => 'success',
+                        'Cancelled', 'Not enrolled' => 'danger',
+                        'Ready to finalize' => 'info',
+                        default => 'warning',
+                    })
                     ->wrap(),
-                TextColumn::make('registered_at')
-                    ->label('Registered')
-                    ->dateTime()
-                    ->placeholder('-')
-                    ->visibleFrom('lg')
+                TextColumn::make('updated_at')
+                    ->label('Last activity')
+                    ->since()
                     ->sortable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('term')
@@ -91,231 +83,106 @@ class EnrollmentsTable
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('program')
-                    ->label('Program')
                     ->options(fn (): array => Program::query()
-                        ->orderBy('code')
+                        ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
                     ->searchable()
                     ->preload()
                     ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['value'] ?? null,
-                        fn (Builder $query, mixed $programId): Builder => $query->whereHas(
-                            'studentProfile',
-                            fn (Builder $profileQuery): Builder => $profileQuery->where('program_id', $programId),
+                        fn (Builder $query, string $programId): Builder => $query->where(
+                            fn (Builder $programQuery): Builder => $programQuery
+                                ->whereHas('admissionApplication', fn (Builder $application): Builder => $application
+                                    ->where('program_id', $programId))
+                                ->orWhereHas('studentProfile', fn (Builder $profile): Builder => $profile
+                                    ->where('program_id', $programId)),
                         ),
                     )),
-                SelectFilter::make('status')
+                SelectFilter::make('selection_basis')
                     ->options([
-                        'not_started' => 'Not Started',
-                        'pending_review' => 'Pending Review',
-                        'capacity_pending' => 'Capacity Pending',
-                        'pending_payment' => 'Payment Pending',
-                        'ready_for_official_enrollment' => 'Ready for Official Enrollment',
-                        'officially_enrolled' => 'Officially Enrolled',
-                        'cancelled' => 'Cancelled',
-                        'dropped' => 'Dropped',
-                        'withdrawn' => 'Withdrawn',
+                        Enrollment::SelectionStandardCurriculum => 'Standard Curriculum',
+                        Enrollment::SelectionIndividuallyAdvised => 'Individually Advised',
                     ]),
-                SelectFilter::make('student_type')
+                SelectFilter::make('canonical_outcome')
+                    ->label('Outcome')
                     ->options([
-                        'new' => 'New/Freshmen',
-                        'transferee' => 'Transferee',
-                        'regular' => 'Regular',
-                        'irregular' => 'Irregular',
-                        'returnee' => 'Returnee',
+                        Enrollment::OutcomeInProgress => 'In Progress',
+                        Enrollment::OutcomeOfficiallyEnrolled => 'Officially Enrolled',
+                        Enrollment::OutcomeCancelled => 'Cancelled',
+                        Enrollment::OutcomeNotEnrolled => 'Not Enrolled',
                     ]),
+                SelectFilter::make('context')
+                    ->options([
+                        'applicant' => 'Ready Applicant',
+                        'continuing' => 'Continuing Student',
+                    ])
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $query, string $context): Builder => $context === 'applicant'
+                            ? $query->whereNotNull('admission_application_id')
+                            : $query->whereNull('admission_application_id')->whereNotNull('student_profile_id'),
+                    )),
+                Filter::make('capacity_shortage')
+                    ->label('Capacity shortage')
+                    ->query(fn (Builder $query): Builder => $query->whereIn(
+                        'id',
+                        app(RegistrationShortageProjection::class)->caseIds(),
+                    )),
             ])
-            ->recordActions([
-                ActionGroup::make([
-                    ViewAction::make(),
-                    self::confirmPlacementAction(),
-                    self::replacePlacementAction(),
-                    self::cancelPlacementAction(),
-                ])
-                    ->tooltip('Enrollment actions'),
-            ])
+            ->recordActions([ViewAction::make()])
             ->stackedOnMobile()
             ->toolbarActions([]);
     }
 
-    public static function confirmPlacementAction(): Action
+    private static function stage(Enrollment $enrollment): string
     {
-        return Action::make('confirmPlacement')
-            ->label('Confirm Placement')
-            ->icon(Heroicon::OutlinedCheckCircle)
-            ->color('success')
-            ->schema([
-                Placeholder::make('proposal_summary')
-                    ->label('Student proposal')
-                    ->content(fn (?Enrollment $record): string => $record instanceof Enrollment
-                        ? $record->courseEnrollments()
-                            ->whereNotNull('proposed_section_id')
-                            ->count().' proposed subject section(s) will be confirmed together.'
-                        : 'No proposal available.')
-                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
-                        && $record->student_type === 'irregular'
-                        && $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists()),
-                Select::make('cohort_code')
-                    ->label('Published logical cohort')
-                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
-                        ? app(EnrollmentPlacementService::class)->regularCohortOptions($record)
-                        : [])
-                    ->required()
-                    ->searchable()
-                    ->native(false)
-                    ->helperText('Every eligible published subject in this cohort is confirmed atomically.')
-                    ->visible(fn (?Enrollment $record): bool => $record instanceof Enrollment
-                        && $record->student_type !== 'irregular'),
-            ])
-            ->modalHeading('Confirm enrollment placement')
-            ->modalSubmitActionLabel('Confirm Placement')
-            ->visible(function (Enrollment $record): bool {
-                $actorMayConfirm = auth()->user()?->can('confirmPlacement', $record) ?? false;
-                $service = app(EnrollmentPlacementService::class);
+        if ($enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled) {
+            return 'Officially enrolled';
+        }
 
-                if (! $actorMayConfirm || ! $service->placementIsMutable($record) || self::hasActivePlacement($record)) {
-                    return false;
-                }
+        if ($enrollment->canonical_outcome === Enrollment::OutcomeCancelled) {
+            return 'Cancelled';
+        }
 
-                if ($record->student_type !== 'irregular') {
-                    return $service->regularCohortOptions($record) !== [];
-                }
+        if ($enrollment->canonical_outcome === Enrollment::OutcomeNotEnrolled) {
+            return 'Not enrolled';
+        }
 
-                return $record->courseEnrollments()->whereNotNull('proposed_section_id')->exists();
-            })
-            ->action(function (Enrollment $record, array $data): void {
-                $actor = auth()->user();
+        $proposal = $enrollment->currentProposalVersion;
+        if (! $proposal instanceof RegistrationProposalVersion) {
+            return 'Prepare proposal';
+        }
 
-                if (! $actor instanceof User) {
-                    return;
-                }
+        if ($proposal->state === RegistrationProposalVersion::StateDraft) {
+            return 'Draft proposal';
+        }
 
-                try {
-                    $service = app(EnrollmentPlacementService::class);
-                    if ($record->student_type === 'irregular') {
-                        $summary = $service->confirmComplete($record, $actor);
-                    } else {
-                        $summary = $service->confirmRegularCohort($record, (string) $data['cohort_code'], $actor);
-                    }
+        if ($proposal->state === RegistrationProposalVersion::StateIssued) {
+            return 'Awaiting learner confirmation';
+        }
 
-                    Notification::make()
-                        ->title($summary['already_confirmed'] ? 'Placement already confirmed' : 'Placement confirmed')
-                        ->body('Seat reservation and published schedule bindings are recorded.')
-                        ->success()
-                        ->send();
-                } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Placement confirmation failed')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
+        $placed = $proposal->items->isNotEmpty()
+            && $proposal->items->every(fn ($item): bool => $item->reservation?->status === 'active');
+        if (! $placed) {
+            return 'Placement required';
+        }
+
+        return $enrollment->termAccount?->state === TermAccount::StateCleared
+            ? 'Ready to finalize'
+            : 'Accounting clearance';
     }
 
-    public static function replacePlacementAction(): Action
+    private static function nextAction(Enrollment $enrollment): string
     {
-        return Action::make('replacePlacement')
-            ->label('Replace Confirmed Section')
-            ->icon(Heroicon::OutlinedArrowsRightLeft)
-            ->schema([
-                Select::make('section_id')
-                    ->label('Replacement published section')
-                    ->options(fn (?Enrollment $record): array => $record instanceof Enrollment
-                        ? app(EnrollmentPlacementService::class)->replacementOptions($record)
-                        : [])
-                    ->required()
-                    ->searchable()
-                    ->native(false)
-                    ->helperText('The replacement is revalidated before the previous reservation and schedule binding are released.'),
-            ])
-            ->modalHeading('Replace one confirmed irregular section')
-            ->modalSubmitActionLabel('Replace Section')
-            ->visible(function (Enrollment $record): bool {
-                $service = app(EnrollmentPlacementService::class);
-
-                return $record->student_type === 'irregular'
-                    && self::hasActivePlacement($record)
-                    && $service->placementIsMutable($record)
-                    && $service->replacementOptions($record) !== []
-                    && (auth()->user()?->can('confirmPlacement', $record) ?? false);
-            })
-            ->action(function (Enrollment $record, array $data): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    return;
-                }
-
-                try {
-                    app(EnrollmentPlacementService::class)->replace($record, (int) $data['section_id'], $actor);
-
-                    Notification::make()
-                        ->title('Confirmed section replaced')
-                        ->body('The previous reservation and schedule binding were released after the replacement passed validation.')
-                        ->success()
-                        ->send();
-                } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Section replacement failed')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
-    }
-
-    public static function cancelPlacementAction(): Action
-    {
-        return Action::make('cancelPlacement')
-            ->label('Cancel Enrollment')
-            ->icon(Heroicon::OutlinedXCircle)
-            ->color('danger')
-            ->requiresConfirmation()
-            ->schema([
-                Textarea::make('reason')
-                    ->label('Cancellation reason')
-                    ->required()
-                    ->maxLength(2000),
-            ])
-            ->visible(fn (Enrollment $record): bool => ! in_array(
-                $record->status,
-                ['officially_enrolled', 'cancelled', 'dropped', 'withdrawn'],
-                true,
-            ) && (auth()->user()?->can('confirmPlacement', $record) ?? false))
-            ->action(function (Enrollment $record, array $data): void {
-                $actor = auth()->user();
-
-                if (! $actor instanceof User) {
-                    return;
-                }
-
-                try {
-                    app(EnrollmentPlacementService::class)->cancel(
-                        $record,
-                        $actor,
-                        (string) $data['reason'],
-                    );
-                    Notification::make()
-                        ->title('Enrollment cancelled')
-                        ->body('Pending reservations and schedule bindings were released.')
-                        ->success()
-                        ->send();
-                } catch (Throwable $exception) {
-                    Notification::make()
-                        ->title('Enrollment cancellation failed')
-                        ->body($exception->getMessage())
-                        ->danger()
-                        ->send();
-                }
-            });
-    }
-
-    private static function hasActivePlacement(Enrollment $enrollment): bool
-    {
-        return $enrollment->seatReservations()
-            ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
-            ->exists();
+        return match (self::stage($enrollment)) {
+            'Prepare proposal', 'Draft proposal' => 'Registrar prepares and issues the current proposal.',
+            'Awaiting learner confirmation' => 'Learner confirms the issued proposal.',
+            'Placement required' => 'Registrar protects seats in the published timetable.',
+            'Accounting clearance' => 'Accounting resolves the current assessment requirement.',
+            'Ready to finalize' => 'Registrar revalidates all five checkpoints and finalizes.',
+            'Officially enrolled' => 'Current official registrations and immutable COR are available.',
+            default => 'Review preserved history and authorized recovery options.',
+        };
     }
 }

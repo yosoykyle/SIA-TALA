@@ -31,6 +31,9 @@ class Payment extends Model
      */
     protected $fillable = [
         'payment_attempt_id',
+        'term_account_id',
+        'payment_evidence_version_id',
+        'reverses_payment_id',
         'student_profile_id',
         'term_id',
         'method',
@@ -45,6 +48,7 @@ class Payment extends Model
         'or_mapped_by',
         'or_mapped_at',
         'provider_reference',
+        'reversal_reason',
     ];
 
     /**
@@ -58,6 +62,18 @@ class Payment extends Model
             'verified_at' => 'datetime',
             'or_mapped_at' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<TermAccount, $this> */
+    public function termAccount(): BelongsTo
+    {
+        return $this->belongsTo(TermAccount::class);
+    }
+
+    /** @return BelongsTo<PaymentEvidenceVersion, $this> */
+    public function paymentEvidenceVersion(): BelongsTo
+    {
+        return $this->belongsTo(PaymentEvidenceVersion::class);
     }
 
     public function studentProfile(): BelongsTo

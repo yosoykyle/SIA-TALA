@@ -107,7 +107,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         return [
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'AdmissionApplicationResource', 'AdmissionCycleResource', 'AssessmentResource', 'CalendarEventResource',
+                'AdmissionApplicationResource', 'AdmissionCycleResource', 'CalendarEventResource',
                 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
@@ -117,8 +117,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
-                'AccountingAdjustmentResource', 'AssessmentResource', 'Dashboard', 'EnrollmentResource',
-                'FeeRuleResource', 'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource',
+                'AccountingAdjustmentResource', 'Dashboard', 'EnrollmentResource',
+                'FeePlanResource', 'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource',
                 'PaymentResource', 'PayMongoReconciliation', 'ReportsAudit', 'StudentLifecycleChangeResource',
                 'StudentProfileResource',
             ]],
@@ -181,7 +181,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         return [
             'UserResource', 'RoleResource', 'ActivityResource', 'SystemSettingResource', 'FaqEntryResource',
             'OperationalEventResource', 'AdmissionApplicationResource', 'AdmissionCycleResource',
-            'EnrollmentResource', 'FeeRuleResource', 'AssessmentResource', 'AccountingAdjustmentResource',
+            'EnrollmentResource', 'FeePlanResource', 'AccountingAdjustmentResource',
             'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource', 'PaymentResource',
             'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
             'ImportBatchResource', 'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',

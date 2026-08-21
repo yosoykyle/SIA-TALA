@@ -62,9 +62,9 @@ final class TAL96D5BStateCoverageMatrix
             'enrollment' => [
                 'persona' => 'DBM-2A-001 and DTHM-1A-001',
                 'disposition' => 'fixture_record',
-                'evidence' => 'Irregular waiting and cancelled terminal Enrollment records coexist with D4B official enrollments.',
-                'represented' => $this->enrollmentExists('DBM-2A-001', 'pending', 'irregular')
-                    && $this->enrollmentExists('DTHM-1A-001', 'cancelled', 'regular')
+                'evidence' => 'Individually Advised waiting and cancelled terminal Registration Cases coexist with D4B official enrollments.',
+                'represented' => $this->enrollmentExists('DBM-2A-001', 'pending', Enrollment::SelectionIndividuallyAdvised, Enrollment::OutcomeInProgress)
+                    && $this->enrollmentExists('DTHM-1A-001', 'cancelled', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeCancelled)
                     && Enrollment::query()->where('status', 'officially_enrolled')->exists(),
             ],
             'finance' => [
@@ -136,11 +136,12 @@ final class TAL96D5BStateCoverageMatrix
         ];
     }
 
-    private function enrollmentExists(string $studentNumber, string $status, string $studentType): bool
+    private function enrollmentExists(string $studentNumber, string $status, string $selectionBasis, string $outcome): bool
     {
         return Enrollment::query()
             ->where('status', $status)
-            ->where('student_type', $studentType)
+            ->where('selection_basis', $selectionBasis)
+            ->where('canonical_outcome', $outcome)
             ->whereHas(
                 'studentProfile',
                 fn ($query) => $query->where('student_number', $studentNumber),

@@ -6,6 +6,7 @@ use App\Actions\Cor\BuildCorOutput;
 use App\Filament\Student\Pages\CorView;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\CorVersion;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -17,6 +18,9 @@ use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -94,7 +98,7 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
 
         $this->assertTrue($output['available']);
         $this->assertSame('3.00', $output['summary']['total_units']);
-        $this->assertSame(1, $output['schedule_version']);
+        $this->assertSame($fixture['timetable']->id, $output['schedule_version']);
 
         $fees = collect($output['fees']);
         $this->assertSame('9000.00', $fees->firstWhere('label', 'Tuition Fee')['amount']);
@@ -118,7 +122,7 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $this->assertSame('3.00', $output['summary']['total_units']);
     }
 
-    public function test_lecture_and_laboratory_components_render_as_separate_rows_with_single_unit_count(): void
+    public function test_live_laboratory_changes_do_not_rewrite_an_issued_cor(): void
     {
         $fixture = $this->officialCorFixture();
         $this->addLaboratoryMeeting($fixture);
@@ -128,15 +132,13 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $this->assertTrue($output['available']);
         $rows = collect($output['subjects'])->where('subject_code', $fixture['course_code'])->values();
 
-        $this->assertCount(2, $rows, 'Lecture and laboratory should render as two meeting rows.');
+        $this->assertCount(1, $rows, 'An issued COR must retain its immutable course snapshot.');
         $this->assertSame(1, $rows->pluck('course_enrollment_id')->unique()->count());
         $this->assertSame('3.00', $output['summary']['total_units']);
-        $this->assertSame('3.00', $rows->first()['lecture_hours']);
-        $this->assertSame('2.00', $rows->first()['laboratory_hours']);
-        $this->assertSame(2, $rows->pluck('time')->unique()->count());
+        $this->assertSame('08:00 - 10:00', $rows->first()['time']);
     }
 
-    public function test_installment_schedule_renders_from_multi_row_assessment_schedule(): void
+    public function test_live_assessment_installments_do_not_rewrite_an_issued_cor(): void
     {
         $fixture = $this->officialCorFixture();
         $this->addAssessmentInstallmentRows($fixture['assessment']);
@@ -144,30 +146,20 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
         $this->assertTrue($output['available']);
-        $this->assertTrue($output['installment']['applicable']);
-
-        $rows = $output['installment']['rows'];
-        $this->assertCount(3, $rows);
-        $this->assertSame([1, 2, 3], collect($rows)->pluck('number')->all());
-        $this->assertSame('7000.00', $rows[0]['remaining_balance']);
-        $this->assertSame('3500.00', $rows[1]['remaining_balance']);
-        $this->assertSame('0.00', $rows[2]['remaining_balance']);
-        $this->assertSame('Pending', $rows[0]['reference']);
-        $this->assertSame('Unpaid', $rows[0]['date_paid']);
+        $this->assertFalse($output['installment']['applicable']);
+        $this->assertSame([], $output['installment']['rows']);
 
         $this->actingAs($fixture['student'])
             ->get(route('cor.print', $fixture['enrollment']))
             ->assertOk()
-            ->assertSee('Installment Schedule')
-            ->assertSee('7000.00');
+            ->assertDontSee('Installment Schedule');
 
         Livewire::actingAs($fixture['student'])
             ->test(CorView::class)
-            ->assertSee('Installment Schedule')
-            ->assertSee('3500.00');
+            ->assertDontSee('Installment Schedule');
     }
 
-    public function test_installment_schedule_prefers_active_financial_accommodation_schedule(): void
+    public function test_live_accommodation_schedule_does_not_rewrite_an_issued_cor(): void
     {
         $fixture = $this->officialCorFixture();
         $this->addActiveAccommodationSchedule($fixture);
@@ -175,14 +167,8 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
         $output = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
         $this->assertTrue($output['available']);
-        $this->assertTrue($output['installment']['applicable']);
-
-        $rows = $output['installment']['rows'];
-        $this->assertCount(2, $rows);
-        $this->assertSame('5000.00', $rows[0]['amount']);
-        $this->assertSame('4000.00', $rows[0]['remaining_balance']);
-        $this->assertSame('4000.00', $rows[1]['amount']);
-        $this->assertSame('0.00', $rows[1]['remaining_balance']);
+        $this->assertFalse($output['installment']['applicable']);
+        $this->assertSame([], $output['installment']['rows']);
     }
 
     private function addAssessmentInstallmentRows(Assessment $assessment): void
@@ -471,6 +457,92 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
             'posted_at' => now(),
             'state' => 'posted',
         ]);
+        $timetable = PublishedTimetableVersion::query()->create([
+            'term_id' => $term->id,
+            'schedule_run_id' => $run->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'authority_reference' => 'TAL-88A-CANONICAL',
+            'publication_reason' => 'Canonical COR fixture.',
+            'source_versions' => ['fixture' => 'TAL-88A'],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', uniqid('tal88a-version', true)),
+            'published_by' => $run->published_by,
+            'published_at' => $run->published_at,
+        ]);
+        PublishedTimetableMeeting::query()->create([
+            'published_timetable_version_id' => $timetable->id,
+            'section_id' => $section->id,
+            'scheduling_demand_id' => $demand->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'meeting_sequence' => 1,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '10:00:00',
+            'modality' => TermOffering::ModalityFaceToFace,
+            'location_label' => $room->code,
+        ]);
+        $courseEnrollment->update([
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
+            'is_current' => true,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+        ]);
+        $snapshot = [
+            'student_number' => $profile->student_number,
+            'student_name' => collect([$profile->first_name, $profile->last_name])->filter()->implode(' '),
+            'program_id' => $program->id,
+            'program_code' => $program->code,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'term_label' => $term->label,
+            'published_timetable_version_id' => $timetable->id,
+            'courses' => [[
+                'course_enrollment_id' => $courseEnrollment->id,
+                'course_code' => $course->code,
+                'course_title' => $specification->title,
+                'units' => '3.00',
+                'section_id' => $section->id,
+                'section_code' => $section->code,
+                'meetings' => [[
+                    'day_of_week' => 1,
+                    'starts_at' => '08:00:00',
+                    'ends_at' => '10:00:00',
+                    'faculty_name' => $faculty->name,
+                    'room_label' => $room->code,
+                    'modality' => TermOffering::ModalityFaceToFace,
+                ]],
+            ]],
+            'fees' => [
+                ['label' => 'Tuition Fee', 'amount' => '9000.00'],
+                ['label' => 'Total Fees', 'amount' => '9000.00'],
+                ['label' => 'Down Payment', 'amount' => '2000.00'],
+                ['label' => 'Posted Payments', 'amount' => '4500.00'],
+                ['label' => 'Balance', 'amount' => '4500.00'],
+            ],
+        ];
+        $cor = CorVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'registration_proposal_version_id' => $proposal->id,
+            'assessment_id' => $assessment->id,
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $this->staff(User::StaffRoleRegistrar)->id,
+            'issued_at' => now(),
+        ]);
+        $enrollment->update([
+            'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
+        ]);
 
         return [
             'student' => $student,
@@ -490,6 +562,7 @@ final class TAL88ACorSourceOutputAcceptanceTest extends TestCase
             'course_enrollment' => $courseEnrollment,
             'assessment' => $assessment,
             'fee_rule' => $feeRule,
+            'timetable' => $timetable,
         ];
     }
 

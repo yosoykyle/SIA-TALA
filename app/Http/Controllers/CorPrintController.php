@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Cor\BuildCorOutput;
+use App\Models\CorVersion;
 use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -20,7 +21,19 @@ class CorPrintController extends Controller
             ? BuildCorOutput::CopyAccounting
             : ($actor->hasRole(User::StaffRoleRegistrar) ? BuildCorOutput::CopyRegistrar : BuildCorOutput::CopyStudent);
 
-        $cor = $output->forEnrollment($enrollment, $actor, $copyContext, true);
+        $requestedVersion = $request->integer('version') > 0
+            ? CorVersion::query()
+                ->where('enrollment_id', $enrollment->id)
+                ->where('version', $request->integer('version'))
+                ->firstOrFail()
+            : null;
+        $cor = $output->forEnrollment(
+            $enrollment,
+            $actor,
+            $copyContext,
+            studentCurrentOnly: $requestedVersion === null,
+            requestedVersion: $requestedVersion,
+        );
 
         abort_if(($cor['available'] ?? false) !== true, 403, (string) ($cor['reason'] ?? 'COR is not available.'));
 

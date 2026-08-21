@@ -4,9 +4,7 @@ namespace App\Filament\Resources\StudentProfiles;
 
 use App\Actions\Enrollment\AcademicProgressionService;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
-use App\Actions\Enrollment\EnrollmentGateReviewSummary;
 use App\Actions\StudentHub\StudentGradeLabelFormatter;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
@@ -20,10 +18,12 @@ use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
-use App\Models\StudentScheduleBinding;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\EditAction;
@@ -225,21 +225,21 @@ class StudentProfileResource extends Resource
                 ])
                 ->columnSpanFull(),
             Section::make('Enrollment History')
-                ->description('Term-by-term enrollment state, type, responsible office, and required next action.')
+                ->description('Term-by-term Registration Case outcome, controlled selection basis, responsible office, and next action.')
                 ->schema([
                     RepeatableEntry::make('enrollment_history_rows')
                         ->label('Enrollments')
                         ->state(fn (StudentProfile $record): array => Enrollment::query()
                             ->where('student_profile_id', $record->getKey())
-                            ->with('term')
+                            ->with(['term', 'currentProposalVersion.confirmation', 'currentProposalVersion.items.reservation', 'termAccount'])
                             ->latest('id')
                             ->get()
                             ->map(fn (Enrollment $enrollment): array => [
                                 'term' => $enrollment->term->label,
-                                'status' => str((string) $enrollment->status)->headline()->toString(),
-                                'type' => str((string) $enrollment->student_type)->headline()->toString(),
-                                'next_step' => app(EnrollmentGateReviewSummary::class)->nextStep($enrollment),
-                                'office' => app(EnrollmentGateReviewSummary::class)->responsibleOffice($enrollment),
+                                'status' => str((string) ($enrollment->canonical_outcome ?: $enrollment->status))->headline()->toString(),
+                                'type' => str((string) ($enrollment->selection_basis ?: 'Legacy record'))->headline()->toString(),
+                                'next_step' => self::registrationNextStep($enrollment),
+                                'office' => self::registrationResponsibleOffice($enrollment),
                                 'source_url' => EnrollmentResource::getUrl('view', ['record' => $enrollment]),
                                 'schedule_url' => self::publishedScheduleUrl($enrollment),
                             ])
@@ -247,7 +247,7 @@ class StudentProfileResource extends Resource
                         ->schema([
                             TextEntry::make('term')->label('Academic Term')->weight('bold'),
                             TextEntry::make('status')->label('Enrollment Status')->badge(),
-                            TextEntry::make('type')->label('Enrollment Type')->badge(),
+                            TextEntry::make('type')->label('Selection Basis')->badge(),
                             TextEntry::make('office')->label('Responsible Office'),
                             TextEntry::make('next_step')->label('Next Step')->columnSpanFull(),
                             TextEntry::make('source_label')
@@ -324,7 +324,9 @@ class StudentProfileResource extends Resource
                                 'version' => 'Version '.$assessment->version,
                                 'status' => str($assessment->state)->headline()->toString(),
                                 'total' => 'PHP '.number_format((float) $assessment->total, 2),
-                                'source_url' => AssessmentResource::getUrl('view', ['record' => $assessment]),
+                                'source_url' => $assessment->enrollment !== null
+                                    ? EnrollmentResource::getUrl('view', ['record' => $assessment->enrollment])
+                                    : null,
                             ])
                             ->all())
                         ->schema([
@@ -334,7 +336,7 @@ class StudentProfileResource extends Resource
                             TextEntry::make('total')->label('Total Assessed'),
                             TextEntry::make('source_label')
                                 ->label('Source Record')
-                                ->state('Open Assessment')
+                                ->state('Open Registration Case')
                                 ->url(fn (Get $get): ?string => $get('source_url')),
                         ])
                         ->columns(2)
@@ -393,9 +395,8 @@ class StudentProfileResource extends Resource
                             'studentProfile.program',
                             'studentProfile.curriculumVersion',
                             'courseEnrollments.termOffering.curriculumEntry',
-                            'courseEnrollments.proposedSection.deliveryGroups',
-                            'courseEnrollments.seatReservations.section.deliveryGroups',
-                            'gateResults',
+                            'courseEnrollments.section.deliveryGroups',
+                            'currentProposalVersion.items.section.deliveryGroups',
                         ]);
                 },
             ]))
@@ -525,16 +526,64 @@ class StudentProfileResource extends Resource
 
     private static function publishedScheduleUrl(Enrollment $enrollment): ?string
     {
-        $binding = StudentScheduleBinding::query()
-            ->activeOfficial()
-            ->forEnrollment($enrollment)
-            ->with('sectionMeeting')
-            ->first();
-        $scheduleRun = $binding?->sectionMeeting?->schedule_run_id;
+        if (! $enrollment->courseEnrollments()
+            ->where('status', 'active')
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
+            ->exists()) {
+            return null;
+        }
 
-        return $scheduleRun !== null
-            ? ScheduleGenerationRunResource::getUrl('view', ['record' => $scheduleRun])
+        $version = PublishedTimetableVersion::query()
+            ->where('term_id', $enrollment->term_id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->first();
+
+        return $version?->schedule_run_id !== null
+            ? ScheduleGenerationRunResource::getUrl('view', ['record' => $version->schedule_run_id])
             : null;
+    }
+
+    private static function registrationNextStep(Enrollment $enrollment): string
+    {
+        if ($enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled) {
+            return 'Official registrations, schedule, and immutable COR are available.';
+        }
+
+        if (in_array($enrollment->canonical_outcome, [Enrollment::OutcomeCancelled, Enrollment::OutcomeNotEnrolled], true)) {
+            return 'Registrar reviews the preserved case history and any authorized same-case recovery.';
+        }
+
+        $proposal = $enrollment->currentProposalVersion;
+        if (! $proposal instanceof RegistrationProposalVersion || $proposal->state === RegistrationProposalVersion::StateDraft) {
+            return 'Registrar prepares and issues the complete exact-Term proposal.';
+        }
+
+        if ($proposal->state === RegistrationProposalVersion::StateIssued) {
+            return 'Learner reviews and confirms this exact proposal version.';
+        }
+
+        $placed = $proposal->items->isNotEmpty()
+            && $proposal->items->every(fn ($item): bool => in_array($item->reservation?->status, ['active', 'converted'], true));
+        if (! $placed) {
+            return 'Registrar resolves capacity, conflicts, and protected placement.';
+        }
+
+        if ($enrollment->termAccount?->state !== TermAccount::StateCleared) {
+            return 'Accounting resolves the current assessment requirement.';
+        }
+
+        return 'Registrar revalidates all five checkpoints and finalizes official enrollment.';
+    }
+
+    private static function registrationResponsibleOffice(Enrollment $enrollment): string
+    {
+        $nextStep = self::registrationNextStep($enrollment);
+
+        return str_starts_with($nextStep, 'Learner')
+            ? 'Learner'
+            : (str_starts_with($nextStep, 'Accounting') ? 'Accounting Office' : 'Registrar Office');
     }
 
     public static function getPages(): array

@@ -289,6 +289,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             [
                 'status' => 'pending',
                 'student_type' => 'irregular',
+                'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+                'canonical_outcome' => Enrollment::OutcomeInProgress,
                 'registered_at' => null,
                 'officially_enrolled_at' => null,
                 'cancelled_at' => null,
@@ -310,6 +312,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             [
                 'status' => 'pending_payment',
                 'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'canonical_outcome' => Enrollment::OutcomeInProgress,
                 'registered_at' => CarbonImmutable::parse($term->starts_on)->startOfDay(),
                 'status_reason' => 'Enrollment is awaiting the required payment.',
             ],
@@ -319,6 +323,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             $enrollment->forceFill([
                 'status' => 'pending_payment',
                 'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'canonical_outcome' => Enrollment::OutcomeInProgress,
                 'officially_enrolled_at' => null,
                 'cancelled_at' => null,
                 'dropped_at' => null,
@@ -375,6 +381,8 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             [
                 'status' => 'cancelled',
                 'student_type' => 'regular',
+                'selection_basis' => Enrollment::SelectionStandardCurriculum,
+                'canonical_outcome' => Enrollment::OutcomeCancelled,
                 'registered_at' => null,
                 'officially_enrolled_at' => null,
                 'cancelled_at' => $cancelledAt,

@@ -19,7 +19,6 @@ use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
-use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
@@ -30,7 +29,7 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
-use App\Filament\Resources\FeeRules\FeeRuleResource;
+use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
@@ -114,8 +113,7 @@ class AdminPanelProvider extends PanelProvider
                 AdmissionApplicationResource::class,
                 AdmissionCycleResource::class,
                 EnrollmentResource::class,
-                FeeRuleResource::class,
-                AssessmentResource::class,
+                FeePlanResource::class,
                 AccountingAdjustmentResource::class,
                 FinancialAccommodationResource::class,
                 LedgerEntryResource::class,
@@ -202,9 +200,9 @@ class AdminPanelProvider extends PanelProvider
             ],
             $user->hasRole(User::StaffRoleAccounting) => [
                 'Home' => Dashboard::class,
-                'Student Accounts' => AssessmentResource::class,
+                'Enrollment Clearance' => EnrollmentResource::class,
                 'Payment Exceptions' => PayMongoReconciliation::class,
-                'Fee Setup' => FeeRuleResource::class,
+                'Fee Plans' => FeePlanResource::class,
                 'Reports' => ReportsAudit::class,
             ],
             $user->hasRole(User::StaffRoleFaculty) => [

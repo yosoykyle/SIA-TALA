@@ -4,8 +4,9 @@ namespace Tests\Feature;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Filament\Resources\Assessments\Pages\ViewAssessment;
+use App\Filament\Resources\FeePlans\FeePlanResource;
+use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\FeeRules\FeeRuleResource;
-use App\Filament\Resources\FeeRules\Pages\CreateFeeRule;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\CourseEnrollment;
@@ -61,123 +62,77 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assessments = app(EnrollmentAssessmentService::class);
     }
 
-    public function test_accounting_can_configure_fee_rule_using_clean_schema(): void
+    public function test_accounting_can_create_a_fixed_fee_plan_draft_from_the_bounded_surface(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
         $program = Program::factory()->create();
         $term = Term::factory()->create();
 
-        Livewire::actingAs($accounting)
-            ->test(CreateFeeRule::class)
-            ->fillForm([
-                'code' => 'LAB',
-                'name' => 'Laboratory Fee',
-                'ledger_category' => FeeRule::LedgerCategoryCharge,
-                'display_category' => FeeRule::DisplayCategoryLaboratory,
-                'program_id' => $program->id,
-                'term_id' => $term->id,
-                'calculation_type' => FeeRule::CalculationFixed,
-                'amount' => '350.00',
-                'rate' => null,
-                'effective_from' => '2026-06-01',
-                'effective_until' => null,
-                'is_active' => true,
-                'authority' => 'Accounting fee matrix approval',
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
+        $component = Livewire::actingAs($accounting)
+            ->test(ListFeePlans::class)
+            ->mountAction('createDraft');
+        $chargeKey = array_key_first($component->get('mountedActions.0.data.charges'));
 
-        $this->assertDatabaseHas('fee_rules', [
-            'code' => 'LAB',
-            'name' => 'Laboratory Fee',
-            'ledger_category' => FeeRule::LedgerCategoryCharge,
-            'display_category' => FeeRule::DisplayCategoryLaboratory,
+        $component->setActionData([
             'program_id' => $program->id,
             'term_id' => $term->id,
-            'calculation_type' => FeeRule::CalculationFixed,
+            'charges' => [$chargeKey => [
+                'code' => 'LAB',
+                'label' => 'Laboratory Fee',
+                'amount' => '350.00',
+            ]],
+        ])->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $this->assertDatabaseHas('fee_plans', [
+            'program_id' => $program->id,
+            'term_id' => $term->id,
+            'state' => 'Draft',
+        ]);
+        $this->assertDatabaseHas('fee_plan_charges', [
+            'code' => 'LAB',
+            'label' => 'Laboratory Fee',
             'amount' => '350.00',
-            'authority' => 'Accounting fee matrix approval',
         ]);
     }
 
-    public function test_accounting_can_store_and_assess_a_per_unit_peso_rate_above_one_thousand(): void
+    public function test_fee_rule_per_unit_surface_is_retired_from_accounting_navigation(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
-        $enrollment = $this->placedEnrollmentWithCourseUnits([3.00]);
+        $this->actingAs($accounting);
 
-        Livewire::actingAs($accounting)
-            ->test(CreateFeeRule::class)
-            ->fillForm([
-                'code' => 'TUITION',
-                'name' => 'Tuition Fee',
-                'ledger_category' => FeeRule::LedgerCategoryCharge,
-                'display_category' => FeeRule::DisplayCategoryTuition,
-                'program_id' => $enrollment->studentProfile->program_id,
-                'term_id' => $enrollment->term_id,
-                'calculation_type' => FeeRule::CalculationPerUnit,
-                'amount' => null,
-                'rate' => '1600.50',
-                'effective_from' => '2026-06-01',
-                'effective_until' => null,
-                'is_active' => true,
-                'authority' => 'Accounting fee matrix approval',
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $this->feeRule(
-            'DOWNPAYMENT',
-            FeeRule::DisplayCategoryDownpayment,
-            FeeRule::CalculationFixed,
-            amount: '1500.00',
-            programId: $enrollment->studentProfile->program_id,
-            termId: $enrollment->term_id,
-        );
-
-        $assessment = $this->assessments->generateDraft($enrollment, $accounting, CarbonImmutable::parse('2026-06-10'));
-        $tuitionLine = AssessmentLine::query()
-            ->where('assessment_id', $assessment->id)
-            ->where('line_type', FeeRule::DisplayCategoryTuition)
-            ->sole();
-
-        $this->assertSame('1600.50', (string) FeeRule::query()->where('code', 'TUITION')->sole()->rate);
-        $this->assertSame('1600.50', (string) $tuitionLine->rate);
-        $this->assertSame('4801.50', (string) $tuitionLine->amount);
+        $this->assertFalse(FeeRuleResource::shouldRegisterNavigation());
+        $this->assertFalse(FeeRuleResource::canAccess());
+        $this->assertTrue(FeePlanResource::shouldRegisterNavigation());
     }
 
-    public function test_accounting_form_requires_program_and_term_for_a_downpayment_rule(): void
+    public function test_fee_plan_action_requires_program_term_and_fixed_lines(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
 
         Livewire::actingAs($accounting)
-            ->test(CreateFeeRule::class)
-            ->fillForm([
-                'code' => 'DOWNPAYMENT',
-                'name' => 'Required Downpayment',
-                'ledger_category' => FeeRule::LedgerCategoryDownpayment,
-                'display_category' => FeeRule::DisplayCategoryDownpayment,
+            ->test(ListFeePlans::class)
+            ->callAction('createDraft', data: [
                 'program_id' => null,
                 'term_id' => null,
-                'calculation_type' => FeeRule::CalculationFixed,
-                'amount' => '1500.00',
-                'rate' => null,
-                'effective_from' => '2026-06-01',
-                'effective_until' => null,
-                'is_active' => true,
-                'authority' => 'Accounting fee matrix approval',
+                'charges' => [],
             ])
-            ->call('create')
-            ->assertHasFormErrors([
+            ->assertHasActionErrors([
                 'program_id' => 'required',
                 'term_id' => 'required',
+                'charges' => 'min',
             ]);
 
-        $this->assertSame(0, FeeRule::query()->where('code', 'DOWNPAYMENT')->count());
+        $this->assertSame(0, DB::table('fee_plans')->count());
     }
 
-    public function test_fee_rules_are_the_accounting_setup_surface_and_the_retired_fee_template_resource_stays_absent(): void
+    public function test_fee_plans_are_the_accounting_setup_surface_and_legacy_fee_rules_stay_inaccessible(): void
     {
-        $this->assertTrue(FeeRuleResource::shouldRegisterNavigation());
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $this->actingAs($accounting);
+
+        $this->assertTrue(FeePlanResource::shouldRegisterNavigation());
+        $this->assertFalse(FeeRuleResource::shouldRegisterNavigation());
         $this->assertFalse(class_exists('App\\Filament\\Resources\\FeeTemplates\\FeeTemplateResource'));
     }
 

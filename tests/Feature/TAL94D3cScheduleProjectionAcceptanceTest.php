@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
+use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\StudentHub\StudentDashboardService;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Student\Pages\ScheduleView;
+use App\Models\CorVersion;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -16,6 +18,9 @@ use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationCaseEvent;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -27,12 +32,15 @@ use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermOffering;
+use App\Models\TimetableRevision;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -90,10 +98,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
                 $candidate['meeting'],
                 $cancelled['meeting'],
             ])
-            ->assertSee($owned['term']->label)
             ->assertSee($owned['course']->code)
             ->assertSee($owned['section']->code)
-            ->assertSee('Lecture')
             ->assertSee('Monday')
             ->assertSee('8:00 AM - 11:00 AM')
             ->assertSee($owned['room']->code)
@@ -108,14 +114,11 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($owned['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$owned['binding']])
-            ->assertCanNotSeeTableRecords([$other['binding']])
-            ->assertSee($owned['term']->label)
             ->assertSee($owned['course']->code)
             ->assertSee($owned['section']->code)
             ->assertSee($owned['faculty']->name)
             ->assertSee('Monday')
-            ->assertSee('8:00 AM - 11:00 AM')
+            ->assertSee('08:00-11:00')
             ->assertSee($owned['room']->code)
             ->assertSee('Face-to-Face');
 
@@ -139,7 +142,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($emptyStudent['student'])
             ->test(ScheduleView::class)
-            ->assertCountTableRecords(0);
+            ->assertSee('No current official schedule is available');
 
         $this->assertSame($logCount, DB::table('output_access_logs')->count());
     }
@@ -190,7 +193,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->for($fixture['course'])
             ->create(['is_active' => true]);
 
-        $events = app(PublishedScheduleRevisionService::class)->revise(
+        $events = $this->publishPreparedRevision(
             $fixture['run'],
             $registrar,
             ScheduleRevisionEvent::ChangeRoom,
@@ -203,7 +206,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
         $currentRun = ScheduleGenerationRun::query()->findOrFail($currentMeeting->schedule_run_id);
 
-        $events = app(PublishedScheduleRevisionService::class)->revise(
+        $events = $this->publishPreparedRevision(
             $currentRun,
             $registrar,
             ScheduleRevisionEvent::ChangeTime,
@@ -218,7 +221,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
         $currentRun = ScheduleGenerationRun::query()->findOrFail($currentMeeting->schedule_run_id);
 
-        $events = app(PublishedScheduleRevisionService::class)->revise(
+        $events = $this->publishPreparedRevision(
             $currentRun,
             $registrar,
             ScheduleRevisionEvent::ChangeFacultyReassignment,
@@ -229,11 +232,6 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             'Faculty replacement approved for cross-role acceptance.',
         );
         $currentMeeting = SectionMeeting::query()->findOrFail($events->sole()->section_meeting_id);
-        $currentBinding = StudentScheduleBinding::query()
-            ->where('course_enrollment_id', $fixture['courseEnrollment']->id)
-            ->where('is_active', true)
-            ->sole();
-
         Livewire::actingAs($fixture['faculty'])
             ->test(FacultySchedule::class)
             ->assertCanNotSeeTableRecords([$fixture['meeting']]);
@@ -247,19 +245,18 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$currentBinding])
             ->assertSee($replacementFaculty->name)
             ->assertSee('Tuesday')
-            ->assertSee('9:00 AM - 12:00 PM')
+            ->assertSee('09:00-12:00')
             ->assertSee($replacementRoom->code);
 
         $cor = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame('Tuesday', $cor['subjects'][0]['day']);
-        $this->assertSame('09:00-12:00', $cor['subjects'][0]['time']);
-        $this->assertSame($replacementRoom->code, $cor['subjects'][0]['room']);
-        $this->assertSame($replacementFaculty->name, $cor['subjects'][0]['instructor']);
+        $this->assertSame('Monday', $cor['subjects'][0]['day']);
+        $this->assertSame('08:00 - 11:00', $cor['subjects'][0]['time']);
+        $this->assertSame($fixture['room']->code, $cor['subjects'][0]['room']);
+        $this->assertSame($fixture['faculty']->name, $cor['subjects'][0]['instructor']);
     }
 
     #[Test]
@@ -273,7 +270,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->assertCanSeeTableRecords([$fixture['meeting']]);
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$fixture['binding']]);
+            ->assertSee($fixture['course']->code);
 
         $fixture['binding']->forceFill([
             'is_active' => false,
@@ -281,6 +278,11 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             'released_by' => $registrar->id,
             'released_at' => now(),
             'release_reason' => 'Placement released before section cancellation.',
+        ])->save();
+        $fixture['courseEnrollment']->forceFill([
+            'status' => CourseEnrollment::StatusDropped,
+            'is_current' => false,
+            'effective_until' => now(),
         ])->save();
 
         app(PublishedScheduleRevisionService::class)->cancelSection(
@@ -295,15 +297,15 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->assertCanNotSeeTableRecords([$fixture['meeting']]);
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanNotSeeTableRecords([$fixture['binding']]);
+            ->assertDontSee($fixture['course']->code);
 
         $cor = app(BuildCorOutput::class)->forStudent($fixture['student']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame('Unscheduled', $cor['subjects'][0]['day']);
-        $this->assertSame('Unscheduled', $cor['subjects'][0]['time']);
-        $this->assertSame('TBA', $cor['subjects'][0]['room']);
-        $this->assertSame('TBA', $cor['subjects'][0]['instructor']);
+        $this->assertSame('Monday', $cor['subjects'][0]['day']);
+        $this->assertSame('08:00 - 11:00', $cor['subjects'][0]['time']);
+        $this->assertSame($fixture['room']->code, $cor['subjects'][0]['room']);
+        $this->assertSame($fixture['faculty']->name, $cor['subjects'][0]['instructor']);
     }
 
     #[Test]
@@ -315,8 +317,6 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($historical['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$current['binding']])
-            ->assertCanNotSeeTableRecords([$historical['binding']])
             ->assertSee($current['course']->code)
             ->assertDontSee($historical['course']->code);
 
@@ -409,6 +409,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->for($studentContext['profile'])
             ->for($term)
             ->create([
+                'credential_user_id' => $studentContext['student']->id,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
                 'status' => 'officially_enrolled',
                 'registered_at' => now()->subDay(),
                 'officially_enrolled_at' => now(),
@@ -416,6 +418,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+            'is_current' => true,
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
@@ -467,6 +471,66 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             'state' => $meetingState,
             'published_at' => now()->subDay(),
         ]);
+        $timetableVersion = PublishedTimetableVersion::query()->create([
+            'term_id' => $term->id,
+            'schedule_run_id' => $run->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'authority_reference' => 'D3C-AUTH-'.$this->fixtureCounter,
+            'publication_reason' => 'Canonical projection fixture.',
+            'source_versions' => [],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', 'd3c-'.$this->fixtureCounter),
+            'published_by' => $registrar->id,
+            'published_at' => now()->subDay(),
+        ]);
+        PublishedTimetableMeeting::query()->create([
+            'published_timetable_version_id' => $timetableVersion->id,
+            'section_id' => $section->id,
+            'scheduling_demand_id' => $demand->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'meeting_sequence' => 1,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '11:00:00',
+            'modality' => TermOffering::ModalityFaceToFace,
+            'location_label' => $room->code,
+        ]);
+        $cor = CorVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'published_timetable_version_id' => $timetableVersion->id,
+            'issued_by' => $registrar->id,
+            'snapshot' => [
+                'student_number' => $studentContext['profile']->student_number,
+                'student_name' => $studentContext['student']->name,
+                'program_id' => $studentContext['program']->id,
+                'program_code' => $studentContext['program']->code,
+                'curriculum_version_id' => $curriculum->id,
+                'term_label' => $term->label,
+                'published_timetable_version_id' => $timetableVersion->id,
+                'assessment_total' => '0.00',
+                'fees' => [],
+                'courses' => [[
+                    'course_enrollment_id' => $courseEnrollment->id,
+                    'section_id' => $section->id,
+                    'section_code' => $section->code,
+                    'course_code' => $course->code,
+                    'course_title' => $specification->title,
+                    'units' => '3.00',
+                    'meetings' => [[
+                        'day_of_week' => 1,
+                        'starts_at' => '08:00:00',
+                        'ends_at' => '11:00:00',
+                        'room_label' => $room->code,
+                        'faculty_name' => $faculty->name,
+                        'modality' => TermOffering::ModalityFaceToFace,
+                    ]],
+                ]],
+            ],
+        ]);
+        $enrollment->update(['current_cor_version_id' => $cor->id]);
+        $courseEnrollment->update(['published_timetable_version_id' => $timetableVersion->id]);
         $binding = StudentScheduleBinding::query()->create([
             'course_enrollment_id' => $courseEnrollment->id,
             'section_meeting_id' => $meeting->id,
@@ -527,6 +591,52 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ]);
 
         return compact('student', 'profile', 'program');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return EloquentCollection<int, ScheduleRevisionEvent>
+     */
+    private function publishPreparedRevision(
+        ScheduleGenerationRun $run,
+        User $registrar,
+        string $changeType,
+        array $changes,
+        string $reason,
+    ): EloquentCollection {
+        try {
+            return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
+        } catch (ValidationException $exception) {
+            if (! array_key_exists('revision', $exception->errors())) {
+                throw $exception;
+            }
+        }
+
+        $revision = TimetableRevision::query()
+            ->where('state', TimetableRevision::StateDraft)
+            ->whereHas('sourceVersion', fn ($query) => $query->where('schedule_run_id', $run->id))
+            ->latest('id')
+            ->firstOrFail();
+        $sourceReference = 'timetable-revision:'.$revision->id;
+
+        foreach ($revision->impact_snapshot['affected_registration_case_ids'] ?? [] as $caseId) {
+            $case = Enrollment::query()->findOrFail($caseId);
+            $opened = RegistrationCaseEvent::query()
+                ->where('enrollment_id', $case->id)
+                ->where('event_type', 'TimetableRevisionImpactReviewOpened')
+                ->where('authority_reference', $sourceReference)
+                ->sole();
+            app(ResolveTimetableRevisionRegistrationImpact::class)->execute(
+                $revision,
+                $case,
+                $opened,
+                $registrar,
+                ResolveTimetableRevisionRegistrationImpact::OutcomeRetainedWithAcknowledgement,
+                'TAL94D3C-ACK-'.$case->id,
+            );
+        }
+
+        return app(PublishedScheduleRevisionService::class)->revise($run, $registrar, $changeType, $changes, $reason);
     }
 
     private function staff(string $role, string $name): User

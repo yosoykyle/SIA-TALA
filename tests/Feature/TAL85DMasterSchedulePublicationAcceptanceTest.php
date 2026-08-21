@@ -17,6 +17,7 @@ use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\Program;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -249,10 +250,16 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         $enrollment = Enrollment::factory()
             ->for($student)
             ->for($source['term'])
-            ->create(['status' => 'pending_payment']);
+            ->create([
+                'credential_user_id' => $student->user_id,
+                'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+                'status' => 'officially_enrolled',
+            ]);
         $courseEnrollment = CourseEnrollment::query()->create([
             'enrollment_id' => $enrollment->id,
             'term_offering_id' => $source['offering']->id,
+            'section_id' => $source['section']->id,
+            'is_current' => true,
             'status' => CourseEnrollment::StatusActive,
             'units_snapshot' => '3.00',
             'added_at' => now(),
@@ -269,11 +276,17 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
         }
 
         $schedule = $this->studentHubScheduleFor($enrollment);
+        $currentPublishedMeetingId = PublishedTimetableVersion::query()
+            ->where('schedule_run_id', $published->id)
+            ->firstOrFail()
+            ->meetings()
+            ->where('section_id', $source['section']->id)
+            ->value('id');
 
         $this->assertCount(1, $schedule);
-        $this->assertSame($currentMeeting->id, $schedule[0]['section_meeting_id']);
+        $this->assertSame($currentPublishedMeetingId, $schedule[0]['section_meeting_id']);
         $this->assertSame($source['section']->id, $schedule[0]['section_id']);
-        $this->assertSame($source['group']->id, $schedule[0]['section_delivery_group_id']);
+        $this->assertNull($schedule[0]['section_delivery_group_id']);
         $this->assertSame($source['course']->code, $schedule[0]['subject_code']);
         $this->assertSame('Online', $schedule[0]['modality_label']);
         $this->assertSame(

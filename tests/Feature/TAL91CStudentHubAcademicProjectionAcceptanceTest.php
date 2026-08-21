@@ -4,13 +4,18 @@ namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentHubPriorityResolver;
 use App\Filament\Student\Pages\ScheduleView;
+use App\Models\Assessment;
+use App\Models\CorVersion;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
-use App\Models\EnrollmentGateResult;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalItem;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -71,8 +76,8 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixtureA['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$fixtureA['binding']])
-            ->assertCanNotSeeTableRecords([$fixtureB['binding']]);
+            ->assertSee($fixtureA['course_code'])
+            ->assertDontSee($fixtureB['course_code']);
     }
 
     #[Test]
@@ -89,8 +94,8 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$fixture['binding']])
-            ->assertCanNotSeeTableRecords([$unpublishedBinding]);
+            ->assertSee($fixture['course_code'])
+            ->assertDontSee($unpublishedBinding->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code);
     }
 
     #[Test]
@@ -109,8 +114,8 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(ScheduleView::class)
-            ->assertCanSeeTableRecords([$fixture['binding']])
-            ->assertCanNotSeeTableRecords([$superseded]);
+            ->assertSee($fixture['course_code'])
+            ->assertDontSee($superseded->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code);
     }
 
     #[Test]
@@ -123,9 +128,26 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'state' => Term::StateActive,
         ]);
         Enrollment::factory()->for($profile)->for($term)->create([
-            'status' => 'capacity_pending',
+            'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+
+        $enrollment = Enrollment::query()->where('student_profile_id', $profile->id)->latest('id')->firstOrFail();
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
+        $offering = TermOffering::factory()->for($term)->create();
+        $section = Section::factory()->for($offering, 'termOffering')->create();
+        $proposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+        ]);
+        RegistrationProposalItem::factory()->create([
+            'registration_proposal_version_id' => $proposal->id,
+            'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+        ]);
+        $enrollment->update(['current_proposal_version_id' => $proposal->id]);
 
         $result = app(StudentHubPriorityResolver::class)->resolve($profile);
 
@@ -137,7 +159,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
     }
 
     #[Test]
-    public function pending_review_tier_surfaces_the_highest_priority_unresolved_gate(): void
+    public function pending_review_tier_surfaces_the_first_canonical_readiness_blocker(): void
     {
         $student = $this->studentUser();
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
@@ -145,52 +167,21 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'label' => 'First Semester 2026-2027',
             'state' => Term::StateActive,
         ]);
-        $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+        Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'pending_review',
             'registered_at' => now()->subDay(),
-        ]);
-
-        // Higher-sequence (lower priority) failed gate.
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateFinance,
-            'sequence' => 4,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeAccounting,
-            'blocker_code' => 'finance_not_ready',
-            'blocker_message' => 'Finance gate requires posted ledger payment or active approved accommodation.',
-            'checked_at' => now(),
-            'rule_version' => EnrollmentGateResult::RuleVersionTal87C,
-        ]);
-
-        // Lower-sequence (higher priority) failed gate — should win.
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateDocument,
-            'sequence' => 3,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeRegistrar,
-            'blocker_code' => 'blocking_document_unresolved',
-            'blocker_message' => 'A blocking enrollment document remains unresolved: Certificate of Good Moral Character.',
-            'checked_at' => now(),
-            'rule_version' => EnrollmentGateResult::RuleVersionTal87C,
         ]);
 
         $result = app(StudentHubPriorityResolver::class)->resolve($profile);
 
         $this->assertNotNull($result);
         $this->assertSame('Pending Review', $result['tier']);
-        $this->assertSame(
-            'A blocking enrollment document remains unresolved: Certificate of Good Moral Character.',
-            $result['student_reason'],
-        );
+        $this->assertSame('Your Registration Proposal is waiting for confirmation.', $result['student_reason']);
         $this->assertSame('Registrar Office', $result['office_to_contact']);
-        $this->assertStringNotContainsString('finance_not_ready', (string) $result['student_reason']);
-        $this->assertStringNotContainsString('blocking_document_unresolved', (string) $result['student_reason']);
     }
 
     /**
-     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:StudentScheduleBinding}
+     * @return array{student:User, profile:StudentProfile, program:Program, term:Term, enrollment:Enrollment, binding:StudentScheduleBinding, course_code:string}
      */
     private function publishedScheduleFixture(): array
     {
@@ -208,6 +199,45 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'registered_at' => now()->subDay(),
             'officially_enrolled_at' => now(),
         ]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create();
+        $assessment = Assessment::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_account_id' => null,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+        ]);
+        $snapshot = [
+            'student_number' => $profile->student_number,
+            'student_name' => collect([$profile->first_name, $profile->last_name])->filter()->implode(' '),
+            'program_id' => $program->id,
+            'program_code' => $program->code,
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'term_label' => $term->label,
+            'published_timetable_version_id' => $timetable->id,
+            'courses' => [],
+            'fees' => [],
+        ];
+        $cor = CorVersion::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'version' => 1,
+            'registration_proposal_version_id' => $proposal->id,
+            'assessment_id' => $assessment->id,
+            'published_timetable_version_id' => $timetable->id,
+            'snapshot' => $snapshot,
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+            'issued_by' => $this->staff(User::StaffRoleRegistrar)->id,
+            'issued_at' => now(),
+        ]);
+        $enrollment->update([
+            'credential_user_id' => $student->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
+        ]);
 
         $binding = $this->scheduleBindingWithRunStatus($student, $program, $term, ScheduleGenerationRun::StatusPublished, $enrollment);
 
@@ -218,6 +248,7 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'term' => $term,
             'enrollment' => $enrollment,
             'binding' => $binding,
+            'course_code' => $binding->courseEnrollment->termOffering->curriculumEntry->courseSpecification->course->code,
         ];
     }
 
@@ -315,6 +346,27 @@ final class TAL91CStudentHubAcademicProjectionAcceptanceTest extends TestCase
             'state' => $meetingState,
             'published_at' => now(),
         ]);
+        $timetable = PublishedTimetableVersion::query()
+            ->where('term_id', $term->id)
+            ->where('state', PublishedTimetableVersion::StatePublished)
+            ->latest('version')
+            ->firstOrFail();
+        $courseEnrollment->update([
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
+            'is_current' => true,
+        ]);
+        if ($runStatus === ScheduleGenerationRun::StatusPublished && $meetingState === SectionMeeting::StateActive) {
+            PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create([
+                'section_id' => $section->id,
+                'faculty_user_id' => $faculty->id,
+                'room_id' => $room->id,
+                'day_of_week' => 1,
+                'starts_at' => '08:00:00',
+                'ends_at' => '10:00:00',
+                'modality' => TermOffering::ModalityFaceToFace,
+            ]);
+        }
 
         return StudentScheduleBinding::query()->create([
             'course_enrollment_id' => $courseEnrollment->id,

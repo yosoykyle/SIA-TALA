@@ -59,7 +59,7 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         $this->assertSame('posted_ledger_payment', $clearance['finance_clearance_source']);
         $this->assertSame('1500.00', $clearance['minimum_required_payment']);
         $this->assertSame('1500.00', $clearance['total_confirmed_payments']);
-        $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
+        $this->assertSame('pending_payment', $clearance['enrollment_status']);
     }
 
     public function test_first_term_applicant_with_approved_intake_clears_finance_without_capacity_crash(): void
@@ -89,7 +89,7 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
 
         $this->assertTrue($clearance['finance_cleared']);
         $this->assertSame('posted_ledger_payment', $clearance['finance_clearance_source']);
-        $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
+        $this->assertSame('pending_payment', $clearance['enrollment_status']);
         $this->assertSame(1, ApplicantIntake::query()
             ->where('user_id', $fixture['student']->id)
             ->where('term_id', $fixture['term']->id)
@@ -116,7 +116,7 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
         $this->assertTrue($clearance['finance_cleared']);
         $this->assertSame('active_financial_accommodation', $clearance['finance_clearance_source']);
         $this->assertSame('0.00', $clearance['total_confirmed_payments']);
-        $this->assertSame('pre_enrolled', $clearance['enrollment_status']);
+        $this->assertSame('pending_payment', $clearance['enrollment_status']);
         $this->assertSame(0, LedgerEntry::query()
             ->where('enrollment_id', $fixture['enrollment']->id)
             ->where('direction', LedgerEntry::DirectionPayment)

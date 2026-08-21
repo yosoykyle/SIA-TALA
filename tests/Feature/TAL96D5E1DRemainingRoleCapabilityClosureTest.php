@@ -336,7 +336,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             'accounting' => [
                 'role' => User::StaffRoleAccounting,
                 'heading' => 'Accounting Work',
-                'expectedLabels' => ['Fee Setup', 'Student Accounts', 'Payment Exceptions', 'Reports'],
+                'expectedLabels' => ['Fee Plans', 'Enrollment Clearance', 'Payment Exceptions', 'Reports'],
             ],
             'faculty' => [
                 'role' => User::StaffRoleFaculty,
@@ -377,7 +377,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             ],
             'accounting' => [
                 'role' => User::StaffRoleAccounting,
-                'expectedLabels' => ['Home', 'Student Accounts', 'Payment Exceptions', 'Fee Setup', 'Reports'],
+                'expectedLabels' => ['Home', 'Enrollment Clearance', 'Payment Exceptions', 'Fee Plans', 'Reports'],
             ],
             'faculty' => [
                 'role' => User::StaffRoleFaculty,

@@ -19,28 +19,32 @@ final class SchemaConformanceTest extends TestCase
         'academic_years', 'accounting_adjustments', 'admission_application_events', 'admission_cycle_events',
         'admission_cycle_program', 'admission_cycles', 'admission_decisions', 'admission_requirement_policies',
         'admission_requirement_sets', 'admission_requirements', 'applicant_intakes', 'application_correction_items',
-        'application_correction_requests', 'application_submission_versions', 'assessment_lines', 'assessments',
+        'application_correction_requests', 'application_submission_versions', 'approved_coverages',
+        'assessment_lines', 'assessment_obligations', 'assessments',
         'calendar_events', 'candidate_schedule_rows',
-        'checklist_items', 'course_components', 'course_enrollments', 'course_requirements',
+        'checklist_items', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
-        'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_exceptions',
+        'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
         'external_competency_requirements',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
-        'faculty_availability_declarations',
+        'faculty_availability_declarations', 'fee_plan_charges', 'fee_plan_obligations', 'fee_plans',
         'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
         'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
         'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
-        'payment_attempts', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
+        'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results',
         'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
+        'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_late_authorities',
+        'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
-        'student_lifecycle_changes', 'student_profiles', 'student_schedule_bindings',
-        'system_settings', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
+        'student_lifecycle_changes', 'student_number_sequences', 'student_profiles', 'student_schedule_bindings',
+        'system_settings', 'term_accounts', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms',
+        'timetable_revisions',
     ];
 
     protected function setUp(): void
@@ -61,9 +65,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(86, self::APPLICATION_TABLES);
+        $this->assertCount(104, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(104, $actual);
+        $this->assertCount(122, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -115,7 +119,7 @@ final class SchemaConformanceTest extends TestCase
     public function test_uniqueness_indexes_checks_and_money_precision_match_contract(): void
     {
         $this->assertUniqueIndex('enrollments', ['student_profile_id', 'term_id']);
-        $this->assertUniqueIndex('course_enrollments', ['enrollment_id', 'term_offering_id']);
+        $this->assertIndex('course_enrollments', ['enrollment_id', 'term_offering_id', 'is_current', 'status']);
         $this->assertUniqueIndex('scheduling_demands', ['term_offering_id', 'course_component_id', 'section_delivery_group_id']);
         $this->assertUniqueIndex('grade_roster_rows', ['course_enrollment_id']);
         $this->assertUniqueIndex('payments', ['or_number']);
@@ -181,5 +185,15 @@ final class SchemaConformanceTest extends TestCase
             ->pluck('columns_list')
             ->all();
         $this->assertContains(implode(',', $columns), $indexes, 'Missing unique index on '.$table.' ('.implode(', ', $columns).')');
+    }
+
+    /** @param list<string> $columns */
+    private function assertIndex(string $table, array $columns): void
+    {
+        $indexes = collect(DB::select('SELECT index_name, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS columns_list FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? GROUP BY index_name', [$table]))
+            ->pluck('columns_list')
+            ->all();
+
+        $this->assertContains(implode(',', $columns), $indexes, 'Missing index on '.$table.' ('.implode(', ', $columns).')');
     }
 }

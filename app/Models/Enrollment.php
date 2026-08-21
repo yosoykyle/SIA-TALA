@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -18,6 +19,18 @@ use Illuminate\Support\Carbon;
  */
 class Enrollment extends Model
 {
+    public const SelectionStandardCurriculum = 'StandardCurriculum';
+
+    public const SelectionIndividuallyAdvised = 'IndividuallyAdvised';
+
+    public const OutcomeInProgress = 'InProgress';
+
+    public const OutcomeCancelled = 'Cancelled';
+
+    public const OutcomeNotEnrolled = 'NotEnrolled';
+
+    public const OutcomeOfficiallyEnrolled = 'OfficiallyEnrolled';
+
     /** @use HasFactory<EnrollmentFactory> */
     use HasFactory;
 
@@ -26,15 +39,27 @@ class Enrollment extends Model
      */
     protected $fillable = [
         'student_profile_id',
+        'credential_user_id',
+        'admission_application_id',
+        'case_reference',
         'term_id',
         'status',
         'student_type',
+        'selection_basis',
+        'canonical_outcome',
+        'current_proposal_version_id',
+        'current_cor_version_id',
+        'started_by',
+        'start_method',
+        'started_at',
         'registered_at',
         'officially_enrolled_at',
+        'finalized_by',
         'cancelled_at',
         'dropped_at',
         'withdrawn_at',
         'status_reason',
+        'lock_version',
     ];
 
     /**
@@ -43,12 +68,62 @@ class Enrollment extends Model
     protected function casts(): array
     {
         return [
+            'started_at' => 'datetime',
             'registered_at' => 'datetime',
             'officially_enrolled_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'dropped_at' => 'datetime',
             'withdrawn_at' => 'datetime',
+            'lock_version' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function credentialUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'credential_user_id');
+    }
+
+    /** @return BelongsTo<AdmissionApplication, $this> */
+    public function admissionApplication(): BelongsTo
+    {
+        return $this->belongsTo(AdmissionApplication::class, 'admission_application_id');
+    }
+
+    /** @return BelongsTo<RegistrationProposalVersion, $this> */
+    public function currentProposalVersion(): BelongsTo
+    {
+        return $this->belongsTo(RegistrationProposalVersion::class, 'current_proposal_version_id');
+    }
+
+    /** @return BelongsTo<CorVersion, $this> */
+    public function currentCorVersion(): BelongsTo
+    {
+        return $this->belongsTo(CorVersion::class, 'current_cor_version_id');
+    }
+
+    /** @return HasMany<RegistrationCaseEvent, $this> */
+    public function registrationEvents(): HasMany
+    {
+        return $this->hasMany(RegistrationCaseEvent::class);
+    }
+
+    /** @return HasMany<RegistrationProposalVersion, $this> */
+    public function proposalVersions(): HasMany
+    {
+        return $this->hasMany(RegistrationProposalVersion::class);
+    }
+
+    /** @return HasOne<TermAccount, $this> */
+    public function termAccount(): HasOne
+    {
+        return $this->hasOne(TermAccount::class);
+    }
+
+    /** @return HasMany<CorVersion, $this> */
+    public function corVersions(): HasMany
+    {
+        return $this->hasMany(CorVersion::class);
     }
 
     /** @return BelongsTo<StudentProfile, $this> */

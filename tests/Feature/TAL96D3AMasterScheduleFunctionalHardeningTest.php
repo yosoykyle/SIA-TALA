@@ -10,6 +10,7 @@ use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRu
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
 use App\Filament\Student\Pages\ScheduleView;
+use App\Models\CorVersion;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -19,6 +20,9 @@ use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -377,6 +381,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'officially_enrolled',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
             'registered_at' => now(),
             'officially_enrolled_at' => now(),
         ]);
@@ -408,8 +413,22 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             'publication_version' => 1,
         ]);
         $room = Room::factory()->create();
+        $timetable = PublishedTimetableVersion::query()->create([
+            'term_id' => $term->id,
+            'schedule_run_id' => $run->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'authority_reference' => 'TAL-96D3A-PUBLISHED-SCHEDULE',
+            'publication_reason' => 'Canonical functional hardening fixture.',
+            'source_versions' => [],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', 'tal-96d3a-'.$run->id),
+            'published_by' => $registrar->id,
+            'published_at' => now(),
+        ]);
         $meeting = SectionMeeting::query()->create([
             'schedule_run_id' => $run->id,
+            'published_timetable_version_id' => $timetable->id,
             'scheduling_demand_id' => $demand->id,
             'meeting_sequence' => 1,
             'faculty_user_id' => $faculty->id,
@@ -421,12 +440,56 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             'state' => SectionMeeting::StateActive,
             'published_at' => now(),
         ]);
+        PublishedTimetableMeeting::query()->create([
+            'published_timetable_version_id' => $timetable->id,
+            'section_id' => $section->id,
+            'scheduling_demand_id' => $demand->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'meeting_sequence' => 1,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '11:00:00',
+            'modality' => TermOffering::ModalityFaceToFace,
+            'location_label' => $room->code,
+        ]);
+        $courseEnrollment->update([
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $timetable->id,
+            'is_current' => true,
+        ]);
         StudentScheduleBinding::query()->create([
             'course_enrollment_id' => $courseEnrollment->id,
             'section_meeting_id' => $meeting->id,
             'is_active' => true,
             'effective_from' => now()->toDateString(),
             'source' => StudentScheduleBinding::SourceRegistrarPlacement,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->for($enrollment)->create([
+            'state' => RegistrationProposalVersion::StateConfirmed,
+            'published_timetable_version_id' => $timetable->id,
+            'curriculum_version_id' => $curriculum->id,
+            'prepared_by' => $registrar->id,
+        ]);
+        $cor = CorVersion::factory()->for($enrollment)->create([
+            'registration_proposal_version_id' => $proposal->id,
+            'published_timetable_version_id' => $timetable->id,
+            'issued_by' => $registrar->id,
+            'snapshot' => [
+                'student_number' => $profile->student_number,
+                'student_name' => $student->name,
+                'program_id' => $program->id,
+                'program_code' => $program->code,
+                'curriculum_version_id' => $curriculum->id,
+                'term_label' => $term->label,
+                'published_timetable_version_id' => $timetable->id,
+                'fees' => [],
+                'courses' => [],
+            ],
+        ]);
+        $enrollment->update([
+            'current_proposal_version_id' => $proposal->id,
+            'current_cor_version_id' => $cor->id,
         ]);
 
         return compact(

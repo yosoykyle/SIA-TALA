@@ -4,12 +4,13 @@ namespace App\Actions\Scheduling;
 
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\RecordStudentScheduleAccess;
+use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
-use App\Models\StudentScheduleBinding;
 use App\Models\User;
 use App\Support\DisplayDateTime;
 use Carbon\CarbonImmutable;
@@ -117,29 +118,39 @@ class BuildOfficialScheduleOutput
         abort_unless($student->hasRole('student'), 403);
 
         $enrollment = $this->currentEnrollmentResolver->forStudent($student);
+        $version = $enrollment instanceof Enrollment
+            ? PublishedTimetableVersion::query()
+                ->where('term_id', $enrollment->term_id)
+                ->where('state', PublishedTimetableVersion::StatePublished)
+                ->latest('version')
+                ->first()
+            : null;
 
-        $bindings = StudentScheduleBinding::query()
-            ->activeOfficial()
-            ->when(
-                $enrollment instanceof Enrollment,
-                fn ($query) => $query->forEnrollment($enrollment),
-                fn ($query) => $query->whereRaw('1 = 0'),
-            )
+        $registrations = CourseEnrollment::query()
             ->with([
-                'courseEnrollment.termOffering.term',
-                'courseEnrollment.termOffering.curriculumEntry.courseSpecification.course',
-                'sectionMeeting.schedulingDemand.sectionDeliveryGroup.section',
-                'sectionMeeting.schedulingDemand.courseComponent',
-                'sectionMeeting.faculty',
-                'sectionMeeting.room',
+                'termOffering.term',
+                'termOffering.curriculumEntry.courseSpecification.course',
+                'section',
+                'publishedTimetableVersion',
             ])
-            ->get()
-            ->sortBy(fn (StudentScheduleBinding $binding): string => sprintf(
-                '%02d-%s-%020d',
-                (int) $binding->sectionMeeting?->day_of_week,
-                (string) $binding->sectionMeeting?->starts_at,
-                (int) $binding->id,
-            ));
+            ->when($enrollment instanceof Enrollment,
+                fn ($query) => $query->where('enrollment_id', $enrollment->id),
+                fn ($query) => $query->whereRaw('1 = 0'))
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereNotNull('section_id')
+            ->get();
+        $meetings = PublishedTimetableMeeting::query()
+            ->with(['faculty', 'room', 'classOffering'])
+            ->when($version instanceof PublishedTimetableVersion && $registrations->isNotEmpty(),
+                fn ($query) => $query
+                    ->where('published_timetable_version_id', $version->id)
+                    ->whereIn('section_id', $registrations->pluck('section_id')->unique()),
+                fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('meeting_sequence')
+            ->get();
 
         app(RecordStudentScheduleAccess::class)->execute(
             $student,
@@ -147,8 +158,6 @@ class BuildOfficialScheduleOutput
             RecordStudentScheduleAccess::ActionPrint,
             $enrollment,
         );
-        $versionId = $bindings->pluck('sectionMeeting.published_timetable_version_id')->filter()->unique()->first();
-        $version = PublishedTimetableVersion::query()->whereKey($versionId)->first();
 
         return [
             'title' => 'Student Class Schedule',
@@ -159,27 +168,39 @@ class BuildOfficialScheduleOutput
                 : ((string) $enrollment?->term?->label ?: 'No current published schedule is available for this account.'),
             'version_state' => $version instanceof PublishedTimetableVersion
                 ? $version->state
-                : ($bindings->isNotEmpty() ? 'Published' : 'Unavailable'),
-            'rows' => $bindings
-                ->map(function (StudentScheduleBinding $binding): array {
-                    $meeting = $binding->sectionMeeting;
+                : ($meetings->isNotEmpty() ? 'Published' : 'Unavailable'),
+            'rows' => $meetings
+                ->map(function (PublishedTimetableMeeting $meeting) use ($registrations, $enrollment): array {
+                    $registration = $registrations->first(fn (CourseEnrollment $registration): bool => (int) $registration->section_id === (int) $meeting->section_id);
 
-                    if (! $meeting instanceof SectionMeeting) {
+                    if (! $registration instanceof CourseEnrollment) {
                         return [];
                     }
 
-                    $row = $this->meetingRow($meeting);
-                    $row['term'] = (string) $binding->courseEnrollment?->termOffering?->term?->label;
-                    $row['course'] = (string) $binding->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
-                    $row['description'] = (string) $binding->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification?->title;
-                    $row['faculty'] = (string) $meeting->faculty?->name;
-
-                    return $row;
+                    return [
+                        'term' => (string) ($enrollment !== null ? $enrollment->term?->label : $registration->termOffering?->term?->label),
+                        'course' => (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+                        'description' => (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->title,
+                        'section' => (string) $registration->section?->code,
+                        'component' => 'Published meeting '.$meeting->meeting_sequence,
+                        'day' => SectionMeeting::dayOptions()[$meeting->day_of_week] ?? 'Unscheduled',
+                        'time' => $this->publishedTimeRange($meeting),
+                        'room' => ($meeting->room !== null ? $meeting->room->code : null) ?? $meeting->location_label ?? 'TBA',
+                        'modality' => SectionMeeting::modalityOptions()[$meeting->modality] ?? str($meeting->modality)->headline()->toString(),
+                        'faculty' => (string) $meeting->faculty?->name,
+                    ];
                 })
                 ->filter()
                 ->values()
                 ->all(),
         ];
+    }
+
+    private function publishedTimeRange(PublishedTimetableMeeting $meeting): string
+    {
+        return collect([$meeting->starts_at, $meeting->ends_at])
+            ->map(fn (mixed $time): string => CarbonImmutable::createFromFormat('H:i:s', (string) $time)->format('g:i A'))
+            ->implode(' - ');
     }
 
     /**
