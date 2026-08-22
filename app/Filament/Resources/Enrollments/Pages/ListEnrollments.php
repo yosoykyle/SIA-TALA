@@ -3,18 +3,25 @@
 namespace App\Filament\Resources\Enrollments\Pages;
 
 use App\Actions\Enrollment\StartRegistrationCase;
+use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
+use App\Models\FinanceExport;
+use App\Models\OfficialOutputPaymentClearance;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Throwable;
 
@@ -22,11 +29,86 @@ class ListEnrollments extends ListRecords
 {
     protected static string $resource = EnrollmentResource::class;
 
+    public function getTitle(): string
+    {
+        return $this->isAccounting() ? 'Student Accounts' : parent::getTitle();
+    }
+
+    /** @return array<string, Tab> */
+    public function getTabs(): array
+    {
+        if (! $this->isAccounting()) {
+            return [];
+        }
+
+        return [
+            'accounts' => Tab::make('Accounts')->modifyQueryUsing(
+                fn (Builder $query): Builder => $query->whereHas('termAccount'),
+            ),
+            'payment_exceptions' => Tab::make('Payment Exceptions')->modifyQueryUsing(
+                fn (Builder $query): Builder => $query->whereHas(
+                    'termAccount.latestPaymentEvidenceVersion',
+                    fn (Builder $query): Builder => $query->where('state', PaymentEvidenceVersion::StateSubmitted),
+                ),
+            ),
+            'tor_clearance' => Tab::make('TOR Clearance')->modifyQueryUsing(
+                fn (Builder $query): Builder => $query->whereHas(
+                    'termAccount.latestOutputPaymentClearance',
+                    fn (Builder $query): Builder => $query->whereIn('state', [
+                        OfficialOutputPaymentClearance::StateCleared,
+                        OfficialOutputPaymentClearance::StateNotCleared,
+                    ]),
+                ),
+            ),
+        ];
+    }
+
     /**
      * @return list<Action>
      */
     protected function getHeaderActions(): array
     {
+        if ($this->isAccounting()) {
+            return [
+                Action::make('exportAccountStatus')
+                    ->label('Export Account Status')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->schema([
+                        Textarea::make('purpose')
+                            ->label('Purpose')
+                            ->required()
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (): bool => ($this->activeTab ?? 'accounts') === 'accounts')
+                    ->action(function (array $data): void {
+                        /** @var Collection<int, Enrollment> $enrollments */
+                        $enrollments = $this->getFilteredSortedTableQuery()->limit(10001)->get();
+                        $export = app(CreateContextualFinanceExport::class)->createAccountStatus(
+                            auth()->user(),
+                            (string) $data['purpose'],
+                            $enrollments,
+                            [
+                                'active_tab' => $this->activeTab ?? 'accounts',
+                                'filters' => $this->tableFilters ?? [],
+                                'search' => $this->getTableSearch(),
+                                'sort' => [
+                                    'column' => $this->getTableSortColumn(),
+                                    'direction' => $this->getTableSortDirection(),
+                                ],
+                            ],
+                        );
+
+                        if ($export->outcome === FinanceExport::OutcomeNoRows) {
+                            Notification::make()->title('No matching account rows')->info()->send();
+
+                            return;
+                        }
+
+                        $this->redirect(route('finance.exports.download', $export));
+                    }),
+            ];
+        }
+
         return [
             Action::make('readyApplicants')
                 ->label('Ready applicants')
@@ -143,6 +225,11 @@ class ListEnrollments extends ListRecords
                     }
                 }),
         ];
+    }
+
+    private function isAccounting(): bool
+    {
+        return auth()->user()?->hasRole(User::StaffRoleAccounting) ?? false;
     }
 
     /** @return Collection<int, AdmissionApplication> */

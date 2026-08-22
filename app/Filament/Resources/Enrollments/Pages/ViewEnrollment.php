@@ -18,14 +18,23 @@ use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReopenRegistrationCase;
 use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
+use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
+use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
+use App\Actions\Finance\ReverseApprovedCoverage;
+use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Models\ApprovedCoverage;
+use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
+use App\Models\FinanceExport;
+use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
+use App\Models\Payment;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -45,6 +54,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Utilities\Get;
@@ -77,9 +87,13 @@ class ViewEnrollment extends ViewRecord
                 $this->createAssessmentAction(),
                 $this->individualAssessmentAction(),
                 $this->coverageAction(),
+                $this->reverseCoverageAction(),
                 $this->downloadPaymentEvidenceAction(),
                 $this->verifyPaymentEvidenceAction(),
+                $this->reversePaymentAction(),
                 $this->rejectPaymentEvidenceAction(),
+                $this->recordTorClearanceAction(),
+                $this->exportAccountAction(),
                 $this->resolveImpactReviewAction(),
                 Action::make('resendOfficialEnrollmentEmail')
                     ->label('Resend failed enrollment email')
@@ -308,7 +322,9 @@ class ViewEnrollment extends ViewRecord
                     Enrollment::OutcomeOfficiallyEnrolled,
                 ], true))
             ->schema([
+                Select::make('category')->options(array_combine(Assessment::IndividualCategories, Assessment::IndividualCategories))->required(),
                 TextInput::make('authority_reference')->required()->maxLength(255),
+                DatePicker::make('authority_date')->required()->native(false),
                 Repeater::make('charges')
                     ->schema([
                         TextInput::make('code')->required()->maxLength(40),
@@ -317,14 +333,26 @@ class ViewEnrollment extends ViewRecord
                     ])
                     ->minItems(1)
                     ->columns(3),
+                Repeater::make('obligations')
+                    ->schema([
+                        TextInput::make('code')->required()->maxLength(40),
+                        TextInput::make('label')->required()->maxLength(255),
+                        TextInput::make('purpose')->required()->maxLength(40),
+                        TextInput::make('amount')->numeric()->minValue(0)->prefix('PHP')->required(),
+                        DateTimePicker::make('due_at')->required()->seconds(false),
+                        Toggle::make('required_for_enrollment')->label('Enrollment requirement'),
+                    ])->minItems(1)->columns(3),
             ])
             ->action(function (array $data): void {
                 try {
                     app(RecordAuthorizedIndividualAssessment::class)->execute(
                         $this->getRecord(),
                         $this->actor(),
+                        $data['category'],
                         $data['authority_reference'],
+                        CarbonImmutable::parse($data['authority_date'], config('app.timezone')),
                         $data['charges'],
+                        $data['obligations'],
                     );
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Authorized assessment recorded')->success()->send();
@@ -343,8 +371,13 @@ class ViewEnrollment extends ViewRecord
                 && $this->obligationOptions() !== [])
             ->schema([
                 Select::make('obligation_id')->options(fn (): array => $this->obligationOptions())->required()->searchable(),
+                Select::make('supersedes_coverage_id')->label('Supersede active coverage')->options(fn (): array => $this->activeCoverageOptions())->searchable(),
+                Select::make('category')->options(array_combine(ApprovedCoverage::Categories, ApprovedCoverage::Categories))->required(),
+                TextInput::make('safe_source_description')->required()->maxLength(255),
                 TextInput::make('amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
                 TextInput::make('authority_reference')->required()->maxLength(255),
+                DatePicker::make('authority_date')->required()->native(false),
+                DatePicker::make('effective_date')->required()->native(false),
             ])
             ->action(function (array $data): void {
                 $account = $this->getRecord()->termAccount()->firstOrFail();
@@ -355,8 +388,15 @@ class ViewEnrollment extends ViewRecord
                     app(RecordApprovedCoverage::class)->execute(
                         $account,
                         $obligation,
-                        (string) $data['amount'],
-                        $data['authority_reference'],
+                        [
+                            'category' => $data['category'],
+                            'safe_source_description' => $data['safe_source_description'],
+                            'amount' => (string) $data['amount'],
+                            'authority_reference' => $data['authority_reference'],
+                            'authority_date' => $data['authority_date'],
+                            'effective_date' => $data['effective_date'],
+                            'supersedes_coverage_id' => $data['supersedes_coverage_id'] ?? null,
+                        ],
                         $this->actor(),
                     );
                     Notification::make()->title('Approved coverage recorded')->success()->send();
@@ -375,31 +415,137 @@ class ViewEnrollment extends ViewRecord
                 && $this->submittedEvidenceOptions() !== [])
             ->schema([
                 Select::make('evidence_id')->options(fn (): array => $this->submittedEvidenceOptions())->required()->searchable(),
-                Repeater::make('allocations')
-                    ->schema([
-                        Select::make('obligation_id')->options(fn (): array => $this->obligationOptions())->required()->searchable(),
-                        TextInput::make('amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
-                    ])
-                    ->minItems(1)
-                    ->columns(2),
-                TextInput::make('official_receipt_number')->maxLength(100),
+                TextInput::make('actual_verified_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
+                TextInput::make('external_check_reference')->label('Independent verification result')->required()->maxLength(255),
             ])
             ->action(function (array $data): void {
-                $allocations = collect($data['allocations'])->mapWithKeys(
-                    fn (array $allocation): array => [(int) $allocation['obligation_id'] => (string) $allocation['amount']],
-                )->all();
-
                 try {
                     app(ReviewPaymentEvidence::class)->verify(
                         PaymentEvidenceVersion::query()->findOrFail((int) $data['evidence_id']),
                         $this->actor(),
-                        $allocations,
-                        $data['official_receipt_number'] ?? null,
+                        (string) $data['actual_verified_amount'],
+                        $data['external_check_reference'],
                     );
                     Notification::make()->title('Payment evidence verified')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Evidence was not verified', $exception);
                 }
+            });
+    }
+
+    private function reverseCoverageAction(): Action
+    {
+        return Action::make('reverseApprovedCoverage')
+            ->label('Reverse approved coverage')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('danger')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->activeCoverageOptions() !== [])
+            ->schema([
+                Select::make('coverage_id')->options(fn (): array => $this->activeCoverageOptions())->required(),
+                TextInput::make('authority_reference')->required()->maxLength(255),
+                Textarea::make('safe_reason')->required()->maxLength(1000),
+            ])->action(function (array $data): void {
+                try {
+                    app(ReverseApprovedCoverage::class)->execute(
+                        ApprovedCoverage::query()->findOrFail((int) $data['coverage_id']),
+                        $this->actor(), $data['authority_reference'], $data['safe_reason'],
+                    );
+                    Notification::make()->title('Approved coverage reversed')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Coverage was not reversed', $exception);
+                }
+            });
+    }
+
+    private function reversePaymentAction(): Action
+    {
+        return Action::make('reversePaymentPosting')
+            ->label('Reverse verified payment')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('danger')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->reversiblePaymentOptions() !== [])
+            ->schema([
+                Select::make('payment_id')->options(fn (): array => $this->reversiblePaymentOptions())->required(),
+                TextInput::make('authority_reference')->required()->maxLength(255),
+                Textarea::make('safe_reason')->required()->maxLength(1000),
+            ])->action(function (array $data): void {
+                try {
+                    app(ReversePaymentPosting::class)->execute(
+                        Payment::query()->findOrFail((int) $data['payment_id']),
+                        $this->actor(), $data['authority_reference'], $data['safe_reason'],
+                    );
+                    Notification::make()->title('Payment reversal recorded')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Payment was not reversed', $exception);
+                }
+            });
+    }
+
+    private function recordTorClearanceAction(): Action
+    {
+        return Action::make('recordTorPaymentClearance')
+            ->label('Record TOR payment clearance')
+            ->icon('heroicon-o-document-check')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->getRecord()->termAccount !== null)
+            ->schema([
+                TextInput::make('request_reference')->label('TOR request reference')->required()->maxLength(255),
+                Select::make('state')->options([
+                    OfficialOutputPaymentClearance::StateCleared => 'Cleared for this request',
+                    OfficialOutputPaymentClearance::StateNotCleared => 'Not cleared for this request',
+                    OfficialOutputPaymentClearance::StateWithdrawn => 'Withdraw prior decision',
+                ])->required(),
+                TextInput::make('authority_reference')->required()->maxLength(255),
+                Textarea::make('safe_reason')->required()->maxLength(1000),
+            ])->action(function (array $data): void {
+                try {
+                    app(RecordOfficialOutputPaymentClearance::class)->execute(
+                        $this->getRecord()->termAccount()->firstOrFail(), $this->actor(),
+                        $data['request_reference'], $data['state'], $data['authority_reference'], $data['safe_reason'],
+                    );
+                    Notification::make()->title('Request-specific clearance recorded')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('TOR clearance was not recorded', $exception);
+                }
+            });
+    }
+
+    private function exportAccountAction(): Action
+    {
+        return Action::make('exportTermAccount')
+            ->label('Export verified payments')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->getRecord()->termAccount !== null)
+            ->schema([
+                Textarea::make('purpose')->required()->maxLength(1000),
+                Select::make('state')
+                    ->label('Current state')
+                    ->options([
+                        Payment::StatePosted => 'Posted',
+                        Payment::StateReversal => 'Reversal',
+                    ]),
+                DatePicker::make('from')->label('Verified from')->native(false),
+                DatePicker::make('until')->label('Verified until')->native(false),
+            ])
+            ->action(function (array $data): void {
+                $account = $this->getRecord()->termAccount()->firstOrFail();
+                $export = app(CreateContextualFinanceExport::class)->createVerifiedPayments(
+                    $this->actor(),
+                    $account,
+                    (string) $data['purpose'],
+                    [
+                        'state' => $data['state'] ?? null,
+                        'from' => $data['from'] ?? null,
+                        'until' => $data['until'] ?? null,
+                    ],
+                );
+
+                if ($export->outcome === FinanceExport::OutcomeNoRows) {
+                    Notification::make()->title('No matching verified payments')->info()->send();
+
+                    return;
+                }
+
+                $this->redirect(route('finance.exports.download', $export));
             });
     }
 
@@ -933,6 +1079,37 @@ class ViewEnrollment extends ViewRecord
             ->mapWithKeys(fn (PaymentEvidenceVersion $evidence): array => [
                 $evidence->id => "v{$evidence->version} — {$evidence->original_name} — PHP {$evidence->claimed_amount}",
             ])->all() ?? [];
+    }
+
+    /** @return array<int, string> */
+    private function activeCoverageOptions(): array
+    {
+        return $this->getRecord()->termAccount?->coverages()
+            ->where('state', ApprovedCoverage::StateApplied)
+            ->with('obligation')
+            ->orderBy('id')
+            ->get()
+            ->mapWithKeys(fn (ApprovedCoverage $coverage): array => [
+                $coverage->id => $coverage->obligation->label.' — PHP '.$coverage->amount.' — '.$coverage->authority_reference,
+            ])->all() ?? [];
+    }
+
+    /** @return array<int, string> */
+    private function reversiblePaymentOptions(): array
+    {
+        $account = $this->getRecord()->termAccount;
+        if ($account === null) {
+            return [];
+        }
+
+        return $account->payments()
+            ->where('state', Payment::StatePosted)
+            ->whereNotIn('id', Payment::query()->whereNotNull('reverses_payment_id')->select('reverses_payment_id'))
+            ->orderByDesc('paid_at')
+            ->get()
+            ->mapWithKeys(fn (Payment $payment): array => [
+                $payment->id => ($payment->provider_reference ?? 'Payment '.$payment->id).' — PHP '.$payment->amount,
+            ])->all();
     }
 
     private function latestSubmittedEvidence(): ?PaymentEvidenceVersion

@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
-use App\Filament\Resources\FinancialAccommodations\Pages\CreateFinancialAccommodation;
-use App\Filament\Resources\FinancialAccommodations\Pages\ListFinancialAccommodations;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\Enrollment;
@@ -21,7 +19,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
-use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -57,50 +54,35 @@ final class TAL86DFinancialAccommodationEffectsTest extends TestCase
 
         $this->assertTrue(Gate::forUser($accounting)->allows('create', FinancialAccommodation::class));
         $this->assertFalse(Gate::forUser($registrar)->allows('create', FinancialAccommodation::class));
-        $this->assertNotNull(Route::getRoutes()->getByName('filament.admin.resources.financial-accommodations.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.financial-accommodations.index'));
 
-        Livewire::actingAs($accounting)
-            ->test(CreateFinancialAccommodation::class)
-            ->fillForm([
-                'student_profile_id' => $fixture['profile']->id,
-                'term_id' => $fixture['term']->id,
-                'balance_snapshot' => '8500.00',
-                'covered_amount' => '2500.00',
-                'basis' => FinancialAccommodation::BasisInstitutionalAccommodation,
-                'certification_reference' => 'CERT-86D-PRIVATE',
-                'private_evidence_reference' => 'locked-cabinet/file-86d.pdf',
-                'promissory_required' => true,
-                'promissory_maker' => 'Parent Guardian',
-                'allows_finance_gate' => true,
-                'allows_next_term_enrollment' => false,
-                'allows_reactivation' => false,
-                'allows_record_release' => true,
-                'waives_downpayment' => true,
-                'authority' => 'Accounting Director',
-                'status' => FinancialAccommodation::StatusActive,
-                'effective_from' => today()->toDateString(),
-                'expires_on' => today()->addMonth()->toDateString(),
-                'paymentScheduleRows' => [
-                    [
-                        'sequence' => 1,
-                        'category' => PaymentScheduleRow::CategoryDownpayment,
-                        'due_date' => today()->addWeeks(2)->toDateString(),
-                        'amount' => '1250.00',
-                        'state' => PaymentScheduleRow::StateDue,
-                    ],
-                ],
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors()
-            ->assertNotified();
-
-        $accommodation = FinancialAccommodation::query()
-            ->where('student_profile_id', $fixture['profile']->id)
-            ->where('term_id', $fixture['term']->id)
-            ->sole();
-        $schedule = PaymentScheduleRow::query()
-            ->where('financial_accommodation_id', $accommodation->id)
-            ->sole();
+        $accommodation = FinancialAccommodation::query()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'term_id' => $fixture['term']->id,
+            'balance_snapshot' => '8500.00',
+            'covered_amount' => '2500.00',
+            'basis' => FinancialAccommodation::BasisInstitutionalAccommodation,
+            'promissory_required' => false,
+            'private_evidence_reference' => 'locked-cabinet/file-86d.pdf',
+            'allows_finance_gate' => true,
+            'allows_next_term_enrollment' => false,
+            'allows_reactivation' => false,
+            'allows_record_release' => true,
+            'waives_downpayment' => false,
+            'authority' => 'Historical Accounting authority',
+            'recorded_by' => $accounting->id,
+            'status' => FinancialAccommodation::StatusActive,
+            'effective_from' => today(),
+        ]);
+        $schedule = PaymentScheduleRow::query()->create([
+            'financial_accommodation_id' => $accommodation->id,
+            'assessment_id' => null,
+            'sequence' => 1,
+            'category' => PaymentScheduleRow::CategoryDownpayment,
+            'due_date' => today()->addWeeks(2),
+            'amount' => '1250.00',
+            'state' => PaymentScheduleRow::StateDue,
+        ]);
 
         $this->assertSame($fixture['profile']->id, $accommodation->student_profile_id);
         $this->assertSame($fixture['term']->id, $accommodation->term_id);
@@ -115,9 +97,7 @@ final class TAL86DFinancialAccommodationEffectsTest extends TestCase
         $this->assertFalse(Gate::forUser($accounting)->allows('update', $accommodation));
         $this->assertFalse(Gate::forUser($accounting)->allows('delete', $accommodation));
 
-        Livewire::actingAs($accounting)
-            ->test(ListFinancialAccommodations::class)
-            ->assertCanSeeTableRecords([$accommodation]);
+        $this->assertDatabaseHas('financial_accommodations', ['id' => $accommodation->id]);
     }
 
     public function test_active_valid_accommodation_bypasses_only_explicit_financial_hold_effects(): void

@@ -128,93 +128,42 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
     public function test_student_finance_checkout_ignores_tampered_livewire_due_state(): void
     {
         $fixture = $this->checkoutFixture();
-        $gateway = new RecordingPaymentGateway;
-        $this->app->instance(PaymentGateway::class, $gateway);
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->set('finance.current_due_amount', '0.01')
-            ->callAction('checkout')
-            ->assertRedirect('https://mock-payments.test/checkout/mock_checkout_1');
-
-        $attempt = PaymentAttempt::query()
-            ->where('assessment_id', $fixture['assessment']->id)
-            ->sole();
-
-        $this->assertSame('2000.00', (string) $attempt->amount);
+            ->assertActionDoesNotExist('checkout');
+        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
     }
 
     public function test_student_finance_checkout_action_reuses_the_active_attempt(): void
     {
         $fixture = $this->checkoutFixture();
-        $gateway = new RecordingPaymentGateway;
-        $this->app->instance(PaymentGateway::class, $gateway);
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->callAction('checkout')
-            ->assertRedirect('https://mock-payments.test/checkout/mock_checkout_1');
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->callAction('checkout')
-            ->assertRedirect('https://mock-payments.test/checkout/mock_checkout_1');
-
-        $this->assertSame(1, $gateway->createCalls);
-        $this->assertSame(1, PaymentAttempt::query()
-            ->where('assessment_id', $fixture['assessment']->id)
-            ->count());
+            ->assertActionDoesNotExist('checkout');
+        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
     }
 
     public function test_student_finance_checkout_action_shows_a_safe_provider_failure(): void
     {
         $fixture = $this->checkoutFixture();
-        $gateway = new RecordingPaymentGateway;
-        $gateway->createException = new PaymentGatewayException(
-            message: 'Provider detail must not be displayed.',
-            errorCode: 'parameter_invalid',
-            retryable: false,
-            indeterminate: false,
-            httpStatus: 422,
-        );
-        $this->app->instance(PaymentGateway::class, $gateway);
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->callAction('checkout')
-            ->assertNotified('Payment checkout is temporarily unavailable. Please try again later.');
-
-        $attempt = PaymentAttempt::query()
-            ->where('assessment_id', $fixture['assessment']->id)
-            ->sole();
-
-        $this->assertSame('failed', $attempt->status);
-        $this->assertStringNotContainsString('Provider detail', json_encode($attempt->metadata, JSON_THROW_ON_ERROR));
+            ->assertActionDoesNotExist('checkout')
+            ->assertSee('Submit payment evidence');
     }
 
     public function test_student_finance_checkout_action_uses_the_paymongo_v2_contract(): void
     {
         $fixture = $this->checkoutFixture();
         Http::preventStrayRequests();
-        Http::fake([
-            'https://api.paymongo.com/v2/checkout_sessions' => Http::response($this->payMongoSessionPayload('active')),
-        ]);
-        $this->app->instance(PaymentGateway::class, $this->payMongoGateway());
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->callAction('checkout')
-            ->assertRedirect('https://checkout.paymongo.com/cs_tal95a');
-
-        $attempt = PaymentAttempt::query()
-            ->where('assessment_id', $fixture['assessment']->id)
-            ->sole();
-
-        $this->assertSame('cs_tal95a', $attempt->provider_checkout_id);
-        $this->assertSame('2000.00', (string) $attempt->amount);
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.paymongo.com/v2/checkout_sessions'
-            && $request['data']['attributes']['reference_number'] === $attempt->internal_reference
-            && $request['data']['attributes']['line_items'][0]['amount'] === 200000);
+            ->assertActionDoesNotExist('checkout');
+        Http::assertNothingSent();
     }
 
     public function test_student_finance_disables_checkout_when_no_positive_due_exists(): void
@@ -223,7 +172,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertActionDisabled('checkout');
+            ->assertActionDoesNotExist('checkout');
     }
 
     public function test_database_rejects_a_second_pending_or_under_review_attempt_for_one_assessment(): void

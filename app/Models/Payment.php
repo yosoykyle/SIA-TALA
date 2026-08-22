@@ -8,11 +8,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
+/**
+ * @property Carbon|null $paid_at
+ * @property Carbon|null $verified_at
+ * @property Carbon|null $or_mapped_at
+ */
 class Payment extends Model
 {
     /** @use HasFactory<PaymentFactory> */
     use HasFactory;
+
+    public const StatePosted = 'Posted';
+
+    public const StateReversal = 'Reversal';
 
     /**
      * @return array<string, string>
@@ -24,6 +35,15 @@ class Payment extends Model
             'gcash_manual' => 'GCash Manual',
             'bank_transfer' => 'Bank Transfer',
         ];
+    }
+
+    public function channelLabel(): string
+    {
+        return match ($this->channel) {
+            'paymongo' => 'PayMongo',
+            'gcash_manual' => 'GCash Manual',
+            default => Str::of((string) $this->channel)->replace('_', ' ')->headline()->toString(),
+        };
     }
 
     /**
@@ -41,14 +61,18 @@ class Payment extends Model
         'amount',
         'currency',
         'evidence_status',
+        'state',
         'paid_at',
         'verified_at',
         'verified_by',
+        'verification_basis',
+        'external_check_reference',
         'or_number',
         'or_mapped_by',
         'or_mapped_at',
         'provider_reference',
         'reversal_reason',
+        'reversal_authority_reference',
     ];
 
     /**

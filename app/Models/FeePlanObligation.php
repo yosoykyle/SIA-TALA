@@ -13,11 +13,11 @@ class FeePlanObligation extends Model
     /** @use HasFactory<FeePlanObligationFactory> */
     use HasFactory;
 
-    protected $fillable = ['fee_plan_id', 'code', 'label', 'amount', 'required_for_enrollment'];
+    protected $fillable = ['fee_plan_id', 'sequence', 'code', 'label', 'purpose', 'amount', 'due_at', 'required_for_enrollment'];
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'required_for_enrollment' => 'boolean'];
+        return ['sequence' => 'integer', 'amount' => 'decimal:2', 'due_at' => 'datetime', 'required_for_enrollment' => 'boolean'];
     }
 
     /** @return BelongsTo<FeePlan, $this> */

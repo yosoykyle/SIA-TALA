@@ -6,6 +6,7 @@ use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\Enrollments\Schemas\EnrollmentInfolist;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
+use App\Filament\Resources\Enrollments\Tables\StudentAccountsTable;
 use App\Models\Enrollment;
 use App\Models\User;
 use BackedEnum;
@@ -49,6 +50,10 @@ class EnrollmentResource extends Resource
 
     public static function table(Table $table): Table
     {
+        if (auth()->user()?->hasRole(User::StaffRoleAccounting)) {
+            return StudentAccountsTable::configure($table);
+        }
+
         return EnrollmentsTable::configure($table);
     }
 

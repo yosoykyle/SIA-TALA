@@ -22,12 +22,12 @@ class FeePlan extends Model
 
     protected $fillable = [
         'program_id', 'term_id', 'supersedes_fee_plan_id', 'version', 'state', 'currency',
-        'authority_reference', 'content_hash', 'created_by', 'published_by', 'published_at',
+        'authority_reference', 'authority_date', 'content_hash', 'created_by', 'published_by', 'published_at',
     ];
 
     protected function casts(): array
     {
-        return ['version' => 'integer', 'published_at' => 'datetime'];
+        return ['version' => 'integer', 'authority_date' => 'date', 'published_at' => 'datetime'];
     }
 
     /** @return BelongsTo<Program, $this> */
@@ -51,13 +51,13 @@ class FeePlan extends Model
     /** @return HasMany<FeePlanCharge, $this> */
     public function charges(): HasMany
     {
-        return $this->hasMany(FeePlanCharge::class);
+        return $this->hasMany(FeePlanCharge::class)->orderBy('sequence')->orderBy('id');
     }
 
     /** @return HasMany<FeePlanObligation, $this> */
     public function obligations(): HasMany
     {
-        return $this->hasMany(FeePlanObligation::class);
+        return $this->hasMany(FeePlanObligation::class)->orderBy('sequence')->orderBy('id');
     }
 
     protected static function booted(): void

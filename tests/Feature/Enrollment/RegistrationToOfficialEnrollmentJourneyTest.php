@@ -38,6 +38,7 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
@@ -120,26 +121,28 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, StudentScheduleBinding::query()->count());
         $this->assertSame(1, $proposal->items()->firstOrFail()->reservation()->count());
 
-        $plan = app(CreateFeePlanDraft::class)->execute(
+        $plan = $this->createFeePlanDraft(
             $application->program,
             $term,
             [['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00']],
             $accounting,
         );
-        app(PublishFeePlan::class)->execute($plan, $accounting, 'Synthetic approved fee authority');
+        $this->publishFeePlan($plan, $accounting, 'Synthetic approved fee authority');
         $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         $evidence = app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
             $application->user,
             UploadedFile::fake()->image('receipt.jpg'),
             '1000.00',
+            'bank_transfer',
+            now()->subMinute(),
             'SYN-PAYMENT-001',
         );
         app(ReviewPaymentEvidence::class)->verify(
             $evidence,
             $accounting,
-            [$assessment->obligations->firstOrFail()->id => '1000.00'],
-            'SYN-OR-001',
+            '1000.00',
+            'SYN-INDEPENDENT-CHECK-001',
         );
         $this->assertSame('Cleared', app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case->fresh())['state']);
 
@@ -191,20 +194,20 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertNull($unavailable['total']);
         $this->assertNull($unavailable['balance']);
 
-        $draft = app(CreateFeePlanDraft::class)->execute(
+        $draft = $this->createFeePlanDraft(
             $application->program,
             $term,
             [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        $published = app(PublishFeePlan::class)->execute($draft, $accounting, 'Synthetic no-payment authority');
+        $published = $this->publishFeePlan($draft, $accounting, 'Synthetic no-payment authority');
         $successor = app(CreateSuccessorFeePlan::class)->execute($published, $accounting);
-        app(UpdateFeePlanDraft::class)->execute(
+        $this->updateFeePlanDraft(
             $successor,
             [['code' => 'NO-PAYMENT-V2', 'label' => 'Successor no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        $successor = app(PublishFeePlan::class)->execute($successor->fresh(), $accounting, 'Synthetic successor authority');
+        $successor = $this->publishFeePlan($successor->fresh(), $accounting, 'Synthetic successor authority');
         $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
 
         $this->assertSame(FeePlan::StateSuperseded, $published->fresh()->state);
@@ -571,13 +574,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'SYN-ASSISTED-CONFIRMATION-001',
         );
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
-        $plan = app(CreateFeePlanDraft::class)->execute(
+        $plan = $this->createFeePlanDraft(
             $profile->program,
             $term,
             [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        app(PublishFeePlan::class)->execute($plan, $accounting, 'Synthetic continuing Student fee authority');
+        $this->publishFeePlan($plan, $accounting, 'Synthetic continuing Student fee authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
 
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
@@ -661,13 +664,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
-        $plan = app(CreateFeePlanDraft::class)->execute(
+        $plan = $this->createFeePlanDraft(
             $application->program,
             $term,
             [['code' => 'FIXED', 'label' => 'Fixed exact-Term charge', 'amount' => '100.00']],
             $accounting,
         );
-        app(PublishFeePlan::class)->execute($plan, $accounting, 'Synthetic ordinary authority');
+        $this->publishFeePlan($plan, $accounting, 'Synthetic ordinary authority');
 
         try {
             app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
@@ -680,7 +683,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
 
         try {
-            app(RecordAuthorizedIndividualAssessment::class)->execute(
+            $this->recordIndividualAssessment(
                 $case->fresh(),
                 $accounting,
                 'SYN-UNAUTHORIZED-INDIVIDUAL-001',
@@ -754,7 +757,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(ConfirmRegistrationProposal::class)->execute($first->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($first->fresh(), $registrar);
         $reservation = $first->items()->firstOrFail()->reservation()->firstOrFail();
-        $assessment = app(RecordAuthorizedIndividualAssessment::class)->execute(
+        $assessment = $this->recordIndividualAssessment(
             $case->fresh(),
             $accounting,
             'SYN-SUPERSEDED-ASSESSMENT-001',
@@ -951,7 +954,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
 
-        $assessment = app(RecordAuthorizedIndividualAssessment::class)->execute(
+        $assessment = $this->recordIndividualAssessment(
             $case->fresh(),
             $accounting,
             'SYN-INDIVIDUAL-ASSESSMENT-001',
@@ -965,8 +968,14 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(RecordApprovedCoverage::class)->execute(
             $assessment->termAccount,
             $tuition,
-            '600.00',
-            'SYN-COVERAGE-001',
+            [
+                'category' => ApprovedCoverage::CategoryScholarship,
+                'safe_source_description' => 'Synthetic approved scholarship result',
+                'amount' => '600.00',
+                'authority_reference' => 'SYN-COVERAGE-001',
+                'authority_date' => '2026-08-01',
+                'effective_date' => '2026-08-01',
+            ],
             $accounting,
         );
         $evidence = app(SubmitPaymentEvidence::class)->execute(
@@ -974,6 +983,9 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $application->user,
             UploadedFile::fake()->image('manual-payment.jpg'),
             '400.00',
+            'bank_transfer',
+            now()->subMinute(),
+            'SYN-MANUAL-PAYMENT-001',
         );
 
         $this->actingAs($application->user)
@@ -986,7 +998,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->get(route('finance.payment-evidence.download', $evidence))
             ->assertForbidden();
 
-        app(ReviewPaymentEvidence::class)->verify($evidence, $accounting, [$laboratory->id => '400.00']);
+        app(ReviewPaymentEvidence::class)->verify($evidence, $accounting, '400.00', 'SYN-INDEPENDENT-CHECK-001');
 
         $projection = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case->fresh());
         $this->assertSame('Cleared', $projection['state']);
@@ -1094,6 +1106,25 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($term->id, $official->term_id);
     }
 
+    public function test_all_four_authorized_individual_assessment_categories_preserve_versioned_authority(): void
+    {
+        [$official] = $this->officialEnrollment();
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $created = collect(Assessment::IndividualCategories)->map(function (string $category, int $index) use ($official, $accounting): Assessment {
+            return $this->recordIndividualAssessment(
+                $official->fresh(), $accounting, 'SYN-INDIVIDUAL-CATEGORY-'.($index + 1),
+                [['code' => 'AUTHORIZED-'.$index, 'label' => $category.' fixed adjustment', 'amount' => '0.00']],
+                $category,
+            );
+        });
+
+        $this->assertSame(4, $created->count());
+        $this->assertSame(Assessment::IndividualCategories, $created->pluck('reason_category')->all());
+        $this->assertTrue($created->every(fn (Assessment $assessment): bool => $assessment->authority_date !== null && is_array($assessment->source_snapshot)));
+        $this->assertSame(Assessment::StateActive, $created->last()->fresh()->state);
+        $this->assertTrue($created->take(3)->every(fn (Assessment $assessment): bool => $assessment->fresh()->state === Assessment::StateSuperseded));
+    }
+
     public function test_cost_increase_adjustment_requires_the_same_case_current_cleared_successor_assessment(): void
     {
         [$official, , , $sourceSection, $timetable, $registrar] = $this->officialEnrollment();
@@ -1131,7 +1162,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $this->assertArrayHasKey('assessment', $exception->errors());
         }
 
-        $successorAssessment = app(RecordAuthorizedIndividualAssessment::class)->execute(
+        $successorAssessment = $this->recordIndividualAssessment(
             $official->fresh(),
             $accounting,
             'SYN-INCREASE-001',
@@ -1416,13 +1447,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
-        $plan = app(CreateFeePlanDraft::class)->execute(
+        $plan = $this->createFeePlanDraft(
             $application->program,
             $term,
             [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        app(PublishFeePlan::class)->execute($plan, $accounting, 'Synthetic no-payment authority');
+        $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         if ($invalidRecipientEmail) {
             $application->user->update(['email' => 'invalid-recipient']);
@@ -1482,13 +1513,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
-        $plan = app(CreateFeePlanDraft::class)->execute(
+        $plan = $this->createFeePlanDraft(
             $application->program,
             $term,
             [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        app(PublishFeePlan::class)->execute($plan, $accounting, 'Synthetic exact-Term authority');
+        $this->publishFeePlan($plan, $accounting, 'Synthetic exact-Term authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
 
         return [$case->fresh(), $application, $section, $registrar];
@@ -1500,5 +1531,68 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /** @param list<array{code:string,label:string,amount:string}> $charges */
+    private function createFeePlanDraft(Program $program, Term $term, array $charges, User $accounting): FeePlan
+    {
+        return app(CreateFeePlanDraft::class)->execute(
+            $program,
+            $term,
+            $charges,
+            $accounting,
+            obligations: $this->feePlanObligations($charges, $term),
+        );
+    }
+
+    private function publishFeePlan(FeePlan $plan, User $accounting, string $authorityReference): FeePlan
+    {
+        return app(PublishFeePlan::class)->execute(
+            $plan,
+            $accounting,
+            $authorityReference,
+            CarbonImmutable::parse('2026-08-01', config('app.timezone')),
+        );
+    }
+
+    /** @param list<array{code:string,label:string,amount:string}> $charges */
+    private function recordIndividualAssessment(Enrollment $enrollment, User $accounting, string $authorityReference, array $charges, string $category = Assessment::CategoryIndividuallyAdvised): Assessment
+    {
+        return app(RecordAuthorizedIndividualAssessment::class)->execute(
+            $enrollment,
+            $accounting,
+            $category,
+            $authorityReference,
+            CarbonImmutable::parse('2026-08-01', config('app.timezone')),
+            $charges,
+            $this->feePlanObligations($charges, $enrollment->term),
+        );
+    }
+
+    /** @param list<array{code:string,label:string,amount:string}> $charges */
+    private function updateFeePlanDraft(FeePlan $plan, array $charges, User $accounting): FeePlan
+    {
+        return app(UpdateFeePlanDraft::class)->execute(
+            $plan,
+            $charges,
+            $this->feePlanObligations($charges, $plan->term),
+            $accounting,
+        );
+    }
+
+    /**
+     * @param  list<array{code:string,label:string,amount:string}>  $charges
+     * @return list<array{code:string,label:string,purpose:string,amount:string,due_at:string,required_for_enrollment:bool}>
+     */
+    private function feePlanObligations(array $charges, Term $term): array
+    {
+        return collect($charges)->map(fn (array $charge): array => [
+            'code' => $charge['code'],
+            'label' => $charge['label'],
+            'purpose' => 'Enrollment',
+            'amount' => $charge['amount'],
+            'due_at' => now()->subMinute()->toDateTimeString(),
+            'required_for_enrollment' => true,
+        ])->all();
     }
 }

@@ -20,13 +20,18 @@ class PaymentEvidenceVersion extends Model
 
     protected $fillable = [
         'term_account_id', 'supersedes_version_id', 'version', 'state', 'disk', 'path',
-        'original_name', 'mime_type', 'size_bytes', 'checksum', 'claimed_amount',
-        'payment_reference', 'submitted_by', 'submitted_at', 'reviewed_by', 'reviewed_at', 'review_note',
+        'original_name', 'mime_type', 'size_bytes', 'checksum', 'claimed_amount', 'channel', 'paid_at',
+        'payment_reference', 'possible_duplicate', 'submitted_by', 'submitted_at', 'reviewed_by',
+        'reviewed_at', 'review_note', 'external_check_reference', 'actual_verified_amount',
     ];
 
     protected function casts(): array
     {
-        return ['version' => 'integer', 'size_bytes' => 'integer', 'claimed_amount' => 'decimal:2', 'submitted_at' => 'datetime', 'reviewed_at' => 'datetime'];
+        return [
+            'version' => 'integer', 'size_bytes' => 'integer', 'claimed_amount' => 'decimal:2',
+            'actual_verified_amount' => 'decimal:2', 'possible_duplicate' => 'boolean',
+            'paid_at' => 'datetime', 'submitted_at' => 'datetime', 'reviewed_at' => 'datetime',
+        ];
     }
 
     /** @return BelongsTo<TermAccount, $this> */

@@ -55,7 +55,6 @@ class TAL75ReportsAuditTest extends TestCase
 
         foreach ([
             User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
             User::StaffRoleSystemSuperAdmin,
         ] as $role) {
@@ -65,7 +64,7 @@ class TAL75ReportsAuditTest extends TestCase
             $this->assertTrue(ReportsAudit::shouldRegisterNavigation(), "{$role} should see Reports / Audit navigation.");
         }
 
-        foreach ([User::StaffRoleFaculty, 'student', 'applicant'] as $role) {
+        foreach ([User::StaffRoleAccounting, User::StaffRoleFaculty, 'student', 'applicant'] as $role) {
             $this->actingAs($this->user($role));
             Filament::setCurrentPanel(Filament::getPanel('admin'));
             $this->assertFalse(ReportsAudit::canAccess(), "{$role} should not access Reports / Audit.");
@@ -79,7 +78,7 @@ class TAL75ReportsAuditTest extends TestCase
         $reports = app(OperationalReportService::class);
 
         $this->assertCount(6, $reports->optionsFor($this->user(User::StaffRoleRegistrar)));
-        $this->assertCount(5, $reports->optionsFor($this->user(User::StaffRoleAccounting)));
+        $this->assertSame([], $reports->optionsFor($this->user(User::StaffRoleAccounting)));
         $this->assertCount(11, $reports->optionsFor($this->user(User::StaffRoleAcademicHead)));
         $this->assertCount(6, $reports->optionsFor($this->user(User::StaffRoleSystemSuperAdmin)));
         $this->assertSame([], $reports->optionsFor($this->user('student')));
@@ -93,7 +92,6 @@ class TAL75ReportsAuditTest extends TestCase
 
         foreach ([
             User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
             User::StaffRoleSystemSuperAdmin,
         ] as $role) {
@@ -111,7 +109,6 @@ class TAL75ReportsAuditTest extends TestCase
     {
         foreach ([
             User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
             User::StaffRoleSystemSuperAdmin,
         ] as $role) {
@@ -125,6 +122,10 @@ class TAL75ReportsAuditTest extends TestCase
                 $this->get(ReportsAudit::getUrl(panel: 'admin'))->assertOk();
             }
         }
+
+        $this->actingAs($this->user(User::StaffRoleAccounting));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(ReportsAudit::class)->assertForbidden();
 
         $this->assertNotContains(ReportsAudit::class, Filament::getPanel('student')->getPages());
         $this->assertNotContains(ReportsAudit::class, Filament::getPanel('applicant')->getPages());
@@ -245,9 +246,10 @@ class TAL75ReportsAuditTest extends TestCase
     }
 
     #[Test]
-    public function filtered_csv_export_uses_the_exact_query_and_records_complete_audit_evidence(): void
+    public function accounting_cannot_use_the_retired_report_hub_for_finance_exports(): void
     {
         $accounting = $this->user(User::StaffRoleAccounting);
+        $this->expectException(AuthorizationException::class);
         $program = Program::factory()->create();
         $profile = StudentProfile::factory()->for($program)->create([
             'first_name' => '=Formula',
@@ -315,9 +317,10 @@ class TAL75ReportsAuditTest extends TestCase
     }
 
     #[Test]
-    public function sensitive_export_requires_purpose_before_any_log_is_written(): void
+    public function retired_accounting_report_export_is_rejected_before_validation_or_logging(): void
     {
         $accounting = $this->user(User::StaffRoleAccounting);
+        $this->expectException(AuthorizationException::class);
         $reports = app(OperationalReportService::class);
         $outputLogCountBeforeAttempt = OutputAccessLog::query()->count();
 
@@ -342,9 +345,10 @@ class TAL75ReportsAuditTest extends TestCase
     }
 
     #[Test]
-    public function fixed_exports_exclude_private_evidence_payloads_tokens_and_diagnostics(): void
+    public function retired_financial_accommodation_report_is_not_an_accounting_export_surface(): void
     {
         $accounting = $this->user(User::StaffRoleAccounting);
+        $this->expectException(AuthorizationException::class);
         $profile = StudentProfile::factory()->create();
         $term = Term::factory()->create();
         FinancialAccommodation::query()->create([
@@ -468,9 +472,10 @@ class TAL75ReportsAuditTest extends TestCase
     }
 
     #[Test]
-    public function report_export_audit_is_visible_only_in_the_super_admin_catalog(): void
+    public function accounting_cannot_generate_a_legacy_report_export_audit_record(): void
     {
         $accounting = $this->user(User::StaffRoleAccounting);
+        $this->expectException(AuthorizationException::class);
         $reports = app(OperationalReportService::class);
         app(ExportOperationalReport::class)->execute(
             $accounting,

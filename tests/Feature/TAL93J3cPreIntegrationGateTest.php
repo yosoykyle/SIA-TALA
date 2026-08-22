@@ -111,15 +111,13 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
-                'GradesAndCompletion', 'ImportBatchResource', 'LedgerEntryResource',
+                'GradesAndCompletion', 'ImportBatchResource',
                 'ProgramResource', 'ReportsAudit', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
-                'AccountingAdjustmentResource', 'Dashboard', 'EnrollmentResource',
-                'FeePlanResource', 'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource',
-                'PaymentResource', 'PayMongoReconciliation', 'ReportsAudit', 'StudentLifecycleChangeResource',
+                'Dashboard', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
                 'StudentProfileResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
@@ -181,8 +179,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         return [
             'UserResource', 'RoleResource', 'ActivityResource', 'SystemSettingResource', 'FaqEntryResource',
             'OperationalEventResource', 'AdmissionApplicationResource', 'AdmissionCycleResource',
-            'EnrollmentResource', 'FeePlanResource', 'AccountingAdjustmentResource',
-            'FinancialAccommodationResource', 'LedgerEntryResource', 'PaymentAttemptResource', 'PaymentResource',
+            'EnrollmentResource', 'FeePlanResource',
             'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
             'ImportBatchResource', 'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',
             'CalendarEventResource', 'RoomResource', 'FacultyQualificationResource',
@@ -208,7 +205,6 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'GradesAndCompletion',
             'ReportsAudit',
             'IntegrationStatus',
-            'PayMongoReconciliation',
         ];
     }
 

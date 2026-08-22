@@ -3,9 +3,9 @@
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
 use App\Http\Controllers\AdmissionEvidenceDownloadController;
-use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
+use App\Http\Controllers\FinanceExportDownloadController;
 use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
@@ -39,12 +39,12 @@ Route::middleware('auth')->group(function (): void {
         ->name('admissions.evidence.download');
     Route::get('/outputs/finance/statement/{assessment}', FinanceStatementController::class)
         ->name('finance.statement');
-    Route::get('/outputs/finance/billing-slip/{assessment}', BillingSlipController::class)
-        ->name('finance.billing-slip');
     Route::get('/outputs/finance/payment-acknowledgement/{payment}', PaymentAcknowledgementController::class)
         ->name('finance.payments.acknowledgement');
     Route::get('/finance/payment-evidence/{evidence}', PaymentEvidenceDownloadController::class)
         ->name('finance.payment-evidence.download');
+    Route::get('/finance/exports/{export}', FinanceExportDownloadController::class)
+        ->name('finance.exports.download');
     Route::get('/outputs/schedules/faculty', FacultySchedulePrintController::class)
         ->name('faculty.schedule.print');
     Route::get('/outputs/schedules/student', StudentSchedulePrintController::class)

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\AccountingAdjustmentService;
-use App\Filament\Resources\AccountingAdjustments\Pages\CreateAccountingAdjustment;
 use App\Models\AccountingAdjustment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -17,8 +16,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
-use Livewire\Livewire;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -237,30 +236,10 @@ final class TAL86CAccountingAdjustmentReversalTest extends TestCase
         $this->assertStringContainsString('assessment', AccountingAdjustment::sourceLedgerOptionLabel($fixture['charge']));
         $this->assertStringNotContainsString('Balance:', AccountingAdjustment::sourceLedgerOptionLabel($fixture['charge']));
 
-        Livewire::actingAs($accounting)
-            ->test(CreateAccountingAdjustment::class)
-            ->fillForm([
-                'student_profile_id' => $fixture['profile']->id,
-                'term_id' => $fixture['term']->id,
-                'enrollment_id' => $fixture['enrollment']->id,
-                'adjustment_type' => AccountingAdjustment::TypeStudentAccountCredit,
-                'source_ledger_entry_id' => $fixture['charge']->id,
-                'amount' => '75.00',
-                'evidence_reference' => 'UI-86C-CREDIT',
-                'posted_at' => '2026-06-12 13:00:00',
-                'reason' => 'Approved UI credit adjustment against selected source ledger entry.',
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors()
-            ->assertNotified();
-
-        $adjustment = AccountingAdjustment::query()->sole();
-        $ledgerEntry = LedgerEntry::query()->findOrFail($adjustment->ledger_entry_id);
-
-        $this->assertSame(AccountingAdjustment::TypeStudentAccountCredit, $adjustment->adjustment_type);
-        $this->assertSame(LedgerEntry::DirectionAdjustment, $ledgerEntry->direction);
-        $this->assertSame('-75.00', (string) $ledgerEntry->amount);
-        $this->assertSame($fixture['charge']->id, $ledgerEntry->adjusts_entry_id);
+        $this->assertFalse(Route::has('filament.admin.resources.accounting-adjustments.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.accounting-adjustments.create'));
+        $this->assertSame(0, AccountingAdjustment::query()->count());
+        $this->assertDatabaseHas('ledger_entries', ['id' => $fixture['charge']->id]);
     }
 
     /**

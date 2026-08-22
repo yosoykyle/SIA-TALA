@@ -11,7 +11,6 @@ class OperationalReportPolicy
     {
         return $user->hasAnyRole([
             User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
             User::StaffRoleAcademicHead,
             User::StaffRoleSystemSuperAdmin,
         ]);
@@ -23,7 +22,7 @@ class OperationalReportPolicy
             $reportKey === OperationalReportService::GraduationSnapshot => $user->hasRole(User::StaffRoleRegistrar)
                 || $user->hasRole(User::StaffRoleAcademicHead),
             str_starts_with($reportKey, 'registrar.') => $user->hasRole(User::StaffRoleRegistrar),
-            str_starts_with($reportKey, 'accounting.') => $user->hasRole(User::StaffRoleAccounting),
+            str_starts_with($reportKey, 'accounting.') => false,
             str_starts_with($reportKey, 'academic.') => $user->hasRole(User::StaffRoleAcademicHead),
             str_starts_with($reportKey, 'audit.') => $user->hasRole(User::StaffRoleSystemSuperAdmin),
             default => false,

@@ -4,7 +4,7 @@ namespace App\Filament\Student\Widgets;
 
 use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\CurriculumEvaluation;
-use App\Actions\Finance\FinanceEvidenceService;
+use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Models\AcademicDecision;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -31,9 +31,9 @@ class StudentProfileOverviewWidget extends BaseWidget
             ];
         }
 
-        $finance = app(FinanceEvidenceService::class)->studentFinance($user);
-        $balance = $finance['state']['ledger_balance'] ?? 'PHP 0.00';
-        $hasBalance = ($finance['summary']['balance'] ?? '0.00') !== '0.00';
+        $finance = app(StudentTermAccountPresenter::class)->forUser($user);
+        $balance = $finance['state']['remaining_balance'] ?? 'PHP 0.00';
+        $hasBalance = ($finance['state']['remaining_balance'] ?? 'PHP 0.00') !== 'PHP 0.00';
         $academicEffect = app(AcademicEnrollmentEffect::class)->forStudent($profile);
         $curriculum = app(CurriculumEvaluation::class)->forStudent($profile);
 
@@ -60,8 +60,8 @@ class StudentProfileOverviewWidget extends BaseWidget
                 ->color($curriculum['deficiency_count'] > 0 ? 'info' : 'success'),
             Stat::make('Balance', $balance)
                 ->description($hasBalance
-                    ? 'An outstanding balance is posted. Open Finance or contact the Accounting Office.'
-                    : 'No outstanding posted balance.')
+                    ? 'A remaining Term balance is recorded. Open Finance for the due-through-as-of amount.'
+                    : 'No remaining Term balance is recorded.')
                 ->color($hasBalance ? 'warning' : 'success'),
         ];
 

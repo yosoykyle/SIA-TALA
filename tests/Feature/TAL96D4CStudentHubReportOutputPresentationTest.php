@@ -15,6 +15,7 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +69,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         Livewire::test(StudentProfileOverviewWidget::class)
             ->assertSee('This is your official Student Profile status.')
             ->assertSee('No recorded academic or lifecycle authority blocks ordinary curriculum placement.')
-            ->assertSee('No outstanding posted balance.')
+            ->assertSee('No remaining Term balance is recorded.')
             ->assertDontSee('Source #')
             ->assertDontSee('blockers:');
 
@@ -83,7 +84,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
     }
 
     #[Test]
-    public function reports_stack_on_mobile_and_csv_exports_are_readable_safe_and_excel_compatible(): void
+    public function generic_finance_reports_are_unavailable_to_accounting(): void
     {
         $accounting = User::factory()->create(['status' => User::StatusActive]);
         $accounting->assignRole(User::StaffRoleAccounting);
@@ -91,22 +92,15 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         $this->actingAs($accounting);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $page = Livewire::test(ReportsAudit::class)->instance();
+        $this->assertFalse(ReportsAudit::canAccess());
+        $this->expectException(AuthorizationException::class);
 
-        $this->assertInstanceOf(ReportsAudit::class, $page);
-        $this->assertTrue($page->getTable()->isStackedOnMobile());
-
-        $response = app(ExportOperationalReport::class)->execute(
+        app(ExportOperationalReport::class)->execute(
             $accounting,
             OperationalReportService::DailyCash,
             [],
             'Daily cashier turnover review.',
         );
-        $csv = $this->streamedContent($response);
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $csv);
-        $this->assertStringContainsString('daily-cash-collection-daily-turnover-', (string) $response->headers->get('Content-Disposition'));
-        $this->assertStringContainsString('Transaction Date/Time', $csv);
     }
 
     #[Test]

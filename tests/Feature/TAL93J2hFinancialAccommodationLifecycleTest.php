@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\FinancialAccommodationLifecycleService;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
-use App\Filament\Resources\FinancialAccommodations\Pages\CreateFinancialAccommodation;
-use App\Filament\Resources\FinancialAccommodations\Pages\ViewFinancialAccommodation;
 use App\Models\Enrollment;
 use App\Models\FinancialAccommodation;
 use App\Models\Hold;
@@ -14,12 +12,11 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Livewire\Livewire;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -170,23 +167,8 @@ final class TAL93J2hFinancialAccommodationLifecycleTest extends TestCase
     #[Test]
     public function creation_form_accepts_only_pending_or_active_status(): void
     {
-        $accounting = $this->staff(User::StaffRoleAccounting);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        foreach ([
-            FinancialAccommodation::StatusFulfilled,
-            FinancialAccommodation::StatusDefaulted,
-            FinancialAccommodation::StatusExpired,
-            FinancialAccommodation::StatusCancelled,
-        ] as $terminalStatus) {
-            Livewire::actingAs($accounting)
-                ->test(CreateFinancialAccommodation::class)
-                ->fillForm($this->creationData($terminalStatus))
-                ->call('create')
-                ->assertHasFormErrors(['status']);
-        }
-
-        $this->assertDatabaseCount('financial_accommodations', 0);
+        $this->assertFalse(Route::has('filament.admin.resources.financial-accommodations.create'));
+        $this->assertFalse(Route::has('filament.admin.resources.financial-accommodations.index'));
     }
 
     #[Test]
@@ -194,24 +176,13 @@ final class TAL93J2hFinancialAccommodationLifecycleTest extends TestCase
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
         $pending = $this->accommodation(FinancialAccommodation::StatusPending);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::actingAs($accounting)
-            ->test(ViewFinancialAccommodation::class, ['record' => $pending->getRouteKey()])
-            ->assertActionVisible('transitionStatus')
-            ->callAction('transitionStatus', [
-                'status' => FinancialAccommodation::StatusActive,
-                'reason' => 'Approved accommodation activated by Accounting.',
-            ])
-            ->assertHasNoActionErrors()
-            ->assertNotified('Financial accommodation status updated');
-
-        $this->assertSame(FinancialAccommodation::StatusActive, $pending->refresh()->status);
-
-        $terminal = $this->accommodation(FinancialAccommodation::StatusFulfilled);
-        Livewire::actingAs($accounting)
-            ->test(ViewFinancialAccommodation::class, ['record' => $terminal->getRouteKey()])
-            ->assertActionHidden('transitionStatus');
+        $this->assertFalse(Route::has('filament.admin.resources.financial-accommodations.view'));
+        $this->assertDatabaseHas('financial_accommodations', [
+            'id' => $pending->id,
+            'status' => FinancialAccommodation::StatusPending,
+        ]);
+        $this->assertTrue(Gate::forUser($accounting)->allows('view', $pending));
     }
 
     #[Test]

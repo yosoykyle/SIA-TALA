@@ -10,7 +10,6 @@ use App\Actions\Finance\StudentAccountPresenter;
 use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
-use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
@@ -37,6 +36,7 @@ use Filament\Facades\Filament;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use ReflectionMethod;
 use RuntimeException;
@@ -69,13 +69,16 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $evidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
             'claimed_amount' => '600.00',
+            'channel' => 'bank_transfer',
+            'paid_at' => now()->subMinute(),
             'submitted_by' => $fixture['profile']->user_id,
         ]);
 
         $payment = app(ReviewPaymentEvidence::class)->verify(
             $evidence,
             $fixture['accounting'],
-            [$obligation->id => '600.00'],
+            '600.00',
+            'SYN-INDEPENDENT-CHECK-MANUAL',
         );
 
         $this->assertNull($payment->or_number);
@@ -244,14 +247,16 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             }
         });
 
-        Livewire::actingAs($first['accounting'])
-            ->test(ListPayments::class)
-            ->assertCanSeeTableRecords(Payment::query()->get());
+        $this->assertFalse(Route::has('filament.admin.resources.payments.index'));
+        $this->assertSame(2, Payment::query()->whereIn('provider_reference', [
+            'BANK-D5E1D5-TABLE-1',
+            'BANK-D5E1D5-TABLE-2',
+        ])->count());
 
         $this->assertCount(
-            1,
+            0,
             $courseEnrollmentQueries,
-            'The payment list must eager-load academic context once instead of querying it per payment.',
+            'The canonical payment list must not derive legacy academic context per payment.',
         );
     }
 
@@ -300,17 +305,20 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $firstEvidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
             'claimed_amount' => '600.00',
+            'channel' => 'bank_transfer',
+            'paid_at' => now()->subMinute(),
             'submitted_by' => $fixture['profile']->user_id,
         ]);
 
         app(ReviewPaymentEvidence::class)->verify(
             $firstEvidence,
             $fixture['accounting'],
-            [$obligations[0]->id => '600.00'],
+            '600.00',
+            'SYN-INDEPENDENT-CHECK-PARTIAL-1',
         );
         $partial = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($fixture['enrollment']);
 
-        $this->assertSame('PartiallySatisfied', $partial['state']);
+        $this->assertSame('ActionNeeded', $partial['state']);
         $this->assertSame('600.00', $partial['payment_applied']);
         $this->assertSame('900.00', $partial['balance']);
 
@@ -321,16 +329,19 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             'path' => 'registration-payment-evidence/'.$fixture['assessment']->term_account_id.'/second-synthetic.pdf',
             'checksum' => hash('sha256', 'second-synthetic-payment-evidence-'.$fixture['assessment']->term_account_id),
             'claimed_amount' => '400.00',
+            'channel' => 'bank_transfer',
+            'paid_at' => now()->subMinute(),
             'submitted_by' => $fixture['profile']->user_id,
         ]);
         app(ReviewPaymentEvidence::class)->verify(
             $secondEvidence,
             $fixture['accounting'],
-            [$obligations[0]->id => '400.00'],
+            '400.00',
+            'SYN-INDEPENDENT-CHECK-PARTIAL-2',
         );
         $complete = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($fixture['enrollment']);
 
-        $this->assertSame('PartiallySatisfied', $complete['state']);
+        $this->assertSame('ActionNeeded', $complete['state']);
         $this->assertSame('1000.00', $complete['payment_applied']);
         $this->assertSame('500.00', $complete['balance']);
     }
@@ -384,8 +395,8 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ->get(route('finance.statement', ['assessment' => $fixture['assessment']]))
             ->assertOk()
             ->assertSee('finance-responsive-table', false)
-            ->assertSee('data-label="Charge"', false)
-            ->assertSee('data-label="Date Posted"', false);
+            ->assertSee('data-label="Obligation"', false)
+            ->assertSee('data-label="Balance"', false);
     }
 
     public function test_automatic_provider_allocation_does_not_retarget_a_satisfied_obligation(): void
@@ -395,12 +406,15 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $evidence = PaymentEvidenceVersion::factory()->create([
             'term_account_id' => $fixture['assessment']->term_account_id,
             'claimed_amount' => '1000.00',
+            'channel' => 'bank_transfer',
+            'paid_at' => now()->subMinute(),
             'submitted_by' => $fixture['profile']->user_id,
         ]);
         app(ReviewPaymentEvidence::class)->verify(
             $evidence,
             $fixture['accounting'],
-            [$obligations[0]->id => '1000.00'],
+            '1000.00',
+            'SYN-INDEPENDENT-CHECK-PROVIDER-SEAM',
         );
 
         $attempt = PaymentAttempt::query()->create([
@@ -626,12 +640,15 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             return $assessmentLine;
         })->values()->all();
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             AssessmentObligation::query()->create([
                 'assessment_id' => $assessment->id,
+                'sequence' => $index + 1,
                 'code' => (string) $line->source_line_key,
                 'label' => (string) $line->description_snapshot,
+                'purpose' => 'Enrollment',
                 'amount' => (string) $line->amount,
+                'due_at' => now()->subMinute(),
                 'required_for_enrollment' => true,
             ]);
         }

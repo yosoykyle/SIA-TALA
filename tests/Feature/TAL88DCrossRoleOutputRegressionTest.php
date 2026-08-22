@@ -6,17 +6,20 @@ use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\CorVersion;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -128,32 +131,22 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Student Copy');
-
-        $this->actingAs($fixture['student'])
-            ->get(route('finance.billing-slip', $fixture['assessment']).'?print=1')
-            ->assertOk()
-            ->assertSee('Billing Slip');
+            ->assertSee('Authenticated Account Copy');
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')
             ->assertOk()
-            ->assertSee('Payment Acknowledgement');
+            ->assertSee('Payment Acknowledgment');
 
         $this->actingAs($accounting)
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Accounting Copy');
-
-        $this->actingAs($accounting)
-            ->get(route('finance.billing-slip', $fixture['assessment']).'?print=1')
-            ->assertOk()
-            ->assertSee('Billing Slip');
+            ->assertSee('Authenticated Account Copy');
 
         $this->actingAs($accounting)
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')
             ->assertOk()
-            ->assertSee('Payment Acknowledgement');
+            ->assertSee('Payment Acknowledgment');
 
         $logCount = DB::table('output_access_logs')->count();
 
@@ -173,15 +166,7 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'source_record_id' => $fixture['assessment']->id,
             'actor_user_id' => $fixture['student']->id,
             'action' => FinanceEvidenceService::ActionView,
-            'copy_context' => FinanceEvidenceService::CopyStudent,
-        ]);
-        $this->assertDatabaseHas('output_access_logs', [
-            'output_type' => FinanceEvidenceService::OutputBillingSlip,
-            'source_record_type' => PaymentScheduleRow::class,
-            'source_record_id' => $fixture['schedule']->id,
-            'actor_user_id' => $fixture['student']->id,
-            'action' => FinanceEvidenceService::ActionPrint,
-            'copy_context' => FinanceEvidenceService::CopyStudent,
+            'copy_context' => 'LEARNER_COPY',
         ]);
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => FinanceEvidenceService::OutputPaymentAcknowledgement,
@@ -189,19 +174,12 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'source_record_id' => $fixture['payment']->id,
             'actor_user_id' => $fixture['student']->id,
             'action' => FinanceEvidenceService::ActionPrint,
-            'copy_context' => FinanceEvidenceService::CopyStudent,
+            'copy_context' => 'LEARNER_COPY',
         ]);
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => FinanceEvidenceService::OutputSoa,
             'source_record_type' => Assessment::class,
             'source_record_id' => $fixture['assessment']->id,
-            'actor_user_id' => $accounting->id,
-            'copy_context' => FinanceEvidenceService::CopyAccounting,
-        ]);
-        $this->assertDatabaseHas('output_access_logs', [
-            'output_type' => FinanceEvidenceService::OutputBillingSlip,
-            'source_record_type' => PaymentScheduleRow::class,
-            'source_record_id' => $fixture['schedule']->id,
             'actor_user_id' => $accounting->id,
             'copy_context' => FinanceEvidenceService::CopyAccounting,
         ]);
@@ -222,7 +200,6 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
     {
         return [
             route('finance.statement', $fixture['assessment']),
-            route('finance.billing-slip', $fixture['assessment']).'?print=1',
             route('finance.payments.acknowledgement', $fixture['payment']).'?print=1',
         ];
     }
@@ -245,12 +222,19 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'state' => Term::StateActive,
         ]);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'credential_user_id' => $student->id,
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),
             'officially_enrolled_at' => now(),
         ]);
+        $account = TermAccount::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -259,6 +243,16 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        $obligation = AssessmentObligation::factory()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'TUITION',
+            'label' => 'Tuition obligation',
+            'purpose' => 'TermPayment',
+            'amount' => '9000.00',
+            'due_at' => now()->subDay(),
+            'required_for_enrollment' => true,
         ]);
         $issuer = $this->staff(User::StaffRoleRegistrar);
         $timetable = PublishedTimetableVersion::factory()->for($term)->create([
@@ -345,14 +339,25 @@ final class TAL88DCrossRoleOutputRegressionTest extends TestCase
         ]);
 
         $payment = Payment::factory()->for($profile)->for($term)->create([
+            'term_account_id' => $account->id,
             'method' => 'paymongo',
             'channel' => 'paymongo',
             'amount' => '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
             'verified_at' => now()->subMinutes(20),
+            'state' => Payment::StatePosted,
+            'verification_basis' => 'IndependentSourceCheck',
+            'external_check_reference' => 'SYNTH-TAL88D-CHECK',
             'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
             'or_number' => null,
+        ]);
+        PaymentAllocation::factory()->create([
+            'payment_id' => $payment->id,
+            'sequence' => 1,
+            'assessment_obligation_id' => $obligation->id,
+            'assessment_line_id' => null,
+            'amount' => '500.00',
         ]);
 
         LedgerEntry::query()->create([

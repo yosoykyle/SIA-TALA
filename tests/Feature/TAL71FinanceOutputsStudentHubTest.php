@@ -3,22 +3,24 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\FinanceEvidenceService;
-use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
 use App\Actions\Integrations\Payments\MockPaymentGateway;
 use App\Actions\Integrations\Payments\PaymentGateway;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -57,14 +59,12 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Available')
-            ->assertSee('Tuition Fee')
-            ->assertSee('Required Downpayment')
-            ->assertSee('Current Amount Due')
-            ->assertSee('PHP 2,000.00')
+            ->assertSee('Current Term Account')
+            ->assertSee('Tuition obligation')
+            ->assertSee('Due through as-of')
             ->assertSee('PHP 8,500.00')
-            ->assertSee('Pending OR Mapping')
-            ->assertSee('Institutional Accommodation');
+            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Manual payment evidence');
     }
 
     public function test_finance_outputs_are_authenticated_owned_and_logged(): void
@@ -76,7 +76,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
             ->assertSee('Statement of Account')
-            ->assertSee('Tuition Fee')
+            ->assertSee('Tuition obligation')
             ->assertSee('PHP 8,500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -86,30 +86,17 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'student_profile_id' => $fixture['profile']->id,
             'actor_user_id' => $student->id,
             'action' => FinanceEvidenceService::ActionView,
-            'copy_context' => FinanceEvidenceService::CopyStudent,
+            'copy_context' => 'LEARNER_COPY',
             'status' => 'logged',
         ]);
 
-        $this->actingAs($student)
-            ->get(route('finance.billing-slip', $fixture['assessment']).'?print=1')
-            ->assertOk()
-            ->assertSee('Billing Slip')
-            ->assertSee('not an official tax receipt')
-            ->assertSee('PHP 2,000.00');
-
-        $this->assertDatabaseHas('output_access_logs', [
-            'output_type' => FinanceEvidenceService::OutputBillingSlip,
-            'source_record_type' => PaymentScheduleRow::class,
-            'source_record_id' => $fixture['schedule']->id,
-            'actor_user_id' => $student->id,
-            'action' => FinanceEvidenceService::ActionPrint,
-        ]);
+        $this->assertFalse(Route::has('finance.billing-slip'));
 
         $this->actingAs($student)
             ->get(route('finance.payments.acknowledgement', $fixture['payment']).'?print=1')
             ->assertOk()
-            ->assertSee('Payment Acknowledgement')
-            ->assertSee('Pending OR Mapping')
+            ->assertSee('Payment Acknowledgment')
+            ->assertSee('Actual Verified Amount')
             ->assertSee('PHP 500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -133,17 +120,13 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($other)
-            ->get(route('finance.billing-slip', $fixture['assessment']))
-            ->assertForbidden();
-
-        $this->actingAs($other)
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertForbidden();
 
         $this->assertSame($accessLogCountBefore, DB::table('output_access_logs')->count());
     }
 
-    public function test_billing_slip_and_acknowledgement_are_unavailable_without_required_source_state(): void
+    public function test_retired_billing_slip_is_absent_and_acknowledgement_requires_a_posted_payment(): void
     {
         $fixture = $this->financeFixture([
             'schedule_state' => 'paid',
@@ -176,9 +159,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'state' => 'draft',
         ]);
 
-        $this->actingAs($fixture['student'])
-            ->get(route('finance.billing-slip', $fixture['assessment']))
-            ->assertForbidden();
+        $this->assertFalse(Route::has('finance.billing-slip'));
 
         $this->actingAs($fixture['student'])
             ->get(route('finance.payments.acknowledgement', $unpostedPayment))
@@ -189,33 +170,15 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_checkout_uses_current_due_amount_and_reuses_matching_pending_attempt(): void
+    public function test_paymongo_checkout_is_not_active_and_manual_payment_remains_available(): void
     {
         $fixture = $this->financeFixture(['include_review_attempt' => false]);
-        $creator = app(CreatePaymentCheckoutSession::class);
 
-        $first = $creator->create(
-            actor: $fixture['student'],
-            assessmentId: $fixture['assessment']->id,
-            description: 'Current amount due',
-        );
-
-        $second = $creator->create(
-            actor: $fixture['student'],
-            assessmentId: $fixture['assessment']->id,
-            description: 'Current amount due',
-        );
-
-        $this->assertSame($first['payment_attempt_id'], $second['payment_attempt_id']);
-        $this->assertSame(1, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->where('status', 'pending')->count());
-        $this->assertStringStartsWith('https://mock-payments.test/checkout/', $first['checkout_url']);
-
-        $otherStudent = $this->studentUser();
-        StudentProfile::factory()->for($otherStudent)->create();
-
-        $this->expectExceptionMessage('No active assessment is available for finance viewing.');
-
-        $creator->create(actor: $otherStudent, assessmentId: $fixture['assessment']->id);
+        Livewire::actingAs($fixture['student'])
+            ->test(Finance::class)
+            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Manual payment evidence');
+        $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
     }
 
     public function test_student_hub_replaces_old_finance_placeholder_routes(): void
@@ -230,7 +193,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
         $this->get('/student/payment-acknowledgement-view')->assertNotFound();
 
         $this->assertNotNull(Route::getRoutes()->getByName('finance.statement'));
-        $this->assertNotNull(Route::getRoutes()->getByName('finance.billing-slip'));
+        $this->assertNull(Route::getRoutes()->getByName('finance.billing-slip'));
         $this->assertNotNull(Route::getRoutes()->getByName('finance.payments.acknowledgement'));
     }
 
@@ -247,11 +210,18 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
         ]);
         $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'credential_user_id' => $student->id,
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+        $account = TermAccount::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -260,6 +230,16 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        $obligation = AssessmentObligation::factory()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'TUITION',
+            'label' => 'Tuition obligation',
+            'purpose' => 'TermPayment',
+            'amount' => '9000.00',
+            'due_at' => now()->subDay(),
+            'required_for_enrollment' => true,
         ]);
         $feeRule = FeeRule::query()->create([
             'code' => 'TUITION',
@@ -306,14 +286,25 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             'state' => 'posted',
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
+            'term_account_id' => $account->id,
             'method' => 'paymongo',
             'channel' => 'paymongo',
             'amount' => $overrides['ledger_payment_amount'] ?? '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
             'verified_at' => now()->subMinutes(20),
+            'state' => Payment::StatePosted,
+            'verification_basis' => 'IndependentSourceCheck',
+            'external_check_reference' => 'SYNTH-TAL71-CHECK',
             'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
             'or_number' => null,
+        ]);
+        PaymentAllocation::factory()->create([
+            'payment_id' => $payment->id,
+            'sequence' => 1,
+            'assessment_obligation_id' => $obligation->id,
+            'assessment_line_id' => null,
+            'amount' => $overrides['ledger_payment_amount'] ?? '500.00',
         ]);
         LedgerEntry::query()->create([
             'student_profile_id' => $profile->id,

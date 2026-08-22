@@ -10,13 +10,18 @@ use App\Models\Enrollment;
 use App\Models\FeePlan;
 use App\Models\TermAccount;
 use App\Models\User;
+use App\Support\DecimalMoney;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreateAssessmentFromPublishedFeePlan
 {
-    public function __construct(private readonly RegistrationPlacementValidator $placementValidator) {}
+    public function __construct(
+        private readonly RegistrationPlacementValidator $placementValidator,
+        private readonly DecimalMoney $money,
+    ) {}
 
     public function execute(Enrollment $enrollment, User $actor): Assessment
     {
@@ -48,22 +53,34 @@ class CreateAssessmentFromPublishedFeePlan
                 throw ValidationException::withMessages(['assessment' => 'Unavailable: publish the exact Program-and-Term Fee Plan.']);
             }
 
-            return $this->create($locked, $actor, 'PublishedFeePlan', $feePlan->authority_reference, $feePlan, $feePlan->charges->map->only(['id', 'code', 'label', 'amount'])->all(), $feePlan->obligations->map->only(['code', 'label', 'amount', 'required_for_enrollment'])->all());
+            if ($feePlan->authority_date === null || $feePlan->obligations->contains(fn ($obligation): bool => $obligation->sequence === null || blank($obligation->purpose) || $obligation->due_at === null)) {
+                throw ValidationException::withMessages(['assessment' => 'Unavailable: the published Fee Plan lacks complete dated obligation authority; publish a successor.']);
+            }
+
+            return $this->create(
+                $locked, $actor, 'PublishedFeePlan', null, $feePlan->authority_reference,
+                CarbonImmutable::parse($feePlan->authority_date), $feePlan,
+                $feePlan->charges->map->only(['id', 'code', 'label', 'category', 'amount'])->all(),
+                $feePlan->obligations->map->only(['sequence', 'code', 'label', 'purpose', 'amount', 'due_at', 'required_for_enrollment'])->all(),
+            );
         }, attempts: 3);
     }
 
     /**
-     * @param  list<array{id?:int,code:string,label:string,amount:string}>  $charges
-     * @param  list<array{code:string,label:string,amount:string,required_for_enrollment:bool}>  $obligations
+     * @param  list<array{id?:int,code:string,label:string,category?:string,amount:string}>  $charges
+     * @param  list<array{sequence?:int,code:string,label:string,purpose:string,amount:string,due_at:mixed,required_for_enrollment:bool}>  $obligations
      */
-    public function create(Enrollment $enrollment, User $actor, string $basis, string $authorityReference, ?FeePlan $feePlan, array $charges, array $obligations): Assessment
+    public function create(Enrollment $enrollment, User $actor, string $basis, ?string $reasonCategory, string $authorityReference, CarbonImmutable $authorityDate, ?FeePlan $feePlan, array $charges, array $obligations): Assessment
     {
         $account = TermAccount::query()->firstOrCreate(
             ['enrollment_id' => $enrollment->id],
             ['credential_user_id' => $enrollment->credential_user_id, 'term_id' => $enrollment->term_id, 'state' => TermAccount::StateOpen],
         );
-        $total = collect($charges)->sum(fn (array $charge): float => (float) $charge['amount']);
-        $source = ['basis' => $basis, 'authority_reference' => $authorityReference, 'fee_plan_id' => $feePlan?->id, 'proposal_id' => $enrollment->current_proposal_version_id, 'charges' => $charges, 'obligations' => $obligations];
+        $total = '0.00';
+        foreach ($charges as $charge) {
+            $total = $this->money->add($total, $charge['amount']);
+        }
+        $source = ['basis' => $basis, 'reason_category' => $reasonCategory, 'authority_reference' => $authorityReference, 'authority_date' => $authorityDate->toDateString(), 'fee_plan_id' => $feePlan?->id, 'proposal_id' => $enrollment->current_proposal_version_id, 'charges' => $charges, 'obligations' => $obligations];
         $contentHash = hash('sha256', json_encode($source, JSON_THROW_ON_ERROR));
         $existing = Assessment::query()
             ->where('term_account_id', $account->id)
@@ -82,14 +99,17 @@ class CreateAssessmentFromPublishedFeePlan
             'fee_plan_id' => $feePlan?->id,
             'source_proposal_version_id' => $enrollment->current_proposal_version_id,
             'assessment_basis' => $basis,
+            'reason_category' => $reasonCategory,
             'authority_reference' => $authorityReference,
+            'authority_date' => $authorityDate->toDateString(),
+            'source_snapshot' => $source,
             'content_hash' => $contentHash,
             'version' => $version,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
-            'subtotal' => number_format($total, 2, '.', ''),
+            'subtotal' => $total,
             'discount_total' => '0.00',
-            'total' => number_format($total, 2, '.', ''),
+            'total' => $total,
             'required_downpayment' => '0.00',
             'activated_by' => $actor->id,
             'activated_at' => now(),
@@ -110,8 +130,8 @@ class CreateAssessmentFromPublishedFeePlan
                 'line_type' => 'fixed',
             ]);
         }
-        foreach ($obligations as $obligation) {
-            AssessmentObligation::query()->create(['assessment_id' => $assessment->id, ...$obligation]);
+        foreach ($obligations as $index => $obligation) {
+            AssessmentObligation::query()->create(['assessment_id' => $assessment->id, 'sequence' => $obligation['sequence'] ?? $index + 1, ...$obligation]);
         }
 
         if ($existing instanceof Assessment) {

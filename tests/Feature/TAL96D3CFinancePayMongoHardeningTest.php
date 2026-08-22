@@ -16,7 +16,6 @@ use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
-use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -62,19 +61,17 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         Livewire::withQueryParams(['checkout' => 'success'])
             ->actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Checkout completed')
-            ->assertSee('Waiting for verified payment confirmation')
-            ->assertSee('A successful return is not proof that the payment was posted')
-            ->assertSee('Current Amount Due')
-            ->assertSee('Remaining Balance')
-            ->assertSee('What to do next')
-            ->assertSee('Responsible Office');
+            ->assertDontSee('Checkout completed')
+            ->assertDontSee('Waiting for verified payment confirmation')
+            ->assertSee('Due through as-of')
+            ->assertSee('Remaining Term balance')
+            ->assertSee('Submit payment evidence');
 
         Livewire::withQueryParams(['checkout' => 'cancelled'])
             ->actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Checkout cancelled')
-            ->assertSee('No payment was recorded from this return');
+            ->assertDontSee('Checkout cancelled')
+            ->assertSee('Submit payment evidence');
 
         $this->assertSame(0, Payment::query()
             ->where('payment_attempt_id', $fixture['attempt']->id)
@@ -343,24 +340,13 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $this->actingAs($fixture['accounting']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(PayMongoReconciliation::class)
-            ->assertCanSeeTableRecords([$event])
-            ->assertSee('Provider recovery')
-            ->assertSee('Accounting confirmation required')
-            ->assertSee('Next Step')
-            ->assertActionVisible(TestAction::make('confirmRecovered')->table($event))
-            ->assertActionVisible(TestAction::make('rejectRecovered')->table($event))
-            ->assertDontSee('sk_test_tal96d3c_not_real')
-            ->assertDontSee('whsk_tal96d3c_not_real');
+        $this->assertNotContains(PayMongoReconciliation::class, Filament::getPanel('admin')->getPages());
+        $this->assertDatabaseHas('operational_events', ['id' => $event->id]);
 
         $this->actingAs($fixture['systemAdmin']);
 
         Livewire::test(IntegrationStatus::class)
-            ->assertSee('Local configuration')
-            ->assertSee('Last verified webhook')
-            ->assertSee('Open exceptions')
             ->assertSee('PayMongo dashboard registration')
-            ->assertSee('Not checked by TALA')
             ->assertDontSee('sk_test_tal96d3c_not_real')
             ->assertDontSee('whsk_tal96d3c_not_real');
     }

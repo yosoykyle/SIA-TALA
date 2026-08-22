@@ -18,9 +18,9 @@ class PaymentPostedNotificationService
 
     public function record(Payment $payment): void
     {
-        $payment->loadMissing(['studentProfile.user', 'term']);
+        $payment->loadMissing(['studentProfile.user', 'termAccount.credentialUser', 'term']);
         $profile = $payment->studentProfile;
-        $recipient = $profile instanceof StudentProfile ? $profile->user : null;
+        $recipient = $profile instanceof StudentProfile ? $profile->user : $payment->termAccount?->credentialUser;
 
         if (! $recipient instanceof User) {
             return;
@@ -51,7 +51,7 @@ class PaymentPostedNotificationService
                 'related_record_id' => (int) $payment->id,
                 'diagnostics' => null,
                 'payload' => [
-                    'student_profile_id' => (int) $payment->student_profile_id,
+                    'student_profile_id' => $payment->student_profile_id !== null ? (int) $payment->student_profile_id : null,
                     'term_id' => (int) $payment->term_id,
                     'amount' => $this->money->normalize((string) $payment->amount),
                     'currency' => (string) $payment->currency,

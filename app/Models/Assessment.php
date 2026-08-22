@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $authority_date
+ * @property Carbon|null $activated_at
+ */
 class Assessment extends Model
 {
     /** @use HasFactory<AssessmentFactory> */
@@ -25,6 +30,21 @@ class Assessment extends Model
 
     public const StateLocked = 'LOCKED';
 
+    public const CategorySpecialTerm = 'SpecialTerm';
+
+    public const CategoryReducedEnrollment = 'ReducedEnrollment';
+
+    public const CategoryIndividuallyAdvised = 'IndividuallyAdvised';
+
+    public const CategoryAuthorizedAdjustment = 'AuthorizedAdjustment';
+
+    public const IndividualCategories = [
+        self::CategorySpecialTerm,
+        self::CategoryReducedEnrollment,
+        self::CategoryIndividuallyAdvised,
+        self::CategoryAuthorizedAdjustment,
+    ];
+
     /**
      * @var list<string>
      */
@@ -34,7 +54,10 @@ class Assessment extends Model
         'fee_plan_id',
         'source_proposal_version_id',
         'assessment_basis',
+        'reason_category',
         'authority_reference',
+        'authority_date',
+        'source_snapshot',
         'content_hash',
         'version',
         'state',
@@ -59,6 +82,8 @@ class Assessment extends Model
             'discount_total' => 'decimal:2',
             'total' => 'decimal:2',
             'required_downpayment' => 'decimal:2',
+            'authority_date' => 'date',
+            'source_snapshot' => 'array',
             'activated_at' => 'datetime',
         ];
     }
@@ -78,7 +103,7 @@ class Assessment extends Model
     /** @return HasMany<AssessmentObligation, $this> */
     public function obligations(): HasMany
     {
-        return $this->hasMany(AssessmentObligation::class);
+        return $this->hasMany(AssessmentObligation::class)->orderBy('sequence')->orderBy('id');
     }
 
     /** @return BelongsTo<Enrollment, $this> */

@@ -10,11 +10,13 @@ use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\OperationalEvent;
+use App\Models\Payment;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -137,6 +139,8 @@ class Enrollment extends Page
                         ->maxSize(10240)
                         ->required(),
                     TextInput::make('claimed_amount')->numeric()->minValue(0.01)->prefix('PHP')->required(),
+                    Select::make('channel')->options(Payment::manualConfirmationChannelOptions())->required(),
+                    DateTimePicker::make('paid_at')->required()->seconds(false)->maxDate(now()),
                     TextInput::make('payment_reference')->maxLength(255),
                 ])
                 ->action(function (array $data): void {
@@ -152,6 +156,8 @@ class Enrollment extends Page
                             $this->actor(),
                             $file,
                             (string) $data['claimed_amount'],
+                            $data['channel'],
+                            $data['paid_at'],
                             $data['payment_reference'] ?? null,
                         );
                         Notification::make()->title('Payment evidence submitted')->body('Accounting review remains required.')->success()->send();

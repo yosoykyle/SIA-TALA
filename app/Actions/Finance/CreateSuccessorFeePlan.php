@@ -40,10 +40,10 @@ class CreateSuccessorFeePlan
                 'created_by' => $actor->id,
             ]);
             foreach ($locked->charges as $charge) {
-                FeePlanCharge::query()->create(['fee_plan_id' => $successor->id, ...$charge->only(['sequence', 'code', 'label', 'amount'])]);
+                FeePlanCharge::query()->create(['fee_plan_id' => $successor->id, ...$charge->only(['sequence', 'code', 'label', 'category', 'amount'])]);
             }
             foreach ($locked->obligations as $obligation) {
-                FeePlanObligation::query()->create(['fee_plan_id' => $successor->id, ...$obligation->only(['code', 'label', 'amount', 'required_for_enrollment'])]);
+                FeePlanObligation::query()->create(['fee_plan_id' => $successor->id, ...$obligation->only(['sequence', 'code', 'label', 'purpose', 'amount', 'due_at', 'required_for_enrollment'])]);
             }
 
             return $successor->load(['charges', 'obligations']);

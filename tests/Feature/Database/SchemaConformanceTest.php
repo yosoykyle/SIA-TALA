@@ -29,13 +29,13 @@ final class SchemaConformanceTest extends TestCase
         'external_competency_requirements', 'external_competency_results',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
         'faculty_availability_declarations', 'fee_plan_charges', 'fee_plan_obligations', 'fee_plans',
-        'financial_accommodations', 'grade_outcome_events', 'grade_roster_returned_rows', 'grade_roster_rows',
+        'finance_exports', 'financial_accommodations', 'grade_outcome_events', 'grade_roster_returned_rows', 'grade_roster_rows',
         'grade_roster_version_rows', 'grade_roster_versions', 'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
         'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'inc_completion_submissions',
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
-        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results',
+        'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
         'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
         'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
@@ -66,9 +66,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(113, self::APPLICATION_TABLES);
+        $this->assertCount(115, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(131, $actual);
+        $this->assertCount(133, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -79,8 +79,12 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('section_meetings', ['schedule_run_id', 'scheduling_demand_id', 'meeting_sequence', 'room_id']);
         $this->assertColumns('enrollment_exceptions', ['enrollment_id', 'student_profile_id', 'term_id', 'exception_type', 'enrollment_gate_result_id', 'target_term_offering_id']);
         $this->assertColumns('payment_attempts', ['assessment_id', 'student_profile_id', 'internal_reference']);
-        $this->assertColumns('payments', ['payment_attempt_id', 'evidence_status', 'or_number', 'provider_reference']);
-        $this->assertColumns('payment_allocations', ['payment_id', 'assessment_line_id', 'payment_schedule_row_id', 'prior_balance_ledger_entry_id']);
+        $this->assertColumns('payments', ['payment_attempt_id', 'payment_evidence_version_id', 'reverses_payment_id', 'state', 'verification_basis', 'external_check_reference']);
+        $this->assertColumns('payment_allocations', ['payment_id', 'sequence', 'assessment_obligation_id']);
+        $this->assertColumns('fee_plan_obligations', ['sequence', 'purpose', 'due_at']);
+        $this->assertColumns('assessment_obligations', ['sequence', 'purpose', 'due_at']);
+        $this->assertColumns('approved_coverages', ['state', 'category', 'effective_date', 'supersedes_coverage_id']);
+        $this->assertColumns('official_output_payment_clearances', ['output_request_reference', 'version', 'supersedes_clearance_id', 'state']);
         $this->assertColumns('ledger_entries', ['source_type', 'source_id', 'reverses_entry_id', 'adjusts_entry_id']);
         $this->assertColumns('accounting_adjustments', ['source_ledger_entry_id', 'ledger_entry_id', 'adjustment_type', 'posted_by']);
         $this->assertColumns('grade_outcome_events', ['grade_roster_row_id', 'previous_value', 'new_value', 'previous_category', 'new_category']);
@@ -105,6 +109,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertForeignKey('enrollment_exceptions', 'enrollment_gate_result_id', 'enrollment_gate_results', 'RESTRICT');
         $this->assertForeignKey('payments', 'payment_attempt_id', 'payment_attempts', 'RESTRICT');
         $this->assertForeignKey('payment_allocations', 'payment_id', 'payments', 'RESTRICT');
+        $this->assertForeignKey('approved_coverages', 'supersedes_coverage_id', 'approved_coverages', 'RESTRICT');
+        $this->assertForeignKey('official_output_payment_clearances', 'supersedes_clearance_id', 'official_output_payment_clearances', 'RESTRICT');
         $this->assertForeignKey('ledger_entries', 'payment_allocation_id', 'payment_allocations', 'RESTRICT');
         $this->assertForeignKey('accounting_adjustments', 'ledger_entry_id', 'ledger_entries', 'RESTRICT');
         $this->assertForeignKey('accounting_adjustments', 'source_ledger_entry_id', 'ledger_entries', 'RESTRICT');
@@ -125,6 +131,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertUniqueIndex('grade_roster_rows', ['course_enrollment_id']);
         $this->assertUniqueIndex('payments', ['or_number']);
         $this->assertUniqueIndex('payments', ['provider_reference']);
+        $this->assertUniqueIndex('payments', ['payment_evidence_version_id']);
+        $this->assertUniqueIndex('payments', ['reverses_payment_id']);
 
         foreach ([
             ['fee_rules', 'rate', 12, 2],

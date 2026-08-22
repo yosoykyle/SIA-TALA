@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TermAccount extends Model
 {
@@ -59,5 +60,35 @@ class TermAccount extends Model
     public function paymentEvidenceVersions(): HasMany
     {
         return $this->hasMany(PaymentEvidenceVersion::class);
+    }
+
+    /** @return HasOne<PaymentEvidenceVersion, $this> */
+    public function latestPaymentEvidenceVersion(): HasOne
+    {
+        return $this->hasOne(PaymentEvidenceVersion::class)->ofMany([
+            'version' => 'max',
+            'id' => 'max',
+        ]);
+    }
+
+    /** @return HasMany<FinanceExport, $this> */
+    public function financeExports(): HasMany
+    {
+        return $this->hasMany(FinanceExport::class);
+    }
+
+    /** @return HasMany<OfficialOutputPaymentClearance, $this> */
+    public function outputPaymentClearances(): HasMany
+    {
+        return $this->hasMany(OfficialOutputPaymentClearance::class);
+    }
+
+    /** @return HasOne<OfficialOutputPaymentClearance, $this> */
+    public function latestOutputPaymentClearance(): HasOne
+    {
+        return $this->hasOne(OfficialOutputPaymentClearance::class)->ofMany([
+            'version' => 'max',
+            'id' => 'max',
+        ]);
     }
 }

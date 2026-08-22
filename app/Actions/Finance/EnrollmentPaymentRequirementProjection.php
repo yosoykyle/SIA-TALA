@@ -2,76 +2,53 @@
 
 namespace App\Actions\Finance;
 
-use App\Models\Assessment;
 use App\Models\Enrollment;
+use App\Models\TermAccount;
+use App\Support\DecimalMoney;
 
 class EnrollmentPaymentRequirementProjection
 {
+    public function __construct(private readonly TermAccountProjection $accounts, private readonly DecimalMoney $money) {}
+
     /**
      * @return array{state:string,basis:?string,total:?string,satisfied:?string,balance:?string,assessment_id:?int,payment_applied:?string,coverage_applied:?string,satisfaction_basis:string,later_obligation:bool,as_of:string}
      */
     public function forEnrollment(Enrollment $enrollment): array
     {
-        $assessment = Assessment::query()
-            ->with(['obligations.paymentAllocations.payment', 'obligations.coverages'])
-            ->where('enrollment_id', $enrollment->id)
-            ->where('state', Assessment::StateActive)
-            ->where('source_proposal_version_id', $enrollment->current_proposal_version_id)
-            ->latest('version')
-            ->first();
-
-        if (! $assessment instanceof Assessment) {
+        $account = TermAccount::query()->where('enrollment_id', $enrollment->id)->first();
+        if (! $account instanceof TermAccount) {
             return $this->unavailable();
         }
-
-        $required = $assessment->obligations->where('required_for_enrollment', true);
-        if ($required->isEmpty()) {
-            return [...$this->unavailable(), 'basis' => $assessment->assessment_basis, 'assessment_id' => $assessment->id];
+        $position = $this->accounts->forAccount($account);
+        if ($position['assessment_id'] === null) {
+            return $this->unavailable();
         }
-
-        $total = (float) $required->sum(fn ($obligation): float => (float) $obligation->amount);
-        $satisfied = 0.0;
-        $paymentApplied = 0.0;
-        $coverageApplied = 0.0;
-        foreach ($required as $obligation) {
-            $payments = (float) $obligation->paymentAllocations
-                ->filter(fn ($allocation): bool => $allocation->payment?->evidence_status === 'verified')
-                ->sum(fn ($allocation): float => (float) $allocation->amount);
-            $coverage = (float) $obligation->coverages
-                ->whereNull('reversed_at')
-                ->sum(fn ($item): float => (float) $item->amount);
-            $applied = min((float) $obligation->amount, $payments + $coverage);
-            $paymentApplied += min($applied, $payments);
-            $coverageApplied += min(max(0, $applied - $payments), $coverage);
-            $satisfied += $applied;
-        }
-
-        $balance = max(0, $total - $satisfied);
-        $state = $balance < 0.005 ? 'Cleared' : ($satisfied > 0 ? 'PartiallySatisfied' : 'PaymentRequired');
-        if ($total < 0.005) {
-            $state = 'Cleared';
-        }
+        $required = collect($position['obligations'])->where('required_for_enrollment', true);
+        $totalCents = $required->sum(fn (array $row): int => $this->money->toCents($row['amount']));
+        $balanceCents = $required->sum(fn (array $row): int => $this->money->toCents($row['balance']));
+        $satisfiedCents = max(0, $totalCents - $balanceCents);
+        $state = $balanceCents === 0 ? 'Cleared' : 'ActionNeeded';
         $satisfactionBasis = match (true) {
             $state !== 'Cleared' => 'None',
-            $total < 0.005 => 'NoPaymentRequired',
-            $paymentApplied > 0 && $coverageApplied > 0 => 'Mixed',
-            $paymentApplied > 0 => 'VerifiedPayment',
-            $coverageApplied > 0 => 'ApprovedCoverage',
+            $totalCents === 0 => 'NoPaymentRequired',
+            $this->money->greaterThanZero($position['payment_applied']) && $this->money->greaterThanZero($position['coverage_applied']) => 'Mixed',
+            $this->money->greaterThanZero($position['payment_applied']) => 'VerifiedPayment',
+            $this->money->greaterThanZero($position['coverage_applied']) => 'ApprovedCoverage',
             default => 'None',
         };
 
         return [
             'state' => $state,
-            'basis' => $total < 0.005 ? 'NoPaymentRequired' : $assessment->assessment_basis,
-            'total' => number_format($total, 2, '.', ''),
-            'satisfied' => number_format($satisfied, 2, '.', ''),
-            'balance' => number_format($balance, 2, '.', ''),
-            'assessment_id' => $assessment->id,
-            'payment_applied' => number_format($paymentApplied, 2, '.', ''),
-            'coverage_applied' => number_format($coverageApplied, 2, '.', ''),
+            'basis' => $totalCents === 0 ? 'NoPaymentRequired' : 'CanonicalObligations',
+            'total' => $this->money->fromCents($totalCents),
+            'satisfied' => $this->money->fromCents($satisfiedCents),
+            'balance' => $this->money->fromCents($balanceCents),
+            'assessment_id' => $position['assessment_id'],
+            'payment_applied' => $position['payment_applied'],
+            'coverage_applied' => $position['coverage_applied'],
             'satisfaction_basis' => $satisfactionBasis,
-            'later_obligation' => $assessment->obligations->where('required_for_enrollment', false)->isNotEmpty(),
-            'as_of' => now()->toIso8601String(),
+            'later_obligation' => collect($position['obligations'])->contains(fn (array $row): bool => ! $row['required_for_enrollment']),
+            'as_of' => $position['as_of'],
         ];
     }
 

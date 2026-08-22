@@ -6,10 +6,6 @@ use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Actions\Finance\StudentAccountPresenter;
 use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
-use App\Filament\Resources\LedgerEntries\Pages\ListLedgerEntries;
-use App\Filament\Resources\LedgerEntries\Pages\ViewLedgerEntry;
-use App\Filament\Resources\PaymentAttempts\Pages\ListPaymentAttempts;
-use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
 use App\Models\CandidateScheduleRow;
@@ -26,6 +22,7 @@ use Database\Seeders\TAL96D5E1ExplorationPersonaSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
@@ -61,8 +58,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->get('/admin')
             ->assertOk()
             ->assertSeeText('Fee Plans')
-            ->assertSeeText('Enrollment Clearance')
-            ->assertSeeText('Payment Exceptions')
+            ->assertSeeText('Student Accounts')
             ->assertDontSeeText('Accounting Adjustments')
             ->assertDontSeeText('Financial Accommodations')
             ->assertDontSeeText('Ledger Entries')
@@ -109,20 +105,11 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->where('external_id', 'tal96d5e1c-open-exception')
             ->sole();
 
-        $this->actingAs($accounting);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(PayMongoReconciliation::class)
-            ->assertSee('Payment Exceptions')
-            ->assertSee('Signed webhook')
-            ->assertSee('Unknown Reference')
-            ->assertCanSeeTableRecords([$exception])
-            ->filterTable('channel', OperationalEvent::ChannelWebhook)
-            ->assertCanSeeTableRecords([$exception])
-            ->filterTable('status', OperationalEvent::StatusReviewRequired)
-            ->assertCanSeeTableRecords([$exception])
-            ->filterTable('reason', 'unknown_reference')
-            ->assertCanSeeTableRecords([$exception]);
+        $this->assertNotContains(PayMongoReconciliation::class, Filament::getPanel('admin')->getPages());
+        $this->assertDatabaseHas('operational_events', [
+            'id' => $exception->id,
+            'status' => OperationalEvent::StatusReviewRequired,
+        ]);
     }
 
     #[Test]
@@ -136,31 +123,12 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->sole();
         $activity = LedgerEntry::query()->findOrFail($adjustment->ledger_entry_id);
 
-        $this->actingAs($accounting);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(ListLedgerEntries::class)
-            ->assertCanSeeTableRecords([$activity])
-            ->assertSee('Balance Effect')
-            ->assertSee('Source')
-            ->assertSee('Payment Method')
-            ->assertSee('Posted By')
-            ->assertDontSeeText(AccountingAdjustment::class)
-            ->filterTable('direction', LedgerEntry::DirectionAdjustment)
-            ->assertCanSeeTableRecords([$activity])
-            ->filterTable('category', AccountingAdjustment::LedgerCategoryAdjustment)
-            ->assertCanSeeTableRecords([$activity])
-            ->filterTable('state', 'posted')
-            ->assertCanSeeTableRecords([$activity])
-            ->filterTable('source_type', AccountingAdjustment::class)
-            ->assertCanSeeTableRecords([$activity]);
-
-        Livewire::test(ViewLedgerEntry::class, ['record' => $activity->getRouteKey()])
-            ->assertSee('Account Activity')
-            ->assertSee('Balance Effect')
-            ->assertSee('Accounting adjustment')
-            ->assertSee('Posted By')
-            ->assertSee('Technical Trace');
+        $this->assertFalse(Route::has('filament.admin.resources.ledger-entries.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.ledger-entries.view'));
+        $this->assertDatabaseHas('ledger_entries', [
+            'id' => $activity->id,
+            'direction' => LedgerEntry::DirectionAdjustment,
+        ]);
     }
 
     #[Test]
@@ -191,53 +159,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $this->assertNotNull($paymentEnrollment);
         $this->assertNotNull($attemptEnrollment);
 
-        $formattedPaymentEnrollment = collect([
-            "#{$paymentEnrollment->id}",
-            $paymentEnrollment->term->label,
-            'Pending Payment',
-        ])->implode(' - ');
-        $formattedAttemptEnrollment = collect([
-            "#{$attemptEnrollment->id}",
-            $attemptEnrollment->term->label,
-            str($attemptEnrollment->status)->headline()->toString(),
-        ])->implode(' - ');
-
-        $this->actingAs($accounting);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(ListPayments::class)
-            ->assertCanSeeTableRecords([$payment])
-            ->assertTableColumnStateSet('channel', 'bank_transfer', record: $payment)
-            ->assertTableColumnFormattedStateSet('channel', 'Bank Transfer', record: $payment)
-            ->assertTableColumnStateSet('evidence_status', 'verified', record: $payment)
-            ->assertTableColumnFormattedStateSet('evidence_status', 'Verified', record: $payment)
-            ->assertTableColumnStateSet('academic_enrollment', $paymentEnrollment->displayLabel(), record: $payment)
-            ->assertTableColumnFormattedStateSet('academic_enrollment', $formattedPaymentEnrollment, record: $payment)
-            ->filterTable('channel', 'bank_transfer')
-            ->assertCanSeeTableRecords([$payment])
-            ->filterTable('evidence_status', 'verified')
-            ->assertCanSeeTableRecords([$payment]);
-
-        Livewire::test(ListPaymentAttempts::class)
-            ->assertCanSeeTableRecords([$attempt, $syntheticAttempt])
-            ->assertTableColumnStateSet('channel', 'online_checkout', record: $attempt)
-            ->assertTableColumnFormattedStateSet('channel', 'Online Checkout', record: $attempt)
-            ->assertTableColumnStateSet('status', 'under_review', record: $attempt)
-            ->assertTableColumnFormattedStateSet('status', 'Under Review', record: $attempt)
-            ->assertTableColumnStateSet('provider', 'paymongo', record: $attempt)
-            ->assertTableColumnFormattedStateSet('provider', 'PayMongo', record: $attempt)
-            ->assertTableColumnStateSet('assessment.enrollment.id', $attemptEnrollment->id, record: $attempt)
-            ->assertTableColumnFormattedStateSet('assessment.enrollment.id', $formattedAttemptEnrollment, record: $attempt)
-            ->assertTableColumnStateSet('channel', 'synthetic_acceptance', record: $syntheticAttempt)
-            ->assertTableColumnFormattedStateSet('channel', 'Acceptance Fixture', record: $syntheticAttempt)
-            ->assertTableColumnStateSet('provider', 'synthetic_acceptance', record: $syntheticAttempt)
-            ->assertTableColumnFormattedStateSet('provider', 'Acceptance Fixture', record: $syntheticAttempt)
-            ->filterTable('channel', 'online_checkout')
-            ->assertCanSeeTableRecords([$attempt])
-            ->filterTable('status', 'under_review')
-            ->assertCanSeeTableRecords([$attempt])
-            ->filterTable('provider', 'paymongo')
-            ->assertCanSeeTableRecords([$attempt]);
+        $this->assertFalse(Route::has('filament.admin.resources.payments.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.payment-attempts.index'));
 
         $this->assertSame('bank_transfer', $payment->fresh()->channel);
         $this->assertSame('verified', $payment->fresh()->evidence_status);

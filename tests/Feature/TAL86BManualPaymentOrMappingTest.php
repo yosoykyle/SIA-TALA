@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Finance\MapOfficialReceiptToPayment;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Filament\Resources\Assessments\AssessmentResource;
-use App\Filament\Resources\Payments\Pages\ListPayments;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -20,7 +19,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Livewire\Livewire;
+use Illuminate\Support\Facades\Route;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -211,7 +210,7 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $this->assertFalse(Gate::forUser($this->staff(User::StaffRoleAccounting))->allows('mapOfficialReceipt', $underReview));
     }
 
-    public function test_or_mapping_updates_existing_verified_posted_payment_only_without_new_rows(): void
+    public function test_legacy_or_mapping_action_is_retired_without_rewriting_existing_payment_rows(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
         $fixture = $this->activeAssessmentFixture();
@@ -219,25 +218,16 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
         $paymentCount = Payment::query()->count();
         $paymentLedgerCount = LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count();
 
-        Livewire::actingAs($accounting)
-            ->test(ListPayments::class)
-            ->assertTableActionVisible('mapOr', $payment)
-            ->callTableAction('mapOr', $payment, data: [
-                'or_number' => 'OR-86B-MAPPED',
-            ])
-            ->assertNotified('Official Receipt mapped successfully');
+        $this->assertFalse(Route::has('filament.admin.resources.payments.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.payments.view'));
 
         $payment->refresh();
 
-        $this->assertSame('OR-86B-MAPPED', $payment->or_number);
-        $this->assertSame($accounting->id, $payment->or_mapped_by);
-        $this->assertNotNull($payment->or_mapped_at);
+        $this->assertNull($payment->or_number);
+        $this->assertNull($payment->or_mapped_by);
+        $this->assertNull($payment->or_mapped_at);
         $this->assertSame($paymentCount, Payment::query()->count());
         $this->assertSame($paymentLedgerCount, LedgerEntry::query()->where('direction', LedgerEntry::DirectionPayment)->count());
-
-        Livewire::actingAs($accounting)
-            ->test(ListPayments::class)
-            ->assertTableActionHidden('mapOr', $payment->fresh());
     }
 
     public function test_or_mapping_rejects_duplicate_or_number_and_unposted_payment_evidence(): void

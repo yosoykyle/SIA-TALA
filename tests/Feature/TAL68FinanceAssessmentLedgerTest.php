@@ -72,6 +72,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             ->test(ListFeePlans::class)
             ->mountAction('createDraft');
         $chargeKey = array_key_first($component->get('mountedActions.0.data.charges'));
+        $obligationKey = array_key_first($component->get('mountedActions.0.data.obligations'));
 
         $component->setActionData([
             'program_id' => $program->id,
@@ -79,7 +80,16 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             'charges' => [$chargeKey => [
                 'code' => 'LAB',
                 'label' => 'Laboratory Fee',
+                'category' => 'InstitutionalFee',
                 'amount' => '350.00',
+            ]],
+            'obligations' => [$obligationKey => [
+                'code' => 'ENROLLMENT',
+                'label' => 'Enrollment obligation',
+                'purpose' => 'Enrollment',
+                'amount' => '350.00',
+                'due_at' => now()->addDay(),
+                'required_for_enrollment' => true,
             ]],
         ])->callMountedAction()
             ->assertHasNoActionErrors();

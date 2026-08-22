@@ -6,15 +6,18 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
 use App\Models\AssessmentLine;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -48,30 +51,18 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         $this->actingAs($accounting)
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
-            ->assertSee('Accounting Copy')
-            ->assertSee('Tuition Fee');
-
-        $this->actingAs($accounting)
-            ->get(route('finance.billing-slip', $fixture['assessment']).'?print=1')
-            ->assertOk()
-            ->assertSee('Billing Slip');
+            ->assertSee('Authenticated Account Copy')
+            ->assertSee('Tuition obligation');
 
         $this->actingAs($accounting)
             ->get(route('finance.payments.acknowledgement', $fixture['payment']))
             ->assertOk()
-            ->assertSee('Payment Acknowledgement');
+            ->assertSee('Payment Acknowledgment');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => FinanceEvidenceService::OutputSoa,
             'source_record_type' => Assessment::class,
             'source_record_id' => $fixture['assessment']->id,
-            'actor_user_id' => $accounting->id,
-            'copy_context' => FinanceEvidenceService::CopyAccounting,
-        ]);
-        $this->assertDatabaseHas('output_access_logs', [
-            'output_type' => FinanceEvidenceService::OutputBillingSlip,
-            'source_record_type' => PaymentScheduleRow::class,
-            'source_record_id' => $fixture['schedule']->id,
             'actor_user_id' => $accounting->id,
             'copy_context' => FinanceEvidenceService::CopyAccounting,
         ]);
@@ -84,7 +75,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         ]);
     }
 
-    public function test_soa_shows_version_verification_status_ledger_lines_and_configured_address(): void
+    public function test_soa_shows_version_dated_obligations_and_configured_address(): void
     {
         config(['institution.address' => '123 Servitech Ave, Metro Manila']);
         $fixture = $this->financeFixture();
@@ -93,9 +84,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             ->get(route('finance.statement', $fixture['assessment']).'?print=1')
             ->assertOk()
             ->assertSee('Assessment Version')
-            ->assertSee('Verification Status')
-            ->assertSee('Current')
-            ->assertSee('Tuition Fee')
+            ->assertSee('Dated Obligations')
+            ->assertSee('Tuition obligation')
             ->assertSee('123 Servitech Ave, Metro Manila');
     }
 
@@ -109,7 +99,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             ->assertSee('PayMongo')
             ->assertDontSee('PayMongo / PayMongo')
             ->assertDontSee('paymongo / paymongo')
-            ->assertSee(FinanceEvidenceService::EVIDENCE_DISCLAIMER);
+            ->assertSee('not an official receipt or tax document');
 
         $fixture['payment']->update([
             'method' => 'cash',
@@ -122,7 +112,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             ->assertSee('Cash')
             ->assertDontSee('Cash / Cash')
             ->assertDontSee('cash / cash')
-            ->assertSee(FinanceEvidenceService::EVIDENCE_DISCLAIMER);
+            ->assertSee('not an official receipt or tax document');
     }
 
     public function test_student_blocked_from_superseded_soa_but_accounting_allowed(): void
@@ -160,7 +150,8 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Payment Under Review');
+            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Manual payment evidence');
     }
 
     public function test_student_finance_reports_payment_rejected_when_latest_attempt_failed_without_posted_payment(): void
@@ -197,12 +188,19 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
         ]);
         $term = Term::factory()->create(['label' => 'First Semester 2026-2027']);
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'credential_user_id' => $student->id,
             'status' => 'officially_enrolled',
             'registered_at' => now()->subDay(),
             'officially_enrolled_at' => now(),
         ]);
+        $account = TermAccount::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
             'state' => $overrides['assessment_state'] ?? Assessment::StateActive,
             'currency' => 'PHP',
@@ -211,6 +209,16 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        $obligation = AssessmentObligation::factory()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'TUITION',
+            'label' => 'Tuition obligation',
+            'purpose' => 'TermPayment',
+            'amount' => '9000.00',
+            'due_at' => now()->subDay(),
+            'required_for_enrollment' => true,
         ]);
         $feeRule = FeeRule::query()->create([
             'code' => 'TUITION',
@@ -257,17 +265,28 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
             'state' => 'posted',
         ]);
         $payment = Payment::factory()->for($profile)->for($term)->create([
+            'term_account_id' => $account->id,
             'method' => 'paymongo',
             'channel' => 'paymongo',
             'amount' => '500.00',
             'evidence_status' => 'verified',
             'paid_at' => now()->subMinutes(30),
             'verified_at' => now()->subMinutes(20),
+            'state' => $postPayment ? Payment::StatePosted : 'Exception',
+            'verification_basis' => $postPayment ? 'IndependentSourceCheck' : null,
+            'external_check_reference' => $postPayment ? 'SYNTH-TAL88B-CHECK' : null,
             'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
             'or_number' => null,
         ]);
 
         if ($postPayment) {
+            PaymentAllocation::factory()->create([
+                'payment_id' => $payment->id,
+                'sequence' => 1,
+                'assessment_obligation_id' => $obligation->id,
+                'assessment_line_id' => null,
+                'amount' => '500.00',
+            ]);
             LedgerEntry::query()->create([
                 'student_profile_id' => $profile->id,
                 'term_id' => $term->id,

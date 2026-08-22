@@ -5,8 +5,7 @@ namespace App\Actions\StudentHub;
 use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
-use App\Actions\Finance\FinanceEvidenceService;
-use App\Actions\Finance\PaymentStatusResolver;
+use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Filament\Student\Pages\GradesView;
 use App\Models\AcademicDecision;
@@ -15,6 +14,7 @@ use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
+use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\StudentProfile;
@@ -51,7 +51,7 @@ class StudentHubPriorityResolver
 {
     public function __construct(
         private readonly HoldEvaluationService $holds,
-        private readonly FinanceEvidenceService $finance,
+        private readonly StudentTermAccountPresenter $finance,
         private readonly RegistrationReadinessQuery $registrationReadiness,
         private readonly BuildCorOutput $corOutput,
         private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
@@ -213,18 +213,17 @@ class StudentHubPriorityResolver
             return null;
         }
 
-        $finance = $this->finance->studentFinance($studentProfile->user);
+        $finance = $this->finance->forUser($studentProfile->user);
 
         if (($finance['available'] ?? false) !== true) {
             return null;
         }
 
-        $paymentStatus = $finance['summary']['payment_status'] ?? null;
+        $paymentStatus = $finance['state']['latest_evidence_state'] ?? null;
 
         if (! in_array($paymentStatus, [
-            PaymentStatusResolver::StatusPaymentPending,
-            PaymentStatusResolver::StatusPaymentUnderReview,
-            PaymentStatusResolver::StatusPaymentRejected,
+            PaymentEvidenceVersion::StateSubmitted,
+            PaymentEvidenceVersion::StateRejected,
         ], true)) {
             return null;
         }
@@ -232,14 +231,12 @@ class StudentHubPriorityResolver
         return [
             'tier' => 'Payment Pending or Rejected',
             'student_reason' => match ($paymentStatus) {
-                PaymentStatusResolver::StatusPaymentRejected => 'Your last payment evidence was rejected.',
-                PaymentStatusResolver::StatusPaymentUnderReview => 'Your payment evidence is under review.',
-                default => 'Your payment checkout is pending.',
+                PaymentEvidenceVersion::StateRejected => 'Your last payment evidence was rejected.',
+                default => 'Your payment evidence is under review.',
             },
             'required_action' => match ($paymentStatus) {
-                PaymentStatusResolver::StatusPaymentRejected => 'Submit new payment evidence for review.',
-                PaymentStatusResolver::StatusPaymentUnderReview => 'No action needed while the Accounting Office reviews your evidence.',
-                default => 'Complete your pending payment checkout.',
+                PaymentEvidenceVersion::StateRejected => 'Submit replacement payment evidence for review.',
+                default => 'No action is needed while the Accounting Office reviews your evidence.',
             },
             'office_to_contact' => 'Accounting Office',
         ];

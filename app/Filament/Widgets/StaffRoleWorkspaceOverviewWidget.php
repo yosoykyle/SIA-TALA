@@ -8,7 +8,6 @@ use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -63,7 +62,7 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
 
     protected function getColumns(): int|array|null
     {
-        if (count($this->getCachedStats()) === 4) {
+        if ($this->actor()->hasRole(User::StaffRoleAccounting) || count($this->getCachedStats()) === 4) {
             return ['@xl' => 2, '!@lg' => 2];
         }
 
@@ -91,9 +90,7 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
 
         return [
             $this->stat('1. Fee Plans', 'Publish fixed charges', 'Review the exact Program-and-Term plan before assessment.', FeePlanResource::getUrl('index')),
-            $this->stat('2. Enrollment Clearance', "{$activeAssessments} active", 'Assess exact-Term obligations and review clearance evidence.', EnrollmentResource::getUrl('index')),
-            $this->stat('3. Payment Exceptions', 'Review queue', 'Resolve failed or recovered evidence without bypassing verification.', PayMongoReconciliation::getUrl()),
-            $this->stat('4. Reports', 'Finance evidence', 'Open authorized fixed reports and audited exports.', ReportsAudit::getUrl()),
+            $this->stat('2. Student Accounts', "{$activeAssessments} active", 'Work Accounts, Payment Exceptions, and TOR Clearance in one contextual destination.', EnrollmentResource::getUrl('index')),
         ];
     }
 

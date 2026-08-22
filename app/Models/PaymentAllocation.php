@@ -18,6 +18,7 @@ class PaymentAllocation extends Model
      */
     protected $fillable = [
         'payment_id',
+        'sequence',
         'assessment_obligation_id',
         'assessment_line_id',
         'payment_schedule_row_id',
@@ -32,6 +33,7 @@ class PaymentAllocation extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'sequence' => 'integer',
         ];
     }
 

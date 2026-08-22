@@ -1195,7 +1195,8 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
             [
                 'prepareProposal', 'prepareAdjustmentProposal', 'issueProposal', 'recordAssistedConfirmation', 'placeProposal',
                 'createAssessment', 'recordIndividualAssessment', 'recordApprovedCoverage',
-                'downloadPaymentEvidence', 'verifyPaymentEvidence', 'rejectPaymentEvidence',
+                'reverseApprovedCoverage', 'downloadPaymentEvidence', 'verifyPaymentEvidence',
+                'reversePaymentPosting', 'rejectPaymentEvidence', 'recordTorPaymentClearance', 'exportTermAccount',
                 'resolveImpactReview', 'resendOfficialEnrollmentEmail', 'confirmNoAdditionalCost',
                 'recordLateAuthority', 'adjustRegistration', 'dropCourse', 'cancelCase',
                 'recordLateReopenAuthority', 'reopenCase',

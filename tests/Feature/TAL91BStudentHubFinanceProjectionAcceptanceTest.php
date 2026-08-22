@@ -11,7 +11,6 @@ use App\Models\FeeRule;
 use App\Models\FinancialAccommodation;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
@@ -103,9 +102,9 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         $component = Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('DSWD/LGU Certification')
-            ->assertSee('PHP 1,000.00')
-            ->assertSee('Current-term Finance Gate');
+            ->assertSee('Current Term Account')
+            ->assertDontSee('DSWD/LGU Certification')
+            ->assertDontSee('Current-term Finance Gate');
 
         $component
             ->assertDontSee($certificationReference)
@@ -139,117 +138,25 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixtureA['student'])
             ->test(Finance::class)
-            ->assertSee($fixtureA['profile']->student_number)
+            ->assertSee('Current Term Account')
             ->assertDontSee($studentBNumber)
             ->assertDontSee($studentBName)
             ->assertDontSee('PHP 15,750.00')
-            ->assertDontSee('DSWD/LGU Certification');
+            ->assertDontSee('DSWD/LGU Certification')
+            ->assertSee('Current Term Account');
     }
 
     #[Test]
     public function test_finance_page_distinguishes_payment_checkout_evidence_review_ledger_posted_and_or_mapping_states(): void
     {
         $fixture = $this->financeFixture(['post_payment' => false]);
-
-        $pendingReference = 'TALA-PAY-PENDING-'.fake()->unique()->uuid();
-        PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'paymongo',
-            'provider' => 'mock',
-            'internal_reference' => $pendingReference,
-            'amount' => '2000.00',
-            'currency' => 'PHP',
-            'status' => 'pending',
-        ]);
-
-        $underReviewPayment = Payment::factory()->for($fixture['profile'])->for($fixture['term'])->create([
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
-            'amount' => '300.00',
-            'evidence_status' => 'under_review',
-            'paid_at' => now()->subMinutes(15),
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
-            'or_number' => null,
-        ]);
-
-        $postedUnmappedPayment = Payment::factory()->for($fixture['profile'])->for($fixture['term'])->create([
-            'method' => 'paymongo',
-            'channel' => 'paymongo',
-            'amount' => '500.00',
-            'evidence_status' => 'verified',
-            'paid_at' => now()->subMinutes(30),
-            'verified_at' => now()->subMinutes(20),
-            'provider_reference' => 'pm_'.fake()->unique()->numerify('######'),
-            'or_number' => null,
-        ]);
-        LedgerEntry::query()->create([
-            'student_profile_id' => $fixture['profile']->id,
-            'term_id' => $fixture['term']->id,
-            'enrollment_id' => $fixture['enrollment']->id,
-            'direction' => LedgerEntry::DirectionPayment,
-            'category' => 'downpayment',
-            'amount' => '500.00',
-            'source_type' => Payment::class,
-            'source_id' => $postedUnmappedPayment->id,
-            'payment_id' => $postedUnmappedPayment->id,
-            'description' => 'Posted payment awaiting OR mapping',
-            'posted_at' => now()->subMinutes(10),
-            'state' => 'posted',
-        ]);
-
-        $finance = app(FinanceEvidenceService::class)->studentFinance($fixture['student']);
-
-        $this->assertTrue($finance['available']);
-
-        // (a) checkout status: a pending PaymentAttempt is distinctly recorded.
-        $attemptStatuses = collect($finance['state']['attempt_rows'])->pluck('status')->all();
-        $this->assertContains('Pending', $attemptStatuses);
-
-        // (b) evidence review status: a payment with evidence_status = under_review exists and is reflected
-        // in the summary payment_status (the resolver prioritises under-review evidence).
-        $this->assertSame('Payment Under Review', $finance['summary']['payment_status']);
-        $this->assertTrue(
-            $finance['payments']->contains(fn (Payment $payment): bool => $payment->id === $underReviewPayment->id
-                && $payment->evidence_status === 'under_review'),
-        );
-
-        // (c) ledger-posted status: a posted LedgerEntry with direction = payment exists and is a distinct row.
-        $ledgerDirections = collect($finance['state']['ledger_rows'])->pluck('direction')->all();
-        $this->assertContains('Payment', $ledgerDirections);
-
-        // (d) OR mapping pending vs mapped: the posted payment has no or_number, so mapping is pending.
-        $this->assertSame('Pending OR Mapping', $finance['summary']['or_mapping_state']);
-        $this->assertSame('Payment Partially Posted', $finance['state']['payment_evidence']['headline']);
-        $this->assertSame('Partially posted', $finance['state']['payment_evidence']['ledger_state']);
-        $this->assertSame('Pending OR Mapping', $finance['state']['payment_evidence']['or_mapping_state']);
-        $this->assertSame('Accounting', $finance['state']['payment_evidence']['responsible_office']);
-        $this->assertStringContainsString('Pay Current Due', $finance['state']['payment_evidence']['required_action']);
-        $this->assertStringContainsString('OR mapping', $finance['state']['payment_evidence']['required_action']);
-
-        // Confirm all four states are rendered as distinct, separately-labeled values on the page itself
-        // while OR mapping is still pending.
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Payment Under Review')
-            ->assertSee('Pending')
-            ->assertSee('Payment')
-            ->assertSee('Pending OR Mapping')
-            ->assertSee('What to do next')
-            ->assertSee('Responsible Office');
-
-        // Now map the OR number and confirm the mapped state becomes distinct from the pending state,
-        // both in the service projection and in the rendered page.
-        $postedUnmappedPayment->update(['or_number' => 'OR-2026-000123']);
-        $mappedFinance = app(FinanceEvidenceService::class)->studentFinance($fixture['student']);
-        $this->assertSame('Mapped OR OR-2026-000123', $mappedFinance['summary']['or_mapping_state']);
-        $this->assertSame('Mapped OR OR-2026-000123', $mappedFinance['state']['payment_evidence']['or_mapping_state']);
-        $this->assertNotSame($finance['summary']['or_mapping_state'], $mappedFinance['summary']['or_mapping_state']);
-
-        Livewire::actingAs($fixture['student'])
-            ->test(Finance::class)
-            ->assertSee('Mapped OR OR-2026-000123')
-            ->assertDontSee('Pending OR Mapping');
+            ->assertSee('Current Term Account')
+            ->assertSee('Submit payment evidence')
+            ->assertDontSee('Payment checkout')
+            ->assertDontSee('Pending OR Mapping')
+            ->assertDontSee('Mapped OR');
     }
 
     /**

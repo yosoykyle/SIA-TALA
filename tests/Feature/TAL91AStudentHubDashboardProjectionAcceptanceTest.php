@@ -141,7 +141,7 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
     }
 
     #[Test]
-    public function payment_pending_outranks_cor_blocked_hold_and_informational_notification(): void
+    public function retired_paymongo_attempt_does_not_override_canonical_registration_review(): void
     {
         $fixture = $this->financeFixture(paymentAttemptStatus: 'pending');
         $profile = $fixture['profile'];
@@ -157,8 +157,8 @@ final class TAL91AStudentHubDashboardProjectionAcceptanceTest extends TestCase
         $result = app(StudentHubPriorityResolver::class)->resolve($profile);
 
         $this->assertNotNull($result);
-        $this->assertSame('Payment Pending or Rejected', $result['tier']);
-        $this->assertSame('Accounting Office', $result['office_to_contact']);
+        $this->assertSame('Pending Review', $result['tier']);
+        $this->assertSame('Registrar Office', $result['office_to_contact']);
     }
 
     #[Test]

@@ -10,12 +10,10 @@ use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Pages\ReportsAudit;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
-use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
@@ -30,14 +28,10 @@ use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
-use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
-use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
 use App\Filament\Resources\OperationalEvents\OperationalEventResource;
-use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
-use App\Filament\Resources\Payments\PaymentResource;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Rooms\RoomResource;
@@ -114,11 +108,6 @@ class AdminPanelProvider extends PanelProvider
                 AdmissionCycleResource::class,
                 EnrollmentResource::class,
                 FeePlanResource::class,
-                AccountingAdjustmentResource::class,
-                FinancialAccommodationResource::class,
-                LedgerEntryResource::class,
-                PaymentAttemptResource::class,
-                PaymentResource::class,
                 ProgramResource::class,
                 CourseResource::class,
                 CourseSpecificationResource::class,
@@ -155,7 +144,6 @@ class AdminPanelProvider extends PanelProvider
                 GradesAndCompletion::class,
                 ReportsAudit::class,
                 IntegrationStatus::class,
-                PayMongoReconciliation::class,
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $this->staffNavigation($builder))
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
@@ -200,10 +188,8 @@ class AdminPanelProvider extends PanelProvider
             ],
             $user->hasRole(User::StaffRoleAccounting) => [
                 'Home' => Dashboard::class,
-                'Enrollment Clearance' => EnrollmentResource::class,
-                'Payment Exceptions' => PayMongoReconciliation::class,
                 'Fee Plans' => FeePlanResource::class,
-                'Reports' => ReportsAudit::class,
+                'Student Accounts' => EnrollmentResource::class,
             ],
             $user->hasRole(User::StaffRoleFaculty) => [
                 'Home' => Dashboard::class,

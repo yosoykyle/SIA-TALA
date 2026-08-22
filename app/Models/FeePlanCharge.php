@@ -13,7 +13,7 @@ class FeePlanCharge extends Model
     /** @use HasFactory<FeePlanChargeFactory> */
     use HasFactory;
 
-    protected $fillable = ['fee_plan_id', 'sequence', 'code', 'label', 'amount'];
+    protected $fillable = ['fee_plan_id', 'sequence', 'code', 'label', 'category', 'amount'];
 
     protected function casts(): array
     {
