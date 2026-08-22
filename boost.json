@@ -35,16 +35,19 @@
         "configuring-horizon",
         "deploying-laravel-cloud",
         "diagnosing-bugs",
+        "explain-interface",
         "frontend-design",
         "grill-me",
         "grilling",
         "handoff",
+        "interface-review",
         "laravel-filament",
         "laravel-patterns",
         "laravel-permission-development",
         "laravel-pwa-setup",
         "laravel-security",
         "laravel-tdd",
-        "laravel-verification"
+        "laravel-verification",
+        "variant"
     ]
 }
