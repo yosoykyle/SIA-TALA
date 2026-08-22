@@ -12,11 +12,14 @@ class GradeWindowService
 {
     public function isOpen(GradeRoster $roster, string $period, ?Carbon $at = null): bool
     {
-        $at ??= now();
-        $period = strtolower($period);
+        if (strtolower($period) !== LateGradeAuthorization::PeriodFinal) {
+            return false;
+        }
 
-        return $this->calendarWindowIsOpen($roster, $period, $at)
-            || $this->lateAuthorizationIsOpen($roster, $period, $at);
+        $at ??= now();
+
+        return $this->calendarWindowIsOpen($roster, $at)
+            || $this->lateAuthorizationIsOpen($roster, $at);
     }
 
     public function finalizationClosed(GradeRoster $roster, ?Carbon $at = null): bool
@@ -36,7 +39,7 @@ class GradeWindowService
             ->exists();
     }
 
-    private function calendarWindowIsOpen(GradeRoster $roster, string $period, Carbon $at): bool
+    private function calendarWindowIsOpen(GradeRoster $roster, Carbon $at): bool
     {
         $termId = $roster->termOffering?->term_id;
 
@@ -46,7 +49,7 @@ class GradeWindowService
 
         return CalendarEvent::query()
             ->where('term_id', $termId)
-            ->where('process_key', "grade_encoding_$period")
+            ->where('process_key', 'grade_entry')
             ->where('state', CalendarEvent::StateActive)
             ->where(function (Builder $query) use ($at): void {
                 $query->where('start_at', '<=', $at)
@@ -55,13 +58,13 @@ class GradeWindowService
             ->exists();
     }
 
-    private function lateAuthorizationIsOpen(GradeRoster $roster, string $period, Carbon $at): bool
+    private function lateAuthorizationIsOpen(GradeRoster $roster, Carbon $at): bool
     {
         return LateGradeAuthorization::query()
             ->where('grade_roster_id', $roster->id)
             ->where('term_offering_id', $roster->term_offering_id)
             ->where('faculty_user_id', $roster->faculty_user_id)
-            ->where('grading_period', $period)
+            ->where('grading_period', LateGradeAuthorization::PeriodFinal)
             ->where('state', LateGradeAuthorization::StateActive)
             ->where('opens_at', '<=', $at)
             ->where('closes_at', '>=', $at)

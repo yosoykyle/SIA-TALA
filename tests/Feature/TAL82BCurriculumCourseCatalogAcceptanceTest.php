@@ -135,6 +135,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
                 'title' => 'Introduction to Computing',
                 'description' => 'Foundational computing concepts for first-year learners.',
                 'credit_units' => '3.00',
+                'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
                 'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
                 'grading_profile_version' => 1,
                 'allowed_modalities' => [CourseSpecification::ModalityFaceToFace],

@@ -20,6 +20,16 @@ class Completion extends Page
     /** @var array<string, mixed>|null */
     public ?array $projection = null;
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
     public function mount(): void
     {
         $studentProfileId = auth()->user()?->studentProfile?->id;

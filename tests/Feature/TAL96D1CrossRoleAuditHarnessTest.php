@@ -87,13 +87,17 @@ final class TAL96D1CrossRoleAuditHarnessTest extends TestCase
             'filament.student.pages.grades-view',
             'filament.student.pages.holds-view',
             'filament.student.pages.lifecycle-view',
-            'filament.student.pages.completion',
         ] as $routeName) {
             $this->followingRedirects()
                 ->actingAs($student)
                 ->get(route($routeName))
                 ->assertOk();
         }
+
+        $this->followingRedirects()
+            ->actingAs($student)
+            ->get(route('filament.student.pages.completion'))
+            ->assertForbidden();
     }
 
     /**

@@ -35,6 +35,10 @@ class GradeRosterRow extends Model
     protected $fillable = [
         'grade_roster_id',
         'course_enrollment_id',
+        'final_result',
+        'inc_completion_note',
+        'is_current_membership',
+        'row_revision',
         'prelim_equivalent',
         'midterm_equivalent',
         'final_equivalent',
@@ -42,6 +46,9 @@ class GradeRosterRow extends Model
         'current_outcome_code',
         'current_outcome_category',
         'released_at',
+        'returned_at',
+        'returned_by',
+        'return_reason',
     ];
 
     /**
@@ -54,7 +61,10 @@ class GradeRosterRow extends Model
             'midterm_equivalent' => 'decimal:4',
             'final_equivalent' => 'decimal:4',
             'computed_average' => 'decimal:4',
+            'is_current_membership' => 'boolean',
+            'row_revision' => 'integer',
             'released_at' => 'datetime',
+            'returned_at' => 'datetime',
         ];
     }
 
@@ -74,5 +84,10 @@ class GradeRosterRow extends Model
     public function outcomeEvents(): HasMany
     {
         return $this->hasMany(GradeOutcomeEvent::class);
+    }
+
+    public function versionRows(): HasMany
+    {
+        return $this->hasMany(GradeRosterVersionRow::class);
     }
 }

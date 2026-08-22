@@ -2,8 +2,10 @@
 
 namespace App\Filament\Student\Widgets;
 
-use App\Actions\Enrollment\AcademicProgressionService;
+use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Finance\FinanceEvidenceService;
+use App\Models\AcademicDecision;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
@@ -32,7 +34,8 @@ class StudentProfileOverviewWidget extends BaseWidget
         $finance = app(FinanceEvidenceService::class)->studentFinance($user);
         $balance = $finance['state']['ledger_balance'] ?? 'PHP 0.00';
         $hasBalance = ($finance['summary']['balance'] ?? '0.00') !== '0.00';
-        $progression = app(AcademicProgressionService::class)->evaluate($profile);
+        $academicEffect = app(AcademicEnrollmentEffect::class)->forStudent($profile);
+        $curriculum = app(CurriculumEvaluation::class)->forStudent($profile);
 
         $stats = [
             Stat::make('Lifecycle Status', str((string) $profile->lifecycle_status)->headline()->toString())
@@ -45,13 +48,16 @@ class StudentProfileOverviewWidget extends BaseWidget
                     StudentProfile::LifecycleArchived => 'danger',
                     default => 'info',
                 }),
-            Stat::make('Official Academic Standing', AcademicProgressionService::standingLabel($profile->academic_standing))
-                ->description($this->academicStandingGuidance(
-                    (string) $profile->academic_standing,
-                    $progression['recommendation'],
-                    count($progression['blockers']),
-                ))
-                ->color('info'),
+            Stat::make('Enrollment Guidance', str($academicEffect['effect'])->headline()->toString())
+                ->description($academicEffect['reason'].' Source: '.$academicEffect['source'].'.')
+                ->color(match ($academicEffect['effect']) {
+                    AcademicDecision::EffectBlocked => 'danger',
+                    AcademicDecision::EffectAdvisingRequired, AcademicDecision::EffectPendingDecision => 'warning',
+                    default => 'success',
+                }),
+            Stat::make('Curriculum Requirements', $curriculum['deficiency_count'].' remaining')
+                ->description($curriculum['completed_units'].' earned curriculum units are currently projected from released results.')
+                ->color($curriculum['deficiency_count'] > 0 ? 'info' : 'success'),
             Stat::make('Balance', $balance)
                 ->description($hasBalance
                     ? 'An outstanding balance is posted. Open Finance or contact the Accounting Office.'
@@ -59,39 +65,6 @@ class StudentProfileOverviewWidget extends BaseWidget
                 ->color($hasBalance ? 'warning' : 'success'),
         ];
 
-        foreach (array_slice($progression['blockers'], 0, 3) as $blocker) {
-            $stats[] = Stat::make(
-                'Academic action needed',
-                $blocker['course_code'] ?? 'Curriculum requirement',
-            )->description(
-                AcademicProgressionService::blockerMessage($blocker)
-                .' Contact the Registrar Office; it will route Academic Head review when required.',
-            )->color('warning');
-        }
-
         return $stats;
-    }
-
-    /**
-     * @param  array{available: bool, standing: ?string, label: string, explanation: string}  $recommendation
-     */
-    private function academicStandingGuidance(
-        string $officialStanding,
-        array $recommendation,
-        int $blockerCount,
-    ): string {
-        if (! $recommendation['available']) {
-            return $recommendation['label'].'. '.$recommendation['explanation'].' Contact the Registrar Office if review is needed.';
-        }
-
-        if (filled($recommendation['standing']) && $recommendation['standing'] !== $officialStanding) {
-            return 'System review suggests '.AcademicProgressionService::standingLabel($recommendation['standing']).'. Registrar Office must confirm any change.';
-        }
-
-        if ($blockerCount > 0) {
-            return "Review {$blockerCount} academic requirement(s) with the Registrar Office.";
-        }
-
-        return 'System review currently supports this standing. The Registrar-recorded value remains official.';
     }
 }

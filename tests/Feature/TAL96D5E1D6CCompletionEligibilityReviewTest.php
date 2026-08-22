@@ -39,7 +39,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     }
 
     #[Test]
-    public function system_super_admin_can_review_but_cannot_mutate_an_individual_completion_review(): void
+    public function system_super_admin_retains_historical_read_policy_but_cannot_reach_completion_review(): void
     {
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $batch = GraduationReviewBatch::factory()->create();
@@ -60,17 +60,10 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertTrue(GraduationReviewBatchResource::canAccess());
-        $this->assertFalse(GraduationReviewBatchResource::canCreate());
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->assertCanSeeTableRecords([$member])
-            ->assertTableActionHidden('refreshSnapshot', $member)
-            ->assertTableActionHidden('makeVisible', $member)
-            ->assertTableBulkActionHidden('refreshSelectedSnapshots');
+        $this->assertFalse(GraduationReviewBatchResource::shouldRegisterNavigation());
+        $this->assertFalse(GraduationReviewBatchResource::canAccess());
+        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
+        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
     }
 
     #[Test]
@@ -85,7 +78,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     }
 
     #[Test]
-    public function registrar_closes_a_review_batch_through_one_consistent_action(): void
+    public function open_review_batch_and_snapshot_history_remain_preserved_while_resource_is_dormant(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $batch = GraduationReviewBatch::factory()->create([
@@ -102,17 +95,11 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewGraduationReviewBatch::class, ['record' => $batch->getRouteKey()])
-            ->assertActionVisible('closeReview')
-            ->callAction('closeReview')
-            ->assertNotified('Completion review closed')
-            ->assertActionHidden('closeReview');
-
-        $this->assertSame(GraduationReviewBatch::StateClosed, $batch->fresh()->state);
-        $this->assertNotNull($batch->fresh()->closed_at);
-        $this->assertFalse($registrar->can('update', $batch->fresh()));
-        $this->assertFalse($registrar->can('refreshSnapshot', $member));
-        $this->assertFalse($registrar->can('updateVisibility', $snapshot));
+        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
+        $this->assertSame(GraduationReviewBatch::StateOpen, $batch->fresh()->state);
+        $this->assertNull($batch->fresh()->closed_at);
+        $this->assertDatabaseHas('graduation_review_members', ['id' => $member->id]);
+        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
     }
 
     #[Test]
@@ -191,7 +178,7 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     }
 
     #[Test]
-    public function student_result_explains_eligibility_without_claiming_degree_conferral(): void
+    public function student_completion_page_is_unreachable_while_eligibility_history_remains_preserved(): void
     {
         $student = $this->staff('student');
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
@@ -222,12 +209,13 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(Completion::class)
-            ->assertSee('Requirements complete for Registrar review')
-            ->assertSee('This eligibility review does not confer a degree')
-            ->assertSee('No action is required for this review')
-            ->assertDontSee('Snapshot version')
-            ->assertDontSee('Degree conferred');
+        $this->assertFalse(Completion::shouldRegisterNavigation());
+        $this->assertFalse(Completion::canAccess());
+        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertDatabaseHas('graduation_snapshots', [
+            'graduation_review_member_id' => $member->id,
+            'result_status' => GraduationEligibilitySnapshotService::ResultComplete,
+        ]);
     }
 
     private function staff(string $role): User

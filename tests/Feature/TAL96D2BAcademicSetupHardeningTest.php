@@ -213,6 +213,7 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
                 'revision_code' => 'TAMPERED-CREATE',
                 'title' => 'Server-owned lifecycle state',
                 'credit_units' => '3.00',
+                'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
                 'grading_profile_key' => CourseSpecification::GradingProfileServitechV1,
                 'grading_profile_version' => 1,
                 'scheduling_treatment' => CourseSpecification::SchedulingRecurring,

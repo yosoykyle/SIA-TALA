@@ -130,8 +130,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertActionVisible('confirmStanding');
+        $profilePage = Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()]);
+        $this->assertEmpty($profilePage->instance()->getCachedHeaderActions());
         $actions = collect(Livewire::test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->instance()
             ->getCachedHeaderActions())
@@ -206,8 +206,8 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertSee('Official Academic Standing')
-            ->assertSee('System Review')
+            ->assertSee('Academic Record Projection')
+            ->assertSee('Enrollment Guidance')
             ->assertSee('AY 2025-2026 First Semester')
             ->assertSee('Officially Enrolled')
             ->assertSee('Released Academic History')

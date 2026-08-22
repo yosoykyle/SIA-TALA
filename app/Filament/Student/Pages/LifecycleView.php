@@ -2,7 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
-use App\Actions\Enrollment\AcademicProgressionService;
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -32,12 +32,12 @@ class LifecycleView extends Page implements HasTable
         $profile = StudentProfile::query()
             ->where('user_id', $user->id)
             ->first();
-        $officialStanding = AcademicProgressionService::standingLabel($profile?->academic_standing);
-        $systemReview = $profile instanceof StudentProfile
-            ? app(AcademicProgressionService::class)->evaluate($profile)['recommendation']
+        $academicEffect = $profile instanceof StudentProfile
+            ? app(AcademicEnrollmentEffect::class)->forStudent($profile)
             : [
-                'label' => StudentProfile::StandingNotYetEvaluated,
-                'explanation' => 'No active Student Profile is available for academic review.',
+                'effect' => 'Unavailable',
+                'reason' => 'No active Student Profile is available for academic review.',
+                'source' => 'Student Profile',
             ];
 
         return $table->query(StudentLifecycleChange::query()
@@ -48,9 +48,9 @@ class LifecycleView extends Page implements HasTable
             })
             ->where('state', StudentLifecycleChange::StateApplied))
             ->description(
-                "Official academic standing: {$officialStanding}. "
-                ."System review: {$systemReview['label']}. "
-                .'The Registrar Office records approved changes; contact that office if this result or history is unexpected.',
+                "Enrollment guidance: {$academicEffect['effect']}. "
+                ."{$academicEffect['reason']} "
+                .'The Registrar records external academic or lifecycle authority; contact that office if this result or history is unexpected.',
             )
             ->columns([
                 TextColumn::make('type')
@@ -77,6 +77,6 @@ class LifecycleView extends Page implements HasTable
             ])->defaultSort('effective_on', 'desc')
             ->stackedOnMobile()
             ->emptyStateHeading('No applied lifecycle changes')
-            ->emptyStateDescription('Your official academic standing is shown above. No approved lifecycle result has changed your Student Profile. Contact the Registrar Office if you expected a recorded result.');
+            ->emptyStateDescription('Your current enrollment guidance is shown above. No approved lifecycle result has changed your Student Profile. Contact the Registrar Office if you expected a recorded result.');
     }
 }

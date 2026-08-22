@@ -122,4 +122,9 @@ class TermOffering extends Model
     {
         return $this->hasMany(GradeRoster::class);
     }
+
+    public function teachingAssignments(): HasMany
+    {
+        return $this->hasMany(ClassOfferingTeachingAssignment::class);
+    }
 }

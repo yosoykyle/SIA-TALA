@@ -31,6 +31,12 @@ class CourseSpecification extends Model
 
     public const SchedulingExternallyArranged = 'ExternallyArranged';
 
+    public const AcademicClassificationOrdinary = 'ORDINARY';
+
+    public const AcademicClassificationPe = 'PE';
+
+    public const AcademicClassificationNstp = 'NSTP';
+
     /**
      * @var list<string>
      */
@@ -143,6 +149,16 @@ class CourseSpecification extends Model
         return [
             self::SchedulingRecurring => 'Recurring master-timetable meetings',
             self::SchedulingExternallyArranged => 'Externally arranged — no recurring meeting',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function academicClassificationOptions(): array
+    {
+        return [
+            self::AcademicClassificationOrdinary => 'Ordinary academic course',
+            self::AcademicClassificationPe => 'Physical Education (excluded from averages)',
+            self::AcademicClassificationNstp => 'NSTP / CWTS / LTS / ROTC (excluded from averages)',
         ];
     }
 }

@@ -67,6 +67,8 @@ class OperationalEvent extends Model
 
     public const TypeOfficialEnrollmentEmail = 'official_enrollment_email';
 
+    public const TypeAcademicRecordUpdatedEmail = 'academic_record_updated_email';
+
     public const StatusPending = 'PENDING';
 
     public const StatusProcessed = 'PROCESSED';

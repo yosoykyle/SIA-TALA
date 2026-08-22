@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Models\StudentProfile;
 use App\Models\User;
 use DateTimeInterface;
@@ -126,8 +127,8 @@ class Profile extends Page
                         'value' => $this->displayStatus($studentProfile->getAttribute('lifecycle_status')),
                     ],
                     [
-                        'label' => 'Academic standing',
-                        'value' => $this->displayStatus($studentProfile->getAttribute('academic_standing')),
+                        'label' => 'Enrollment guidance',
+                        'value' => $this->displayStatus(app(AcademicEnrollmentEffect::class)->forStudent($studentProfile)['effect']),
                     ],
                 ],
             ],

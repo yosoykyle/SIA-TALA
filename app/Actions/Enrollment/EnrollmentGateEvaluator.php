@@ -2,7 +2,9 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Finance\EnrollmentFinanceClearanceService;
+use App\Models\AcademicDecision;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
 use App\Models\ChecklistItem;
@@ -27,7 +29,7 @@ use Illuminate\Support\Facades\DB;
 class EnrollmentGateEvaluator
 {
     public function __construct(
-        private readonly AcademicProgressionService $academicProgression,
+        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
         private readonly EnrollmentFinanceClearanceService $financeClearance,
         private readonly StudentUnitLoadService $unitLoad,
     ) {}
@@ -248,16 +250,14 @@ class EnrollmentGateEvaluator
             return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, 'no_selected_courses', 'At least one selected active course is required for academic gate clearance.', $enrollment, $checkedAt);
         }
 
-        $progression = $this->academicProgression->evaluate($profile, $enrollment->term);
-        $selectedOfferingIds = $activeCourseEnrollments
-            ->pluck('term_offering_id')
-            ->map(fn (mixed $id): int => (int) $id)
-            ->values();
-        $selectedBlocker = collect($progression['blockers'] ?? [])
-            ->first(fn (array $blocker): bool => isset($blocker['term_offering_id']) && $selectedOfferingIds->contains((int) $blocker['term_offering_id']));
+        $effect = $this->academicEnrollmentEffect->forStudent($profile, $enrollment->term);
 
-        if (is_array($selectedBlocker)) {
-            return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, 'academic_progression_blocker', 'Selected course is blocked by academic progression rule: '.(string) ($selectedBlocker['rule'] ?? $selectedBlocker['reason'] ?? $selectedBlocker['key'] ?? 'unresolved rule').'.', $enrollment, $checkedAt);
+        if ($effect['effect'] === AcademicDecision::EffectBlocked) {
+            return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, 'academic_decision_block', $effect['reason'], $enrollment, $checkedAt);
+        }
+
+        if ($effect['effect'] === AcademicDecision::EffectPendingDecision) {
+            return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, 'academic_decision_pending', $effect['reason'], $enrollment, $checkedAt);
         }
 
         $load = $this->unitLoad->evaluate($enrollment, $this->activeUnitLoad($activeCourseEnrollments));

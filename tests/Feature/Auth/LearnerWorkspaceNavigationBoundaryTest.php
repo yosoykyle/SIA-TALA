@@ -40,7 +40,6 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
         $this->assertSame([
             'Academics',
-            'Completion Review',
             'COR',
             'Dashboard',
             'Enrollment',

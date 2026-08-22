@@ -2,21 +2,23 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Grades\FinalResultPolicy;
 use App\Actions\Grades\GradeWindowService;
-use App\Actions\Grades\SaveGradeRosterControlledOutcome;
-use App\Actions\Grades\SaveGradeRosterPeriodEquivalent;
+use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
+use App\Actions\Grades\SubmitIncCompletion;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
@@ -39,36 +41,22 @@ class FacultyGradeRoster extends Page implements HasTable
 
     protected static string|\UnitEnum|null $navigationGroup = 'Faculty';
 
-    protected static ?string $navigationLabel = 'Grade Roster';
+    protected static ?string $navigationLabel = 'Grade Rosters';
 
-    protected static ?string $title = 'Grade Roster';
+    protected static ?string $title = 'Grade Rosters';
 
     protected string $view = 'filament.student.pages.generic-table';
 
     public ?int $rosterId = null;
 
-    /**
-     * @var array<string, bool>
-     */
-    private array $gradeWindowCache = [];
-
     public static function canAccess(): bool
     {
-        $user = Auth::user();
-
-        return $user instanceof User && $user->hasRole(User::StaffRoleFaculty);
+        return Auth::user()?->hasRole(User::StaffRoleFaculty) ?? false;
     }
 
     public function mount(): void
     {
-        $this->rosterId = GradeRoster::query()
-            ->where('faculty_user_id', Auth::id())
-            ->orderByRaw(
-                'CASE WHEN state IN (?, ?, ?) THEN 0 ELSE 1 END',
-                self::EditableStates,
-            )
-            ->orderByDesc('id')
-            ->value('id');
+        $this->rosterId = $this->accessibleRosters()->orderByDesc('grade_rosters.id')->value('grade_rosters.id');
     }
 
     public function table(Table $table): Table
@@ -83,155 +71,226 @@ class FacultyGradeRoster extends Page implements HasTable
                     ->state(fn (GradeRosterRow $record): string => collect([
                         $record->courseEnrollment?->enrollment?->studentProfile?->student_number,
                         $record->courseEnrollment?->enrollment?->studentProfile?->last_name,
+                        $record->courseEnrollment?->enrollment?->studentProfile?->first_name,
                     ])->filter()->implode(' · '))
-                    ->description(fn (GradeRosterRow $record): string => $this->rowResultSummary($record))
-                    ->searchable([
-                        'courseEnrollment.enrollment.studentProfile.student_number',
-                        'courseEnrollment.enrollment.studentProfile.last_name',
-                    ]),
-                $this->periodEquivalentColumn('prelim', 'Prelim'),
-                $this->periodEquivalentColumn('midterm', 'Midterm'),
-                $this->periodEquivalentColumn('final', 'Final'),
+                    ->description(fn (GradeRosterRow $record): string => $record->return_reason ?? 'Current official roster membership')
+                    ->wrap(),
+                TextColumn::make('final_result')
+                    ->label('Final result')
+                    ->placeholder('Not recorded')
+                    ->badge()
+                    ->description(fn (GradeRosterRow $record): ?string => $record->final_result === 'INC'
+                        ? $record->inc_completion_note
+                        : null),
+                TextColumn::make('row_status')
+                    ->label('Status')
+                    ->state(fn (GradeRosterRow $record): string => match (true) {
+                        ! $record->is_current_membership => 'No longer current',
+                        $record->released_at !== null => 'Released',
+                        $record->returned_at !== null => 'Returned for correction',
+                        $record->final_result !== null => 'Ready',
+                        default => 'Final result required',
+                    })
+                    ->badge()
+                    ->wrap(),
             ])
             ->headerActions([
                 Action::make('selectRoster')
-                    ->label('Select Roster')
+                    ->label('Select roster')
                     ->schema([
-                        Select::make('rosterId')
-                            ->label('Roster')
-                            ->options(fn (): array => $this->assignedRosterOptions())
-                            ->required(),
+                        Select::make('rosterId')->label('Roster')->options(fn (): array => $this->rosterOptions())->required(),
                     ])
                     ->fillForm(fn (): array => ['rosterId' => $this->rosterId])
-                    ->visible(fn (): bool => count($this->assignedRosterOptions()) > 1)
+                    ->visible(fn (): bool => count($this->rosterOptions()) > 1)
                     ->action(function (array $data): void {
                         $rosterId = (int) $data['rosterId'];
 
-                        if (! array_key_exists($rosterId, $this->assignedRosterOptions())) {
-                            return;
+                        if (array_key_exists($rosterId, $this->rosterOptions())) {
+                            $this->rosterId = $rosterId;
+                            $this->resetTable();
                         }
-
-                        $this->rosterId = $rosterId;
-                        $this->resetTable();
-
-                        Notification::make()->title('Grade roster selected')->success()->send();
                     }),
+                Action::make('printRoster')
+                    ->label('Print class roster')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->visible(fn (): bool => $this->rosterId !== null)
+                    ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.print', $this->rosterId))
+                    ->openUrlInNewTab(),
+                Action::make('downloadRoster')
+                    ->label('Download CSV')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->visible(fn (): bool => $this->rosterId !== null)
+                    ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.csv', $this->rosterId)),
                 Action::make('submit')
-                    ->label('Submit for Registrar Review')
-                    ->modalHeading('Submit this grade roster?')
-                    ->modalDescription(fn (): string => $this->selectedRosterSubmissionSummary())
+                    ->label('Submit complete roster')
+                    ->modalHeading('Submit this immutable roster version?')
+                    ->modalDescription(fn (): string => $this->submissionSummary())
                     ->requiresConfirmation()
-                    ->visible(fn (): bool => $this->selectedRosterIsEditable())
+                    ->visible(fn (): bool => $this->canEditSelectedRoster())
+                    ->disabled(fn (): bool => ! $this->selectedRosterIsReady())
                     ->action(function (): void {
-                        $roster = $this->selectedRoster();
-
-                        if (! $roster instanceof GradeRoster || ! $this->selectedRosterIsReadyForSubmission()) {
-                            Notification::make()
-                                ->title('Roster is not ready')
-                                ->body($this->selectedRosterSubmissionSummary())
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        app(SubmitGradeRoster::class)->execute($roster, $this->authenticatedUser());
-                        Notification::make()->title('Grade roster submitted')->success()->send();
+                        app(SubmitGradeRoster::class)->execute($this->selectedRosterOrFail(), $this->authenticatedUser());
+                        Notification::make()->title('Roster submitted for Registrar review')->success()->send();
                     }),
             ])
             ->recordActions([
-                Action::make('setControlledOutcome')
-                    ->label(fn (GradeRosterRow $record): string => $this->rowCanEditPeriod($record, 'final')
-                        ? 'Set P / INC'
-                        : 'Final locked')
-                    ->color(fn (GradeRosterRow $record): string => $this->rowCanEditPeriod($record, 'final')
-                        ? 'primary'
-                        : 'gray')
-                    ->tooltip(fn (GradeRosterRow $record): ?string => $this->rowCanEditPeriod($record, 'final')
-                        ? null
-                        : 'The Final window is closed. Request late authorization before changing this mark.')
-                    ->modalHeading('Set controlled final mark')
-                    ->modalDescription('Use P or INC only when the institutional rule applies. This replaces the numeric Final value for this draft row.')
+                Action::make('recordFinalResult')
+                    ->label(fn (GradeRosterRow $record): string => $record->final_result === null ? 'Record final result' : 'Edit returned result')
+                    ->icon(Heroicon::OutlinedPencilSquare)
                     ->schema([
-                        Select::make('controlled_outcome')
-                            ->label('Controlled final mark')
-                            ->options([
-                                'P' => 'Pending (P)',
-                                'INC' => 'Incomplete (INC)',
-                            ])
-                            ->placeholder('Use numeric Final')
-                            ->rules(['nullable', 'in:P,INC']),
+                        Select::make('final_result')
+                            ->label('Final result')
+                            ->options(fn (): array => app(FinalResultPolicy::class)->options())
+                            ->required()
+                            ->live(),
+                        Textarea::make('inc_completion_note')
+                            ->label('INC completion note')
+                            ->helperText('Required only for INC. State the work still needed without entering sensitive details.')
+                            ->required(fn ($get): bool => $get('final_result') === 'INC')
+                            ->visible(fn ($get): bool => $get('final_result') === 'INC')
+                            ->rows(3),
                     ])
                     ->fillForm(fn (GradeRosterRow $record): array => [
-                        'controlled_outcome' => in_array($record->current_outcome_code, ['P', 'INC'], true)
-                            ? $record->current_outcome_code
-                            : null,
+                        'final_result' => $record->final_result,
+                        'inc_completion_note' => $record->inc_completion_note,
                     ])
-                    ->visible(fn (): bool => $this->selectedRosterIsEditable())
-                    ->disabled(fn (GradeRosterRow $record): bool => ! $this->rowCanEditPeriod($record, 'final'))
+                    ->visible(fn (GradeRosterRow $record): bool => $this->canEditRow($record))
                     ->action(function (GradeRosterRow $record, array $data): void {
-                        if (! $this->saveControlledOutcome($record, $data['controlled_outcome'] ?? null)) {
-                            return;
+                        try {
+                            app(SaveFinalGradeResult::class)->execute(
+                                $record,
+                                (string) $data['final_result'],
+                                $data['inc_completion_note'] ?? null,
+                                $this->authenticatedUser(),
+                            );
+                            Notification::make()->title('Final result saved')->success()->send();
+                        } catch (RuntimeException $exception) {
+                            Notification::make()->title('Final result was not saved')->body($exception->getMessage())->danger()->send();
                         }
+                    }),
+                Action::make('submitIncCompletion')
+                    ->label('Submit INC completion')
+                    ->icon(Heroicon::OutlinedCheckCircle)
+                    ->visible(fn (GradeRosterRow $record): bool => $record->current_outcome_code === 'INC'
+                        && (int) $record->roster->teachingAssignment?->faculty_user_id === (int) Auth::id())
+                    ->schema([
+                        Select::make('proposed_result')
+                            ->label('Completed final result')
+                            ->options(fn (): array => collect(app(FinalResultPolicy::class)->options())->except('INC')->all())
+                            ->required(),
+                        Textarea::make('completion_note')
+                            ->label('Completion evidence note')
+                            ->helperText('Describe the completed requirement without entering sensitive details.')
+                            ->required()->rows(3),
+                    ])
+                    ->action(function (GradeRosterRow $record, array $data): void {
+                        $inc = $record->outcomeEvents()->where('result_code', 'INC')->latest('id')->firstOrFail();
 
-                        Notification::make()
-                            ->title('Controlled final mark saved')
-                            ->success()
-                            ->send();
+                        try {
+                            app(SubmitIncCompletion::class)->execute(
+                                $inc,
+                                (string) $data['proposed_result'],
+                                (string) $data['completion_note'],
+                                $this->authenticatedUser(),
+                            );
+                            Notification::make()->title('INC completion submitted for Registrar review')->success()->send();
+                        } catch (RuntimeException $exception) {
+                            Notification::make()->title('INC completion was not submitted')->body($exception->getMessage())->danger()->send();
+                        }
                     }),
             ])
             ->stackedOnMobile()
-            ->emptyStateHeading('No assigned grade roster')
-            ->emptyStateDescription('Assigned grade rosters and their submission history appear here.');
+            ->emptyStateHeading('No assigned roster')
+            ->emptyStateDescription('Current designated and co-Faculty assignments appear here after the Registrar records them.');
     }
 
-    /**
-     * @return Builder<GradeRosterRow>
-     */
+    /** @return Builder<GradeRoster> */
+    private function accessibleRosters(): Builder
+    {
+        return GradeRoster::query()->where(function (Builder $query): void {
+            $query->whereHas('teachingAssignment', fn (Builder $assignmentQuery) => $assignmentQuery
+                ->where('faculty_user_id', Auth::id())
+                ->where('state', ClassOfferingTeachingAssignment::StateActive))
+                ->orWhereHas('section', fn (Builder $sectionQuery) => $sectionQuery
+                    ->whereHas('termOffering.teachingAssignments', fn (Builder $assignmentQuery) => $assignmentQuery
+                        ->where('faculty_user_id', Auth::id())
+                        ->where('role', ClassOfferingTeachingAssignment::RoleCoFaculty)
+                        ->where('state', ClassOfferingTeachingAssignment::StateActive)));
+        });
+    }
+
+    /** @return Builder<GradeRosterRow> */
     private function rowsQuery(): Builder
     {
         return GradeRosterRow::query()
-            ->with(['courseEnrollment.enrollment.studentProfile', 'roster'])
-            ->whereHas('roster', fn (Builder $query) => $query->where('faculty_user_id', Auth::id()))
-            ->when($this->rosterId !== null, fn (Builder $query) => $query->where('grade_roster_id', $this->rosterId))
-            ->whereRaw($this->rosterId === null ? '1 = 0' : '1 = 1');
+            ->with(['courseEnrollment.enrollment.studentProfile', 'roster.teachingAssignment'])
+            ->where('is_current_membership', true)
+            ->when($this->rosterId, fn (Builder $query) => $query->where('grade_roster_id', $this->rosterId))
+            ->whereHas('roster', fn (Builder $query) => $query->whereIn('id', $this->accessibleRosters()->select('grade_rosters.id')));
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function assignedRosterOptions(): array
+    /** @return array<int, string> */
+    private function rosterOptions(): array
     {
-        return GradeRoster::query()
+        return $this->accessibleRosters()
             ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
-            ->where('faculty_user_id', Auth::id())
-            ->orderByDesc('id')
-            ->get()
-            ->mapWithKeys(fn (GradeRoster $roster): array => [
-                $roster->id => collect([
-                    $roster->termOffering?->term?->label,
-                    $roster->section?->code,
-                    $roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
-                    $this->formatRosterState($roster->state),
-                ])->filter()->implode(' / '),
-            ])
-            ->all();
+            ->orderByDesc('grade_rosters.id')->get()
+            ->mapWithKeys(fn (GradeRoster $roster): array => [$roster->id => collect([
+                $roster->termOffering?->term?->label,
+                $roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+                $roster->section?->code,
+                str($roster->state)->headline(),
+            ])->filter()->implode(' · ')])->all();
+    }
+
+    private function selectedRoster(): ?GradeRoster
+    {
+        return $this->rosterId === null ? null : $this->accessibleRosters()
+            ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment'])
+            ->find($this->rosterId);
+    }
+
+    private function selectedRosterOrFail(): GradeRoster
+    {
+        return $this->selectedRoster() ?? throw new RuntimeException('Select an accessible roster first.');
+    }
+
+    private function canEditSelectedRoster(): bool
+    {
+        $roster = $this->selectedRoster();
+
+        return $roster instanceof GradeRoster
+            && (int) $roster->teachingAssignment?->faculty_user_id === (int) Auth::id()
+            && in_array($roster->state, self::EditableStates, true);
+    }
+
+    private function canEditRow(GradeRosterRow $row): bool
+    {
+        return $this->canEditSelectedRoster()
+            && (bool) $row->is_current_membership
+            && ($row->roster->state !== GradeRoster::StateReturned || $row->returned_at !== null)
+            && app(GradeWindowService::class)->isOpen($row->roster, 'final');
+    }
+
+    private function selectedRosterIsReady(): bool
+    {
+        $roster = $this->selectedRoster();
+
+        return $roster instanceof GradeRoster
+            && $roster->rows()->where('is_current_membership', true)->exists()
+            && ! $roster->rows()->where('is_current_membership', true)->whereNull('final_result')->exists();
     }
 
     private function selectedRosterHeading(): string
     {
         $roster = $this->selectedRoster();
 
-        if (! $roster instanceof GradeRoster) {
-            return 'Grade encoding workspace';
-        }
-
-        $specification = $roster->termOffering?->curriculumEntry?->courseSpecification;
-        $course = $specification?->course;
-
-        return collect([$course?->code, $specification?->title, $roster->section?->code])
-            ->filter()
-            ->implode(' — ');
+        return $roster instanceof GradeRoster
+            ? collect([
+                $roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
+                $roster->section?->code,
+            ])->filter()->implode(' — ')
+            : 'Official grade roster';
     }
 
     private function selectedRosterDescription(): string
@@ -239,228 +298,33 @@ class FacultyGradeRoster extends Page implements HasTable
         $roster = $this->selectedRoster();
 
         if (! $roster instanceof GradeRoster) {
-            return 'Select an assigned roster to encode grades.';
+            return 'Select a roster assigned by the Registrar.';
         }
 
-        $readiness = $this->selectedRosterReadiness();
+        $role = (int) $roster->teachingAssignment?->faculty_user_id === (int) Auth::id()
+            ? 'Designated submitter'
+            : 'View-only co-Faculty';
+        $window = app(GradeWindowService::class)->isOpen($roster, 'final') ? 'Grade Entry open' : 'Grade Entry closed';
 
-        $nextAction = match (true) {
-            ! $this->selectedRosterIsEditable() => 'Encoding is locked. This roster remains available as read-only submission history.',
-            $readiness['total'] === 0 => 'No students are currently assigned to this roster.',
-            $readiness['missing'] === 0 => 'All rows are ready. Review and submit for Registrar review.',
-            default => sprintf(
-                'Complete %d remaining %s. Enter all three numeric period equivalents or choose P/INC as the controlled final mark.',
-                $readiness['missing'],
-                $readiness['missing'] === 1 ? 'row' : 'rows',
-            ),
-        };
-
-        $windowNotice = $this->selectedRosterIsEditable()
-            ? ' '.$this->selectedRosterWindowSummary($roster)
-            : '';
-
-        return sprintf(
-            '%s · %s · %d of %d rows ready. %s',
-            $roster->termOffering?->term->label ?? 'Term not recorded',
-            $this->formatRosterState($roster->state),
-            $readiness['ready'],
-            $readiness['total'],
-            $nextAction.$windowNotice,
-        );
+        return collect([$roster->termOffering?->term?->label, $role, str($roster->state)->headline(), $window])
+            ->filter()->implode(' · ');
     }
 
-    private function selectedRoster(): ?GradeRoster
+    private function submissionSummary(): string
     {
-        if ($this->rosterId === null) {
-            return null;
-        }
+        $roster = $this->selectedRosterOrFail();
+        $total = $roster->rows()->where('is_current_membership', true)->count();
+        $missing = $roster->rows()->where('is_current_membership', true)->whereNull('final_result')->count();
 
-        return GradeRoster::query()
-            ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])
-            ->where('faculty_user_id', Auth::id())
-            ->find($this->rosterId);
-    }
-
-    private function selectedRosterIsEditable(): bool
-    {
-        $roster = $this->selectedRoster();
-
-        return $roster instanceof GradeRoster
-            && in_array($roster->state, self::EditableStates, true);
-    }
-
-    private function rowCanEditPeriod(GradeRosterRow $row, string $period): bool
-    {
-        $row->loadMissing('roster');
-
-        if (
-            (int) $row->roster->faculty_user_id !== (int) Auth::id()
-            || ! in_array($row->roster->state, self::EditableStates, true)
-        ) {
-            return false;
-        }
-
-        return $this->gradeWindowIsOpen($row->roster, $period);
-    }
-
-    /**
-     * @return array{total:int,ready:int,missing:int}
-     */
-    private function selectedRosterReadiness(): array
-    {
-        $roster = $this->selectedRoster();
-
-        if (! $roster instanceof GradeRoster) {
-            return ['total' => 0, 'ready' => 0, 'missing' => 0];
-        }
-
-        $total = $roster->rows()->count();
-        $ready = $roster->rows()
-            ->where(function (Builder $query): void {
-                $query->whereNotNull('computed_average')
-                    ->orWhereIn('current_outcome_code', ['P', 'INC']);
-            })
-            ->count();
-
-        return [
-            'total' => $total,
-            'ready' => $ready,
-            'missing' => $total - $ready,
-        ];
-    }
-
-    private function selectedRosterIsReadyForSubmission(): bool
-    {
-        $readiness = $this->selectedRosterReadiness();
-
-        return $readiness['total'] > 0 && $readiness['missing'] === 0;
-    }
-
-    private function selectedRosterSubmissionSummary(): string
-    {
-        $readiness = $this->selectedRosterReadiness();
-
-        if ($readiness['total'] === 0) {
-            return 'This roster has no students and cannot be submitted.';
-        }
-
-        if ($readiness['missing'] > 0) {
-            return sprintf(
-                '%d of %d rows are ready. Complete %d remaining %s before submission.',
-                $readiness['ready'],
-                $readiness['total'],
-                $readiness['missing'],
-                $readiness['missing'] === 1 ? 'row' : 'rows',
-            );
-        }
-
-        return sprintf(
-            'All %d rows are ready. The Registrar will review this roster before grades are posted and released to students.',
-            $readiness['total'],
-        );
-    }
-
-    private function formatRosterState(string $state): string
-    {
-        return str($state)
-            ->lower()
-            ->replace('_', ' ')
-            ->headline()
-            ->toString();
-    }
-
-    private function rowResultSummary(GradeRosterRow $row): string
-    {
-        return match (true) {
-            in_array($row->current_outcome_code, ['P', 'INC'], true) => "{$row->current_outcome_code} · Controlled mark ready",
-            $row->computed_average !== null => number_format((float) $row->computed_average, 2).' · Numeric result ready',
-            default => 'Missing final result',
-        };
-    }
-
-    private function gradeWindowIsOpen(GradeRoster $roster, string $period): bool
-    {
-        $cacheKey = "{$roster->id}:{$period}";
-
-        return $this->gradeWindowCache[$cacheKey] ??= app(GradeWindowService::class)->isOpen($roster, $period);
-    }
-
-    private function selectedRosterWindowSummary(GradeRoster $roster): string
-    {
-        $windows = collect(['prelim', 'midterm', 'final'])
-            ->map(fn (string $period): string => sprintf(
-                '%s %s',
-                str($period)->headline()->toString(),
-                $this->gradeWindowIsOpen($roster, $period) ? 'open' : 'closed',
-            ))
-            ->implode(', ');
-
-        return "Encoding windows: {$windows}. Request late authorization before changing a closed period.";
-    }
-
-    private function periodEquivalentColumn(string $period, string $label): TextInputColumn
-    {
-        $column = "{$period}_equivalent";
-
-        return TextInputColumn::make($column)
-            ->label($label)
-            ->type('number')
-            ->step(0.01)
-            ->extraInputAttributes(['style' => 'min-width: 5.5rem; width: 5.5rem;'])
-            ->state(function (GradeRosterRow $record) use ($column): ?string {
-                $value = $record->getAttribute($column);
-
-                return $value === null ? null : number_format((float) $value, 2, '.', '');
-            })
-            ->rules(['nullable', 'numeric', 'min:0', 'max:100'])
-            ->disabled(fn (GradeRosterRow $record): bool => ! $this->rowCanEditPeriod($record, $period))
-            ->updateStateUsing(fn (GradeRosterRow $record, mixed $state): mixed => $this->savePeriodEquivalent($record, $period, $state));
-    }
-
-    private function savePeriodEquivalent(GradeRosterRow $row, string $period, mixed $state): mixed
-    {
-        $column = "{$period}_equivalent";
-
-        try {
-            return app(SaveGradeRosterPeriodEquivalent::class)
-                ->execute($row, $period, $state, $this->authenticatedUser())
-                ->getAttribute($column);
-        } catch (RuntimeException $exception) {
-            Notification::make()
-                ->title('Grade was not saved')
-                ->body($exception->getMessage())
-                ->danger()
-                ->send();
-
-            return $row->fresh()->getAttribute($column);
-        }
-    }
-
-    private function saveControlledOutcome(GradeRosterRow $row, ?string $state): bool
-    {
-        try {
-            app(SaveGradeRosterControlledOutcome::class)->execute($row, $state, $this->authenticatedUser());
-
-            return true;
-        } catch (RuntimeException $exception) {
-            Notification::make()
-                ->title('Final mark was not saved')
-                ->body($exception->getMessage())
-                ->danger()
-                ->send();
-
-            return false;
-        }
+        return $missing === 0
+            ? "All {$total} current rows will be frozen as a new attributable version for Registrar review."
+            : "Complete {$missing} of {$total} current rows before submission.";
     }
 
     private function authenticatedUser(): User
     {
-        $user = Auth::user();
-
-        if (! $user instanceof User) {
-            throw new AuthorizationException('Authentication is required to manage a grade roster.');
-        }
-
-        return $user;
+        return Auth::user() instanceof User
+            ? Auth::user()
+            : throw new AuthorizationException('Authentication is required.');
     }
 }

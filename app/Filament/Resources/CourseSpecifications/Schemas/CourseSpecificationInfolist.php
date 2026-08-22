@@ -20,6 +20,9 @@ class CourseSpecificationInfolist
                     TextEntry::make('revision_code')->label('Revision'),
                     TextEntry::make('title')->label('Subject Title'),
                     TextEntry::make('credit_units')->label('Units'),
+                    TextEntry::make('academic_classification')
+                        ->label('Academic Classification')
+                        ->formatStateUsing(fn (?string $state): string => CourseSpecification::academicClassificationOptions()[$state] ?? 'Not recorded'),
                     TextEntry::make('scheduling_treatment')
                         ->label('Scheduling Treatment')
                         ->formatStateUsing(fn (?string $state): string => CourseSpecification::schedulingTreatmentOptions()[$state] ?? '-'),

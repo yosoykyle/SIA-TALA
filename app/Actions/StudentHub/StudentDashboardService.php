@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
@@ -32,6 +33,7 @@ class StudentDashboardService
         private readonly StudentGradeLabelFormatter $gradeLabels,
         private readonly CurrentOfficialEnrollmentResolver $currentEnrollmentResolver,
         private readonly EnrollmentAcademicContextResolver $academicContextResolver,
+        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
     ) {}
 
     /**
@@ -115,7 +117,7 @@ class StudentDashboardService
             'program_code' => $studentProfile->program?->code,
             'program_name' => $studentProfile->program?->name,
             'operational_status' => $this->stringAttribute($studentProfile, 'lifecycle_status'),
-            'academic_standing' => $studentProfile->academic_standing,
+            'academic_effect' => $this->academicEnrollmentEffect->forStudent($studentProfile),
             'user_status' => $studentProfile->user?->status,
             'hard_copy_received' => false,
         ];

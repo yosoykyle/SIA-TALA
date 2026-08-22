@@ -64,6 +64,11 @@ class CourseSpecificationForm
                         ->minValue(1)
                         ->default(1)
                         ->required(),
+                    Select::make('academic_classification')
+                        ->label('Academic Classification')
+                        ->options(CourseSpecification::academicClassificationOptions())
+                        ->helperText('Controls PE/NSTP exclusion from academic averages. Missing authority keeps averages unavailable.')
+                        ->required(),
                     Select::make('scheduling_treatment')
                         ->label('Scheduling Treatment')
                         ->options(CourseSpecification::schedulingTreatmentOptions())

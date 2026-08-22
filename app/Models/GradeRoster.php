@@ -36,8 +36,12 @@ class GradeRoster extends Model
         'term_offering_id',
         'section_id',
         'faculty_user_id',
+        'teaching_assignment_id',
         'state',
         'grading_profile_snapshot',
+        'current_version_number',
+        'membership_signature',
+        'lock_version',
         'submitted_by',
         'submitted_at',
         'reviewed_by',
@@ -45,6 +49,9 @@ class GradeRoster extends Model
         'released_by',
         'released_at',
         'return_reason',
+        'invalidated_at',
+        'invalidated_by',
+        'invalidation_reason',
     ];
 
     /**
@@ -54,9 +61,12 @@ class GradeRoster extends Model
     {
         return [
             'grading_profile_snapshot' => 'array',
+            'current_version_number' => 'integer',
+            'lock_version' => 'integer',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'released_at' => 'datetime',
+            'invalidated_at' => 'datetime',
         ];
     }
 
@@ -78,10 +88,21 @@ class GradeRoster extends Model
         return $this->belongsTo(User::class, 'faculty_user_id');
     }
 
+    /** @return BelongsTo<ClassOfferingTeachingAssignment, $this> */
+    public function teachingAssignment(): BelongsTo
+    {
+        return $this->belongsTo(ClassOfferingTeachingAssignment::class);
+    }
+
     /** @return HasMany<GradeRosterRow, $this> */
     public function rows(): HasMany
     {
         return $this->hasMany(GradeRosterRow::class);
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(GradeRosterVersion::class);
     }
 
     /** @return HasMany<LateGradeAuthorization, $this> */

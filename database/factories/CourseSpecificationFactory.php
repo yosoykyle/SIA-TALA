@@ -26,6 +26,7 @@ class CourseSpecificationFactory extends Factory
             'credit_units' => 3.00,
             'grading_profile_key' => 'college_standard',
             'grading_profile_version' => 1,
+            'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
             'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
             'allowed_modalities' => ['FACE_TO_FACE', 'ONLINE'],
             'same_faculty_default' => true,

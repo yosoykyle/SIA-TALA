@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Actions\Grades\RecordApprovedGradeCorrection;
-use App\Actions\Grades\RecordIncResolution;
+use App\Actions\Grades\ReleaseIncCompletion;
+use App\Actions\Grades\SubmitIncCompletion;
 use App\Filament\Resources\GradeRosters\Pages\ViewGradeRoster;
 use App\Filament\Resources\GradeRosters\RelationManagers\RowsRelationManager;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
@@ -14,6 +16,7 @@ use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
+use App\Models\IncCompletionSubmission;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -54,7 +57,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
     }
 
     #[Test]
-    public function registrar_records_inc_resolution_with_numeric_replacement_and_preserves_audit(): void
+    public function faculty_submits_and_registrar_releases_inc_completion_with_successor_audit(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -62,7 +65,14 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         $row = $roster->rows()->sole();
         $nextCase = $this->pendingRegistrationCaseFor($roster);
 
-        app(RecordIncResolution::class)->execute($row, '3.00', 'Registrar approved removal', 'Completed removal exam.', 'INC-001', $registrar);
+        $incomplete = $row->outcomeEvents()->sole();
+        $submission = app(SubmitIncCompletion::class)->execute(
+            $incomplete,
+            '3.00',
+            'Completed removal exam.',
+            $faculty,
+        );
+        $released = app(ReleaseIncCompletion::class)->execute($submission, $registrar, 'INC-001');
 
         $row->refresh();
 
@@ -71,13 +81,14 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         $this->assertDatabaseHas('grade_outcome_events', [
             'grade_roster_row_id' => $row->id,
             'event_type' => GradeOutcomeEvent::TypeIncResolution,
+            'predecessor_event_id' => $incomplete->id,
             'previous_category' => GradeRosterRow::CategoryIncomplete,
             'new_category' => GradeRosterRow::CategoryPassing,
-            'authority' => 'Registrar approved removal',
+            'authority' => 'INC-001',
             'reason' => 'Completed removal exam.',
-            'evidence_reference' => 'INC-001',
             'recorded_by' => $registrar->id,
         ]);
+        $this->assertSame($released->id, $submission->fresh()->released_event_id);
         $this->assertDatabaseHas('registration_case_events', [
             'enrollment_id' => $nextCase->id,
             'event_type' => 'AcademicResultImpactReviewOpened',
@@ -86,41 +97,41 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
     }
 
     #[Test]
-    public function registrar_records_lapsed_inc_result_as_failed(): void
+    public function overdue_inc_remains_inc_and_cannot_be_completed_without_an_amendment(): void
     {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
         $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
         $row = $roster->rows()->sole();
+        $incomplete = $row->outcomeEvents()->sole();
+        $incomplete->update(['deadline' => today()->subDay()]);
 
-        app(RecordIncResolution::class)->execute($row, '5.00', 'Lapsed per policy', 'INC not completed within deadline.', null, $registrar);
-
-        $row->refresh();
-
-        $this->assertSame('5.00', $row->current_outcome_code);
-        $this->assertSame(GradeRosterRow::CategoryFailed, $row->current_outcome_category);
-        $this->assertDatabaseHas('grade_outcome_events', [
-            'grade_roster_row_id' => $row->id,
-            'event_type' => GradeOutcomeEvent::TypeIncResolution,
-            'new_category' => GradeRosterRow::CategoryFailed,
-        ]);
+        try {
+            app(SubmitIncCompletion::class)->execute($incomplete->fresh(), '5.00', 'Late work.', $faculty);
+            $this->fail('Deadline passage must not permit completion or convert the INC automatically.');
+        } catch (RuntimeException) {
+            $this->assertSame('INC', $row->fresh()->current_outcome_code);
+            $this->assertSame(1, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
+            $this->assertDatabaseCount('inc_completion_submissions', 0);
+        }
     }
 
     #[Test]
-    public function inc_resolution_on_non_inc_row_is_rejected(): void
+    public function inc_completion_on_non_inc_row_is_rejected(): void
     {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
         $roster = $this->releasedRosterWithRow($faculty, '1.75', GradeRosterRow::CategoryPassing);
         $row = $roster->rows()->sole();
 
         try {
-            app(RecordIncResolution::class)->execute($row, '3.00', 'Authority', 'Reason', null, $registrar);
-            $this->fail('INC resolution on a non-INC row should be rejected.');
+            app(SubmitIncCompletion::class)->execute(
+                $row->outcomeEvents()->sole(), '3.00', 'Completion must require an INC.', $faculty,
+            );
+            $this->fail('INC completion on a non-INC row should be rejected.');
         } catch (RuntimeException) {
             $row->refresh();
             $this->assertSame('1.75', $row->current_outcome_code);
-            $this->assertSame(0, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
+            $this->assertSame(1, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
+            $this->assertSame(0, IncCompletionSubmission::query()->count());
         }
     }
 
@@ -173,20 +184,23 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
     }
 
     #[Test]
-    public function non_registrar_staff_cannot_record_inc_resolution_through_the_service(): void
+    public function non_registrar_staff_cannot_release_inc_completion_through_the_service(): void
     {
         $faculty = $this->staff(User::StaffRoleFaculty);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
         $row = $roster->rows()->sole();
+        $submission = app(SubmitIncCompletion::class)->execute(
+            $row->outcomeEvents()->sole(), '3.00', 'Completed authorized work.', $faculty,
+        );
 
         foreach ([$faculty, $academicHead] as $actor) {
             try {
-                app(RecordIncResolution::class)->execute($row->fresh(), '3.00', 'Authority', 'Reason', null, $actor);
-                $this->fail('Only Registrar staff should record INC resolutions.');
+                app(ReleaseIncCompletion::class)->execute($submission->fresh(), $actor, 'INC-AUTH-001');
+                $this->fail('Only Registrar staff should release INC completion.');
             } catch (AuthorizationException) {
                 $this->assertSame('INC', $row->fresh()->current_outcome_code);
-                $this->assertSame(0, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
+                $this->assertSame(1, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
             }
         }
     }
@@ -205,7 +219,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
                 $this->fail('Only Registrar staff should record posted corrections.');
             } catch (AuthorizationException) {
                 $this->assertSame('1.75', $row->fresh()->current_outcome_code);
-                $this->assertSame(0, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
+                $this->assertSame(1, GradeOutcomeEvent::query()->where('grade_roster_row_id', $row->id)->count());
             }
         }
     }
@@ -224,16 +238,19 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         $this->assertFalse(RowsRelationManager::canViewForRecord($submittedRoster, ViewGradeRoster::class));
 
         $this->actingAs($academicHead);
-        $this->assertFalse(RowsRelationManager::canViewForRecord($releasedRoster, ViewGradeRoster::class));
+        $this->assertTrue(RowsRelationManager::canViewForRecord($releasedRoster, ViewGradeRoster::class));
     }
 
     #[Test]
-    public function registrar_resolves_inc_through_relation_manager_action(): void
+    public function registrar_releases_submitted_inc_completion_through_relation_manager_action(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
         $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
         $row = $roster->rows()->sole();
+        app(SubmitIncCompletion::class)->execute(
+            $row->outcomeEvents()->sole(), '3.00', 'Completed removal exam.', $faculty,
+        );
 
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -242,23 +259,20 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'ownerRecord' => $roster,
             'pageClass' => ViewGradeRoster::class,
         ])
-            ->assertTableActionVisible('resolveInc', $row)
+            ->assertTableActionVisible('releaseIncCompletion', $row)
             ->assertTableActionVisible('recordCorrection', $row)
-            ->callTableAction('resolveInc', $row, data: [
-                'replacement_code' => '3.00',
-                'authority' => 'Registrar approved removal',
-                'reason' => 'Completed removal exam.',
-                'evidence_reference' => 'INC-010',
+            ->callTableAction('releaseIncCompletion', $row, data: [
+                'authority_reference' => 'INC-010',
             ])
             ->assertHasNoTableActionErrors()
-            ->assertNotified('INC resolution recorded');
+            ->assertNotified('INC completion released');
 
         $row->refresh();
         $this->assertSame('3.00', $row->current_outcome_code);
         $this->assertDatabaseHas('grade_outcome_events', [
             'grade_roster_row_id' => $row->id,
             'event_type' => GradeOutcomeEvent::TypeIncResolution,
-            'evidence_reference' => 'INC-010',
+            'authority' => 'INC-010',
             'recorded_by' => $registrar->id,
         ]);
     }
@@ -279,7 +293,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'pageClass' => ViewGradeRoster::class,
         ])
             ->assertTableActionVisible('recordCorrection', $row)
-            ->assertTableActionHidden('resolveInc', $row)
+            ->assertTableActionHidden('releaseIncCompletion', $row)
             ->callTableAction('recordCorrection', $row, data: [
                 'corrected_code' => '2.75',
                 'authority' => 'Approved correction form',
@@ -287,7 +301,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
                 'evidence_reference' => 'CORR-010',
             ])
             ->assertHasNoTableActionErrors()
-            ->assertNotified('Posted grade correction recorded');
+            ->assertNotified('Authorized correction recorded');
 
         $row->refresh();
         $this->assertSame('2.75', $row->current_outcome_code);
@@ -309,10 +323,27 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'released_at' => now(),
         ]);
 
-        $roster->rows()->sole()->update([
+        $row = $roster->rows()->sole();
+        $row->update([
             'current_outcome_code' => $code,
             'current_outcome_category' => $category,
             'released_at' => now(),
+        ]);
+        GradeOutcomeEvent::query()->create([
+            'grade_roster_row_id' => $row->id,
+            'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+            'result_code' => $code,
+            'source_term_ends_on' => $roster->termOffering->term->ends_on,
+            'previous_category' => null,
+            'new_category' => $category,
+            'new_value' => is_numeric($code) ? (float) $code : null,
+            'deadline' => $code === 'INC' ? today()->addYear()->toDateString() : null,
+            'inc_completion_note' => $code === 'INC' ? 'Complete the remaining authorized work.' : null,
+            'authority' => 'TEST-INITIAL-RELEASE',
+            'reason' => 'Synthetic released-result fixture.',
+            'recorded_by' => $faculty->id,
+            'released_at' => now(),
+            'source_key' => 'test-initial-release:'.$row->id,
         ]);
 
         return $roster->fresh(['rows']);
@@ -352,10 +383,21 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'units_snapshot' => 3,
             'added_at' => now(),
         ]);
+        $assignment = ClassOfferingTeachingAssignment::query()->create([
+            'term_offering_id' => $termOffering->id,
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'role' => ClassOfferingTeachingAssignment::RoleDesignated,
+            'state' => ClassOfferingTeachingAssignment::StateActive,
+            'authority_reference' => 'TEST-TEACHING-ASSIGNMENT',
+            'assigned_by' => $faculty->id,
+            'effective_at' => now(),
+        ]);
         $roster = GradeRoster::factory()->create([
             'term_offering_id' => $termOffering->id,
             'section_id' => $section->id,
             'faculty_user_id' => $faculty->id,
+            'teaching_assignment_id' => $assignment->id,
             'state' => $state,
             'submitted_by' => $submittedBy?->id,
             'submitted_at' => $submittedBy === null ? null : now(),

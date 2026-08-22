@@ -349,6 +349,7 @@ class AcademicImportService
                 'credit_units' => $firstRow['credit_units'],
                 'grading_profile_key' => $firstRow['grading_profile_key'],
                 'grading_profile_version' => $firstRow['grading_profile_version'],
+                'academic_classification' => $firstRow['academic_classification'],
                 'scheduling_treatment' => $firstRow['scheduling_treatment'],
                 'allowed_modalities' => $firstRow['allowed_modalities'],
                 'same_faculty_default' => $firstRow['same_faculty_default'],
@@ -500,6 +501,7 @@ class AcademicImportService
             'credit_units',
             'grading_profile_key',
             'grading_profile_version',
+            'academic_classification',
             'scheduling_treatment',
             'allowed_modalities',
             'state',
@@ -532,6 +534,11 @@ class AcademicImportService
         $gradingProfileKey = $this->gradingProfileValue($row['grading_profile_key'] ?? null);
         if (! array_key_exists($gradingProfileKey, CourseSpecification::gradingProfileOptions())) {
             $errors[] = 'Grading Profile Key is not an approved value.';
+        }
+
+        $academicClassification = $this->choiceValue($row['academic_classification'] ?? null);
+        if (! array_key_exists($academicClassification, CourseSpecification::academicClassificationOptions())) {
+            $errors[] = 'Academic Classification must be ORDINARY, PE, or NSTP.';
         }
 
         if (! array_key_exists($schedulingTreatment, CourseSpecification::schedulingTreatmentOptions())) {
@@ -643,6 +650,7 @@ class AcademicImportService
                 'credit_units' => number_format((float) $row['credit_units'], 2, '.', ''),
                 'grading_profile_key' => $gradingProfileKey,
                 'grading_profile_version' => (int) ($row['grading_profile_version'] ?? 1),
+                'academic_classification' => $academicClassification,
                 'scheduling_treatment' => $schedulingTreatment,
                 'allowed_modalities' => $allowedModalities,
                 'same_faculty_default' => $this->booleanValue($row['same_faculty_default'] ?? null) ?? true,
@@ -842,6 +850,7 @@ class AcademicImportService
                     'credit_units',
                     'grading_profile_key',
                     'grading_profile_version',
+                    'academic_classification',
                     'scheduling_treatment',
                     'allowed_modalities',
                     'same_faculty_default',

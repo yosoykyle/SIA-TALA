@@ -2,12 +2,14 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentStatusResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Filament\Student\Pages\GradesView;
+use App\Models\AcademicDecision;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
@@ -36,7 +38,7 @@ use Illuminate\Notifications\DatabaseNotification;
  *
  * TAL-91E implements the remaining tiers 6-10: missing requirements
  * (reusing {@see ChecklistItem} and its `isResolved()` logic), active
- * academic deficiency (reusing {@see StudentProfile::$academic_standing}),
+ * academic guidance (reusing the canonical AcademicEnrollmentEffect),
  * schedule available (reusing the exact published+active filter shape
  * from {@see StudentDashboardService::scheduleFor()}), COR available
  * (reusing {@see BuildCorOutput::forStudent()} directly rather than
@@ -52,6 +54,7 @@ class StudentHubPriorityResolver
         private readonly FinanceEvidenceService $finance,
         private readonly RegistrationReadinessQuery $registrationReadiness,
         private readonly BuildCorOutput $corOutput,
+        private readonly AcademicEnrollmentEffect $academicEnrollmentEffect,
     ) {}
 
     /**
@@ -329,32 +332,26 @@ class StudentHubPriorityResolver
     }
 
     /**
-     * Active Academic Deficiency tier (PRD `12_student_hub.md` §12.2 tier 7). Reuses
-     * {@see StudentProfile::$academic_standing} rather than deriving a new signal.
-     * `Irregular` alone is not treated as a deficiency: the PRD distinguishes "not
-     * following the standard curriculum sequence" (Irregular) from an actual academic
-     * problem. Only the standings that represent a genuine problem trigger this tier.
+     * Active Academic Guidance tier projected from released facts and recorded authority.
      *
      * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
      */
     private function academicDeficiencyTier(StudentProfile $studentProfile): ?array
     {
-        $deficientStandings = [
-            StudentProfile::StandingDeficient,
-            StudentProfile::StandingProbationary,
-            StudentProfile::StandingBlockedByPrerequisite,
-            StudentProfile::StandingMustRepeatYear,
-        ];
+        $effect = $this->academicEnrollmentEffect->forStudent($studentProfile);
 
-        if (! in_array($studentProfile->academic_standing, $deficientStandings, true)) {
+        if ($effect['effect'] === AcademicDecision::EffectAllowed) {
             return null;
         }
 
         return [
-            'tier' => 'Active Academic Deficiency',
-            'student_reason' => 'Your academic standing is currently: '.$studentProfile->academic_standing.'.',
-            'required_action' => 'Contact the Academic Head Office to review your academic standing.',
-            'office_to_contact' => 'Academic Head Office',
+            'tier' => 'Academic Guidance',
+            'student_reason' => $effect['reason'],
+            'required_action' => match ($effect['effect']) {
+                AcademicDecision::EffectAdvisingRequired => 'Work with the Registrar Office on an individually advised registration proposal.',
+                default => 'Contact the Registrar Office for the named academic review or authorized next step.',
+            },
+            'office_to_contact' => 'Registrar Office',
         ];
     }
 

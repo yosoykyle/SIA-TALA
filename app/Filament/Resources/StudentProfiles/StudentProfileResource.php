@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\StudentProfiles;
 
-use App\Actions\Enrollment\AcademicProgressionService;
+use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\CumulativeGwaProjection;
+use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentHub\StudentGradeLabelFormatter;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -24,7 +26,6 @@ use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
-use App\Models\User;
 use BackedEnum;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -43,7 +44,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Spatie\Activitylog\Models\Activity;
 use UnitEnum;
 
 class StudentProfileResource extends Resource
@@ -128,72 +128,43 @@ class StudentProfileResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columnSpanFull(),
-            Section::make('Academic Standing and Progression')
-                ->description('The official standing is recorded by the Registrar. System review remains separate decision support and may be unavailable when institutional judgment is required.')
+            Section::make('Academic Record Projection')
+                ->description('Released results drive factual curriculum and enrollment guidance. Consequential decisions require separately recorded authority.')
                 ->schema([
-                    RepeatableEntry::make('academic_standing_summary')
-                        ->label('Standing Decision Evidence')
-                        ->state(fn (StudentProfile $record): array => self::academicStandingSummary($record))
+                    RepeatableEntry::make('academic_record_summary')
+                        ->label('Current Academic Projection')
+                        ->state(function (StudentProfile $record): array {
+                            $effect = app(AcademicEnrollmentEffect::class)->forStudent($record);
+                            $curriculum = app(CurriculumEvaluation::class)->forStudent($record);
+                            $cumulative = app(CumulativeGwaProjection::class)->forStudent($record);
+
+                            return [[
+                                'effect' => str($effect['effect'])->headline()->toString(),
+                                'effect_reason' => $effect['reason'],
+                                'effect_source' => $effect['source'],
+                                'cumulative_gwa' => $cumulative['value'] ?? 'Not available',
+                                'through' => $cumulative['through'] ?? 'No complete released term',
+                                'completed_units' => $curriculum['completed_units'],
+                                'remaining_requirements' => $curriculum['deficiency_count'],
+                            ]];
+                        })
                         ->schema([
-                            TextEntry::make('official_standing')
-                                ->label('Official Academic Standing')
+                            TextEntry::make('effect')
+                                ->label('Enrollment Guidance')
                                 ->badge(),
-                            TextEntry::make('system_review')
-                                ->label('System Review')
-                                ->badge(),
-                            TextEntry::make('system_review_explanation')
-                                ->label('What the System Review Means')
+                            TextEntry::make('effect_reason')
+                                ->label('Explanation')
                                 ->columnSpanFull(),
-                            TextEntry::make('gwa')
-                                ->label('Current GWA')
-                                ->placeholder('Not available'),
-                            TextEntry::make('requirements_completed')
-                                ->label('Required Subjects Completed'),
-                            TextEntry::make('blockers')
-                                ->label('Academic Blockers and Recovery')
-                                ->listWithLineBreaks()
-                                ->bulleted()
-                                ->columnSpanFull(),
-                            TextEntry::make('back_subjects')
-                                ->label('Back Subjects')
-                                ->listWithLineBreaks()
-                                ->bulleted()
-                                ->columnSpanFull(),
-                            TextEntry::make('latest_confirmation')
-                                ->label('Latest Standing Confirmation')
-                                ->columnSpanFull(),
-                            TextEntry::make('confirmation_reason')
-                                ->label('Recorded Reason')
-                                ->placeholder('No separate confirmation reason is available.')
-                                ->columnSpanFull(),
+                            TextEntry::make('effect_source')->label('Authority / Source'),
+                            TextEntry::make('cumulative_gwa')->label('Cumulative GWA'),
+                            TextEntry::make('through')->label('Calculated Through'),
+                            TextEntry::make('completed_units')->label('Completed Curriculum Units'),
+                            TextEntry::make('remaining_requirements')->label('Remaining Requirements'),
                         ])
                         ->columns(2)
                         ->columnSpanFull(),
                 ])
                 ->columns(2)
-                ->columnSpanFull(),
-            Section::make('Suggested Subjects for the Active Term')
-                ->description('Secondary planning detail derived from the active Term. Expand only when reviewing possible subject placement.')
-                ->schema([
-                    RepeatableEntry::make('subject_suggestions')
-                        ->label('Suggested Subjects')
-                        ->state(fn (StudentProfile $record): array => app(AcademicProgressionService::class)->evaluate(
-                            $record,
-                            Term::query()->where('state', Term::StateActive)->first(),
-                        )['suggestions'])
-                        ->schema([
-                            TextEntry::make('course_code')->label('Course'),
-                            TextEntry::make('title'),
-                            TextEntry::make('units'),
-                            TextEntry::make('offering_category')
-                                ->label('Offering Category')
-                                ->formatStateUsing(fn (?string $state): string => str((string) $state)->headline()->toString())
-                                ->badge(),
-                        ])
-                        ->columns(2)
-                        ->columnSpanFull(),
-                ])
-                ->collapsed()
                 ->columnSpanFull(),
             Section::make('Active Holds and Next Steps')
                 ->description('Only unresolved holds are shown here. The owning office is responsible for clearing each requirement.')
@@ -425,11 +396,10 @@ class StudentProfileResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
                     ->sortable(),
-                TextColumn::make('academic_standing')
-                    ->label('Confirmed Standing')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str((string) $state)->headline()->toString())
-                    ->sortable(),
+                TextColumn::make('academic_effect')
+                    ->label('Enrollment Guidance')
+                    ->state(fn (StudentProfile $record): string => str(app(AcademicEnrollmentEffect::class)->forStudent($record)['effect'])->headline()->toString())
+                    ->badge(),
             ])->filters([
                 SelectFilter::make('program')
                     ->relationship('program', 'name')
@@ -461,7 +431,6 @@ class StudentProfileResource extends Resource
                     StudentProfile::LifecycleInactive => 'Inactive',
                     StudentProfile::LifecycleArchived => 'Archived',
                 ]),
-                SelectFilter::make('academic_standing')->options(AcademicProgressionService::standingOptions()),
             ])
             ->recordActions([ViewAction::make(), EditAction::make()])
             ->defaultSort('student_number')
@@ -471,57 +440,6 @@ class StudentProfileResource extends Resource
     public static function getRelations(): array
     {
         return [ChecklistItemsRelationManager::class, HoldsRelationManager::class];
-    }
-
-    /** @return list<array<string, mixed>> */
-    public static function academicStandingSummary(StudentProfile $record): array
-    {
-        $progression = app(AcademicProgressionService::class)->evaluate($record);
-        /** @var array{available: bool, standing: ?string, label: string, explanation: string} $recommendation */
-        $recommendation = $progression['recommendation'];
-        $latestConfirmation = Activity::query()
-            ->with('causer')
-            ->where('event', 'academic_standing_confirmed')
-            ->where('subject_type', StudentProfile::class)
-            ->where('subject_id', $record->getKey())
-            ->latest('id')
-            ->first();
-        $actor = $latestConfirmation?->causer;
-        $actorName = $actor instanceof User
-            ? ($actor->name ?: $actor->email)
-            : 'System';
-
-        return [[
-            'official_standing' => AcademicProgressionService::standingLabel($record->academic_standing),
-            'system_review' => $recommendation['label'],
-            'system_review_explanation' => $recommendation['explanation'],
-            'gwa' => $progression['gwa'],
-            'requirements_completed' => sprintf(
-                '%d of %d required subject(s)',
-                (int) data_get($progression, 'facts.completed_count', 0),
-                (int) data_get($progression, 'facts.required_count', 0),
-            ),
-            'blockers' => collect($progression['blockers'])
-                ->map(fn (array $blocker): string => AcademicProgressionService::blockerMessage($blocker))
-                ->whenEmpty(fn ($items) => $items->push('No source-record academic blockers are currently recorded.'))
-                ->values()
-                ->all(),
-            'back_subjects' => collect($progression['back_subjects'])
-                ->map(fn (array $subject): string => collect([
-                    $subject['course_code'] ?? null,
-                    $subject['title'] ?? null,
-                ])->filter()->implode(' — '))
-                ->filter()
-                ->whenEmpty(fn ($items) => $items->push('No back subjects are currently recorded.'))
-                ->values()
-                ->all(),
-            'latest_confirmation' => $latestConfirmation instanceof Activity
-                ? sprintf('%s by %s', $latestConfirmation->created_at->format('M j, Y g:i A'), $actorName)
-                : 'No confirmation audit is recorded for the current standing.',
-            'confirmation_reason' => $latestConfirmation instanceof Activity
-                ? data_get($latestConfirmation->properties, 'reason')
-                : null,
-        ]];
     }
 
     private static function publishedScheduleUrl(Enrollment $enrollment): ?string

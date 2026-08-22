@@ -11,7 +11,6 @@ use App\Models\LateGradeAuthorization;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -42,16 +41,8 @@ class ViewGradeRoster extends ViewRecord
                     Notification::make()->title('Grade roster posted and released')->success()->send();
                 }),
             Action::make('authorizeLateGradeEncoding')
-                ->label('Authorize Late Encoding')
+                ->label('Authorize Late Grade Entry')
                 ->schema([
-                    Select::make('period')
-                        ->label('Grading period')
-                        ->options([
-                            LateGradeAuthorization::PeriodPrelim => 'Prelim',
-                            LateGradeAuthorization::PeriodMidterm => 'Midterm',
-                            LateGradeAuthorization::PeriodFinal => 'Final',
-                        ])
-                        ->required(),
                     DateTimePicker::make('opens_at')
                         ->label('Opens at')
                         ->seconds(false)
@@ -64,7 +55,7 @@ class ViewGradeRoster extends ViewRecord
                         ->required()
                         ->maxLength(2000),
                 ])
-                ->visible(fn (): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])
+                ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
                     && in_array($this->gradeRoster()->state, [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true))
                 ->action(function (array $data): void {
                     $actor = auth()->user();
@@ -75,7 +66,7 @@ class ViewGradeRoster extends ViewRecord
 
                     app(AuthorizeLateGradeEncoding::class)->execute(
                         $this->gradeRoster(),
-                        (string) $data['period'],
+                        LateGradeAuthorization::PeriodFinal,
                         Carbon::parse($data['opens_at']),
                         Carbon::parse($data['closes_at']),
                         (string) $data['reason'],

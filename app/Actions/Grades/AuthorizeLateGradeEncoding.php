@@ -20,18 +20,14 @@ class AuthorizeLateGradeEncoding
         string $reason,
         User $approver,
     ): LateGradeAuthorization {
-        if (! $approver->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])) {
-            throw new AuthorizationException('Only Registrar or Academic Head staff can authorize late grade encoding.');
+        if (! $approver->hasRole(User::StaffRoleRegistrar)) {
+            throw new AuthorizationException('Only Registrar staff can authorize late Grade Entry.');
         }
 
         $period = strtolower($period);
 
-        if (! in_array($period, [
-            LateGradeAuthorization::PeriodPrelim,
-            LateGradeAuthorization::PeriodMidterm,
-            LateGradeAuthorization::PeriodFinal,
-        ], true)) {
-            throw new RuntimeException('Invalid grading period.');
+        if ($period !== LateGradeAuthorization::PeriodFinal) {
+            throw new RuntimeException('Late authority is roster-scoped and applies only to final Grade Entry.');
         }
 
         if (! in_array($roster->state, [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true)) {

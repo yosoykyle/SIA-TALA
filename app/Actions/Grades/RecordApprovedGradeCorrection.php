@@ -2,6 +2,7 @@
 
 namespace App\Actions\Grades;
 
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\User;
@@ -12,8 +13,10 @@ use RuntimeException;
 class RecordApprovedGradeCorrection
 {
     public function __construct(
-        private readonly GradePolicyService $policy,
+        private readonly FinalResultPolicy $policy,
+        private readonly IncDeadlineService $deadlines,
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
+        private readonly AcademicRecordNotificationService $notifications,
     ) {}
 
     public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
@@ -29,42 +32,38 @@ class RecordApprovedGradeCorrection
                 throw new RuntimeException('Only released rows can receive posted corrections.');
             }
 
-            $outcome = match (strtoupper($correctedCode)) {
-                'P', 'INC' => $this->policy->controlledOutcome($correctedCode),
-                default => $this->policy->outcomeForAverage($this->averageForNumericCode($correctedCode)),
-            };
+            $code = $this->policy->normalize($correctedCode);
+            $predecessor = $locked->outcomeEvents()->latest('id')->firstOrFail();
+            $termEndsOn = $predecessor->source_term_ends_on ?? $locked->roster->termOffering->term->ends_on;
+            $sourceKey = 'grade-correction:'.hash('sha256', implode('|', [
+                $locked->id, $code, trim($authority), trim($reason), (string) $evidenceReference,
+            ]));
 
-            $event = $locked->outcomeEvents()->create([
+            $event = $locked->outcomeEvents()->firstOrCreate(['source_key' => $sourceKey], [
                 'event_type' => GradeOutcomeEvent::TypePostedCorrection,
+                'result_code' => $code,
+                'source_term_ends_on' => $termEndsOn,
+                'predecessor_event_id' => $predecessor->id,
                 'previous_value' => is_numeric($locked->current_outcome_code) ? (float) $locked->current_outcome_code : null,
-                'new_value' => $outcome['value'],
+                'new_value' => $this->policy->numericValue($code),
                 'previous_category' => $locked->current_outcome_category,
-                'new_category' => $outcome['category'],
-                'deadline' => $outcome['code'] === 'INC' ? $this->policy->incDeadline()->toDateString() : null,
+                'new_category' => $this->policy->category($code),
+                'deadline' => $code === 'INC' ? $this->deadlines->originalDeadline($termEndsOn)->toDateString() : null,
                 'authority' => $authority,
                 'reason' => $reason,
                 'evidence_reference' => $evidenceReference,
                 'recorded_by' => $actor->id,
+                'released_at' => now(),
             ]);
 
             $locked->update([
-                'current_outcome_code' => $outcome['code'],
-                'current_outcome_category' => $outcome['category'],
+                'current_outcome_code' => $code,
+                'current_outcome_category' => $this->policy->category($code),
             ]);
             $this->impactReviews->execute($locked, $event, $actor);
+            $this->notifications->recordAfterCommit($event, 'An authorized academic result correction');
 
             return $locked->fresh('outcomeEvents');
-        });
-    }
-
-    private function averageForNumericCode(string $code): float
-    {
-        foreach (config('grades.servitech_v1.scale') as $band) {
-            if ((string) $band['code'] === $code) {
-                return (float) $band['min'];
-            }
-        }
-
-        throw new RuntimeException('Corrected grade must be a controlled numeric result, P, or INC.');
+        }, attempts: 3);
     }
 }

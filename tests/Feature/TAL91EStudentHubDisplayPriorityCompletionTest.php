@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\StudentHub\StudentHubPriorityResolver;
+use App\Models\AcademicDecision;
 use App\Models\Assessment;
 use App\Models\ChecklistItem;
 use App\Models\CorVersion;
@@ -95,18 +96,27 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
     }
 
     #[Test]
-    public function active_academic_deficiency_tier_fires_for_a_deficient_standing(): void
+    public function academic_guidance_tier_fires_for_a_recorded_effect(): void
     {
-        [, $profile] = $this->studentWithProfile([
-            'academic_standing' => StudentProfile::StandingProbationary,
+        [, $profile] = $this->studentWithProfile();
+        AcademicDecision::query()->create([
+            'student_profile_id' => $profile->id,
+            'effect' => AcademicDecision::EffectAdvisingRequired,
+            'authority_reference' => 'ACADEMIC-DECISION-001',
+            'authority_date' => today(),
+            'reason' => 'An individually advised proposal is required.',
+            'effective_from' => today(),
+            'state' => 'ACTIVE',
+            'recorded_by' => $profile->user_id,
+            'recorded_at' => now(),
         ]);
 
         $result = app(StudentHubPriorityResolver::class)->resolve($profile);
 
         $this->assertNotNull($result);
-        $this->assertSame('Active Academic Deficiency', $result['tier']);
-        $this->assertStringContainsString(StudentProfile::StandingProbationary, $result['student_reason']);
-        $this->assertSame('Academic Head Office', $result['office_to_contact']);
+        $this->assertSame('Academic Guidance', $result['tier']);
+        $this->assertStringContainsString('individually advised proposal', $result['student_reason']);
+        $this->assertSame('Registrar Office', $result['office_to_contact']);
     }
 
     #[Test]
@@ -190,12 +200,22 @@ final class TAL91EStudentHubDisplayPriorityCompletionTest extends TestCase
     public function tier_7_academic_deficiency_outranks_tier_8_schedule_available(): void
     {
         $fixture = $this->publishedScheduleFixture();
-        $fixture['profile']->forceFill(['academic_standing' => StudentProfile::StandingMustRepeatYear])->save();
+        AcademicDecision::query()->create([
+            'student_profile_id' => $fixture['profile']->id,
+            'effect' => AcademicDecision::EffectBlocked,
+            'authority_reference' => 'ACADEMIC-DECISION-002',
+            'authority_date' => today(),
+            'reason' => 'An authorized decision blocks registration.',
+            'effective_from' => today(),
+            'state' => 'ACTIVE',
+            'recorded_by' => $fixture['profile']->user_id,
+            'recorded_at' => now(),
+        ]);
 
         $result = app(StudentHubPriorityResolver::class)->resolve($fixture['profile']);
 
         $this->assertNotNull($result);
-        $this->assertSame('Active Academic Deficiency', $result['tier']);
+        $this->assertSame('Academic Guidance', $result['tier']);
     }
 
     #[Test]

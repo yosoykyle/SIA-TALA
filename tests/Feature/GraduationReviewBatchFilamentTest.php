@@ -4,16 +4,12 @@ namespace Tests\Feature;
 
 use App\Actions\Graduation\GraduationEligibilitySnapshotService;
 use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
-use App\Filament\Resources\GraduationReviewBatches\Pages\CreateGraduationReviewBatch;
-use App\Filament\Resources\GraduationReviewBatches\Pages\ListGraduationReviewBatches;
 use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
 use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
-use App\Models\AcademicYear;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\StudentProfile;
-use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -41,66 +37,36 @@ final class GraduationReviewBatchFilamentTest extends TestCase
     }
 
     #[Test]
-    public function resource_is_registered_and_policy_boundaries_are_enforced(): void
+    public function resource_is_registered_but_unreachable_for_every_role(): void
     {
         $this->assertContains(GraduationReviewBatchResource::class, Filament::getPanel('admin')->getResources());
+        $this->assertFalse(GraduationReviewBatchResource::shouldRegisterNavigation());
 
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $this->actingAs($registrar);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $this->assertTrue(GraduationReviewBatchResource::canAccess());
-        $this->assertTrue(GraduationReviewBatchResource::canCreate());
+        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin, 'student'] as $role) {
+            $this->actingAs($this->staff($role));
+            Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $academicHead = $this->staff(User::StaffRoleAcademicHead);
-        $this->actingAs($academicHead);
-        $this->assertTrue(GraduationReviewBatchResource::canAccess());
-        $this->assertFalse(GraduationReviewBatchResource::canCreate());
-
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        $this->assertTrue(GraduationReviewBatchResource::canAccess());
-        $this->assertFalse(GraduationReviewBatchResource::canCreate());
-
-        $student = $this->staff('student');
-        $this->actingAs($student);
-        $this->assertFalse(GraduationReviewBatchResource::canAccess());
+            $this->assertFalse(GraduationReviewBatchResource::canAccess(), $role);
+            $this->get(GraduationReviewBatchResource::getUrl('index'))->assertForbidden();
+        }
     }
 
     #[Test]
-    public function registrar_can_create_filter_and_view_batch_records(): void
+    public function registrar_cannot_reach_batch_pages_while_historical_records_remain_preserved(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $year = AcademicYear::factory()->create(['label' => '2026-2027']);
-        $term = Term::factory()->create(['academic_year_id' => $year->id, 'label' => 'Second Semester']);
-        $other = GraduationReviewBatch::factory()->create([
-            'academic_year_id' => $year->id,
-            'term_id' => $term->id,
-            'state' => 'closed',
-        ]);
+        $batch = GraduationReviewBatch::factory()->create(['created_by' => $registrar->id]);
+        $member = GraduationReviewMember::factory()->create(['graduation_review_batch_id' => $batch->id]);
+        $snapshot = GraduationSnapshot::factory()->create(['graduation_review_member_id' => $member->id]);
+
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(CreateGraduationReviewBatch::class)
-            ->fillForm([
-                'academic_year_id' => $year->id,
-                'term_id' => $term->id,
-                'name' => 'March 2027 Completion Review',
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $batch = GraduationReviewBatch::query()->where('name', 'March 2027 Completion Review')->firstOrFail();
-        $this->assertSame($registrar->id, $batch->created_by);
-        $this->assertSame(GraduationReviewBatch::StateOpen, $batch->state);
-        $this->assertNull($batch->filter_summary);
-
-        Livewire::test(ListGraduationReviewBatches::class)
-            ->filterTable('state', 'open')
-            ->assertCanSeeTableRecords([$batch])
-            ->assertCanNotSeeTableRecords([$other]);
-
-        Livewire::test(ViewGraduationReviewBatch::class, ['record' => $batch->getRouteKey()])
-            ->assertSee('March 2027 Completion Review');
+        $this->get(GraduationReviewBatchResource::getUrl('index'))->assertForbidden();
+        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
+        $this->assertDatabaseHas('graduation_review_batches', ['id' => $batch->id]);
+        $this->assertDatabaseHas('graduation_review_members', ['id' => $member->id]);
+        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
     }
 
     #[Test]
@@ -160,7 +126,7 @@ final class GraduationReviewBatchFilamentTest extends TestCase
     }
 
     #[Test]
-    public function academic_head_can_view_but_cannot_manage_member_snapshots_or_visibility(): void
+    public function academic_head_cannot_reach_batch_pages_but_retains_historical_read_policy(): void
     {
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -179,23 +145,16 @@ final class GraduationReviewBatchFilamentTest extends TestCase
         $this->actingAs($academicHead);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewGraduationReviewBatch::class, ['record' => $batch->getRouteKey()])
-            ->assertOk()
-            ->assertSee($batch->name);
+        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
 
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->assertCanSeeTableRecords([$member])
-            ->assertTableActionHidden('refreshSnapshot', $member)
-            ->assertTableActionHidden('makeVisible', $member)
-            ->assertTableActionHidden('hideVisible', $member)
-            ->assertTableBulkActionHidden('refreshSelectedSnapshots');
-
+        $this->assertTrue($academicHead->can('view', $batch));
+        $this->assertTrue($academicHead->can('view', $member));
         $this->assertFalse($academicHead->can('refreshSnapshot', $member));
         $this->assertFalse($academicHead->can('updateVisibility', $member->latestSnapshot));
         $this->assertFalse($academicHead->can('refreshAnySnapshot', GraduationReviewMember::class));
+        $this->assertDatabaseHas('graduation_snapshots', [
+            'graduation_review_member_id' => $member->id,
+        ]);
     }
 
     #[Test]

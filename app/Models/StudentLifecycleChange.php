@@ -66,6 +66,7 @@ class StudentLifecycleChange extends Model
         ];
     }
 
+    /** @return BelongsTo<StudentProfile, $this> */
     public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);

@@ -157,7 +157,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $studentLifecyclePage = $lifecycle->instance();
         $this->assertInstanceOf(LifecycleView::class, $studentLifecyclePage);
         $this->assertTrue($studentLifecyclePage->getTable()->isStackedOnMobile());
-        $lifecycle->assertSee('Official academic standing: Regular');
+        $lifecycle->assertSee('Enrollment guidance: ALLOWED');
     }
 
     #[Test]

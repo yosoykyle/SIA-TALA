@@ -16,22 +16,23 @@ final class SchemaConformanceTest extends TestCase
     ];
 
     private const APPLICATION_TABLES = [
-        'academic_years', 'accounting_adjustments', 'admission_application_events', 'admission_cycle_events',
+        'academic_decisions', 'academic_years', 'accounting_adjustments', 'admission_application_events', 'admission_cycle_events',
         'admission_cycle_program', 'admission_cycles', 'admission_decisions', 'admission_requirement_policies',
         'admission_requirement_sets', 'admission_requirements', 'applicant_intakes', 'application_correction_items',
         'application_correction_requests', 'application_submission_versions', 'approved_coverages',
         'assessment_lines', 'assessment_obligations', 'assessments',
-        'calendar_events', 'candidate_schedule_rows',
+        'calendar_events', 'candidate_schedule_rows', 'class_offering_teaching_assignments',
         'checklist_items', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
         'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
-        'external_competency_requirements',
+        'external_competency_requirements', 'external_competency_results',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
         'faculty_availability_declarations', 'fee_plan_charges', 'fee_plan_obligations', 'fee_plans',
-        'financial_accommodations', 'grade_outcome_events', 'grade_roster_rows',
-        'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
-        'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'late_grade_authorizations',
+        'financial_accommodations', 'grade_outcome_events', 'grade_roster_returned_rows', 'grade_roster_rows',
+        'grade_roster_version_rows', 'grade_roster_versions', 'grade_rosters', 'graduation_review_batches', 'graduation_review_members',
+        'graduation_snapshots', 'holds', 'identity_match_reviews', 'import_batches', 'inc_completion_submissions',
+        'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results',
@@ -42,7 +43,7 @@ final class SchemaConformanceTest extends TestCase
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
         'student_lifecycle_changes', 'student_number_sequences', 'student_profiles', 'student_schedule_bindings',
-        'system_settings', 'term_accounts', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
+        'system_settings', 'term_accounts', 'term_average_labels', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms',
         'timetable_revisions',
     ];
@@ -65,9 +66,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(104, self::APPLICATION_TABLES);
+        $this->assertCount(113, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(122, $actual);
+        $this->assertCount(131, $actual);
         $this->assertSame($expected, $actual);
     }
 

@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Enrollment\AcademicProgressionService;
+use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\RecordAcademicDecision;
 use App\Actions\StudentLifecycle\StudentLifecycleService;
+use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ViewStudentLifecycleChange;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Student\Pages\LifecycleView;
+use App\Models\AcademicDecision;
 use App\Models\Course;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -59,22 +62,19 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $this->assertFalse(StudentLifecycleChangeResource::canCreate());
-        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertActionHidden('confirmStanding');
+        $this->assertEmpty(Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])->instance()->getCachedHeaderActions());
         Livewire::test(ListStudentLifecycleChanges::class)
             ->assertActionHidden(TestAction::make('apply')->table($change))
             ->assertActionHidden(TestAction::make('cancel')->table($change));
 
         try {
-            app(AcademicProgressionService::class)->confirmStanding(
-                $profile,
-                StudentProfile::StandingIrregular,
-                $systemAdmin,
-                'Crafted request.',
+            app(RecordAcademicDecision::class)->execute(
+                $profile, null, AcademicDecision::EffectBlocked, 'CRAFTED-AUTHORITY', today(),
+                'Crafted request.', today(), null, $systemAdmin,
             );
-            $this->fail('System Super Admin unexpectedly confirmed academic standing.');
+            $this->fail('System Super Admin unexpectedly recorded an academic decision.');
         } catch (AuthorizationException) {
-            $this->assertSame(StudentProfile::StandingRegular, $profile->fresh()->academic_standing);
+            $this->assertDatabaseCount('academic_decisions', 0);
         }
 
         try {
@@ -86,7 +86,7 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
     }
 
     #[Test]
-    public function registrar_receives_decision_context_and_records_an_audited_standing(): void
+    public function registrar_records_an_attributable_academic_effect_without_mutating_legacy_standing(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $profile = StudentProfile::factory()->create([
@@ -94,37 +94,22 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         ]);
         $this->curriculumEntry($profile);
 
-        $progression = app(AcademicProgressionService::class)->evaluate($profile);
-        $this->assertFalse($progression['recommendation']['available']);
-        $this->assertNull($progression['recommendation']['standing']);
-        $this->assertSame('Institutional review required', $progression['recommendation']['label']);
-
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ViewStudentProfile::class, ['record' => $profile->getRouteKey()])
-            ->assertSee('Official Academic Standing')
-            ->assertSee('Institutional review required')
-            ->assertSee('Academic Blockers and Recovery')
-            ->mountAction('confirmStanding')
-            ->assertMountedActionModalSee('Decision Evidence')
-            ->assertMountedActionModalSee('Current Official Standing')
-            ->assertMountedActionModalSee('Institutional review required')
-            ->assertMountedActionModalSee('Record confirmed standing')
-            ->setActionData([
-                'standing' => StudentProfile::StandingDeficient,
-                'reason' => 'Released grades and curriculum requirements were reviewed.',
-            ])
-            ->callMountedAction()
-            ->assertHasNoActionErrors()
-            ->assertNotified('Academic standing confirmed');
+        Livewire::test(GradesAndCompletion::class)->assertActionVisible('recordAcademicDecision');
+        app(RecordAcademicDecision::class)->execute(
+            $profile, null, AcademicDecision::EffectAdvisingRequired, 'ACADEMIC-BOARD-D6B', today(),
+            'Released results require an individually advised proposal.', today(), null, $registrar,
+        );
 
-        $this->assertSame(StudentProfile::StandingDeficient, $profile->fresh()->academic_standing);
-        $this->assertDatabaseHas('activity_log', [
-            'event' => 'academic_standing_confirmed',
-            'subject_type' => StudentProfile::class,
-            'subject_id' => $profile->id,
-            'causer_id' => $registrar->id,
+        $this->assertSame(StudentProfile::StandingProbationary, $profile->fresh()->academic_standing);
+        $this->assertSame(AcademicDecision::EffectAdvisingRequired, app(AcademicEnrollmentEffect::class)->forStudent($profile)['effect']);
+        $this->assertDatabaseHas('academic_decisions', [
+            'student_profile_id' => $profile->id,
+            'effect' => AcademicDecision::EffectAdvisingRequired,
+            'authority_reference' => 'ACADEMIC-BOARD-D6B',
+            'recorded_by' => $registrar->id,
         ]);
     }
 
@@ -202,7 +187,7 @@ final class TAL96D5E1D6BAcademicStandingLifecycleResultTest extends TestCase
         Livewire::test(LifecycleView::class)
             ->assertCanSeeTableRecords([$ownChange])
             ->assertCanNotSeeTableRecords([$otherChange])
-            ->assertSee('Official academic standing: Irregular')
+            ->assertSee('Enrollment guidance: ALLOWED')
             ->assertSee('Applied to your official record')
             ->assertSee('Registrar Office')
             ->assertDontSee('STAFF-ONLY AUTHORITY')

@@ -4,7 +4,7 @@ namespace App\Actions\Imports;
 
 class CourseSpecificationImportTemplate
 {
-    public const Version = 'course-specification-v4';
+    public const Version = 'course-specification-v5';
 
     /**
      * @return list<string>
@@ -22,6 +22,7 @@ class CourseSpecificationImportTemplate
             'credit_units',
             'grading_profile_key',
             'grading_profile_version',
+            'academic_classification',
             'scheduling_treatment',
             'allowed_modalities',
             'same_faculty_default',
@@ -56,6 +57,7 @@ class CourseSpecificationImportTemplate
                 '3.00',
                 'college_standard',
                 '1',
+                'ORDINARY',
                 'Recurring',
                 'FACE_TO_FACE|ONLINE',
                 'yes',

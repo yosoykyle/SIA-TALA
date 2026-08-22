@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Calendar\ActivateTermCalendarPackage;
+use App\Actions\Grades\ManageTeachingAssignment;
+use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
@@ -12,6 +14,7 @@ use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -83,6 +86,7 @@ final class TermPlanningWorkbench extends Page
             $this->activateCalendarPackageAction(),
             $this->confirmClassAction(),
             $this->recordFacultyAvailabilityAction(),
+            $this->manageTeachingAssignmentAction(),
         ];
     }
 
@@ -228,6 +232,48 @@ final class TermPlanningWorkbench extends Page
                     $data['correction_reason'] ?? null,
                 );
                 Notification::make()->title('Faculty availability recorded')->success()->send();
+            });
+    }
+
+    private function manageTeachingAssignmentAction(): Action
+    {
+        return Action::make('manageTeachingAssignment')
+            ->label('Assign Teaching Faculty')
+            ->schema([
+                Select::make('section_id')
+                    ->label('Official Class Offering')
+                    ->options(Section::query()->whereNotNull('confirmed_at')->orderBy('code')->pluck('code', 'id'))
+                    ->required()->searchable(),
+                Select::make('faculty_user_id')
+                    ->label('Faculty')
+                    ->options(User::query()->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
+                        ->orderBy('name')->pluck('name', 'id'))
+                    ->required()->searchable(),
+                Select::make('role')
+                    ->options([
+                        ClassOfferingTeachingAssignment::RoleDesignated => 'Designated submitter',
+                        ClassOfferingTeachingAssignment::RoleCoFaculty => 'View-only co-Faculty',
+                    ])->required(),
+                TextInput::make('authority_reference')
+                    ->label('Assignment authority')
+                    ->helperText('Record the memo, load, or Registrar authority used for this attributable assignment.')
+                    ->required()->maxLength(255),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $section = Section::query()->findOrFail((int) $data['section_id']);
+                $faculty = User::query()->findOrFail((int) $data['faculty_user_id']);
+                $assignments = app(ManageTeachingAssignment::class);
+
+                if ($data['role'] === ClassOfferingTeachingAssignment::RoleDesignated) {
+                    $assignments->designate($section, $faculty, $actor, (string) $data['authority_reference']);
+                    app(SynchronizeOfficialGradeRoster::class)->execute($section, $actor);
+                } else {
+                    $assignments->addCoFaculty($section, $faculty, $actor, (string) $data['authority_reference']);
+                }
+
+                Notification::make()->title('Teaching assignment recorded')->success()->send();
             });
     }
 

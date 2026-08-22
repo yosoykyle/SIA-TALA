@@ -2,6 +2,13 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\CumulativeGwaProjection;
+use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\Academics\TermWeightedAverageProjection;
+use App\Models\ExternalCompetencyResult;
+use App\Models\StudentProfile;
 use Filament\Pages\Page;
 
 class Academics extends Page
@@ -10,7 +17,7 @@ class Academics extends Page
 
     protected static ?string $navigationLabel = 'Academics';
 
-    protected static ?string $title = 'Academics';
+    protected static ?string $title = 'Student Academics';
 
     protected string $view = 'filament.student.pages.academics';
 
@@ -19,47 +26,37 @@ class Academics extends Page
         return auth()->user()?->hasRole('student') ?? false;
     }
 
-    /**
-     * @return list<array{title: string, description: string, action: string, url: string, icon: string}>
-     */
-    public function academicAreas(): array
+    /** @return array<string, mixed> */
+    protected function getViewData(): array
     {
+        $student = auth()->user()?->studentProfile;
+
+        if (! $student instanceof StudentProfile) {
+            return ['student' => null];
+        }
+
+        $results = app(OfficialCourseResultProjection::class)->forStudent($student);
+        $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on')->values();
+        $termAverages = $terms->mapWithKeys(fn ($term): array => [
+            $term->id => app(TermWeightedAverageProjection::class)->forStudentAndTerm($student, $term),
+        ]);
+
         return [
-            [
-                'title' => 'Class Schedule',
-                'description' => 'View the published meeting time, delivery mode, faculty member, and room for each enrolled subject.',
-                'action' => 'View class schedule',
-                'url' => ScheduleView::getUrl(panel: 'student'),
-                'icon' => 'heroicon-o-calendar-days',
-            ],
-            [
-                'title' => 'Released Grades',
-                'description' => 'Review grades that the Registrar has officially released to the Student Hub.',
-                'action' => 'View released grades',
-                'url' => GradesView::getUrl(panel: 'student'),
-                'icon' => 'heroicon-o-document-check',
-            ],
-            [
-                'title' => 'Academic Status and Holds',
-                'description' => 'Understand your confirmed standing, recorded lifecycle history, and any hold that affects academic work.',
-                'action' => 'View academic status',
-                'url' => LifecycleView::getUrl(panel: 'student'),
-                'icon' => 'heroicon-o-identification',
-            ],
-            [
-                'title' => 'Holds and Blockers',
-                'description' => 'See the office, reason, and next step for any active hold that affects enrollment, records, or outputs.',
-                'action' => 'View holds and blockers',
-                'url' => HoldsView::getUrl(panel: 'student'),
-                'icon' => 'heroicon-o-exclamation-triangle',
-            ],
-            [
-                'title' => 'Completion Eligibility Review',
-                'description' => 'See the latest eligibility result shared by the Registrar, the evidence behind it, and your next step. This does not confer a degree.',
-                'action' => 'View eligibility review',
-                'url' => Completion::getUrl(panel: 'student'),
-                'icon' => 'heroicon-o-trophy',
-            ],
+            'student' => $student,
+            'results' => $results,
+            'terms' => $terms,
+            'termAverages' => $termAverages,
+            'cumulative' => app(CumulativeGwaProjection::class)->forStudent($student),
+            'curriculum' => app(CurriculumEvaluation::class)->forStudent($student),
+            'effect' => app(AcademicEnrollmentEffect::class)->forStudent($student),
+            'competencyResults' => ExternalCompetencyResult::query()
+                ->where('student_profile_id', $student->id)
+                ->with('requirement')
+                ->latest('recorded_at')->get(),
+            'lifecycleChanges' => $student->lifecycleChanges()->latest('effective_on')->get(),
+            'scheduleUrl' => ScheduleView::getUrl(panel: 'student'),
+            'holdsUrl' => HoldsView::getUrl(panel: 'student'),
+            'unofficialRecordUrl' => route('student-academics.unofficial-record', $student),
         ];
     }
 }

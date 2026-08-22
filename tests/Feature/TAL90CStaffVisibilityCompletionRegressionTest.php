@@ -131,7 +131,7 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
     }
 
     #[Test]
-    public function deactivated_member_snapshot_no_longer_appears_on_student_completion_page(): void
+    public function deactivated_member_snapshot_remains_preserved_while_completion_page_is_unreachable(): void
     {
         $student = $this->student();
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
@@ -149,14 +149,20 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(Completion::class)
-            ->assertSee('No completion eligibility review has been shared')
-            ->assertDontSee('Blocked: Pending Grade')
-            ->assertDontSee('Please contact the Registrar');
+        $this->assertFalse(Completion::shouldRegisterNavigation());
+        $this->assertFalse(Completion::canAccess());
+        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertDatabaseHas('graduation_review_members', [
+            'id' => $member->id,
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('graduation_snapshots', [
+            'graduation_review_member_id' => $member->id,
+        ]);
     }
 
     #[Test]
-    public function active_member_exposed_snapshot_still_shows_student_safe_content(): void
+    public function active_member_snapshot_remains_preserved_while_completion_page_is_unreachable(): void
     {
         $student = $this->student();
         $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
@@ -173,11 +179,13 @@ final class TAL90CStaffVisibilityCompletionRegressionTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::test(Completion::class)
-            ->assertSee('Review blocked: Pending Grade')
-            ->assertSee('Please contact the Registrar')
-            ->assertSee('Registrar Office')
-            ->assertDontSee('Private staff evidence');
+        $this->assertFalse(Completion::shouldRegisterNavigation());
+        $this->assertFalse(Completion::canAccess());
+        $this->get(route('filament.student.pages.completion'))->assertForbidden();
+        $this->assertDatabaseHas('graduation_snapshots', [
+            'graduation_review_member_id' => $member->id,
+            'result_status' => 'Blocked: Pending Grade',
+        ]);
     }
 
     private function staff(string $role): User

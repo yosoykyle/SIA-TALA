@@ -145,6 +145,10 @@ class CourseSpecificationLifecycleService
             $errors[] = 'A Grading Profile is required.';
         }
 
+        if (! array_key_exists((string) $courseSpecification->academic_classification, CourseSpecification::academicClassificationOptions())) {
+            $errors[] = 'Select the authorized Course Academic Classification.';
+        }
+
         if ($modalities->isEmpty() || $modalities->diff($supportedModalities)->isNotEmpty()) {
             $errors[] = 'Allowed Modalities must contain only Face-to-Face and Online.';
         }

@@ -28,6 +28,7 @@ use App\Filament\Student\Pages\HoldsView;
 use App\Filament\Student\Pages\LifecycleView;
 use App\Filament\Student\Pages\ScheduleView;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeRoster;
 use App\Models\Section;
 use App\Models\TermOffering;
@@ -135,11 +136,8 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
 
         Livewire::test(Academics::class)
             ->assertOk()
-            ->assertSee('Your academic record')
-            ->assertSee('Class Schedule')
-            ->assertSee('Released Grades')
-            ->assertSee('Academic Status and Holds')
-            ->assertSee('Completion Eligibility Review');
+            ->assertSee('Student record unavailable')
+            ->assertSee('Contact the Registrar for assistance.');
     }
 
     #[Test]
@@ -214,8 +212,8 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
         Livewire::test(GradesAndCompletion::class)
             ->assertOk()
             ->assertSee('Registrar academic results')
-            ->assertSee('Grade Review and Release')
-            ->assertSee('Completion Eligibility Review');
+            ->assertSee('Grade Review, INC, and Corrections')
+            ->assertDontSee('Completion Eligibility Review');
 
         $this->actingAs($this->staff(User::StaffRoleAcademicHead));
 
@@ -224,7 +222,7 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
             ->assertSee('Academic decisions requiring oversight')
             ->assertSee('Grade Review')
             ->assertSee('Lifecycle Exceptions')
-            ->assertSee('Completion Exceptions');
+            ->assertDontSee('Completion Exceptions');
     }
 
     #[Test]
@@ -261,17 +259,18 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
         $this->actingAs($faculty);
 
         $component = Livewire::test(FacultyGradeRoster::class);
-        $options = $this->invoke($component->instance(), 'assignedRosterOptions');
+        $options = $this->invoke($component->instance(), 'rosterOptions');
 
         $this->assertArrayHasKey($draft->id, $options);
         $this->assertArrayHasKey($submitted->id, $options);
         $this->assertArrayHasKey($released->id, $options);
 
-        $component->set('rosterId', $submitted->id);
-        $this->assertFalse($this->invoke($component->instance(), 'selectedRosterIsEditable'));
+        $page = new FacultyGradeRoster;
+        $page->rosterId = $submitted->id;
+        $this->assertFalse($this->invoke($page, 'canEditSelectedRoster'));
 
-        $component->set('rosterId', $released->id);
-        $this->assertFalse($this->invoke($component->instance(), 'selectedRosterIsEditable'));
+        $page->rosterId = $released->id;
+        $this->assertFalse($this->invoke($page, 'canEditSelectedRoster'));
     }
 
     /**
@@ -416,10 +415,25 @@ class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
 
     private function roster(User $faculty, string $state): GradeRoster
     {
-        return GradeRoster::factory()->create([
-            'term_offering_id' => TermOffering::factory(),
-            'section_id' => Section::factory(),
+        $termOffering = TermOffering::factory()->create();
+        $section = Section::factory()->create(['term_offering_id' => $termOffering->id]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $assignment = ClassOfferingTeachingAssignment::query()->create([
+            'term_offering_id' => $termOffering->id,
+            'section_id' => $section->id,
             'faculty_user_id' => $faculty->id,
+            'role' => ClassOfferingTeachingAssignment::RoleDesignated,
+            'state' => ClassOfferingTeachingAssignment::StateActive,
+            'authority_reference' => 'TEST-ASSIGNMENT',
+            'assigned_by' => $registrar->id,
+            'effective_at' => now(),
+        ]);
+
+        return GradeRoster::factory()->create([
+            'term_offering_id' => $termOffering->id,
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'teaching_assignment_id' => $assignment->id,
             'state' => $state,
             'submitted_at' => in_array($state, [GradeRoster::StateSubmitted, GradeRoster::StateReleased], true) ? now() : null,
             'released_at' => $state === GradeRoster::StateReleased ? now() : null,

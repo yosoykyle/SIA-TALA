@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
-use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\User;
 use Filament\Pages\Page;
@@ -44,14 +43,6 @@ class AcademicApprovals extends Page
                 'url' => StudentLifecycleChangeResource::getUrl('index'),
                 'icon' => 'heroicon-o-arrow-path-rounded-square',
                 'available' => StudentLifecycleChangeResource::canAccess(),
-            ],
-            [
-                'title' => 'Completion Exceptions',
-                'description' => 'Review graduation and completion evidence that requires academic oversight.',
-                'action' => 'Review completion batches',
-                'url' => GraduationReviewBatchResource::getUrl('index'),
-                'icon' => 'heroicon-o-trophy',
-                'available' => GraduationReviewBatchResource::canAccess(),
             ],
         ])
             ->where('available', true)

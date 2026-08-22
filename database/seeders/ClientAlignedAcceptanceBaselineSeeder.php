@@ -427,6 +427,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'credit_units' => $definition['units'],
             'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
             'grading_profile_version' => 1,
+            'academic_classification' => $this->academicClassification($course, $definition),
             'scheduling_treatment' => $schedulingTreatment,
             'allowed_modalities' => [TermOffering::ModalityOnline, TermOffering::ModalityFaceToFace],
             'same_faculty_default' => true,
@@ -462,6 +463,22 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
         return str($definition['title'])->contains(['Internship', 'Work-Related Training', 'Practicum'])
             ? CourseSpecification::SchedulingExternallyArranged
             : CourseSpecification::SchedulingRecurring;
+    }
+
+    /** @param array{title:string,units:float,modality:string,room_type:string} $definition */
+    private function academicClassification(Course $course, array $definition): string
+    {
+        $identity = str($course->code.' '.$definition['title'])->upper()->toString();
+
+        if (str($identity)->contains(['NSTP', 'CWTS', 'LTS', 'ROTC'])) {
+            return CourseSpecification::AcademicClassificationNstp;
+        }
+
+        if (str($identity)->contains(['PHYSICAL EDUCATION', ' PE '])) {
+            return CourseSpecification::AcademicClassificationPe;
+        }
+
+        return CourseSpecification::AcademicClassificationOrdinary;
     }
 
     /** @param array{title:string,units:float,modality:string,room_type:string} $definition */

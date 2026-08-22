@@ -139,7 +139,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
     }
 
     #[Test]
-    public function lifecycle_view_surfaces_the_students_current_academic_standing(): void
+    public function lifecycle_view_surfaces_authoritative_enrollment_guidance_without_using_legacy_standing(): void
     {
         [$student, $profile] = $this->studentWithProfile([
             'academic_standing' => StudentProfile::StandingIrregular,
@@ -147,7 +147,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
 
         Livewire::actingAs($student)
             ->test(LifecycleView::class)
-            ->assertSee('Irregular');
+            ->assertSee('Enrollment guidance: ALLOWED');
 
         $this->assertSame(StudentProfile::StandingIrregular, $profile->fresh()->academic_standing);
     }
@@ -182,7 +182,7 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
     }
 
     #[Test]
-    public function student_dashboard_service_projects_academic_standing_matching_the_persisted_value(): void
+    public function student_dashboard_service_projects_the_canonical_academic_effect(): void
     {
         [, $profile] = $this->studentWithProfile([
             'academic_standing' => StudentProfile::StandingProbationary,
@@ -194,9 +194,9 @@ final class TAL91DStudentHubAcademicStatusAcceptanceTest extends TestCase
         /** @var array<string,mixed> $projected */
         $projected = $method->invoke(app(StudentDashboardService::class), $profile);
 
-        $this->assertArrayHasKey('academic_standing', $projected);
-        $this->assertSame(StudentProfile::StandingProbationary, $projected['academic_standing']);
-        $this->assertSame($profile->academic_standing, $projected['academic_standing']);
+        $this->assertArrayNotHasKey('academic_standing', $projected);
+        $this->assertSame('ALLOWED', $projected['academic_effect']['effect']);
+        $this->assertSame('Current released academic and lifecycle records', $projected['academic_effect']['source']);
     }
 
     /**

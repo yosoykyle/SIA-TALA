@@ -3,8 +3,8 @@
         <x-filament::section>
             <x-slot name="heading">Registrar academic results</x-slot>
             <x-slot name="description">
-                Start with the result you need to review. Grade records and completion reviews remain separate
-                authoritative records, but they share this Registrar-owned operating stage.
+                Start with the authoritative record you need to manage. Grade release, academic decisions,
+                external competency, and lifecycle history remain attributable and append-only.
             </x-slot>
         </x-filament::section>
 

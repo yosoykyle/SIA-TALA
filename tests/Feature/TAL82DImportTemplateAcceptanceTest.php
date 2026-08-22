@@ -898,6 +898,7 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
             'credit_units' => '3.00',
             'grading_profile_key' => CourseSpecification::GradingProfileCollegeStandard,
             'grading_profile_version' => '1',
+            'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
             'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
             'allowed_modalities' => CourseSpecification::ModalityFaceToFace,
             'same_faculty_default' => 'yes',

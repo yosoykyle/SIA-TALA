@@ -67,13 +67,13 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         Livewire::test(StudentProfileOverviewWidget::class)
             ->assertSee('This is your official Student Profile status.')
-            ->assertSee('Contact the Registrar Office if review is needed.')
+            ->assertSee('No recorded academic or lifecycle authority blocks ordinary curriculum placement.')
             ->assertSee('No outstanding posted balance.')
             ->assertDontSee('Source #')
             ->assertDontSee('blockers:');
 
         Livewire::test(Profile::class)
-            ->assertSee('Irregular')
+            ->assertSee('Enrollment guidance')
             ->assertDontSee('IRREGULAR');
 
         $holds = Livewire::test(ActiveHoldsWidget::class)->instance();

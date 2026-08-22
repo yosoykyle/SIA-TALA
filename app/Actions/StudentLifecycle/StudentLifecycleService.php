@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentLifecycle;
 
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
 use App\Models\Assessment;
 use App\Models\CalendarEvent;
@@ -30,6 +31,7 @@ class StudentLifecycleService
     public function __construct(
         private readonly HoldEvaluationService $holds,
         private readonly LifecycleFinanceAction $finance,
+        private readonly AcademicRecordNotificationService $notifications,
     ) {}
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
@@ -154,6 +156,7 @@ class StudentLifecycleService
             }
 
             $this->recordAudit($change, $actor, 'student_lifecycle_change_recorded');
+            $this->notifications->recordLifecycleAfterCommit($change);
 
             return $change->refresh();
         }, attempts: 3);
@@ -207,6 +210,7 @@ class StudentLifecycleService
             ]);
             $locked->update(['state' => StudentLifecycleChange::StateApplied]);
             $this->recordAudit($locked, $actor, 'program_shift_applied');
+            $this->notifications->recordLifecycleAfterCommit($locked);
 
             return $locked->refresh();
         }, attempts: 3);
@@ -387,10 +391,12 @@ class StudentLifecycleService
             $row->update(['current_outcome_code' => $code, 'current_outcome_category' => GradeRosterRow::CategoryWithdrawn, 'released_at' => now()]);
             GradeOutcomeEvent::query()->create([
                 'grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypeLifecycleOutcome,
+                'result_code' => $code,
                 'previous_value' => null, 'new_value' => null, 'previous_category' => null,
                 'new_category' => GradeRosterRow::CategoryWithdrawn, 'authority' => $change->authority,
                 'reason' => $change->reason, 'evidence_reference' => $change->private_source_reference,
-                'recorded_by' => $actor->id,
+                'recorded_by' => $actor->id, 'released_at' => now(),
+                'source_key' => "lifecycle-change:{$change->id}:course-enrollment:{$course->id}",
             ]);
         }
     }

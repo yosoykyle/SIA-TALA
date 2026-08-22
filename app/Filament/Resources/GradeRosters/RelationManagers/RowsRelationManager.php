@@ -2,12 +2,18 @@
 
 namespace App\Filament\Resources\GradeRosters\RelationManagers;
 
+use App\Actions\Grades\AmendIncDeadline;
+use App\Actions\Grades\FinalResultPolicy;
+use App\Actions\Grades\IncDeadlineService;
 use App\Actions\Grades\RecordApprovedGradeCorrection;
-use App\Actions\Grades\RecordIncResolution;
+use App\Actions\Grades\ReleaseIncCompletion;
+use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
+use App\Models\IncCompletionSubmission;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -16,19 +22,19 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Carbon;
 
 class RowsRelationManager extends RelationManager
 {
     protected static string $relationship = 'rows';
 
-    protected static ?string $title = 'Released Grade Rows';
+    protected static ?string $title = 'Official Result Rows';
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
     {
         return $ownerRecord instanceof GradeRoster
             && $ownerRecord->state === GradeRoster::StateReleased
-            && (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false);
+            && (auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead]) ?? false);
     }
 
     public function isReadOnly(): bool
@@ -39,150 +45,114 @@ class RowsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('id')
-            ->modifyQueryUsing(fn ($query) => $query->with([
-                'courseEnrollment.enrollment.studentProfile',
+            ->modifyQueryUsing(fn ($query) => $query->where('is_current_membership', true)->with([
+                'courseEnrollment.enrollment.studentProfile', 'outcomeEvents.completionSubmissions',
             ]))
             ->columns([
-                TextColumn::make('courseEnrollment.enrollment.studentProfile.student_number')
-                    ->label('Student No.')
-                    ->searchable()
-                    ->placeholder('-'),
-                TextColumn::make('courseEnrollment.enrollment.studentProfile.last_name')
-                    ->label('Last Name')
-                    ->searchable()
-                    ->placeholder('-'),
-                TextColumn::make('computed_average')
-                    ->label('Average')
-                    ->placeholder('-'),
-                TextColumn::make('current_outcome_code')
-                    ->label('Outcome')
-                    ->badge()
-                    ->placeholder('-'),
-                TextColumn::make('current_outcome_category')
-                    ->label('Category')
-                    ->placeholder('-'),
-                TextColumn::make('released_at')
-                    ->label('Released')
-                    ->dateTime()
-                    ->placeholder('-'),
+                TextColumn::make('courseEnrollment.enrollment.studentProfile.student_number')->label('Student no.')->searchable(),
+                TextColumn::make('courseEnrollment.enrollment.studentProfile.last_name')->label('Student')->searchable(),
+                TextColumn::make('final_result')->label('Submitted result')->badge(),
+                TextColumn::make('current_outcome_code')->label('Current official result')->badge(),
+                TextColumn::make('inc_state')
+                    ->label('INC status')
+                    ->state(fn (GradeRosterRow $record): string => $this->incState($record))
+                    ->placeholder('Not applicable'),
+                TextColumn::make('released_at')->label('Released')->dateTime(),
             ])
             ->recordActions([
-                Action::make('resolveInc')
-                    ->label('Resolve INC')
-                    ->visible(fn (GradeRosterRow $record): bool => (bool) auth()->user()?->can('resolveInc', $record))
+                Action::make('releaseIncCompletion')
+                    ->label('Release INC completion')
+                    ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                        && $this->submittedCompletion($record) instanceof IncCompletionSubmission)
                     ->schema([
-                        Select::make('replacement_code')
-                            ->label('Replacement / lapsed result')
-                            ->options(self::incReplacementOptions())
-                            ->required(),
-                        TextInput::make('authority')
-                            ->label('Decision authority')
-                            ->required()
-                            ->maxLength(255),
-                        Textarea::make('reason')
-                            ->required()
-                            ->maxLength(2000),
-                        TextInput::make('evidence_reference')
-                            ->label('Evidence reference')
-                            ->maxLength(255),
+                        TextInput::make('authority_reference')->label('Release authority')->required()->maxLength(255),
                     ])
-                    ->action(function (array $data, GradeRosterRow $record): void {
+                    ->requiresConfirmation()
+                    ->action(function (GradeRosterRow $record, array $data): void {
+                        $submission = $this->submittedCompletion($record);
                         $actor = auth()->user();
 
-                        if (! $actor instanceof User) {
-                            return;
+                        if ($submission instanceof IncCompletionSubmission && $actor instanceof User) {
+                            app(ReleaseIncCompletion::class)->execute($submission, $actor, (string) $data['authority_reference']);
+                            Notification::make()->title('INC completion released')->success()->send();
                         }
+                    }),
+                Action::make('amendIncDeadline')
+                    ->label('Change INC deadline')
+                    ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                        && $this->unresolvedInc($record) instanceof GradeOutcomeEvent)
+                    ->schema([
+                        DatePicker::make('new_deadline')->required(),
+                        TextInput::make('authority_reference')->required()->maxLength(255),
+                        DatePicker::make('authority_date')->required(),
+                        Textarea::make('reason')->required()->maxLength(2000),
+                    ])
+                    ->action(function (GradeRosterRow $record, array $data): void {
+                        $inc = $this->unresolvedInc($record);
+                        $actor = auth()->user();
 
-                        app(RecordIncResolution::class)->execute(
-                            $record,
-                            (string) $data['replacement_code'],
-                            (string) $data['authority'],
-                            (string) $data['reason'],
-                            $data['evidence_reference'] === null ? null : (string) $data['evidence_reference'],
-                            $actor,
-                        );
-
-                        Notification::make()->title('INC resolution recorded')->success()->send();
+                        if ($inc instanceof GradeOutcomeEvent && $actor instanceof User) {
+                            app(AmendIncDeadline::class)->execute(
+                                $inc,
+                                Carbon::parse($data['new_deadline']),
+                                (string) $data['authority_reference'],
+                                Carbon::parse($data['authority_date']),
+                                (string) $data['reason'],
+                                $actor,
+                            );
+                            Notification::make()->title('INC deadline amendment recorded')->success()->send();
+                        }
                     }),
                 Action::make('recordCorrection')
-                    ->label('Record Correction')
-                    ->visible(fn (GradeRosterRow $record): bool => (bool) auth()->user()?->can('recordCorrection', $record))
+                    ->label('Record authorized correction')
+                    ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->released_at !== null)
                     ->schema([
-                        Select::make('corrected_code')
-                            ->label('Corrected grade')
-                            ->options(self::correctionOptions())
-                            ->required(),
-                        TextInput::make('authority')
-                            ->label('Approving authority')
-                            ->required()
-                            ->maxLength(255),
-                        Textarea::make('reason')
-                            ->required()
-                            ->maxLength(2000),
-                        TextInput::make('evidence_reference')
-                            ->label('Evidence reference')
-                            ->maxLength(255),
+                        Select::make('corrected_code')->label('Corrected final result')->options(fn (): array => app(FinalResultPolicy::class)->options())->required(),
+                        TextInput::make('authority')->label('Approving authority')->required()->maxLength(255),
+                        Textarea::make('reason')->required()->maxLength(2000),
+                        TextInput::make('evidence_reference')->label('Evidence reference')->maxLength(255),
                     ])
                     ->action(function (array $data, GradeRosterRow $record): void {
                         $actor = auth()->user();
 
-                        if (! $actor instanceof User) {
-                            return;
+                        if ($actor instanceof User) {
+                            app(RecordApprovedGradeCorrection::class)->execute(
+                                $record,
+                                (string) $data['corrected_code'],
+                                (string) $data['authority'],
+                                (string) $data['reason'],
+                                filled($data['evidence_reference'] ?? null) ? (string) $data['evidence_reference'] : null,
+                                $actor,
+                            );
+                            Notification::make()->title('Authorized correction recorded')->success()->send();
                         }
-
-                        app(RecordApprovedGradeCorrection::class)->execute(
-                            $record,
-                            (string) $data['corrected_code'],
-                            (string) $data['authority'],
-                            (string) $data['reason'],
-                            $data['evidence_reference'] === null ? null : (string) $data['evidence_reference'],
-                            $actor,
-                        );
-
-                        Notification::make()->title('Posted grade correction recorded')->success()->send();
                     }),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->stackedOnMobile();
     }
 
-    /**
-     * Numeric scale codes plus the Pending mark; the lapsed INC result is a numeric scale code.
-     *
-     * @return array<string, string>
-     */
-    private static function incReplacementOptions(): array
+    private function unresolvedInc(GradeRosterRow $row): ?GradeOutcomeEvent
     {
-        $options = self::numericScaleOptions();
-        $options['P'] = 'P (Pending Grade)';
+        $events = $row->outcomeEvents->sortByDesc('id');
+        $latest = $events->first();
 
-        return $options;
+        return $latest?->result_code === 'INC' ? $latest : null;
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private static function correctionOptions(): array
+    private function submittedCompletion(GradeRosterRow $row): ?IncCompletionSubmission
     {
-        $options = self::numericScaleOptions();
-        $options['P'] = 'P (Pending Grade)';
-        $options['INC'] = 'INC (Incomplete)';
-
-        return $options;
+        return $this->unresolvedInc($row)?->completionSubmissions
+            ->where('state', IncCompletionSubmission::StateSubmitted)
+            ->sortByDesc('id')->first();
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private static function numericScaleOptions(): array
+    private function incState(GradeRosterRow $row): string
     {
-        $options = [];
+        $inc = $this->unresolvedInc($row);
 
-        foreach (Config::array('grades.servitech_v1.scale') as $band) {
-            $code = (string) $band['code'];
-            $options[$code] = $code.' ('.((string) $band['category']).')';
-        }
-
-        return $options;
+        return $inc instanceof GradeOutcomeEvent
+            ? app(IncDeadlineService::class)->state($inc)
+            : '';
     }
 }

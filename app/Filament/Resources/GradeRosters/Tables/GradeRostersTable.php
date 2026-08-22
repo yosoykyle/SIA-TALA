@@ -12,8 +12,8 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
@@ -34,11 +34,11 @@ class GradeRostersTable
                 TextColumn::make('state')->badge()->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
                 TextColumn::make('rows_count')->counts('rows')->label('Students'),
                 TextColumn::make('completion')
-                    ->label('Final Grades Entered')
+                    ->label('Final results entered')
                     ->state(fn (GradeRoster $record): string => sprintf(
                         '%d of %d',
-                        $record->rows()->whereNotNull('final_equivalent')->count(),
-                        $record->rows()->count(),
+                        $record->rows()->where('is_current_membership', true)->whereNotNull('final_result')->count(),
+                        $record->rows()->where('is_current_membership', true)->count(),
                     )),
                 TextColumn::make('submitted_at')->dateTime()->sortable(),
                 TextColumn::make('released_at')->dateTime()->sortable(),
@@ -59,11 +59,23 @@ class GradeRostersTable
                         ->label('Return')
                         ->color('warning')
                         ->schema([
+                            CheckboxList::make('row_ids')
+                                ->label('Rows to return')
+                                ->options(fn (GradeRoster $record): array => $record->rows()
+                                    ->where('is_current_membership', true)
+                                    ->with('courseEnrollment.enrollment.studentProfile')
+                                    ->get()
+                                    ->mapWithKeys(fn ($row): array => [$row->id => collect([
+                                        $row->courseEnrollment?->enrollment?->studentProfile?->student_number,
+                                        $row->courseEnrollment?->enrollment?->studentProfile?->last_name,
+                                        $row->final_result,
+                                    ])->filter()->implode(' · ')])->all())
+                                ->required(),
                             Textarea::make('reason')->required()->maxLength(2000),
                         ])
                         ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->state === GradeRoster::StateSubmitted)
                         ->action(function (GradeRoster $record, array $data): void {
-                            app(ReturnGradeRoster::class)->execute($record, auth()->user(), (string) $data['reason']);
+                            app(ReturnGradeRoster::class)->execute($record, auth()->user(), (string) $data['reason'], array_map('intval', $data['row_ids']));
                             Notification::make()->title('Grade roster returned')->warning()->send();
                         }),
                     Action::make('postAndRelease')
@@ -76,17 +88,9 @@ class GradeRostersTable
                             Notification::make()->title('Grade roster posted and released')->success()->send();
                         }),
                     Action::make('authorizeLateGradeEncoding')
-                        ->label('Authorize Late Encoding')
+                        ->label('Authorize late Grade Entry')
                         ->color('info')
                         ->schema([
-                            Select::make('period')
-                                ->label('Grading period')
-                                ->options([
-                                    LateGradeAuthorization::PeriodPrelim => 'Prelim',
-                                    LateGradeAuthorization::PeriodMidterm => 'Midterm',
-                                    LateGradeAuthorization::PeriodFinal => 'Final',
-                                ])
-                                ->required(),
                             DateTimePicker::make('opens_at')
                                 ->label('Opens at')
                                 ->seconds(false)
@@ -99,7 +103,7 @@ class GradeRostersTable
                                 ->required()
                                 ->maxLength(2000),
                         ])
-                        ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])
+                        ->visible(fn (GradeRoster $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
                             && in_array($record->state, [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted], true))
                         ->action(function (GradeRoster $record, array $data): void {
                             $actor = auth()->user();
@@ -110,7 +114,7 @@ class GradeRostersTable
 
                             app(AuthorizeLateGradeEncoding::class)->execute(
                                 $record,
-                                (string) $data['period'],
+                                LateGradeAuthorization::PeriodFinal,
                                 Carbon::parse($data['opens_at']),
                                 Carbon::parse($data['closes_at']),
                                 (string) $data['reason'],

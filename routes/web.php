@@ -7,10 +7,12 @@ use App\Http\Controllers\BillingSlipController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
 use App\Http\Controllers\FinanceStatementController;
+use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
 use App\Http\Controllers\StudentSchedulePrintController;
 use App\Http\Controllers\TimetableVersionPrintController;
+use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
@@ -49,4 +51,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('student.schedule.print');
     Route::get('/outputs/schedules/timetable/{version}', TimetableVersionPrintController::class)
         ->name('timetable.version.print');
+    Route::get('/outputs/grade-rosters/{roster}/print', [GradeRosterOutputController::class, 'print'])
+        ->name('grade-rosters.print');
+    Route::get('/outputs/grade-rosters/{roster}/csv', [GradeRosterOutputController::class, 'csv'])
+        ->name('grade-rosters.csv');
+    Route::get('/outputs/academics/unofficial-record/{student}', UnofficialStudentRecordController::class)
+        ->name('student-academics.unofficial-record');
 });

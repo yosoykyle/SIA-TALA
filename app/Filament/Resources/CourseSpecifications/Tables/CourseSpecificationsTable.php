@@ -20,6 +20,7 @@ class CourseSpecificationsTable
                 TextColumn::make('title')->searchable()->sortable(),
                 TextColumn::make('revision_code')->label('Revision')->searchable()->sortable(),
                 TextColumn::make('credit_units')->label('Units')->sortable(),
+                TextColumn::make('academic_classification')->label('Academic class')->badge()->placeholder('Not recorded'),
                 TextColumn::make('state')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => CourseSpecification::stateOptions()[$state] ?? str((string) $state)->headline()->toString())
@@ -31,6 +32,7 @@ class CourseSpecificationsTable
             ->filters([
                 SelectFilter::make('course_id')->label('Course')->relationship('course', 'code'),
                 SelectFilter::make('state')->options(CourseSpecification::stateOptions()),
+                SelectFilter::make('academic_classification')->label('Academic class')->options(CourseSpecification::academicClassificationOptions()),
             ])
             ->recordActions([
                 ViewAction::make(),
