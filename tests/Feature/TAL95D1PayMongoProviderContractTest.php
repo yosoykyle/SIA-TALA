@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PaymentCheckoutRequest;
 use App\Actions\Integrations\Payments\PaymentCheckoutSession;
 use App\Actions\Integrations\Payments\PaymentGateway;
@@ -417,14 +418,14 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         );
     }
 
-    public function test_retryable_decline_remains_pending_and_a_later_v2_payment_posts_once(): void
+    public function test_provider_confirmed_decline_is_terminal_and_a_late_paid_event_requires_review(): void
     {
         $attempt = $this->paymentAttemptFixture();
         $processor = app(PayMongoWebhookProcessor::class);
         $decline = $processor->process($this->storeWebhookCall($this->legacyFailurePayload($attempt)));
 
-        $this->assertSame('retryable', $decline['status']);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame('failed', $decline['status']);
+        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
         $this->assertSame('failed', data_get($attempt->fresh()->metadata, 'last_webhook.provider_status'));
         $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
 
@@ -437,17 +438,12 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $paid = $processor->process($this->storeWebhookCall($paidPayload));
         $duplicate = $processor->process($this->storeWebhookCall($paidPayload));
 
-        $this->assertSame('posted', $paid['status']);
-        $this->assertSame('duplicate', $duplicate['status']);
-        $this->assertSame('paid', $attempt->fresh()->status);
-        $payment = Payment::query()->where('payment_attempt_id', $attempt->id)->sole();
-        $this->assertSame('paymongo:pay_tal95d1_retry', $payment->provider_reference);
-        $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame(1, LedgerEntry::query()
-            ->where('payment_id', $payment->id)
-            ->whereNotNull('payment_allocation_id')
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->count());
+        $this->assertSame('review_required', $paid['status']);
+        $this->assertSame('payment_attempt_not_active', $paid['reason']);
+        $this->assertSame('review_required', $duplicate['status']);
+        $this->assertSame('payment_attempt_not_active', $duplicate['reason']);
+        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
+        $this->assertSame(0, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
     }
 
     public function test_repaired_smoke_command_proves_current_payment_ledger_and_delivery_evidence(): void
@@ -518,7 +514,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame(Command::SUCCESS, $firstCreate);
         $this->assertSame(Command::SUCCESS, $secondCreate);
         $this->assertSame(1, $gateway->createCalls);
-        $this->assertSame('pending', $attempt->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $attempt->status);
         $this->assertSame('cs_tal95d1_command', $attempt->provider_checkout_id);
 
         $firstExpire = Artisan::call('integrations:paymongo-sandbox-expire', [
@@ -531,7 +527,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         $this->assertSame(Command::SUCCESS, $firstExpire);
         $this->assertSame(Command::SUCCESS, $secondExpire);
         $this->assertSame(1, $gateway->expireCalls);
-        $this->assertSame('expired', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusExpired, $attempt->fresh()->status);
         $this->assertSame(
             1,
             PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count(),
@@ -557,7 +553,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         ]);
 
         $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $attempt->fresh()->status);
         $this->assertSame(1, $gateway->expireCalls);
         $this->assertStringNotContainsString('sk_test_', Artisan::output());
     }
@@ -569,6 +565,17 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
         int $amountCentavos = 200000,
         string $reference = 'TALA-PAY-TAL95D1',
     ): array {
+        $attempt = PaymentAttempt::query()->where('internal_reference', $reference)->first();
+        $metadata = ['tala_reference' => $reference];
+        if ($attempt instanceof PaymentAttempt) {
+            $metadata = [
+                ...$metadata,
+                'term_account_id' => (string) $attempt->term_account_id,
+                'assessment_version' => (string) $attempt->assessment_version,
+                'snapshot_checksum' => (string) $attempt->snapshot_checksum,
+            ];
+        }
+
         return [
             'event_type' => 'send.webhook',
             'data' => [
@@ -581,7 +588,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
                     'attributes' => [
                         'status' => 'active',
                         'reference_number' => $reference,
-                        'metadata' => ['tala_reference' => $reference],
+                        'metadata' => $metadata,
                         'payment_intent' => ['id' => 'pi_tal95d1'],
                         'payments' => [
                             [
@@ -710,6 +717,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal95d1-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '9000.00',
@@ -723,6 +731,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'code' => 'CURRENT_DUE',
             'label' => 'Current enrollment payment',
             'amount' => '1000.00',
+            'due_at' => now()->subMinute(),
             'required_for_enrollment' => true,
         ]);
         LedgerEntry::query()->create([
@@ -739,18 +748,33 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'state' => 'posted',
         ]);
 
-        return PaymentAttempt::query()->create([
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($account);
+        $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $account->id,
             'student_profile_id' => $profile->id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
             'provider_checkout_id' => 'cs_tal95d1_'.Str::lower(Str::random(12)),
             'amount' => '1000.00',
             'currency' => 'PHP',
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
             'metadata' => [],
         ]);
+
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
+
+        return $attempt;
     }
 
     /** @return array{student:User,assessment:Assessment} */
@@ -779,6 +803,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal95d1-sandbox-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '9000.00',
@@ -792,6 +817,7 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
             'code' => 'CURRENT_DUE',
             'label' => 'Current enrollment payment',
             'amount' => '2000.00',
+            'due_at' => now()->subMinute(),
             'required_for_enrollment' => true,
         ]);
         PaymentScheduleRow::query()->create([
@@ -904,7 +930,12 @@ final class TAL95D1PayMongoProviderContractTest extends TestCase
                             'status' => 'failed',
                             'amount_paid' => 100000,
                             'currency' => 'PHP',
-                            'metadata' => ['tala_reference' => (string) $attempt->internal_reference],
+                            'metadata' => [
+                                'tala_reference' => (string) $attempt->internal_reference,
+                                'term_account_id' => (string) $attempt->term_account_id,
+                                'assessment_version' => (string) $attempt->assessment_version,
+                                'snapshot_checksum' => (string) $attempt->snapshot_checksum,
+                            ],
                         ],
                     ],
                 ],

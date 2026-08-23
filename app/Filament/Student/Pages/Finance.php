@@ -3,11 +3,14 @@
 namespace App\Filament\Student\Pages;
 
 use App\Actions\Finance\StudentTermAccountPresenter;
+use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
+use App\Actions\Integrations\Payments\PaymentCheckoutException;
 use App\Models\Payment;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -28,6 +31,22 @@ class Finance extends Page
         $actor = auth()->user();
         abort_unless($actor instanceof User, 403);
         $this->finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+
+        if (request()->query('checkout') === 'success') {
+            Notification::make()
+                ->title('Payment confirmation pending')
+                ->body('No balance changes until TALA verifies signed PayMongo evidence.')
+                ->info()
+                ->send();
+        }
+
+        if (request()->query('checkout') === 'cancelled') {
+            Notification::make()
+                ->title('Checkout cancelled — no payment was recorded from this return')
+                ->body('You can use manual payment evidence or try online checkout again when no attempt is pending.')
+                ->warning()
+                ->send();
+        }
     }
 
     public function content(Schema $schema): Schema
@@ -72,6 +91,44 @@ class Finance extends Page
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('payExactCurrentDue')
+                ->label('Pay exact current due')
+                ->icon('heroicon-o-credit-card')
+                ->color('primary')
+                ->requiresConfirmation()
+                ->modalHeading('Pay exact current due')
+                ->modalDescription(fn (): string => collect([
+                    'Amount: '.(string) data_get($this->finance, 'state.checkout_amount', 'Unavailable'),
+                    'For: '.collect(data_get($this->finance, 'state.checkout_obligations', []))
+                        ->map(fn (array $target): string => $target['label'].' ('.$target['amount'].')')
+                        ->implode(', '),
+                    'PayMongo confirmation may remain pending. This page return never posts payment by itself.',
+                ])->filter()->implode("\n\n"))
+                ->disabled(fn (): bool => data_get($this->finance, 'checkout.enabled') !== true)
+                ->tooltip(fn (): ?string => data_get($this->finance, 'checkout.enabled') === true
+                    ? null
+                    : (string) data_get($this->finance, 'checkout.reason'))
+                ->action(function (): void {
+                    $actor = auth()->user();
+                    abort_unless($actor instanceof User, 403);
+
+                    try {
+                        $result = app(CreatePaymentCheckoutSession::class)->create(
+                            actor: $actor,
+                            successUrl: self::getUrl(['checkout' => 'success']),
+                            cancelUrl: self::getUrl(['checkout' => 'cancelled']),
+                            metadata: ['source' => 'student_finance'],
+                        );
+                        $this->redirect($result['checkout_url'], navigate: false);
+                    } catch (PaymentCheckoutException $exception) {
+                        Notification::make()
+                            ->title('Online checkout is unavailable')
+                            ->body($exception->getMessage().' Manual payment evidence remains available.')
+                            ->warning()
+                            ->send();
+                        $this->finance = app(StudentTermAccountPresenter::class)->forUser($actor);
+                    }
+                }),
             Action::make('statement')
                 ->label('Statement of Account')
                 ->icon('heroicon-o-document-text')

@@ -50,6 +50,12 @@ class TermAccount extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /** @return HasMany<PaymentAttempt, $this> */
+    public function paymentAttempts(): HasMany
+    {
+        return $this->hasMany(PaymentAttempt::class);
+    }
+
     /** @return HasMany<ApprovedCoverage, $this> */
     public function coverages(): HasMany
     {

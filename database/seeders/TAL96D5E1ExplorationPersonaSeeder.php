@@ -171,7 +171,9 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
             ['internal_reference' => $reference],
             [
                 'assessment_id' => $assessment->id,
+                'term_account_id' => $assessment->term_account_id,
                 'student_profile_id' => $assessment->enrollment->student_profile_id,
+                'assessment_version' => $assessment->version,
                 'channel' => 'online_checkout',
                 'provider' => 'paymongo',
                 'provider_checkout_id' => null,

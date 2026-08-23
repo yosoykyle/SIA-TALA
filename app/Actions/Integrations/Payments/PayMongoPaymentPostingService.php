@@ -2,7 +2,6 @@
 
 namespace App\Actions\Integrations\Payments;
 
-use App\Actions\Finance\EnrollmentFinanceClearanceService;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\PaymentAllocationService;
 use App\Models\Assessment;
@@ -21,10 +20,10 @@ final class PayMongoPaymentPostingService
 {
     public function __construct(
         private readonly DecimalMoney $money,
-        private readonly EnrollmentFinanceClearanceService $financeClearanceService,
         private readonly EnrollmentPaymentRequirementProjection $paymentRequirementProjection,
         private readonly PaymentAllocationService $paymentAllocationService,
         private readonly PaymentPostedNotificationService $paymentPostedNotificationService,
+        private readonly ExactDuePaymentSnapshotService $snapshots,
     ) {}
 
     /**
@@ -45,6 +44,9 @@ final class PayMongoPaymentPostingService
         }
 
         $assessment = Assessment::query()->lockForUpdate()->findOrFail($attempt->assessment_id);
+        $account = $attempt->term_account_id !== null
+            ? TermAccount::query()->lockForUpdate()->find($attempt->term_account_id)
+            : null;
         $enrollment = Enrollment::query()
             ->with('studentProfile')
             ->lockForUpdate()
@@ -53,6 +55,9 @@ final class PayMongoPaymentPostingService
 
         if ($attempt->provider !== 'paymongo'
             || $assessment->state !== Assessment::StateActive
+            || ! $account instanceof TermAccount
+            || $assessment->term_account_id !== $account->id
+            || $account->enrollment_id !== $assessment->enrollment_id
             || ! $enrollment instanceof Enrollment
             || ! $student instanceof StudentProfile
             || $enrollment->student_profile_id !== $attempt->student_profile_id) {
@@ -78,6 +83,26 @@ final class PayMongoPaymentPostingService
             && $existingPayment->evidence_status === 'verified'
             && $existingPayment->ledgerEntry instanceof LedgerEntry;
 
+        if ($wasPosted) {
+            $attempt->forceFill([
+                'status' => PaymentAttempt::StatusConfirmed,
+                'paid_at' => $existingPayment->paid_at,
+            ])->save();
+
+            return [
+                'status' => 'duplicate',
+                'payment' => $existingPayment,
+                'ledger_entry' => $existingPayment->ledgerEntry,
+                'finance_cleared' => $account->state === TermAccount::StateCleared,
+            ];
+        }
+
+        if ($normalizedAmount !== $this->money->normalize((string) $attempt->amount)) {
+            throw new PaymentAttemptSnapshotException('amount_mismatch');
+        }
+
+        $this->snapshots->assertCurrent($attempt);
+
         $payment = Payment::query()->updateOrCreate(
             ['payment_attempt_id' => $attempt->id],
             [
@@ -96,73 +121,37 @@ final class PayMongoPaymentPostingService
             ],
         );
 
-        $ledgerEntries = $wasPosted
-            ? $payment->ledgerEntries()->where('direction', LedgerEntry::DirectionPayment)->get()
-            : $this->paymentAllocationService->post(
-                payment: $payment,
-                enrollment: $enrollment,
-                amount: $normalizedAmount,
-                requested: null,
-                actor: $actor,
-                timestamp: $timestamp,
-                description: $description,
-            );
+        $ledgerEntries = $this->paymentAllocationService->post(
+            payment: $payment,
+            enrollment: $enrollment,
+            amount: $normalizedAmount,
+            requested: $this->snapshots->allocationTargets($attempt),
+            actor: $actor,
+            timestamp: $timestamp,
+            description: $description,
+        );
         $ledgerEntry = $ledgerEntries->first();
 
         if (! $ledgerEntry instanceof LedgerEntry) {
             throw new RuntimeException('Verified payment did not produce a ledger posting.');
         }
 
-        $attempt->forceFill(['status' => 'paid', 'paid_at' => $timestamp])->save();
-        if ($assessment->term_account_id !== null) {
-            $projection = $this->paymentRequirementProjection->forEnrollment($enrollment->refresh());
-            TermAccount::query()->whereKey($assessment->term_account_id)->update([
-                'state' => $projection['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen,
-            ]);
-            $financeCleared = $projection['state'] === 'Cleared';
-        } else {
-            $clearance = $this->financeClearanceService->clearIfEligible(
-                enrollment: $enrollment,
-                studentProfile: $student->refresh(),
-                currentBalance: $this->ledgerBalanceFor($student),
-                actor: $actor,
-                timestamp: $timestamp,
-            );
-            $financeCleared = $clearance['finance_cleared'];
-        }
+        $attempt->forceFill(['status' => PaymentAttempt::StatusConfirmed, 'paid_at' => $timestamp])->save();
+        $projection = $this->paymentRequirementProjection->forEnrollment($enrollment->refresh());
+        $account->forceFill([
+            'state' => $projection['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen,
+        ])->save();
+        $financeCleared = $projection['state'] === 'Cleared';
 
         if ($ledgerEntries->contains(fn (LedgerEntry $entry): bool => $entry->wasRecentlyCreated)) {
             $this->paymentPostedNotificationService->record($payment);
         }
 
         return [
-            'status' => $wasPosted ? 'duplicate' : 'posted',
+            'status' => 'posted',
             'payment' => $payment,
             'ledger_entry' => $ledgerEntry,
             'finance_cleared' => $financeCleared,
         ];
-    }
-
-    private function ledgerBalanceFor(StudentProfile $student): string
-    {
-        $balance = '0.00';
-        $entries = LedgerEntry::query()
-            ->where('student_profile_id', $student->id)
-            ->where('state', 'posted')
-            ->get(['direction', 'amount']);
-
-        foreach ($entries as $entry) {
-            $amount = (string) $entry->amount;
-            $balance = match ($entry->direction) {
-                LedgerEntry::DirectionPayment,
-                LedgerEntry::DirectionDiscount,
-                LedgerEntry::DirectionScholarship,
-                LedgerEntry::DirectionWaiver,
-                LedgerEntry::DirectionReversal => $this->money->subtract($balance, $amount),
-                default => $this->money->add($balance, $amount),
-            };
-        }
-
-        return $balance;
     }
 }

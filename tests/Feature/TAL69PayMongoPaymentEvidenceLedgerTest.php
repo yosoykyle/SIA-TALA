@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
+use App\Actions\Finance\ReversePaymentPosting;
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
+use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Models\Assessment;
 use App\Models\AssessmentObligation;
@@ -94,7 +97,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame(PaymentAllocation::class, $ledgerEntry->source_type);
         $this->assertSame($ledgerEntry->payment_allocation_id, $ledgerEntry->source_id);
         $this->assertSame('1000.00', (string) $ledgerEntry->amount);
-        $this->assertSame('paid', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusConfirmed, $attempt->fresh()->status);
         $this->assertSame('4800.00', $this->ledgerBalanceFor($assessment->enrollment->studentProfile));
     }
 
@@ -130,7 +133,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $payment = $this->newPayments()->sole();
 
         $this->assertSame('posted', $result['status']);
-        $this->assertSame('paid', $attempt->status);
+        $this->assertSame(PaymentAttempt::StatusConfirmed, $attempt->status);
         $this->assertSame('cs_tal69_payment_paid', $attempt->provider_checkout_id);
         $this->assertSame('pay_tal69_payment_paid', data_get($attempt->metadata, 'last_webhook.payment_id'));
         $this->assertSame('paymongo:pay_tal69_payment_paid', $payment->provider_reference);
@@ -169,7 +172,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('amount_mismatch', $result['reason']);
         $this->assertSame('under_review', $payment->evidence_status);
         $this->assertSame('999.00', (string) $payment->amount);
-        $this->assertSame('under_review', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
@@ -230,7 +233,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('livemode_mismatch', $result['reason']);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $attempt->fresh()->status);
         $this->assertSame(0, $this->newPayments()->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(OperationalEvent::StatusReviewRequired, $this->newOperationalEvents()->sole()->status);
@@ -247,7 +250,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('missing_currency', $result['reason']);
-        $this->assertSame('under_review', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
         $this->assertSame('under_review', $this->newPayments()->sole()->evidence_status);
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
@@ -269,7 +272,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
             $this->assertSame('review_required', $result['status']);
             $this->assertSame($case['reason'], $result['reason']);
-            $this->assertSame('under_review', $attempt->fresh()->status);
+            $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
         }
 
         $this->assertSame(2, $this->newPayments()->where('evidence_status', 'under_review')->count());
@@ -288,7 +291,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('assessment_not_active', $result['reason']);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $attempt->fresh()->status);
         $this->assertSame(0, $this->newPayments()->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
@@ -306,7 +309,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('payment_attempt_ownership_mismatch', $result['reason']);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $attempt->fresh()->status);
         $this->assertSame(0, $this->newPayments()->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
@@ -322,7 +325,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('checkout_session_mismatch', $result['reason']);
-        $this->assertSame('under_review', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
@@ -340,7 +343,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('failure_after_paid', $result['reason']);
-        $this->assertSame('paid', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusConfirmed, $attempt->fresh()->status);
         $this->assertSame('verified', $this->newPayments()->sole()->evidence_status);
         $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(
@@ -349,7 +352,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         );
     }
 
-    public function test_delivered_failure_keeps_the_attempt_pending_for_retry(): void
+    public function test_delivered_failure_ends_the_attempt_and_allows_a_successor(): void
     {
         $assessment = $this->activeAssessment();
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_pending_failure');
@@ -359,18 +362,23 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $result = app(PayMongoWebhookProcessor::class)->process($this->webhookCall($failure));
 
-        $this->assertSame('retryable', $result['status']);
-        $this->assertSame('pending', $attempt->fresh()->status);
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
         $this->assertSame(0, $this->newPayments()->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(OperationalEvent::StatusProcessed, $this->newOperationalEvents()->sole()->status);
+
+        $successor = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_after_failure');
+
+        $this->assertNotSame($attempt->id, $successor->id);
+        $this->assertSame(PaymentAttempt::StatusPending, $successor->status);
     }
 
     public function test_delivered_failure_cannot_rewrite_a_non_pending_attempt(): void
     {
         $assessment = $this->activeAssessment();
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_expired_failure');
-        $attempt->forceFill(['status' => 'expired'])->save();
+        $attempt->forceFill(['status' => PaymentAttempt::StatusExpired])->save();
         $failure = $this->paidPayload($attempt, 'evt_tal69_expired_failure', 100000);
         data_set($failure, 'data.attributes.type', 'payment.failed');
         data_set($failure, 'data.attributes.data.attributes.status', 'failed');
@@ -379,12 +387,12 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
 
         $this->assertSame('review_required', $result['status']);
         $this->assertSame('failure_attempt_not_pending', $result['reason']);
-        $this->assertSame('expired', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusExpired, $attempt->fresh()->status);
         $this->assertSame(0, $this->newPayments()->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
     }
 
-    public function test_refund_event_links_the_original_payment_for_review_without_automatic_reversal(): void
+    public function test_refund_event_requires_accounting_to_link_the_exact_immutable_reversal(): void
     {
         $assessment = $this->activeAssessment();
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_tal69_refund');
@@ -413,6 +421,41 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         $this->assertSame('verified', $payment->fresh()->evidence_status);
         $this->assertSame(1, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionPayment)->count());
         $this->assertSame(0, $this->newLedgerEntries()->where('direction', LedgerEntry::DirectionReversal)->count());
+
+        $refundEvent = $this->newOperationalEvents()->where('external_id', 'evt_tal69_refund')->sole();
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $reversal = app(ReversePaymentPosting::class)->execute(
+            $payment,
+            $accounting,
+            'SYNTH-PAYMONGO-REFUND-0001',
+            'Provider refund evidence was verified by Accounting.',
+        );
+        $resolution = app(PayMongoReconciliationService::class)->recordRefundReversal(
+            $refundEvent->id,
+            $payment,
+            $reversal,
+            'Linked to the exact authorized reversal after provider review.',
+            $accounting,
+        );
+
+        $this->assertSame('reversed', $resolution['status']);
+        $this->assertSame($payment->id, $resolution['payment_id']);
+        $this->assertSame($reversal->id, $resolution['reversal_id']);
+        $this->assertSame(OperationalEvent::StatusProcessed, $refundEvent->fresh()->status);
+        $this->assertSame($reversal->id, $refundEvent->fresh()->related_record_id);
+        $this->assertNotNull(DB::table('webhook_calls')
+            ->where('id', (int) data_get($refundEvent->diagnostics, 'latest_webhook_call_id'))
+            ->value('processed_at'));
+
+        $duplicate = app(PayMongoReconciliationService::class)->recordRefundReversal(
+            $refundEvent->id,
+            $payment,
+            $reversal,
+            'Repeated resolution must remain idempotent.',
+            $accounting,
+        );
+
+        $this->assertSame('duplicate', $duplicate['status']);
 
         $refundUpdate = $this->paymongoPayload(
             eventId: 'evt_tal69_refund_update',
@@ -455,6 +498,7 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             'code' => 'CURRENT_DUE',
             'label' => 'Current enrollment payment',
             'amount' => $required,
+            'due_at' => now()->subMinute(),
             'required_for_enrollment' => true,
         ]);
         $remaining = app(DecimalMoney::class)->subtract((string) $assessment->total, $required);
@@ -464,18 +508,45 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
                 'code' => 'LATER_BALANCE',
                 'label' => 'Later enrollment balance',
                 'amount' => $remaining,
+                'due_at' => now()->addMonth(),
                 'required_for_enrollment' => false,
             ]);
         }
+
+        $assessment->update([
+            'content_hash' => hash('sha256', json_encode(
+                [
+                    'assessment_id' => $assessment->id,
+                    'obligations' => $assessment->obligations()->orderBy('id')->get(['code', 'amount', 'due_at'])->toArray(),
+                ],
+                JSON_THROW_ON_ERROR,
+            )),
+        ]);
 
         return $assessment->refresh();
     }
 
     private function paymentAttempt(Assessment $assessment, string $amount, string $checkoutSessionId): PaymentAttempt
     {
-        return PaymentAttempt::query()->create([
+        $assessment->obligations()->where('code', 'CURRENT_DUE')->update(['amount' => $amount]);
+        $assessment->update([
+            'content_hash' => hash('sha256', json_encode(
+                [
+                    'assessment_id' => $assessment->id,
+                    'obligations' => $assessment->obligations()->orderBy('id')->get(['code', 'amount', 'due_at'])->toArray(),
+                ],
+                JSON_THROW_ON_ERROR,
+            )),
+        ]);
+        $assessment->refresh();
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($assessment->termAccount);
+        $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $assessment->term_account_id,
             'student_profile_id' => $assessment->enrollment->student_profile_id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
@@ -483,9 +554,19 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             'provider_intent_id' => null,
             'amount' => $amount,
             'currency' => 'PHP',
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
             'metadata' => [],
         ]);
+
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
+
+        return $attempt;
     }
 
     /**
@@ -504,6 +585,9 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
             amountCentavos: $amountCentavos,
             currency: $currency,
             talaReference: $talaReference ?? (string) $attempt->internal_reference,
+            termAccountId: (string) $attempt->term_account_id,
+            assessmentVersion: (string) $attempt->assessment_version,
+            snapshotChecksum: (string) $attempt->snapshot_checksum,
         );
     }
 
@@ -516,6 +600,9 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
         int $amountCentavos,
         string $currency = 'PHP',
         string $talaReference = 'TALA-PAY-REFERENCE',
+        ?string $termAccountId = null,
+        ?string $assessmentVersion = null,
+        ?string $snapshotChecksum = null,
     ): array {
         return [
             'data' => [
@@ -533,6 +620,9 @@ final class TAL69PayMongoPaymentEvidenceLedgerTest extends TestCase
                             'currency' => $currency,
                             'metadata' => [
                                 'tala_reference' => $talaReference,
+                                'term_account_id' => $termAccountId,
+                                'assessment_version' => $assessmentVersion,
+                                'snapshot_checksum' => $snapshotChecksum,
                             ],
                         ],
                     ],

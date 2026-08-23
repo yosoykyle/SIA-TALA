@@ -63,7 +63,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertSee('Tuition obligation')
             ->assertSee('Due through as-of')
             ->assertSee('PHP 8,500.00')
-            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Online checkout')
             ->assertSee('Manual payment evidence');
     }
 
@@ -176,7 +176,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Online checkout')
             ->assertSee('Manual payment evidence');
         $this->assertSame(0, PaymentAttempt::query()->where('assessment_id', $fixture['assessment']->id)->count());
     }

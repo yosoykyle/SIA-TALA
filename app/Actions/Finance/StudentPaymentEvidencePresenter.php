@@ -24,7 +24,7 @@ class StudentPaymentEvidencePresenter
 
         if ($postedPayments->isNotEmpty()) {
             if ($hasCurrentDue) {
-                $requiredAction = 'Use Pay Current Due for the remaining amount.';
+                $requiredAction = 'Use Pay exact current due for the remaining amount.';
 
                 if ($orMappingState === 'Pending OR Mapping') {
                     $requiredAction .= ' Accounting is also completing the pending OR mapping.';
@@ -53,7 +53,7 @@ class StudentPaymentEvidencePresenter
         }
 
         if ($payments->contains(fn (Payment $payment): bool => $payment->evidence_status === 'under_review')
-            || $attempts->contains(fn (PaymentAttempt $attempt): bool => $attempt->status === 'under_review')) {
+            || $attempts->contains(fn (PaymentAttempt $attempt): bool => $attempt->status === PaymentAttempt::StatusReviewRequired)) {
             return $this->notPosted(
                 headline: 'Payment Under Review',
                 explanation: 'Accounting is reviewing the submitted payment evidence before it can be posted to the ledger.',
@@ -67,17 +67,17 @@ class StudentPaymentEvidencePresenter
         $status = $latestAttempt instanceof PaymentAttempt ? $latestAttempt->status : null;
 
         return match ($status) {
-            'pending' => $this->notPosted(
+            PaymentAttempt::StatusPending => $this->notPosted(
                 headline: 'Payment Pending',
                 explanation: 'The checkout was created, but no verified ledger posting has been recorded yet.',
                 requiredAction: 'Wait for payment confirmation. Do not repeat the checkout while this attempt is pending.',
             ),
-            'failed', 'rejected' => $this->notPosted(
+            PaymentAttempt::StatusFailed => $this->notPosted(
                 headline: 'Payment Rejected',
                 explanation: 'The payment attempt did not produce acceptable evidence and was not posted to the ledger.',
                 requiredAction: 'Start a new checkout or contact Accounting if you believe the payment succeeded.',
             ),
-            'expired', 'cancelled' => $this->notPosted(
+            PaymentAttempt::StatusExpired, PaymentAttempt::StatusCancelled => $this->notPosted(
                 headline: 'Checkout Closed',
                 explanation: 'The checkout ended without a verified ledger posting.',
                 requiredAction: 'Start a new checkout when you are ready to pay.',
@@ -85,7 +85,7 @@ class StudentPaymentEvidencePresenter
             default => $this->notPosted(
                 headline: 'No Payment Submitted',
                 explanation: 'No payment attempt or verified ledger posting is recorded for this assessment.',
-                requiredAction: 'Use Pay Current Due when you are ready to submit a payment.',
+                requiredAction: 'Use Pay exact current due when you are ready to pay online, or submit manual evidence.',
             ),
         };
     }

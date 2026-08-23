@@ -22,6 +22,7 @@ class StudentAccountsTable
                 'studentProfile.program',
                 'term',
                 'termAccount.assessments',
+                'termAccount.paymentAttempts.obligations.assessmentObligation',
             ])->whereHas('termAccount'))
             ->defaultSort('updated_at', 'desc')
             ->columns([
@@ -55,6 +56,30 @@ class StudentAccountsTable
                     ->description(fn (Enrollment $record): string => 'Current due: PHP '.app(TermAccountProjection::class)->forAccount($record->termAccount)['current_due'])
                     ->badge()
                     ->color(fn (string $state): string => $state === 'Cleared' ? 'success' : 'warning'),
+                TextColumn::make('payment_attempt_state')
+                    ->label('Online payment')
+                    ->state(function (Enrollment $record): string {
+                        $attempt = $record->termAccount->paymentAttempts->sortByDesc('id')->first();
+
+                        return $attempt === null ? 'No attempt' : $attempt->status;
+                    })
+                    ->description(function (Enrollment $record): ?string {
+                        $attempt = $record->termAccount?->paymentAttempts->sortByDesc('id')->first();
+
+                        if ($attempt === null) {
+                            return null;
+                        }
+
+                        $targets = $attempt->obligations
+                            ->map(fn ($target): string => $target->assessmentObligation?->label.' — PHP '.$target->amount)
+                            ->filter()
+                            ->implode('; ');
+
+                        return $targets !== '' ? $targets : 'Historical attempt; no canonical target snapshot.';
+                    })
+                    ->badge()
+                    ->wrap()
+                    ->toggleable(),
                 TextColumn::make('updated_at')->label('Last activity')->since()->sortable(),
             ])
             ->filters([

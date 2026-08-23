@@ -4,10 +4,12 @@ namespace Database\Seeders;
 
 use App\Actions\Enrollment\EnrollmentAssessmentService;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\SystemAdministration\CanonicalTalaSchedulingDataset;
 use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\ChecklistItem;
 use App\Models\CourseEnrollment;
 use App\Models\DocumentEvidence;
@@ -15,10 +17,12 @@ use App\Models\Enrollment;
 use App\Models\FeeRule;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\PaymentAttemptObligation;
 use App\Models\Program;
 use App\Models\SchedulingDemand;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -40,6 +44,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         private readonly TAL96D4BAcceptanceStateSeeder $gradeAndLifecycleStates,
         private readonly EnrollmentAssessmentService $assessmentService,
         private readonly PaymentConfirmationService $paymentConfirmationService,
+        private readonly ExactDuePaymentSnapshotService $paymentSnapshot,
         private readonly CanonicalTalaSchedulingDataset $canonicalDataset,
     ) {}
 
@@ -61,17 +66,6 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         $partialAssessment = $this->ensureActiveAssessment($partial, $term);
         $clearedAssessment = $this->ensureActiveAssessment($cleared, $term);
 
-        $this->ensurePaymentAttemptCase(
-            assessment: $dueAssessment,
-            internalReference: 'CHECKOUT-FAILED-001',
-            status: 'failed',
-        );
-        $this->ensurePaymentAttemptCase(
-            assessment: $partialAssessment,
-            internalReference: 'CHECKOUT-PENDING-001',
-            status: 'pending',
-        );
-
         $this->ensureManualPayment(
             assessment: $partialAssessment,
             amount: '1000.00',
@@ -81,6 +75,17 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             assessment: $clearedAssessment,
             amount: '2000.00',
             reference: 'PAYMENT-CLEARED-001',
+        );
+
+        $this->ensurePaymentAttemptCase(
+            assessment: $dueAssessment,
+            internalReference: 'CHECKOUT-FAILED-001',
+            status: 'failed',
+        );
+        $this->ensurePaymentAttemptCase(
+            assessment: $partialAssessment,
+            internalReference: 'CHECKOUT-PENDING-001',
+            status: 'pending',
         );
     }
 
@@ -401,7 +406,7 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
             ->first();
 
         if ($active instanceof Assessment) {
-            return $active;
+            return $this->ensureCanonicalPaymentAuthority($active, $enrollment, $term);
         }
 
         $program = $enrollment->studentProfile()->with('program')->firstOrFail()->program;
@@ -432,7 +437,77 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         $effectiveAt = CarbonImmutable::parse($term->starts_on)->startOfDay();
         $assessment = $this->assessmentService->generateDraft($enrollment->refresh(), $accounting, $effectiveAt);
 
-        return $this->assessmentService->activate($assessment, $accounting, $effectiveAt);
+        return $this->ensureCanonicalPaymentAuthority(
+            $this->assessmentService->activate($assessment, $accounting, $effectiveAt),
+            $enrollment,
+            $term,
+        );
+    }
+
+    private function ensureCanonicalPaymentAuthority(
+        Assessment $assessment,
+        Enrollment $enrollment,
+        Term $term,
+    ): Assessment {
+        $credentialUserId = $enrollment->credential_user_id
+            ?? $enrollment->studentProfile()->value('user_id');
+
+        if ($enrollment->credential_user_id === null) {
+            $enrollment->update(['credential_user_id' => $credentialUserId]);
+        }
+
+        $account = TermAccount::query()->firstOrCreate(
+            ['enrollment_id' => $enrollment->id],
+            [
+                'credential_user_id' => $credentialUserId,
+                'term_id' => $term->id,
+                'state' => TermAccount::StateOpen,
+            ],
+        );
+
+        if ($account->credential_user_id !== $credentialUserId) {
+            $account->update(['credential_user_id' => $credentialUserId]);
+        }
+
+        $acceptanceSource = [
+            'acceptance_case' => 'TAL-96-D5B',
+            'enrollment_id' => (int) $enrollment->id,
+            'assessment_version' => (int) $assessment->version,
+            'currency' => 'PHP',
+            'total' => (string) $assessment->total,
+            'required_downpayment' => (string) $assessment->required_downpayment,
+        ];
+
+        $assessment->update([
+            'term_account_id' => $account->id,
+            'currency' => 'PHP',
+            'content_hash' => hash('sha256', json_encode($acceptanceSource, JSON_THROW_ON_ERROR)),
+        ]);
+
+        AssessmentObligation::query()->updateOrCreate(
+            ['assessment_id' => $assessment->id, 'sequence' => 1],
+            [
+                'code' => 'ENROLLMENT-DUE',
+                'label' => 'Enrollment amount currently due',
+                'purpose' => 'Enrollment clearance',
+                'amount' => $assessment->required_downpayment,
+                'due_at' => CarbonImmutable::parse($term->starts_on)->startOfDay(),
+                'required_for_enrollment' => true,
+            ],
+        );
+        AssessmentObligation::query()->updateOrCreate(
+            ['assessment_id' => $assessment->id, 'sequence' => 2],
+            [
+                'code' => 'REMAINING-BALANCE',
+                'label' => 'Remaining term balance',
+                'purpose' => 'Term account balance',
+                'amount' => '1000.00',
+                'due_at' => CarbonImmutable::now(config('app.timezone'))->addYear()->startOfDay(),
+                'required_for_enrollment' => false,
+            ],
+        );
+
+        return $assessment->refresh();
     }
 
     private function ensurePaymentAttemptCase(
@@ -440,16 +515,32 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
         string $internalReference,
         string $status,
     ): void {
-        PaymentAttempt::query()->updateOrCreate(
+        $existing = PaymentAttempt::query()
+            ->where('internal_reference', $internalReference)
+            ->first();
+
+        if ($existing instanceof PaymentAttempt
+            && $existing->term_account_id !== null
+            && filled($existing->snapshot_checksum)
+            && $existing->obligations()->exists()) {
+            return;
+        }
+
+        $snapshot = $this->paymentSnapshot->forAccount($assessment->termAccount);
+        $attempt = PaymentAttempt::query()->updateOrCreate(
             ['internal_reference' => $internalReference],
             [
                 'assessment_id' => $assessment->id,
+                'term_account_id' => $snapshot['term_account_id'],
                 'student_profile_id' => $assessment->enrollment->student_profile_id,
+                'assessment_version' => $snapshot['assessment_version'],
+                'snapshot_created_at' => $snapshot['created_at'],
+                'snapshot_checksum' => $snapshot['checksum'],
                 'channel' => 'online',
                 'provider' => 'paymongo',
                 'provider_checkout_id' => null,
                 'provider_intent_id' => null,
-                'amount' => $assessment->required_downpayment,
+                'amount' => $snapshot['amount'],
                 'currency' => 'PHP',
                 'status' => $status,
                 'expires_at' => null,
@@ -460,6 +551,17 @@ final class TAL96D5BAcceptanceStateSeeder extends Seeder
                 ],
             ],
         );
+
+        $attempt->obligations()->delete();
+
+        foreach ($snapshot['obligations'] as $target) {
+            PaymentAttemptObligation::query()->create([
+                'payment_attempt_id' => $attempt->id,
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
     }
 
     private function ensureManualPayment(Assessment $assessment, string $amount, string $reference): void

@@ -56,7 +56,7 @@ final readonly class PayMongoWebhookEvent
     }
 
     /**
-     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,term_account_id:?string,assessment_version:?string,snapshot_checksum:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
      */
     public function paymentContext(): array
     {
@@ -100,6 +100,9 @@ final readonly class PayMongoWebhookEvent
             'amount_centavos' => $context['amount_centavos'],
             'currency' => $context['currency'],
             'tala_reference' => $context['tala_reference'],
+            'term_account_id' => $context['term_account_id'],
+            'assessment_version' => $context['assessment_version'],
+            'snapshot_checksum' => $context['snapshot_checksum'],
             'status' => $context['status'],
             'is_disputed' => $context['is_disputed'],
             'has_refunds' => $context['has_refunds'],
@@ -217,7 +220,7 @@ final readonly class PayMongoWebhookEvent
     }
 
     /**
-     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     * @return array<string, mixed>
      */
     private function legacyCheckoutSessionContext(): array
     {
@@ -244,7 +247,7 @@ final readonly class PayMongoWebhookEvent
     }
 
     /**
-     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     * @return array<string, mixed>
      */
     private function paymentResourceContext(): array
     {
@@ -265,7 +268,7 @@ final readonly class PayMongoWebhookEvent
     }
 
     /**
-     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     * @return array<string, mixed>
      */
     private function checkoutSessionContext(): array
     {
@@ -358,7 +361,7 @@ final readonly class PayMongoWebhookEvent
 
     /**
      * @param  array<string, mixed>  $paymentAttributes
-     * @return array{event_id:string,event_type:string,livemode:bool,checkout_session_id:?string,payment_id:?string,payment_intent_id:?string,provider_reference:?string,amount_centavos:?int,currency:?string,tala_reference:?string,status:?string,is_disputed:bool,has_refunds:bool,evidence_reason:?string}
+     * @return array<string, mixed>
      */
     private function context(
         ?string $checkoutSessionId,
@@ -372,6 +375,9 @@ final readonly class PayMongoWebhookEvent
         array $paymentAttributes,
         ?string $evidenceReason,
     ): array {
+        $metadata = $this->resourceAttributes['metadata'] ?? $paymentAttributes['metadata'] ?? null;
+        $metadata = is_array($metadata) ? $metadata : [];
+
         return [
             'event_id' => $this->eventId,
             'event_type' => $this->eventType,
@@ -383,6 +389,9 @@ final readonly class PayMongoWebhookEvent
             'amount_centavos' => is_int($amount) && $amount >= 0 ? $amount : null,
             'currency' => $currency !== null ? strtoupper($currency) : null,
             'tala_reference' => $talaReference,
+            'term_account_id' => self::optionalString($metadata['term_account_id'] ?? null),
+            'assessment_version' => self::optionalString($metadata['assessment_version'] ?? null),
+            'snapshot_checksum' => self::optionalString($metadata['snapshot_checksum'] ?? null),
             'status' => $status !== null ? strtolower($status) : null,
             'is_disputed' => ($paymentAttributes['disputed'] ?? false) === true,
             'has_refunds' => is_array($paymentAttributes['refunds'] ?? null)

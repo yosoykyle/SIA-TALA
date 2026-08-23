@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\PaymentAcademicContextResolver;
 use App\Actions\Finance\StudentAccountPresenter;
-use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\AccountingAdjustment;
 use App\Models\Assessment;
@@ -105,7 +104,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             ->where('external_id', 'tal96d5e1c-open-exception')
             ->sole();
 
-        $this->assertNotContains(PayMongoReconciliation::class, Filament::getPanel('admin')->getPages());
+        $this->assertNotContains('App\\Filament\\Pages\\PayMongoReconciliation', Filament::getPanel('admin')->getPages());
         $this->assertDatabaseHas('operational_events', [
             'id' => $exception->id,
             'status' => OperationalEvent::StatusReviewRequired,
@@ -165,7 +164,7 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
         $this->assertSame('bank_transfer', $payment->fresh()->channel);
         $this->assertSame('verified', $payment->fresh()->evidence_status);
         $this->assertSame('online_checkout', $attempt->fresh()->channel);
-        $this->assertSame('under_review', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
         $this->assertSame('paymongo', $attempt->fresh()->provider);
         $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->channel);
         $this->assertSame('synthetic_acceptance', $syntheticAttempt->fresh()->provider);
@@ -191,11 +190,11 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
             'jobs' => DB::table('jobs')->count(),
         ]);
         $this->assertSame(49, StudentProfile::query()->count());
-        $this->assertSame('expired', PaymentAttempt::query()
+        $this->assertSame(PaymentAttempt::StatusExpired, PaymentAttempt::query()
             ->where('internal_reference', 'CHECKOUT-EXPIRED-001')
             ->sole()
             ->status);
-        $this->assertSame('under_review', PaymentAttempt::query()
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, PaymentAttempt::query()
             ->where('internal_reference', 'CHECKOUT-REVIEW-001')
             ->sole()
             ->status);

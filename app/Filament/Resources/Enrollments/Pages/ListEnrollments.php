@@ -9,6 +9,8 @@ use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
 use App\Models\FinanceExport;
+use App\Models\OperationalEvent;
+use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -46,10 +48,28 @@ class ListEnrollments extends ListRecords
                 fn (Builder $query): Builder => $query->whereHas('termAccount'),
             ),
             'payment_exceptions' => Tab::make('Payment Exceptions')->modifyQueryUsing(
-                fn (Builder $query): Builder => $query->whereHas(
-                    'termAccount.latestPaymentEvidenceVersion',
-                    fn (Builder $query): Builder => $query->where('state', PaymentEvidenceVersion::StateSubmitted),
-                ),
+                fn (Builder $query): Builder => $query->where(function (Builder $query): void {
+                    $query->whereHas(
+                        'termAccount.latestPaymentEvidenceVersion',
+                        fn (Builder $query): Builder => $query->where('state', PaymentEvidenceVersion::StateSubmitted),
+                    )->orWhereHas('termAccount.paymentAttempts', function (Builder $query): void {
+                        $query->where('status', PaymentAttempt::StatusReviewRequired)
+                            ->orWhereExists(function ($events): void {
+                                $events->selectRaw('1')
+                                    ->from('operational_events')
+                                    ->whereColumn('operational_events.related_record_id', 'payment_attempts.id')
+                                    ->where('operational_events.related_record_type', PaymentAttempt::class)
+                                    ->where('operational_events.integration', OperationalEvent::IntegrationPayMongo)
+                                    ->whereIn('operational_events.status', [
+                                        OperationalEvent::StatusReviewRequired,
+                                        OperationalEvent::StatusFailed,
+                                    ]);
+                            });
+                    })->orWhereHas(
+                        'termAccount.payments',
+                        fn (Builder $query): Builder => $query->where('evidence_status', 'under_review'),
+                    );
+                }),
             ),
             'tor_clearance' => Tab::make('TOR Clearance')->modifyQueryUsing(
                 fn (Builder $query): Builder => $query->whereHas('studentProfile.transcriptRequests'),

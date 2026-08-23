@@ -46,11 +46,17 @@ class ExpirePayMongoSandboxCheckout extends Command
             return self::FAILURE;
         }
 
+        if ($attempt->term_account_id === null) {
+            $this->error('The selected payment attempt has no canonical Term Account authority.');
+
+            return self::FAILURE;
+        }
+
         try {
-            $outcome = Cache::lock('payment-checkout:assessment:'.$attempt->assessment_id, 30)
+            $outcome = Cache::lock('payment-checkout:term-account:'.$attempt->term_account_id, 30)
                 ->block(5, fn (): string => $this->expireUnderLock($attempt->id, $gateway));
         } catch (LockTimeoutException) {
-            $this->error('The selected assessment is currently being processed. Try again.');
+            $this->error('The selected Term Account is currently being processed. Try again.');
 
             return self::FAILURE;
         } catch (Throwable) {
@@ -94,11 +100,11 @@ class ExpirePayMongoSandboxCheckout extends Command
     {
         $attempt = PaymentAttempt::query()->findOrFail($attemptId);
 
-        if ($attempt->status === 'expired') {
+        if ($attempt->status === PaymentAttempt::StatusExpired) {
             return 'already_expired';
         }
 
-        if ($attempt->status !== 'pending' || ! filled($attempt->provider_checkout_id)) {
+        if ($attempt->status !== PaymentAttempt::StatusPending || ! filled($attempt->provider_checkout_id)) {
             throw new RuntimeException('The selected payment attempt is not eligible for expiry.');
         }
 
@@ -113,18 +119,18 @@ class ExpirePayMongoSandboxCheckout extends Command
         DB::transaction(function () use ($attemptId, $session): void {
             $attempt = PaymentAttempt::query()->lockForUpdate()->findOrFail($attemptId);
 
-            if ($attempt->status === 'paid') {
+            if ($attempt->status === PaymentAttempt::StatusConfirmed) {
                 throw new RuntimeException('A paid attempt cannot be expired.');
             }
 
-            if ($attempt->status !== 'pending' && $attempt->status !== 'expired') {
+            if (! in_array($attempt->status, [PaymentAttempt::StatusPending, PaymentAttempt::StatusExpired], true)) {
                 throw new RuntimeException('The payment attempt changed state during expiry.');
             }
 
             $storedMetadata = $attempt->getAttribute('metadata');
             $metadata = is_array($storedMetadata) ? $storedMetadata : [];
             $attempt->forceFill([
-                'status' => 'expired',
+                'status' => PaymentAttempt::StatusExpired,
                 'metadata' => [
                     ...$metadata,
                     'provider_status' => strtolower($session->status),

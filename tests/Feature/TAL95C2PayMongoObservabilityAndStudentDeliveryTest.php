@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Finance\StudentPaymentEvidencePresenter;
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Mail\PaymentPostedMail;
@@ -291,7 +292,7 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
         );
 
         $this->assertSame('Payment Partially Posted', $evidence['headline']);
-        $this->assertStringContainsString('Pay Current Due', $evidence['required_action']);
+        $this->assertStringContainsString('Pay exact current due', $evidence['required_action']);
         $this->assertStringContainsString('remaining amount', $evidence['required_action']);
         $this->assertStringContainsString('OR mapping', $evidence['required_action']);
     }
@@ -299,12 +300,12 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
     /** @return iterable<string, array{0:string|null,1:string,2:string}> */
     public static function attemptEvidenceStates(): iterable
     {
-        yield 'no attempt' => [null, 'No Payment Submitted', 'Pay Current Due'];
-        yield 'pending' => ['pending', 'Payment Pending', 'Wait for payment confirmation'];
-        yield 'under review' => ['under_review', 'Payment Under Review', 'Do not submit another payment'];
-        yield 'failed' => ['failed', 'Payment Rejected', 'Start a new checkout'];
-        yield 'expired' => ['expired', 'Checkout Closed', 'Start a new checkout'];
-        yield 'cancelled' => ['cancelled', 'Checkout Closed', 'Start a new checkout'];
+        yield 'no attempt' => [null, 'No Payment Submitted', 'Pay exact current due'];
+        yield 'pending' => [PaymentAttempt::StatusPending, 'Payment Pending', 'Wait for payment confirmation'];
+        yield 'under review' => [PaymentAttempt::StatusReviewRequired, 'Payment Under Review', 'Do not submit another payment'];
+        yield 'failed' => [PaymentAttempt::StatusFailed, 'Payment Rejected', 'Start a new checkout'];
+        yield 'expired' => [PaymentAttempt::StatusExpired, 'Checkout Closed', 'Start a new checkout'];
+        yield 'cancelled' => [PaymentAttempt::StatusCancelled, 'Checkout Closed', 'Start a new checkout'];
     }
 
     /**
@@ -323,7 +324,10 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
         $accounting->assignRole(User::StaffRoleAccounting);
         $profile = StudentProfile::factory()->for($student)->create();
         $term = Term::factory()->create();
-        $enrollment = Enrollment::factory()->for($profile)->for($term)->create(['status' => 'pending_payment']);
+        $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'status' => 'pending_payment',
+            'credential_user_id' => $student->id,
+        ]);
         $account = TermAccount::query()->create([
             'enrollment_id' => $enrollment->id,
             'credential_user_id' => $student->id,
@@ -334,6 +338,7 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal95c2-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '1000.00',
@@ -348,6 +353,7 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             'code' => 'CURRENT_DUE',
             'label' => 'Current enrollment payment',
             'amount' => '1000.00',
+            'due_at' => now()->subMinute(),
             'required_for_enrollment' => true,
         ]);
         LedgerEntry::query()->create([
@@ -364,17 +370,29 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
             'posted_at' => now(),
             'state' => 'posted',
         ]);
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($account);
         $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $account->id,
             'student_profile_id' => $profile->id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
             'amount' => '1000.00',
             'currency' => 'PHP',
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
             'metadata' => [],
         ]);
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
 
         return compact('student', 'accounting', 'attempt');
     }
@@ -382,6 +400,8 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
     /** @return array<string, mixed> */
     private function paidPayload(string $eventId, string $checkoutSessionId, int $amountCentavos, string $talaReference): array
     {
+        $attempt = PaymentAttempt::query()->where('internal_reference', $talaReference)->sole();
+
         return [
             'data' => [
                 'id' => $eventId,
@@ -396,7 +416,12 @@ final class TAL95C2PayMongoObservabilityAndStudentDeliveryTest extends TestCase
                             'status' => 'paid',
                             'amount_paid' => $amountCentavos,
                             'currency' => 'PHP',
-                            'metadata' => ['tala_reference' => $talaReference],
+                            'metadata' => [
+                                'tala_reference' => $talaReference,
+                                'term_account_id' => (string) $attempt->term_account_id,
+                                'assessment_version' => (string) $attempt->assessment_version,
+                                'snapshot_checksum' => (string) $attempt->snapshot_checksum,
+                            ],
                         ],
                     ],
                 ],

@@ -150,7 +150,7 @@ final class TAL88BFinanceOutputAcceptanceTest extends TestCase
 
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
-            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Online checkout')
             ->assertSee('Manual payment evidence');
     }
 

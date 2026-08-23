@@ -221,7 +221,7 @@ final class TAL86EFinanceGateSourceBehaviorTest extends TestCase
     public function test_checkout_success_return_is_not_authoritative_without_verified_webhook_evidence_and_posted_ledger_entry(): void
     {
         $fixture = $this->activeAssessmentFixture();
-        $this->paymentAttempt($fixture, 'checkout_returned', [
+        $this->paymentAttempt($fixture, PaymentAttempt::StatusPending, [
             'return_status' => 'success',
             'browser_returned_at' => '2026-07-01T09:00:00+08:00',
         ]);

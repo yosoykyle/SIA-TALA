@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
 use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Pages\PayMongoReconciliation;
 use App\Filament\Student\Pages\Finance;
 use App\Mail\PaymentPostedMail;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
@@ -15,6 +16,7 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -104,7 +106,7 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $this->assertSame('pay_tal96d3c', data_get($event->payload, 'payment.id'));
         $this->assertArrayNotHasKey('checkout_url', $event->payload ?? []);
         $this->assertArrayNotHasKey('raw_response', $event->payload ?? []);
-        $this->assertSame('under_review', $fixture['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $fixture['attempt']->fresh()->status);
         $this->assertSame(0, Payment::query()
             ->where('payment_attempt_id', $fixture['attempt']->id)
             ->count());
@@ -119,8 +121,11 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
     {
         Mail::fake();
         $fixture = $this->paymentFixture();
+        $fixture['attempt']->forceFill(['provider_intent_id' => null])->save();
+        $payment = $this->providerPayment($fixture['attempt']);
+        data_set($payment, 'attributes.payment_intent_id', 'pi_recovered_tal96d3c');
         $this->fakeCheckoutRetrieval($fixture['attempt'], payments: [
-            $this->providerPayment($fixture['attempt']),
+            $payment,
         ]);
         $recovered = app(PayMongoCheckoutRecoveryService::class)->recover(
             $fixture['attempt']->id,
@@ -146,7 +151,8 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $this->assertSame('verified', $payment->evidence_status);
         $this->assertSame('paymongo:pay_tal96d3c', $payment->provider_reference);
         $this->assertSame($fixture['accounting']->id, $payment->verified_by);
-        $this->assertSame('paid', $fixture['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusConfirmed, $fixture['attempt']->fresh()->status);
+        $this->assertSame('pi_recovered_tal96d3c', $fixture['attempt']->fresh()->provider_intent_id);
         $this->assertSame(1, LedgerEntry::query()
             ->where('payment_id', $payment->id)
             ->where('direction', LedgerEntry::DirectionPayment)
@@ -167,8 +173,8 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             $pending['accounting'],
         );
 
-        $this->assertSame('pending', $pendingResult['status']);
-        $this->assertSame('pending', $pending['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $pendingResult['status']);
+        $this->assertSame(PaymentAttempt::StatusPending, $pending['attempt']->fresh()->status);
 
         $failed = $this->paymentFixture();
         $this->fakeCheckoutRetrieval($failed['attempt'], payments: [
@@ -180,8 +186,8 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             $failed['accounting'],
         );
 
-        $this->assertSame('failed', $failedResult['status']);
-        $this->assertSame('failed', $failed['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusFailed, $failedResult['status']);
+        $this->assertSame(PaymentAttempt::StatusFailed, $failed['attempt']->fresh()->status);
 
         $expired = $this->paymentFixture();
         $this->fakeCheckoutRetrieval($expired['attempt'], status: 'expired', payments: []);
@@ -191,8 +197,8 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             $expired['accounting'],
         );
 
-        $this->assertSame('expired', $expiredResult['status']);
-        $this->assertSame('expired', $expired['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusExpired, $expiredResult['status']);
+        $this->assertSame(PaymentAttempt::StatusExpired, $expired['attempt']->fresh()->status);
         $this->assertSame(0, Payment::query()
             ->whereIn('payment_attempt_id', [$pending['attempt']->id, $failed['attempt']->id, $expired['attempt']->id])
             ->count());
@@ -225,13 +231,42 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             $this->assertStringContainsString('does not exactly match', $exception->getMessage());
         }
 
-        $this->assertSame('under_review', $fixture['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $fixture['attempt']->fresh()->status);
         $this->assertSame(0, Payment::query()
             ->where('payment_attempt_id', $fixture['attempt']->id)
             ->count());
         $this->assertSame(0, LedgerEntry::query()
             ->where('student_profile_id', $fixture['profile']->id)
             ->where('direction', LedgerEntry::DirectionPayment)
+            ->count());
+    }
+
+    #[Test]
+    public function test_recovered_payment_cannot_replace_an_existing_provider_intent(): void
+    {
+        $fixture = $this->paymentFixture();
+        $payment = $this->providerPayment($fixture['attempt']);
+        data_set($payment, 'attributes.payment_intent_id', 'pi_different_tal96d3c');
+        $this->fakeCheckoutRetrieval($fixture['attempt'], payments: [$payment]);
+        $recovered = app(PayMongoCheckoutRecoveryService::class)->recover(
+            $fixture['attempt']->id,
+            $fixture['accounting'],
+        );
+
+        try {
+            app(PayMongoCheckoutRecoveryService::class)->confirm(
+                $recovered['event_id'],
+                'Attempting to replace the Payment Attempt provider intent.',
+                $fixture['accounting'],
+            );
+            $this->fail('A recovered payment must not replace an existing provider intent.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('does not exactly match', $exception->getMessage());
+        }
+
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $fixture['attempt']->fresh()->status);
+        $this->assertSame(0, Payment::query()
+            ->where('payment_attempt_id', $fixture['attempt']->id)
             ->count());
     }
 
@@ -261,7 +296,7 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             }
 
             $this->assertTrue($rejected, "Provider evidence without {$missingField} must not be confirmed.");
-            $this->assertSame('under_review', $fixture['attempt']->fresh()->status);
+            $this->assertSame(PaymentAttempt::StatusReviewRequired, $fixture['attempt']->fresh()->status);
             $this->assertSame(0, Payment::query()
                 ->where('payment_attempt_id', $fixture['attempt']->id)
                 ->count());
@@ -292,7 +327,7 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $event = OperationalEvent::query()->findOrFail($recovered['event_id']);
 
         $this->assertSame('rejected', $result['status']);
-        $this->assertSame('failed', $fixture['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusFailed, $fixture['attempt']->fresh()->status);
         $this->assertSame(OperationalEvent::StatusProcessed, $event->status);
         $this->assertSame('rejected', data_get($event->diagnostics, 'resolution.action'));
         $this->assertSame(0, Payment::query()
@@ -340,7 +375,7 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $this->actingAs($fixture['accounting']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertNotContains(PayMongoReconciliation::class, Filament::getPanel('admin')->getPages());
+        $this->assertNotContains('App\\Filament\\Pages\\PayMongoReconciliation', Filament::getPanel('admin')->getPages());
         $this->assertDatabaseHas('operational_events', ['id' => $event->id]);
 
         $this->actingAs($fixture['systemAdmin']);
@@ -374,10 +409,17 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
             'status' => 'pending_payment',
+            'credential_user_id' => $student->id,
+        ]);
+        $account = TermAccount::factory()->for($enrollment)->create([
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
         ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal96d3c-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '5000.00',
@@ -386,6 +428,24 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             'required_downpayment' => '2000.00',
             'activated_by' => $accounting->id,
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'CURRENT-DUE',
+            'label' => 'Current exact due',
+            'amount' => '1000.00',
+            'due_at' => now()->subMinute(),
+            'required_for_enrollment' => true,
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 2,
+            'code' => 'FUTURE-BALANCE',
+            'label' => 'Future balance',
+            'amount' => '4000.00',
+            'due_at' => now()->addMonth(),
+            'required_for_enrollment' => false,
         ]);
         LedgerEntry::query()->create([
             'student_profile_id' => $profile->id,
@@ -401,9 +461,14 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             'posted_at' => now(),
             'state' => 'posted',
         ]);
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($account);
         $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $account->id,
             'student_profile_id' => $profile->id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.fake()->unique()->uuid(),
@@ -411,8 +476,15 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
             'provider_intent_id' => 'pi_'.fake()->unique()->bothify('tal96d3c_########'),
             'amount' => '1000.00',
             'currency' => 'PHP',
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
         ]);
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
 
         return compact(
             'student',

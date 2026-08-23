@@ -33,11 +33,11 @@ class PaymentStatusResolver
 
     public const StatusPaymentRejected = 'Payment Rejected';
 
-    private const AttemptPending = 'pending';
+    private const AttemptPending = PaymentAttempt::StatusPending;
 
-    private const AttemptUnderReview = 'under_review';
+    private const AttemptUnderReview = PaymentAttempt::StatusReviewRequired;
 
-    private const AttemptFailed = 'failed';
+    private const AttemptFailed = PaymentAttempt::StatusFailed;
 
     private const EvidenceUnderReview = 'under_review';
 

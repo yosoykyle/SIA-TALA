@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\SystemAdministration\TAL96D5BStateCoverageMatrix;
 use App\Models\ApplicantIntake;
 use App\Models\Assessment;
@@ -102,9 +103,19 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         $partialEnrollment = $this->enrollmentFor('DIT-1A-002');
         $clearedEnrollment = $this->enrollmentFor('DIT-2A-001');
 
+        $this->assertNotNull($dueEnrollment->credential_user_id);
+        $this->assertNotNull($partialEnrollment->credential_user_id);
+        $this->assertNotNull($clearedEnrollment->credential_user_id);
+
         $this->assertSame(Assessment::StateActive, Assessment::query()->whereBelongsTo($dueEnrollment)->sole()->state);
         $this->assertSame(Assessment::StateActive, Assessment::query()->whereBelongsTo($partialEnrollment)->sole()->state);
         $this->assertSame(Assessment::StateActive, Assessment::query()->whereBelongsTo($clearedEnrollment)->sole()->state);
+        $dueAssessment = Assessment::query()->whereBelongsTo($dueEnrollment)->sole();
+        $this->assertNotNull($dueAssessment->termAccount);
+        $this->assertSame(
+            '2000.00',
+            app(ExactDuePaymentSnapshotService::class)->forAccount($dueAssessment->termAccount)['amount'],
+        );
         $this->assertContains(
             Payment::query()->where('student_profile_id', $dueEnrollment->student_profile_id)->count(),
             [0, 1],
@@ -118,14 +129,21 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
             ->where('provider_reference', 'PAYMENT-CLEARED-001')
             ->sole()
             ->amount);
-        $this->assertSame('failed', PaymentAttempt::query()
+        $failedAttempt = PaymentAttempt::query()
             ->where('internal_reference', 'CHECKOUT-FAILED-001')
-            ->sole()
-            ->status);
-        $this->assertSame('pending', PaymentAttempt::query()
+            ->sole();
+        $pendingAttempt = PaymentAttempt::query()
             ->where('internal_reference', 'CHECKOUT-PENDING-001')
-            ->sole()
-            ->status);
+            ->sole();
+        $this->assertSame(PaymentAttempt::StatusFailed, $failedAttempt->status);
+        $this->assertSame(PaymentAttempt::StatusPending, $pendingAttempt->status);
+
+        foreach ([$failedAttempt, $pendingAttempt] as $attempt) {
+            $this->assertNotNull($attempt->term_account_id);
+            $this->assertNotNull($attempt->snapshot_created_at);
+            $this->assertNotNull($attempt->snapshot_checksum);
+            $this->assertTrue($attempt->obligations()->exists());
+        }
 
         $this->assertEqualsCanonicalizing(
             [

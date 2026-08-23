@@ -24,6 +24,8 @@ use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
+use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
+use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Models\ApprovedCoverage;
@@ -33,6 +35,7 @@ use App\Models\Enrollment;
 use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -88,6 +91,13 @@ class ViewEnrollment extends ViewRecord
                 $this->reverseCoverageAction(),
                 $this->downloadPaymentEvidenceAction(),
                 $this->verifyPaymentEvidenceAction(),
+                $this->retrievePayMongoCheckoutAction(),
+                $this->confirmRecoveredPayMongoAction(),
+                $this->rejectRecoveredPayMongoAction(),
+                $this->retryPayMongoEventAction(),
+                $this->linkUnknownPayMongoEventAction(),
+                $this->confirmPayMongoExceptionAction(),
+                $this->rejectPayMongoExceptionAction(),
                 $this->reversePaymentAction(),
                 $this->rejectPaymentEvidenceAction(),
                 $this->exportAccountAction(),
@@ -430,6 +440,200 @@ class ViewEnrollment extends ViewRecord
             });
     }
 
+    private function retrievePayMongoCheckoutAction(): Action
+    {
+        return Action::make('retrievePayMongoCheckout')
+            ->label('Retrieve pending PayMongo checkout')
+            ->icon('heroicon-o-arrow-path')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->recoverablePayMongoAttemptOptions() !== [])
+            ->schema([
+                Select::make('payment_attempt_id')
+                    ->label('Exact Payment Attempt')
+                    ->options(fn (): array => $this->recoverablePayMongoAttemptOptions())
+                    ->required()
+                    ->searchable(),
+            ])
+            ->modalDescription('TALA retrieves only the selected Checkout Session. A paid result remains review evidence until Accounting confirms the exact immutable targets.')
+            ->action(function (array $data): void {
+                try {
+                    $result = app(PayMongoCheckoutRecoveryService::class)->recover(
+                        (int) $data['payment_attempt_id'],
+                        $this->actor(),
+                    );
+                    Notification::make()
+                        ->title('PayMongo checkout retrieved')
+                        ->body('Safe provider state: '.$result['status'])
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    $this->failure('PayMongo checkout was not retrieved', $exception);
+                }
+            });
+    }
+
+    private function confirmRecoveredPayMongoAction(): Action
+    {
+        return Action::make('confirmRecoveredPayMongo')
+            ->label('Confirm recovered PayMongo payment')
+            ->icon('heroicon-o-check-badge')
+            ->color('success')
+            ->requiresConfirmation()
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->recoveredPayMongoEventOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Recovered evidence')->options(fn (): array => $this->recoveredPayMongoEventOptions())->required(),
+                Textarea::make('reason')->label('Accounting decision basis')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->modalDescription('Confirmation posts only when the provider evidence still matches the exact Term Account snapshot. A later signed event becomes a no-op.')
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoCheckoutRecoveryService::class)->confirm(
+                        (int) $data['event_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('Recovered PayMongo payment posted')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Recovered PayMongo payment was not posted', $exception);
+                }
+            });
+    }
+
+    private function rejectRecoveredPayMongoAction(): Action
+    {
+        return Action::make('rejectRecoveredPayMongo')
+            ->label('Reject recovered PayMongo evidence')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->recoveredPayMongoEventOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Recovered evidence')->options(fn (): array => $this->recoveredPayMongoEventOptions())->required(),
+                Textarea::make('reason')->label('Safe rejection reason')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoCheckoutRecoveryService::class)->reject(
+                        (int) $data['event_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('Recovered evidence rejected')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Recovered evidence was not rejected', $exception);
+                }
+            });
+    }
+
+    private function retryPayMongoEventAction(): Action
+    {
+        return Action::make('retryPayMongoEvent')
+            ->label('Retry failed PayMongo event')
+            ->icon('heroicon-o-arrow-path-rounded-square')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->failedPayMongoEventOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Failed event')->options(fn (): array => $this->failedPayMongoEventOptions())->required(),
+                Textarea::make('reason')->label('Retry reason')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoReconciliationService::class)->reprocess(
+                        (int) $data['event_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('PayMongo event queued again')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('PayMongo event was not queued', $exception);
+                }
+            });
+    }
+
+    private function linkUnknownPayMongoEventAction(): Action
+    {
+        return Action::make('linkUnknownPayMongoEvent')
+            ->label('Link unknown PayMongo reference')
+            ->icon('heroicon-o-link')
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->unknownPayMongoEventOptions() !== []
+                && $this->activePayMongoAttemptOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Unknown-reference event')->options(fn (): array => $this->unknownPayMongoEventOptions())->required(),
+                Select::make('payment_attempt_id')->label('Exact account attempt')->options(fn (): array => $this->activePayMongoAttemptOptions())->required(),
+                Textarea::make('reason')->label('Linkage evidence')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoReconciliationService::class)->linkAndReprocess(
+                        (int) $data['event_id'],
+                        (int) $data['payment_attempt_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('PayMongo event linked and queued')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('PayMongo event was not linked', $exception);
+                }
+            });
+    }
+
+    private function confirmPayMongoExceptionAction(): Action
+    {
+        return Action::make('confirmPayMongoException')
+            ->label('Confirm exact PayMongo exception')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->requiresConfirmation()
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->confirmablePayMongoEventOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Exact review event')->options(fn (): array => $this->confirmablePayMongoEventOptions())->required(),
+                Textarea::make('reason')->label('Confirmation evidence')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoReconciliationService::class)->confirm(
+                        (int) $data['event_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('PayMongo exception confirmed')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('PayMongo exception was not confirmed', $exception);
+                }
+            });
+    }
+
+    private function rejectPayMongoExceptionAction(): Action
+    {
+        return Action::make('rejectPayMongoException')
+            ->label('Reject PayMongo exception')
+            ->icon('heroicon-o-no-symbol')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+                && $this->rejectablePayMongoEventOptions() !== [])
+            ->schema([
+                Select::make('event_id')->label('Review event')->options(fn (): array => $this->rejectablePayMongoEventOptions())->required(),
+                Textarea::make('reason')->label('Safe rejection reason')->minLength(5)->maxLength(1000)->required(),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(PayMongoReconciliationService::class)->reject(
+                        (int) $data['event_id'],
+                        (string) $data['reason'],
+                        $this->actor(),
+                    );
+                    Notification::make()->title('PayMongo exception rejected')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('PayMongo exception was not rejected', $exception);
+                }
+            });
+    }
+
     private function reverseCoverageAction(): Action
     {
         return Action::make('reverseApprovedCoverage')
@@ -463,14 +667,28 @@ class ViewEnrollment extends ViewRecord
             ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->reversiblePaymentOptions() !== [])
             ->schema([
                 Select::make('payment_id')->options(fn (): array => $this->reversiblePaymentOptions())->required(),
+                Select::make('paymongo_event_id')
+                    ->label('Matching PayMongo refund or reversal evidence')
+                    ->options(fn (): array => $this->refundPayMongoEventOptions())
+                    ->helperText('Select the provider event when this reversal resolves PayMongo refund evidence.'),
                 TextInput::make('authority_reference')->required()->maxLength(255),
                 Textarea::make('safe_reason')->required()->maxLength(1000),
             ])->action(function (array $data): void {
                 try {
-                    app(ReversePaymentPosting::class)->execute(
-                        Payment::query()->findOrFail((int) $data['payment_id']),
+                    $payment = Payment::query()->findOrFail((int) $data['payment_id']);
+                    $reversal = app(ReversePaymentPosting::class)->execute(
+                        $payment,
                         $this->actor(), $data['authority_reference'], $data['safe_reason'],
                     );
+                    if (isset($data['paymongo_event_id'])) {
+                        app(PayMongoReconciliationService::class)->recordRefundReversal(
+                            (int) $data['paymongo_event_id'],
+                            $payment,
+                            $reversal,
+                            (string) $data['safe_reason'],
+                            $this->actor(),
+                        );
+                    }
                     Notification::make()->title('Payment reversal recorded')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Payment was not reversed', $exception);
@@ -1048,6 +1266,180 @@ class ViewEnrollment extends ViewRecord
             ->mapWithKeys(fn (PaymentEvidenceVersion $evidence): array => [
                 $evidence->id => "v{$evidence->version} — {$evidence->original_name} — PHP {$evidence->claimed_amount}",
             ])->all() ?? [];
+    }
+
+    /** @return array<int, string> */
+    private function recoverablePayMongoAttemptOptions(): array
+    {
+        return $this->payMongoAttemptOptions([PaymentAttempt::StatusPending], requireCheckout: true);
+    }
+
+    /** @return array<int, string> */
+    private function activePayMongoAttemptOptions(): array
+    {
+        return $this->payMongoAttemptOptions(PaymentAttempt::ActiveStatuses);
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     * @return array<int, string>
+     */
+    private function payMongoAttemptOptions(array $statuses, bool $requireCheckout = false): array
+    {
+        $account = $this->getRecord()->termAccount;
+
+        if ($account === null) {
+            return [];
+        }
+
+        return $account->paymentAttempts()
+            ->with('obligations.assessmentObligation')
+            ->where('provider', 'paymongo')
+            ->whereIn('status', $statuses)
+            ->when($requireCheckout, fn (Builder $query): Builder => $query->whereNotNull('provider_checkout_id'))
+            ->orderByDesc('id')
+            ->get()
+            ->mapWithKeys(function (PaymentAttempt $attempt): array {
+                $targets = $attempt->obligations
+                    ->map(fn ($target): string => (string) $target->assessmentObligation?->label)
+                    ->filter()
+                    ->implode(', ');
+
+                return [
+                    $attempt->id => collect([
+                        'Attempt #'.$attempt->id,
+                        'PHP '.$attempt->amount,
+                        $attempt->status,
+                        $targets,
+                        $this->maskedProviderReference($attempt->provider_checkout_id),
+                    ])->filter()->implode(' — '),
+                ];
+            })
+            ->all();
+    }
+
+    /** @return array<int, string> */
+    private function recoveredPayMongoEventOptions(): array
+    {
+        return $this->payMongoEventOptions(
+            status: OperationalEvent::StatusReviewRequired,
+            channel: OperationalEvent::ChannelProviderApi,
+            eventType: 'checkout_session.payment.recovered',
+        );
+    }
+
+    /** @return array<int, string> */
+    private function failedPayMongoEventOptions(): array
+    {
+        return $this->payMongoEventOptions(
+            status: OperationalEvent::StatusFailed,
+            channel: OperationalEvent::ChannelWebhook,
+        );
+    }
+
+    /** @return array<int, string> */
+    private function confirmablePayMongoEventOptions(): array
+    {
+        return $this->payMongoEventOptions(
+            status: OperationalEvent::StatusReviewRequired,
+            channel: OperationalEvent::ChannelWebhook,
+            includeReasons: ['missing_tala_reference', 'reference_mismatch'],
+        );
+    }
+
+    /** @return array<int, string> */
+    private function rejectablePayMongoEventOptions(): array
+    {
+        return $this->payMongoEventOptions(
+            status: OperationalEvent::StatusReviewRequired,
+            channel: OperationalEvent::ChannelWebhook,
+            excludeReasons: ['refund_or_reversal', 'unknown_refund_payment'],
+        );
+    }
+
+    /** @return array<int, string> */
+    private function refundPayMongoEventOptions(): array
+    {
+        return $this->payMongoEventOptions(
+            status: OperationalEvent::StatusReviewRequired,
+            channel: OperationalEvent::ChannelWebhook,
+            includeReasons: ['refund_or_reversal'],
+        );
+    }
+
+    /** @return array<int, string> */
+    private function unknownPayMongoEventOptions(): array
+    {
+        return OperationalEvent::query()
+            ->where('integration', OperationalEvent::IntegrationPayMongo)
+            ->where('channel', OperationalEvent::ChannelWebhook)
+            ->where('status', OperationalEvent::StatusReviewRequired)
+            ->where('diagnostics->reason', 'unknown_reference')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (OperationalEvent $event): array => [
+                $event->id => 'Event #'.$event->id.' — unknown reference — '.$event->event_type,
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function payMongoEventOptions(
+        string $status,
+        string $channel,
+        ?string $eventType = null,
+        ?array $includeReasons = null,
+        ?array $excludeReasons = null,
+    ): array {
+        $account = $this->getRecord()->termAccount;
+
+        if ($account === null) {
+            return [];
+        }
+
+        $attemptIds = $account->paymentAttempts()->pluck('id');
+        $paymentIds = $account->payments()->pluck('id');
+
+        return OperationalEvent::query()
+            ->where('integration', OperationalEvent::IntegrationPayMongo)
+            ->where('channel', $channel)
+            ->where('status', $status)
+            ->when($eventType !== null, fn (Builder $query): Builder => $query->where('event_type', $eventType))
+            ->when($includeReasons !== null, fn (Builder $query): Builder => $query->whereIn('diagnostics->reason', $includeReasons))
+            ->when($excludeReasons !== null, fn (Builder $query): Builder => $query->whereNotIn('diagnostics->reason', $excludeReasons))
+            ->where(function (Builder $query) use ($attemptIds, $paymentIds): void {
+                $query->where(function (Builder $query) use ($attemptIds): void {
+                    $query->where('related_record_type', PaymentAttempt::class)
+                        ->whereIn('related_record_id', $attemptIds);
+                })->orWhere(function (Builder $query) use ($paymentIds): void {
+                    $query->where('related_record_type', Payment::class)
+                        ->whereIn('related_record_id', $paymentIds);
+                });
+            })
+            ->orderByDesc('id')
+            ->get()
+            ->mapWithKeys(function (OperationalEvent $event): array {
+                $reason = data_get($event->diagnostics, 'reason', 'provider evidence requires review');
+
+                return [
+                    $event->id => 'Event #'.$event->id.' — '.str((string) $reason)->replace('_', ' ')->headline().' — '.$event->event_type,
+                ];
+            })
+            ->all();
+    }
+
+    private function maskedProviderReference(?string $reference): ?string
+    {
+        if (blank($reference)) {
+            return null;
+        }
+
+        $reference = (string) $reference;
+
+        return 'Provider …'.substr($reference, -6);
     }
 
     /** @return array<int, string> */

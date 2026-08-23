@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoWebhookEvent;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
 use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Mail\PaymentPostedMail;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
@@ -16,6 +18,7 @@ use App\Models\PaymentAttempt;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
@@ -105,7 +108,7 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
         $result = app(PayMongoWebhookProcessor::class)->process($job->webhookCallId, $job->operationalEventId);
 
         $this->assertSame('posted', $result['status']);
-        $this->assertSame('paid', $fixture['attempt']->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusConfirmed, $fixture['attempt']->fresh()->status);
         $this->assertSame('verified', $fixture['payment']->fresh()->evidence_status);
         $this->assertSame('paymongo:pay_tal95d2b1', $fixture['payment']->fresh()->provider_reference);
         $this->assertSame(1, $this->paymentLedgerCount($fixture['payment']));
@@ -225,12 +228,19 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
         ]);
         $term = Term::factory()->for($academicYear)->create();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'credential_user_id' => $user->id,
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+        $account = TermAccount::factory()->for($enrollment)->create([
+            'credential_user_id' => $user->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal95d2b1-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '9000.00',
@@ -238,6 +248,24 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
             'total' => '9000.00',
             'required_downpayment' => '2000.00',
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'CURRENT-DUE',
+            'label' => 'Current exact due',
+            'amount' => '2000.00',
+            'due_at' => now()->subMinute(),
+            'required_for_enrollment' => true,
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 2,
+            'code' => 'FUTURE-BALANCE',
+            'label' => 'Future balance',
+            'amount' => '7000.00',
+            'due_at' => now()->addMonth(),
+            'required_for_enrollment' => false,
         ]);
         LedgerEntry::query()->create([
             'student_profile_id' => $profile->id,
@@ -252,20 +280,33 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
             'posted_at' => now(),
             'state' => 'posted',
         ]);
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($account);
         $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $account->id,
             'student_profile_id' => $profile->id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
             'provider_checkout_id' => 'cs_tal95d2b1_'.Str::lower((string) Str::random(8)),
             'amount' => '2000.00',
             'currency' => 'PHP',
-            'status' => 'under_review',
+            'status' => PaymentAttempt::StatusReviewRequired,
             'metadata' => [],
         ]);
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
         $payment = Payment::query()->create([
             'payment_attempt_id' => $attempt->id,
+            'term_account_id' => $account->id,
             'student_profile_id' => $profile->id,
             'term_id' => $term->id,
             'method' => 'paymongo',
@@ -298,7 +339,12 @@ final class TAL95D2B1PayMongoNormalizationRecoveryTest extends TestCase
                         'attributes' => [
                             'status' => 'active',
                             'reference_number' => $attempt->internal_reference,
-                            'metadata' => ['tala_reference' => $attempt->internal_reference],
+                            'metadata' => [
+                                'tala_reference' => $attempt->internal_reference,
+                                'term_account_id' => (string) $attempt->term_account_id,
+                                'assessment_version' => (string) $attempt->assessment_version,
+                                'snapshot_checksum' => (string) $attempt->snapshot_checksum,
+                            ],
                             'payment_intent' => ['id' => 'pi_tal95d2b1'],
                             'payments' => [[
                                 'id' => 'pay_tal95d2b1',

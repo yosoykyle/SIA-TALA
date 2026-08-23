@@ -7,7 +7,10 @@ use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\StartRegistrationCase;
+use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Actions\Finance\SubmitPaymentEvidence;
+use App\Actions\Integrations\Payments\CreatePaymentCheckoutSession;
+use App\Actions\Integrations\Payments\PaymentCheckoutException;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\Enrollment;
@@ -41,6 +44,25 @@ class Dashboard extends BaseDashboard implements HasTable
     use InteractsWithTable;
 
     protected string $view = 'filament.applicant.pages.dashboard';
+
+    public function mount(): void
+    {
+        if (request()->query('checkout') === 'success') {
+            Notification::make()
+                ->title('Payment confirmation pending')
+                ->body('No balance changes until TALA verifies signed PayMongo evidence.')
+                ->info()
+                ->send();
+        }
+
+        if (request()->query('checkout') === 'cancelled') {
+            Notification::make()
+                ->title('Checkout cancelled — no payment was recorded from this return')
+                ->body('Manual payment evidence remains available while no payment is confirmed.')
+                ->warning()
+                ->send();
+        }
+    }
 
     protected function getHeaderActions(): array
     {
@@ -188,6 +210,44 @@ class Dashboard extends BaseDashboard implements HasTable
                         ->body('Accounting must verify and allocate this evidence before it can clear an obligation.')
                         ->success()
                         ->send();
+                }),
+            Action::make('payExactCurrentDue')
+                ->label('Pay exact current due')
+                ->icon('heroicon-o-credit-card')
+                ->color('primary')
+                ->requiresConfirmation()
+                ->modalHeading('Pay exact current due')
+                ->modalDescription(fn (): string => collect([
+                    'Amount: '.(string) data_get($this->financeContext(), 'state.checkout_amount', 'Unavailable'),
+                    'For: '.collect(data_get($this->financeContext(), 'state.checkout_obligations', []))
+                        ->map(fn (array $target): string => $target['label'].' ('.$target['amount'].')')
+                        ->implode(', '),
+                    'PayMongo confirmation may remain pending. This page return never posts payment by itself.',
+                ])->filter()->implode("\n\n"))
+                ->visible(fn (): bool => $this->registrationCase()?->termAccount !== null)
+                ->disabled(fn (): bool => data_get($this->financeContext(), 'checkout.enabled') !== true)
+                ->tooltip(fn (): ?string => data_get($this->financeContext(), 'checkout.enabled') === true
+                    ? null
+                    : (string) data_get($this->financeContext(), 'checkout.reason'))
+                ->action(function (): void {
+                    $applicant = Auth::user();
+                    abort_unless($applicant instanceof User, 403);
+
+                    try {
+                        $result = app(CreatePaymentCheckoutSession::class)->create(
+                            actor: $applicant,
+                            successUrl: self::getUrl(['checkout' => 'success']),
+                            cancelUrl: self::getUrl(['checkout' => 'cancelled']),
+                            metadata: ['source' => 'applicant_enrollment'],
+                        );
+                        $this->redirect($result['checkout_url'], navigate: false);
+                    } catch (PaymentCheckoutException $exception) {
+                        Notification::make()
+                            ->title('Online checkout is unavailable')
+                            ->body($exception->getMessage().' Manual payment evidence remains available.')
+                            ->warning()
+                            ->send();
+                    }
                 }),
             Action::make('resendFailedNotification')
                 ->label('Resend failed update')
@@ -436,5 +496,15 @@ class Dashboard extends BaseDashboard implements HasTable
             ->where('status', OperationalEvent::StatusFailed)
             ->latest('failed_at')
             ->first();
+    }
+
+    /** @return array<string, mixed> */
+    private function financeContext(): array
+    {
+        $actor = Auth::user();
+
+        return $actor instanceof User
+            ? app(StudentTermAccountPresenter::class)->forUser($actor)
+            : ['available' => false, 'checkout' => ['enabled' => false, 'reason' => 'Sign in to continue.']];
     }
 }

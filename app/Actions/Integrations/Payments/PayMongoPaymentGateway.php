@@ -67,6 +67,7 @@ class PayMongoPaymentGateway implements PaymentGateway
             'send_email_receipt' => false,
             'show_description' => true,
             'show_line_items' => true,
+            'pass_on_fees' => false,
             'description' => $request->description,
             'reference_number' => (string) ($request->metadata['tala_reference'] ?? $idempotencyKey),
             'line_items' => [
@@ -83,6 +84,9 @@ class PayMongoPaymentGateway implements PaymentGateway
                 array_filter([
                     'tala_reference' => $request->metadata['tala_reference'] ?? null,
                     'assessment_id' => $request->metadata['assessment_id'] ?? null,
+                    'assessment_version' => $request->assessmentVersion,
+                    'term_account_id' => $request->termAccountId,
+                    'snapshot_checksum' => $request->snapshotChecksum,
                     'enrollment_id' => $request->metadata['enrollment_id'] ?? null,
                 ], static fn (mixed $value): bool => $value !== null && $value !== ''),
             ),

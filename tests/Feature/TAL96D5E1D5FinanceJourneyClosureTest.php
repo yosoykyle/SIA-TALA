@@ -7,6 +7,7 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\StudentAccountPresenter;
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoPaymentPostingService;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
@@ -368,7 +369,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
 
         $this->assertSame('Mapped OR OR-D5E1D5-MAPPED', $finance['state']['payment_evidence']['or_mapping_state']);
         $this->assertSame(
-            'Use Pay Current Due for the remaining amount.',
+            'Use Pay exact current due for the remaining amount.',
             $finance['state']['payment_evidence']['required_action'],
         );
     }
@@ -417,16 +418,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             'SYN-INDEPENDENT-CHECK-PROVIDER-SEAM',
         );
 
-        $attempt = PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'gcash',
-            'provider' => 'paymongo',
-            'internal_reference' => 'TALA-D5E1D5-SECOND-OBLIGATION',
-            'amount' => '500.00',
-            'currency' => 'PHP',
-            'status' => 'pending',
-        ]);
+        $attempt = $this->exactDueAttempt($fixture, 'TALA-D5E1D5-SECOND-OBLIGATION');
         $posted = app(PayMongoPaymentPostingService::class)->post(
             attempt: $attempt,
             amount: '500.00',
@@ -506,23 +498,13 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
     public function test_paymongo_uses_the_same_allocation_seam_and_duplicate_processing_does_not_repost(): void
     {
         $fixture = $this->activeAssessmentFixture();
-        $attempt = PaymentAttempt::query()->create([
-            'assessment_id' => $fixture['assessment']->id,
-            'student_profile_id' => $fixture['profile']->id,
-            'channel' => 'gcash',
-            'provider' => 'paymongo',
-            'internal_reference' => 'TALA-D5E1D5-PAYMONGO',
-            'amount' => '600.00',
-            'currency' => 'PHP',
-            'status' => 'pending',
-            'expires_at' => now()->addHour(),
-        ]);
+        $attempt = $this->exactDueAttempt($fixture, 'TALA-D5E1D5-PAYMONGO');
         $timestamp = CarbonImmutable::now(config('app.timezone'))->subMinute();
         $service = app(PayMongoPaymentPostingService::class);
 
         $first = $service->post(
             attempt: $attempt,
-            amount: '600.00',
+            amount: '1500.00',
             providerReference: 'paymongo:D5E1D5-PAID',
             actor: null,
             timestamp: $timestamp,
@@ -530,7 +512,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         );
         $second = $service->post(
             attempt: $attempt->refresh(),
-            amount: '600.00',
+            amount: '1500.00',
             providerReference: 'paymongo:D5E1D5-PAID',
             actor: null,
             timestamp: $timestamp,
@@ -540,10 +522,10 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
         $this->assertSame('posted', $first['status']);
         $this->assertSame('duplicate', $second['status']);
         $this->assertSame(1, Payment::query()->where('payment_attempt_id', $attempt->id)->count());
-        $this->assertSame('600.00', PaymentAllocation::query()
+        $this->assertSame('1500.00', PaymentAllocation::query()
             ->where('payment_id', $first['payment']->id)
             ->sum('amount'));
-        $this->assertSame(1, LedgerEntry::query()
+        $this->assertSame(2, LedgerEntry::query()
             ->where('payment_id', $first['payment']->id)
             ->whereNotNull('payment_allocation_id')
             ->count());
@@ -555,6 +537,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
      *     profile:StudentProfile,
      *     term:Term,
      *     enrollment:Enrollment,
+     *     account:TermAccount,
      *     assessment:Assessment,
      *     lines:list<AssessmentLine>
      * }
@@ -584,6 +567,7 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal96d5e1d5-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '1500.00',
@@ -653,7 +637,39 @@ final class TAL96D5E1D5FinanceJourneyClosureTest extends TestCase
             ]);
         }
 
-        return compact('accounting', 'profile', 'term', 'enrollment', 'assessment', 'lines');
+        return compact('accounting', 'profile', 'term', 'enrollment', 'account', 'assessment', 'lines');
+    }
+
+    /**
+     * @param  array{profile:StudentProfile,account:TermAccount,assessment:Assessment}  $fixture
+     */
+    private function exactDueAttempt(array $fixture, string $reference): PaymentAttempt
+    {
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($fixture['account']);
+        $attempt = PaymentAttempt::query()->create([
+            'assessment_id' => $fixture['assessment']->id,
+            'term_account_id' => $fixture['account']->id,
+            'student_profile_id' => $fixture['profile']->id,
+            'assessment_version' => $fixture['assessment']->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
+            'channel' => 'paymongo',
+            'provider' => 'paymongo',
+            'internal_reference' => $reference,
+            'amount' => $snapshot['amount'],
+            'currency' => 'PHP',
+            'status' => PaymentAttempt::StatusPending,
+            'expires_at' => now()->addHour(),
+        ]);
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
+
+        return $attempt;
     }
 
     private function attachAcademicContext(

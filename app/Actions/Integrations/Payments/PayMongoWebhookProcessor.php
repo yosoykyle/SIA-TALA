@@ -92,6 +92,17 @@ class PayMongoWebhookProcessor
                 return ['status' => 'review_required', 'reason' => 'unknown_reference'];
             }
 
+            if ($operationalEvent->related_record_type === null) {
+                $operationalEvent->forceFill([
+                    'related_record_type' => PaymentAttempt::class,
+                    'related_record_id' => $attempt->id,
+                ])->save();
+            }
+
+            if ($event->eventType === self::PaymentFailed) {
+                return $this->markAttemptFailed($attempt, $context, $webhookCallId, $operationalEvent);
+            }
+
             $assessment = $this->assessmentFor($attempt);
             $sourceReviewReason = $this->sourceReviewReason($attempt, $assessment);
 
@@ -105,10 +116,6 @@ class PayMongoWebhookProcessor
                 );
 
                 return ['status' => 'review_required', 'reason' => $sourceReviewReason];
-            }
-
-            if ($event->eventType === self::PaymentFailed) {
-                return $this->markAttemptFailed($attempt, $context, $webhookCallId, $operationalEvent);
             }
 
             return $this->postSuccessfulPayment($attempt, $assessment, $context, $webhookCallId, $operationalEvent);
@@ -270,14 +277,37 @@ class PayMongoWebhookProcessor
             return ['status' => 'review_required', 'reason' => 'missing_enrollment_source', 'payment_id' => $payment->id];
         }
 
-        $posting = $this->paymentPostingService->post(
-            attempt: $attempt,
-            amount: $this->money->normalize((string) $attempt->amount),
-            providerReference: $this->providerReferenceFor($context),
-            actor: null,
-            timestamp: $timestamp,
-            description: 'PayMongo webhook-confirmed payment',
-        );
+        try {
+            $posting = $this->paymentPostingService->post(
+                attempt: $attempt,
+                amount: $this->money->normalize((string) $attempt->amount),
+                providerReference: $this->providerReferenceFor($context),
+                actor: null,
+                timestamp: $timestamp,
+                description: 'PayMongo webhook-confirmed payment',
+            );
+        } catch (PaymentAttemptSnapshotException $exception) {
+            $payment = $this->recordReviewPaymentEvidence(
+                $attempt,
+                $context,
+                $webhookCallId,
+                $timestamp,
+                $exception->reason,
+            );
+            $this->markReviewRequired(
+                $webhookCallId,
+                $operationalEvent,
+                $exception->reason,
+                Payment::class,
+                $payment->id,
+            );
+
+            return [
+                'status' => 'review_required',
+                'reason' => $exception->reason,
+                'payment_id' => $payment->id,
+            ];
+        }
         $payment = $posting['payment'];
         $ledgerEntry = $posting['ledger_entry'];
         $this->markAttemptPaid($attempt, $context, $webhookCallId, $timestamp);
@@ -297,13 +327,13 @@ class PayMongoWebhookProcessor
      */
     private function markAttemptFailed(PaymentAttempt $attempt, array $context, int $webhookCallId, OperationalEvent $operationalEvent): array
     {
-        if ($attempt->status === 'paid') {
+        if ($attempt->status === PaymentAttempt::StatusConfirmed) {
             $this->markReviewRequired($webhookCallId, $operationalEvent, 'failure_after_paid', PaymentAttempt::class, $attempt->id);
 
             return ['status' => 'review_required', 'reason' => 'failure_after_paid'];
         }
 
-        if ($attempt->status !== 'pending') {
+        if ($attempt->status !== PaymentAttempt::StatusPending) {
             $this->markReviewRequired(
                 $webhookCallId,
                 $operationalEvent,
@@ -325,15 +355,15 @@ class PayMongoWebhookProcessor
         }
 
         $attempt->forceFill([
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusFailed,
             'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
             'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
-            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'retryable'),
+            'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, 'terminal_failure'),
         ])->save();
 
         $this->markProcessed($webhookCallId, $operationalEvent, PaymentAttempt::class, $attempt->id);
 
-        return ['status' => 'retryable'];
+        return ['status' => 'failed'];
     }
 
     /** @param array<string, mixed> $context */
@@ -351,7 +381,9 @@ class PayMongoWebhookProcessor
             : $this->money->normalize((string) $attempt->amount);
 
         $attempt->forceFill([
-            'status' => $attempt->status === 'paid' ? 'paid' : 'under_review',
+            'status' => $attempt->status === PaymentAttempt::StatusConfirmed
+                ? PaymentAttempt::StatusConfirmed
+                : PaymentAttempt::StatusReviewRequired,
             'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
             'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
             'metadata' => $this->mergeAttemptMetadata($attempt, $context, $webhookCallId, $reason),
@@ -362,6 +394,7 @@ class PayMongoWebhookProcessor
             [
                 'student_profile_id' => $attempt->student_profile_id,
                 'term_id' => $enrollment?->term_id ?? $assessment->enrollment?->term_id,
+                'term_account_id' => $attempt->term_account_id,
                 'method' => 'paymongo',
                 'channel' => $attempt->channel,
                 'amount' => $reviewAmount,
@@ -379,7 +412,7 @@ class PayMongoWebhookProcessor
     private function markAttemptPaid(PaymentAttempt $attempt, array $context, int $webhookCallId, CarbonImmutable $timestamp): void
     {
         $attempt->forceFill([
-            'status' => 'paid',
+            'status' => PaymentAttempt::StatusConfirmed,
             'provider_checkout_id' => $context['checkout_session_id'] ?? $attempt->provider_checkout_id,
             'provider_intent_id' => $context['payment_intent_id'] ?? $attempt->provider_intent_id,
             'paid_at' => $timestamp,
@@ -406,8 +439,19 @@ class PayMongoWebhookProcessor
             return 'payment_attempt_provider_mismatch';
         }
 
+        if (! in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)
+            && $attempt->status !== PaymentAttempt::StatusConfirmed) {
+            return 'payment_attempt_not_active';
+        }
+
         if ($assessment->state !== Assessment::StateActive) {
             return 'assessment_not_active';
+        }
+
+        if ($attempt->term_account_id === null
+            || $assessment->term_account_id !== $attempt->term_account_id
+            || (int) $assessment->version !== (int) $attempt->assessment_version) {
+            return 'payment_attempt_authority_mismatch';
         }
 
         $enrollment = $assessment->enrollment;
@@ -448,6 +492,18 @@ class PayMongoWebhookProcessor
 
         if ($context['tala_reference'] === null) {
             return 'missing_tala_reference';
+        }
+
+        if (($context['term_account_id'] ?? null) !== (string) $attempt->term_account_id) {
+            return 'term_account_mismatch';
+        }
+
+        if (($context['assessment_version'] ?? null) !== (string) $attempt->assessment_version) {
+            return 'assessment_version_mismatch';
+        }
+
+        if (($context['snapshot_checksum'] ?? null) !== $attempt->snapshot_checksum) {
+            return 'snapshot_checksum_mismatch';
         }
 
         $identifierReason = $this->identifierReviewReason($attempt, $context);

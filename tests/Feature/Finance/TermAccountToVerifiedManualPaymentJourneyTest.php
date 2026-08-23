@@ -464,7 +464,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             ->get(route('filament.student.pages.finance'))
             ->assertOk()
             ->assertSee('Manual payment evidence')
-            ->assertSee('Online PayMongo checkout is not active')
+            ->assertSee('Online checkout')
             ->assertDontSee('Billing Slip')
             ->assertDontSee('Financial Accommodation');
     }

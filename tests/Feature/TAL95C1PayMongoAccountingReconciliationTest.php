@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoReconciliationService;
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
-use App\Filament\Pages\PayMongoReconciliation;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Jobs\ProcessPayMongoWebhookCall;
-use App\Mail\PaymentPostedMail;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
@@ -15,10 +16,10 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Policies\OperationalEventPolicy;
 use Carbon\CarbonImmutable;
-use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -44,18 +45,27 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
 
-        foreach ([User::StaffRoleAccounting, User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin] as $role) {
+        foreach ([User::StaffRoleAccounting, User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin, 'student'] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
     }
 
-    public function test_accounting_page_is_scoped_without_expanding_generic_operational_event_access(): void
+    public function test_accounting_recovery_is_scoped_to_student_accounts_without_generic_operational_event_access(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $event = $this->eventForPayload($this->paidPayload('evt_c1_ui', 'cs_c1_ui', 100000, 'TALA-PAY-UNKNOWN'));
+        $assessment = $this->activeAssessment($accounting);
+        $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_c1_ui');
+        $event = $this->eventForPayload($this->paidPayload(
+            'evt_c1_ui',
+            'cs_c1_ui',
+            90000,
+            $attempt->internal_reference,
+            'PHP',
+            $attempt,
+        ));
+        app(PayMongoWebhookProcessor::class)->process((int) data_get($event->diagnostics, 'webhook_call_id'), $event->id);
         $event->forceFill([
-            'status' => OperationalEvent::StatusReviewRequired,
             'diagnostics' => [...($event->diagnostics ?? []), 'reason' => 'unknown_reference', 'private_token' => 'must-not-render'],
             'payload' => [...($event->payload ?? []), 'signature' => 'must-not-render'],
         ])->save();
@@ -63,17 +73,18 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $this->actingAs($accounting);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertTrue(PayMongoReconciliation::canAccess());
+        $this->assertFalse(class_exists('App\\Filament\\Pages\\PayMongoReconciliation'));
         $this->assertFalse(app(OperationalEventPolicy::class)->viewAny($accounting));
-        Livewire::test(PayMongoReconciliation::class)
-            ->assertCanSeeTableRecords([$event])
-            ->assertSee('Unknown Reference')
+        Livewire::test(ViewEnrollment::class, ['record' => $assessment->enrollment_id])
+            ->assertActionVisible('rejectPayMongoException')
+            ->assertActionHidden('confirmPayMongoException')
             ->assertDontSee('must-not-render')
-            ->assertActionVisible(TestAction::make('linkAndReprocess')->table($event))
-            ->assertActionHidden(TestAction::make('confirm')->table($event));
+            ->assertDontSee('private_token');
 
         $this->actingAs($registrar);
-        $this->assertFalse(PayMongoReconciliation::canAccess());
+        Livewire::test(ViewEnrollment::class, ['record' => $assessment->enrollment_id])
+            ->assertActionHidden('rejectPayMongoException')
+            ->assertActionHidden('confirmPayMongoException');
     }
 
     public function test_unknown_reference_can_be_linked_and_reprocessed_from_the_original_webhook(): void
@@ -82,7 +93,7 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $assessment = $this->activeAssessment($accounting);
         $attempt = $this->paymentAttempt($assessment, checkoutSessionId: null);
-        $payload = $this->paidPayload('evt_c1_link', 'cs_c1_link', 100000, null);
+        $payload = $this->paidPayload('evt_c1_link', 'cs_c1_link', 100000, null, 'PHP', $attempt);
         $event = $this->eventForPayload($payload);
         $webhookCallId = (int) data_get($event->diagnostics, 'webhook_call_id');
 
@@ -112,41 +123,36 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         );
     }
 
-    public function test_accounting_can_confirm_bounded_amount_ambiguity_exactly_once(): void
+    public function test_amount_mismatch_remains_review_only_and_cannot_be_confirmed(): void
     {
         Mail::fake();
 
         $accounting = $this->staff(User::StaffRoleAccounting);
         $assessment = $this->activeAssessment($accounting);
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_c1_confirm');
-        $event = $this->eventForPayload($this->paidPayload('evt_c1_confirm', 'cs_c1_confirm', 99900, $attempt->internal_reference));
+        $event = $this->eventForPayload($this->paidPayload('evt_c1_confirm', 'cs_c1_confirm', 99900, $attempt->internal_reference, 'PHP', $attempt));
         $webhookCallId = (int) data_get($event->diagnostics, 'webhook_call_id');
         $processorResult = app(PayMongoWebhookProcessor::class)->process($webhookCallId, $event->id);
 
         $this->assertSame('amount_mismatch', $processorResult['reason']);
 
-        $service = app(PayMongoReconciliationService::class);
-        $first = $service->confirm($event->id, 'Provider evidence confirms the actual paid amount.', $accounting);
-        $second = $service->confirm($event->id, 'Repeated confirmation remains idempotent.', $accounting);
-        $payment = Payment::query()
-            ->where('payment_attempt_id', $attempt->id)
-            ->sole();
+        try {
+            app(PayMongoReconciliationService::class)->confirm(
+                $event->id,
+                'The provider amount differs from the immutable exact due.',
+                $accounting,
+            );
+            $this->fail('Amount mismatch must not be manually converted into a posting.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('cannot be confirmed', $exception->getMessage());
+        }
 
-        $this->assertSame('confirmed', $first['status']);
-        $this->assertSame('duplicate', $second['status']);
-        $this->assertFalse($first['finance_cleared']);
-        $this->assertSame('999.00', (string) $payment->amount);
-        $this->assertSame('verified', $payment->evidence_status);
-        $this->assertSame($accounting->id, $payment->verified_by);
-        $this->assertSame('paid', $attempt->fresh()->status);
-        $this->assertSame('pending_payment', $assessment->enrollment->fresh()->status);
-        $this->assertSame(OperationalEvent::StatusProcessed, $event->fresh()->status);
-        $this->assertSame(1, LedgerEntry::query()
-            ->where('direction', LedgerEntry::DirectionPayment)
-            ->where('payment_id', $payment->id)
-            ->count());
-        $this->assertSame(1, DB::table('activity_log')->where('event', 'paymongo_payment_confirmed')->count());
-        Mail::assertQueued(PaymentPostedMail::class, 1);
+        $payment = Payment::query()->where('payment_attempt_id', $attempt->id)->sole();
+        $this->assertSame('under_review', $payment->evidence_status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->fresh()->status);
+        $this->assertSame(OperationalEvent::StatusReviewRequired, $event->fresh()->status);
+        $this->assertSame(0, LedgerEntry::query()->where('payment_id', $payment->id)->count());
+        Mail::assertNothingQueued();
     }
 
     public function test_reject_is_terminal_idempotent_and_never_posts_the_ledger(): void
@@ -154,7 +160,7 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $assessment = $this->activeAssessment($accounting);
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_c1_reject');
-        $event = $this->eventForPayload($this->paidPayload('evt_c1_reject', 'cs_c1_reject', 90000, $attempt->internal_reference));
+        $event = $this->eventForPayload($this->paidPayload('evt_c1_reject', 'cs_c1_reject', 90000, $attempt->internal_reference, 'PHP', $attempt));
         app(PayMongoWebhookProcessor::class)->process((int) data_get($event->diagnostics, 'webhook_call_id'), $event->id);
 
         $service = app(PayMongoReconciliationService::class);
@@ -169,7 +175,7 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
 
         $this->assertSame('rejected', $payment->evidence_status);
         $this->assertNull($payment->verified_by);
-        $this->assertSame('failed', $attempt->fresh()->status);
+        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->fresh()->status);
         $this->assertSame(0, LedgerEntry::query()
             ->where('direction', LedgerEntry::DirectionPayment)
             ->where('payment_id', $payment->id)
@@ -183,7 +189,7 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $assessment = $this->activeAssessment($accounting);
         $attempt = $this->paymentAttempt($assessment, '1000.00', 'cs_c1_currency');
-        $event = $this->eventForPayload($this->paidPayload('evt_c1_currency', 'cs_c1_currency', 100000, $attempt->internal_reference, 'USD'));
+        $event = $this->eventForPayload($this->paidPayload('evt_c1_currency', 'cs_c1_currency', 100000, $attempt->internal_reference, 'USD', $attempt));
         app(PayMongoWebhookProcessor::class)->process((int) data_get($event->diagnostics, 'webhook_call_id'), $event->id);
 
         try {
@@ -253,10 +259,22 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
     {
         $term = Term::factory()->create();
         $student = StudentProfile::factory()->create();
-        $enrollment = Enrollment::factory()->for($student)->for($term)->create(['status' => 'pending_payment']);
+        $credential = User::factory()->create(['status' => User::StatusActive, 'email_verified_at' => now()]);
+        $credential->assignRole('student');
+        $student->update(['user_id' => $credential->id]);
+        $enrollment = Enrollment::factory()->for($student)->for($term)->create([
+            'status' => 'pending_payment',
+            'credential_user_id' => $credential->id,
+        ]);
+        $account = TermAccount::factory()->for($enrollment)->create([
+            'credential_user_id' => $credential->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
             'version' => 1,
+            'content_hash' => hash('sha256', 'tal95c1-assessment-'.$enrollment->id),
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
             'subtotal' => '2000.00',
@@ -282,29 +300,77 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
             'state' => 'posted',
         ]);
 
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 1,
+            'code' => 'CURRENT-DUE',
+            'label' => 'Current exact due',
+            'amount' => '1000.00',
+            'due_at' => now()->subMinute(),
+            'required_for_enrollment' => true,
+        ]);
+        AssessmentObligation::query()->create([
+            'assessment_id' => $assessment->id,
+            'sequence' => 2,
+            'code' => 'FUTURE-DUE',
+            'label' => 'Future balance',
+            'amount' => '1000.00',
+            'due_at' => now()->addMonth(),
+            'required_for_enrollment' => false,
+        ]);
+
         return $assessment->setRelation('enrollment', $enrollment->setRelation('studentProfile', $student));
     }
 
     private function paymentAttempt(Assessment $assessment, string $amount = '1000.00', ?string $checkoutSessionId = null): PaymentAttempt
     {
-        return PaymentAttempt::query()->create([
+        $snapshot = app(ExactDuePaymentSnapshotService::class)->forAccount($assessment->termAccount);
+        $attempt = PaymentAttempt::query()->create([
             'assessment_id' => $assessment->id,
+            'term_account_id' => $assessment->term_account_id,
             'student_profile_id' => $assessment->enrollment->student_profile_id,
+            'assessment_version' => $assessment->version,
+            'snapshot_created_at' => $snapshot['created_at'],
+            'snapshot_checksum' => $snapshot['checksum'],
             'channel' => 'paymongo',
             'provider' => 'paymongo',
             'internal_reference' => 'TALA-PAY-'.Str::upper((string) Str::uuid()),
             'provider_checkout_id' => $checkoutSessionId,
             'amount' => $amount,
             'currency' => 'PHP',
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
             'metadata' => [],
         ]);
+
+        foreach ($snapshot['obligations'] as $target) {
+            $attempt->obligations()->create([
+                'assessment_obligation_id' => $target['id'],
+                'sequence' => $target['sequence'],
+                'amount' => $target['amount'],
+            ]);
+        }
+
+        return $attempt;
     }
 
     /** @return array<string, mixed> */
-    private function paidPayload(string $eventId, string $checkoutSessionId, int $amountCentavos, ?string $talaReference, string $currency = 'PHP'): array
-    {
+    private function paidPayload(
+        string $eventId,
+        string $checkoutSessionId,
+        int $amountCentavos,
+        ?string $talaReference,
+        string $currency = 'PHP',
+        ?PaymentAttempt $attempt = null,
+    ): array {
         $metadata = $talaReference === null ? [] : ['tala_reference' => $talaReference];
+        if ($attempt instanceof PaymentAttempt) {
+            $metadata = [
+                ...$metadata,
+                'term_account_id' => (string) $attempt->term_account_id,
+                'assessment_version' => (string) $attempt->assessment_version,
+                'snapshot_checksum' => (string) $attempt->snapshot_checksum,
+            ];
+        }
 
         return [
             'data' => [

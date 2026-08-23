@@ -6,11 +6,13 @@ use App\Actions\Finance\FinanceEvidenceService;
 use App\Models\Assessment;
 use App\Models\PaymentAttempt;
 use App\Models\StudentProfile;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -20,6 +22,7 @@ class CreatePaymentCheckoutSession
         private readonly PaymentGateway $gateway,
         private readonly DecimalMoney $money,
         private readonly FinanceEvidenceService $financeEvidence,
+        private readonly ExactDuePaymentSnapshotService $snapshots,
     ) {}
 
     /**
@@ -51,17 +54,19 @@ class CreatePaymentCheckoutSession
             throw PaymentCheckoutException::unavailable('The selected assessment is not the current active assessment.');
         }
 
-        $amount = $this->money->normalize((string) ($finance['current_due_amount'] ?? '0.00'));
+        $account = $assessment->termAccount;
 
-        if (! $this->money->greaterThanZero($amount)) {
-            throw PaymentCheckoutException::unavailable('There is no positive amount due for checkout.');
+        if (! $account instanceof TermAccount || $account->credential_user_id !== $actor->id) {
+            throw PaymentCheckoutException::unavailable('The current Term Account is not available for checkout.');
         }
 
         $request = new PaymentCheckoutRequest(
             studentProfileId: (int) $profile->id,
-            amount: $amount,
+            amount: '0.00',
             description: $description,
             assessmentId: (int) $assessment->id,
+            termAccountId: (int) $account->id,
+            assessmentVersion: (int) $assessment->version,
             channel: 'paymongo',
             termId: $assessment->enrollment?->term_id,
             enrollmentId: $assessment->enrollment_id,
@@ -69,15 +74,15 @@ class CreatePaymentCheckoutSession
             cancelUrl: $cancelUrl,
             metadata: [
                 ...$metadata,
-                'assessment_id' => (int) $assessment->id,
+                'term_account_id' => (int) $account->id,
                 'enrollment_id' => $assessment->enrollment_id,
                 'source' => $metadata['source'] ?? 'student_hub_finance',
             ],
         );
 
         try {
-            return Cache::lock('payment-checkout:assessment:'.$assessment->id, 30)
-                ->block(5, fn (): array => $this->createUnderLock($actor, $assessment, $request));
+            return Cache::lock('payment-checkout:term-account:'.$account->id, 30)
+                ->block(5, fn (): array => $this->createUnderLock($actor, $account, $request));
         } catch (LockTimeoutException) {
             throw PaymentCheckoutException::unavailable('Another checkout request is already being processed. Please try again.');
         }
@@ -86,11 +91,20 @@ class CreatePaymentCheckoutSession
     /**
      * @return array{payment_attempt_id:int,provider:string,provider_checkout_session_id:string,internal_reference:string,checkout_url:string,status:string,amount:string,outcome:string}
      */
-    private function createUnderLock(User $actor, Assessment $assessment, PaymentCheckoutRequest $request): array
+    private function createUnderLock(User $actor, TermAccount $account, PaymentCheckoutRequest $request): array
     {
+        try {
+            $snapshot = $this->snapshots->forAccount($account->fresh());
+        } catch (PaymentAttemptSnapshotException $exception) {
+            throw PaymentCheckoutException::unavailable(match ($exception->reason) {
+                'positive_current_due_unavailable' => 'There is no positive current due for checkout.',
+                default => 'The current Term Account is not ready for checkout.',
+            });
+        }
+        $request = $this->withSnapshot($request, $snapshot);
         $activeAttempt = PaymentAttempt::query()
-            ->where('assessment_id', $assessment->id)
-            ->whereIn('status', ['pending', 'under_review'])
+            ->where('term_account_id', $account->id)
+            ->whereIn('status', PaymentAttempt::ActiveStatuses)
             ->latest('id')
             ->first();
 
@@ -102,26 +116,56 @@ class CreatePaymentCheckoutSession
             }
         }
 
-        $internalReference = 'TALA-PAY-'.Str::upper((string) Str::uuid());
-        $request = $this->withReference($request, $internalReference);
-        $attempt = PaymentAttempt::query()->create([
-            'assessment_id' => $assessment->id,
-            'student_profile_id' => $request->studentProfileId,
-            'channel' => $request->channel,
-            'provider' => $this->gateway->provider(),
-            'internal_reference' => $internalReference,
-            'amount' => $request->amount,
-            'currency' => 'PHP',
-            'status' => 'pending',
-            'expires_at' => null,
-            'metadata' => $this->requestMetadata($request),
-        ]);
+        $attempt = DB::transaction(function () use ($account, $request): PaymentAttempt {
+            TermAccount::query()->lockForUpdate()->findOrFail($account->id);
+            $existing = PaymentAttempt::query()
+                ->where('term_account_id', $account->id)
+                ->whereIn('status', PaymentAttempt::ActiveStatuses)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing instanceof PaymentAttempt) {
+                return $existing;
+            }
+
+            $internalReference = 'TALA-PAY-'.Str::upper((string) Str::uuid());
+            $storedRequest = $this->withReference($request, $internalReference);
+            $created = PaymentAttempt::query()->create([
+                'assessment_id' => $storedRequest->assessmentId,
+                'term_account_id' => $storedRequest->termAccountId,
+                'student_profile_id' => $storedRequest->studentProfileId,
+                'assessment_version' => $storedRequest->assessmentVersion,
+                'snapshot_created_at' => data_get($storedRequest->metadata, 'snapshot_created_at'),
+                'snapshot_checksum' => $storedRequest->snapshotChecksum,
+                'channel' => $storedRequest->channel,
+                'provider' => $this->gateway->provider(),
+                'internal_reference' => $internalReference,
+                'amount' => $storedRequest->amount,
+                'currency' => 'PHP',
+                'status' => PaymentAttempt::StatusPending,
+                'expires_at' => null,
+                'metadata' => $this->requestMetadata($storedRequest),
+            ]);
+
+            foreach ((array) data_get($storedRequest->metadata, 'snapshot_obligations', []) as $target) {
+                $created->obligations()->create([
+                    'assessment_obligation_id' => (int) $target['id'],
+                    'sequence' => (int) $target['sequence'],
+                    'amount' => (string) $target['amount'],
+                ]);
+            }
+
+            return $created;
+        }, attempts: 3);
+
+        $request = $this->requestFromAttempt($attempt, $request);
 
         activity()
             ->performedOn($attempt)
             ->causedBy($actor)
             ->withProperties([
-                'assessment_id' => (int) $assessment->id,
+                'term_account_id' => (int) $account->id,
+                'assessment_id' => (int) $attempt->assessment_id,
                 'student_profile_id' => $request->studentProfileId,
                 'provider' => $this->gateway->provider(),
                 'amount' => $request->amount,
@@ -137,12 +181,14 @@ class CreatePaymentCheckoutSession
      */
     private function recoverActiveAttempt(PaymentAttempt $attempt, PaymentCheckoutRequest $currentRequest): ?array
     {
-        if ($attempt->status === 'under_review') {
+        if ($attempt->status === PaymentAttempt::StatusReviewRequired) {
             throw PaymentCheckoutException::unavailable('The previous checkout requires review before another attempt can be created.');
         }
 
-        if ($this->money->normalize((string) $attempt->amount) !== $currentRequest->amount) {
-            $this->retireChangedAmountAttempt($attempt);
+        if ($this->money->normalize((string) $attempt->amount) !== $currentRequest->amount
+            || ! is_string($attempt->snapshot_checksum)
+            || $attempt->snapshot_checksum !== $currentRequest->snapshotChecksum) {
+            $this->retireChangedSnapshotAttempt($attempt);
 
             return null;
         }
@@ -163,7 +209,9 @@ class CreatePaymentCheckoutSession
             }
 
             if (in_array(strtolower($session->status), ['expired', 'cancelled', 'canceled'], true)) {
-                $attempt->update(['status' => 'expired']);
+                $attempt->update(['status' => strtolower($session->status) === 'expired'
+                    ? PaymentAttempt::StatusExpired
+                    : PaymentAttempt::StatusCancelled]);
 
                 return null;
             }
@@ -182,7 +230,7 @@ class CreatePaymentCheckoutSession
         return $this->createProviderSession($attempt, $this->requestFromAttempt($attempt, $currentRequest), 'reused');
     }
 
-    private function retireChangedAmountAttempt(PaymentAttempt $attempt): void
+    private function retireChangedSnapshotAttempt(PaymentAttempt $attempt): void
     {
         if (! filled($attempt->provider_checkout_id)) {
             $this->markUnderReview($attempt, 'amount_changed_before_provider_confirmation');
@@ -201,7 +249,9 @@ class CreatePaymentCheckoutSession
                 throw new PaymentGatewayException('Provider expiry was not confirmed.', 'expiry_unconfirmed', false, true);
             }
 
-            $attempt->update(['status' => 'expired']);
+            $attempt->update(['status' => strtolower($session->status) === 'expired'
+                ? PaymentAttempt::StatusExpired
+                : PaymentAttempt::StatusCancelled]);
         } catch (Throwable) {
             $this->markUnderReview($attempt, 'amount_changed_provider_expiry_unconfirmed');
 
@@ -243,7 +293,7 @@ class CreatePaymentCheckoutSession
             'provider' => $session->provider,
             'provider_checkout_id' => $session->checkoutSessionId,
             'provider_intent_id' => $session->metadata['payment_intent_id'] ?? $attempt->provider_intent_id,
-            'status' => 'pending',
+            'status' => PaymentAttempt::StatusPending,
             'expires_at' => $session->metadata['expires_at'] ?? null,
             'metadata' => [
                 ...$metadata,
@@ -258,7 +308,9 @@ class CreatePaymentCheckoutSession
     {
         $metadata = $this->attemptMetadata($attempt);
         $attempt->update([
-            'status' => $exception->indeterminate ? 'pending' : 'failed',
+            'status' => $exception->indeterminate
+                ? PaymentAttempt::StatusReviewRequired
+                : PaymentAttempt::StatusFailed,
             'metadata' => [
                 ...$metadata,
                 'gateway_error' => [
@@ -275,7 +327,7 @@ class CreatePaymentCheckoutSession
     {
         $metadata = $this->attemptMetadata($attempt);
         $attempt->update([
-            'status' => 'under_review',
+            'status' => PaymentAttempt::StatusReviewRequired,
             'metadata' => [...$metadata, 'review_reason' => $reason],
         ]);
     }
@@ -304,6 +356,9 @@ class CreatePaymentCheckoutSession
             amount: $request->amount,
             description: $request->description,
             assessmentId: $request->assessmentId,
+            termAccountId: $request->termAccountId,
+            assessmentVersion: $request->assessmentVersion,
+            snapshotChecksum: $request->snapshotChecksum,
             channel: $request->channel,
             termId: $request->termId,
             enrollmentId: $request->enrollmentId,
@@ -336,6 +391,9 @@ class CreatePaymentCheckoutSession
             amount: $this->money->normalize((string) $attempt->amount),
             description: (string) ($stored['description'] ?? $fallback->description),
             assessmentId: (int) $attempt->assessment_id,
+            termAccountId: (int) $attempt->term_account_id,
+            assessmentVersion: (int) $attempt->assessment_version,
+            snapshotChecksum: (string) $attempt->snapshot_checksum,
             channel: (string) $attempt->channel,
             termId: $fallback->termId,
             enrollmentId: $fallback->enrollmentId,
@@ -370,5 +428,35 @@ class CreatePaymentCheckoutSession
         $metadata = $attempt->getAttribute('metadata');
 
         return is_array($metadata) ? $metadata : [];
+    }
+
+    /**
+     * @param  array{term_account_id:int,assessment_id:int,assessment_version:int,amount:string,checksum:string,created_at:CarbonImmutable,obligations:list<array{id:int,sequence:int,code:string,label:string,amount:string}>}  $snapshot
+     */
+    private function withSnapshot(PaymentCheckoutRequest $request, array $snapshot): PaymentCheckoutRequest
+    {
+        return new PaymentCheckoutRequest(
+            studentProfileId: $request->studentProfileId,
+            amount: $snapshot['amount'],
+            description: $request->description,
+            assessmentId: $snapshot['assessment_id'],
+            termAccountId: $snapshot['term_account_id'],
+            assessmentVersion: $snapshot['assessment_version'],
+            snapshotChecksum: $snapshot['checksum'],
+            channel: $request->channel,
+            termId: $request->termId,
+            enrollmentId: $request->enrollmentId,
+            ledgerEntryId: $request->ledgerEntryId,
+            successUrl: $request->successUrl,
+            cancelUrl: $request->cancelUrl,
+            metadata: [
+                ...$request->metadata,
+                'assessment_id' => $snapshot['assessment_id'],
+                'assessment_version' => $snapshot['assessment_version'],
+                'snapshot_checksum' => $snapshot['checksum'],
+                'snapshot_created_at' => $snapshot['created_at']->toIso8601String(),
+                'snapshot_obligations' => $snapshot['obligations'],
+            ],
+        );
     }
 }

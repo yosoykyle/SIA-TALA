@@ -81,7 +81,7 @@ class VerifyPayMongoSandboxWebhookSmoke extends Command
         $attemptAmount = $money->normalize((string) $attempt->amount);
 
         $checks = [
-            'attempt_paid' => $attempt->status === 'paid',
+            'attempt_paid' => $attempt->status === PaymentAttempt::StatusConfirmed,
             'provider_checkout_recorded' => filled($attempt->provider_checkout_id),
             'provider_reference_recorded' => $payment instanceof Payment
                 && str_starts_with((string) $payment->provider_reference, 'paymongo:'),

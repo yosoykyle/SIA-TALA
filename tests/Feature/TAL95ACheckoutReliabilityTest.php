@@ -11,6 +11,7 @@ use App\Actions\Integrations\Payments\PaymentGatewayException;
 use App\Actions\Integrations\Payments\PayMongoPaymentGateway;
 use App\Filament\Student\Pages\Finance;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
 use App\Models\PaymentAttempt;
@@ -18,6 +19,7 @@ use App\Models\PaymentScheduleRow;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
 use Closure;
@@ -58,7 +60,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
             $this->assertSame('2000.00', $request->amount);
 
             $attempt = PaymentAttempt::query()->where('internal_reference', $idempotencyKey)->sole();
-            $this->assertSame('pending', $attempt->status);
+            $this->assertSame(PaymentAttempt::StatusPending, $attempt->status);
             $this->assertNull($attempt->provider_checkout_id);
         };
         $this->app->instance(PaymentGateway::class, $gateway);
@@ -114,14 +116,14 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         $creator = app(CreatePaymentCheckoutSession::class);
 
         $first = $creator->create(actor: $fixture['student']);
-        PaymentScheduleRow::query()->where('assessment_id', $fixture['assessment']->id)->update(['amount' => '2500.00']);
+        AssessmentObligation::query()->where('assessment_id', $fixture['assessment']->id)->update(['amount' => '2500.00']);
         $second = $creator->create(actor: $fixture['student']);
 
         $this->assertNotSame($first['payment_attempt_id'], $second['payment_attempt_id']);
         $this->assertSame(2, $gateway->createCalls);
         $this->assertSame(1, $gateway->expireCalls);
-        $this->assertSame('expired', PaymentAttempt::query()->findOrFail($first['payment_attempt_id'])->status);
-        $this->assertSame('pending', PaymentAttempt::query()->findOrFail($second['payment_attempt_id'])->status);
+        $this->assertSame(PaymentAttempt::StatusExpired, PaymentAttempt::query()->findOrFail($first['payment_attempt_id'])->status);
+        $this->assertSame(PaymentAttempt::StatusPending, PaymentAttempt::query()->findOrFail($second['payment_attempt_id'])->status);
         $this->assertSame('2500.00', $second['amount']);
     }
 
@@ -178,11 +180,11 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
     public function test_database_rejects_a_second_pending_or_under_review_attempt_for_one_assessment(): void
     {
         $fixture = $this->checkoutFixture();
-        $this->paymentAttempt($fixture, 'under_review', 'TALA-PAY-REVIEW');
+        $this->paymentAttempt($fixture, PaymentAttempt::StatusReviewRequired, 'TALA-PAY-REVIEW');
 
         $this->expectException(QueryException::class);
 
-        $this->paymentAttempt($fixture, 'pending', 'TALA-PAY-PENDING');
+        $this->paymentAttempt($fixture, PaymentAttempt::StatusPending, 'TALA-PAY-PENDING');
     }
 
     public function test_paymongo_creation_uses_v2_reference_and_idempotency_contract(): void
@@ -272,7 +274,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         $attempt = PaymentAttempt::query()
             ->where('assessment_id', $fixture['assessment']->id)
             ->sole();
-        $this->assertSame('failed', $attempt->status);
+        $this->assertSame(PaymentAttempt::StatusFailed, $attempt->status);
         $this->assertSame('parameter_invalid', data_get($attempt->metadata, 'gateway_error.code'));
         $this->assertStringNotContainsString('Provider detail', json_encode($attempt->metadata, JSON_THROW_ON_ERROR));
     }
@@ -299,7 +301,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         $attempt = PaymentAttempt::query()
             ->where('assessment_id', $fixture['assessment']->id)
             ->sole();
-        $this->assertSame('pending', $attempt->status);
+        $this->assertSame(PaymentAttempt::StatusReviewRequired, $attempt->status);
         $this->assertNull($attempt->provider_checkout_id);
         $this->assertTrue((bool) data_get($attempt->metadata, 'gateway_error.indeterminate'));
     }
@@ -322,7 +324,7 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
     }
 
     /**
-     * @return array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,assessment:Assessment}
+     * @return array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,account:TermAccount,assessment:Assessment}
      */
     private function checkoutFixture(bool $positiveDue = true): array
     {
@@ -335,11 +337,18 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
         $profile = StudentProfile::factory()->for($student)->for($program)->create();
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->for($profile)->for($term)->create([
+            'credential_user_id' => $student->id,
             'status' => 'pending_payment',
             'registered_at' => now()->subDay(),
         ]);
+        $account = TermAccount::factory()->for($enrollment)->create([
+            'credential_user_id' => $student->id,
+            'term_id' => $term->id,
+        ]);
         $assessment = Assessment::query()->create([
             'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
+            'content_hash' => hash('sha256', 'tal95a-'.$enrollment->id),
             'version' => 1,
             'state' => Assessment::StateActive,
             'currency' => 'PHP',
@@ -348,6 +357,13 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
             'total' => $positiveDue ? '9000.00' : '0.00',
             'required_downpayment' => $positiveDue ? '2000.00' : '0.00',
             'activated_at' => now(),
+        ]);
+        AssessmentObligation::factory()->for($assessment)->create([
+            'sequence' => 1,
+            'code' => 'CURRENT-DUE',
+            'label' => 'Current amount due',
+            'amount' => $positiveDue ? '2000.00' : '1.00',
+            'due_at' => $positiveDue ? now()->subMinute() : now()->addDay(),
         ]);
         PaymentScheduleRow::query()->create([
             'assessment_id' => $assessment->id,
@@ -374,17 +390,21 @@ final class TAL95ACheckoutReliabilityTest extends TestCase
             ]);
         }
 
-        return compact('student', 'profile', 'term', 'enrollment', 'assessment');
+        return compact('student', 'profile', 'term', 'enrollment', 'account', 'assessment');
     }
 
     /**
-     * @param  array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,assessment:Assessment}  $fixture
+     * @param  array{student:User,profile:StudentProfile,term:Term,enrollment:Enrollment,account:TermAccount,assessment:Assessment}  $fixture
      */
     private function paymentAttempt(array $fixture, string $status, string $reference): PaymentAttempt
     {
         return PaymentAttempt::query()->create([
             'assessment_id' => $fixture['assessment']->id,
+            'term_account_id' => $fixture['account']->id,
             'student_profile_id' => $fixture['profile']->id,
+            'assessment_version' => $fixture['assessment']->version,
+            'snapshot_created_at' => now(),
+            'snapshot_checksum' => str_repeat('a', 64),
             'channel' => 'paymongo',
             'provider' => 'mock',
             'internal_reference' => $reference,

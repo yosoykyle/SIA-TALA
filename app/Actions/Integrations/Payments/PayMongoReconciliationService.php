@@ -22,7 +22,6 @@ final class PayMongoReconciliationService
 {
     /** @var list<string> */
     private const ConfirmableReasons = [
-        'amount_mismatch',
         'missing_tala_reference',
         'reference_mismatch',
     ];
@@ -55,7 +54,7 @@ final class PayMongoReconciliationService
             $attempt = PaymentAttempt::query()->lockForUpdate()->findOrFail($attemptId);
             $this->assertAttemptSource($attempt);
 
-            if (! in_array($attempt->status, ['pending', 'under_review'], true)) {
+            if (! in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)) {
                 throw new RuntimeException('The selected Payment Attempt is no longer eligible for reconciliation.');
             }
 
@@ -271,8 +270,8 @@ final class PayMongoReconciliationService
                 $payment->forceFill(['evidence_status' => 'rejected', 'verified_at' => null, 'verified_by' => null])->save();
             }
 
-            if ($attempt instanceof PaymentAttempt && in_array($attempt->status, ['pending', 'under_review'], true)) {
-                $attempt->forceFill(['status' => 'failed'])->save();
+            if ($attempt instanceof PaymentAttempt && in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)) {
+                $attempt->forceFill(['status' => PaymentAttempt::StatusFailed])->save();
             }
 
             $this->markWebhookProcessed($webhookCallId, $timestamp);
@@ -303,6 +302,80 @@ final class PayMongoReconciliationService
                 'event_id' => $event->id,
                 'payment_id' => $payment?->id,
             ], fn (mixed $value): bool => $value !== null);
+        }, attempts: 3);
+    }
+
+    /** @return array{status:string,event_id:int,payment_id:int,reversal_id:int} */
+    public function recordRefundReversal(
+        int $eventId,
+        Payment $payment,
+        Payment $reversal,
+        string $reason,
+        User $actor,
+    ): array {
+        $this->authorize($actor);
+        $reason = $this->normalizedReason($reason);
+
+        return DB::transaction(function () use ($eventId, $payment, $reversal, $reason, $actor): array {
+            $event = $this->eventForUpdate($eventId);
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+            $lockedReversal = Payment::query()->lockForUpdate()->findOrFail($reversal->id);
+
+            if ($event->status === OperationalEvent::StatusProcessed
+                && data_get($event->diagnostics, 'resolution.action') === 'reversed'
+                && (int) data_get($event->diagnostics, 'resolution.reversal_id') === $lockedReversal->id) {
+                return [
+                    'status' => 'duplicate',
+                    'event_id' => $event->id,
+                    'payment_id' => $lockedPayment->id,
+                    'reversal_id' => $lockedReversal->id,
+                ];
+            }
+
+            if ($event->status !== OperationalEvent::StatusReviewRequired
+                || ! in_array($this->eventReason($event), self::RefundReasons, true)
+                || $event->related_record_type !== Payment::class
+                || (int) $event->related_record_id !== $lockedPayment->id
+                || $lockedReversal->state !== Payment::StateReversal
+                || (int) $lockedReversal->reverses_payment_id !== $lockedPayment->id
+                || $lockedReversal->term_account_id !== $lockedPayment->term_account_id) {
+                throw new RuntimeException('The PayMongo refund evidence does not match this payment reversal.');
+            }
+
+            $timestamp = CarbonImmutable::now(config('app.timezone'));
+            [$webhookCallId] = $this->evidenceFor($event);
+            $this->markWebhookProcessed($webhookCallId, $timestamp);
+            $event->forceFill([
+                'status' => OperationalEvent::StatusProcessed,
+                'processed_at' => $timestamp,
+                'failed_at' => null,
+                'user_id' => $actor->id,
+                'related_record_type' => Payment::class,
+                'related_record_id' => $lockedReversal->id,
+                'diagnostics' => [
+                    ...($event->diagnostics ?? []),
+                    'outcome' => 'processed',
+                    'resolution' => [
+                        'action' => 'reversed',
+                        'actor_id' => $actor->id,
+                        'reason' => $reason,
+                        'payment_id' => $lockedPayment->id,
+                        'reversal_id' => $lockedReversal->id,
+                        'decided_at' => $timestamp->toIso8601String(),
+                    ],
+                ],
+            ])->save();
+            $this->recordActivity($event, $actor, 'paymongo_refund_reversal_recorded', $reason, $timestamp, [
+                'payment_id' => $lockedPayment->id,
+                'reversal_id' => $lockedReversal->id,
+            ]);
+
+            return [
+                'status' => 'reversed',
+                'event_id' => $event->id,
+                'payment_id' => $lockedPayment->id,
+                'reversal_id' => $lockedReversal->id,
+            ];
         }, attempts: 3);
     }
 
@@ -397,7 +470,11 @@ final class PayMongoReconciliationService
         $enrollment = Enrollment::query()->lockForUpdate()->find($assessment->enrollment_id);
 
         if ($attempt->provider !== 'paymongo'
+            || $attempt->term_account_id === null
+            || $attempt->snapshot_checksum === null
             || $assessment->state !== Assessment::StateActive
+            || $assessment->term_account_id !== $attempt->term_account_id
+            || (int) $assessment->version !== (int) $attempt->assessment_version
             || ! $enrollment instanceof Enrollment
             || $enrollment->student_profile_id !== $attempt->student_profile_id) {
             throw new RuntimeException('The selected Payment Attempt is not a valid PayMongo source.');

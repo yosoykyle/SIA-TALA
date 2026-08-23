@@ -2,6 +2,7 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Integrations\Payments\PayMongoCheckoutReadinessService;
 use App\Models\ApprovedCoverage;
 use App\Models\Payment;
 use App\Models\TermAccount;
@@ -9,7 +10,10 @@ use App\Models\User;
 
 class StudentTermAccountPresenter
 {
-    public function __construct(private readonly TermAccountProjection $projection) {}
+    public function __construct(
+        private readonly TermAccountProjection $projection,
+        private readonly PayMongoCheckoutReadinessService $checkoutReadiness,
+    ) {}
 
     /** @return array<string, mixed> */
     public function forUser(User $actor): array
@@ -31,12 +35,14 @@ class StudentTermAccountPresenter
         $assessment = $account->assessments->first();
         $payments = $account->payments->where('state', Payment::StatePosted)->sortByDesc('paid_at');
         $latestEvidence = $account->paymentEvidenceVersions->first();
+        $checkout = $this->checkoutReadiness->for($actor, $account);
 
         return [
             'available' => $assessment !== null,
             'account' => $account,
             'assessment' => $assessment,
             'latest_payment' => $payments->first(),
+            'checkout' => $checkout,
             'state' => [
                 'notice' => 'Balances come from the active Assessment, dated obligations, valid coverage, and verified postings.',
                 'term' => $account->term->label,
@@ -48,7 +54,14 @@ class StudentTermAccountPresenter
                 'status' => $position['state'],
                 'as_of' => $position['as_of'],
                 'manual_payment' => 'Submit private payment evidence from Enrollment. Accounting must independently verify it before any balance changes.',
-                'paymongo' => 'Online PayMongo checkout is not active. Manual payment evidence remains fully supported.',
+                'paymongo' => $checkout['reason'],
+                'checkout_amount' => $checkout['amount'] !== null
+                    ? 'PHP '.number_format((float) $checkout['amount'], 2)
+                    : null,
+                'checkout_obligations' => collect($checkout['obligations'])->map(fn (array $target): array => [
+                    'label' => $target['label'],
+                    'amount' => 'PHP '.number_format((float) $target['amount'], 2),
+                ])->all(),
                 'latest_evidence_state' => $latestEvidence?->state,
                 'obligations' => collect($position['obligations'])->map(fn (array $row): array => [
                     'label' => $row['label'], 'purpose' => $row['purpose'], 'due_at' => $row['due_at'],

@@ -9,7 +9,6 @@ use App\Filament\Resources\AccountingAdjustments\AccountingAdjustmentResource;
 use App\Filament\Resources\Assessments\AssessmentResource;
 use App\Filament\Resources\FinancialAccommodations\FinancialAccommodationResource;
 use App\Filament\Resources\LedgerEntries\LedgerEntryResource;
-use App\Filament\Resources\PaymentAttempts\PaymentAttemptResource;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Models\Assessment;
 use App\Models\Enrollment;
@@ -158,12 +157,6 @@ class ViewAssessment extends ViewRecord
                     ->label('Account Activity')
                     ->icon(Heroicon::OutlinedListBullet)
                     ->url(fn (): string => LedgerEntryResource::getUrl('index', [
-                        'tableSearch' => $this->studentSearch(),
-                    ], panel: 'admin')),
-                Action::make('openPaymentAttempts')
-                    ->label('Payment Attempts')
-                    ->icon(Heroicon::OutlinedClock)
-                    ->url(fn (): string => PaymentAttemptResource::getUrl('index', [
                         'tableSearch' => $this->studentSearch(),
                     ], panel: 'admin')),
                 Action::make('openPayments')

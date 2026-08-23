@@ -52,9 +52,10 @@ final class PayMongoCheckoutRecoveryService
                 $hasFailedPayment = collect($session->payments)
                     ->contains(fn (array $payment): bool => ($payment['status'] ?? null) === 'failed');
                 $status = match (true) {
-                    $session->status === 'expired' => 'expired',
-                    $hasFailedPayment => 'failed',
-                    default => 'pending',
+                    $session->status === 'expired' => PaymentAttempt::StatusExpired,
+                    in_array($session->status, ['cancelled', 'canceled'], true) => PaymentAttempt::StatusCancelled,
+                    $hasFailedPayment || $session->status === 'failed' => PaymentAttempt::StatusFailed,
+                    default => PaymentAttempt::StatusPending,
                 };
                 $lockedAttempt->forceFill(['status' => $status])->save();
 
@@ -136,7 +137,7 @@ final class PayMongoCheckoutRecoveryService
                 ];
             }
 
-            $lockedAttempt->forceFill(['status' => 'under_review'])->save();
+            $lockedAttempt->forceFill(['status' => PaymentAttempt::StatusReviewRequired])->save();
 
             return [
                 'status' => 'review_required',
@@ -184,6 +185,13 @@ final class PayMongoCheckoutRecoveryService
             }
 
             $this->assertExactPaymentEvidence($event, $attempt, $payment);
+
+            if ($attempt->provider_intent_id === null) {
+                $attempt->forceFill([
+                    'provider_intent_id' => $payment['payment_intent_id'],
+                ])->save();
+            }
+
             $timestamp = is_int($payment['paid_at'] ?? null)
                 ? CarbonImmutable::createFromTimestamp($payment['paid_at'], config('app.timezone'))
                 : CarbonImmutable::now(config('app.timezone'));
@@ -257,7 +265,7 @@ final class PayMongoCheckoutRecoveryService
                 throw new RuntimeException('Posted PayMongo evidence cannot be rejected.');
             }
 
-            $attempt->forceFill(['status' => 'failed'])->save();
+            $attempt->forceFill(['status' => PaymentAttempt::StatusFailed])->save();
             $event->forceFill([
                 'status' => OperationalEvent::StatusProcessed,
                 'processed_at' => now(),
@@ -306,9 +314,12 @@ final class PayMongoCheckoutRecoveryService
 
         if ($attempt->provider !== 'paymongo'
             || ! filled($attempt->provider_checkout_id)
-            || ! in_array($attempt->status, ['pending', 'expired', 'under_review'], true)
+            || ! in_array($attempt->status, PaymentAttempt::ActiveStatuses, true)
+            || $attempt->term_account_id === null
+            || $attempt->snapshot_checksum === null
             || ! $assessment instanceof Assessment
             || $assessment->state !== Assessment::StateActive
+            || $assessment->term_account_id !== $attempt->term_account_id
             || ! $enrollment instanceof Enrollment
             || $enrollment->student_profile_id !== $attempt->student_profile_id) {
             throw new RuntimeException('The selected Payment Attempt is not eligible for PayMongo recovery.');
@@ -355,6 +366,7 @@ final class PayMongoCheckoutRecoveryService
     ): void {
         $paymentCount = data_get($event->payload, 'payment_count');
         $amountCentavos = $payment['amount_centavos'] ?? null;
+        $paymentIntentId = $payment['payment_intent_id'] ?? null;
         $paidAt = $payment['paid_at'] ?? null;
 
         if (data_get($event->payload, 'checkout_session_id') !== $attempt->provider_checkout_id
@@ -367,7 +379,9 @@ final class PayMongoCheckoutRecoveryService
             || $amountCentavos !== $this->money->toCents((string) $attempt->amount)
             || ($payment['currency'] ?? null) !== 'PHP'
             || ($payment['livemode'] ?? null) !== (bool) config('tala_integrations.payments.paymongo.livemode', false)
-            || ($payment['payment_intent_id'] ?? null) !== $attempt->provider_intent_id
+            || ! is_string($paymentIntentId)
+            || $paymentIntentId === ''
+            || ($attempt->provider_intent_id !== null && $paymentIntentId !== $attempt->provider_intent_id)
             || ($payment['disputed'] ?? true) !== false
             || ($payment['has_refunds'] ?? true) !== false
             || ($paidAt !== null && ! is_int($paidAt))) {
