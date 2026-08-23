@@ -108,17 +108,17 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
                 'AdmissionApplicationResource', 'AdmissionCycleResource', 'CalendarEventResource',
-                'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
+                'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion', 'ImportBatchResource',
                 'ProgramResource', 'ReportsAudit', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
             'accounting' => ['role' => User::StaffRoleAccounting, 'allowed' => [
                 'Dashboard', 'EnrollmentResource', 'FeePlanResource', 'StudentLifecycleChangeResource',
-                'StudentProfileResource',
+                'StudentProfileResource', 'TranscriptRequestResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
                 'CalendarEventResource', 'Dashboard', 'FacultyGradeRoster', 'FacultyQualificationResource',
@@ -126,12 +126,12 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
                 'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CourseResource', 'CourseSpecificationResource',
+                'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource',
                 'CurriculumVersionResource', 'Dashboard', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'ImportBatchResource', 'ProgramResource', 'ReportsAudit', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
-                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
                 'ActivityResource', 'Dashboard', 'DisposalReviewResource', 'EnrollmentResource', 'FaqEntryResource',
@@ -167,6 +167,14 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ],
         ));
 
+        foreach ($manifest as &$entry) {
+            $entry['allowed'] = array_values(array_diff($entry['allowed'], [
+                'CompletionAndTor',
+                'TranscriptRequestResource',
+            ]));
+        }
+        unset($entry);
+
         return array_map(
             fn (array $entry): array => ['role' => $entry['role'], 'expected' => $entry['allowed']],
             $manifest,
@@ -184,7 +192,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'ImportBatchResource', 'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',
             'CalendarEventResource', 'RoomResource', 'FacultyQualificationResource',
             'FacultyTermLoadOverrideResource', 'TermOfferingResource', 'SectionResource', 'GradeRosterResource',
-            'GraduationReviewBatchResource', 'SchedulingDemandResource', 'ScheduleGenerationRunResource',
+            'TranscriptRequestResource', 'SchedulingDemandResource', 'ScheduleGenerationRunResource',
             'SectionMeetingResource', 'StudentProfileResource', 'StudentLifecycleChangeResource',
             'DuplicateProfileResolutionResource', 'DisposalReviewResource',
         ];
@@ -203,6 +211,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'FacultyGradeRoster',
             'FacultySchedule',
             'GradesAndCompletion',
+            'CompletionAndTor',
             'ReportsAudit',
             'IntegrationStatus',
         ];

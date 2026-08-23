@@ -6,7 +6,6 @@ use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\CreateFeePlanDraft;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\RecordApprovedCoverage;
-use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
@@ -348,14 +347,27 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     public function test_tor_payment_clearance_is_request_specific_versioned_and_not_global(): void
     {
         $fixture = $this->accountFixture();
-        $first = app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $fixture['account'], $fixture['accounting'], 'TOR-SYNTH-0001',
-            OfficialOutputPaymentClearance::StateNotCleared, 'SYNTH-CLEARANCE-AUTH-1', 'Current due remains.',
-        );
-        $second = app(RecordOfficialOutputPaymentClearance::class)->execute(
-            $fixture['account'], $fixture['accounting'], 'TOR-SYNTH-0001',
-            OfficialOutputPaymentClearance::StateCleared, 'SYNTH-CLEARANCE-AUTH-2', 'Accounting verified the named request.',
-        );
+        $first = OfficialOutputPaymentClearance::factory()->create([
+            'term_account_id' => $fixture['account']->id,
+            'output_request_reference' => 'TOR-SYNTH-0001',
+            'version' => 1,
+            'state' => OfficialOutputPaymentClearance::StateNotCleared,
+            'authority_reference' => 'SYNTH-CLEARANCE-AUTH-1',
+            'safe_reason' => 'Historical current due remained.',
+            'decided_by' => $fixture['accounting']->id,
+            'decided_at' => now(),
+        ]);
+        $second = OfficialOutputPaymentClearance::factory()->create([
+            'term_account_id' => $fixture['account']->id,
+            'output_request_reference' => 'TOR-SYNTH-0001',
+            'version' => 2,
+            'supersedes_clearance_id' => $first->id,
+            'state' => OfficialOutputPaymentClearance::StateCleared,
+            'authority_reference' => 'SYNTH-CLEARANCE-AUTH-2',
+            'safe_reason' => 'Historical request-specific decision retained.',
+            'decided_by' => $fixture['accounting']->id,
+            'decided_at' => now(),
+        ]);
 
         $this->assertSame(1, $first->version);
         $this->assertSame(2, $second->version);

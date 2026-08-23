@@ -44,6 +44,8 @@ class StudentProfile extends Model
 
     public const LifecycleInactive = 'INACTIVE';
 
+    public const LifecycleCompleted = 'COMPLETED';
+
     /** @return list<string> */
     public static function enrollmentBlockingLifecycleStatuses(): array
     {
@@ -53,6 +55,7 @@ class StudentProfile extends Model
             self::LifecycleTransferredOut,
             self::LifecycleInactive,
             self::LifecycleArchived,
+            self::LifecycleCompleted,
         ];
     }
 
@@ -71,6 +74,7 @@ class StudentProfile extends Model
             self::LifecycleTransferredOut => 'Transferred Out',
             self::LifecycleInactive => 'Inactive',
             self::LifecycleArchived => 'Archived',
+            self::LifecycleCompleted => 'Completed',
             default => filled($status) ? str((string) $status)->headline()->toString() : 'Not recorded',
         };
     }
@@ -131,6 +135,7 @@ class StudentProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<ApplicantIntake, $this> */
     public function applicantIntake(): BelongsTo
     {
         return $this->belongsTo(ApplicantIntake::class);
@@ -197,5 +202,29 @@ class StudentProfile extends Model
     public function lifecycleChanges(): HasMany
     {
         return $this->hasMany(StudentLifecycleChange::class);
+    }
+
+    /** @return HasMany<GraduationApplication, $this> */
+    public function graduationApplications(): HasMany
+    {
+        return $this->hasMany(GraduationApplication::class);
+    }
+
+    /** @return HasMany<CompletionReadinessVersion, $this> */
+    public function completionReadinessVersions(): HasMany
+    {
+        return $this->hasMany(CompletionReadinessVersion::class);
+    }
+
+    /** @return HasMany<DegreeConferral, $this> */
+    public function degreeConferrals(): HasMany
+    {
+        return $this->hasMany(DegreeConferral::class);
+    }
+
+    /** @return HasMany<TranscriptRequest, $this> */
+    public function transcriptRequests(): HasMany
+    {
+        return $this->hasMany(TranscriptRequest::class);
     }
 }

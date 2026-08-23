@@ -31,21 +31,25 @@ class ProgramShiftCreditEntry extends Model
         return ['numeric_grade' => 'decimal:4'];
     }
 
+    /** @return BelongsTo<StudentLifecycleChange, $this> */
     public function lifecycleChange(): BelongsTo
     {
         return $this->belongsTo(StudentLifecycleChange::class, 'student_lifecycle_change_id');
     }
 
+    /** @return BelongsTo<CurriculumEntry, $this> */
     public function curriculumEntry(): BelongsTo
     {
         return $this->belongsTo(CurriculumEntry::class);
     }
 
+    /** @return BelongsTo<Course, $this> */
     public function sourceCourse(): BelongsTo
     {
         return $this->belongsTo(Course::class, 'source_course_id');
     }
 
+    /** @return BelongsTo<GradeOutcomeEvent, $this> */
     public function sourceGradeOutcomeEvent(): BelongsTo
     {
         return $this->belongsTo(GradeOutcomeEvent::class, 'source_grade_outcome_event_id');

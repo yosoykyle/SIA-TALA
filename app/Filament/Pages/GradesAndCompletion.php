@@ -147,6 +147,13 @@ class GradesAndCompletion extends Page
                 'url' => StudentLifecycleChangeResource::getUrl('index'),
                 'icon' => 'heroicon-o-arrow-path',
             ],
+            [
+                'title' => 'Completion & TOR',
+                'description' => 'Review attributable readiness, record immutable conferral, and manage request-bound TALA Standard TOR history.',
+                'action' => 'Open Completion & TOR',
+                'url' => CompletionAndTor::getUrl(),
+                'icon' => 'heroicon-o-document-text',
+            ],
         ];
     }
 }

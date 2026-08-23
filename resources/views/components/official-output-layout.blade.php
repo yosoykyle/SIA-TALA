@@ -4,6 +4,7 @@
     'generatedAt' => null,
     'subtitle' => null,
     'pageOrientation' => 'portrait',
+    'logoSrc' => null,
 ])
 
 <!DOCTYPE html>
@@ -62,6 +63,18 @@
             justify-content: space-between;
             margin-bottom: 24px;
             padding-bottom: 16px;
+        }
+
+        .official-output-identity {
+            align-items: center;
+            display: flex;
+            gap: 14px;
+        }
+
+        .official-output-logo {
+            height: 58px;
+            object-fit: contain;
+            width: 58px;
         }
 
         .official-output-header h1,
@@ -215,6 +228,10 @@
         }
 
         @media print {
+            thead {
+                display: table-header-group;
+            }
+
             body {
                 background: #ffffff;
             }
@@ -233,6 +250,11 @@
             @page {
                 size: A4 {{ $pageOrientation }};
                 margin: 14mm;
+
+                @bottom-center {
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-size: 10px;
+                }
             }
         }
 
@@ -249,7 +271,11 @@
 
     <main class="official-output">
         <header class="official-output-header">
-            <div>
+            <div class="official-output-identity">
+                @if (filled($logoSrc))
+                    <img class="official-output-logo" src="{{ $logoSrc }}" alt="{{ config('institution.name') }} logo">
+                @endif
+                <div>
                 <p><strong>{{ config('institution.name') }}</strong></p>
                 @if (filled(config('institution.address')))
                     <p class="official-output-meta">{{ config('institution.address') }}</p>
@@ -261,6 +287,7 @@
                 @if (filled($generatedAt))
                     <p class="official-output-meta">Generated {{ $generatedAt }}</p>
                 @endif
+                </div>
             </div>
 
             @if (filled($context))

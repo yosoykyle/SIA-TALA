@@ -21,7 +21,6 @@ use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
-use App\Actions\Finance\RecordOfficialOutputPaymentClearance;
 use App\Actions\Finance\ReverseApprovedCoverage;
 use App\Actions\Finance\ReversePaymentPosting;
 use App\Actions\Finance\ReviewPaymentEvidence;
@@ -32,7 +31,6 @@ use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\FinanceExport;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PaymentEvidenceVersion;
@@ -92,7 +90,6 @@ class ViewEnrollment extends ViewRecord
                 $this->verifyPaymentEvidenceAction(),
                 $this->reversePaymentAction(),
                 $this->rejectPaymentEvidenceAction(),
-                $this->recordTorClearanceAction(),
                 $this->exportAccountAction(),
                 $this->resolveImpactReviewAction(),
                 Action::make('resendOfficialEnrollmentEmail')
@@ -477,34 +474,6 @@ class ViewEnrollment extends ViewRecord
                     Notification::make()->title('Payment reversal recorded')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Payment was not reversed', $exception);
-                }
-            });
-    }
-
-    private function recordTorClearanceAction(): Action
-    {
-        return Action::make('recordTorPaymentClearance')
-            ->label('Record TOR payment clearance')
-            ->icon('heroicon-o-document-check')
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting) && $this->getRecord()->termAccount !== null)
-            ->schema([
-                TextInput::make('request_reference')->label('TOR request reference')->required()->maxLength(255),
-                Select::make('state')->options([
-                    OfficialOutputPaymentClearance::StateCleared => 'Cleared for this request',
-                    OfficialOutputPaymentClearance::StateNotCleared => 'Not cleared for this request',
-                    OfficialOutputPaymentClearance::StateWithdrawn => 'Withdraw prior decision',
-                ])->required(),
-                TextInput::make('authority_reference')->required()->maxLength(255),
-                Textarea::make('safe_reason')->required()->maxLength(1000),
-            ])->action(function (array $data): void {
-                try {
-                    app(RecordOfficialOutputPaymentClearance::class)->execute(
-                        $this->getRecord()->termAccount()->firstOrFail(), $this->actor(),
-                        $data['request_reference'], $data['state'], $data['authority_reference'], $data['safe_reason'],
-                    );
-                    Notification::make()->title('Request-specific clearance recorded')->success()->send();
-                } catch (Throwable $exception) {
-                    $this->failure('TOR clearance was not recorded', $exception);
                 }
             });
     }

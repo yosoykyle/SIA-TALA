@@ -12,6 +12,10 @@ class ExternalCompetencyRequirement extends Model
     /** @use HasFactory<ExternalCompetencyRequirementFactory> */
     use HasFactory;
 
+    public const TreatmentCompletionRequired = 'CompletionRequired';
+
+    public const TreatmentTrackedOnly = 'TrackedOnly';
+
     protected $fillable = [
         'curriculum_version_id', 'curriculum_entry_id', 'requirement_code',
         'qualification_label', 'qualification_level', 'treatment',

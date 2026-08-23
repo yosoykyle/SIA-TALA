@@ -12,6 +12,8 @@ use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
 use App\Http\Controllers\StudentSchedulePrintController;
 use App\Http\Controllers\TimetableVersionPrintController;
+use App\Http\Controllers\TranscriptPreviewController;
+use App\Http\Controllers\TranscriptSnapshotController;
 use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
@@ -57,4 +59,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('grade-rosters.csv');
     Route::get('/outputs/academics/unofficial-record/{student}', UnofficialStudentRecordController::class)
         ->name('student-academics.unofficial-record');
+    Route::get('/outputs/academics/transcript/{transcriptRequest}', TranscriptPreviewController::class)
+        ->name('transcripts.preview');
+    Route::get('/outputs/academics/transcript-snapshots/{snapshot}', TranscriptSnapshotController::class)
+        ->name('transcript-snapshots.show');
 });

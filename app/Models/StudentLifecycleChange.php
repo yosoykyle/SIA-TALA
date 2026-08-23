@@ -33,6 +33,8 @@ class StudentLifecycleChange extends Model
 
     public const TypeProgramShift = 'PROGRAM_SHIFT';
 
+    public const TypeCompletion = 'COMPLETION';
+
     public const StateRecordedApproved = 'RECORDED_APPROVED';
 
     public const StateApplied = 'APPLIED';
@@ -63,6 +65,7 @@ class StudentLifecycleChange extends Model
             self::TypeLeaveOfAbsence => 'Leave of Absence', self::TypeTransferOut => 'Transfer Out',
             self::TypeReactivation => 'Reactivation', self::TypeInactivation => 'Registrar Inactive',
             self::TypeProgramShift => 'Program Shift',
+            self::TypeCompletion => 'Completion',
         ];
     }
 

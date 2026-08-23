@@ -6,6 +6,7 @@ use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\ClassPlanning;
+use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GradesAndCompletion;
@@ -29,7 +30,6 @@ use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResou
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
-use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\OperationalEvents\OperationalEventResource;
 use App\Filament\Resources\Programs\ProgramResource;
@@ -44,6 +44,7 @@ use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
+use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Models\User;
@@ -123,7 +124,7 @@ class AdminPanelProvider extends PanelProvider
                 TermOfferingResource::class,
                 SectionResource::class,
                 GradeRosterResource::class,
-                GraduationReviewBatchResource::class,
+                TranscriptRequestResource::class,
                 SchedulingDemandResource::class,
                 ScheduleGenerationRunResource::class,
                 SectionMeetingResource::class,
@@ -142,6 +143,7 @@ class AdminPanelProvider extends PanelProvider
                 FacultyGradeRoster::class,
                 FacultySchedule::class,
                 GradesAndCompletion::class,
+                CompletionAndTor::class,
                 ReportsAudit::class,
                 IntegrationStatus::class,
             ])

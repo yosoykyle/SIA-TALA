@@ -39,6 +39,41 @@
                 </x-filament::section>
             </div>
 
+            <x-filament::section>
+                <x-slot name="heading">Completion readiness</x-slot>
+                <x-slot name="description">Applying records your intent. Only Registrar can record conferral after every current source is ready.</x-slot>
+                <p class="text-xl font-semibold">{{ str($completion['state'])->headline() }}</p>
+                @if ($completion['blockers'] !== [])
+                    <div class="mt-4 space-y-3" aria-label="Completion blockers">
+                        @foreach ($completion['blockers'] as $blocker)
+                            <div class="rounded-lg border border-warning-300 bg-warning-50 p-3 dark:border-warning-700 dark:bg-warning-950">
+                                <p class="font-medium">{{ $blocker['reason'] }}</p>
+                                <p class="text-sm">Responsible: {{ $blocker['owner'] }}</p>
+                                <p class="text-sm">Next step: {{ $blocker['recovery'] }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+                <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div>
+                        <h3 class="font-semibold">Application history</h3>
+                        @forelse ($graduationApplications as $application)
+                            <p class="mt-2 text-sm">Version {{ $application->version }} · {{ $application->state }} · {{ $application->applied_at->format('M j, Y') }}</p>
+                        @empty
+                            <p class="mt-2 text-sm">No graduation application recorded.</p>
+                        @endforelse
+                    </div>
+                    <div>
+                        <h3 class="font-semibold">Conferral history</h3>
+                        @forelse ($degreeConferrals as $conferral)
+                            <p class="mt-2 text-sm">{{ $conferral->degree_name }} · {{ $conferral->conferred_on->format('M j, Y') }}</p>
+                        @empty
+                            <p class="mt-2 text-sm">No degree conferral recorded.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </x-filament::section>
+
             @forelse ($terms as $term)
                 @php($termResults = $results->where('term.id', $term->id))
                 @php($average = $termAverages->get($term->id))

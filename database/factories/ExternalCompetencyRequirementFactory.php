@@ -25,7 +25,7 @@ class ExternalCompetencyRequirementFactory extends Factory
             'requirement_code' => strtoupper(fake()->unique()->lexify('COMP-????')),
             'qualification_label' => fake()->words(3, true),
             'qualification_level' => 'Level 1',
-            'treatment' => 'Required',
+            'treatment' => ExternalCompetencyRequirement::TreatmentTrackedOnly,
             'authority_reference' => 'Synthetic external competency authority',
             'authority_date' => today(),
             'state' => 'Draft',

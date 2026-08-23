@@ -3,6 +3,7 @@
 namespace App\Actions\Grades;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Completion\SupersedeTranscriptSnapshots;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\User;
@@ -17,6 +18,7 @@ class RecordApprovedGradeCorrection
         private readonly IncDeadlineService $deadlines,
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
         private readonly AcademicRecordNotificationService $notifications,
+        private readonly SupersedeTranscriptSnapshots $transcriptSupersession,
     ) {}
 
     public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
@@ -62,6 +64,10 @@ class RecordApprovedGradeCorrection
             ]);
             $this->impactReviews->execute($locked, $event, $actor);
             $this->notifications->recordAfterCommit($event, 'An authorized academic result correction');
+            $student = $locked->courseEnrollment?->enrollment?->studentProfile;
+            if ($student !== null) {
+                $this->transcriptSupersession->execute($student, $actor, $authority, $reason);
+            }
 
             return $locked->fresh('outcomeEvents');
         }, attempts: 3);

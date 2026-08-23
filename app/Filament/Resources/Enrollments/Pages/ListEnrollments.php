@@ -5,10 +5,10 @@ namespace App\Filament\Resources\Enrollments\Pages;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
 use App\Models\FinanceExport;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -52,13 +52,7 @@ class ListEnrollments extends ListRecords
                 ),
             ),
             'tor_clearance' => Tab::make('TOR Clearance')->modifyQueryUsing(
-                fn (Builder $query): Builder => $query->whereHas(
-                    'termAccount.latestOutputPaymentClearance',
-                    fn (Builder $query): Builder => $query->whereIn('state', [
-                        OfficialOutputPaymentClearance::StateCleared,
-                        OfficialOutputPaymentClearance::StateNotCleared,
-                    ]),
-                ),
+                fn (Builder $query): Builder => $query->whereHas('studentProfile.transcriptRequests'),
             ),
         ];
     }
@@ -70,6 +64,11 @@ class ListEnrollments extends ListRecords
     {
         if ($this->isAccounting()) {
             return [
+                Action::make('openTorClearance')
+                    ->label('Open TOR Clearance')
+                    ->icon('heroicon-o-document-check')
+                    ->url(TranscriptRequestResource::getUrl('index'))
+                    ->visible(fn (): bool => ($this->activeTab ?? 'accounts') === 'tor_clearance'),
                 Action::make('exportAccountStatus')
                     ->label('Export Account Status')
                     ->icon('heroicon-o-arrow-down-tray')

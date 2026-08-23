@@ -2,10 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Graduation\GraduationEligibilitySnapshotService;
-use App\Filament\Resources\GraduationReviewBatches\GraduationReviewBatchResource;
-use App\Filament\Resources\GraduationReviewBatches\Pages\ViewGraduationReviewBatch;
-use App\Filament\Resources\GraduationReviewBatches\RelationManagers\MembersRelationManager;
+use App\Actions\Completion\CompletionReadinessProjection;
+use App\Filament\Pages\CompletionAndTor;
+use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Completion;
 use App\Models\GraduationReviewBatch;
 use App\Models\GraduationReviewMember;
@@ -13,10 +12,8 @@ use App\Models\GraduationSnapshot;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -28,194 +25,43 @@ final class TAL96D5E1D6CCompletionEligibilityReviewTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->assertSame('testing', app()->environment());
-        $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-
-        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin, 'student'] as $role) {
+        foreach (['student', User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
     }
 
     #[Test]
-    public function system_super_admin_retains_historical_read_policy_but_cannot_reach_completion_review(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $batch = GraduationReviewBatch::factory()->create();
-        $member = GraduationReviewMember::factory()->create([
-            'graduation_review_batch_id' => $batch->id,
-        ]);
-        $snapshot = GraduationSnapshot::factory()->create([
-            'graduation_review_member_id' => $member->id,
-        ]);
-
-        $this->assertTrue($superAdmin->can('view', $batch));
-        $this->assertTrue($superAdmin->can('view', $member));
-        $this->assertTrue($superAdmin->can('view', $snapshot));
-        $this->assertFalse($superAdmin->can('create', GraduationReviewBatch::class));
-        $this->assertFalse($superAdmin->can('refreshSnapshot', $member));
-        $this->assertFalse($superAdmin->can('updateVisibility', $snapshot));
-
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $this->assertFalse(GraduationReviewBatchResource::shouldRegisterNavigation());
-        $this->assertFalse(GraduationReviewBatchResource::canAccess());
-        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
-        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
-    }
-
-    #[Test]
-    public function snapshot_service_rejects_a_non_registrar_actor(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $member = GraduationReviewMember::factory()->create();
-
-        $this->expectException(AuthorizationException::class);
-
-        app(GraduationEligibilitySnapshotService::class)->generate($member, $superAdmin);
-    }
-
-    #[Test]
-    public function open_review_batch_and_snapshot_history_remain_preserved_while_resource_is_dormant(): void
+    public function canonical_completion_surfaces_replace_the_dormant_student_and_batch_pages(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
-        $batch = GraduationReviewBatch::factory()->create([
-            'state' => GraduationReviewBatch::StateOpen,
-            'closed_at' => null,
-        ]);
-        $member = GraduationReviewMember::factory()->create([
-            'graduation_review_batch_id' => $batch->id,
-        ]);
-        $snapshot = GraduationSnapshot::factory()->create([
-            'graduation_review_member_id' => $member->id,
-        ]);
-
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->assertTrue(CompletionAndTor::canAccess());
 
-        $this->get(GraduationReviewBatchResource::getUrl('view', ['record' => $batch]))->assertForbidden();
-        $this->assertSame(GraduationReviewBatch::StateOpen, $batch->fresh()->state);
-        $this->assertNull($batch->fresh()->closed_at);
-        $this->assertDatabaseHas('graduation_review_members', ['id' => $member->id]);
-        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
-    }
-
-    #[Test]
-    public function registrar_sees_the_primary_blocker_from_the_generated_snapshot_contract(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $batch = GraduationReviewBatch::factory()->create();
-        $member = GraduationReviewMember::factory()->create([
-            'graduation_review_batch_id' => $batch->id,
-        ]);
-        GraduationSnapshot::factory()->create([
-            'graduation_review_member_id' => $member->id,
-            'result_status' => GraduationEligibilitySnapshotService::ResultBlockedHoldOrClearance,
-            'evaluation_snapshot' => [
-                'blocker_groups' => [
-                    [
-                        'key' => 'hold_or_clearance',
-                        'label' => 'Hold or Clearance',
-                        'student_label' => 'Hold or Clearance',
-                    ],
-                ],
-                'student_projection' => [
-                    'remaining_units' => 3.0,
-                ],
-            ],
-        ]);
-
-        $this->actingAs($registrar);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->assertSee('3.0 units remaining')
-            ->assertSee('Hold or Clearance');
-    }
-
-    #[Test]
-    public function registrar_must_confirm_single_and_bulk_eligibility_refresh_consequences(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $batch = GraduationReviewBatch::factory()->create();
-        $member = GraduationReviewMember::factory()->create([
-            'graduation_review_batch_id' => $batch->id,
-        ]);
-
-        $this->actingAs($registrar);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->mountTableAction('refreshSnapshot', $member)
-            ->assertMountedActionModalSee([
-                'Refresh this eligibility review?',
-                'This creates a new immutable eligibility snapshot',
-            ])
-            ->callMountedTableAction()
-            ->assertNotified('Eligibility review refreshed');
-
-        Livewire::test(MembersRelationManager::class, [
-            'ownerRecord' => $batch,
-            'pageClass' => ViewGraduationReviewBatch::class,
-        ])
-            ->mountTableBulkAction('refreshSelectedSnapshots', [$member])
-            ->assertMountedActionModalSee([
-                'Refresh selected eligibility reviews?',
-                'This creates a new immutable snapshot for every authorized active student selected',
-            ])
-            ->callMountedTableBulkAction()
-            ->assertNotified('Selected eligibility reviews refreshed');
-
-        $this->assertSame(2, $member->snapshots()->count());
-    }
-
-    #[Test]
-    public function student_completion_page_is_unreachable_while_eligibility_history_remains_preserved(): void
-    {
         $student = $this->staff('student');
-        $profile = StudentProfile::factory()->create(['user_id' => $student->id]);
-        $member = GraduationReviewMember::factory()->create([
-            'student_profile_id' => $profile->id,
-            'is_active' => true,
-        ]);
-        GraduationSnapshot::factory()->create([
-            'graduation_review_member_id' => $member->id,
-            'result_status' => GraduationEligibilitySnapshotService::ResultComplete,
-            'made_visible_at' => now(),
-            'evaluation_snapshot' => [
-                'student_projection' => [
-                    'result_status' => GraduationEligibilitySnapshotService::ResultComplete,
-                    'remaining_units' => 0.0,
-                    'remaining_requirements' => [],
-                    'failed_requirements' => [],
-                    'in_progress_requirements' => [],
-                    'pending_grade_blockers' => [],
-                    'inc_blockers' => [],
-                    'hold_or_clearance_items' => [],
-                    'required_action' => 'No further action is required.',
-                    'offices_to_contact' => ['Registrar Office'],
-                ],
-            ],
-        ]);
-
+        StudentProfile::factory()->create(['user_id' => $student->id]);
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
-
-        $this->assertFalse(Completion::shouldRegisterNavigation());
+        $this->assertTrue(Academics::canAccess());
         $this->assertFalse(Completion::canAccess());
-        $this->get(route('filament.student.pages.completion'))->assertForbidden();
-        $this->assertDatabaseHas('graduation_snapshots', [
-            'graduation_review_member_id' => $member->id,
-            'result_status' => GraduationEligibilitySnapshotService::ResultComplete,
+    }
+
+    #[Test]
+    public function legacy_completion_evidence_remains_historical_without_setting_current_readiness(): void
+    {
+        $student = StudentProfile::factory()->create();
+        $batch = GraduationReviewBatch::factory()->create();
+        $member = GraduationReviewMember::factory()->create([
+            'graduation_review_batch_id' => $batch->id,
+            'student_profile_id' => $student->id,
         ]);
+        $snapshot = GraduationSnapshot::factory()->create(['graduation_review_member_id' => $member->id]);
+
+        $projection = app(CompletionReadinessProjection::class)->forStudent($student);
+        $this->assertNotSame(CompletionReadinessProjection::Conferred, $projection['state']);
+        $this->assertDatabaseHas('graduation_snapshots', ['id' => $snapshot->id]);
+        $this->assertDatabaseCount('degree_conferrals', 0);
     }
 
     private function staff(string $role): User

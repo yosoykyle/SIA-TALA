@@ -8,13 +8,13 @@ use App\Models\Assessment;
 use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\FinanceExport;
-use App\Models\OfficialOutputPaymentClearance;
 use App\Models\Payment;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
+use App\Models\TranscriptRequest;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
@@ -55,15 +55,9 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             'term_account_id' => $exception['account']->id,
             'state' => PaymentEvidenceVersion::StateSubmitted,
         ]);
-        OfficialOutputPaymentClearance::factory()->create([
-            'term_account_id' => $clearance['account']->id,
-            'output_request_reference' => 'TOR-SYNTH-WORKBENCH',
-            'version' => 1,
-            'state' => OfficialOutputPaymentClearance::StateNotCleared,
-            'authority_reference' => 'SYNTH-TOR-AUTHORITY',
-            'safe_reason' => 'Current due remains.',
-            'decided_by' => $accounting->id,
-            'decided_at' => now(),
+        TranscriptRequest::factory()->create([
+            'student_profile_id' => $clearance['enrollment']->student_profile_id,
+            'external_request_reference' => 'TOR-SYNTH-WORKBENCH',
         ]);
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
