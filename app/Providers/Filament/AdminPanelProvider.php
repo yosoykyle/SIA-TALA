@@ -9,20 +9,18 @@ use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\CompletionAndTor;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
+use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\GradesAndCompletion;
-use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Pages\ReportsAudit;
+use App\Filament\Pages\SystemHealth;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
 use App\Filament\Resources\AcademicYears\AcademicYearResource;
-use App\Filament\Resources\Activities\ActivityResource;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Courses\CourseResource;
 use App\Filament\Resources\CourseSpecifications\CourseSpecificationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
-use App\Filament\Resources\DisposalReviews\DisposalReviewResource;
 use App\Filament\Resources\DuplicateProfileResolutionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
@@ -31,7 +29,6 @@ use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
-use App\Filament\Resources\OperationalEvents\OperationalEventResource;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Rooms\RoomResource;
@@ -41,7 +38,6 @@ use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
-use App\Filament\Resources\SystemSettings\SystemSettingResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
@@ -101,10 +97,7 @@ class AdminPanelProvider extends PanelProvider
             ->resources([
                 UserResource::class,
                 RoleResource::class,
-                ActivityResource::class,
-                SystemSettingResource::class,
                 FaqEntryResource::class,
-                OperationalEventResource::class,
                 AdmissionApplicationResource::class,
                 AdmissionCycleResource::class,
                 EnrollmentResource::class,
@@ -131,7 +124,6 @@ class AdminPanelProvider extends PanelProvider
                 StudentProfileResource::class,
                 StudentLifecycleChangeResource::class,
                 DuplicateProfileResolutionResource::class,
-                DisposalReviewResource::class,
             ])
             ->pages([
                 Dashboard::class,
@@ -144,8 +136,8 @@ class AdminPanelProvider extends PanelProvider
                 FacultySchedule::class,
                 GradesAndCompletion::class,
                 CompletionAndTor::class,
-                ReportsAudit::class,
-                IntegrationStatus::class,
+                SystemHealth::class,
+                GovernanceAudit::class,
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $this->staffNavigation($builder))
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
@@ -186,7 +178,6 @@ class AdminPanelProvider extends PanelProvider
                 'Term Planning' => TermPlanningWorkbench::class,
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,
-                'Reports' => ReportsAudit::class,
             ],
             $user->hasRole(User::StaffRoleAccounting) => [
                 'Home' => Dashboard::class,
@@ -204,14 +195,13 @@ class AdminPanelProvider extends PanelProvider
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningWorkbench::class,
                 'Approvals' => AcademicApprovals::class,
-                'Reports' => ReportsAudit::class,
             ],
             $user->hasRole(User::StaffRoleSystemSuperAdmin) => [
                 'Home' => Dashboard::class,
                 'Users & Access' => UserResource::class,
                 'Public Content' => FaqEntryResource::class,
-                'System Health' => IntegrationStatus::class,
-                'Governance & Audit' => ReportsAudit::class,
+                'System Health' => SystemHealth::class,
+                'Governance & Audit' => GovernanceAudit::class,
             ],
             default => [],
         };

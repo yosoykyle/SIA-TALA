@@ -24,7 +24,7 @@ final class SchemaConformanceTest extends TestCase
         'calendar_events', 'candidate_schedule_rows', 'class_offering_teaching_assignments',
         'checklist_items', 'completion_readiness_versions', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
         'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
-        'degree_conferrals', 'disposal_reviews', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
+        'degree_conferrals', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
         'enrollment_gate_results', 'enrollment_seat_reservations', 'enrollments',
         'external_competency_requirements', 'external_competency_results',
         'faculty_qualifications', 'faculty_term_load_overrides', 'faq_entries', 'fee_rules',
@@ -66,9 +66,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(122, self::APPLICATION_TABLES);
+        $this->assertCount(121, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(140, $actual);
+        $this->assertCount(139, $actual);
         $this->assertSame($expected, $actual);
     }
 

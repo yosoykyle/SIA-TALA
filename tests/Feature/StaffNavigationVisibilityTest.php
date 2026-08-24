@@ -70,22 +70,38 @@ class StaffNavigationVisibilityTest extends TestCase
     {
         $systemSuperAdmin = User::role(User::StaffRoleSystemSuperAdmin)->firstOrFail();
 
-        $systemSuperAdminEntries = $this->navigationEntriesForRole(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($systemSuperAdmin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertContains('Users', array_column($systemSuperAdminEntries, 'label'));
-        $this->assertContains('Roles & Permissions', array_column($systemSuperAdminEntries, 'label'));
-        $this->assertContains('Audit Logs', array_column($systemSuperAdminEntries, 'label'));
-        $this->assertContains('System Settings', array_column($systemSuperAdminEntries, 'label'));
+        $labels = collect(Filament::getPanel('admin')->getNavigation())
+            ->flatMap(fn ($group) => $group->getItems())
+            ->map(fn ($item): string => $item->getLabel())
+            ->values()
+            ->all();
+
+        $this->assertSame([
+            'Home',
+            'Users & Access',
+            'Public Content',
+            'System Health',
+            'Governance & Audit',
+        ], $labels);
 
         foreach ([
             '/admin/users',
             '/admin/roles',
-            '/admin/activities',
-            '/admin/system-settings',
+            '/admin/system-health',
+            '/admin/governance-audit',
         ] as $path) {
             $this->actingAs($systemSuperAdmin)
                 ->get($path)
                 ->assertOk();
+        }
+
+        foreach (['/admin/activities', '/admin/system-settings'] as $retiredPath) {
+            $this->actingAs($systemSuperAdmin)
+                ->get($retiredPath)
+                ->assertNotFound();
         }
     }
 
@@ -97,12 +113,18 @@ class StaffNavigationVisibilityTest extends TestCase
         foreach ([
             '/admin/users',
             '/admin/roles',
-            '/admin/activities',
-            '/admin/system-settings',
+            '/admin/system-health',
+            '/admin/governance-audit',
         ] as $path) {
             $this->actingAs($user)
                 ->get($path)
                 ->assertForbidden();
+        }
+
+        foreach (['/admin/activities', '/admin/system-settings'] as $retiredPath) {
+            $this->actingAs($user)
+                ->get($retiredPath)
+                ->assertNotFound();
         }
     }
 

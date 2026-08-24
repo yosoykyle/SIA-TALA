@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Database\Factories\ScheduleGenerationRunFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array<string, mixed> $input_snapshot
  * @property array<string, mixed>|null $diagnostics
  * @property array<string, mixed>|null $quality_measures
+ * @property Carbon $updated_at
  */
 class ScheduleGenerationRun extends Model
 {

@@ -18,7 +18,6 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\User;
-use App\Policies\OperationalEventPolicy;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -74,7 +73,8 @@ final class TAL95C1PayMongoAccountingReconciliationTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $this->assertFalse(class_exists('App\\Filament\\Pages\\PayMongoReconciliation'));
-        $this->assertFalse(app(OperationalEventPolicy::class)->viewAny($accounting));
+        $this->assertFileDoesNotExist(app_path('Policies/OperationalEventPolicy.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/OperationalEvents/OperationalEventResource.php'));
         Livewire::test(ViewEnrollment::class, ['record' => $assessment->enrollment_id])
             ->assertActionVisible('rejectPayMongoException')
             ->assertActionHidden('confirmPayMongoException')

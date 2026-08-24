@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\ResolveTimetableRevisionRegistrationImpact;
 use App\Actions\Scheduling\ScheduleRevisionNotificationService;
-use App\Filament\Resources\OperationalEvents\Pages\ListOperationalEvents;
-use App\Filament\Resources\OperationalEvents\Pages\ViewOperationalEvent;
+use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
+use App\Filament\Pages\GovernanceAudit;
 use App\Mail\ScheduleRevisionMail;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -306,31 +306,39 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         $this->assertSame('PENDING', $untouched->fresh()->status);
     }
 
-    public function test_operational_events_monitor_uses_related_user_and_filters_all_delivery_states(): void
+    public function test_governance_system_events_safely_project_delivery_states(): void
     {
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $pending = OperationalEvent::factory()->forUser(User::factory()->create())->create(['status' => 'PENDING']);
-        $processed = OperationalEvent::factory()->forUser(User::factory()->create())->create(['status' => 'PROCESSED']);
-        $failed = OperationalEvent::factory()->failed()->forUser(User::factory()->create())->create();
+        $relatedUser = User::factory()->create([
+            'first_name' => 'Related',
+            'middle_name' => null,
+            'last_name' => 'User',
+        ]);
+        OperationalEvent::factory()->forUser($relatedUser)->create([
+            'event_type' => 'schedule_revision_pending',
+            'status' => 'PENDING',
+        ]);
+        OperationalEvent::factory()->forUser($relatedUser)->create([
+            'event_type' => 'schedule_revision_processed',
+            'status' => 'PROCESSED',
+        ]);
+        OperationalEvent::factory()->failed()->forUser($relatedUser)->create([
+            'event_type' => 'schedule_revision_failed',
+        ]);
 
-        foreach ([
-            'PENDING' => $pending,
-            'PROCESSED' => $processed,
-            'FAILED' => $failed,
-        ] as $status => $expected) {
-            $component = Livewire::test(ListOperationalEvents::class);
-            $component->assertOk();
-            $component->assertSee('Related User');
-            $component->filterTable('status', $status)
-                ->assertCanSeeTableRecords([$expected]);
-        }
-
-        Livewire::test(ViewOperationalEvent::class, ['record' => $pending->getRouteKey()])
+        Livewire::test(GovernanceAudit::class)
             ->assertOk()
-            ->assertSee('Related User');
+            ->call('setActiveTab', GovernanceEvidenceProjection::SystemEvents)
+            ->assertSee((string) $relatedUser->fresh()->name)
+            ->assertSee('Schedule Revision Pending')
+            ->assertSee('Schedule Revision Processed')
+            ->assertSee('Schedule Revision Failed')
+            ->assertSee('Pending')
+            ->assertSee('Recorded')
+            ->assertSee('Attention');
     }
 
     /** @return array<string, mixed> */

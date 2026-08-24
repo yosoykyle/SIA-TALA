@@ -9,7 +9,7 @@ use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\SchedulePublishService;
 use App\Filament\Pages\FacultySchedule;
-use App\Filament\Pages\IntegrationStatus;
+use App\Filament\Pages\SystemHealth;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Student\Pages\ScheduleView;
@@ -160,9 +160,9 @@ final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
         $this->assertCount(2, $bindings);
 
         Livewire::actingAs($superAdmin)
-            ->test(IntegrationStatus::class)
+            ->test(SystemHealth::class)
             ->assertOk()
-            ->assertSee('Integration Status');
+            ->assertSee('System Health');
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $published->id])
             ->assertOk()

@@ -12,7 +12,6 @@ use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\Integrations\Payments\PaymentPostedNotificationService;
-use App\Actions\Reports\OperationalReportService;
 use App\Mail\PaymentPostedMail;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
@@ -31,7 +30,6 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\User;
-use App\Policies\OperationalReportPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -458,7 +456,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
 
         $this->assertFalse(Route::has('finance.billing-slip'));
         $this->assertFalse(Route::has('filament.admin.pages.paymongo-reconciliation'));
-        $this->assertFalse(app(OperationalReportPolicy::class)->view($fixture['accounting'], OperationalReportService::StudentLedger));
+        $this->assertFileDoesNotExist(app_path('Actions/Reports/OperationalReportService.php'));
 
         $this->actingAs($fixture['learner'])
             ->get(route('filament.student.pages.finance'))

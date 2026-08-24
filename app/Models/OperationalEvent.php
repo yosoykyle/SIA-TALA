@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Database\Factories\OperationalEventFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<string, mixed>|null $diagnostics
  * @property array<string, mixed>|null $payload
  * @property array<string, mixed>|null $recipient_snapshot
+ * @property Carbon $occurred_at
  */
 class OperationalEvent extends Model
 {
@@ -23,17 +25,25 @@ class OperationalEvent extends Model
 
     public const DomainNotifications = 'notifications';
 
+    public const DomainOperations = 'OPERATIONS';
+
     public const IntegrationSchedulingSolver = 'SCHEDULING_SOLVER';
 
     public const IntegrationPayMongo = 'PAYMONGO';
 
     public const IntegrationMail = 'mail';
 
+    public const IntegrationBackup = 'BACKUP';
+
+    public const IntegrationRestore = 'RESTORE';
+
     public const ChannelEmail = 'email';
 
     public const ChannelWebhook = 'webhook';
 
     public const ChannelProviderApi = 'provider_api';
+
+    public const ChannelEvidenceIngest = 'evidence_ingest';
 
     public const DirectionOutbound = 'OUTBOUND';
 

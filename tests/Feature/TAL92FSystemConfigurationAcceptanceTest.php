@@ -24,9 +24,9 @@ use Tests\TestCase;
  * preserves historical behavior; traceability) and §13.1.1 item 16
  * (Role permissions as a configurable, Super-Admin-governed record).
  *
- * Complementary scope only. TAL-92D already owns `SystemSettingResource`
- * read-only/policy acceptance and the `operational_events` monitoring
- * surface; those are NOT re-asserted here. This slice proves (A1) the
+ * Complementary historical coverage only. The canonical System Health and
+ * Governance surfaces no longer expose a peer System Setting resource. This
+ * test proves the retained runtime storage semantics: two
  * config-governance *storage semantics* of the `system_settings` table — two
  * coexisting synthetic versions of one key preserved with full audit metadata.
  * The maintenance key is a governance fixture only; this test does not prove
@@ -158,8 +158,7 @@ final class TAL92FSystemConfigurationAcceptanceTest extends TestCase
         // Role permissions (PRD §13.1.1 item 16) are configuration governed by
         // the same "only authorized roles can configure" rule (§13.1.2 rule 1).
         // The surface is read-only and gated to Super-Admin via RolePolicy.
-        // (SystemSettingPolicy is TAL-92D's; DisposalReviewPolicy is TAL-92E's;
-        // RolePolicy is un-covered until this slice.)
+        // RolePolicy remains the owning authorization boundary for this surface.
         $this->assertFalse(RoleResource::canCreate());
 
         $policy = app(RolePolicy::class);

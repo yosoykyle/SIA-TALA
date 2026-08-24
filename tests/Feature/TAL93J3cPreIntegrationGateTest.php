@@ -112,7 +112,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
                 'GradesAndCompletion', 'ImportBatchResource',
-                'ProgramResource', 'ReportsAudit', 'RoomResource', 'ScheduleGenerationRunResource',
+                'ProgramResource', 'RoomResource', 'ScheduleGenerationRunResource',
                 'SchedulingDemandResource', 'SectionMeetingResource', 'SectionResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
@@ -129,15 +129,14 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'CalendarEventResource', 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource',
                 'CurriculumVersionResource', 'Dashboard', 'EnrollmentResource', 'FacultyQualificationResource',
                 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
-                'ImportBatchResource', 'ProgramResource', 'ReportsAudit', 'RoomResource',
+                'ImportBatchResource', 'ProgramResource', 'RoomResource',
                 'ScheduleGenerationRunResource', 'SchedulingDemandResource', 'SectionMeetingResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TermOfferingResource', 'TermPlanningWorkbench', 'TermResource', 'TranscriptRequestResource',
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
-                'ActivityResource', 'Dashboard', 'DisposalReviewResource', 'EnrollmentResource', 'FaqEntryResource',
-                'IntegrationStatus', 'OperationalEventResource', 'ReportsAudit',
+                'Dashboard', 'EnrollmentResource', 'FaqEntryResource', 'GovernanceAudit',
                 'RoleResource', 'StudentLifecycleChangeResource', 'StudentProfileResource',
-                'SystemSettingResource', 'UserResource',
+                'SystemHealth', 'UserResource',
             ]],
         ];
     }
@@ -185,8 +184,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     private static function registeredResources(): array
     {
         return [
-            'UserResource', 'RoleResource', 'ActivityResource', 'SystemSettingResource', 'FaqEntryResource',
-            'OperationalEventResource', 'AdmissionApplicationResource', 'AdmissionCycleResource',
+            'UserResource', 'RoleResource', 'FaqEntryResource',
+            'AdmissionApplicationResource', 'AdmissionCycleResource',
             'EnrollmentResource', 'FeePlanResource',
             'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
             'ImportBatchResource', 'AcademicYearResource', 'TermResource', 'AcademicCalendarWindowResource',
@@ -194,7 +193,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'FacultyTermLoadOverrideResource', 'TermOfferingResource', 'SectionResource', 'GradeRosterResource',
             'TranscriptRequestResource', 'SchedulingDemandResource', 'ScheduleGenerationRunResource',
             'SectionMeetingResource', 'StudentProfileResource', 'StudentLifecycleChangeResource',
-            'DuplicateProfileResolutionResource', 'DisposalReviewResource',
+            'DuplicateProfileResolutionResource',
         ];
     }
 
@@ -212,8 +211,8 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'FacultySchedule',
             'GradesAndCompletion',
             'CompletionAndTor',
-            'ReportsAudit',
-            'IntegrationStatus',
+            'SystemHealth',
+            'GovernanceAudit',
         ];
     }
 

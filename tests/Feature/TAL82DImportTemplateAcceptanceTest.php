@@ -7,7 +7,7 @@ use App\Actions\Imports\AcademicImportService;
 use App\Actions\Imports\CourseSpecificationImportTemplate;
 use App\Actions\Imports\CurriculumImportTemplate;
 use App\Actions\Imports\ImportBatchLifecycleService;
-use App\Filament\Resources\Activities\Pages\ListActivities;
+use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\ImportBatches\Pages\ListImportBatches;
 use App\Filament\Resources\ImportBatches\Pages\ViewImportBatch;
@@ -852,7 +852,12 @@ final class TAL82DImportTemplateAcceptanceTest extends TestCase
         $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        Livewire::test(ListActivities::class)->assertOk();
+        Livewire::test(GovernanceAudit::class)
+            ->assertOk()
+            ->assertSee('Import Batch Preview Created')
+            ->assertSee('Import Batch Warnings Acknowledged')
+            ->assertSee('Import Batch Posted')
+            ->assertSee('Import Batch Cancelled');
     }
 
     #[Test]

@@ -2,13 +2,13 @@
 
 namespace App\Filament\Widgets;
 
-use App\Actions\SystemAdministration\IntegrationHealthPresenter;
+use App\Actions\SystemAdministration\SystemHealthPresenter;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
-use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Pages\ReportsAudit;
+use App\Filament\Pages\GovernanceAudit;
+use App\Filament\Pages\SystemHealth;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
@@ -55,8 +55,8 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
         return match (true) {
             $this->actor()->hasRole(User::StaffRoleAccounting) => 'Start with fee rules, then review student accounts and payment exceptions.',
             $this->actor()->hasRole(User::StaffRoleFaculty) => 'Your schedule, unavailable times, and assigned grade rosters are kept together here.',
-            $this->actor()->hasRole(User::StaffRoleAcademicHead) => 'Use these read and review surfaces for academic readiness, planning, grades, and reports.',
-            default => 'Manage identities and public content, then inspect governed settings, integrations, and audit evidence.',
+            $this->actor()->hasRole(User::StaffRoleAcademicHead) => 'Use these read and review surfaces for academic readiness, planning, grades, and approvals.',
+            default => 'Manage identities and public content, then inspect evidence-first system health and governance records.',
         };
     }
 
@@ -137,7 +137,6 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
         return [
             $this->stat('1. Academic Oversight', 'Review readiness', 'Inspect program, curriculum, and planning readiness without changing office ownership.', AcademicReadiness::getUrl()),
             $this->stat('2. Approvals', "{$submittedRosters} grade rosters submitted", 'Open only the academic decisions assigned to your role.', AcademicApprovals::getUrl()),
-            $this->stat('3. Reports', 'Academic evidence', 'Open the fixed reports authorized for Academic Head review.', ReportsAudit::getUrl()),
         ];
     }
 
@@ -148,14 +147,14 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
     {
         $activeAccounts = User::query()->where('status', User::StatusActive)->count();
         $publishedFaqs = FaqEntry::query()->where('is_published', true)->count();
-        $health = app(IntegrationHealthPresenter::class)->summary();
+        $health = app(SystemHealthPresenter::class)->summary();
 
         return [
             $this->stat('1. Users & Access', "{$activeAccounts} active", 'Manage user identities and canonical role assignments.', UserResource::getUrl('index')),
             $this->stat('2. Public Content', "{$publishedFaqs} FAQs published", 'Curate the categorized guidance shown on the public site.', FaqEntryResource::getUrl('index')),
-            $this->stat('3. System Health', $health['label'], $health['description'], IntegrationStatus::getUrl())
+            $this->stat('3. System Health', $health['label'], $health['description'], SystemHealth::getUrl())
                 ->color($health['color']),
-            $this->stat('4. Governance & Audit', 'Read-only evidence', 'Review settings dispositions, reports, audit logs, and operational events.', ReportsAudit::getUrl()),
+            $this->stat('4. Governance & Audit', 'Read-only evidence', 'Review the four canonical allowlisted evidence views.', GovernanceAudit::getUrl()),
         ];
     }
 

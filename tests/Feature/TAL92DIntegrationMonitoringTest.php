@@ -2,42 +2,20 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Pages\IntegrationStatus;
-use App\Filament\Resources\OperationalEvents\OperationalEventResource;
-use App\Filament\Resources\OperationalEvents\Pages\ListOperationalEvents;
-use App\Filament\Resources\OperationalEvents\Pages\ViewOperationalEvent;
-use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
-use App\Filament\Resources\SystemSettings\Pages\ListSystemSettings;
-use App\Filament\Resources\SystemSettings\SystemSettingResource;
+use App\Actions\SystemAdministration\SystemHealthPresenter;
+use App\Filament\Pages\SystemHealth;
 use App\Models\OperationalEvent;
-use App\Models\ScheduleGenerationRun;
-use App\Models\SystemSetting;
-use App\Models\Term;
 use App\Models\User;
-use App\Policies\SystemSettingPolicy;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
-/**
- * TAL-92D: Integration Status & Operational Monitoring.
- *
- * Owning contract: PRD `13_system_admin_reports_audit.md` §13.5 (Integration
- * Settings and Operational Monitoring), §13.8 ("Integration settings" and
- * "Integration events and failures" rows), and §13.2 (Notifications, for
- * context only). Covers: (1) `SystemSettingResource` read-only acceptance,
- * (2) the new `IntegrationStatus` page (status view + safe test-email
- * action), (3) the new `OperationalEventResource` monitor, and the explicit
- * no-secret-rendered guarantee required by this slice.
- */
 final class TAL92DIntegrationMonitoringTest extends TestCase
 {
     use DatabaseTransactions;
@@ -46,513 +24,67 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
     {
         parent::setUp();
 
-        $this->assertSame('testing', app()->environment());
-        $this->assertSame('mysql', DB::connection()->getDriverName());
-        $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
-
-        foreach ([...User::staffRoleNames(), 'student', 'applicant'] as $role) {
+        foreach (User::staffRoleNames() as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
-    }
 
-    // ------------------------------------------------------------------
-    // Task 1 — SystemSettingResource acceptance (no source change).
-    // ------------------------------------------------------------------
-
-    #[Test]
-    public function system_setting_resource_is_super_admin_scoped_and_fully_read_only(): void
-    {
-        $this->assertFalse(SystemSettingResource::canCreate());
-        $this->assertSame([], SystemSetting::editableKeyOptions());
-
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $policy = app(SystemSettingPolicy::class);
-        $maintenanceSetting = SystemSetting::query()->forceCreate([
-            'key' => 'maintenance_mode',
-            'value' => 'false',
-            'value_type' => SystemSetting::ValueTypeBoolean,
-            'effective_from' => now(),
-            'version' => 1,
-            'status' => 'active',
-        ]);
-        $unitLoadSetting = SystemSetting::query()->forceCreate([
-            'key' => 'student_unit_load_policy_defaults',
-            'value' => SystemSetting::defaultValueFor('student_unit_load_policy_defaults'),
-            'value_type' => SystemSetting::ValueTypeJson,
-            'effective_from' => now(),
-            'version' => 1,
-            'status' => 'active',
-        ]);
-
-        $this->assertTrue($policy->viewAny($superAdmin));
-        $this->assertTrue($policy->view($superAdmin, $maintenanceSetting));
-        $this->assertFalse($policy->create($superAdmin));
-        $this->assertFalse($policy->update($superAdmin, $maintenanceSetting));
-        $this->assertFalse($policy->delete($superAdmin, $maintenanceSetting));
-        $this->assertFalse($policy->restore($superAdmin, $maintenanceSetting));
-        $this->assertFalse($policy->forceDelete($superAdmin, $maintenanceSetting));
-
-        $this->assertSame('Dormant', SystemSetting::operationalStatusFor($maintenanceSetting->key));
-        $this->assertSame('Deployment operator', SystemSetting::ownerFor($maintenanceSetting->key));
-        $this->assertSame(
-            'No application runtime consumer; Laravel maintenance is controlled through deployment or CLI operations.',
-            SystemSetting::runtimeConsumerFor($maintenanceSetting->key),
-        );
-        $this->assertSame('Operational', SystemSetting::operationalStatusFor($unitLoadSetting->key));
-        $this->assertSame('Academic Head and Registrar', SystemSetting::ownerFor($unitLoadSetting->key));
-        $this->assertSame(
-            'StudentUnitLoadPolicy reads the active JSON fallback when evaluating enrollment unit limits.',
-            SystemSetting::runtimeConsumerFor($unitLoadSetting->key),
-        );
-
-        $expectedDispositions = [
-            'maintenance_mode' => ['Dormant', 'Deployment operator'],
-            'maintenance_message' => ['Dormant', 'Deployment operator'],
-            'maintenance_eta' => ['Dormant', 'Deployment operator'],
-            'admission_requirements' => ['Superseded', 'Registrar'],
-            'installment_policy_defaults' => ['Dormant', 'Accounting'],
-            'college_cutover_effective_term' => ['Dormant', 'Academic Head and Registrar'],
-            'college_cutover_effective_datetime' => ['Dormant', 'Academic Head and Registrar'],
-            'student_unit_load_policy_defaults' => ['Operational', 'Academic Head and Registrar'],
-        ];
-
-        foreach ($expectedDispositions as $key => [$expectedStatus, $expectedOwner]) {
-            $this->assertSame($expectedStatus, SystemSetting::operationalStatusFor($key));
-            $this->assertSame($expectedOwner, SystemSetting::ownerFor($key));
-            $this->assertNotSame(
-                'No verified runtime consumer is documented.',
-                SystemSetting::runtimeConsumerFor($key),
-            );
-        }
-
-        foreach ([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
-            User::StaffRoleAcademicHead,
-            User::StaffRoleFaculty,
-        ] as $deniedRole) {
-            $denied = $this->staff($deniedRole);
-            $this->assertFalse($policy->viewAny($denied));
-        }
-
-        $this->actingAs($superAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $component = Livewire::test(ListSystemSettings::class);
-
-        $component->assertOk();
-        $component->assertCanSeeTableRecords([$maintenanceSetting, $unitLoadSetting]);
-        $component->assertSee(SystemSetting::labelFor($maintenanceSetting->key));
-        $component->assertSee(SystemSetting::descriptionFor($maintenanceSetting->key));
-        $component->assertSee($maintenanceSetting->formattedValue());
-        $component->assertSee('Dormant');
-        $component->assertSee('Operational');
-        $component->assertSee('Deployment operator');
-        $component->assertSee('Academic Head and Registrar');
-        $component->assertSee('No application runtime consumer');
-        $component->assertSee('StudentUnitLoadPolicy reads the active JSON fallback');
     }
 
     #[Test]
-    public function system_setting_resource_explains_an_empty_governed_registry_truthfully(): void
+    public function system_health_is_the_only_registered_integration_monitor_and_never_renders_secrets(): void
     {
-        $this->assertSame(0, SystemSetting::query()->count());
-
-        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(ListSystemSettings::class)
-            ->assertOk()
-            ->assertSee('No governed setting records')
-            ->assertSee('An empty registry is not a configuration failure')
-            ->assertSee('owning workflows, application code, or the deployment environment');
-    }
-
-    // ------------------------------------------------------------------
-    // Task 2 — Integration Status page.
-    // ------------------------------------------------------------------
-
-    #[Test]
-    public function integration_status_page_is_explicitly_registered_and_super_admin_only(): void
-    {
-        $this->assertContains(IntegrationStatus::class, Filament::getPanel('admin')->getPages());
-
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(IntegrationStatus::class)->assertOk();
-        $this->assertTrue(IntegrationStatus::canAccess());
-
-        foreach ([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
-            User::StaffRoleAcademicHead,
-            User::StaffRoleFaculty,
-        ] as $deniedRole) {
-            $denied = $this->staff($deniedRole);
-            $this->actingAs($denied);
-            $this->assertFalse(IntegrationStatus::canAccess());
-        }
-    }
-
-    #[Test]
-    public function integration_status_page_never_renders_a_configured_secret_value(): void
-    {
-        Config::set('app.url', 'https://tala-demo.example.com');
         Config::set('tala_integrations.payments.driver', 'paymongo');
-        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_ABSOLUTELY_SECRET_VALUE');
-        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_PUBLIC_BUT_NOT_RENDERED');
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_ABSOLUTELY_SECRET_VALUE');
-        Config::set('tala_integrations.payments.paymongo.livemode', false);
-        Config::set('tala_integrations.payments.paymongo.base_url', 'https://api.paymongo.com');
-        Config::set('tala_integrations.payments.paymongo.payment_method_types', ['gcash', 'card']);
+        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_hidden');
+        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_hidden');
+        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_hidden');
 
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($admin);
 
-        $component = Livewire::test(IntegrationStatus::class);
-
-        $component->assertOk();
+        $component = Livewire::test(SystemHealth::class)->assertOk();
         $html = $component->html();
 
-        $this->assertStringNotContainsString('sk_test_ABSOLUTELY_SECRET_VALUE', $html);
-        $this->assertStringNotContainsString('pk_test_PUBLIC_BUT_NOT_RENDERED', $html);
-        $this->assertStringNotContainsString('whsec_ABSOLUTELY_SECRET_VALUE', $html);
-        $this->assertStringContainsString('Local configuration complete', $html);
-    }
-
-    #[Test]
-    public function paymongo_status_reports_local_readiness_and_observed_webhook_health_without_claiming_provider_status(): void
-    {
-        Config::set('app.url', 'https://tala-demo.example.com');
-        Config::set('tala_integrations.payments.driver', 'paymongo');
-        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
-        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_present');
-        Config::set('tala_integrations.payments.paymongo.livemode', false);
-
-        OperationalEvent::factory()->create([
-            'event_domain' => OperationalEvent::DomainIntegration,
-            'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => OperationalEvent::ChannelWebhook,
-            'direction' => OperationalEvent::DirectionInbound,
-            'event_type' => 'checkout_session.payment.paid',
-            'status' => OperationalEvent::StatusProcessed,
-            'processed_at' => now()->subMinute(),
-        ]);
-        OperationalEvent::factory()->failed()->create([
-            'event_domain' => OperationalEvent::DomainIntegration,
-            'integration' => OperationalEvent::IntegrationPayMongo,
-            'channel' => OperationalEvent::ChannelWebhook,
-            'direction' => OperationalEvent::DirectionInbound,
-            'event_type' => 'checkout_session.payment.paid',
-            'status' => OperationalEvent::StatusReviewRequired,
-            'failed_at' => now(),
-            'diagnostics' => ['reason' => 'must-not-render'],
-        ]);
-
-        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $component = Livewire::test(IntegrationStatus::class);
-
-        $component->assertOk();
-        $html = $component->html();
-
-        $this->assertStringContainsString('Test mode', $html);
-        $this->assertStringContainsString('Local configuration complete', $html);
-        $this->assertStringContainsString('Evidence: Attention required', $html);
-        $this->assertStringContainsString('Open exceptions', $html);
-        $this->assertStringContainsString('PayMongo dashboard registration', $html);
+        $this->assertStringNotContainsString('pk_test_hidden', $html);
+        $this->assertStringNotContainsString('sk_test_hidden', $html);
+        $this->assertStringNotContainsString('whsec_hidden', $html);
         $this->assertStringContainsString('Not checked by TALA', $html);
-        $this->assertStringNotContainsString('must-not-render', $html);
-        $this->assertStringNotContainsString('Enabled in PayMongo', $html);
-        $this->assertStringNotContainsString('Practice / mock mode', $html);
+        $this->assertFileDoesNotExist(app_path('Filament/Pages/IntegrationStatus.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/OperationalEvents/OperationalEventResource.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/SystemSettings/SystemSettingResource.php'));
     }
 
     #[Test]
-    public function configured_status_reflects_config_presence_and_absence(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Config::set('app.url', 'https://tala-demo.example.com');
-        Config::set('tala_integrations.payments.driver', 'paymongo');
-        Config::set('tala_integrations.payments.paymongo.secret_key', null);
-        Config::set('tala_integrations.payments.paymongo.public_key', null);
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', null);
-
-        $unconfiguredComponent = Livewire::test(IntegrationStatus::class);
-
-        $unconfiguredComponent->assertOk();
-        $unconfiguredHtml = $unconfiguredComponent->html();
-        $this->assertStringContainsString('Local configuration incomplete', $unconfiguredHtml);
-
-        Config::set('tala_integrations.payments.paymongo.secret_key', 'sk_test_present');
-        Config::set('tala_integrations.payments.paymongo.public_key', 'pk_test_present');
-        Config::set('tala_integrations.payments.paymongo.webhook_signature', 'whsec_present');
-
-        $configuredComponent = Livewire::test(IntegrationStatus::class);
-
-        $configuredComponent->assertOk();
-        $configuredHtml = $configuredComponent->html();
-        $this->assertStringContainsString('Local configuration complete', $configuredHtml);
-        $this->assertStringNotContainsString('sk_test_present', $configuredHtml);
-    }
-
-    #[Test]
-    public function scheduler_status_distinguishes_stub_local_and_private_cloud_run_modes(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Config::set('tala_integrations.scheduling_solver.driver', 'local_stub');
-        Config::set('tala_integrations.scheduling_solver.url', null);
-        $stubComponent = Livewire::test(IntegrationStatus::class);
-
-        $stubComponent->assertOk();
-        $stubHtml = $stubComponent->html();
-        $this->assertStringContainsString('Deterministic stub', $stubHtml);
-        $this->assertStringContainsString('Local configuration complete', $stubHtml);
-
-        Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
-        Config::set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
-        Config::set('tala_integrations.scheduling_solver.audience', null);
-        Config::set('tala_integrations.scheduling_solver.credentials_path', null);
-        $localComponent = Livewire::test(IntegrationStatus::class);
-
-        $localComponent->assertOk();
-        $localHtml = $localComponent->html();
-        $this->assertStringContainsString('Local CP-SAT', $localHtml);
-        $this->assertStringContainsString('http://127.0.0.1:8080', $localHtml);
-        $this->assertStringContainsString('Local configuration complete', $localHtml);
-
-        Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
-        Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
-        Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
-        Config::set('tala_integrations.scheduling_solver.credentials_path', __FILE__);
-        $cloudComponent = Livewire::test(IntegrationStatus::class);
-
-        $cloudComponent->assertOk();
-        $cloudHtml = $cloudComponent->html();
-        $this->assertStringContainsString('Private Cloud Run', $cloudHtml);
-        $this->assertStringContainsString('Local configuration complete', $cloudHtml);
-        $this->assertStringNotContainsString(__FILE__, $cloudHtml);
-    }
-
-    #[Test]
-    public function scheduler_status_rejects_remote_local_http_and_incomplete_cloud_run_configuration(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Config::set('tala_integrations.scheduling_solver.driver', 'local_http');
-        Config::set('tala_integrations.scheduling_solver.url', 'http://192.168.1.10:8080');
-        $remoteLocalComponent = Livewire::test(IntegrationStatus::class);
-
-        $remoteLocalComponent->assertOk();
-        $remoteLocalHtml = $remoteLocalComponent->html();
-        $this->assertStringContainsString('Local configuration incomplete', $remoteLocalHtml);
-
-        Config::set('tala_integrations.scheduling_solver.driver', 'cloud_run');
-        Config::set('tala_integrations.scheduling_solver.url', 'https://solver.example.test');
-        Config::set('tala_integrations.scheduling_solver.audience', 'https://solver.example.test');
-        Config::set('tala_integrations.scheduling_solver.credentials_path', null);
-        $missingCredentialsComponent = Livewire::test(IntegrationStatus::class);
-
-        $missingCredentialsComponent->assertOk();
-        $missingCredentialsHtml = $missingCredentialsComponent->html();
-        $this->assertStringContainsString('Local configuration incomplete', $missingCredentialsHtml);
-    }
-
-    #[Test]
-    public function send_test_email_action_targets_only_the_acting_admin_and_logs_one_operational_event(): void
+    public function self_test_is_limited_to_the_signed_in_administrator_and_safe_event_fields(): void
     {
         Mail::fake();
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        RateLimiter::clear('tala:system-health:mail-self-test:'.$admin->getKey());
+        $this->actingAs($admin);
 
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $eventCountBefore = OperationalEvent::query()->count();
-
-        $component = Livewire::test(IntegrationStatus::class);
-
-        $component->assertOk();
-        $component
-            ->assertActionExists('sendTestEmail')
+        Livewire::test(SystemHealth::class)
             ->callAction('sendTestEmail')
-            ->assertNotified();
-
-        Mail::assertSent(function (Mailable $mailable) use ($superAdmin): bool {
-            return $mailable->hasTo($superAdmin->email);
-        });
-
-        $this->assertSame($eventCountBefore + 1, OperationalEvent::query()->count());
-
-        $event = OperationalEvent::query()
-            ->where('user_id', $superAdmin->id)
-            ->where('event_type', 'test_email_sent')
-            ->sole();
-        $this->assertSame($superAdmin->id, $event->user_id);
-        $this->assertSame('notifications', $event->event_domain);
-        $this->assertSame('mail', $event->integration);
-        $this->assertSame('test_email_sent', $event->event_type);
-        $this->assertSame('PROCESSED', $event->status);
-        $this->assertNull($event->related_record_type);
-        $this->assertNull($event->related_record_id);
-    }
-
-    #[Test]
-    public function send_test_email_action_only_ever_sends_to_the_acting_admins_own_address(): void
-    {
-        Mail::fake();
-
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        Livewire::test(IntegrationStatus::class)
             ->callAction('sendTestEmail');
 
         Mail::assertSentCount(1);
-        Mail::assertSent(function (Mailable $mailable) use ($superAdmin): bool {
-            return $mailable->hasTo($superAdmin->email);
-        });
-    }
-
-    // ------------------------------------------------------------------
-    // Task 3 — OperationalEventResource monitor.
-    // ------------------------------------------------------------------
-
-    #[Test]
-    public function operational_event_resource_is_super_admin_only_and_read_only(): void
-    {
-        $this->assertFalse(OperationalEventResource::canCreate());
-
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $event = OperationalEvent::factory()->create();
-
-        $component = Livewire::test(ListOperationalEvents::class);
-
-        $component->assertOk();
-        $component->assertCanSeeTableRecords([$event]);
-
-        Livewire::test(ViewOperationalEvent::class, ['record' => $event->getRouteKey()])
-            ->assertOk();
-
-        foreach ([
-            User::StaffRoleRegistrar,
-            User::StaffRoleAccounting,
-            User::StaffRoleAcademicHead,
-            User::StaffRoleFaculty,
-        ] as $deniedRole) {
-            $denied = $this->staff($deniedRole);
-            $this->actingAs($denied);
-
-            Livewire::test(ListOperationalEvents::class)->assertForbidden();
-        }
+        $event = OperationalEvent::query()->where('event_type', 'mail_self_test_accepted')->sole();
+        $this->assertSame($admin->getKey(), $event->user_id);
+        $this->assertNull($event->diagnostics);
+        $this->assertNull($event->payload);
+        $this->assertNull($event->recipient_snapshot);
     }
 
     #[Test]
-    public function operational_event_table_filters_return_expected_rows(): void
+    public function every_projected_row_uses_the_fixed_health_vocabulary(): void
     {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $rows = collect(app(SystemHealthPresenter::class)->capture()['rows']);
 
-        $processed = OperationalEvent::factory()->create(['status' => 'PROCESSED', 'event_domain' => 'notifications']);
-        $failed = OperationalEvent::factory()->failed()->create(['event_domain' => 'notifications']);
-
-        $component = Livewire::test(ListOperationalEvents::class);
-
-        $component->assertOk();
-        $component
-            ->assertCanSeeTableRecords([$processed, $failed])
-            ->filterTable('status', 'FAILED')
-            ->assertCanSeeTableRecords([$failed])
-            ->assertCanNotSeeTableRecords([$processed]);
-    }
-
-    #[Test]
-    public function scheduling_solver_events_name_the_source_run_without_bypassing_academic_authorization(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $term = Term::factory()->create();
-        $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => ScheduleGenerationRun::StatusFailed,
-            'requested_by' => $superAdmin->id,
-            'input_snapshot' => ['contract_version' => 'tal94-demand-v2'],
-            'input_hash' => hash('sha256', (string) Str::uuid()),
-            'solver_version' => 'test-solver',
-            'diagnostics' => [],
-        ]);
-        $solverEvent = OperationalEvent::factory()->failed()->create([
-            'event_domain' => OperationalEvent::DomainIntegration,
-            'integration' => OperationalEvent::IntegrationSchedulingSolver,
-            'event_type' => OperationalEvent::TypeSolverDispatchAttempt,
-            'related_record_type' => ScheduleGenerationRun::class,
-            'related_record_id' => $run->id,
-        ]);
-        $mailEvent = OperationalEvent::factory()->create([
-            'event_domain' => 'notifications',
-            'integration' => 'mail',
-        ]);
-
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $component = Livewire::test(ListOperationalEvents::class);
-
-        $component->assertOk();
-        $component
-            ->filterTable('integration', OperationalEvent::IntegrationSchedulingSolver)
-            ->assertCanSeeTableRecords([$solverEvent])
-            ->assertCanNotSeeTableRecords([$mailEvent]);
-
-        $viewComponent = Livewire::test(ViewOperationalEvent::class, ['record' => $solverEvent->getRouteKey()]);
-
-        $viewComponent->assertOk();
-        $html = $viewComponent->html();
-
-        $this->assertStringContainsString('Schedule Run #'.$run->id, $html);
-        $this->assertStringNotContainsString(
-            ScheduleGenerationRunResource::getUrl('view', ['record' => $run]),
-            $html,
-        );
-    }
-
-    #[Test]
-    public function no_unexpected_secret_substrings_appear_in_a_rendered_operational_event_payload(): void
-    {
-        $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
-        $this->actingAs($superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $event = OperationalEvent::factory()->create([
-            'event_domain' => 'notifications',
-            'integration' => 'mail',
-            'event_type' => 'test_email_sent',
-            'payload' => ['note' => 'test-email payload for '.$superAdmin->email],
-        ]);
-
-        $component = Livewire::test(ViewOperationalEvent::class, ['record' => $event->getRouteKey()]);
-
-        $component->assertOk();
-        $html = $component->html();
-
-        $this->assertStringNotContainsString('sk_live_', $html);
-        $this->assertStringNotContainsString('sk_test_', $html);
+        $this->assertSame([], $rows->pluck('status')->diff([
+            SystemHealthPresenter::Available,
+            SystemHealthPresenter::Attention,
+            SystemHealthPresenter::Unavailable,
+            SystemHealthPresenter::Unknown,
+        ])->values()->all());
     }
 
     private function staff(string $role): User

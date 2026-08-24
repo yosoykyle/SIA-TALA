@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Integrations\Payments\ExactDuePaymentSnapshotService;
 use App\Actions\Integrations\Payments\PayMongoCheckoutRecoveryService;
-use App\Filament\Pages\IntegrationStatus;
+use App\Filament\Pages\SystemHealth;
 use App\Filament\Student\Pages\Finance;
 use App\Mail\PaymentPostedMail;
 use App\Models\Assessment;
@@ -380,8 +380,9 @@ final class TAL96D3CFinancePayMongoHardeningTest extends TestCase
 
         $this->actingAs($fixture['systemAdmin']);
 
-        Livewire::test(IntegrationStatus::class)
-            ->assertSee('PayMongo dashboard registration')
+        Livewire::test(SystemHealth::class)
+            ->assertSee('Provider dashboards')
+            ->assertSee('Not checked by TALA')
             ->assertDontSee('sk_test_tal96d3c_not_real')
             ->assertDontSee('whsk_tal96d3c_not_real');
     }

@@ -2,9 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Reports\ExportOperationalReport;
-use App\Actions\Reports\OperationalReportService;
-use App\Filament\Pages\ReportsAudit;
 use App\Filament\Student\Pages\Profile;
 use App\Filament\Student\Widgets\ActiveHoldsWidget;
 use App\Filament\Student\Widgets\StudentProfileOverviewWidget;
@@ -15,7 +12,6 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
@@ -92,15 +88,9 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         $this->actingAs($accounting);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $this->assertFalse(ReportsAudit::canAccess());
-        $this->expectException(AuthorizationException::class);
-
-        app(ExportOperationalReport::class)->execute(
-            $accounting,
-            OperationalReportService::DailyCash,
-            [],
-            'Daily cashier turnover review.',
-        );
+        $this->assertFileDoesNotExist(app_path('Filament/Pages/ReportsAudit.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/Reports/OperationalReportService.php'));
+        $this->assertFileDoesNotExist(app_path('Actions/Reports/ExportOperationalReport.php'));
     }
 
     #[Test]

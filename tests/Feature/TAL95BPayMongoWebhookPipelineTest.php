@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Integrations\Payments\PayMongoWebhookProcessor;
-use App\Filament\Resources\OperationalEvents\Tables\OperationalEventsTable;
+use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Jobs\ProcessPayMongoWebhookCall;
 use App\Models\OperationalEvent;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -188,17 +188,34 @@ final class TAL95BPayMongoWebhookPipelineTest extends TestCase
         $this->assertStringNotContainsString('Sensitive provider response', $this->encode($event->diagnostics ?? []));
     }
 
-    public function test_operational_monitor_exposes_the_complete_paymongo_status_vocabulary(): void
+    public function test_governance_projection_maps_paymongo_events_to_the_safe_status_vocabulary(): void
     {
-        $this->assertSame([
+        $events = collect([
             'PENDING' => 'Pending',
-            'PROCESSED' => 'Processed',
-            'FAILED' => 'Failed',
-            'REVIEW_REQUIRED' => 'Review required',
-            'IGNORED' => 'Ignored',
-        ], OperationalEventsTable::statusOptions());
-        $this->assertSame('warning', OperationalEventsTable::statusColors()['REVIEW_REQUIRED']);
-        $this->assertSame('gray', OperationalEventsTable::statusColors()['IGNORED']);
+            'PROCESSED' => 'Recorded',
+            'FAILED' => 'Attention',
+            'REVIEW_REQUIRED' => 'Attention',
+            'IGNORED' => 'Pending',
+        ])->mapWithKeys(function (string $projectedStatus, string $status): array {
+            $event = OperationalEvent::factory()->create([
+                'event_type' => 'paymongo_'.strtolower($status),
+                'status' => $status,
+            ]);
+
+            return [$event->id => $projectedStatus];
+        });
+
+        $rows = app(GovernanceEvidenceProjection::class)
+            ->paginate(GovernanceEvidenceProjection::SystemEvents, 1, 25, 'paymongo_', [])
+            ->getCollection();
+
+        foreach ($events as $eventId => $projectedStatus) {
+            $row = $rows->firstWhere('reference_id', 'operational:'.$eventId);
+
+            $this->assertNotNull($row);
+            $this->assertSame($projectedStatus, $row['status']);
+            $this->assertSame('Operational event', $row['source']);
+        }
     }
 
     public function test_queued_processor_uses_the_canonical_event_and_routes_unknown_source_to_review(): void
