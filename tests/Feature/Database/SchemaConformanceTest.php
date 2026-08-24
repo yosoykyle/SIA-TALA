@@ -35,6 +35,7 @@ final class SchemaConformanceTest extends TestCase
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_attempt_obligations', 'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
+        'pending_email_changes',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
         'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
         'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_late_authorities',
@@ -42,6 +43,7 @@ final class SchemaConformanceTest extends TestCase
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
+        'staff_access_profiles', 'staff_invitations',
         'student_lifecycle_changes', 'student_number_sequences', 'student_profiles', 'student_schedule_bindings',
         'system_settings', 'term_accounts', 'term_average_labels', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms', 'transcript_issuance_events', 'transcript_requests', 'transcript_snapshots',
@@ -66,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(121, self::APPLICATION_TABLES);
+        $this->assertCount(124, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(139, $actual);
+        $this->assertCount(142, $actual);
         $this->assertSame($expected, $actual);
     }
 

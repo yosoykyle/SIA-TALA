@@ -201,6 +201,8 @@ final class TAL96D5E1B2CClassPlanningTest extends TestCase
             'email_verified_at' => now(),
         ]);
         $user->assignRole($role);
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         return $user;
     }

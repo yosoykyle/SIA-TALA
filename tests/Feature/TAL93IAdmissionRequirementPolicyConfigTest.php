@@ -53,6 +53,8 @@ final class TAL93IAdmissionRequirementPolicyConfigTest extends TestCase
     {
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+        $registrar->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $registrar->saveAppAuthenticationRecoveryCodes(['stored-code']);
         $this->actingAs($registrar);
 
         $this->assertTrue(AdmissionCycleResource::canAccess());

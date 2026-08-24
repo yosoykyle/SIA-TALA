@@ -2,10 +2,9 @@
 
 namespace App\Filament\Resources\Users;
 
-use App\Filament\Resources\Users\Pages\CreateUser;
-use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
-use App\Filament\Resources\Users\Schemas\UserForm;
+use App\Filament\Resources\Users\Pages\ViewUser;
+use App\Filament\Resources\Users\Schemas\UserInfolist;
 use App\Filament\Resources\Users\Tables\UsersTable;
 use App\Models\User;
 use BackedEnum;
@@ -23,13 +22,17 @@ class UserResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'System Administration';
 
-    protected static ?string $navigationLabel = 'Users';
+    protected static ?string $navigationLabel = 'Users & Access';
+
+    protected static ?string $modelLabel = 'account';
+
+    protected static ?string $pluralModelLabel = 'Users & Access';
 
     protected static ?int $navigationSort = 1;
 
-    public static function form(Schema $schema): Schema
+    public static function infolist(Schema $schema): Schema
     {
-        return UserForm::configure($schema);
+        return UserInfolist::configure($schema);
     }
 
     public static function table(Table $table): Table
@@ -48,8 +51,12 @@ class UserResource extends Resource
     {
         return [
             'index' => ListUsers::route('/'),
-            'create' => CreateUser::route('/create'),
-            'edit' => EditUser::route('/{record}/edit'),
+            'view' => ViewUser::route('/{record}'),
         ];
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
     }
 }

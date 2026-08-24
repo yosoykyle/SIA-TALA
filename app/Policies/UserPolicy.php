@@ -18,26 +18,12 @@ class UserPolicy
 
     public function create(User $user): bool
     {
-        return $this->canManageUsers($user);
+        return false;
     }
 
     public function update(User $user, User $model): bool
     {
-        return $this->canManageUsers($user)
-            && $user->getKey() !== $model->getKey()
-            && $model->status !== User::StatusArchived;
-    }
-
-    public function archiveStaffAccount(User $user, User $model): bool
-    {
-        return $this->canManageUsers($user)
-            && $user->getKey() !== $model->getKey();
-    }
-
-    public function restoreStaffAccount(User $user, User $model): bool
-    {
-        return $this->canManageUsers($user)
-            && $user->getKey() !== $model->getKey();
+        return false;
     }
 
     public function delete(User $user, User $model): bool
@@ -57,6 +43,6 @@ class UserPolicy
 
     private function canManageUsers(User $user): bool
     {
-        return $user->hasRole(User::StaffRoleSystemSuperAdmin);
+        return $user->hasRole(User::StaffRoleSystemSuperAdmin) && $user->canAuthenticate();
     }
 }

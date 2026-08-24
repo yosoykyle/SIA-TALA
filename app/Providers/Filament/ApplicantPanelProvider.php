@@ -2,11 +2,16 @@
 
 namespace App\Providers\Filament;
 
+use App\Actions\Authentication\TalaAppAuthentication;
 use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
 use App\Filament\Applicant\Pages\Requirements;
+use App\Filament\Pages\Auth\AccountSecurity;
+use App\Filament\Pages\Auth\ContextualLogin;
+use App\Http\Middleware\EnforceCanonicalSessionPolicy;
+use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -34,11 +39,17 @@ class ApplicantPanelProvider extends PanelProvider
         return $panel
             ->id('applicant')
             ->path('applicant')
-            ->login()
+            ->login(ContextualLogin::class)
             ->registration(RegisterApplicant::class)
             ->passwordReset()
             ->emailVerification(ApplicantEmailVerification::class)
-            ->profile()
+            ->emailChangeVerification()
+            ->profile(AccountSecurity::class)
+            ->multiFactorAuthentication(
+                TalaAppAuthentication::make()->recoverable(),
+                isRequired: true,
+            )
+            ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Applicant Workspace')
             ->brandLogo(asset('talalogo.png'))
             ->colors([
@@ -51,7 +62,9 @@ class ApplicantPanelProvider extends PanelProvider
                         ->mediaPosition(MediaPosition::Cover)
                         ->blur(6)
                     )
-                    ->login()
+                    ->login(fn (AuthPageConfig $config) => $config
+                        ->usingPage(ContextualLogin::class)
+                    )
                     ->registration(fn (AuthPageConfig $config) => $config
                         ->usingPage(RegisterApplicant::class)
                     )
@@ -88,6 +101,7 @@ class ApplicantPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnforceCanonicalSessionPolicy::class,
             ]);
     }
 

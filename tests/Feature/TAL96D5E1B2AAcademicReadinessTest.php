@@ -614,6 +614,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
     {
         $user = User::factory()->create(['status' => User::StatusActive]);
         $user->assignRole($role);
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         return $user;
     }

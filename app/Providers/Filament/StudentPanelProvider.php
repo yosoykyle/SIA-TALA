@@ -2,11 +2,16 @@
 
 namespace App\Providers\Filament;
 
+use App\Actions\Authentication\TalaAppAuthentication;
+use App\Filament\Pages\Auth\AccountSecurity;
+use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Dashboard;
 use App\Filament\Student\Pages\Enrollment;
 use App\Filament\Student\Pages\Finance;
 use App\Filament\Student\Pages\Profile;
+use App\Http\Middleware\EnforceCanonicalSessionPolicy;
+use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -34,10 +39,16 @@ class StudentPanelProvider extends PanelProvider
         return $panel
             ->id('student')
             ->path('student')
-            ->login()
+            ->login(ContextualLogin::class)
             ->passwordReset()
             ->emailVerification()
-            ->profile(Profile::class)
+            ->emailChangeVerification()
+            ->profile(AccountSecurity::class)
+            ->multiFactorAuthentication(
+                TalaAppAuthentication::make()->recoverable(),
+                isRequired: true,
+            )
+            ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Student Hub')
             ->brandLogo(asset('talalogo.png'))
             ->colors([
@@ -50,7 +61,9 @@ class StudentPanelProvider extends PanelProvider
                         ->mediaPosition(MediaPosition::Cover)
                         ->blur(6)
                     )
-                    ->login()
+                    ->login(fn (AuthPageConfig $config) => $config
+                        ->usingPage(ContextualLogin::class)
+                    )
                     ->passwordReset()
                     ->emailVerification()
                     ->themeToggle()
@@ -59,6 +72,7 @@ class StudentPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Student/Pages'), for: 'App\Filament\Student\Pages')
             ->pages([
                 Dashboard::class,
+                Profile::class,
             ])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
                 $this->navigationItem(Dashboard::class, 'Home'),
@@ -87,6 +101,7 @@ class StudentPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnforceCanonicalSessionPolicy::class,
             ]);
     }
 

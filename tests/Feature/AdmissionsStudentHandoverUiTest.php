@@ -39,6 +39,8 @@ class AdmissionsStudentHandoverUiTest extends TestCase
     {
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
+        $registrar->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $registrar->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         $student = User::factory()->create(['status' => User::StatusActive]);
         $studentProfile = StudentProfile::factory()->create([

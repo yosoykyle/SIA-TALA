@@ -166,6 +166,8 @@ final class TAL96D2COfferingAndScenarioHardeningTest extends TestCase
         $this->assertCanonicalDatasetCreatesExpectedWorkload();
 
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
+        $registrar->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $registrar->saveAppAuthenticationRecoveryCodes(['stored-code']);
         $this->actingAs($registrar);
 
         $this->assertTrue(RegistrarOperationalReadinessWidget::canView());

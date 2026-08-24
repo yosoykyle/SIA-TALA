@@ -2,9 +2,11 @@
 
 namespace App\Listeners;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -29,6 +31,10 @@ class LogAuthenticationActivity
         }
 
         $activity->log('User logged in');
+
+        if ($event->user instanceof User) {
+            $event->user->forceFill(['last_successful_sign_in_at' => now()])->save();
+        }
     }
 
     public function handleLogout(Logout $event): void
@@ -42,6 +48,19 @@ class LogAuthenticationActivity
         }
 
         $activity->log('User logged out');
+    }
+
+    public function handleVerified(Verified $event): void
+    {
+        $activity = activity()->event('email_verified');
+
+        if ($event->user instanceof Model) {
+            $activity
+                ->performedOn($event->user)
+                ->causedBy($event->user);
+        }
+
+        $activity->log('Sign-in email verified');
     }
 
     /**

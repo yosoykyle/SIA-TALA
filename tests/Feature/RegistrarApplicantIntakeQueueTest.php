@@ -65,6 +65,8 @@ class RegistrarApplicantIntakeQueueTest extends TestCase
         ]);
         $user->assignRole($role);
         $user->givePermissionTo($permissions);
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         return $user;
     }

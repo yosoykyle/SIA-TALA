@@ -25,6 +25,8 @@ class StaffNavigationVisibilityTest extends TestCase
         foreach (User::staffRoleNames() as $role) {
             $user = User::factory()->create(['status' => User::StatusActive]);
             $user->assignRole($role);
+            $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+            $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
         }
     }
 
@@ -89,7 +91,6 @@ class StaffNavigationVisibilityTest extends TestCase
 
         foreach ([
             '/admin/users',
-            '/admin/roles',
             '/admin/system-health',
             '/admin/governance-audit',
         ] as $path) {
@@ -98,7 +99,7 @@ class StaffNavigationVisibilityTest extends TestCase
                 ->assertOk();
         }
 
-        foreach (['/admin/activities', '/admin/system-settings'] as $retiredPath) {
+        foreach (['/admin/roles', '/admin/activities', '/admin/system-settings'] as $retiredPath) {
             $this->actingAs($systemSuperAdmin)
                 ->get($retiredPath)
                 ->assertNotFound();
@@ -112,7 +113,6 @@ class StaffNavigationVisibilityTest extends TestCase
 
         foreach ([
             '/admin/users',
-            '/admin/roles',
             '/admin/system-health',
             '/admin/governance-audit',
         ] as $path) {
@@ -121,7 +121,7 @@ class StaffNavigationVisibilityTest extends TestCase
                 ->assertForbidden();
         }
 
-        foreach (['/admin/activities', '/admin/system-settings'] as $retiredPath) {
+        foreach (['/admin/roles', '/admin/activities', '/admin/system-settings'] as $retiredPath) {
             $this->actingAs($user)
                 ->get($retiredPath)
                 ->assertNotFound();

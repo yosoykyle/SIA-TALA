@@ -11,6 +11,7 @@ use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdToke
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Http\Responses\ContextualFilamentLoginResponse;
 use App\Listeners\LogAuthenticationActivity;
 use App\Models\AcademicYear;
 use App\Models\AccountingAdjustment;
@@ -67,12 +68,14 @@ use App\Policies\SectionMeetingPolicy;
 use App\Policies\SectionPolicy;
 use App\Policies\TermPolicy;
 use App\Support\DecimalMoney;
+use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
 use Filament\Support\Assets\Css;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -88,6 +91,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(FilamentLoginResponse::class, ContextualFilamentLoginResponse::class);
+
         $this->app->singleton(CloudRunIdTokenProvider::class, function (): CloudRunIdTokenProvider {
             return new GoogleServiceAccountCloudRunIdTokenProvider(
                 credentialsPath: config('tala_integrations.scheduling_solver.credentials_path') !== null
@@ -196,6 +201,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class, [LogAuthenticationActivity::class, 'handleLogin']);
         Event::listen(Logout::class, [LogAuthenticationActivity::class, 'handleLogout']);
         Event::listen(Failed::class, [LogAuthenticationActivity::class, 'handleFailed']);
+        Event::listen(Verified::class, [LogAuthenticationActivity::class, 'handleVerified']);
 
         Blade::component('layouts.guest', 'guest-layout');
         Blade::component('layouts.app', 'app-layout');

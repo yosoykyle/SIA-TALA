@@ -167,6 +167,8 @@ final class TAL83CDuplicateProfileResolutionFilamentTest extends TestCase
             'email_verified_at' => now(),
         ]);
         $user->assignRole($role);
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         return $user;
     }

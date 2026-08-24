@@ -135,7 +135,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
                 'Dashboard', 'EnrollmentResource', 'FaqEntryResource', 'GovernanceAudit',
-                'RoleResource', 'StudentLifecycleChangeResource', 'StudentProfileResource',
+                'StudentLifecycleChangeResource', 'StudentProfileResource',
                 'SystemHealth', 'UserResource',
             ]],
         ];
@@ -184,7 +184,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     private static function registeredResources(): array
     {
         return [
-            'UserResource', 'RoleResource', 'FaqEntryResource',
+            'UserResource', 'FaqEntryResource',
             'AdmissionApplicationResource', 'AdmissionCycleResource',
             'EnrollmentResource', 'FeePlanResource',
             'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',

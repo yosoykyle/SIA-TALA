@@ -48,7 +48,7 @@ class Profile extends Page
 
     public static function getRelativeRouteName(Panel $panel): string
     {
-        return 'profile';
+        return 'student-profile';
     }
 
     public static function isTenantSubscriptionRequired(Panel $panel): bool
@@ -65,12 +65,12 @@ class Profile extends Page
     {
         $panel ??= filament()->getCurrentOrDefaultPanel();
 
-        return $panel->generateRouteName('auth.'.static::getRelativeRouteName($panel));
+        return $panel->generateRouteName(static::getRelativeRouteName($panel));
     }
 
     public static function getSlug(?Panel $panel = null): string
     {
-        return static::$slug ?? 'profile';
+        return static::$slug ?? 'student-profile';
     }
 
     public function mount(): void

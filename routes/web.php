@@ -10,11 +10,14 @@ use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
+use App\Http\Controllers\StaffEmailChangeController;
+use App\Http\Controllers\StaffInvitationActivationController;
 use App\Http\Controllers\StudentSchedulePrintController;
 use App\Http\Controllers\TimetableVersionPrintController;
 use App\Http\Controllers\TranscriptPreviewController;
 use App\Http\Controllers\TranscriptSnapshotController;
 use App\Http\Controllers\UnofficialStudentRecordController;
+use App\Http\Controllers\WorkspaceContextController;
 use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +30,21 @@ Route::get('/', function (ApplicantEntryReadinessService $applicantEntryReadines
         'admissionCycle' => $applicantEntryReadinessService->cycleProjection(),
     ]);
 })->name('home');
+
+Route::get('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'show'])
+    ->name('staff-invitations.activate');
+Route::post('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('staff-invitations.accept');
+Route::get('/staff-email-change/{change}', StaffEmailChangeController::class)
+    ->middleware('throttle:5,1')
+    ->name('staff-email-changes.verify');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get('/workspace-chooser', [WorkspaceContextController::class, 'show'])->name('workspace-chooser');
+    Route::post('/workspace-chooser', [WorkspaceContextController::class, 'store'])
+        ->name('workspace-chooser.select');
+});
 
 Route::get('/outputs/cor/{enrollment}', CorPrintController::class)
     ->middleware('auth')

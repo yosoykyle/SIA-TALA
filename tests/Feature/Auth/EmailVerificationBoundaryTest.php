@@ -143,6 +143,11 @@ class EmailVerificationBoundaryTest extends TestCase
 
         $user->assignRole($role);
 
+        if ($verified && in_array($role, User::staffRoleNames(), true)) {
+            $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+            $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        }
+
         if ($role === 'student') {
             StudentProfile::factory()->create(['user_id' => $user->id]);
         }

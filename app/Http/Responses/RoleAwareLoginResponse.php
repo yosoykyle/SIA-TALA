@@ -2,6 +2,7 @@
 
 namespace App\Http\Responses;
 
+use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
@@ -9,6 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RoleAwareLoginResponse implements LoginResponseContract
 {
+    public function __construct(private readonly WorkspaceContextResolver $contexts) {}
+
     public function toResponse($request): Response
     {
         if ($request->wantsJson()) {
@@ -25,10 +28,13 @@ class RoleAwareLoginResponse implements LoginResponseContract
             return redirect()->route($this->verificationPromptRoute($user));
         }
 
+        $available = $this->contexts->availableContexts($user);
+        $requested = $request->input('context');
+
         $workspacePath = match (true) {
-            $user->hasAnyRole(User::staffRoleNames()) => '/admin',
-            $user->hasRole('student') => '/student',
-            $user->hasRole('applicant') => '/applicant',
+            is_string($requested) && array_key_exists($requested, $available) => $this->contexts->select($user, $requested),
+            count($available) === 1 => $this->contexts->select($user, array_key_first($available)),
+            count($available) > 1 => route('workspace-chooser'),
             default => config('fortify.home'),
         };
 

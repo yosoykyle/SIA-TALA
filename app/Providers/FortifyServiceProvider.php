@@ -41,6 +41,10 @@ class FortifyServiceProvider extends ServiceProvider
                 return null;
             }
 
+            if ($user->isStaffCapable()) {
+                return null;
+            }
+
             if (! Hash::check((string) $request->input('password'), $user->password)) {
                 return null;
             }
@@ -55,5 +59,6 @@ class FortifyServiceProvider extends ServiceProvider
                 Limit::perMinute(5)->by($email.'|'.$request->ip()),
             ];
         });
+
     }
 }

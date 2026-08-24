@@ -150,7 +150,7 @@ class StudentHubTest extends TestCase
 
         // All student hub shell pages
         $pages = [
-            '/student/profile',
+            '/student/student-profile',
             '/student/cor-view',
             '/student/finance',
             '/student/schedule-view',

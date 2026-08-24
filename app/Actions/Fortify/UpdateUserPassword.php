@@ -2,6 +2,7 @@
 
 namespace App\Actions\Fortify;
 
+use App\Actions\Authentication\UserSessionService;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -11,6 +12,8 @@ use Laravel\Fortify\Contracts\UpdatesUserPasswords;
 class UpdateUserPassword implements UpdatesUserPasswords
 {
     use PasswordValidationRules;
+
+    public function __construct(private readonly UserSessionService $sessions) {}
 
     /**
      * Validate and update the user's password.
@@ -31,5 +34,13 @@ class UpdateUserPassword implements UpdatesUserPasswords
         $user->forceFill([
             'password' => Hash::make($input['password']),
         ])->save();
+
+        $this->sessions->revokeAll($user, request()->hasSession() ? request()->session()->getId() : null);
+
+        activity()
+            ->performedOn($user)
+            ->causedBy($user)
+            ->event('password_changed')
+            ->log('Password changed and other sessions ended');
     }
 }

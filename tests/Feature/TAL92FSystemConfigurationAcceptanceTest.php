@@ -2,15 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Resources\Roles\Pages\ListRoles;
-use App\Filament\Resources\Roles\RoleResource;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Policies\RolePolicy;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -159,8 +156,6 @@ final class TAL92FSystemConfigurationAcceptanceTest extends TestCase
         // the same "only authorized roles can configure" rule (§13.1.2 rule 1).
         // The surface is read-only and gated to Super-Admin via RolePolicy.
         // RolePolicy remains the owning authorization boundary for this surface.
-        $this->assertFalse(RoleResource::canCreate());
-
         $policy = app(RolePolicy::class);
 
         $superAdmin = $this->staff(User::StaffRoleSystemSuperAdmin);
@@ -181,7 +176,7 @@ final class TAL92FSystemConfigurationAcceptanceTest extends TestCase
         $this->assertFalse($policy->restore($superAdmin, $role));
         $this->assertFalse($policy->forceDelete($superAdmin, $role));
 
-        Livewire::test(ListRoles::class)->assertOk();
+        $this->get('/admin/roles')->assertNotFound();
 
         // The four other staff roles are forbidden from the config surface.
         foreach ([
@@ -195,7 +190,7 @@ final class TAL92FSystemConfigurationAcceptanceTest extends TestCase
 
             $this->assertFalse($policy->viewAny($denied));
 
-            Livewire::test(ListRoles::class)->assertForbidden();
+            $this->get('/admin/roles')->assertNotFound();
         }
     }
 

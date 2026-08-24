@@ -28,31 +28,6 @@ class RoleAwareLoginLandingTest extends TestCase
     public static function verifiedCanonicalRoleRedirects(): array
     {
         return [
-            'registrar lands in staff workspace' => [
-                'role' => User::StaffRoleRegistrar,
-                'status' => User::StatusActive,
-                'expectedPath' => '/admin',
-            ],
-            'accounting lands in staff workspace' => [
-                'role' => User::StaffRoleAccounting,
-                'status' => User::StatusActive,
-                'expectedPath' => '/admin',
-            ],
-            'faculty lands in staff workspace' => [
-                'role' => User::StaffRoleFaculty,
-                'status' => User::StatusActive,
-                'expectedPath' => '/admin',
-            ],
-            'academic head lands in staff workspace' => [
-                'role' => User::StaffRoleAcademicHead,
-                'status' => User::StatusActive,
-                'expectedPath' => '/admin',
-            ],
-            'system super admin lands in staff workspace' => [
-                'role' => User::StaffRoleSystemSuperAdmin,
-                'status' => User::StatusActive,
-                'expectedPath' => '/admin',
-            ],
             'student lands in Student Hub' => [
                 'role' => 'student',
                 'status' => User::StatusActive,
@@ -64,6 +39,21 @@ class RoleAwareLoginLandingTest extends TestCase
                 'expectedPath' => '/applicant',
             ],
         ];
+    }
+
+    public function test_staff_cannot_bypass_contextual_filament_mfa_through_the_headless_fortify_login(): void
+    {
+        $user = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->get(route('filament.admin.auth.login', ['context' => User::StaffRoleRegistrar]))
+            ->assertOk()
+            ->assertSee('Sign in to Registrar');
     }
 
     #[DataProvider('verifiedCanonicalRoleRedirects')]
@@ -145,6 +135,11 @@ class RoleAwareLoginLandingTest extends TestCase
         ]);
 
         $user->assignRole($role);
+
+        if (in_array($role, User::staffRoleNames(), true)) {
+            $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+            $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
+        }
 
         if ($role === 'student') {
             StudentProfile::factory()->create(['user_id' => $user->id]);

@@ -163,6 +163,19 @@ class GovernanceEvidenceProjection
     /** @return list<string> */
     private function authenticationEvents(): array
     {
-        return ['login', 'logout', 'login_failed'];
+        return [
+            'email_verified',
+            'login',
+            'login_failed',
+            'logout',
+            'mfa_challenge_succeeded',
+            'mfa_disabled',
+            'mfa_enabled',
+            'mfa_recovery_code_used',
+            'mfa_recovery_codes_regenerated',
+            'password_changed',
+            'password_recovery_completed',
+            'staff_mfa_reset',
+        ];
     }
 }

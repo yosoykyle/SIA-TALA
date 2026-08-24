@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -78,6 +79,7 @@ class WorkspaceAuthenticationEligibilityTest extends TestCase
     public function test_active_student_can_authenticate_and_reach_student_hub(): void
     {
         $student = $this->userWithRole('student', User::StatusActive);
+        StudentProfile::factory()->create(['user_id' => $student->id]);
 
         $this->assertTrue($student->canAuthenticate());
 
@@ -87,7 +89,7 @@ class WorkspaceAuthenticationEligibilityTest extends TestCase
         ])->assertRedirect('/student');
     }
 
-    public function test_active_verified_staff_can_authenticate_and_reach_staff_workspace(): void
+    public function test_active_verified_staff_must_use_the_contextual_filament_entry(): void
     {
         $registrar = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
 
@@ -96,7 +98,12 @@ class WorkspaceAuthenticationEligibilityTest extends TestCase
         $this->post('/login', [
             'email' => $registrar->email,
             'password' => 'password',
-        ])->assertRedirect('/admin');
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->get(route('filament.admin.auth.login', ['context' => User::StaffRoleRegistrar]))
+            ->assertOk()
+            ->assertSee('Sign in to Registrar');
     }
 
     private function userWithRole(string $role, string $status): User

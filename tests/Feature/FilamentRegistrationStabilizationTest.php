@@ -55,7 +55,6 @@ class FilamentRegistrationStabilizationTest extends TestCase
             'applicant registration' => ['route' => 'filament.applicant.auth.register'],
             'student login' => ['route' => 'filament.student.auth.login'],
             'admin users' => ['route' => 'filament.admin.resources.users.index'],
-            'admin roles' => ['route' => 'filament.admin.resources.roles.index'],
             'system health' => ['route' => 'filament.admin.pages.system-health'],
             'governance and audit' => ['route' => 'filament.admin.pages.governance-audit'],
             'faq entries' => ['route' => 'filament.admin.resources.faq-entries.index'],
@@ -71,5 +70,10 @@ class FilamentRegistrationStabilizationTest extends TestCase
             Route::has($route),
             "Expected Filament route is not registered: {$route}",
         );
+    }
+
+    public function test_roles_and_permissions_route_is_retired(): void
+    {
+        $this->assertFalse(Route::has('filament.admin.resources.roles.index'));
     }
 }

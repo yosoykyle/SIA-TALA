@@ -52,6 +52,8 @@ final class TAL96D5E1CAccountingRecoveryTest extends TestCase
     public function accounting_navigation_presents_one_task_centered_operating_flow(): void
     {
         $accounting = User::query()->where('email', 'accounting.demo@example.test')->sole();
+        $accounting->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $accounting->saveAppAuthenticationRecoveryCodes(['stored-code']);
 
         $this->actingAs($accounting)
             ->get('/admin')

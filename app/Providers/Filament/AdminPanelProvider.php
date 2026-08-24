@@ -2,8 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Actions\Authentication\TalaAppAuthentication;
+use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
+use App\Filament\Pages\Auth\AccountSecurity;
+use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\ClassPlanning;
 use App\Filament\Pages\CompletionAndTor;
@@ -30,7 +34,6 @@ use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\Programs\ProgramResource;
-use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
@@ -43,6 +46,8 @@ use App\Filament\Resources\Terms\TermResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
+use App\Http\Middleware\EnforceCanonicalSessionPolicy;
+use App\Http\Middleware\EnsureStaffMfaIsEnabled;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
@@ -73,10 +78,16 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->login(ContextualLogin::class)
             ->passwordReset()
             ->emailVerification()
-            ->profile()
+            ->emailChangeVerification()
+            ->profile(AccountSecurity::class)
+            ->multiFactorAuthentication(
+                TalaAppAuthentication::make()->recoverable(),
+                isRequired: true,
+            )
+            ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Staff Workspace')
             ->brandLogo(asset('talalogo.png'))
             ->colors([
@@ -89,14 +100,15 @@ class AdminPanelProvider extends PanelProvider
                         ->mediaPosition(MediaPosition::Left)
                         ->mediaSize('50%')
                     )
-                    ->login()
+                    ->login(fn (AuthPageConfig $config) => $config
+                        ->usingPage(ContextualLogin::class)
+                    )
                     ->passwordReset()
                     ->emailVerification()
                     ->themeToggle()
             )
             ->resources([
                 UserResource::class,
-                RoleResource::class,
                 FaqEntryResource::class,
                 AdmissionApplicationResource::class,
                 AdmissionCycleResource::class,
@@ -158,6 +170,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnforceCanonicalSessionPolicy::class,
             ]);
     }
 
@@ -169,8 +182,16 @@ class AdminPanelProvider extends PanelProvider
             return $builder;
         }
 
-        $components = match (true) {
-            $user->hasRole(User::StaffRoleRegistrar) => [
+        $contextResolver = app(WorkspaceContextResolver::class);
+        $selectedContext = $contextResolver->selected($user);
+
+        if ($selectedContext === null) {
+            $available = $contextResolver->availableContexts($user);
+            $selectedContext = count($available) === 1 ? array_key_first($available) : null;
+        }
+
+        $components = match ($selectedContext) {
+            User::StaffRoleRegistrar => [
                 'Home' => Dashboard::class,
                 'Admissions' => AdmissionApplicationResource::class,
                 'Admission Cycles' => AdmissionCycleResource::class,
@@ -179,24 +200,24 @@ class AdminPanelProvider extends PanelProvider
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,
             ],
-            $user->hasRole(User::StaffRoleAccounting) => [
+            User::StaffRoleAccounting => [
                 'Home' => Dashboard::class,
                 'Fee Plans' => FeePlanResource::class,
                 'Student Accounts' => EnrollmentResource::class,
             ],
-            $user->hasRole(User::StaffRoleFaculty) => [
+            User::StaffRoleFaculty => [
                 'Home' => Dashboard::class,
                 'My Schedule' => FacultySchedule::class,
                 'Grade Rosters' => FacultyGradeRoster::class,
                 'My Unavailable Times' => CalendarEventResource::class,
             ],
-            $user->hasRole(User::StaffRoleAcademicHead) => [
+            User::StaffRoleAcademicHead => [
                 'Home' => Dashboard::class,
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningWorkbench::class,
                 'Approvals' => AcademicApprovals::class,
             ],
-            $user->hasRole(User::StaffRoleSystemSuperAdmin) => [
+            User::StaffRoleSystemSuperAdmin => [
                 'Home' => Dashboard::class,
                 'Users & Access' => UserResource::class,
                 'Public Content' => FaqEntryResource::class,
