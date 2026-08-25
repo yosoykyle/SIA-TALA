@@ -350,7 +350,7 @@ This subsection translates the technical pipeline into the exact screens and act
 
 Use the Registrar login page at `http://127.0.0.1:8000/admin/login` and sign in with the local seeded Registrar account `registrar.demo@example.test`. Historical credential evidence is archived in the private [local seeded credential sheet](../archive/demo/seeded_credentials.md); do not treat it as current execution authority or publish its password values.
 
-The prepared client-aligned `MIN` presentation checkpoint is expected to show the following current application records:
+The prepared **Canonical TALA Scheduling Dataset** presentation checkpoint is expected to show the following current application records:
 
 | Presentation item | Expected current value | What it means |
 | --- | ---: | --- |
@@ -358,14 +358,14 @@ The prepared client-aligned `MIN` presentation checkpoint is expected to show th
 | Current students | 47 | Student population context; the solver does not create one decision variable per student. |
 | Logical cohorts | 6 | One cohort for each program and year-level combination. |
 | Faculty | 9 | Current client-aligned synthetic scheduling roster. |
-| Active rooms | 6 | Physical rooms available to room-requiring demands. |
+| Active rooms | 10 | Physical rooms available to room-requiring demands. |
 | Term offerings | 54 | Fifty-four course-and-cohort requirements are offered in the term. |
 | Course-specific sections | 54 | Each offering has one traceable course-specific section in this fixture. |
 | Schedule Requirements | 54 | Each ready subject delivery becomes one solver demand. |
 | Candidate Assignments | 54 | The accepted candidate contains exactly one assignment per demand. |
 | Official meetings | 54 | Publication copied the validated candidate into the official timetable. |
 
-The current seeded Business Management cohort code is `DBM-1A`. Some historical Cloud benchmark tables in Section 11 retain `DTBM-1A` because they describe an earlier immutable experiment. Do not search for `DTBM-1A` in the current presentation UI, and do not rewrite the historical tables as though they were produced by the current nine-faculty fixture.
+The current seeded Business Management cohort code is `DBM-1A`. Some historical Cloud benchmark tables in Section 11 retain `DTBM-1A` because they describe an earlier immutable experiment. Do not search for `DTBM-1A` in the current presentation UI, and do not rewrite the historical tables as though they were produced by the current nine-Faculty, ten-room dataset.
 
 #### 3.1.2 The complete click path
 
@@ -441,7 +441,7 @@ Explain the dependency:
 
 > “The solver does not invent faculty eligibility, load limits, room suitability, or blocked time. Laravel prepares those authoritative inputs first. CP-SAT can choose only from the combinations that remain admissible.”
 
-For the current `MIN` checkpoint, the Class Planning summary should report nine qualified faculty and six active rooms. Online requirements do not consume a physical room. A blank or dash in the Room column is therefore correct for an online assignment and is not automatically a missing-data defect.
+For the current **Canonical TALA Scheduling Dataset**, the Class Planning summary should report nine qualified Faculty and ten active rooms. Online requirements do not consume a physical room. A blank or dash in the Room column is therefore correct for an online assignment and is not automatically a missing-data defect.
 
 If Teaching Resources is blocked, use its displayed next-action button. Correct faculty qualifications before faculty loads, and correct faculty inputs before rooms when the page directs you in that order. Do not generate Schedule Requirements until the stage reports no blocker.
 
@@ -579,7 +579,7 @@ Publication performs another live-record validation. If mutable source data chan
 After success:
 
 - the run status becomes `Published`;
-- 54 official meetings are available for the prepared `MIN` fixture;
+- 54 official meetings are available for the prepared **Canonical TALA Scheduling Dataset**;
 - applicable offerings advance to scheduled;
 - applicable planned Sections advance to `Open`;
 - faculty and students can consume only the official meetings relevant to them; and
