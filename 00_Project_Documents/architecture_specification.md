@@ -827,12 +827,11 @@ The scheduling container uses Python 3.12 slim, Google OR-Tools 9.15.6755, Flask
 | PHPUnit | 11.5.55 | Automated unit and feature behavior checks |
 | Larastan | 3.10.0 | Laravel-aware static analysis |
 | Laravel Pint | 1.29.1 | Consistent PHP formatting |
-| Laravel Pail | 1.2.7 | Local log inspection |
 | Laravel Sail | 1.62.0 | Containerized local-development option |
 | FakerPHP | 1.24.1 | Deterministic-shape test data generation through factories |
 | Mockery | 1.6.12 | Test doubles where an isolated collaborator is appropriate |
 | Collision | 8.9.4 | Readable command-line errors and test output |
-| Concurrently | 9.2.4 | Coordinates the local web, queue, log, and asset-development processes |
+| Concurrently | 9.2.4 | Coordinates the local web, queue, and asset-development processes |
 
 These are engineering controls, not user-facing production modules.
 

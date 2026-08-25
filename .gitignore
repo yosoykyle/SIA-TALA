@@ -17,7 +17,6 @@
 /public/hot
 /public/storage
 /storage/*.key
-/storage/pail
 /vendor
 Homestead.json
 Homestead.yaml

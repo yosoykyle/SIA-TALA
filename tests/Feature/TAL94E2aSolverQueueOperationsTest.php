@@ -258,15 +258,21 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
         $composer = file_get_contents(base_path('composer.json'));
         $readme = file_get_contents(base_path('README.md'));
         $solverReadme = file_get_contents(base_path('cloud/scheduler-solver/README.md'));
+        $viteConfig = file_get_contents(base_path('vite.config.js'));
 
         $this->assertIsString($environmentExample);
         $this->assertIsString($composer);
         $this->assertIsString($readme);
         $this->assertIsString($solverReadme);
+        $this->assertIsString($viteConfig);
         $this->assertStringContainsString('DB_QUEUE_RETRY_AFTER=420', $environmentExample);
         $this->assertStringContainsString('--queue=scheduling,default', $composer);
         $this->assertStringNotContainsString('--tries=1', $composer);
-        $this->assertStringContainsString('the queue worker, Vite, and Laravel Pail', $readme);
+        $this->assertStringContainsString('--names=server,queue,vite', $composer);
+        $this->assertStringNotContainsString('artisan pail', $composer);
+        $this->assertStringContainsString('the canonical `scheduling,default` queue listener, and Vite together in one terminal', $readme);
+        $this->assertStringContainsString('host: "127.0.0.1"', $viteConfig);
+        $this->assertStringContainsString('port: 5273', $viteConfig);
         $this->assertStringContainsString('--queue=scheduling,default', $solverReadme);
         $this->assertStringNotContainsString('--tries=1', $solverReadme);
     }

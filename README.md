@@ -47,7 +47,7 @@ Start the local development processes with:
 composer dev
 ```
 
-The command starts Laravel, the queue worker, Vite, and Laravel Pail according to the repository's Composer configuration.
+The command starts Laravel, the canonical `scheduling,default` queue listener, and Vite together in one terminal on native Windows or a supported Linux environment. Laravel continues writing application logs normally without a required live-log process. When active log inspection is useful on Windows, run `Get-Content storage\logs\laravel.log -Wait -Tail 80` separately.
 
 ## Developer verification
 
