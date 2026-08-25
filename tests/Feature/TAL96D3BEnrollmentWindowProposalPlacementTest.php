@@ -1193,7 +1193,7 @@ final class TAL96D3BEnrollmentWindowProposalPlacementTest extends TestCase
         $this->assertNotNull($supporting);
         $this->assertSame(
             [
-                'prepareProposal', 'prepareAdjustmentProposal', 'issueProposal', 'recordAssistedConfirmation', 'placeProposal',
+                'prepareProposal', 'recordGraduatingOverloadAuthority', 'prepareAdjustmentProposal', 'issueProposal', 'recordAssistedConfirmation', 'placeProposal',
                 'createAssessment', 'recordIndividualAssessment', 'recordApprovedCoverage',
                 'reverseApprovedCoverage', 'downloadPaymentEvidence', 'verifyPaymentEvidence',
                 'retrievePayMongoCheckout', 'confirmRecoveredPayMongo', 'rejectRecoveredPayMongo',

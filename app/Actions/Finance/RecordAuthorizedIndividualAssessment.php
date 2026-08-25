@@ -59,9 +59,9 @@ class RecordAuthorizedIndividualAssessment
 
             if ($locked->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
                 && $locked->selection_basis !== Enrollment::SelectionIndividuallyAdvised
-                && $locked->term?->type !== Term::TypeSummer) {
+                && $locked->term?->type !== Term::TypeSpecialTerm) {
                 throw ValidationException::withMessages([
-                    'assessment' => 'An individual assessment requires an exact Individually Advised or Summer/Special Term exception.',
+                    'assessment' => 'An individual assessment requires an exact Individually Advised or Special Term exception.',
                 ]);
             }
 

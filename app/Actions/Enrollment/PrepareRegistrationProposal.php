@@ -20,7 +20,10 @@ use Illuminate\Validation\ValidationException;
 
 class PrepareRegistrationProposal
 {
-    public function __construct(private readonly RegistrationAcademicEligibilityQuery $eligibility) {}
+    public function __construct(
+        private readonly RegistrationAcademicEligibilityQuery $eligibility,
+        private readonly StudentUnitLoadService $unitLoad,
+    ) {}
 
     /**
      * @param  list<int>  $sectionIds
@@ -31,6 +34,7 @@ class PrepareRegistrationProposal
         array $sectionIds,
         int $expectedLockVersion,
         string $purpose = RegistrationProposalVersion::PurposeInitial,
+        ?string $curriculumPosition = null,
     ): RegistrationProposalVersion {
         if (! $actor->canAuthenticate()
             || ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleSystemSuperAdmin])) {
@@ -47,7 +51,7 @@ class PrepareRegistrationProposal
             throw ValidationException::withMessages(['purpose' => 'Select a supported Registration Proposal purpose.']);
         }
 
-        return DB::transaction(function () use ($enrollment, $actor, $sectionIds, $expectedLockVersion, $purpose): RegistrationProposalVersion {
+        return DB::transaction(function () use ($enrollment, $actor, $sectionIds, $expectedLockVersion, $purpose, $curriculumPosition): RegistrationProposalVersion {
             $locked = Enrollment::query()
                 ->with(['admissionApplication', 'studentProfile'])
                 ->whereKey($enrollment->id)
@@ -163,12 +167,19 @@ class PrepareRegistrationProposal
                 }
             }
 
+            $unitLoad = $this->unitLoad->snapshotForSections(
+                $locked,
+                $sections->values(),
+                $curriculumPosition,
+            );
+
             $source = [
                 'purpose' => $purpose,
                 'term_id' => $locked->term_id,
                 'curriculum_version_id' => $curriculum->id,
                 'published_timetable_version_id' => $timetable->id,
                 'sections' => $items,
+                'unit_load' => $unitLoad,
             ];
             $hash = hash('sha256', json_encode($source, JSON_THROW_ON_ERROR));
             $previous = $locked->currentProposalVersion()->lockForUpdate()->first();

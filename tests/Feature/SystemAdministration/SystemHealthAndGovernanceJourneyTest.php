@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\SystemAdministration;
 
-use App\Actions\Enrollment\StudentUnitLoadPolicy;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\OperationalEvidenceRecorder;
 use App\Actions\SystemAdministration\SystemHealthPresenter;
@@ -498,10 +497,10 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
-    public function unit_load_setting_consumer_remains_active_without_a_system_settings_resource(): void
+    public function retired_unit_load_setting_is_preserved_only_as_unreachable_history(): void
     {
         SystemSetting::query()->forceCreate([
-            'key' => StudentUnitLoadPolicy::SettingKey,
+            'key' => 'student_unit_load_policy_defaults',
             'scope_type' => 'institution',
             'scope_id' => 0,
             'value_type' => SystemSetting::ValueTypeJson,
@@ -517,10 +516,8 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             'status' => 'active',
         ]);
 
-        $policy = app(StudentUnitLoadPolicy::class);
-
-        $this->assertSame(19.0, $policy->fallbackNormalMaxUnits());
-        $this->assertSame(23.0, $policy->configuredCapFor(19.0, null));
+        $this->assertNull(SystemSetting::definitionFor('student_unit_load_policy_defaults'));
+        $this->assertDatabaseHas('system_settings', ['key' => 'student_unit_load_policy_defaults']);
         $this->assertNotContains('SystemSettingResource', array_map(class_basename(...), Filament::getPanel('admin')->getResources()));
     }
 

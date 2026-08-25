@@ -11,6 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 class IssueRegistrationProposal
 {
+    public function __construct(private readonly StudentUnitLoadService $unitLoad) {}
+
     public function execute(RegistrationProposalVersion $proposal, User $actor): RegistrationProposalVersion
     {
         if (! $actor->canAuthenticate()
@@ -34,6 +36,8 @@ class IssueRegistrationProposal
                 || $locked->items->isEmpty()) {
                 throw ValidationException::withMessages(['proposal' => 'Only a complete current Draft proposal may be issued.']);
             }
+
+            $this->unitLoad->assertProposalPermitted($enrollment, $locked, lockForUpdate: true);
 
             $locked->update(['state' => RegistrationProposalVersion::StateIssued, 'issued_by' => $actor->id, 'issued_at' => now()]);
 

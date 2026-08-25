@@ -23,7 +23,7 @@ class Term extends Model
 
     public const TypeSecondSemester = 'SECOND_SEMESTER';
 
-    public const TypeSummer = 'SUMMER';
+    public const TypeSpecialTerm = 'SUMMER';
 
     public const StateDraft = 'DRAFT';
 
@@ -106,7 +106,7 @@ class Term extends Model
         return [
             self::TypeFirstSemester => 'First Semester',
             self::TypeSecondSemester => 'Second Semester',
-            self::TypeSummer => 'Summer / Special Term',
+            self::TypeSpecialTerm => 'Special Term',
         ];
     }
 

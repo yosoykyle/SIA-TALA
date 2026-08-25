@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Enrollment\RecordGraduatingOverloadAuthority;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
-use App\Models\EnrollmentGateResult;
+use App\Models\RegistrationProposalItem;
+use App\Models\RegistrationProposalVersion;
+use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermOffering;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -26,90 +32,270 @@ final class StudentUnitLoadExceptionTest extends TestCase
         parent::setUp();
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin] as $role) {
+        foreach ([User::StaffRoleRegistrar, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
     }
 
     #[Test]
-    public function curriculum_load_precedes_term_fallback_and_exception_does_not_bypass_other_gates(): void
+    public function exact_curriculum_position_is_snapshotted_without_a_global_or_term_fallback(): void
     {
-        $profile = StudentProfile::factory()->create();
-        $term = Term::factory()->create(['type' => Term::TypeFirstSemester, 'default_max_units' => 21]);
-        foreach ([6, 6, 6] as $sequence => $units) {
-            $specification = CourseSpecification::factory()->create(['credit_units' => $units]);
-            CurriculumEntry::factory()->create([
-                'curriculum_version_id' => $profile->curriculum_version_id,
-                'course_specification_id' => $specification->id,
-                'year_level' => 'First Year',
-                'term_type' => Term::TypeFirstSemester,
-                'sequence' => $sequence + 1,
-            ]);
-        }
-        $enrollment = Enrollment::factory()->create(['student_profile_id' => $profile->id, 'term_id' => $term->id]);
-        $service = app(StudentUnitLoadService::class);
-        $before = $service->evaluate($enrollment, 24, null, 'First Year');
-        $this->assertSame('18.00', $before['normal_load']);
-        $this->assertSame('24.00', $before['configured_cap']);
-        $this->assertFalse($before['unit_load_passes']);
-
-        $actor = User::factory()->create(['status' => User::StatusActive]);
-        $actor->assignRole(User::StaffRoleAcademicHead);
-        $exception = $service->approve($enrollment, [
-            'normal_limit' => 18,
-            'requested_total' => 24,
-            'configured_cap' => (float) $before['configured_cap'],
-            'authority' => 'Academic Head Resolution 2026-01',
-            'reason' => 'Approved scoped overload after academic review.',
-            'evidence_reference' => 'UL-001',
-            'affected_term_offering_ids' => [1, 2],
-            'expires_at' => now()->addMonth(),
-        ], $actor);
-        $this->assertSame(EnrollmentException::TypeUnitLoad, $exception->exception_type);
-        $this->assertSame('6', (string) data_get($exception->approved_values, 'approved_excess'));
-        $this->assertSame(User::StaffRoleAcademicHead, data_get($exception->approved_values, 'recorded_by_role'));
-        $this->assertTrue($service->evaluate($enrollment, 24, null, 'First Year')['unit_load_passes']);
-
-        EnrollmentGateResult::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'gate_type' => EnrollmentGateResult::GateFinance,
-            'sequence' => 1,
-            'result' => EnrollmentGateResult::ResultFailed,
-            'responsible_office' => EnrollmentGateResult::ResponsibleOfficeAccounting,
-            'checked_at' => now(),
-            'rule_version' => 'v1',
+        $profile = StudentProfile::factory()->create([
+            'academic_standing' => StudentProfile::StandingGraduationCandidate,
         ]);
-        $after = $service->evaluate($enrollment, 24, null, 'First Year');
-        $this->assertFalse($after['all_gates_pass']);
-        $this->assertSame([EnrollmentGateResult::GateFinance], $after['other_failed_gates']);
+        $term = Term::factory()->create([
+            'type' => Term::TypeSpecialTerm,
+            'default_max_units' => 99,
+        ]);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $plannedEntry = $this->curriculumEntry($profile, 'Third Year', 'Special Term', Term::TypeSpecialTerm, 3);
+        $otherPlannedEntry = $this->curriculumEntry($profile, 'Third Year', 'Special Term', Term::TypeSpecialTerm, 3);
+        $retakeEntry = $this->curriculumEntry($profile, 'Second Year', 'First Semester', Term::TypeFirstSemester, 3);
+        $planned = $this->section($term, $plannedEntry, TermOffering::CategoryRegular);
+        $retake = $this->section($term, $retakeEntry, TermOffering::CategorySpecial);
 
-        $exception->update(['expires_at' => now()->subSecond()]);
-        $this->assertFalse($service->evaluate($enrollment, 24, null, 'First Year')['unit_load_passes']);
+        $snapshot = app(StudentUnitLoadService::class)->snapshotForSections(
+            $enrollment,
+            collect([$planned, $retake]),
+        );
+
+        $this->assertSame('Third Year', $snapshot['year_level']);
+        $this->assertSame('Special Term', $snapshot['term_label']);
+        $this->assertSame(Term::TypeSpecialTerm, $snapshot['term_type']);
+        $this->assertSame([$plannedEntry->id, $otherPlannedEntry->id], $snapshot['curriculum_entry_ids']);
+        $this->assertSame('6.00', $snapshot['normal_total']);
+        $this->assertSame('6.00', $snapshot['requested_total']);
+        $this->assertFalse($snapshot['requires_graduating_overload']);
+        $this->assertNotSame('99.00', $snapshot['normal_total']);
     }
 
     #[Test]
-    public function configured_student_unit_load_policy_is_used_when_curriculum_has_no_matching_target_load(): void
+    public function missing_or_ambiguous_curriculum_position_fails_without_any_fallback_quantity(): void
     {
-        DB::table('system_settings')->insert([
-            'key' => 'student_unit_load_policy_defaults',
-            'scope_type' => 'institution',
-            'scope_id' => 0,
-            'value_type' => 'json',
-            'value' => '{"version":"1.0","fallback_normal_max_units":15,"regular_overload_excess_cap":6,"summer_overload_excess_cap":8,"default_approving_authority":"Academic Head","default_recording_office":"Registrar"}',
-            'effective_from' => now()->subDay(),
-            'version' => 1,
-            'status' => 'ACTIVE',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
         $profile = StudentProfile::factory()->create();
-        $term = Term::factory()->create(['type' => Term::TypeSummer, 'default_max_units' => 99]);
-        $enrollment = Enrollment::factory()->create(['student_profile_id' => $profile->id, 'term_id' => $term->id]);
+        $term = Term::factory()->create([
+            'type' => Term::TypeSpecialTerm,
+            'default_max_units' => 99,
+        ]);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $first = $this->section(
+            $term,
+            $this->curriculumEntry($profile, 'First Year', 'First Semester', Term::TypeFirstSemester, 3),
+            TermOffering::CategorySpecial,
+        );
+        $second = $this->section(
+            $term,
+            $this->curriculumEntry($profile, 'Second Year', 'Second Semester', Term::TypeSecondSemester, 3),
+            TermOffering::CategorySpecial,
+        );
 
-        $result = app(StudentUnitLoadService::class)->evaluate($enrollment, 23, null, 'First Year');
-        $this->assertSame('15.00', $result['normal_load']);
-        $this->assertSame('23.00', $result['configured_cap']);
-        $this->assertTrue($result['requires_exception']);
-        $this->assertFalse($result['unit_load_passes']);
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Curriculum term load unavailable');
+
+        app(StudentUnitLoadService::class)->snapshotForSections($enrollment, collect([$first, $second]));
+    }
+
+    #[Test]
+    public function only_a_matching_registrar_recorded_graduating_overload_authority_permits_the_draft(): void
+    {
+        [$enrollment, $proposal] = $this->overloadProposal();
+
+        $legacy = EnrollmentException::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'student_profile_id' => $enrollment->student_profile_id,
+            'term_id' => $enrollment->term_id,
+            'exception_type' => EnrollmentException::TypeUnitLoad,
+            'scope_key' => 'unit_load:'.$enrollment->term_id,
+            'approved_values' => ['approved_excess' => 99],
+        ]);
+        $this->assertSame(EnrollmentException::TypeUnitLoad, $legacy->exception_type);
+
+        try {
+            app(StudentUnitLoadService::class)->assertProposalPermitted($enrollment, $proposal);
+            $this->fail('Legacy UNIT_LOAD evidence must not authorize a current proposal.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('graduating-overload authority', $exception->getMessage());
+        }
+
+        $academicHead = User::factory()->create(['status' => User::StatusActive]);
+        $academicHead->assignRole(User::StaffRoleAcademicHead);
+        $this->expectException(AuthorizationException::class);
+
+        app(RecordGraduatingOverloadAuthority::class)->execute($proposal, $academicHead, [
+            'authority_reference' => 'EXT-GRAD-2026-001',
+            'authority_date' => '2026-08-25',
+            'evidence_reference' => 'EVID-GRAD-2026-001',
+            'reason' => 'Externally approved graduating overload for the exact proposal.',
+        ]);
+    }
+
+    #[Test]
+    public function matching_authority_is_proposal_specific_and_does_not_bypass_other_readiness(): void
+    {
+        [$enrollment, $proposal] = $this->overloadProposal();
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        $authority = app(RecordGraduatingOverloadAuthority::class)->execute($proposal, $registrar, [
+            'authority_reference' => 'EXT-GRAD-2026-001',
+            'authority_date' => '2026-08-25',
+            'evidence_reference' => 'EVID-GRAD-2026-001',
+            'reason' => 'Externally approved graduating overload for the exact proposal.',
+        ]);
+
+        $this->assertSame(EnrollmentException::TypeGraduatingOverload, $authority->exception_type);
+        $this->assertSame($proposal->content_hash, data_get($authority->approved_values, 'proposal_content_hash'));
+        $this->assertSame(User::StaffRoleRegistrar, data_get($authority->approved_values, 'recorded_by_role'));
+        $this->assertTrue(app(StudentUnitLoadService::class)->assertProposalPermitted($enrollment, $proposal)['unit_load_passes']);
+
+        $successor = $proposal->replicate(['state', 'issued_by', 'issued_at']);
+        $successor->version = 2;
+        $successor->supersedes_version_id = $proposal->id;
+        $successor->state = RegistrationProposalVersion::StateDraft;
+        $successor->content_hash = hash('sha256', 'successor-proposal');
+        $successor->save();
+        $enrollment->update(['current_proposal_version_id' => $successor->id]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('graduating-overload authority');
+
+        app(StudentUnitLoadService::class)->assertProposalPermitted($enrollment->fresh(), $successor);
+    }
+
+    #[Test]
+    public function incomplete_non_graduating_and_cross_term_authority_attempts_are_rejected(): void
+    {
+        [$enrollment, $proposal] = $this->overloadProposal();
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        try {
+            app(RecordGraduatingOverloadAuthority::class)->execute($proposal, $registrar, [
+                'authority_reference' => '',
+                'authority_date' => '2026-08-25',
+                'evidence_reference' => '',
+                'reason' => '',
+            ]);
+            $this->fail('Incomplete external authority evidence must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('authority_reference', $exception->errors());
+            $this->assertArrayHasKey('evidence_reference', $exception->errors());
+            $this->assertArrayHasKey('reason', $exception->errors());
+        }
+
+        $enrollment->studentProfile->update(['academic_standing' => StudentProfile::StandingRegular]);
+        try {
+            app(RecordGraduatingOverloadAuthority::class)->execute($proposal, $registrar, [
+                'authority_reference' => 'EXT-GRAD-2026-001',
+                'authority_date' => '2026-08-25',
+                'evidence_reference' => 'EVID-GRAD-2026-001',
+                'reason' => 'Externally approved graduating overload for the exact proposal.',
+            ]);
+            $this->fail('A non-graduating Student cannot consume graduating-overload authority.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Graduation Candidate', $exception->getMessage());
+        }
+
+        $otherTerm = Term::factory()->create(['type' => Term::TypeSpecialTerm]);
+        $crossTermSection = $this->section(
+            $otherTerm,
+            $proposal->items->first()->termOffering->curriculumEntry,
+            TermOffering::CategoryRegular,
+        );
+        try {
+            app(StudentUnitLoadService::class)->snapshotForSections($enrollment, collect([$crossTermSection]));
+            $this->fail('A cross-Term class cannot enter this Registration Case load snapshot.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('exact Term', $exception->getMessage());
+        }
+    }
+
+    /** @return array{Enrollment, RegistrationProposalVersion} */
+    private function overloadProposal(): array
+    {
+        $profile = StudentProfile::factory()->create([
+            'academic_standing' => StudentProfile::StandingGraduationCandidate,
+        ]);
+        $term = Term::factory()->create(['type' => Term::TypeSpecialTerm]);
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $plannedEntry = $this->curriculumEntry($profile, 'Third Year', 'Special Term', Term::TypeSpecialTerm, 3);
+        $retakeEntry = $this->curriculumEntry($profile, 'Second Year', 'First Semester', Term::TypeFirstSemester, 3);
+        $planned = $this->section($term, $plannedEntry, TermOffering::CategoryRegular);
+        $retake = $this->section($term, $retakeEntry, TermOffering::CategorySpecial);
+        $snapshot = app(StudentUnitLoadService::class)->snapshotForSections($enrollment, collect([$planned, $retake]));
+
+        return [$enrollment, $this->proposal($enrollment, $snapshot, [$planned, $retake])];
+    }
+
+    private function curriculumEntry(
+        StudentProfile $profile,
+        string $yearLevel,
+        string $termLabel,
+        string $termType,
+        float $units,
+    ): CurriculumEntry {
+        return CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $profile->curriculum_version_id,
+            'course_specification_id' => CourseSpecification::factory()->create(['credit_units' => $units])->id,
+            'year_level' => $yearLevel,
+            'term_label' => $termLabel,
+            'term_type' => $termType,
+        ]);
+    }
+
+    private function section(Term $term, CurriculumEntry $entry, string $category): Section
+    {
+        $offering = TermOffering::factory()->create([
+            'term_id' => $term->id,
+            'curriculum_entry_id' => $entry->id,
+            'category' => $category,
+            'state' => TermOffering::StateScheduled,
+        ]);
+
+        return Section::factory()->create([
+            'term_offering_id' => $offering->id,
+            'state' => Section::StateOpen,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @param  list<Section>  $sections
+     */
+    private function proposal(Enrollment $enrollment, array $snapshot, array $sections): RegistrationProposalVersion
+    {
+        $proposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'curriculum_version_id' => $enrollment->studentProfile->curriculum_version_id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+            'source_snapshot' => ['unit_load' => $snapshot],
+            'content_hash' => hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR)),
+        ]);
+
+        foreach ($sections as $sequence => $section) {
+            RegistrationProposalItem::factory()->create([
+                'registration_proposal_version_id' => $proposal->id,
+                'sequence' => $sequence + 1,
+                'term_offering_id' => $section->term_offering_id,
+                'section_id' => $section->id,
+                'units_snapshot' => $section->termOffering->courseSpecification()?->credit_units,
+            ]);
+        }
+
+        $enrollment->update(['current_proposal_version_id' => $proposal->id]);
+
+        return $proposal->load('items');
     }
 }

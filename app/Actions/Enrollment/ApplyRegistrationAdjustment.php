@@ -18,7 +18,6 @@ use App\Models\RegistrationLateAuthority;
 use App\Models\RegistrationProposalItem;
 use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
-use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -32,6 +31,7 @@ class ApplyRegistrationAdjustment
         private readonly EnrollmentPaymentRequirementProjection $finance,
         private readonly CalendarPhaseGateService $calendar,
         private readonly RegistrationAcademicEligibilityQuery $eligibility,
+        private readonly StudentUnitLoadService $unitLoad,
     ) {}
 
     public function execute(
@@ -63,7 +63,6 @@ class ApplyRegistrationAdjustment
                 ->whereKey($adjustmentProposal->id)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $term = Term::query()->whereKey($locked->term_id)->lockForUpdate()->firstOrFail();
             $currentCor = CorVersion::query()->whereKey($locked->current_cor_version_id)->lockForUpdate()->first();
             $timetable = PublishedTimetableVersion::query()
                 ->where('term_id', $locked->term_id)
@@ -132,9 +131,7 @@ class ApplyRegistrationAdjustment
             /** @var EloquentCollection<int, TermOffering> $offerings */
             $offerings = $proposal->items->pluck('termOffering')->filter()->values();
             $this->eligibility->assertEligible($locked, $locked->studentProfile->curriculumVersion, $offerings);
-            if ((float) $proposal->items->sum('units_snapshot') > (float) $term->default_max_units) {
-                throw ValidationException::withMessages(['units' => 'The learner-confirmed adjustment exceeds the current Term unit limit.']);
-            }
+            $this->unitLoad->assertProposalPermitted($locked, $proposal, lockForUpdate: true);
 
             $replacementMeetings = PublishedTimetableMeeting::query()
                 ->where('published_timetable_version_id', $timetable->id)

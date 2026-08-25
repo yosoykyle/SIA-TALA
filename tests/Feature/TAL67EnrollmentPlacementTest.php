@@ -385,6 +385,20 @@ final class TAL67EnrollmentPlacementTest extends TestCase
             'modality' => TermOffering::ModalityOnline,
             'state' => TermOffering::StateScheduled,
         ]);
+        $curriculumVersionIds = Enrollment::query()
+            ->where('term_id', $term->id)
+            ->with('studentProfile:id,curriculum_version_id')
+            ->get()
+            ->pluck('studentProfile.curriculum_version_id')
+            ->filter()
+            ->unique()
+            ->values();
+        if ($curriculumVersionIds->count() === 1) {
+            $offering->curriculumEntry->update([
+                'curriculum_version_id' => $curriculumVersionIds->sole(),
+                'term_type' => $term->type,
+            ]);
+        }
         $section = Section::factory()->for($offering, 'termOffering')->create([
             'capacity' => $capacity,
             'state' => Section::StateOpen,

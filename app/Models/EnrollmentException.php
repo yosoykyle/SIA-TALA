@@ -20,6 +20,8 @@ class EnrollmentException extends Model
 
     public const TypeUnitLoad = 'UNIT_LOAD';
 
+    public const TypeGraduatingOverload = 'GRADUATING_OVERLOAD';
+
     public const TypeConflict = 'CONFLICT';
 
     public const TypeBridging = 'BRIDGING';
@@ -29,6 +31,8 @@ class EnrollmentException extends Model
     public const StateExpired = 'EXPIRED';
 
     public const StateRevoked = 'REVOKED';
+
+    public const StateSuperseded = 'SUPERSEDED';
 
     /** @var list<string> */
     protected $fillable = [

@@ -56,8 +56,8 @@ final class TermCalendarPackageReadinessService
             }
         }
 
-        if ($package->term->type === Term::TypeSummer && blank($package->special_term_schedule_basis)) {
-            $blockers[] = $this->blocker('special_term_basis_missing', 'Special Term authority', 'Registrar', 'The approved particular schedule and class-hour/class-day basis are missing.', 'Record the attributable Special Term schedule basis.', 'Do not infer a Summer default; correct the Draft package.');
+        if ($package->term->type === Term::TypeSpecialTerm && blank($package->special_term_schedule_basis)) {
+            $blockers[] = $this->blocker('special_term_basis_missing', 'Special Term authority', 'Registrar', 'The approved particular schedule and class-hour/class-day basis are missing.', 'Record the attributable Special Term schedule basis.', 'Do not infer a Special Term default; correct the Draft package.');
         }
 
         return ['ready' => $blockers === [], 'blockers' => $blockers];

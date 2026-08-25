@@ -263,7 +263,7 @@ class EnrollmentGateEvaluator
         $load = $this->unitLoad->evaluate($enrollment, $this->activeUnitLoad($activeCourseEnrollments));
 
         if ($load['unit_load_passes'] !== true) {
-            return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, 'unit_load_exception_required', 'Requested unit load exceeds the configured student cap without an active approved unit-load exception.', $enrollment, $checkedAt);
+            return $this->failed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeRegistrar, 'curriculum_term_load_unavailable', (string) $load['blocker'], $enrollment, $checkedAt);
         }
 
         return $this->passed(EnrollmentGateResult::GateAcademicProgression, 5, EnrollmentGateResult::ResponsibleOfficeAcademicHead, $enrollment, $checkedAt);

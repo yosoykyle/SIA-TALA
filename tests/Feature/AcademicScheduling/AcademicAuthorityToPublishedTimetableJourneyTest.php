@@ -345,7 +345,7 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
     {
         $registrar = $this->registrar();
         $special = TermCalendarPackage::factory()->create([
-            'term_id' => Term::factory()->state(['type' => Term::TypeSummer]),
+            'term_id' => Term::factory()->state(['type' => Term::TypeSpecialTerm]),
             'special_term_schedule_basis' => null,
         ]);
         $this->completeCalendar($special);

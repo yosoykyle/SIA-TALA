@@ -10,6 +10,7 @@ use App\Models\RegistrationCaseEvent;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use Illuminate\Validation\ValidationException;
 
 class RegistrationReadinessQuery
 {
@@ -19,6 +20,7 @@ class RegistrationReadinessQuery
         private readonly RegistrationAcademicEligibilityQuery $academicEligibility,
         private readonly RegistrationPlacementValidator $placementValidator,
         private readonly RegistrationShortageProjection $shortages,
+        private readonly StudentUnitLoadService $unitLoad,
     ) {}
 
     /**
@@ -45,6 +47,7 @@ class RegistrationReadinessQuery
             && (int) $proposal->published_timetable_version_id === (int) $currentTimetableId;
         $placementReady = $sourceReady
             && $this->placementValidator->passes($enrollment, $proposal);
+        $unitLoadBlocker = $proposalReady ? $this->unitLoadBlocker($enrollment, $proposal) : null;
         $finance = $this->finance->forEnrollment($enrollment);
         $shortages = $this->shortages->for($enrollment);
         $eligibilityReady = $this->authoritativeEligibilityIsCurrent($enrollment, $proposal)
@@ -59,6 +62,9 @@ class RegistrationReadinessQuery
         }
         if (! $placementReady) {
             $blockers[] = 'Complete current placement';
+        }
+        if ($unitLoadBlocker !== null) {
+            $blockers[] = $unitLoadBlocker;
         }
         if ($finance['state'] !== 'Cleared') {
             $blockers[] = 'Accounting clearance';
@@ -78,6 +84,21 @@ class RegistrationReadinessQuery
             'shortages' => $shortages,
             'blockers' => $blockers,
         ];
+    }
+
+    private function unitLoadBlocker(
+        Enrollment $enrollment,
+        RegistrationProposalVersion $proposal,
+    ): ?string {
+        try {
+            $this->unitLoad->assertProposalPermitted($enrollment, $proposal);
+
+            return null;
+        } catch (ValidationException $exception) {
+            return str_contains($exception->getMessage(), 'graduating-overload authority')
+                ? 'Graduating overload authority'
+                : 'Curriculum term load unavailable';
+        }
     }
 
     private function authoritativeEligibilityIsCurrent(

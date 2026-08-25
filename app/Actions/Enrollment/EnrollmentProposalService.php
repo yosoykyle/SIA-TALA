@@ -151,7 +151,7 @@ class EnrollmentProposalService
 
             if ($load['unit_load_passes'] !== true) {
                 throw ValidationException::withMessages([
-                    'section_ids' => "The selected {$load['requested_total']}-unit load exceeds the allowed {$load['approved_limit']} units without an active approved exception.",
+                    'section_ids' => (string) $load['blocker'],
                 ]);
             }
 

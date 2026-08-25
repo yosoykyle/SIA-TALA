@@ -6,24 +6,252 @@ use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\EnrollmentException;
 use App\Models\EnrollmentGateResult;
-use App\Models\User;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\DB;
-use RuntimeException;
+use App\Models\RegistrationProposalVersion;
+use App\Models\Section;
+use App\Models\StudentProfile;
+use App\Models\Term;
+use App\Models\TermOffering;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class StudentUnitLoadService
 {
-    public function __construct(private readonly StudentUnitLoadPolicy $policy) {}
+    /** @return array<string, string> */
+    public function positionOptions(Enrollment $enrollment): array
+    {
+        $enrollment->loadMissing('studentProfile');
+        $entries = CurriculumEntry::query()
+            ->with('courseSpecification')
+            ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id)
+            ->orderBy('year_level')
+            ->orderBy('term_label')
+            ->orderBy('sequence')
+            ->get();
+
+        return $entries
+            ->groupBy(fn (CurriculumEntry $entry): string => $this->positionKey(
+                (string) $entry->year_level,
+                (string) $entry->term_label,
+                (string) $entry->term_type,
+            ))
+            ->map(function (EloquentCollection $positionEntries): string {
+                $entry = $positionEntries->firstOrFail();
+                $units = (float) $positionEntries->sum(
+                    fn (CurriculumEntry $curriculumEntry): float => (float) $curriculumEntry->courseSpecification?->credit_units,
+                );
+
+                return $entry->year_level.' — '.$entry->term_label.' ('.$this->units($units).' units)';
+            })
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, Section>  $sections
+     * @return array<string, mixed>
+     */
+    public function snapshotForSections(
+        Enrollment $enrollment,
+        Collection $sections,
+        ?string $confirmedPosition = null,
+    ): array {
+        $enrollment->loadMissing(['studentProfile', 'term']);
+        $profile = $enrollment->studentProfile;
+        $term = $enrollment->term;
+
+        if (! $term instanceof Term || $sections->isEmpty()) {
+            $this->unavailable();
+        }
+
+        $sections->each(fn (Section $section) => $section->loadMissing(
+            'termOffering.curriculumEntry.courseSpecification',
+        ));
+        $offerings = $sections
+            ->map(fn (Section $section): ?TermOffering => $section->termOffering)
+            ->filter(fn (mixed $offering): bool => $offering instanceof TermOffering)
+            ->values();
+
+        $curriculumIds = $offerings
+            ->pluck('curriculumEntry.curriculum_version_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $curriculumVersionId = $profile instanceof StudentProfile
+            ? $profile->curriculum_version_id
+            : $curriculumIds->first();
+
+        if ($offerings->count() !== $sections->count()
+            || $curriculumIds->count() !== 1
+            || $curriculumVersionId === null
+            || ($profile instanceof StudentProfile && (int) $profile->curriculum_version_id !== (int) $curriculumVersionId)
+            || $offerings->contains(fn (TermOffering $offering): bool => (int) $offering->term_id !== (int) $term->id
+                || (int) $offering->curriculumEntry->curriculum_version_id !== (int) $curriculumVersionId
+                || $offering->curriculumEntry->courseSpecification === null)) {
+            $this->unavailable('Every selected class must belong to the Student’s assigned Curriculum Version and exact Term.');
+        }
+
+        $position = $this->resolvePosition($offerings, $confirmedPosition);
+        $entries = CurriculumEntry::query()
+            ->with('courseSpecification')
+            ->where('curriculum_version_id', $curriculumVersionId)
+            ->where('year_level', $position['year_level'])
+            ->where('term_label', $position['term_label'])
+            ->where('term_type', $position['term_type'])
+            ->orderBy('sequence')
+            ->orderBy('id')
+            ->get();
+        $normalTotal = (float) $entries->sum(
+            fn (CurriculumEntry $entry): float => (float) $entry->courseSpecification?->credit_units,
+        );
+
+        if ($entries->isEmpty() || $normalTotal <= 0) {
+            $this->unavailable();
+        }
+
+        $requestedTotal = (float) $offerings->sum(
+            fn (TermOffering $offering): float => (float) $offering->curriculumEntry?->courseSpecification?->credit_units,
+        );
+        $curriculumEntryIds = $entries->pluck('id')->map(fn (mixed $id): int => (int) $id)->sort()->values()->all();
+        $termOfferingIds = $offerings->pluck('id')->map(fn (mixed $id): int => (int) $id)->sort()->values()->all();
+        $sectionIds = $sections->pluck('id')->map(fn (mixed $id): int => (int) $id)->sort()->values()->all();
+        $selection = [
+            'term_id' => (int) $term->id,
+            'curriculum_version_id' => (int) $curriculumVersionId,
+            'year_level' => $position['year_level'],
+            'term_label' => $position['term_label'],
+            'term_type' => $position['term_type'],
+            'curriculum_entry_ids' => $curriculumEntryIds,
+            'term_offering_ids' => $termOfferingIds,
+            'section_ids' => $sectionIds,
+            'normal_total' => $this->units($normalTotal),
+            'requested_total' => $this->units($requestedTotal),
+        ];
+
+        return [
+            ...$selection,
+            'selection_hash' => hash('sha256', json_encode($selection, JSON_THROW_ON_ERROR)),
+            'requires_graduating_overload' => $requestedTotal > $normalTotal,
+            'unit_load_passes' => $requestedTotal <= $normalTotal,
+        ];
+    }
 
     /** @return array<string, mixed> */
-    public function evaluate(Enrollment $enrollment, float $requestedTotal, ?float $configuredCap = null, ?string $yearLevel = null): array
-    {
+    public function currentProposalLoad(
+        Enrollment $enrollment,
+        RegistrationProposalVersion $proposal,
+        bool $lockForUpdate = false,
+    ): array {
         $enrollment->loadMissing(['studentProfile', 'term']);
-        $normalLoad = $this->normalLoad($enrollment, $yearLevel);
-        $configuredCap ??= $this->policy->configuredCapFor($normalLoad, $enrollment->term);
-        $exception = $this->activeException($enrollment);
-        $approvedExcess = (float) data_get($exception?->approved_values, 'approved_excess', 0);
-        $approvedLimit = min($configuredCap, $normalLoad + $approvedExcess);
+        $proposal->loadMissing(['items.section.termOffering.curriculumEntry.courseSpecification']);
+        $snapshot = data_get($proposal->source_snapshot, 'unit_load');
+
+        if (! is_array($snapshot)
+            || (int) $proposal->enrollment_id !== (int) $enrollment->id
+            || (int) $enrollment->current_proposal_version_id !== (int) $proposal->id
+            || (int) ($snapshot['term_id'] ?? 0) !== (int) $enrollment->term_id
+            || (int) ($snapshot['curriculum_version_id'] ?? 0) !== (int) $proposal->curriculum_version_id) {
+            $this->unavailable('Prepare a current proposal from the exact curriculum and Term.');
+        }
+
+        $sections = $proposal->items
+            ->pluck('section')
+            ->filter(fn (mixed $section): bool => $section instanceof Section)
+            ->values();
+        if ($sections->count() !== $proposal->items->count()) {
+            $this->unavailable('One or more proposal classes no longer exist.');
+        }
+
+        $recomputed = $this->snapshotForSections(
+            $enrollment,
+            $sections,
+            $this->positionKey(
+                (string) ($snapshot['year_level'] ?? ''),
+                (string) ($snapshot['term_label'] ?? ''),
+                (string) ($snapshot['term_type'] ?? ''),
+            ),
+        );
+
+        foreach ([
+            'year_level', 'term_label', 'term_type', 'curriculum_entry_ids', 'term_offering_ids',
+            'section_ids', 'normal_total', 'requested_total', 'selection_hash',
+        ] as $key) {
+            if (($snapshot[$key] ?? null) !== $recomputed[$key]) {
+                $this->unavailable('The proposal load source changed. Prepare a successor proposal.');
+            }
+        }
+
+        if ($lockForUpdate) {
+            EnrollmentException::query()
+                ->where('enrollment_id', $enrollment->id)
+                ->where('exception_type', EnrollmentException::TypeGraduatingOverload)
+                ->lockForUpdate()
+                ->get();
+        }
+
+        return $recomputed;
+    }
+
+    /** @return array<string, mixed> */
+    public function assertProposalPermitted(
+        Enrollment $enrollment,
+        RegistrationProposalVersion $proposal,
+        bool $lockForUpdate = false,
+    ): array {
+        $snapshot = $this->currentProposalLoad($enrollment, $proposal, $lockForUpdate);
+
+        if (! $snapshot['requires_graduating_overload']) {
+            return [...$snapshot, 'unit_load_passes' => true];
+        }
+
+        $profile = $enrollment->studentProfile;
+        $query = EnrollmentException::query()
+            ->where('enrollment_id', $enrollment->id)
+            ->where('student_profile_id', $enrollment->student_profile_id)
+            ->where('term_id', $enrollment->term_id)
+            ->where('exception_type', EnrollmentException::TypeGraduatingOverload)
+            ->where('state', EnrollmentException::StateActive)
+            ->where('scope_key', 'like', 'graduating_overload:proposal:'.$proposal->id.':%')
+            ->where('approved_values->proposal_content_hash', $proposal->content_hash)
+            ->where('approved_values->selection_hash', $snapshot['selection_hash'])
+            ->where(fn ($builder) => $builder->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->latest('approved_at')
+            ->latest('id');
+        $authority = $lockForUpdate ? $query->lockForUpdate()->first() : $query->first();
+
+        if (! $profile instanceof StudentProfile
+            || $profile->academic_standing !== StudentProfile::StandingGraduationCandidate
+            || ! $authority instanceof EnrollmentException) {
+            throw ValidationException::withMessages([
+                'unit_load' => 'Record the matching external graduating-overload authority for this exact proposal before continuing.',
+            ]);
+        }
+
+        return [...$snapshot, 'unit_load_passes' => true, 'authority_id' => (int) $authority->id];
+    }
+
+    /**
+     * Fail-closed compatibility projection for retained legacy callers.
+     *
+     * @return array<string, mixed>
+     */
+    public function evaluate(
+        Enrollment $enrollment,
+        float $requestedTotal,
+        ?float $unusedConfiguredCap = null,
+        ?string $yearLevel = null,
+    ): array {
+        $enrollment->loadMissing(['studentProfile', 'term']);
+        $groups = CurriculumEntry::query()
+            ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id)
+            ->when($yearLevel, fn ($query) => $query->where('year_level', $yearLevel))
+            ->where('term_type', $enrollment->term?->type)
+            ->get(['year_level', 'term_label', 'term_type'])
+            ->unique(fn (CurriculumEntry $entry): string => $this->positionKey(
+                $entry->year_level,
+                $entry->term_label,
+                $entry->term_type,
+            ));
         $otherFailedGates = EnrollmentGateResult::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('result', EnrollmentGateResult::ResultFailed)
@@ -32,116 +260,126 @@ class StudentUnitLoadService
             ->values()
             ->all();
 
+        if ($groups->count() !== 1) {
+            return [
+                'enrollment_id' => (int) $enrollment->id,
+                'normal_load' => null,
+                'requested_total' => $this->units($requestedTotal),
+                'configured_cap' => null,
+                'approved_excess' => '0.00',
+                'approved_limit' => null,
+                'requires_exception' => true,
+                'has_active_exception' => false,
+                'unit_load_passes' => false,
+                'other_failed_gates' => $otherFailedGates,
+                'all_gates_pass' => false,
+                'blocker' => 'Curriculum term load unavailable',
+            ];
+        }
+
+        $group = $groups->sole();
+        $normal = (float) CurriculumEntry::query()
+            ->where('curriculum_version_id', $enrollment->studentProfile?->curriculum_version_id)
+            ->where('year_level', $group->year_level)
+            ->where('term_label', $group->term_label)
+            ->where('term_type', $group->term_type)
+            ->join('course_specifications', 'curriculum_entries.course_specification_id', '=', 'course_specifications.id')
+            ->sum('course_specifications.credit_units');
+        $passes = $normal > 0 && $requestedTotal <= $normal;
+
         return [
             'enrollment_id' => (int) $enrollment->id,
-            'normal_load' => number_format($normalLoad, 2, '.', ''),
-            'requested_total' => number_format($requestedTotal, 2, '.', ''),
-            'configured_cap' => number_format($configuredCap, 2, '.', ''),
-            'approved_excess' => number_format($approvedExcess, 2, '.', ''),
-            'approved_limit' => number_format($approvedLimit, 2, '.', ''),
-            'default_approving_authority' => $this->policy->defaultApprovingAuthority(),
-            'default_recording_office' => $this->policy->defaultRecordingOffice(),
-            'requires_exception' => $requestedTotal > $normalLoad,
-            'has_active_exception' => $exception instanceof EnrollmentException,
-            'unit_load_passes' => $requestedTotal <= $normalLoad || ($exception instanceof EnrollmentException && $requestedTotal <= $approvedLimit),
+            'normal_load' => $normal > 0 ? $this->units($normal) : null,
+            'requested_total' => $this->units($requestedTotal),
+            'configured_cap' => null,
+            'approved_excess' => '0.00',
+            'approved_limit' => $normal > 0 ? $this->units($normal) : null,
+            'requires_exception' => $requestedTotal > $normal,
+            'has_active_exception' => false,
+            'unit_load_passes' => $passes,
             'other_failed_gates' => $otherFailedGates,
-            'all_gates_pass' => ($requestedTotal <= $normalLoad || ($exception instanceof EnrollmentException && $requestedTotal <= $approvedLimit)) && $otherFailedGates === [],
+            'all_gates_pass' => $passes && $otherFailedGates === [],
+            'blocker' => $passes ? null : 'Curriculum term load unavailable or graduating-overload authority required',
         ];
     }
 
-    /** @param array<string,mixed> $data */
-    public function approve(Enrollment $enrollment, array $data, User $actor): EnrollmentException
+    /**
+     * @param  Collection<int, TermOffering>  $offerings
+     * @return array{year_level:string,term_label:string,term_type:string}
+     */
+    private function resolvePosition(Collection $offerings, ?string $confirmedPosition): array
     {
-        if (! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead, User::StaffRoleSystemSuperAdmin])) {
-            throw new AuthorizationException('Only authorized academic staff may record an approved unit-load exception.');
-        }
+        $regularPositions = $offerings
+            ->filter(fn (TermOffering $offering): bool => $offering->category === TermOffering::CategoryRegular)
+            ->map(fn (TermOffering $offering): array => $this->entryPosition($offering->curriculumEntry))
+            ->unique(fn (array $position): string => $this->positionKey(...array_values($position)))
+            ->values();
+        $selectedPositions = $offerings
+            ->map(fn (TermOffering $offering): array => $this->entryPosition($offering->curriculumEntry))
+            ->unique(fn (array $position): string => $this->positionKey(...array_values($position)))
+            ->values();
 
-        foreach (['normal_limit', 'requested_total', 'configured_cap', 'authority', 'reason', 'evidence_reference'] as $required) {
-            if (blank($data[$required] ?? null)) {
-                throw new RuntimeException("Unit-load exception field [$required] is required.");
+        if (filled($confirmedPosition)) {
+            $position = $this->parsePositionKey($confirmedPosition);
+            if ($regularPositions->isNotEmpty()
+                && $regularPositions->contains(fn (array $regular): bool => $regular !== $position)) {
+                $this->unavailable('The confirmed curriculum position conflicts with an ordinary selected class.');
             }
+
+            return $position;
         }
 
-        $normal = (float) $data['normal_limit'];
-        $requested = (float) $data['requested_total'];
-        $cap = (float) $data['configured_cap'];
-
-        if ($requested <= $normal || $requested > $cap) {
-            throw new RuntimeException('Requested load must exceed the normal load and remain within the configured cap.');
+        if ($regularPositions->count() === 1) {
+            return $regularPositions->sole();
         }
 
-        return DB::transaction(function () use ($enrollment, $data, $actor, $normal, $requested, $cap): EnrollmentException {
-            $locked = Enrollment::query()->lockForUpdate()->findOrFail($enrollment->id);
+        if ($selectedPositions->count() === 1) {
+            return $selectedPositions->sole();
+        }
 
-            return EnrollmentException::query()->updateOrCreate(
-                [
-                    'enrollment_id' => $locked->id,
-                    'exception_type' => EnrollmentException::TypeUnitLoad,
-                    'scope_key' => 'unit_load:'.$locked->term_id,
-                ],
-                [
-                    'student_profile_id' => $locked->student_profile_id,
-                    'term_id' => $locked->term_id,
-                    'requested_values' => ['requested_total' => $requested],
-                    'approved_values' => [
-                        'normal_limit' => $normal,
-                        'requested_total' => $requested,
-                        'approved_excess' => $requested - $normal,
-                        'configured_cap' => $cap,
-                        'affected_term_offering_ids' => array_values($data['affected_term_offering_ids'] ?? []),
-                        'authority' => (string) $data['authority'],
-                        'default_approving_authority' => $this->policy->defaultApprovingAuthority(),
-                        'default_recording_office' => $this->policy->defaultRecordingOffice(),
-                        'recorded_by_role' => $this->recordingRole($actor),
-                        'recorded_by_user_id' => $actor->id,
-                    ],
-                    'reason' => (string) $data['reason'],
-                    'evidence_reference' => (string) $data['evidence_reference'],
-                    'approved_by' => $actor->id,
-                    'approved_at' => now(),
-                    'expires_at' => $data['expires_at'] ?? null,
-                    'state' => EnrollmentException::StateActive,
-                ],
-            );
-        }, attempts: 3);
+        $this->unavailable('Registrar must confirm one exact position from the assigned Curriculum Version.');
     }
 
-    private function normalLoad(Enrollment $enrollment, ?string $yearLevel): float
+    /** @return array{year_level:string,term_label:string,term_type:string} */
+    private function entryPosition(?CurriculumEntry $entry): array
     {
-        $query = CurriculumEntry::query()
-            ->where('curriculum_version_id', $enrollment->studentProfile->curriculum_version_id)
-            ->where('term_type', $enrollment->term->type)
-            ->when($yearLevel, fn ($query) => $query->where('year_level', $yearLevel));
-        $normal = (float) $query
-            ->join('course_specifications', 'curriculum_entries.course_specification_id', '=', 'course_specifications.id')
-            ->sum('course_specifications.credit_units');
-
-        return $normal > 0 ? $normal : $this->policy->fallbackNormalMaxUnits();
-    }
-
-    private function activeException(Enrollment $enrollment): ?EnrollmentException
-    {
-        return EnrollmentException::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('student_profile_id', $enrollment->student_profile_id)
-            ->where('term_id', $enrollment->term_id)
-            ->where('exception_type', EnrollmentException::TypeUnitLoad)
-            ->where('state', EnrollmentException::StateActive)
-            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-            ->latest('approved_at')
-            ->first();
-    }
-
-    private function recordingRole(User $actor): string
-    {
-        if ($actor->hasRole(User::StaffRoleAcademicHead)) {
-            return User::StaffRoleAcademicHead;
+        if (! $entry instanceof CurriculumEntry
+            || blank($entry->year_level) || blank($entry->term_label) || blank($entry->term_type)) {
+            $this->unavailable();
         }
 
-        if ($actor->hasRole(User::StaffRoleRegistrar)) {
-            return User::StaffRoleRegistrar;
+        return [
+            'year_level' => (string) $entry->year_level,
+            'term_label' => (string) $entry->term_label,
+            'term_type' => (string) $entry->term_type,
+        ];
+    }
+
+    /** @return array{year_level:string,term_label:string,term_type:string} */
+    private function parsePositionKey(string $key): array
+    {
+        $parts = explode('|', $key);
+        if (count($parts) !== 3 || collect($parts)->contains(fn (string $part): bool => blank($part))) {
+            $this->unavailable();
         }
 
-        return User::StaffRoleSystemSuperAdmin;
+        return ['year_level' => $parts[0], 'term_label' => $parts[1], 'term_type' => $parts[2]];
+    }
+
+    private function positionKey(string $yearLevel, string $termLabel, string $termType): string
+    {
+        return implode('|', [$yearLevel, $termLabel, $termType]);
+    }
+
+    private function units(float $units): string
+    {
+        return number_format($units, 2, '.', '');
+    }
+
+    private function unavailable(?string $detail = null): never
+    {
+        throw ValidationException::withMessages([
+            'unit_load' => 'Curriculum term load unavailable'.($detail !== null ? ". {$detail}" : '.'),
+        ]);
     }
 }

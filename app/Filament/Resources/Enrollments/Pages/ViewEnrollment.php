@@ -10,6 +10,7 @@ use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\PlaceRegistrationProposal;
 use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Enrollment\RecordCourseDrop;
+use App\Actions\Enrollment\RecordGraduatingOverloadAuthority;
 use App\Actions\Enrollment\RecordLateEnrollmentReopenAuthority;
 use App\Actions\Enrollment\RecordRegistrationAdjustmentFinanceConfirmation;
 use App\Actions\Enrollment\RecordRegistrationLateAuthority;
@@ -17,6 +18,7 @@ use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReopenRegistrationCase;
+use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
@@ -81,6 +83,7 @@ class ViewEnrollment extends ViewRecord
             $this->primaryAction(),
             ActionGroup::make([
                 $this->prepareProposalAction(),
+                $this->recordGraduatingOverloadAuthorityAction(),
                 $this->prepareAdjustmentProposalAction(),
                 $this->issueProposalAction(),
                 $this->assistedConfirmationAction(),
@@ -207,7 +210,16 @@ class ViewEnrollment extends ViewRecord
                     ->searchable()
                     ->preload()
                     ->required()
+                    ->live()
                     ->helperText('Select the complete proposal. This creates an immutable successor and invalidates prior confirmation.'),
+                Select::make('curriculum_position')
+                    ->label('Applicable curriculum term')
+                    ->options(fn (): array => app(StudentUnitLoadService::class)->positionOptions($this->getRecord()))
+                    ->searchable()
+                    ->preload()
+                    ->required(fn (): bool => $this->getRecord()->selection_basis === Enrollment::SelectionIndividuallyAdvised)
+                    ->visible(fn (): bool => $this->getRecord()->selection_basis === Enrollment::SelectionIndividuallyAdvised)
+                    ->helperText('Confirm the exact curriculum position that defines the normal unit total. Additional or retake classes still count toward the requested total.'),
             ])
             ->action(function (array $data): void {
                 try {
@@ -216,11 +228,62 @@ class ViewEnrollment extends ViewRecord
                         $this->actor(),
                         array_map('intval', $data['section_ids']),
                         $this->getRecord()->lock_version,
+                        curriculumPosition: $data['curriculum_position'] ?? null,
                     );
                     $this->record = $this->getRecord()->refresh();
                     Notification::make()->title('Draft proposal prepared')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Proposal was not prepared', $exception);
+                }
+            });
+    }
+
+    private function recordGraduatingOverloadAuthorityAction(): Action
+    {
+        return Action::make('recordGraduatingOverloadAuthority')
+            ->label('Record graduating overload authority')
+            ->icon('heroicon-o-document-check')
+            ->modalHeading('Record external graduating-overload authority')
+            ->modalDescription(fn (): string => $this->proposalUnitLoadSummary())
+            ->modalSubmitActionLabel('Record authority')
+            ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar))
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar)
+                && $this->getRecord()->currentProposalVersion?->state === RegistrationProposalVersion::StateDraft
+                && data_get($this->getRecord()->currentProposalVersion->source_snapshot, 'unit_load.requires_graduating_overload') === true)
+            ->schema([
+                TextInput::make('authority_reference')
+                    ->label('External authority reference')
+                    ->required()
+                    ->maxLength(255),
+                DatePicker::make('authority_date')
+                    ->label('External authority date')
+                    ->required()
+                    ->maxDate(now()),
+                TextInput::make('evidence_reference')
+                    ->label('Evidence reference')
+                    ->required()
+                    ->maxLength(255),
+                Textarea::make('reason')
+                    ->label('Recorded basis')
+                    ->required()
+                    ->maxLength(1000)
+                    ->helperText('Record the externally approved result. This action does not grant the approval.'),
+            ])
+            ->action(function (array $data): void {
+                try {
+                    app(RecordGraduatingOverloadAuthority::class)->execute(
+                        $this->getRecord()->currentProposalVersion,
+                        $this->actor(),
+                        $data,
+                    );
+                    $this->record = $this->getRecord()->refresh();
+                    Notification::make()
+                        ->title('Graduating overload authority recorded')
+                        ->body('The authority applies only to this exact Draft proposal and unit-load check.')
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Graduating overload authority was not recorded', $exception);
                 }
             });
     }
@@ -1242,6 +1305,19 @@ class ViewEnrollment extends ViewRecord
         abort_unless($actor instanceof User, 403);
 
         return $actor;
+    }
+
+    private function proposalUnitLoadSummary(): string
+    {
+        $snapshot = data_get($this->getRecord()->currentProposalVersion?->source_snapshot, 'unit_load', []);
+        $normal = data_get($snapshot, 'normal_total', 'Unavailable');
+        $requested = data_get($snapshot, 'requested_total', 'Unavailable');
+        $position = collect([
+            data_get($snapshot, 'year_level'),
+            data_get($snapshot, 'term_label'),
+        ])->filter()->implode(' — ');
+
+        return "Applicable curriculum term: {$position}. Normal total: {$normal} units. Requested total: {$requested} units. Verify the exact Draft proposal before recording its external authority.";
     }
 
     /** @return array<int, string> */

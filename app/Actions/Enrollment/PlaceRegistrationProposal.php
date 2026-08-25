@@ -19,6 +19,7 @@ class PlaceRegistrationProposal
     public function __construct(
         private readonly CalendarPhaseGateService $calendar,
         private readonly RegistrationPlacementValidator $validator,
+        private readonly StudentUnitLoadService $unitLoad,
     ) {}
 
     public function execute(RegistrationProposalVersion $proposal, User $actor, ?\DateTimeInterface $expectedDeadline = null): RegistrationProposalVersion
@@ -37,6 +38,8 @@ class PlaceRegistrationProposal
                 || (int) $enrollment->current_proposal_version_id !== (int) $locked->id) {
                 throw ValidationException::withMessages(['proposal' => 'Placement requires the current confirmed proposal.']);
             }
+
+            $this->unitLoad->assertProposalPermitted($enrollment, $locked, lockForUpdate: true);
 
             $deadline = $this->calendar->enrollmentDeadline((int) $enrollment->term_id);
             if ($expectedDeadline !== null

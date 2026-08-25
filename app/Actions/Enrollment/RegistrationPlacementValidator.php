@@ -15,7 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 class RegistrationPlacementValidator
 {
-    public function __construct(private readonly RegistrationAcademicEligibilityQuery $academicEligibility) {}
+    public function __construct(
+        private readonly RegistrationAcademicEligibilityQuery $academicEligibility,
+        private readonly StudentUnitLoadService $unitLoad,
+    ) {}
 
     public function assertCurrent(
         Enrollment $enrollment,
@@ -55,6 +58,7 @@ class RegistrationPlacementValidator
             $curriculum,
             $proposal->items->pluck('termOffering')->filter()->values(),
         );
+        $this->unitLoad->assertProposalPermitted($enrollment, $proposal, $lockForUpdate);
 
         $meetingRanges = [];
 

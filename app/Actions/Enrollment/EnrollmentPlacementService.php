@@ -605,7 +605,7 @@ class EnrollmentPlacementService
         if ($load['unit_load_passes'] !== true) {
             $this->reject(
                 'unit_load',
-                "The selected {$load['requested_total']}-unit load exceeds the allowed {$load['approved_limit']} units without an active approved exception.",
+                (string) $load['blocker'],
             );
         }
 
