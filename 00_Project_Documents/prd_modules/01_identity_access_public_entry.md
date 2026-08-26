@@ -8,7 +8,7 @@ This PRD is the complete product authority for identity, access, public entry, a
 
 Clinic 1 gives each person one secure TALA credential account and only the workspace contexts that person is authorized to use. It provides:
 
-- A task-focused public gateway
+- A task-focused one-page public gateway with factual Programs, institution/location context, and contextual sign-in
 - Minimal Applicant account creation and email verification
 - Secure Staff invitation and activation
 - Verified-email sign-in and recovery
@@ -36,6 +36,8 @@ Verified email is the only sign-in identifier and the single live TALA communica
 | Account disable/reactivate | Audited access action that preserves domain records | Focused state-changing action |
 | Staff access identity | Minimal name and optional institution staff identifier | Source record |
 | Public notices and FAQ | Bounded published content | Source record and generated public view |
+| Public Program availability | Read-only projection of Clinic 2 Program and Admission Cycle authority | Generated public view |
+| Institution map and approved hero media | Bounded configured presentation inputs with factual fallback | Generated public view; not a content-management subsystem |
 | Security emails and high-value audit events | Transactional output and assurance evidence | Integration output / audit record |
 
 ### 2.2 TALA records or consumes but does not decide
@@ -54,7 +56,7 @@ Clinic 1 does not build:
 - Username, student-number, staff-ID, application-reference, or LRN authentication
 - Social login, public API authentication, SSO, biometrics, security questions, or email-as-MFA
 - A role builder, permission editor, generic policy DSL, configurable account state machine, or arbitrary Settings page
-- A full CMS, page builder, gallery, media library, programs-marketing catalog, embedded map, or reviewer workflow
+- A full CMS, page builder, gallery, arbitrary media library, duplicated programs-marketing catalog, map editor, or reviewer workflow
 - Applicant intake, admission review, student-master creation, enrollment, finance, grades, or academic decisions
 - An automatic retention/disposal module, legal-hold workflow, or ordinary deletion of security/domain history
 - Email for routine saves, navigation, successful sign-in, failed sign-in, or internal queue movement
@@ -208,7 +210,7 @@ The first System Administrator is created through a controlled deployment/operat
 
 ### 6.1 Public to verified Applicant
 
-1. Public visitor opens TALA and sees current application availability.
+1. Public visitor opens TALA and sees Servitech/TALA identity, current application availability, factual active Programs, the connected learner journey, in-page FAQ, institution/location context, and official support.
 2. When entry is open, **Apply** opens Applicant account registration. When closed, the page explains that applications are closed while preserving Applicant sign-in for existing accounts.
 3. Registration collects only email, password, confirmation, and acknowledgement of the linked privacy notice.
 4. The primary action is **Create account**. Account creation does not create an application.
@@ -291,6 +293,8 @@ Clinic 4 owns the transaction:
 
 System Administrator may create, edit, publish/unpublish, order, and schedule concise notices and FAQ entries. Publication windows use Asia/Manila. Invalid or unsafe optional links are rejected. Public rendering includes only currently published content.
 
+Programs are not Public Content records. The Public Gateway projects active Program facts and intake availability from Clinic 2 authority. Location uses the configured approved map reference with an external-link fallback. Hero media is limited to a small tracked or approved-object-storage asset set selected through deployment/configuration; it is never an arbitrary gallery. Moving media must be muted, include a poster and visible pause/stop control, preserve all meaning in text, and become static when reduced motion is requested.
+
 ## 7. Authentication and Session Policy
 
 ### 7.1 Passwords
@@ -354,7 +358,7 @@ The exact Clinic 1 page blueprints and low-fidelity wireframes live in the UI Su
 
 | Page/surface | Owner/user | Primary purpose | Primary action |
 |---|---|---|---|
-| Public gateway | Public | Understand TALA availability and choose Apply or sign-in context | Apply or Sign in |
+| Public gateway | Public | Understand Servitech/TALA, current admission availability, factual Programs, location/support, and choose Apply or sign-in context | Apply or Sign in |
 | Applicant registration | Public Applicant | Create a credential account | Create account |
 | Email verification | Applicant/Staff | Prove email ownership | Verify / Resend |
 | Contextual sign-in | All account holders | Authenticate for an intended context | Sign in |
@@ -424,6 +428,7 @@ Technical IDs and evidence references remain secondary detail.
 - Tables carry queues; infolists carry read-only facts; forms collect actual input; Sections/Tabs disclose secondary evidence; Action Groups contain secondary row actions.
 - A wizard is not used for registration because the form is only email/password. Staff invitation is a focused form, not a workflow builder.
 - The public page and authentication shell visibly identify the selected context and always offer **Choose another workspace**.
+- Public and authenticated decisions follow the UI Blueprint's ethical presentation standard: defaults disclose their source and remain reversible; persisted progress and saved state are factual; consequential actions are never preselected; and warnings name the real consequence, owner, date/source, and recovery path without pressure.
 - A chooser shows authorized contexts only; it has no unavailable roles, counts, previews, or analytics.
 - System Administrator tables use native Filament filter panels and active indicators, not custom column-header dropdowns.
 - Status and recovery never rely on color alone.
@@ -441,7 +446,8 @@ Technical IDs and evidence references remain secondary detail.
 - Focus is visible and not obscured; labels and instructions are programmatically associated; errors identify fields, announce a summary, and focus the first error; state changes include screen-reader status text.
 - Interactive targets meet the WCAG 2.2 minimum and use comfortable touch sizing where practical.
 - Content remains usable at 200% zoom, in high-contrast mode, and with reduced motion.
-- The Public Gateway remains one Bootstrap page. Support, Privacy Notice, and Accessibility open Bootstrap modals rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
+- The Public Gateway remains one Bootstrap page. Programs, notices, FAQ, institution/location and map context, and support remain in the page body; the navigation uses in-page anchors and contextual sign-in. Support, Privacy Notice, and Accessibility may use the approved bounded Bootstrap modal treatment rather than separate public pages. Each modal is full-screen below Bootstrap's small breakpoint and wide, centered, and scrollable on larger screens, with a labelled title, close control, Escape dismissal, contained focus, and focus restoration.
+- Approved hero media never carries task meaning by itself. Moving media is muted, pausable, has a poster, and becomes static under reduced motion. Missing media or an unavailable map embed leaves the textual content and external map fallback intact.
 - The registration Privacy Notice link opens `/?modal=privacy` in a new tab so entered Filament form data remains intact while the same Public Gateway notice is shown; the notice is not duplicated inside Filament.
 - Session-expiry warning allows the user to continue when the security policy permits without removing the accepted idle timeout.
 - 403, 404, 419, 429, unexpected error, and temporary-unavailable pages preserve TALA identity and provide one safe recovery route.
@@ -495,6 +501,9 @@ The implemented module must prove:
 - Learner versus Staff email-change ownership
 - Official-enrollment hook granting Student access idempotently without a second account or Student number
 - Public notice/FAQ publication windows, ordering, and safe links
+- Factual Program projection from current Program/Admission Cycle authority without duplicate marketing records
+- Approved hero-media and map fallback behavior, including pause/poster/reduced-motion and no dependency on media for meaning
+- Ethical defaults, persisted progress/saved state, active choice for consequential actions, factual warnings, and visible alternatives
 - Native search and role/state/verification/date filters with active indicators
 - Empty, loading, validation, error, keyboard, screen-reader, desktop, and mobile behavior
 - Policy traceability for every automatic security rule
@@ -518,7 +527,7 @@ This module supplies credential and role contexts for the coordinated baseline o
 
 | Persona / preconditions | Entry | Action | Visible evidence | Cross-role result | Output | Failure branch | Pass condition |
 |---|---|---|---|---|---|---|---|
-| Public visitor; entry closed then open | Public gateway | Inspect closed state, then select **Apply** after Clinic 2 opens entry | Availability, support, privacy/accessibility links, and contextual sign-in remain clear | Existing Applicant sign-in remains available | Applicant registration entry only when open | Unsafe public link or unavailable source shows safe fallback | No marketing/CMS detour and no application is created by registration |
+| Public visitor; entry closed then open | Public gateway | Inspect closed state, Programs, FAQ, map context, and contextual sign-in; then select **Apply** after Clinic 2 opens entry | Availability, active Program source, support, privacy/accessibility links, institution/location, and contextual sign-in remain clear | Existing Applicant sign-in remains available | Applicant registration entry only when open | Unsafe public link, unavailable map/media, or unavailable source shows a textual safe fallback | No duplicate marketing/CMS detour, no artificial urgency, and no application is created by registration |
 | `C1-APP-VERIFY` | Applicant registration | Create account, open expired link, resend, verify | Generic duplicate protection, pending state, resend guidance, verified completion | System Administrator sees bounded state, not secrets | Verified Applicant access | Mail failure preserves account and offers retry/support | One account reaches Applicant workspace |
 | `C1-APP-ACTIVE` | Applicant sign-in | Sign in through the wrong context, recover, then reset password | Context orientation, generic auth error, authorized destination, recovery result | Other roles remain undisclosed | Applicant workspace and invalidated old sessions | Used/expired recovery link has one safe action | Authentication occurs once and route authorization holds |
 | `C1-MULTIROLE` | Staff sign-in | Complete MFA, choose Student, switch to Faculty | Only authorized contexts, current context identity, stricter Staff session policy | Student and Faculty projections remain separate | Correct destination for each chosen context | Direct unauthorized role route is inaccessible without record leakage | No combined-role dashboard or privilege merging |

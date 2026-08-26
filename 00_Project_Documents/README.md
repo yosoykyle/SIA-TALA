@@ -17,7 +17,7 @@ These ten documents are the complete approved product authority set:
 9. [`ui_surface_blueprint.md`](ui_surface_blueprint.md)
 10. [`architecture_specification.md`](architecture_specification.md)
 
-The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. An accepted vertical-slice plan may authorize implementation of this authority but cannot silently change it.
+The baseline and PRDs own product behavior, the UI Surface Blueprint owns interface mapping, and the Architecture Specification owns system and integration boundaries. The approved [TALA Experience and Official-Output Design Definition](TALA-Experience-and-Official-Output-Design-Definition.md) is a subordinate design rationale and successor-implementation companion; it cannot override those owners. An accepted vertical-slice plan may authorize implementation of this authority but cannot silently change it.
 
 ## Workflow and operational authority
 
@@ -25,6 +25,7 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | --- | --- | --- |
 | Workflow authority | [`../AGENTS.md`](../AGENTS.md), [`TALA-Orchestrator-Protocol.md`](TALA-Orchestrator-Protocol.md) | Planning, execution, verification, preservation, Git, and external-mutation rules only |
 | Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
+| Approved design companion | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Human-Centered Operations rationale, production-stack translation, ethical safeguards, and successor map; canonical PRDs, UI Surface Blueprint, and Architecture Specification govern any conflict |
 | Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
 | Developer setup | [`../README.md`](../README.md), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Setup or compatibility routing; never product authority |
 

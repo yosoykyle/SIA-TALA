@@ -2,7 +2,7 @@
 
 ## Purpose and Authority
 
-This blueprint is the canonical UI authority for the TALA MVP. It defines user-visible capabilities, navigation, states, information hierarchy, interaction patterns, responsiveness, accessibility, outputs, and acceptance traceability independently of any design tool or implementation structure.
+This blueprint is the canonical UI authority for the TALA MVP. It defines user-visible capabilities, navigation, states, information hierarchy, interaction patterns, responsiveness, accessibility, outputs, and acceptance traceability independently of any design tool or implementation structure. The approved [Human-Centered Operations design definition](TALA-Experience-and-Official-Output-Design-Definition.md) records the detailed rationale and successor implementation translation; this blueprint governs any conflict.
 
 Use this source order while defining every UI authority and later planning every approved UI slice:
 
@@ -31,7 +31,7 @@ MVP decisions:
 2. Registrar, Accounting, Academic Head, and System Administrator share `/admin`. Navigation visibility improves usability; policies and action authorization enforce access.
 3. Applicant and Student surfaces remain separate projections over one credential account. Official enrollment grants persistent Student access; it does not create another account.
 4. Authentication UI stays in the Filament panels. Laravel Fortify remains the backend authentication contract for login, registration, verification, password reset, and custom response handling where already integrated.
-5. The public gateway retains one isolated Bootstrap landing page and its established design language, reduced to the approved task order in the Clinic 1 blueprint. Mission/vision essays, embedded map, galleries, programs marketing, and general CMS behavior are removed. Concise institution/location context and an external Google Maps link remain. Authenticated work remains Filament-first.
+5. The public gateway retains one isolated Bootstrap landing page and its established progressive-blur design language, organized around the approved task order in the Clinic 1 blueprint. It may project factual active Programs and admission availability, embed the approved institution map with an external-link fallback, and use a small tracked institution-approved hero-media set. Mission/vision essays, galleries, duplicated marketing records, arbitrary media management, page building, and general CMS behavior remain excluded. Authenticated work remains Filament-first.
 6. Filament resources, pages, tables, forms, infolists, actions, filters, widgets, and notifications are the default authenticated UI toolkit.
 7. Core Filament components are used before custom Blade or a new plugin. A plugin is introduced only when a required PRD behavior cannot be delivered cleanly with installed components.
 8. Auth Designer is retained only when native Filament verification, recovery, profile, email-change, MFA, responsive, and accessibility behavior still works. Applicant registration remains a focused custom page only if needed to enforce the approved minimal account-creation contract.
@@ -80,6 +80,22 @@ Filament v5 implementation conventions:
 7. Bulk actions are used only when the same authorized decision can safely apply to every selected record.
 8. Native confirmation modals and Filament notifications provide action feedback.
 
+## Human-Centered Operations and Ethical Decision Presentation
+
+The approved presentation direction combines Servitech institutional identity, calm blue-led surfaces, learner guidance, efficient Staff workbenches, plain operational language, restrained semantic status colors, and document-specific official-output layouts. The institution crest and TALA mark remain full color on screen. Selected navigation uses a filled surface, contrast, icon, and weight without a narrow yellow side strip. Routine pages progressively disclose detail rather than presenting every field, evidence item, and action at once.
+
+The following rules apply to every coverage ID:
+
+1. A default may select only an unambiguous authorized workspace, exact current Term, current record, or role-scoped actionable queue. Its basis remains visible and the user can change it easily.
+2. Consent, payment, publication, release, issuance, access change, destructive actions, and other consequential decisions are never preselected.
+3. Progress appears only for a fixed journey and comes from persisted canonical state. Use meaningful completed/current/remaining labels and `aria-current="step"` where appropriate; never invent percentages, bonus progress, or a universal cross-clinic progress bar.
+4. Saved, submitted, immutable, and recoverable states appear only when attributable persisted evidence proves them. Unsaved changes are identified factually.
+5. A safety warning states the exact consequence, source, applicable date, responsible owner, and recovery path. TALA uses no fear, shame, artificial scarcity, countdown pressure, hidden alternatives, decoy choice, or exaggerated harm.
+6. Primary/secondary, current/proposed, official/unofficial, available/blocked, and ordinary/destructive distinctions use semantic hierarchy without relying on color, motion, or position alone.
+7. Providing requirements, explanations, support, or previews is ordinary service design and never creates an implied obligation to provide data, consent, payment, or another action.
+
+Loading, saved, error, and success changes use accessible status messages without stealing focus. Responsive transformations preserve reading order, current context, alternatives, and the owning recovery action.
+
 ## Clinic 1 — Identity, Access, and Public Entry UI Authority
 
 **Status:** Approved on 2026-08-06. This section supersedes conflicting identity/public/access presentation in later legacy sections of this file.
@@ -88,7 +104,7 @@ Filament v5 implementation conventions:
 
 | Surface | Owner and entry | Information order | Actions and controls | States, permissions, and mobile |
 |---|---|---|---|---|
-| Public Gateway | Public; root route | Institution identity and short TALA explanation → application availability → Apply and Sign in → accessible Applicant/Student/Staff sign-in menu → Access TALA cards → current notices → FAQ → concise institution/location context and external map link → Support, Privacy Notice, and Accessibility modals | **Apply** when open; navbar **Login** Bootstrap dropdown; role-context cards repeat the same destinations; Bootstrap informational modals | One Bootstrap page only. Closed application entry replaces Apply with a clear closed state but never removes existing Applicant sign-in. Cards stack on mobile. The Login dropdown supports click, tap, focus, and keyboard without requiring scroll. Each informational modal uses `modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down`, Bootstrap focus/Escape behavior, a labelled title, and a close control. |
+| Public Gateway | Public; root route | Servitech/TALA identity and concise task explanation → current application availability and Apply/Applicant sign-in → contextual Applicant/Student/Staff sign-in → connected learner journey → factual active Program projection → current notices → in-page FAQ → institution/location and approved map context → official support and bounded Privacy/Accessibility information | **Apply** when open; contextual navbar **Sign in** Bootstrap dropdown; in-page anchors; Bootstrap informational modals; external map fallback | One Bootstrap page only. Closed entry explains the state without pressure and never removes existing Applicant sign-in. Programs come from active Program and Admission Cycle records, not marketing copies. Approved hero media never carries meaning by itself and has a static reduced-motion fallback. The Sign-in dropdown supports click, tap, focus, and keyboard without scrolling. Modals use `modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down`, labelled titles, close/Escape behavior, focus containment, and focus restoration. |
 | Applicant Registration | Public; Apply while entry is open | Applicant account context → email → password/passphrase → confirmation → privacy-notice acknowledgement/link → concise verification expectation | **Create account**; Sign in; Choose another workspace | No name, LRN, application, program, document, or Student field. The privacy link opens `/?modal=privacy` in a new tab and auto-opens the Public Gateway's single Privacy modal source; Bootstrap is not duplicated in Filament. Closed entry fails safely. Duplicate email does not reveal account details. Single column on mobile. |
 | Contextual Sign In | Public; Applicant, Student, or Staff entry | Visible selected context → verified email → password → Remember device only for Applicant/Student-only use → recovery link → workspace-choice link | **Sign in**; Forgot password; Choose another workspace | Invalid/unknown credentials remain generic. Correct credentials in wrong context authenticate once and reroute with explanation. Staff entry omits Remember me. |
 | Verification / Activation | Link or post-registration/invitation state | What must be verified/activated → target email (safely shown) → expiry or resend guidance → support | **Verify** or **Set password and activate**; Resend; Return to sign in | Expired, used, malformed, throttled, dispatch-failed, and already-complete states each provide one valid recovery action. Staff activation continues directly to mandatory MFA setup. |
@@ -100,7 +116,7 @@ Filament v5 implementation conventions:
 | Account Detail | Users & Access row View | Account state and next action → Staff profile → role contexts → linked Applicant/Student profiles → security facts → high-value audit history | One state-appropriate primary action; secondary actions in Action Group | Read-only Infolist. No password, delete, archive, arbitrary role creation, permission editing, or academic/finance action. Internal disable reason is visible only to authorized administration, never to the disabled user. |
 | Invite Staff | Users & Access header action | Email → existing-account match result when authorized → name parts → optional Staff identifier → fixed Staff roles → reason → authority → optional evidence reference → invitation/access-change summary | **Send invitation** for a new account or **Add Staff access** for an existing verified account; Cancel | No password field. A verified existing account is reused and is not sent through password activation again. Prevent duplicate account creation and final-admin hazards. Form becomes single column on mobile. |
 | Change Staff Access / Disable / MFA Reset | Account detail focused actions | Current access/security state → exact proposed change → required reason and authority → optional evidence → irreversible/security effect summary | **Save access change**, **Disable account**, **Reactivate**, or **Reset MFA** with explicit confirmation | Only System Administrator; self-disable and final-admin removal rejected. MFA reset states that external identity verification must already be complete. |
-| Public Content | System Administrator; Staff navigation | Tabs: Notices and FAQ → native tables → publication state/window/order → concise preview | Add/edit/publish/unpublish/reorder; safe optional link; keyboard and single-pointer Move up/Move down alternative for any drag reorder | No page builder, uploads, rich layout, gallery, program marketing, embedded map, or reviewer workflow. Tables stack on mobile. |
+| Public Content | System Administrator; Staff navigation | Tabs: Notices and FAQ → native tables → publication state/window/order → concise preview | Add/edit/publish/unpublish/reorder; safe optional link; keyboard and single-pointer Move up/Move down alternative for any drag reorder | No page builder, uploads, rich layout, gallery, duplicated Program catalog, arbitrary map/media editor, or reviewer workflow. Programs and admission availability are projected from their owning records; map and bounded hero assets remain deployment/configuration inputs. Tables stack on mobile. |
 | Failure / Inaccessible State | Any failed browser route or action | TALA/context identity → plain-language status → what happened without sensitive detail → one recovery step → support when relevant | Return to authorized workspace, sign in again, retry later, or contact support | Covers 403, 404, 419, 429, unexpected error, temporary unavailable, disabled account, and inaccessible record. Never exposes record existence, internal exceptions, or disable reason. |
 
 ### Low-fidelity wireframes
@@ -111,16 +127,17 @@ Filament v5 implementation conventions:
 ┌──────────────────────────────────────────────────────────────┐
 │ SERVITECH / TALA                         [Sign in ▾]          │
 ├──────────────────────────────────────────────────────────────┤
-│ TALA: secure access to application and school records        │
-│ Applications: OPEN until [date]     [Apply] [Sign in]        │
+│ Servitech / TALA: one guided academic lifecycle              │
+│ Applications: OPEN until [date]     [Apply] [Sign in ▾]      │
 ├──────────────────────────────────────────────────────────────┤
-│ Access TALA                                                 │
-│ [Applicant]             [Student]             [Staff]        │
+│ Apply → Enroll → Study → Complete                            │
+│ Programs available for this intake                           │
+│ [DBM] [DIT] [DTHM]                                          │
 ├──────────────────────────────────────────────────────────────┤
 │ Current notices                                              │
-│ FAQ                                                          │
+│ Frequently asked questions                                   │
 ├──────────────────────────────────────────────────────────────┤
-│ Support · Privacy · Accessibility · Institution · Map link   │
+│ Institution and map · Support · Privacy · Accessibility      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -370,7 +387,7 @@ No onboarding checklist, dashboard, tour editor, database-driven workflow builde
 
 ## Visual Foundation and Implementation Authority
 
-The canonical interface is light-first and uses the existing TALA blue/yellow identity. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The approved Servitech/SIA crest is the institution mark. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork.
+The canonical interface is light-first and follows the approved Human-Centered Operations direction. Institutional navy and blue carry shared structure and primary action hierarchy; yellow remains a restrained accent rather than a navigation stripe or broad selection treatment. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork.
 
 ### Color tokens
 
@@ -406,17 +423,19 @@ All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1.
 - Spacing uses 4, 8, 12, 16, 24, 32, and 48 pixels. Mobile content and full-width learner actions remain inset at least 16 pixels from the viewport edge and safe area.
 - Corner radii use 6, 8, and 12 pixels. Nested surfaces use concentric radii rather than identical pinched corners.
 - Borders carry structural hierarchy. Shadows are reserved for drawers, menus, and dialogs that genuinely float above content.
+- Public navigation and the fixed footer strip use the approved progressive-blur layers without a uniform tint overlay, hard bottom border, or abrupt color cut. Mobile footer content reserves the full blur height plus the device safe area so no link is obscured.
+- Selected authenticated navigation uses filled surface, contrast, icon, and weight. It has no narrow yellow side strip.
 - Routine state changes use no decorative entrance animation. Necessary feedback is limited to 150–200 ms opacity or transform transitions, never `transition: all`, and respects reduced-motion preference.
 - Heroicons Outline is the one interface icon family. Authenticated workspaces use Filament's PHP `Heroicon` abstraction; the separately declared npm Heroicons package gains no independent responsibility. Icon stroke weight matches adjacent text and active states use color/fill without requiring a separate asset.
 - Qualification frames are 390×844 and 360×800 for learner mobile, 768×1024 for intermediate review, and 1366×768 for dense Staff work.
 
 ### Brand-mark and print roles
 
-- Public and authentication surfaces show institution identity together with the TALA star and live **TALA** wordmark. The star may be friendly and prominent there, but it never competes with the page's task.
+- Public and authentication surfaces show the full-color institution crest together with the full-color TALA star and live **TALA** wordmark. The star may be friendly and prominent there, but it never competes with the page's task.
 - Authenticated Applicant, Student, and Staff shells use a 32 CSS-pixel TALA star with the live workspace name. Dense navigation and workbenches do not repeat the institution crest or decorative mascot treatment.
 - The favicon and install/app icon use the approved star-only artwork.
 - Official and institutional printable outputs lead with the approved institution crest and institution name. They do not use the mascot; a restrained **Generated through TALA** text footer may identify the product.
-- The TALA star is never rendered below 24 CSS pixels, is normally 32 pixels in the authenticated shell, and is at least 48 pixels on public/authentication surfaces. The institution crest is at least 48 CSS pixels on screen and 18 mm high on print, preserves its aspect ratio, and has a qualified monochrome-safe rendering.
+- The TALA star is never rendered below 24 CSS pixels, is normally 32 pixels in the authenticated shell, and is at least 48 pixels on public/authentication surfaces. The institution crest is at least 48 CSS pixels on screen and 18 mm high on print, preserves its aspect ratio, remains full color when print color is available, and also has a qualified monochrome-safe rendering.
 - When adjacent visible text already identifies TALA or Servitech/SIA, the image is decorative and uses an empty text alternative. A standalone product or institution mark receives the matching accessible name. No interface uses the filename as alternative text.
 - Failure pages use system fallbacks and do not depend on Vite or Livewire. Failure pages and printable outputs do not depend on remotely loaded fonts or a decorative background to communicate identity or status.
 
@@ -471,7 +490,7 @@ The inventory uses the columns below. `J1`–`J7` refer to the seven representat
 
 | Coverage ID | Role/workspace | User-visible surface | Parent entry | Component disposition | Source PRD | Authoritative source | Primary action | Output | Required state/correction coverage | Responsive/print requirement | Acceptance journey |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `SHR-001` | Public | Public Gateway | Direct URL | `FocusedTALACustom` | PRD 01 | Published public content and current Admission Cycle projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance | 390, 360, 1366 | J1 |
+| `SHR-001` | Public | Public Gateway | Direct URL | `FocusedTALACustom` | PRD 01 | Published public content, active Programs, current Admission Cycle, and configured institution/map/media projection | Start application or sign in | — | Closed/unavailable entry retains safe guidance; unavailable media/map has a factual fallback | 390, 360, 768, 1366 | J1 |
 | `SHR-002` | Shared identity | Registration and contextual sign-in | Gateway or owning journey | `NativeFilament` | PRD 01 | Person, account, verification state | Register or sign in | Verification request | Duplicate identity, invalid credentials, rate limit | 390, 360 | J1 |
 | `SHR-003` | Shared identity | Verification, recovery, reset, and MFA | Secure message or sign-in | `NativeFilament` | PRD 01 | Verification/recovery challenge | Verify or recover access | Security notice | Expired, consumed, invalid, or failed challenge | 390, 360 | J1 |
 | `SHR-004` | Multi-role Staff | Workspace chooser | Successful sign-in | `NativeFilament` | PRD 01 | Current role assignments | Enter selected workspace | — | Zero authorized context or stale assignment | 390, 1366 | J1 |
@@ -517,12 +536,12 @@ The inventory uses the columns below. `J1`–`J7` refer to the seven representat
 | `ACC-008` | Accounting | TOR Clearance | Student Accounts | `NativeFilament` | PRD 06 | Request-specific clearance projection | Record Cleared or NotRequired basis | Clearance result | ActionNeeded or invalid authority | 1366 | J5 |
 | `FAC-001` | Faculty | My Availability | Faculty fixed entry | `NativeFilament` | PRD 03 | Availability declaration | Submit declaration | — | Missing term request, stale assignment | 1366, 768 | J3 |
 | `FAC-002` | Faculty | My Schedule | Faculty navigation | `NativeFilament` | PRD 03 | Published Timetable and informational Examination Period projections | Review current/revised schedule | Faculty schedule | Affected revision, unavailable publication, or unavailable examination period | 1366, 768 | J3 |
-| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 04/05 | Current official roster and submitted result version | Submit results or use a contextual roster action | Submission result; current Class Roster print/CSV | Empty/incomplete/returned/stale roster; export failure; INC completion open/overdue | 1366, 768, A4 portrait operational print | J5 |
+| `FAC-003` | Faculty | Grade Rosters and detail | Faculty navigation | `NativeFilament` | PRD 04/05 | Current official roster and submitted result version | Submit results or use a contextual roster action | Submission result; current Class Roster print/CSV | Empty/incomplete/returned/stale roster; export failure; INC completion open/overdue | 1366, 768, A4 landscape operational print | J5 |
 | `AHD-001` | Academic Head | Academic Oversight | Academic Head fixed entry | `NativeFilament` | PRD 03–05 projections | Source-owned calendar, external competency, and attention evidence | Open read-only source drill-in | — | No item, stale/missing source, no mutation | 1366, 768 | J3/J5 |
 | `SYS-001` | System Administrator | Users & Access and account detail | System Administrator fixed entry | `NativeFilament` | PRD 01 | Accounts, roles, invitations, MFA state | Invite or apply authorized account action | Security notice | Final-administrator protection, invitation/MFA failure | 1366 | J1 |
 | `SYS-002` | System Administrator | Public Content | System Administrator navigation | `NativeFilament` | PRD 01 | Versioned public content | Publish valid content | Public projection | Stale/scheduled/failed publication | 1366 | J1 |
-| `SYS-003` | System Administrator | System Health | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Unknown/Not checked by TALA/degraded | 1366, 768 | J7 |
-| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; automatic disposal not provided | 1366, 768 | J7 |
+| `SYS-003` | System Administrator | System Health | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Locally recorded service evidence | Refresh local evidence | — | Available/action needed/unavailable/not recently checked, with source, as-of time, owner, and safe next action | 1366, 768 | J7 |
+| `SYS-004` | System Administrator | Governance & Audit | System Administrator navigation | `NativeFilament` | PRD 06/Architecture | Institutional changes, events, output access | Filter or inspect evidence | — | Inaccessible evidence; plain-language retention boundary with technical detail on disclosure | 1366, 768 | J7 |
 | `OUT-001` | Applicant | Application Acknowledgment print | Application acknowledgment | `FocusedTALACustom` | PRD 02 | Submitted Application version and its immutable Requirement Set version | Print/save | Application Acknowledgment | Superseded or generation failure | A4 portrait print | J2 |
 | `OUT-002` | Authenticated roles | Published Timetable print | Published Timetable | `FocusedTALACustom` | PRD 03 | Published Timetable Version | Print/save | Published Timetable | Superseded/unavailable version | A4 landscape print | J3 |
 | `OUT-003` | Student/Registrar | COR print/history | Enrollment or case | `FocusedTALACustom` | PRD 04 | COR Version | Print/save | COR | Superseded version or generation failure | A4 portrait print | J4 |
@@ -1168,7 +1187,7 @@ Grade Roster — IT 301 / IT 3A
 └ [Save draft]                         [Submit complete roster]│
 ```
 
-The print action opens an authenticated A4 portrait **CURRENT CLASS ROSTER — Operational reference** view; the CSV is a private initiating-actor download. Both use the selected Class Offering's current Clinic 4 membership, fixed identity/enrollment columns, legal-name/Student-number ordering, an Asia/Manila as-of time, formula-safe cells, role-derived purpose, and logged output access. Neither uses selected table rows, a column chooser, a second format, a bulk action, or a Reports destination. Neither contains grades, result notes, contact details, Applicant evidence, or finance data, and neither becomes an eighth canonical official output.
+The print action opens an authenticated A4 landscape **CURRENT CLASS ROSTER — Operational reference** view with practical 12 mm margins, repeated identity/table headings, row-safe page breaks, and automatic page numbers; the CSV is a private initiating-actor download. Both use the selected Class Offering's current Clinic 4 membership, fixed identity/enrollment columns, legal-name/Student-number ordering, an Asia/Manila as-of time, formula-safe cells, role-derived purpose, and logged output access. Neither uses selected table rows, a column chooser, a second format, a bulk action, or a Reports destination. Neither contains grades, result notes, contact details, Applicant evidence, or finance data, and neither becomes an eighth canonical official output.
 
 An empty result remains unfinished and cannot be released. A class with no officially enrolled learners shows **No officially enrolled students in this class** and no print/export action. `INC` reveals the required short completion note. Stale, changed, inaccessible, or failed roster generation creates no partial artifact and offers **Refresh roster** or the shared safe return/support path. The UI never requests Preliminary, Midterm, Final-period values, formulas, attendance, raw scores, `P`, Course Drop, withdrawal, or approved-credit marks.
 
@@ -1575,14 +1594,14 @@ At 360/390 CSS pixels, actions remain inset inside the content margin and stack 
 │ Queue         2 pending / 1 failed    Attention   10:35   │
 │ Database      Local check succeeded   Available   10:35   │
 │ App backup    Last job 05:40          Available   05:40   │
-│ Primary host  Not checked by TALA     Unknown       —     │
-│ Off-host copy Not checked by TALA     Unknown       —     │
+│ Primary host  No recent evidence      Not checked   —     │
+│ Off-host copy No recent evidence      Not checked   —     │
 │                                                          │
 │ No provider, restore, payment, or solver controls appear.│
 └──────────────────────────────────────────────────────────┘
 ```
 
-Unknown is never colored or labeled as healthy. Refresh reads locally knowable evidence only. Provider status, backup-media custody, and restore readiness require external operational evidence.
+Unknown or not-recently-checked evidence is never colored or labelled as healthy. Routine copy states what is available, what needs attention, and the safe next action in plain language. Refresh reads locally knowable evidence only. Provider status, backup-media custody, and restore readiness require external operational evidence; the exact evidence source, as-of time, and boundary remain available under technical details.
 
 #### Governance & Audit
 
@@ -1597,16 +1616,16 @@ Unknown is never colored or labeled as healthy. Refresh reads locally knowable e
 │ 10:22   Fee Plan published     acct-02     FP-...-v1      │
 │ 09:40   SOA generated          student     ACT-260008     │
 │                                                          │
-│ Automatic retention disposal: Not provided in this MVP  │
-│ External compliance status: Not evaluated by TALA       │
+│ Automatic record disposal is not available in TALA.     │
+│ Follow the institution's approved records procedure.    │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ### Printable-output wireframes
 
-All seven canonical outputs use the same authenticated print frame: approved institution crest and name first; exact output title/status; source/version and generation reference/time; monochrome-safe semantic headings; repeated identity/table headings; deliberate page breaks without clipped rows; no navigation or interactive controls; system-font fallback; and restrained **Generated through TALA** footer text. Application Acknowledgment, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment are A4 portrait. Published Timetable is A4 landscape. A stale, inaccessible, or failed source creates no partial or official-looking artifact and preserves the owning page with a safe retry/support path.
+All seven canonical outputs use the same authenticated print frame: approved institution crest and name first; exact output title/status; source/version and generation reference/time; monochrome-safe semantic headings; repeated identity/table headings; deliberate page breaks without clipped rows; no navigation or interactive controls; system-font fallback; automatic page numbering for multi-page outputs; practical 12 mm margins; and restrained **Generated through TALA** footer text. Application Acknowledgment, COR, Unofficial Student Record, TALA Standard TOR, Account Statement/SOA, and Payment Acknowledgment are A4 portrait. Published Timetable is A4 landscape. A stale, inaccessible, or failed source creates no partial or official-looking artifact and preserves the owning page with a safe retry/support path.
 
-The current Class Roster uses the same authenticated, monochrome-safe, repeated-heading, non-clipping A4 portrait print quality, but is explicitly labelled **Operational reference** with a current as-of time. It is not included in the seven canonical outputs, creates no issuance/version event, and is never proof of enrollment or grades.
+The current Class Roster uses the same authenticated, monochrome-safe, repeated-heading, non-clipping A4 landscape print quality, 12 mm margins, and automatic page numbering, but is explicitly labelled **Operational reference** with a current as-of time. It is not included in the seven canonical outputs, creates no issuance/version event, and is never proof of enrollment or grades.
 
 ```text
 ACCOUNT STATEMENT / SOA                 PAYMENT ACKNOWLEDGMENT
@@ -1631,7 +1650,7 @@ SOA and Payment Acknowledgment retain their non-tax disclaimer on every generate
 | Account/payment status | Summary-first status, due, next obligation/action, then history | Ledger-first page; payment Wizard | Learners should not interpret accounting mechanics or traverse unnecessary steps |
 | Accounting workspace | Fee Plans plus one tabbed Student Accounts workbench | Peer record Resources; dashboard/report hub | Matches the two office tasks and keeps evidence contextual |
 | Approved Coverage | Contextual Account action with append-only effect/history | Scholarship module; Financial Accommodation resource | Records only an externally approved account effect without eligibility, application, renewal, disbursement, or collection scope |
-| Assurance | Locally evidenced status plus `Not checked by TALA` | Provider operations console; manual attestation checklist | Prevents unsupported health/compliance claims and risky controls |
+| Assurance | Plain status and next action with exact locally recorded evidence and technical boundary on disclosure | Provider operations console; manual attestation checklist | Prevents unsupported health/compliance claims and risky controls without exposing architecture language as routine copy |
 
 ### Default ordering and page-specific states
 
