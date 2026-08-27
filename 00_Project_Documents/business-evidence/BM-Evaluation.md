@@ -1,6 +1,6 @@
 # BM Evaluation Evidence
 
-> **Preserved source:** [`BM-Evaluation.pdf`](../archive/raw-source-files/BM-Evaluation.pdf). The expiring signed OCR image URL was removed.
+> **Raw-source custody:** The supplied `BM-Evaluation.pdf` remains in the private local source archive and is intentionally not tracked. SHA-256: `8C8A85B5A1CFD72F3AD7689513EC7E92B986D340E57C2528C42BA36D43674620`. The extract below is the portable, non-authoritative repository evidence.
 
 <table border="1"><tr><td>COURSE CODE</td><td>COURSE</td><td>ACADEMIC YEAR</td><td>STUDENT NO.</td></tr><tr><td>DTBM</td><td>DIPLOMA IN TOURISM BUSINESS MANAGEMENT</td><td>2025-2026</td><td></td></tr></table>
 

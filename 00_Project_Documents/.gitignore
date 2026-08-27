@@ -7,6 +7,8 @@
 !TALA-Orchestration-Cheat-Sheet.md
 !TALA-Deployment-Recovery-Runbook.md
 !TALA-Experience-and-Official-Output-Design-Definition.md
+!design-evidence/
+!design-evidence/**
 !prd_modules/
 !prd_modules/**
 !archive/
@@ -34,8 +36,6 @@
 !archive/tooling/GEMINI-pre-authority-router-2026-08-06.md
 !archive/PAPER/
 !archive/PAPER/README.md
-!archive/uat-readiness/
-!archive/uat-readiness/README.md
 !business-evidence/
 !business-evidence/README.md
 !business-evidence/BM-Evaluation.md
@@ -48,6 +48,7 @@
 !business-evidence/faculty_grade_sheet.md
 !business-evidence/present cor.md
 !business-evidence/SIA-STUDENT-HANDBOOK-2019.pdf
+!business-evidence/Servitech-final-grade-workbook-evidence.md
 !research paper/
 !research paper/README.md
 !research paper/how the eqautions should look/

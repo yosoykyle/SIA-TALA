@@ -18,7 +18,7 @@ TALA records final course results. It does not recreate Faculty gradebooks, peri
 
 This contract is grounded in:
 
-- The supplied [Servitech final-grade workbook](../archive/raw-source-files/MS.-OLIMBERIO-Blended-Online.Final-Grade-1.xlsx), which evidences the final-grade vocabulary, including `4.00` as passing.
+- The sanitized [Servitech final-grade workbook evidence](../business-evidence/Servitech-final-grade-workbook-evidence.md), which preserves the attributable source hash and evidences the final-grade vocabulary, including `4.00` as passing, without publishing personal academic records.
 - [Batas Pambansa Blg. 232](https://lawphil.net/statutes/bataspam/bp1982/bp_232_1982.html), which protects access to school records and requires official records such as grades and transcripts within thirty days of request.
 - [CHED eCAV requirements](https://ecav.ched.gov.ph/requirements), which require an official TOR used for CAV to be certified true and signed by the current HEI Registrar but do not supply a universal visual template.
 - [CHED's statement on institutional grading systems](https://legacy.ched.gov.ph/424-scholars-may-lose-scholarship-due-to-pass-all-policy-of-17-heis/), which uses GPA/GWA in a specific scholarship context while affirming that HEIs determine their grading systems; it does not establish Servitech's one-term display label.

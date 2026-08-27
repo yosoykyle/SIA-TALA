@@ -1,6 +1,6 @@
 # College Statement of Account Evidence
 
-> **Preserved source:** [`SOA-2nd-year-COLLEGE-1.pdf`](../archive/raw-source-files/SOA-2nd-year-COLLEGE-1.pdf). The expiring signed OCR image URL was removed.
+> **Raw-source custody:** The supplied `SOA-2nd-year-COLLEGE-1.pdf` remains in the private local source archive and is intentionally not tracked. SHA-256: `D5435247C480C33724AB0E789C49765EBE61E39787FE5315F68A063D232D4DFE`. The extract below is the portable, non-authoritative repository evidence.
 
 NAME: Olazo, Wilfred Ievine
 

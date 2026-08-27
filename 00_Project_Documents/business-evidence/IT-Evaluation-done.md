@@ -1,6 +1,6 @@
 # IT Evaluation Evidence
 
-> **Preserved source:** [`IT-Evaluation-done.pdf`](../archive/raw-source-files/IT-Evaluation-done.pdf). The expiring signed OCR image URL was removed.
+> **Raw-source custody:** The supplied `IT-Evaluation-done.pdf` remains in the private local source archive and is intentionally not tracked. SHA-256: `2974834198D853ECDE89FB0FF4A54F247FE0CC99F9ECAD7BECA53790662119D1`. The extract below is the portable, non-authoritative repository evidence.
 
 <table border="1"><tr><td>COURSE CODE</td><td>COURSE</td><td>ACADEMIC YEAR</td><td>STUDENT NO.</td></tr><tr><td>DIT</td><td>DIPLOMA IN INFORMATION TECHNOLOGY</td><td>2025-2026</td><td></td></tr></table>
 

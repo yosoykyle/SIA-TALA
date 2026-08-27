@@ -446,6 +446,8 @@ Use the detailed protocol at `00_Project_Documents/TALA-Orchestrator-Protocol.md
 
 Use `00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md` as the non-authoritative quick reference for choosing the next workflow action and Codex mode; the detailed protocol governs any conflict.
 
+Use `CONTRIBUTING.md` for first-time clone, contributor, and tool-readiness setup. It is operational guidance and cannot override this file, the detailed protocol, an owning Issue, or canonical product authority.
+
 ### Default behavior
 
 - Review, diagnosis, and planning are read-only unless the user also requests a change.

@@ -1,6 +1,6 @@
 # THM Evaluation Evidence
 
-> **Preserved source:** [`THM-Evaluation.pdf`](../archive/raw-source-files/THM-Evaluation.pdf). The expiring signed OCR image URL was removed.
+> **Raw-source custody:** The supplied `THM-Evaluation.pdf` remains in the private local source archive and is intentionally not tracked. SHA-256: `2EB8B605F6F346ECFAF1FF4D9C515B0B7BA90E6CEEA42FB1871290F59BA5AA76`. The extract below is the portable, non-authoritative repository evidence.
 
 <table border="1"><tr><td>COURSE CODE</td><td>COURSE</td><td>ACADEMIC YEAR</td><td>STUDENT NO.</td></tr><tr><td>DTHM</td><td>DIPLOMA IN TOURISM HOSPITALITY MANAGEMENT</td><td>2025-2026</td><td></td></tr></table>
 

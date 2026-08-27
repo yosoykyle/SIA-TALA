@@ -6,7 +6,7 @@
 
 This document records the approved Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and the complete successor coordination map. It refines presentation without creating business workflows. The canonical PRDs continue to own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. If this companion conflicts with those documents, the canonical owner governs and the conflict must be corrected before implementation.
 
-The approved React prototype and its browser captures are visual and interaction evidence only. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
+The approved React prototype and its browser captures are visual and interaction evidence only. The curated [Human-Centered Operations design-evidence pack](design-evidence/human-centered-operations/README.md) makes the accepted comparison evidence portable without adding the React source. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
 
 ## 1. Product and visual direction
 
@@ -76,7 +76,7 @@ Public state comes from authoritative server projections. No CMS, carousel build
 - **Temporarily retain with a removal trigger:** `AcademicReadiness`, `AcademicApprovals`, `ClassPlanning`, and `CompletionAndTor` until their unique canonical behavior is absorbed into the approved workbenches and reference tests prove safe retirement.
 - **Delete after reference proof:** the unreachable Billing Slip controller/view, superseded presentation-only fixtures, unused oversized branding copies, and replaced runtime authentication assets. Migrations, attributable audit/history records, and completed research evidence remain preserved.
 - **Implementation correction:** add the missing canonical `PublicNotice` management and public projection beside the existing FAQ capability.
-- **Prototype disposition:** preserve the Human-Centered Operations prototype and QA captures outside the repository as design evidence; never copy its React implementation into TALA.
+- **Prototype disposition:** preserve the React prototype outside the repository, keep only the curated approved direction and QA captures in the [tracked evidence pack](design-evidence/human-centered-operations/README.md), and never copy its React implementation into TALA.
 
 ## 7. Targeted authority corrections
 
@@ -111,7 +111,7 @@ Every successor implementation Issue must prove:
 - role journeys work at 360/390, 768×1024, and 1366×768, at 200% zoom, keyboard-only, forced colors, and reduced motion;
 - screen readers receive meaningful headings, step/status changes, errors, and recovery actions;
 - official outputs satisfy orientation, margins, repeating identity/table headers, automatic page numbering, print preview, and multi-page behavior;
-- fresh production-stack screenshots are compared with the accepted prototype evidence;
+- fresh production-stack screenshots are compared with the accepted [prototype evidence pack](design-evidence/human-centered-operations/README.md);
 - focused tests and the full PHPUnit suite pass; and
 - every Issue criterion is individually `Verified` before publication.
 

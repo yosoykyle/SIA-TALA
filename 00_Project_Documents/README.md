@@ -27,7 +27,7 @@ The baseline and PRDs own product behavior, the UI Surface Blueprint owns interf
 | Workflow quick reference | [`TALA-Orchestration-Cheat-Sheet.md`](TALA-Orchestration-Cheat-Sheet.md) | Derived operational companion for humans and agents; introduces no authority, and the Orchestrator Protocol governs any conflict |
 | Approved design companion | [`TALA-Experience-and-Official-Output-Design-Definition.md`](TALA-Experience-and-Official-Output-Design-Definition.md) | Human-Centered Operations rationale, production-stack translation, ethical safeguards, and successor map; canonical PRDs, UI Surface Blueprint, and Architecture Specification govern any conflict |
 | Task management | GitHub Issues and the public [`TALA Development`](https://github.com/users/yosoykyle/projects/3) project | Issues own tracked scope; the project provides `All Work` and `Board` views, with approved implementation intake and terminal `Done` transitions automated as defined by the protocol |
-| Developer setup | [`../README.md`](../README.md), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Setup or compatibility routing; never product authority |
+| Developer setup | [`../README.md`](../README.md), [`../CONTRIBUTING.md`](../CONTRIBUTING.md), [`../CLAUDE.md`](../CLAUDE.md), [`../GEMINI.md`](../GEMINI.md) | Application setup, fresh-clone readiness, and compatibility routing; never product authority |
 
 Task IDs, tracker rows, commits, demonstrations, tests, code, schema, seeders, and implementation history cannot create or restore product requirements.
 
@@ -37,12 +37,13 @@ Classification is determined by the first matching rule below. Every project-aut
 
 | Path | Classification | Reading rule |
 | --- | --- | --- |
+| [`design-evidence/`](design-evidence/) | Supporting evidence — approved visual direction | Portable prototype and QA comparisons only; the design companion and canonical owners govern implementation |
 | `prd_modules/_legacy/**` | Supporting evidence — replaced PRDs | Traceability and bounded salvage only; canonical 00–06 wins |
 | [`business-evidence/`](business-evidence/) | Supporting evidence — institutional material | Clarifies terminology, forms, and current/manual practice; cannot override accepted policy or product authority |
 | [`research paper/`](research%20paper/) | Supporting evidence — research | Technical and academic support; not an implementation contract |
 | `archive/raw-source-files/**`, `archive/PAPER/**`, `archive/0/**`, `archive/45 FINAL SORTTED/**`, `archive/archive system req/**` | Supporting evidence | Preserved source, research, or requirements inputs |
 | [`archive/project-progress/`](archive/project-progress/) | Implementation history | Superseded plans, benchmarks, audits, logs, and recovery notes |
-| [`archive/demo/`](archive/demo/) and [`archive/uat-readiness/`](archive/uat-readiness/) | Demonstration material | Historical scripts, walkthroughs, fixtures, UAT, and test-case evidence |
+| [`archive/demo/`](archive/demo/) | Demonstration material | Historical scripts, walkthroughs, fixtures, UAT, and test-case evidence |
 | [`archive/tooling/`](archive/tooling/) | Implementation history — tooling | Superseded agent/tool guidance preserved for traceability |
 | `archive/prd_modules_bck/**` | Obsolete/duplicate | Older PRD backup; canonical and `_legacy` sets govern classification |
 | `archive/deprecated-shs-scope-2026-06-21/**` and `archive/DEPRICATED INSTITUTION WORK  FLOW CURRENT.md.cleaned.md` | Obsolete/duplicate | Senior-high or replaced institutional material; not active college scope |
