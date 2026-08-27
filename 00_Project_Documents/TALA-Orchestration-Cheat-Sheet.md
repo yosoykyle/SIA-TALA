@@ -155,6 +155,25 @@ conflict.
 Read-only. Do not create Issues, branches, Project changes, or other writes.
 ```
 
+When another developer will implement an accepted plan, keep that plan or a
+concise execution handoff in the owning Issue. In the developer's Codex task,
+use Default mode:
+
+```text
+Complete #NN as the assigned implementation owner.
+
+You are the implementer for this Issue, not the primary TALA orchestrator.
+Read AGENTS.md, the TALA Orchestrator Protocol, the owning Issue, and its
+accepted plan or execution handoff. Re-anchor from current Git and GitHub state,
+verify the assignment, dependencies, up-to-date main base, Issue-specific branch,
+and workspace isolation, then remain within this Issue's accepted scope.
+
+Use the applicable project skills and tools required by AGENTS.md and the
+accepted plan. Do not derive or reorder other work, modify the coordination
+Issue, work directly on main, publish, merge, or deploy. Complete only through
+the verified bounded local commit.
+```
+
 Each Issue still follows `Plan #NN` and `Complete #NN`. `Publish #NN` pushes its Issue branch and opens one PR containing `Closes #NN`; open PR review remains `In Progress`.
 
 `Publish #NN` never authorizes merge. Merge only after separate explicit authorization and fresh evidence for acceptance criteria, required automated and browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main`. After merge, the Issue becomes `Done`, and dependent branches refresh from `main`.
