@@ -1,8 +1,29 @@
 # Contributing to TALA
 
-Accept your GitHub invitation, get TALA running, then connect your coding tools. You can do this before receiving an Issue. Run commands in PowerShell from your clone's root; skip installation steps for tools already working.
+Start with a local clone and let Codex help you finish setup. You can do this before TALA runs or you receive an Issue. Run commands in PowerShell from your clone's root; skip installation steps for tools already working.
 
 This is setup guidance. [`AGENTS.md`](AGENTS.md), the [TALA Orchestrator Protocol](00_Project_Documents/TALA-Orchestrator-Protocol.md), canonical product documents, and the owning Issue govern the work.
+
+## Start here: no Issue required
+
+1. Accept the GitHub invitation, install [Git](https://git-scm.com/install/windows), and clone [TALA](https://github.com/yosoykyle/SIA-TALA).
+2. Install and sign in to the [Codex Windows app](https://developers.openai.com/codex/app/windows), then open the cloned folder as a local project.
+3. Send this ordinary message; it is not a new protocol command:
+
+```text
+Onboard me to TALA. I have no assigned Issue yet.
+
+Read AGENTS.md, README.md, and CONTRIBUTING.md. Check my setup and guide
+me through anything missing, one step at a time. Explain what is required
+now and what can wait. Do not assume the app, databases, or MCPs work yet.
+
+Start read-only and ask before making changes. After setup, introduce the
+codebase and development workflow. Do not start implementation.
+```
+
+Codex should check software versions and PATH first, then the clone/Git state, local environment and both databases, coding tools, and any needed integrations. Use the steps below as the checklist; report each relevant check as ready, missing, or not yet checked, with a concrete next step. A missing prerequisite defers dependent checks; an unavailable MCP does not prevent read-only setup guidance.
+
+Ask before installing software, changing configuration or databases, or making provider requests. You complete sign-ins and supply authorized credentials privately; keep secret values out of the chat. After approved setup, verify startup, build, and tests against the confirmed local targets. Finish with a short codebase/workflow tour and a ready/missing report; wait for assignment before creating a work branch or implementing a feature.
 
 ## 1. Install and verify the application
 
@@ -16,14 +37,13 @@ Use the example environment's mock integrations initially. Keep credentials, mac
 
 ## 2. Connect your coding tools
 
-These tools help the coding assistant; TALA itself runs without them. Boost is required for AI-assisted Laravel/package work. Prepare Serena for code navigation; it is required only when the Issue or accepted plan calls for it. Use the applicable project skills, and add other plugins only when the task needs them.
+These tools help the coding assistant; TALA itself runs without them. Boost is required for AI-assisted Laravel/package work; connect it during onboarding once its prerequisites are installed. The initial read-only setup conversation can proceed while it is unavailable. Prepare Serena for code navigation; it is required only when the Issue or accepted plan calls for it. Use the applicable project skills, and add other plugins only when the task needs them.
 
 ### A. Install and sign in to the developer tools
 
-Install the [Codex Windows app](https://developers.openai.com/codex/app/windows), [Codex CLI](https://developers.openai.com/codex/cli), and [GitHub CLI](https://cli.github.com/). Sign in with your own accounts, then check:
+Keep your working Codex app. The terminal-based MCP steps below use [Codex CLI](https://developers.openai.com/codex/cli); install it when reaching those steps, then check `codex --version`. Use [GitHub CLI](https://cli.github.com/) for repository access unless an approved GitHub integration already works:
 
 ```powershell
-codex --version
 gh auth login --hostname github.com --web
 gh auth status
 gh repo view yosoykyle/SIA-TALA
@@ -114,17 +134,30 @@ Send the coordinator a short ready/missing report. Remove secrets from errors; n
 
 ## 3. Add integration credentials only when needed
 
-Ask the owner for restricted development credentials through a private sharing channel. Keep mock integrations until the assigned task requires provider access.
+Basic onboarding uses mock payments, the local solver stub, and log email. Ask the owner for restricted development credentials through a private sharing channel only when the assigned task requires provider access.
+
+<details>
+<summary>Configure email, PayMongo, or the hosted solver</summary>
 
 | Supplied item | Put it here |
 | --- | --- |
+| SMTP account and sender settings | `.env`: `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`; use the provider's TLS/scheme and port settings |
 | PayMongo test keys and matching webhook secret | `.env`: `PAYMONGO_PUBLIC_KEY`, `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SIG`; keep `PAYMONGO_LIVEMODE=false` |
-| Solver service-account JSON | `storage/app/private/credentials/`; set `.env`'s `TALA_SCHEDULING_SOLVER_CREDENTIALS` to its absolute path |
-| Google OCR JSON, when the task uses that client | Same directory; set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path |
+| Solver URL, audience, and service-account JSON | Store JSON in `storage/app/private/credentials/`. Set `.env`'s `TALA_SCHEDULING_SOLVER_DRIVER=cloud_run`, `TALA_SCHEDULING_SOLVER_URL`, `TALA_SCHEDULING_SOLVER_AUDIENCE`, and `TALA_SCHEDULING_SOLVER_CREDENTIALS` to the supplied values and absolute JSON path |
 
 Create the private directory if missing. Quote paths containing spaces, for example `TALA_SCHEDULING_SOLVER_CREDENTIALS="C:/Projects/SIA-TALA/storage/app/private/credentials/solver-dev.json"`; use your own path. Never commit keys/JSON, paste them into Issues, or place them under `public/`.
 
-Credentials alone do not prove connectivity. The assigned task must verify permissions, driver, endpoint/audience or webhook settings; one JSON file may not suit both Google clients. Shared provider or webhook changes need separate authorization.
+For **email**, keep `MAIL_MAILER=log` until real delivery is needed; messages appear in the application log instead of an inbox. Use an approved recipient for an explicitly authorized send. See [Laravel mail configuration](https://laravel.com/framework/docs/12.x/mail#configuration).
+
+For **PayMongo**, also set `TALA_PAYMENT_GATEWAY_DRIVER=paymongo`. The owner must approve a reachable HTTPS test webhook ending in `/api/webhooks/paymongo`, its subscribed events (including `checkout_session.payment.paid` for hosted checkout), and its matching signing secret. A local endpoint needs an approved tunnel or hosted endpoint; never redirect another developer's shared webhook. Keep `QUEUE_CONNECTION=database` and the `composer dev` queue listener running for confirmation processing. See [PayMongo webhook setup](https://docs.paymongo.com/docs/creating-a-webhook-endpoint).
+
+For the **hosted solver**, the supplied identity needs permission to invoke that service, and the audience must match its approved configuration. The PHP client obtains its token from the JSON file; calling the existing hosted service needs neither Python nor Google Cloud CLI. See [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service). Local Python solver work needs its own environment and pinned dependencies from the [solver guide](cloud/scheduler-solver/README.md); Cloud administration/deployment uses separately authorized tooling and access, such as [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install-sdk).
+
+After approved `.env` changes, clear stale local configuration with `php artisan config:clear --no-interaction` and restart local processes. Credentials alone do not prove connectivity: perform only the task's authorized checks and report anything unverified. Provider requests, shared webhook changes, and Cloud changes need separate authorization.
+
+</details>
+
+Legacy OCR keys remain in `.env.example`, but the current application has no active OCR client consuming them. Leave them alone during onboarding; request OCR credentials only after an authorized task identifies a working client and its requirements.
 
 ## 4. Start your assigned Issue
 
@@ -136,7 +169,7 @@ Use this once after the repository, dependencies, and assigned Issue are availab
 Re-anchor this fresh TALA clone for assigned Issue #NN as its implementation owner.
 
 Read AGENTS.md, CONTRIBUTING.md, the TALA Orchestrator Protocol, the owning
-Issue, its accepted plan or execution handoff, and the minimum relevant
+Issue, any existing accepted plan or execution handoff, and the minimum relevant
 canonical documents and implementation surfaces. Verify the current branch,
 HEAD relationship to origin/main, clean or attributable working state,
 assignment, dependencies, workspace and database isolation, actual development
@@ -150,7 +183,7 @@ implementation may begin. Read-only: do not edit files, mutate GitHub, create a
 branch, commit, publish, merge, deploy, or change credentials yet.
 ```
 
-After readiness passes, follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md): `Plan #NN` plans read-only; authorized `Complete #NN` implements, verifies, and commits locally; `Publish #NN` publishes separately. Setup alone authorizes none of these actions.
+Follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md): use `Plan #NN` to plan read-only when no accepted plan exists. Coding needs readiness, an accepted plan/handoff, and authorized `Complete #NN`; that command implements, verifies, and commits locally. `Publish #NN` publishes separately. Setup alone authorizes none of these actions.
 
 ## 5. Troubleshooting
 

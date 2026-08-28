@@ -2,6 +2,12 @@
 
 TALA is the college information-system project for Servitech Institute Asia. Product behavior is governed by the [TALA documentation authority registry](00_Project_Documents/README.md), not by this setup guide, archived plans, demonstrations, code, tests, or task records.
 
+## Contributor onboarding
+
+New developer? Start with [Codex-guided onboarding](CONTRIBUTING.md#start-here-no-issue-required). You can ask for help as soon as your local clone is open in Codex, before installing PHP, creating databases, or connecting MCPs. No assigned Issue is needed. The guide covers setup, coding tools, and familiarization; it does not authorize implementation or publication.
+
+Prefer to set up manually? Follow the steps below, then continue with the coding tools in [`CONTRIBUTING.md`](CONTRIBUTING.md#2-connect-your-coding-tools).
+
 ## Prerequisites
 
 - PHP 8.2+
@@ -14,10 +20,12 @@ Make `php`, `composer`, `node`, `npm`, `mysql`, and `git` available on your term
 
 ## Local setup
 
+If you already cloned TALA, open that folder and skip the first two commands. Keep any existing `.env`:
+
 ```powershell
 git clone https://github.com/yosoykyle/SIA-TALA.git
 Set-Location SIA-TALA
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
 Create separate development and automated-test databases before running setup:
@@ -37,7 +45,7 @@ DB_USERNAME=root
 DB_PASSWORD=your_mysql_password
 ```
 
-Replace the username/password examples with your local MySQL credentials. Keep `APP_ENV=local`.
+Replace the username/password examples with your local MySQL credentials; that login needs access to both local databases. Keep `APP_ENV=local`.
 
 Then install dependencies, generate the application key, migrate `tala_db`, and build the frontend assets:
 
@@ -70,7 +78,26 @@ composer dev
 
 The command starts Laravel, the canonical `scheduling,default` queue listener, and Vite together in one terminal on native Windows or a supported Linux environment. Laravel continues writing application logs normally without a required live-log process. When active log inspection is useful on Windows, run `Get-Content storage\logs\laravel.log -Wait -Tail 80` separately.
 
-Use the local addresses printed by the processes; stop them together with `Ctrl+C` and confirm `Y` if Windows asks to terminate the batch job. The example environment uses mock payments/OCR, the local solver stub, and email written to the application log. Real provider connectivity and scheduled work require their own task-specific setup and verification; starting the application alone does not prove them ready.
+Use the local addresses printed by the processes; stop them together with `Ctrl+C` and confirm `Y` if Windows asks to terminate the batch job. The example environment uses mock payments, the local solver stub, and email written to the application log. These let you start locally without provider credentials; they do not prove real payment, email, or solver connectivity. See [task-specific integration setup](CONTRIBUTING.md#3-add-integration-credentials-only-when-needed). Legacy OCR environment entries do not configure an active OCR client in the current application.
+
+<details>
+<summary>When your task needs timed background jobs</summary>
+
+Laravel's task scheduler is separate from the timetable solver. `composer dev` starts a queue listener, but does not run timed jobs. Inspect the schedule from the repository root:
+
+```powershell
+php artisan schedule:list --no-interaction
+```
+
+The current schedule releases expired enrollment reservations hourly. When your task needs this behavior, first verify your local database target and authorize the job's effects, then run the [local scheduler](https://laravel.com/framework/docs/12.x/scheduling#running-the-scheduler-locally) in a separate terminal:
+
+```powershell
+php artisan schedule:work --no-interaction
+```
+
+Stop it with `Ctrl+C`. This extra process is for timed-job testing, not a prerequisite for onboarding or ordinary browsing.
+
+</details>
 
 ## Developer verification
 
@@ -132,10 +159,6 @@ php artisan migrate:fresh --force --no-interaction
 ```
 
 `migrate:fresh` deletes that database's current tables and data. Never use it as routine maintenance for `tala_db`. Close the testing terminal after the rebuild as well.
-
-## Contributor onboarding
-
-New developer? Complete the setup above, then follow [`CONTRIBUTING.md`](CONTRIBUTING.md) for GitHub/Codex access, Boost's one-time assistant setup using the shared skill sources, Serena, any supplied development credentials, and assigned-Issue readiness. You can prepare your machine before assignment. Setup does not authorize coding or publication.
 
 ## Optional development tools
 

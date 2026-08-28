@@ -68,7 +68,7 @@ python -m unittest discover -s tests -v
 
 Laravel focused tests fake HTTP and verify the same contract without calling Cloud Run. Local or fake execution is verification evidence only; it does not prove the source is deployed or receiving traffic.
 
-The application worker keeps solver attempts on the dedicated scheduling queue while continuing to process ordinary work:
+From the Laravel repository root (not this Python directory), the application worker keeps solver attempts on the dedicated scheduling queue while continuing to process ordinary work. `composer dev` already supplies this worker for normal local development; use the standalone command only when a separate worker is needed:
 
 ```powershell
 php artisan queue:work database --queue=scheduling,default --timeout=360 --sleep=1 --no-interaction
