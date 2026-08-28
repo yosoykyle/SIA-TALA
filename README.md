@@ -135,7 +135,7 @@ php artisan migrate:fresh --force --no-interaction
 
 ## Contributor onboarding
 
-Before taking a tracked Issue or preparing another developer's machine, follow [`CONTRIBUTING.md`](CONTRIBUTING.md). It separates application prerequisites from AI-only capabilities, provides the fresh-clone readiness prompt, and explains which tools are required, conditional, or replaceable.
+New developer? Complete the setup above, then follow [`CONTRIBUTING.md`](CONTRIBUTING.md) for GitHub/Codex access, Boost's one-time assistant setup using the shared skill sources, Serena, any supplied development credentials, and assigned-Issue readiness. You can prepare your machine before assignment. Setup does not authorize coding or publication.
 
 ## Optional development tools
 
