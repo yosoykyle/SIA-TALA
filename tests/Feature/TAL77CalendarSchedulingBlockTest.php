@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\SectionMeetingAssignmentService;
-use App\Filament\Resources\CalendarEvents\Pages\CreateCalendarEvent;
 use App\Filament\Resources\CalendarEvents\Pages\ListCalendarEvents;
 use App\Models\CalendarEvent;
 use App\Models\Room;
@@ -61,11 +60,11 @@ final class TAL77CalendarSchedulingBlockTest extends TestCase
         ]);
 
         $this->assertTrue(Gate::forUser($faculty)->allows('view', $ownBlock));
-        $this->assertTrue(Gate::forUser($faculty)->allows('update', $ownBlock));
+        $this->assertFalse(Gate::forUser($faculty)->allows('update', $ownBlock));
         $this->assertFalse(Gate::forUser($faculty)->allows('view', $otherBlock));
         $this->assertFalse(Gate::forUser($faculty)->allows('update', $otherBlock));
         $this->assertTrue(Gate::forUser($registrar)->allows('update', $otherBlock));
-        $this->assertTrue(Gate::forUser($academicHead)->allows('update', $otherBlock));
+        $this->assertFalse(Gate::forUser($academicHead)->allows('update', $otherBlock));
         $this->assertFalse(Gate::forUser($accounting)->allows('viewAny', CalendarEvent::class));
         $this->assertFalse(Gate::forUser($systemSuperAdmin)->allows('viewAny', CalendarEvent::class));
 
@@ -84,38 +83,21 @@ final class TAL77CalendarSchedulingBlockTest extends TestCase
             ->assertCanNotSeeTableRecords([$institutionBlock]);
     }
 
-    public function test_faculty_create_surface_forces_own_active_recurring_unavailable_block(): void
+    public function test_faculty_historical_scheduling_blocks_are_read_only_evidence(): void
     {
         $term = Term::factory()->create();
         $faculty = $this->staff(User::StaffRoleFaculty);
-
-        Livewire::actingAs($faculty)
-            ->test(CreateCalendarEvent::class)
-            ->fillForm([
-                'term_id' => $term->id,
-                'day_of_week' => 2,
-                'starts_at' => '08:00',
-                'ends_at' => '12:00',
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $block = CalendarEvent::query()->sole();
-
-        $this->assertSame(CalendarEvent::TypeUnavailable, $block->event_type);
-        $this->assertSame(CalendarEvent::ScopeFaculty, $block->scope_type);
-        $this->assertSame($faculty->id, $block->faculty_user_id);
-        $this->assertTrue($block->blocks_scheduling);
-        $this->assertSame(CalendarEvent::StateActive, $block->state);
-        $this->assertSame('08:00:00', $block->starts_at?->format('H:i:s'));
-        $this->assertSame('12:00:00', $block->ends_at?->format('H:i:s'));
-        $this->assertNull($block->start_at);
-        $this->assertNull($block->end_at);
-        $this->assertDatabaseHas('activity_log', [
-            'subject_type' => CalendarEvent::class,
-            'subject_id' => $block->id,
-            'event' => 'created',
+        $ownBlock = $this->recurringBlock($term, [
+            'faculty_user_id' => $faculty->id,
         ]);
+
+        $this->assertFalse(Gate::forUser($faculty)->allows('create', CalendarEvent::class));
+        $this->assertFalse(Gate::forUser($faculty)->allows('update', $ownBlock));
+        Livewire::actingAs($faculty)
+            ->test(ListCalendarEvents::class)
+            ->assertCanSeeTableRecords([$ownBlock]);
+
+        $this->assertSame(1, CalendarEvent::query()->count());
     }
 
     public function test_recurring_blocks_reject_manual_assignment_but_no_row_and_absolute_events_do_not(): void

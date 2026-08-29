@@ -1414,6 +1414,11 @@ def _faculty_availability(snapshot: dict[str, Any]) -> dict[int, list[dict[str, 
         if faculty_id is None:
             continue
 
+        # Current v2 declarations project hard unavailability through
+        # calendar_blocks. Only the legacy availability contract owns windows.
+        if "windows" not in row:
+            continue
+
         windows = [window for window in row.get("windows", []) if isinstance(window, dict)]
         grouped[faculty_id] = windows
 

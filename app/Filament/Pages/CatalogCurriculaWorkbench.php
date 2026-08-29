@@ -17,17 +17,26 @@ use App\Models\ProgramAuthority;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Gate;
 use UnitEnum;
 
-final class CatalogCurriculaWorkbench extends Page
+final class CatalogCurriculaWorkbench extends Page implements HasTable
 {
+    use InteractsWithTable;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
 
     protected static string|UnitEnum|null $navigationGroup = 'Academic Planning';
@@ -48,7 +57,7 @@ final class CatalogCurriculaWorkbench extends Page
         ]);
     }
 
-    /** @return list<Action> */
+    /** @return list<Action|ActionGroup> */
     protected function getHeaderActions(): array
     {
         if (auth()->user()?->hasRole(User::StaffRoleAcademicHead)) {
@@ -80,28 +89,75 @@ final class CatalogCurriculaWorkbench extends Page
                     ]);
                     Notification::make()->title('Draft Program authority recorded')->body('Review the source, then activate it separately.')->success()->send();
                 }),
-            Action::make('activateProgramAuthority')
-                ->label('Activate Program authority')
-                ->color('success')
-                ->schema([
-                    Select::make('program_authority_id')
-                        ->label('Draft authority')
-                        ->options(ProgramAuthority::query()->with('program')->where('state', ProgramAuthority::StateDraft)->get()->mapWithKeys(
-                            fn (ProgramAuthority $authority): array => [$authority->id => $authority->program?->code.' · '.$authority->authority_reference],
-                        ))
-                        ->required()
-                        ->searchable(),
-                ])
-                ->action(function (array $data): void {
-                    $actor = auth()->user();
-                    abort_unless($actor instanceof User, 403);
-                    app(ActivateProgramAuthority::class)->execute(
-                        ProgramAuthority::query()->findOrFail((int) $data['program_authority_id']),
-                        $actor,
-                    );
-                    Notification::make()->title('Program authority activated')->success()->send();
-                }),
+            ActionGroup::make([
+                Action::make('activateProgramAuthority')
+                    ->label('Activate reviewed Program authority')
+                    ->color('success')
+                    ->schema([
+                        Select::make('program_authority_id')
+                            ->label('Draft authority')
+                            ->options(ProgramAuthority::query()->with('program')->where('state', ProgramAuthority::StateDraft)->get()->mapWithKeys(
+                                fn (ProgramAuthority $authority): array => [$authority->id => $authority->program?->code.' · '.$authority->authority_reference],
+                            ))
+                            ->required()
+                            ->searchable(),
+                    ])
+                    ->action(function (array $data): void {
+                        $actor = auth()->user();
+                        abort_unless($actor instanceof User, 403);
+                        app(ActivateProgramAuthority::class)->execute(
+                            ProgramAuthority::query()->findOrFail((int) $data['program_authority_id']),
+                            $actor,
+                        );
+                        Notification::make()->title('Program authority activated')->success()->send();
+                    }),
+            ])
+                ->label('More authority actions')
+                ->icon(Heroicon::OutlinedEllipsisVertical)
+                ->color('gray'),
         ];
+    }
+
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(Program::query()->with(['authorities', 'curriculumVersions']))
+            ->columns([
+                TextColumn::make('code')
+                    ->label('Program')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('name')
+                    ->label('Authoritative identity')
+                    ->searchable()
+                    ->wrap(),
+                IconColumn::make('is_active')
+                    ->label('Program active')
+                    ->boolean(),
+                TextColumn::make('active_authority')
+                    ->label('Current authority')
+                    ->state(function (Program $record): string {
+                        $authority = $record->authorities->firstWhere('state', ProgramAuthority::StateActive);
+
+                        return $authority instanceof ProgramAuthority
+                            ? (string) $authority->authority_reference
+                            : 'Action required';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'Action required' ? 'warning' : 'success'),
+                TextColumn::make('curriculum_versions_count')
+                    ->label('Curriculum history')
+                    ->counts('curriculumVersions')
+                    ->numeric(),
+            ])
+            ->filters([
+                TernaryFilter::make('is_active')
+                    ->label('Active Program'),
+            ])
+            ->recordUrl(fn (Program $record): string => ProgramResource::getUrl('view', ['record' => $record]))
+            ->emptyStateHeading('No Program authority records')
+            ->emptyStateDescription('Create the Program identity first, then record and separately activate its external authority.')
+            ->emptyStateIcon(Heroicon::OutlinedBookOpen);
     }
 
     /** @return array<string, mixed> */

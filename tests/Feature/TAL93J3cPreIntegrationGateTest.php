@@ -122,7 +122,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
                 'CalendarEventResource', 'Dashboard', 'FacultyGradeRoster', 'FacultyQualificationResource',
-                'FacultySchedule', 'GradeRosterResource',
+                'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
                 'AcademicApprovals', 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
@@ -148,7 +148,10 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     public static function roleNavigationManifest(): array
     {
         $manifest = self::roleAccessManifest();
-        $manifest['faculty']['allowed'] = array_values(array_diff($manifest['faculty']['allowed'], ['GradeRosterResource']));
+        $manifest['faculty']['allowed'] = array_values(array_diff(
+            $manifest['faculty']['allowed'],
+            ['CalendarEventResource', 'GradeRosterResource'],
+        ));
         $manifest['registrar']['allowed'] = array_values(array_diff(
             $manifest['registrar']['allowed'],
             ['AssistedAdmissionApplication', 'CalendarEventResource', 'DuplicateProfileResolutionResource'],
@@ -210,6 +213,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'AcademicReadiness',
             'ClassPlanning',
             'FacultyGradeRoster',
+            'MyAvailability',
             'FacultySchedule',
             'GradesAndCompletion',
             'CompletionAndTor',

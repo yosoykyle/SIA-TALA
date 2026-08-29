@@ -86,12 +86,19 @@ final class AdjustCandidateMeeting
                     'candidate_adjustment' => $adjustmentSnapshot,
                 ],
                 'input_hash' => hash('sha256', $run->input_hash.'|candidate-adjustment|'.json_encode($adjustmentSnapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+                'objective_value' => null,
+                'quality_measures' => null,
                 'diagnostics' => [
                     ...($run->diagnostics ?? []),
                     'current_revalidation' => [
                         'status' => 'accepted',
                         'context' => 'candidate_correction',
                         'findings' => [],
+                    ],
+                    'quality_comparison' => [
+                        'status' => 'requires_attributable_review',
+                        'reason' => 'A local correction is hard-constraint validated but is not re-optimized by CP-SAT.',
+                        'source_run_id' => $run->id,
                     ],
                 ],
                 'candidate_key' => 'local-adjustment-'.Str::uuid(),

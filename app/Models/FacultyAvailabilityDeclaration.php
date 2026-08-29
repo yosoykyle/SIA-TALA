@@ -17,6 +17,10 @@ class FacultyAvailabilityDeclaration extends Model
     /** @use HasFactory<FacultyAvailabilityDeclarationFactory> */
     use HasFactory;
 
+    public const DeclarationAvailable = 'Available';
+
+    public const DeclarationUnavailable = 'Unavailable';
+
     protected $fillable = [
         'term_id', 'faculty_user_id', 'version', 'declaration',
         'hard_unavailability', 'correction_reason', 'declared_at',
@@ -25,6 +29,15 @@ class FacultyAvailabilityDeclaration extends Model
     protected function casts(): array
     {
         return ['version' => 'integer', 'hard_unavailability' => 'array', 'declared_at' => 'datetime'];
+    }
+
+    /** @return array<string, string> */
+    public static function declarationOptions(): array
+    {
+        return [
+            self::DeclarationAvailable => 'Available with the unavailable times below',
+            self::DeclarationUnavailable => 'Unavailable for teaching in this Term',
+        ];
     }
 
     /** @return BelongsTo<Term, $this> */

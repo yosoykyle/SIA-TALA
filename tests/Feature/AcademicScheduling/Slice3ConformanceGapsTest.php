@@ -15,6 +15,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -49,6 +50,7 @@ final class Slice3ConformanceGapsTest extends TestCase
 
         $registrar = Role::findOrCreate(User::StaffRoleRegistrar);
         $registrar->givePermissionTo(Permission::findOrCreate('manage-schedules'));
+        Role::findOrCreate(User::StaffRoleFaculty);
     }
 
     public function test_demand_generation_preserves_two_by_ninety_meeting_pattern(): void
@@ -136,7 +138,7 @@ final class Slice3ConformanceGapsTest extends TestCase
         }
     }
 
-    public function test_regular_shared_and_authority_backed_additional_classes_preserve_sources_and_capacity(): void
+    public function test_regular_and_authority_backed_additional_classes_use_cohort_relationships_for_sharing(): void
     {
         $registrar = $this->registrar();
         $regular = $this->classFixture('1x60', 1.0);
@@ -148,20 +150,38 @@ final class Slice3ConformanceGapsTest extends TestCase
 
         app(ConfirmClassOffering::class)->execute($regular['section'], $registrar, [$regularCohort->id => 12]);
 
-        $shared = $this->classFixture('1x60', 1.0);
-        $shared['section']->update([
-            'source' => Section::SourceShared,
+        $sharedRegular = $this->classFixture('1x60', 1.0);
+        $sharedRegular['section']->update([
+            'source' => Section::SourceRegular,
             'capacity' => 18,
         ]);
         $sharedCohorts = [
-            $this->cohortForFixture($shared, 10),
-            $this->cohortForFixture($shared, 8),
+            $this->cohortForFixture($sharedRegular, 10),
+            $this->cohortForFixture($sharedRegular, 8),
         ];
 
-        app(ConfirmClassOffering::class)->execute($shared['section'], $registrar, [
+        app(ConfirmClassOffering::class)->execute($sharedRegular['section'], $registrar, [
             $sharedCohorts[0]->id => 10,
             $sharedCohorts[1]->id => 8,
         ]);
+
+        $historicalShared = $this->classFixture('1x60', 1.0);
+        $historicalShared['section']->update([
+            'source' => Section::SourceShared,
+            'capacity' => 10,
+        ]);
+        $historicalCohort = $this->cohortForFixture($historicalShared, 10);
+
+        try {
+            app(ConfirmClassOffering::class)->execute(
+                $historicalShared['section'],
+                $registrar,
+                [$historicalCohort->id => 10],
+            );
+            $this->fail('The historical Shared source remained available for a new confirmation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('source', $exception->errors());
+        }
 
         $additional = $this->classFixture('1x60', 1.0);
         $additional['section']->update([
@@ -188,8 +208,10 @@ final class Slice3ConformanceGapsTest extends TestCase
 
         $this->assertSame(Section::SourceRegular, $regular['section']->fresh()->source);
         $this->assertSame(12, $this->confirmedCohortCount($regular['section']));
-        $this->assertSame(Section::SourceShared, $shared['section']->fresh()->source);
-        $this->assertSame(18, $this->confirmedCohortCount($shared['section']));
+        $this->assertSame(Section::SourceRegular, $sharedRegular['section']->fresh()->source);
+        $this->assertSame(18, $this->confirmedCohortCount($sharedRegular['section']));
+        $this->assertSame(Section::SourceShared, $historicalShared['section']->fresh()->source);
+        $this->assertSame(0, $historicalShared['section']->cohorts()->count());
         $this->assertSame(Section::SourceAdditional, $confirmedAdditional->source);
         $this->assertSame('SYNTH-ADDITIONAL-CLASS-AUTHORITY', $confirmedAdditional->authority_reference);
     }
@@ -241,6 +263,44 @@ final class Slice3ConformanceGapsTest extends TestCase
             fn (array $block): bool => in_array($block['event_type'] ?? null, ['SchedulingCommitment', 'DatedTeachingException'], true),
         ));
         $this->assertCount(2, $snapshot['dated_exceptions']);
+    }
+
+    public function test_latest_faculty_declaration_projects_deterministic_hard_calendar_blocks(): void
+    {
+        $fixture = $this->classFixture('1x60', 1.0);
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'faculty_user_id' => $faculty->id,
+            'version' => 1,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'hard_unavailability' => [['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '09:00:00']],
+        ]);
+        $latest = FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'faculty_user_id' => $faculty->id,
+            'version' => 2,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'hard_unavailability' => [['day_of_week' => 2, 'starts_at' => '10:00:00', 'ends_at' => '11:00:00']],
+        ]);
+        $run = ScheduleGenerationRun::factory()->create(['term_id' => $fixture['term']->id]);
+
+        $snapshot = app(ScheduleSolverSnapshotService::class)->currentForRun($run);
+        $block = collect($snapshot['calendar_blocks'])
+            ->where('event_type', 'FacultyAvailabilityDeclaration')
+            ->sole();
+        $availability = collect($snapshot['faculty_availability'])
+            ->where('faculty_user_id', $faculty->id)
+            ->sole();
+
+        $this->assertSame($latest->id, $block['faculty_availability_declaration_id']);
+        $this->assertSame(2, $block['declaration_version']);
+        $this->assertSame(2, $block['day_of_week']);
+        $this->assertSame('10:00:00', $block['starts_at']);
+        $this->assertSame('11:00:00', $block['ends_at']);
+        $this->assertSame(2, $availability['declaration_version']);
+        $this->assertArrayNotHasKey('windows', $availability);
     }
 
     public function test_repair_request_captures_the_complete_source_preview_and_blocks_a_duplicate_active_run(): void

@@ -10,6 +10,7 @@ use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Scheduling\AdjustCandidateMeeting;
 use App\Actions\Scheduling\ConfirmClassOffering;
+use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
@@ -21,7 +22,9 @@ use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Actions\Scheduling\ScheduleSolverSnapshotService;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermPlanningWorkbench;
+use App\Mail\FacultyAvailabilityRequestedMail;
 use App\Mail\ScheduleReleasedMail;
 use App\Models\CalendarEvent;
 use App\Models\CandidateScheduleRow;
@@ -31,9 +34,9 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
-use App\Models\Program;
 use App\Models\ProgramAuthority;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -45,6 +48,7 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
+use App\Models\StudentProfile;
 use App\Models\StudentScheduleBinding;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -54,12 +58,15 @@ use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\TimetableRevision;
 use App\Models\User;
+use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
@@ -260,6 +267,16 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame($faculty->id, $publishedMeeting->faculty_user_id);
         $this->assertSame(0, StudentScheduleBinding::query()->count());
         Mail::assertQueued(ScheduleReleasedMail::class, 1);
+
+        $this->actingAs($registrar)
+            ->get(route('timetable.version.print', $publishedVersion))
+            ->assertOk()
+            ->assertSee('PUBLISHED TIMETABLE')
+            ->assertSee('TALA-TT-'.$publishedVersion->id.'-V1')
+            ->assertSee('SYNTH-TIMETABLE-SIGNOFF-001')
+            ->assertSee('Initial publication')
+            ->assertSee('margin: 12mm', escape: false)
+            ->assertDontSee('Term Planning');
 
         $failedDelivery = OperationalEvent::query()
             ->where('related_record_type', PublishedTimetableVersion::class)
@@ -514,16 +531,54 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertSee('Academic authority at a glance')
             ->assertSee('Import previews');
 
-        Livewire::actingAs($registrar)
+        $termPlanning = Livewire::actingAs($registrar)
             ->test(TermPlanningWorkbench::class)
             ->call('selectTerm', $term->id)
-            ->call('showTab', 'correction')
+            ->call('showTab', 'generate')
+            ->assertSee('Generate & Review')
             ->assertSee('Candidate Correction')
-            ->assertSee('one-meeting correction');
+            ->assertSee('one-meeting correction')
+            ->assertSee('Published Timetable');
+
+        $this->assertSame(
+            ['class' => 'tala-term-planning-page'],
+            $termPlanning->instance()->getExtraBodyAttributes(),
+        );
 
         Livewire::actingAs($academicHead)
             ->test(CatalogCurriculaWorkbench::class)
             ->assertSee('Academic Head access is read-only');
+    }
+
+    public function test_term_planning_defaults_only_to_one_unambiguous_active_package(): void
+    {
+        $registrar = $this->registrar();
+        $first = Term::factory()->create(['label' => 'First Term']);
+        TermCalendarPackage::factory()->create([
+            'term_id' => $first->id,
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class)
+            ->assertSet('termId', $first->id);
+
+        $second = Term::factory()->create(['label' => 'Second Term']);
+        TermCalendarPackage::factory()->create([
+            'term_id' => $second->id,
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(TermPlanningWorkbench::class)
+            ->assertSet('termId', null)
+            ->assertSee('Select one exact Term');
+
+        Livewire::withQueryParams(['termId' => 999999])
+            ->actingAs($registrar)
+            ->test(TermPlanningWorkbench::class)
+            ->assertSet('termId', null)
+            ->assertSee('Select one exact Term');
     }
 
     public function test_candidate_acceptance_and_rejection_are_attributable_non_official_decisions(): void
@@ -555,41 +610,23 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertNull($rejected->published_at);
     }
 
-    public function test_coordinated_slice_three_fixture_preserves_six_cohorts_forty_seven_places_nine_faculty_and_ten_rooms(): void
+    public function test_coordinated_slice_three_fixture_materializes_the_actual_synthetic_workload(): void
     {
-        $term = Term::factory()->create(['state' => Term::StateActive]);
-        $programs = collect([
-            ['code' => 'DBM', 'name' => 'Diploma in Business Management'],
-            ['code' => 'DIT', 'name' => 'Diploma in Information Technology'],
-            ['code' => 'DTHM', 'name' => 'Diploma in Tourism and Hospitality Management'],
-        ])->map(fn (array $program): Program => Program::factory()->create($program));
-        $cohortCounts = [8, 8, 8, 8, 8, 7];
+        $exitCode = Artisan::call('acceptance:seed-client-baseline');
+        $output = Artisan::output();
 
-        foreach ($programs as $programIndex => $program) {
-            $curriculum = CurriculumVersion::factory()->for($program)->create([
-                'state' => CurriculumVersion::StateActive,
-            ]);
-
-            foreach (array_slice($cohortCounts, $programIndex * 2, 2) as $cohortIndex => $count) {
-                TermCohort::factory()->create([
-                    'term_id' => $term->id,
-                    'program_id' => $program->id,
-                    'curriculum_version_id' => $curriculum->id,
-                    'reference' => 'SYNTH-'.$program->code.'-'.($cohortIndex + 1),
-                    'forecast_count' => $count,
-                    'confirmed_count' => $count,
-                ]);
-            }
-        }
-
-        $faculty = User::factory()->count(9)->create(['status' => User::StatusActive]);
-        $faculty->each->assignRole(User::StaffRoleFaculty);
-        Room::factory()->count(10)->create(['is_active' => true]);
-
-        $this->assertSame(6, TermCohort::query()->whereBelongsTo($term)->count());
-        $this->assertSame(47, (int) TermCohort::query()->whereBelongsTo($term)->sum('confirmed_count'));
+        $this->assertSame(Command::SUCCESS, $exitCode, $output);
+        $this->assertStringContainsString('students=47', $output);
+        $this->assertStringContainsString('scheduling_demands=54', $output);
+        $this->assertSame(47, StudentProfile::query()->count());
+        $this->assertSame(6, StudentProfile::query()
+            ->pluck('student_number')
+            ->map(fn (string $number): string => implode('-', array_slice(explode('-', $number), 0, 2)))
+            ->unique()
+            ->count());
         $this->assertSame(9, User::role(User::StaffRoleFaculty)->count());
         $this->assertSame(10, Room::query()->where('is_active', true)->count());
+        $this->assertSame(54, SchedulingDemand::query()->count());
         $this->assertSame(0, StudentScheduleBinding::query()->count());
     }
 
@@ -604,13 +641,40 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'candidate_state' => 'UnderReview',
         ]);
 
+        try {
+            app(RecordFacultyAvailabilityDeclaration::class)->execute(
+                $term,
+                $faculty,
+                $this->registrar(),
+                'Available',
+                [],
+            );
+            $this->fail('The Registrar impersonated a Faculty availability declaration.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
             $term,
             $faculty,
             $faculty,
             'Available',
-            [['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '09:00:00']],
+            [
+                ['day_of_week' => 2, 'starts_at' => '10:00', 'ends_at' => '11:00'],
+                ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '09:00'],
+                ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '09:00'],
+            ],
         );
+
+        $this->assertEquals([
+            ['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '09:00:00'],
+            ['day_of_week' => 2, 'starts_at' => '10:00:00', 'ends_at' => '11:00:00'],
+        ], FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->where('faculty_user_id', $faculty->id)
+            ->latest('version')
+            ->firstOrFail()
+            ->hard_unavailability);
 
         try {
             app(RecordFacultyAvailabilityDeclaration::class)->execute(
@@ -637,6 +701,80 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $this->assertSame(2, $corrected->version);
         $this->assertSame('Faculty confirmed the earlier conflict was removed.', $corrected->correction_reason);
         $this->assertSame('Stale', $run->fresh()->candidate_state);
+    }
+
+    public function test_faculty_owns_the_native_exact_term_availability_journey(): void
+    {
+        Mail::fake();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->create([
+            'term_id' => $term->id,
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $registrar = $this->registrar();
+
+        $requests = app(FacultyAvailabilityRequestService::class)->request($package, [$faculty->id], $registrar);
+        app(FacultyAvailabilityRequestService::class)->request($package, [$faculty->id], $registrar);
+
+        $this->assertCount(1, $requests);
+        $this->assertSame(1, OperationalEvent::query()
+            ->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)
+            ->count());
+        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, 1);
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class)
+            ->assertSet('termId', $term->id)
+            ->assertActionVisible('declareAvailability')
+            ->callAction('declareAvailability', data: [
+                'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+                'hard_unavailability' => [[
+                    'day_of_week' => 3,
+                    'starts_at' => '13:00',
+                    'ends_at' => '15:00',
+                ]],
+                'correction_reason' => null,
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified()
+            ->assertSee('Wednesday, 13:00–15:00');
+
+        $this->assertDatabaseHas('faculty_availability_declarations', [
+            'term_id' => $term->id,
+            'faculty_user_id' => $faculty->id,
+            'version' => 1,
+        ]);
+
+        $request = $requests->sole();
+        $request->forceFill(['status' => OperationalEvent::StatusFailed])->save();
+        app(FacultyAvailabilityRequestService::class)->resend($request, $registrar);
+        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, 2);
+
+        $this->actingAs($registrar);
+        $this->assertFalse(MyAvailability::canAccess());
+    }
+
+    public function test_successful_faculty_availability_request_records_transport_evidence(): void
+    {
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->create([
+            'term_id' => $term->id,
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        $faculty = User::factory()->create(['status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+
+        $event = app(FacultyAvailabilityRequestService::class)
+            ->request($package, [$faculty->id], $this->registrar())
+            ->sole()
+            ->fresh();
+
+        $this->assertSame(OperationalEvent::StatusProcessed, $event->status);
+        $this->assertNotNull($event->sent_at);
+        $this->assertNotEmpty(data_get($event->payload, 'delivery.transport_message_id'));
+        $this->assertNotEmpty(data_get($event->payload, 'delivery.accepted_at'));
     }
 
     private function registrar(): User

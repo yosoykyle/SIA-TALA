@@ -29,7 +29,7 @@ class CalendarEventResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return self::isFacultyWorkspace();
+        return false;
     }
 
     public static function getNavigationLabel(): string

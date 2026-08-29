@@ -8,8 +8,8 @@ use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GovernanceAudit;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\SystemHealth;
-use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FeePlans\FeePlanResource;
@@ -121,7 +121,7 @@ class StaffRoleWorkspaceOverviewWidget extends StatsOverviewWidget
         return [
             $this->stat('1. My Schedule', "{$meetings} published meetings", 'View only your official teaching assignments.', FacultySchedule::getUrl()),
             $this->stat('2. Grade Rosters', "{$activeRosters} need work", 'Encode assigned rosters and review submission history.', FacultyGradeRoster::getUrl()),
-            $this->stat('3. My Unavailable Times', "{$unavailableBlocks} recorded", 'Record recurring times when you cannot be assigned.', CalendarEventResource::getUrl('index')),
+            $this->stat('3. My Availability', "{$unavailableBlocks} historical block(s)", 'Submit your exact-Term hard availability and review attributable corrections.', MyAvailability::getUrl()),
         ];
     }
 

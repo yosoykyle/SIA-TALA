@@ -18,17 +18,18 @@
         </section>
 
         @if ($term)
-            <nav aria-label="Term planning sections" class="overflow-x-auto border-b border-gray-200 dark:border-white/10">
-                <div class="flex min-w-max gap-1">
+            <x-filament::tabs aria-label="Term planning sections">
                     @foreach ($tabs as $key => $label)
-                        <button type="button" wire:click="showTab('{{ $key }}')" @class([
-                            'border-b-2 px-3 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-600',
-                            'border-primary-600 text-primary-700 dark:text-primary-300' => $viewTab === $key,
-                            'border-transparent text-gray-600 hover:text-gray-950 dark:text-gray-300 dark:hover:text-white' => $viewTab !== $key,
-                        ])>{{ $label }}</button>
+                        <x-filament::tabs.item
+                            :active="$viewTab === $key"
+                            :aria-current="$viewTab === $key ? 'page' : null"
+                            type="button"
+                            wire:click="showTab('{{ $key }}')"
+                        >
+                            {{ $label }}
+                        </x-filament::tabs.item>
                     @endforeach
-                </div>
-            </nav>
+            </x-filament::tabs>
 
             <section aria-live="polite" class="space-y-4">
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -56,16 +57,20 @@
                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
                         @switch($viewTab)
                             @case('overview') Review approved dates, windows, teaching grid, exceptions, and authority evidence. @break
-                            @case('classes') Confirm cohorts and Regular, Shared, or authority-backed Additional Class Offerings. @break
-                            @case('resources') Review Faculty availability, qualifications, rooms, features, unavailability, and commitments. @break
-                            @case('generate') Generate the complete exact-Term candidate, inspect outcomes, and record non-official review. @break
-                            @case('correction') Apply one-meeting correction or preview a complete repair before accepting a successor. @break
+                            @case('classes') Confirm cohorts and Regular or authority-backed Additional Class Offerings. Sharing is recorded through explicit cohort relationships. @break
+                            @case('resources') Review Faculty declarations, qualifications, rooms, features, institutional unavailability, and commitments. Faculty records their own availability from My Availability. @break
+                            @case('generate') Generate the complete exact-Term candidate, inspect outcomes, record non-official review, and open Candidate Correction only for a current candidate. @break
                             @case('published') Inspect current and superseded immutable timetable versions and version-bound output. @break
                         @endswitch
                     </p>
                     <a href="{{ $destinations[$viewTab] }}" class="mt-4 inline-flex rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2">
                         Open {{ $tabs[$viewTab] }} records
                     </a>
+                    @if ($viewTab === 'generate')
+                        <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                            <strong>Candidate Correction:</strong> use the selected candidate's actions for one-meeting correction or a complete repair preview. Correction is not a separate planning destination.
+                        </p>
+                    @endif
                     @if ($viewTab === 'published')
                         <div class="mt-5 overflow-x-auto">
                             <table class="w-full text-left text-sm">
@@ -91,6 +96,13 @@
                     @endif
                 </article>
             </section>
+        @elseif ($terms->isNotEmpty())
+            <x-filament::section icon="heroicon-o-cursor-arrow-rays">
+                <x-slot name="heading">Select one exact Term</x-slot>
+                <x-slot name="description">
+                    More than one planning context is available, or no Term has an active Calendar Package. Choose a Term above before reviewing records or taking an action.
+                </x-slot>
+            </x-filament::section>
         @endif
     </div>
 </x-filament-panels::page>

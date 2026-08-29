@@ -21,7 +21,7 @@ class TermCalendarPackage extends Model
 
     protected $fillable = [
         'term_id', 'version', 'state', 'administrative_starts_on', 'administrative_ends_on',
-        'classes_start_on', 'classes_end_on', 'authority_reference', 'authority_date',
+        'classes_start_on', 'classes_end_on', 'faculty_availability_due_at', 'authority_reference', 'authority_date',
         'special_term_schedule_basis', 'recorded_by', 'activated_at', 'closed_at',
     ];
 
@@ -33,6 +33,7 @@ class TermCalendarPackage extends Model
             'administrative_ends_on' => 'date',
             'classes_start_on' => 'date',
             'classes_end_on' => 'date',
+            'faculty_availability_due_at' => 'datetime',
             'authority_date' => 'date',
             'activated_at' => 'datetime',
             'closed_at' => 'datetime',

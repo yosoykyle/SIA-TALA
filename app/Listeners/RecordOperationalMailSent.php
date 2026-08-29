@@ -17,6 +17,7 @@ class RecordOperationalMailSent
             || ! in_array($operationalEventType, [
                 OperationalEvent::TypeScheduleRevisionEmail,
                 OperationalEvent::TypeScheduleReleasedEmail,
+                OperationalEvent::TypeFacultyAvailabilityRequestedEmail,
                 OperationalEvent::TypePaymentPostedEmail,
                 OperationalEvent::TypeApplicantActionRequiredEmail,
                 OperationalEvent::TypeApplicantApprovedEmail,

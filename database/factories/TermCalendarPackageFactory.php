@@ -27,6 +27,7 @@ class TermCalendarPackageFactory extends Factory
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-03',
             'classes_end_on' => '2026-12-05',
+            'faculty_availability_due_at' => '2026-07-15 09:00:00',
             'authority_reference' => 'SYNTH-CALENDAR-2026',
             'authority_date' => '2026-05-15',
             'special_term_schedule_basis' => null,

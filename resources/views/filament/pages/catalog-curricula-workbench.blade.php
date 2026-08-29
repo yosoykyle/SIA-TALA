@@ -23,6 +23,12 @@
             </div>
         @endif
 
+        <x-filament::section>
+            <x-slot name="heading">Programs and authority</x-slot>
+            <x-slot name="description">Search or filter the authoritative Program identity, current external authority, and immutable Curriculum Version history.</x-slot>
+            {{ $this->table }}
+        </x-filament::section>
+
         <section aria-labelledby="catalog-actions" class="space-y-3">
             <h2 id="catalog-actions" class="text-lg font-semibold text-gray-950 dark:text-white">Catalog & Curricula workbench</h2>
             <div class="grid gap-4 lg:grid-cols-2">

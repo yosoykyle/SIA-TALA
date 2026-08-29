@@ -39,6 +39,8 @@ dont access
 /.github/skills/mcp-development/
 
 # Local Dev Outputs & Helper Scripts
+/.playwright-mcp/
+/output/
 /outputs/
 /tmp/
 /migration_log.txt

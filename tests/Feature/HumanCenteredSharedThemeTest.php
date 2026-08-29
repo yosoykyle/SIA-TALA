@@ -137,11 +137,12 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString("navigation.querySelector('a[href]')?.focus({ preventScroll: true })", $script);
     }
 
-    public function test_forced_colors_keep_native_control_edges_without_relying_on_shadows(): void
+    public function test_forced_colors_and_reduced_motion_preserve_native_operability(): void
     {
         $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
 
         $this->assertStringContainsString('@media (forced-colors: active)', $theme);
+        $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $theme);
         $this->assertStringContainsString('.fi-body :is(.fi-input-wrp, .fi-section, .fi-ta-ctn, .fi-modal-window, .fi-dropdown-panel) { border: 1px solid CanvasText; }', $theme);
         $this->assertStringContainsString('.fi-body :is(.fi-btn, .fi-icon-btn) { border: 1px solid ButtonText; }', $theme);
         $this->assertStringContainsString(".fi-body :is(input[type='checkbox'], input[type='radio']) { appearance: auto; border: 1px solid ButtonText; }", $theme);

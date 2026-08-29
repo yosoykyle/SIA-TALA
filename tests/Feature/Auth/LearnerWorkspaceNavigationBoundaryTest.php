@@ -103,7 +103,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
             ->assertSee('Lifecycle Exceptions');
 
         $provider = file_get_contents(app_path('Providers/Filament/AdminPanelProvider.php'));
-        $this->assertStringContainsString("'My Availability' => CalendarEventResource::class", $provider);
+        $this->assertStringContainsString("'My Availability' => MyAvailability::class", $provider);
         $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
         $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
         $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);

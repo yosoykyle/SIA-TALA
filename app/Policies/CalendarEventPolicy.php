@@ -48,7 +48,7 @@ class CalendarEventPolicy
      */
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return $user->hasRole(User::StaffRoleRegistrar);
     }
 
     /**
@@ -60,7 +60,8 @@ class CalendarEventPolicy
             return $this->updateAcademicCalendarWindow($user, $calendarEvent);
         }
 
-        return $this->view($user, $calendarEvent);
+        return $user->hasRole(User::StaffRoleRegistrar)
+            && $this->isRecurringSchedulingBlock($calendarEvent);
     }
 
     /**

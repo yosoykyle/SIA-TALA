@@ -17,6 +17,7 @@ use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\GradesAndCompletion;
+use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\SystemHealth;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\AcademicCalendarWindows\AcademicCalendarWindowResource;
@@ -158,6 +159,7 @@ class AdminPanelProvider extends PanelProvider
                 AcademicReadiness::class,
                 ClassPlanning::class,
                 FacultyGradeRoster::class,
+                MyAvailability::class,
                 FacultySchedule::class,
                 GradesAndCompletion::class,
                 CompletionAndTor::class,
@@ -236,7 +238,7 @@ class AdminPanelProvider extends PanelProvider
                 'Student Accounts' => EnrollmentResource::class,
             ],
             User::StaffRoleFaculty => [
-                'My Availability' => CalendarEventResource::class,
+                'My Availability' => MyAvailability::class,
                 'My Schedule' => FacultySchedule::class,
                 'Grade Rosters' => FacultyGradeRoster::class,
             ],

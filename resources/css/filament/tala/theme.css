@@ -137,6 +137,24 @@
     }
 }
 
+@media (max-width: 63.999rem) {
+    .tala-term-planning-page .fi-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .tala-term-planning-page .fi-header-actions-ctn,
+    .tala-term-planning-page .fi-header-actions-ctn > .fi-ac {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .tala-term-planning-page .fi-header-actions-ctn .fi-btn {
+        flex: 1 1 14rem;
+        min-height: 2.75rem;
+    }
+}
+
 @media (max-width: 39.999rem) {
     .fi-main { padding-inline: 1rem; }
     .fi-input, .fi-select-input, .fi-fo-field-label-content, .fi-sidebar-item-label { font-size: 1rem; }
@@ -144,6 +162,17 @@
     .fi-auth-layout.media-cover { padding: 1.5rem 1rem; }
     .fi-topbar .tala-brand__name { max-width: 10rem; font-size: 0.875rem; }
     .fi-topbar { padding-inline: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-body *,
+    .fi-body *::before,
+    .fi-body *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 @media (forced-colors: active) {

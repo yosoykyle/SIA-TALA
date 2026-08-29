@@ -350,6 +350,57 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual("conflict", assignment["assignment_status"])
         self.assertEqual("solver_unassigned", assignment["violations"][0]["type"])
 
+    def test_v2_faculty_declaration_uses_calendar_blocks_not_legacy_windows(self) -> None:
+        snapshot = self.snapshot()
+        demand = snapshot["scheduling_demands"][0]
+        demand["fixed_faculty_user_id"] = 200
+        demand["fixed_room_id"] = 301
+        demand["fixed_day_of_week"] = 1
+        demand["fixed_start_time"] = "08:00:00"
+        snapshot["faculty_availability"] = [
+            {
+                "faculty_user_id": 200,
+                "declaration_version": 2,
+                "declaration": "Available",
+                "hard_unavailability": [
+                    {
+                        "day_of_week": 1,
+                        "starts_at": "08:00:00",
+                        "ends_at": "09:00:00",
+                    }
+                ],
+            }
+        ]
+
+        without_projected_block = solve_snapshot(snapshot, timeout_seconds=10)
+        assignment = next(
+            row for row in without_projected_block["assignments"]
+            if row["scheduling_demand_id"] == demand["scheduling_demand_id"]
+        )
+        self.assertEqual("ok", assignment["assignment_status"])
+
+        snapshot["calendar_blocks"] = [
+            {
+                "faculty_availability_declaration_id": 42,
+                "declaration_version": 2,
+                "event_type": "FacultyAvailabilityDeclaration",
+                "scope_type": "Faculty",
+                "faculty_user_id": 200,
+                "room_id": None,
+                "authority": "Faculty declaration v2",
+                "day_of_week": 1,
+                "starts_at": "08:00:00",
+                "ends_at": "09:00:00",
+            }
+        ]
+
+        with_projected_block = solve_snapshot(snapshot, timeout_seconds=10)
+        blocked = next(
+            row for row in with_projected_block["assignments"]
+            if row["scheduling_demand_id"] == demand["scheduling_demand_id"]
+        )
+        self.assertEqual("conflict", blocked["assignment_status"])
+
     def test_v2_profile_reports_the_fixed_lexicographic_hierarchy_without_weights(self) -> None:
         result = solve_snapshot(self.snapshot(), timeout_seconds=10)
 

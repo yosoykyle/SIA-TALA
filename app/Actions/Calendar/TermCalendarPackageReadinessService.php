@@ -20,6 +20,10 @@ final class TermCalendarPackageReadinessService
             $blockers[] = $this->blocker('calendar_authority_missing', 'Term Calendar Package', 'Registrar', 'The external calendar authority is incomplete.', 'Record its approval reference and date.', 'Correct the Draft package and retry activation.');
         }
 
+        if ($package->faculty_availability_due_at === null) {
+            $blockers[] = $this->blocker('faculty_availability_deadline_missing', 'Teaching resources', 'Registrar', 'The Faculty availability deadline is missing.', 'Record the exact action deadline before requesting declarations.', 'Correct the Draft package and retry activation.');
+        }
+
         $administrativeStartsOn = CarbonImmutable::parse((string) $package->administrative_starts_on);
         $administrativeEndsOn = CarbonImmutable::parse((string) $package->administrative_ends_on);
         $classesStartOn = CarbonImmutable::parse((string) $package->classes_start_on);
@@ -30,6 +34,16 @@ final class TermCalendarPackageReadinessService
             || $classesStartOn->lt($administrativeStartsOn)
             || $classesEndOn->gt($administrativeEndsOn)) {
             $blockers[] = $this->blocker('calendar_bounds_invalid', 'Term Calendar Package', 'Registrar', 'Administrative and class dates are contradictory.', 'Correct the inclusive date bounds.', 'Retain the Draft package until all date bounds are valid.');
+        }
+
+        $facultyAvailabilityDueAt = $package->faculty_availability_due_at === null
+            ? null
+            : CarbonImmutable::parse((string) $package->faculty_availability_due_at);
+
+        if ($facultyAvailabilityDueAt !== null
+            && ($facultyAvailabilityDueAt->lt($administrativeStartsOn->startOfDay())
+                || $facultyAvailabilityDueAt->gt($classesStartOn->endOfDay()))) {
+            $blockers[] = $this->blocker('faculty_availability_deadline_invalid', 'Teaching resources', 'Registrar', 'The Faculty availability deadline is outside the approved planning interval.', 'Place the deadline within the administrative start and class-start bounds.', 'Correct the Draft package and retry activation.');
         }
 
         foreach (['Enrollment', 'ExaminationPeriod', 'GradeEntry'] as $windowType) {

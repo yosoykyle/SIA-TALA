@@ -6,15 +6,15 @@ use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
 use App\Actions\Scheduling\ConfirmClassOffering;
+use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
-use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
-use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\Terms\TermResource;
 use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
@@ -26,6 +26,7 @@ use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -49,6 +50,9 @@ final class TermPlanningWorkbench extends Page
 
     protected string $view = 'filament.pages.term-planning-workbench';
 
+    /** @var array<string, string> */
+    protected array $extraBodyAttributes = ['class' => 'tala-term-planning-page'];
+
     #[Url]
     public ?int $termId = null;
 
@@ -56,11 +60,25 @@ final class TermPlanningWorkbench extends Page
     public string $viewTab = 'overview';
 
     /** @var list<string> */
-    private const Tabs = ['overview', 'classes', 'resources', 'generate', 'correction', 'published'];
+    private const Tabs = ['overview', 'classes', 'resources', 'generate', 'published'];
 
     public function mount(): void
     {
-        $this->termId ??= Term::query()->latest('starts_on')->value('id');
+        if ($this->termId !== null && ! Term::query()->whereKey($this->termId)->exists()) {
+            $this->termId = null;
+        }
+
+        if ($this->termId === null) {
+            $activeTermIds = TermCalendarPackage::query()
+                ->where('state', TermCalendarPackage::StateActive)
+                ->distinct()
+                ->pluck('term_id');
+
+            if ($activeTermIds->count() === 1) {
+                $this->termId = (int) $activeTermIds->sole();
+            }
+        }
+
         $this->viewTab = in_array($this->viewTab, self::Tabs, true) ? $this->viewTab : 'overview';
     }
 
@@ -81,11 +99,15 @@ final class TermPlanningWorkbench extends Page
             return [];
         }
 
+        if ($this->termId === null) {
+            return [];
+        }
+
         return [
             $this->recordCalendarPackageAction(),
             $this->activateCalendarPackageAction(),
+            $this->requestFacultyAvailabilityAction(),
             $this->confirmClassAction(),
-            $this->recordFacultyAvailabilityAction(),
             $this->manageTeachingAssignmentAction(),
         ];
     }
@@ -95,11 +117,16 @@ final class TermPlanningWorkbench extends Page
         return Action::make('recordCalendarPackage')
             ->label('Record Calendar Package')
             ->schema([
-                Select::make('term_id')->label('Exact Term')->options(Term::query()->latest('starts_on')->pluck('label', 'id'))->required()->searchable(),
                 DatePicker::make('administrative_starts_on')->required(),
                 DatePicker::make('administrative_ends_on')->required()->after('administrative_starts_on'),
                 DatePicker::make('classes_start_on')->required(),
                 DatePicker::make('classes_end_on')->required()->after('classes_start_on'),
+                DateTimePicker::make('faculty_availability_due_at')
+                    ->label('Faculty availability deadline')
+                    ->timezone((string) config('app.display_timezone'))
+                    ->seconds(false)
+                    ->required()
+                    ->beforeOrEqual('classes_start_on'),
                 TextInput::make('authority_reference')->required()->maxLength(255),
                 DatePicker::make('authority_date')->required(),
                 TextInput::make('special_term_schedule_basis')->maxLength(255),
@@ -111,15 +138,15 @@ final class TermPlanningWorkbench extends Page
                     ])->required(),
                     DatePicker::make('opens_on')->required(),
                     DatePicker::make('closes_on')->required()->afterOrEqual('opens_on'),
-                    TimePicker::make('cutoff_at')->seconds(false),
+                    TimePicker::make('cutoff_at')->timezone((string) config('app.timezone'))->seconds(false),
                 ])->minItems(3)->required()->columns(4),
                 Repeater::make('teaching_grid_rows')->schema([
                     Select::make('day_of_week')->options(SectionMeeting::dayOptions())->required(),
-                    TimePicker::make('starts_at')->required()->seconds(false),
-                    TimePicker::make('ends_at')->required()->seconds(false)->after('starts_at'),
+                    TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->required()->seconds(false),
+                    TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->required()->seconds(false)->after('starts_at'),
                     Repeater::make('breaks')->schema([
-                        TimePicker::make('starts_at')->required()->seconds(false),
-                        TimePicker::make('ends_at')->required()->seconds(false)->after('starts_at'),
+                        TimePicker::make('starts_at')->timezone((string) config('app.timezone'))->required()->seconds(false),
+                        TimePicker::make('ends_at')->timezone((string) config('app.timezone'))->required()->seconds(false)->after('starts_at'),
                     ])->columns(2),
                 ])->minItems(1)->required()->columns(3),
                 Repeater::make('dated_exceptions')->schema([
@@ -134,10 +161,11 @@ final class TermPlanningWorkbench extends Page
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
                 DB::transaction(function () use ($data, $actor): void {
-                    $term = Term::query()->whereKey((int) $data['term_id'])->lockForUpdate()->firstOrFail();
+                    $term = Term::query()->whereKey($this->selectedTerm()->id)->lockForUpdate()->firstOrFail();
                     $version = ((int) TermCalendarPackage::query()->where('term_id', $term->id)->max('version')) + 1;
                     $package = TermCalendarPackage::query()->create([
                         ...collect($data)->except(['windows', 'teaching_grid_rows', 'dated_exceptions'])->all(),
+                        'term_id' => $term->id,
                         'version' => $version,
                         'state' => TermCalendarPackage::StateDraft,
                         'recorded_by' => $actor->id,
@@ -162,9 +190,13 @@ final class TermPlanningWorkbench extends Page
             ->label('Activate Calendar Package')
             ->color('success')
             ->schema([
-                Select::make('package_id')->label('Draft package')->options(TermCalendarPackage::query()->with('term')->where('state', TermCalendarPackage::StateDraft)->get()->mapWithKeys(
-                    fn (TermCalendarPackage $package): array => [$package->id => $package->term?->label.' · v'.$package->version],
-                ))->required()->searchable(),
+                Select::make('package_id')->label('Draft package')->options(TermCalendarPackage::query()
+                    ->where('term_id', $this->selectedTerm()->id)
+                    ->where('state', TermCalendarPackage::StateDraft)
+                    ->get()
+                    ->mapWithKeys(
+                        fn (TermCalendarPackage $package): array => [$package->id => 'v'.$package->version.' · '.$package->authority_reference],
+                    ))->required()->searchable(),
             ])
             ->action(function (array $data): void {
                 $actor = auth()->user();
@@ -174,14 +206,70 @@ final class TermPlanningWorkbench extends Page
             });
     }
 
+    private function requestFacultyAvailabilityAction(): Action
+    {
+        return Action::make('requestFacultyAvailability')
+            ->label('Request Faculty Availability')
+            ->icon(Heroicon::OutlinedEnvelope)
+            ->modalHeading('Request exact-Term availability declarations')
+            ->modalDescription('Choose only affected Faculty who have not declared for this Term. TALA sends one attributable action-required email for this Calendar Package generation; routine saves send no email.')
+            ->schema([
+                Select::make('faculty_user_ids')
+                    ->label('Affected Faculty')
+                    ->options(function (): array {
+                        $term = $this->selectedTerm();
+                        $declaredIds = FacultyAvailabilityDeclaration::query()
+                            ->where('term_id', $term->id)
+                            ->pluck('faculty_user_id');
+
+                        return User::query()
+                            ->where('status', User::StatusActive)
+                            ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
+                            ->whereNotIn('id', $declaredIds)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all();
+                    })
+                    ->multiple()
+                    ->searchable()
+                    ->required(),
+            ])
+            ->visible(fn (): bool => $this->activeCalendarPackage() instanceof TermCalendarPackage)
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $package = $this->activeCalendarPackage();
+                abort_unless($package instanceof TermCalendarPackage, 409);
+
+                $events = app(FacultyAvailabilityRequestService::class)->request(
+                    $package,
+                    $data['faculty_user_ids'] ?? [],
+                    $actor,
+                );
+
+                Notification::make()
+                    ->title('Faculty availability requests recorded')
+                    ->body($events->count().' attributable request record(s) are available for delivery tracking and authorized resend.')
+                    ->success()
+                    ->send();
+            });
+    }
+
     private function confirmClassAction(): Action
     {
         return Action::make('confirmClassOffering')
             ->label('Confirm Class Offering')
             ->schema([
-                Select::make('section_id')->label('Class Offering')->options(Section::query()->whereNull('confirmed_at')->orderBy('code')->pluck('code', 'id'))->required()->searchable(),
+                Select::make('section_id')->label('Class Offering')->options(Section::query()
+                    ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->selectedTerm()->id))
+                    ->whereNull('confirmed_at')
+                    ->orderBy('code')
+                    ->pluck('code', 'id'))->required()->searchable(),
                 Repeater::make('cohorts')->schema([
-                    Select::make('term_cohort_id')->label('Cohort')->options(TermCohort::query()->orderBy('reference')->pluck('reference', 'id'))->required()->searchable(),
+                    Select::make('term_cohort_id')->label('Cohort')->options(TermCohort::query()
+                        ->where('term_id', $this->selectedTerm()->id)
+                        ->orderBy('reference')
+                        ->pluck('reference', 'id'))->required()->searchable(),
                     TextInput::make('expected_count')->numeric()->integer()->minValue(1)->required(),
                 ])->minItems(1)->required()->columns(2),
                 TextInput::make('additional_authority_reference')->maxLength(255),
@@ -202,39 +290,6 @@ final class TermPlanningWorkbench extends Page
             });
     }
 
-    private function recordFacultyAvailabilityAction(): Action
-    {
-        return Action::make('recordFacultyAvailability')
-            ->label('Record Faculty availability')
-            ->schema([
-                Select::make('term_id')->label('Exact Term')->options(Term::query()->latest('starts_on')->pluck('label', 'id'))->required()->searchable(),
-                Select::make('faculty_user_id')->label('Faculty')->options(User::query()
-                    ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
-                    ->orderBy('name')
-                    ->pluck('name', 'id'))->required()->searchable(),
-                Select::make('declaration')->options(['Available' => 'Available', 'Unavailable' => 'Unavailable'])->required(),
-                Repeater::make('hard_unavailability')->schema([
-                    Select::make('day_of_week')->options(SectionMeeting::dayOptions())->required(),
-                    TimePicker::make('starts_at')->required()->seconds(false),
-                    TimePicker::make('ends_at')->required()->seconds(false)->after('starts_at'),
-                ])->columns(3),
-                TextInput::make('correction_reason')->maxLength(2000),
-            ])
-            ->action(function (array $data): void {
-                $actor = auth()->user();
-                abort_unless($actor instanceof User, 403);
-                app(RecordFacultyAvailabilityDeclaration::class)->execute(
-                    Term::query()->findOrFail((int) $data['term_id']),
-                    User::query()->findOrFail((int) $data['faculty_user_id']),
-                    $actor,
-                    (string) $data['declaration'],
-                    $data['hard_unavailability'] ?? [],
-                    $data['correction_reason'] ?? null,
-                );
-                Notification::make()->title('Faculty availability recorded')->success()->send();
-            });
-    }
-
     private function manageTeachingAssignmentAction(): Action
     {
         return Action::make('manageTeachingAssignment')
@@ -242,7 +297,11 @@ final class TermPlanningWorkbench extends Page
             ->schema([
                 Select::make('section_id')
                     ->label('Official Class Offering')
-                    ->options(Section::query()->whereNotNull('confirmed_at')->orderBy('code')->pluck('code', 'id'))
+                    ->options(Section::query()
+                        ->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->selectedTerm()->id))
+                        ->whereNotNull('confirmed_at')
+                        ->orderBy('code')
+                        ->pluck('code', 'id'))
                     ->required()->searchable(),
                 Select::make('faculty_user_id')
                     ->label('Faculty')
@@ -322,7 +381,6 @@ final class TermPlanningWorkbench extends Page
                 'classes' => 'Cohorts & Classes',
                 'resources' => 'Teaching Resources',
                 'generate' => 'Generate & Review',
-                'correction' => 'Candidate Correction',
                 'published' => 'Published Timetable',
             ],
             'destinations' => [
@@ -330,11 +388,28 @@ final class TermPlanningWorkbench extends Page
                 'classes' => SectionResource::getUrl(),
                 'resources' => RoomResource::getUrl(),
                 'generate' => ScheduleGenerationRunResource::getUrl(),
-                'correction' => ScheduleGenerationRunResource::getUrl(),
                 'published' => SectionMeetingResource::getUrl(),
-                'availability' => CalendarEventResource::getUrl(),
             ],
             'readOnly' => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true,
         ];
+    }
+
+    private function selectedTerm(): Term
+    {
+        abort_if($this->termId === null, 404);
+
+        return Term::query()->findOrFail($this->termId);
+    }
+
+    private function activeCalendarPackage(): ?TermCalendarPackage
+    {
+        if ($this->termId === null) {
+            return null;
+        }
+
+        return TermCalendarPackage::query()
+            ->where('term_id', $this->termId)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->first();
     }
 }

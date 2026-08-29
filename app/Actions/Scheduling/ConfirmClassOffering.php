@@ -38,8 +38,8 @@ final class ConfirmClassOffering
                 throw ValidationException::withMessages(['course_revision' => 'Class confirmation requires an active Course Revision.']);
             }
 
-            if (! array_key_exists((string) $locked->source, Section::sourceOptions())) {
-                throw ValidationException::withMessages(['source' => 'Class confirmation requires a Regular, Shared, or Additional source.']);
+            if (! array_key_exists((string) $locked->source, Section::confirmableSourceOptions())) {
+                throw ValidationException::withMessages(['source' => 'A new Class Offering must be Regular or authority-backed Additional. Sharing is recorded through its cohort relationships.']);
             }
 
             if ($cohortExpectedCounts === []

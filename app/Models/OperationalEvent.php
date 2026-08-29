@@ -55,6 +55,8 @@ class OperationalEvent extends Model
 
     public const TypeScheduleReleasedEmail = 'schedule_released_email';
 
+    public const TypeFacultyAvailabilityRequestedEmail = 'faculty_availability_requested_email';
+
     public const TypePaymentPostedEmail = 'payment_posted_email';
 
     public const TypeApplicantActionRequiredEmail = 'applicant_action_required_email';

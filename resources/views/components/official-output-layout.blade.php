@@ -4,6 +4,7 @@
     'generatedAt' => null,
     'subtitle' => null,
     'pageOrientation' => 'portrait',
+    'pageMargin' => '14mm',
     'logoSrc' => null,
 ])
 
@@ -249,7 +250,7 @@
 
             @page {
                 size: A4 {{ $pageOrientation }};
-                margin: 14mm;
+                margin: {{ $pageMargin }};
 
                 @bottom-center {
                     content: "Page " counter(page) " of " counter(pages);
@@ -298,7 +299,7 @@
         {{ $slot }}
 
         <footer class="official-output-footer">
-            Generated from authenticated TALA records. Confirm any discrepancy with the responsible school office.
+            Generated through TALA from authenticated records. Confirm any discrepancy with the responsible school office.
         </footer>
     </main>
 </body>

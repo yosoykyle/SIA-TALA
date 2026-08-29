@@ -153,6 +153,9 @@ final class ScheduleCloudResultIngestor
             'model_version' => is_string($metadata['model_version']) ? $metadata['model_version'] : null,
             'runtime_ms' => $metadata['runtime_ms'],
             'objective_value' => is_numeric($metadata['objective_score']) ? $metadata['objective_score'] : null,
+            'quality_measures' => is_array(data_get($solverResult, 'objective_details.values'))
+                ? data_get($solverResult, 'objective_details.values')
+                : null,
             'diagnostics' => $diagnostics,
         ];
 

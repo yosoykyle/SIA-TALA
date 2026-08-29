@@ -144,7 +144,7 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
             ->count());
     }
 
-    public function test_warning_and_explicit_lower_quality_acceptance_require_a_reason(): void
+    public function test_warning_and_evidence_derived_lower_quality_require_a_reason(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $warningTerm = Term::factory()->create();
@@ -162,21 +162,22 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
         $this->assertSame('Accepted advisory warning.', $warningPublished->publication_note);
 
         $qualityTerm = Term::factory()->create();
-        $qualitySource = $this->source($qualityTerm);
-        $qualityRun = $this->scheduleRun($qualityTerm);
-        $this->candidate($qualityRun, $qualitySource['demand']);
+        $sourceRun = $this->scheduleRun($qualityTerm, ScheduleGenerationRun::StatusSuperseded, [
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
+            'quality_measures' => $this->qualityMeasures(0),
+        ]);
+        $qualityRun = $this->scheduleRun($qualityTerm, overrides: [
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
+            'input_snapshot' => [
+                'operation' => ['source_candidate' => ['run_id' => $sourceRun->id]],
+            ],
+            'quality_measures' => $this->qualityMeasures(1),
+        ]);
 
-        $this->assertPublicationNoteRequired($qualityRun, $registrar, true);
-        $qualityPublished = $this->publisher->publish($qualityRun, $registrar, 'Accepted lower soft-quality result.', true);
-        $activity = DB::table('activity_log')
-            ->where('event', 'schedule_generation_run_published')
-            ->where('subject_id', $qualityPublished->id)
-            ->sole();
-        $properties = json_decode($activity->properties, true, flags: JSON_THROW_ON_ERROR);
+        $requirement = $this->publisher->publicationReasonRequirement($qualityRun);
 
-        $this->assertTrue($properties['accepted_lower_quality']);
-        $this->assertSame('Accepted lower soft-quality result.', $properties['publication_note']);
-        $this->assertSame(1, $properties['impact']['new_assignments']);
+        $this->assertNotNull($requirement);
+        $this->assertStringContainsString('lowers the first differing measure', $requirement);
     }
 
     public function test_only_registrar_publishes_and_published_candidates_remain_immutable(): void
@@ -255,15 +256,27 @@ final class TAL94D1ImpactSafePublicationTest extends TestCase
     private function assertPublicationNoteRequired(
         ScheduleGenerationRun $run,
         User $registrar,
-        bool $acceptLowerQuality = false,
     ): void {
         try {
-            $this->publisher->publish($run, $registrar, null, $acceptLowerQuality);
+            $this->publisher->publish($run, $registrar);
             $this->fail('Publication without its required reason was not blocked.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('publication_note', $exception->errors());
             $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $run->fresh()->status);
         }
+    }
+
+    /** @return array<string, int> */
+    private function qualityMeasures(int $firstMeasure): array
+    {
+        return [
+            'cohort_mode_switches' => $firstMeasure,
+            'cohort_idle_time' => 0,
+            'faculty_load_imbalance' => 0,
+            'faculty_idle_time' => 0,
+            'room_seat_waste' => 0,
+            'stable_earlier_placement' => 0,
+        ];
     }
 
     /**

@@ -78,6 +78,15 @@ class Section extends Model
         ];
     }
 
+    /** @return array<string, string> */
+    public static function confirmableSourceOptions(): array
+    {
+        return [
+            self::SourceRegular => 'Regular',
+            self::SourceAdditional => 'Additional',
+        ];
+    }
+
     /** @return BelongsTo<TermOffering, $this> */
     public function termOffering(): BelongsTo
     {

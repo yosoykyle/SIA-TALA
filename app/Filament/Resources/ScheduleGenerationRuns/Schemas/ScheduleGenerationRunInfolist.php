@@ -104,6 +104,26 @@ class ScheduleGenerationRunInfolist
                         TextEntry::make('model_version')
                             ->label('Model Version')
                             ->placeholder('-'),
+                        TextEntry::make('source_contract')
+                            ->label('Source Contract')
+                            ->state(fn (ScheduleGenerationRun $record): string => (string) data_get(
+                                self::inputSnapshot($record),
+                                'contract_version',
+                                $record->model_version ?? '-',
+                            )),
+                        TextEntry::make('source_objective_profile')
+                            ->label('Source Objective Profile')
+                            ->state(fn (ScheduleGenerationRun $record): string => (string) data_get(
+                                self::inputSnapshot($record),
+                                'constraint_profile.key',
+                                '-',
+                            )),
+                        TextEntry::make('solver_deployment_boundary')
+                            ->label('Deployment Evidence Boundary')
+                            ->state(fn (ScheduleGenerationRun $record): string => data_get(self::inputSnapshot($record), 'contract_version') === ScheduleGenerationRun::ContractVersion
+                                ? 'Current source contract: tala-timetable-v2 / lexicographic_v1. Local compatibility does not prove that this solver build is deployed; build, validation, and promotion require separate authorization.'
+                                : 'Historical compatibility: tal94-demand-v2 / balanced_v1. It is retained evidence and does not replace the current source contract.')
+                            ->columnSpanFull(),
                         TextEntry::make('runtime_ms')
                             ->label('Runtime (ms)')
                             ->numeric()
@@ -530,6 +550,23 @@ class ScheduleGenerationRunInfolist
     private static function softObjectiveRows(ScheduleGenerationRun $record): array
     {
         $snapshot = self::inputSnapshot($record);
+        $hierarchy = data_get($snapshot, 'constraint_profile.objective_hierarchy', []);
+        $values = data_get(self::solverResult($record), 'objective_details.values', []);
+
+        if (is_array($hierarchy) && $hierarchy !== [] && is_array($values)) {
+            return collect($hierarchy)
+                ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '')
+                ->values()
+                ->map(fn (string $constraint, int $index): array => [
+                    'label' => ($index + 1).'. '.Str::headline($constraint),
+                    'status' => array_key_exists($constraint, $values) ? 'Measured' : 'Not reported',
+                    'evidence' => array_key_exists($constraint, $values)
+                        ? 'Recorded value '.self::displayValue($values[$constraint]).'; lower is preferred after every earlier level ties.'
+                        : 'The solver did not report this fixed hierarchy measure.',
+                ])
+                ->all();
+        }
+
         $weights = data_get($snapshot, 'constraint_profile.soft_weights', []);
         $constraints = data_get($snapshot, 'constraint_profile.soft_constraints', $snapshot['soft_constraints'] ?? []);
         $terms = data_get(self::solverResult($record), 'objective_details.terms', []);

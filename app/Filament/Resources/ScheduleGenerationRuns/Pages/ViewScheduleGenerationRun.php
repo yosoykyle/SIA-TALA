@@ -17,9 +17,10 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\View;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
@@ -57,6 +58,16 @@ class ViewScheduleGenerationRun extends ViewRecord
     public function getSubheading(): string
     {
         return 'Review assignments and validation evidence first. Publishing is a separate Registrar decision that makes the timetable official.';
+    }
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema->components([
+            $this->getInfolistContentComponent(),
+            View::make('filament.resources.schedule-generation-runs.candidate-weekly-view')
+                ->viewData(fn (): array => $this->candidateWeeklyViewData()),
+            $this->getRelationManagersContentComponent(),
+        ]);
     }
 
     public function retrySolverRunAction(): Action
@@ -201,14 +212,12 @@ class ViewScheduleGenerationRun extends ViewRecord
                     ->label('External timetable sign-off reference')
                     ->required()
                     ->maxLength(255),
-                Toggle::make('accept_lower_quality')
-                    ->label('Accept lower soft-quality result')
-                    ->helperText('Use only when all hard constraints pass but the selected candidate has a lower soft-quality score.'),
                 Textarea::make('publication_note')
                     ->label('Publication reason')
                     ->maxLength(2000)
-                    ->required()
-                    ->helperText('Record the attributable timetable sign-off and why this exact candidate is being published.'),
+                    ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
+                    ->helperText(fn (): string => $this->publicationReasonRequirement()
+                        ?? 'Optional for this Optimal candidate because no quality-lowering successor or advisory warning is recorded.'),
             ])
             ->visible(fn (): bool => $this->canPublish())
             ->action(function (array $data): void {
@@ -229,8 +238,7 @@ class ViewScheduleGenerationRun extends ViewRecord
                         $run,
                         $publisher,
                         $data['publication_note'] ?? null,
-                        (bool) ($data['accept_lower_quality'] ?? false),
-                        $data['authority_reference'] ?? null,
+                        authorityReference: $data['authority_reference'] ?? null,
                     );
 
                     Notification::make()
@@ -317,6 +325,41 @@ class ViewScheduleGenerationRun extends ViewRecord
             && $run->canBePublished();
     }
 
+    /** @return array{days:array<int, array{label:string,rows:list<array<string, mixed>>}>,hasRows:bool} */
+    private function candidateWeeklyViewData(): array
+    {
+        $rows = $this->run()->candidateRows()
+            ->with([
+                'faculty',
+                'room',
+                'schedulingDemand.courseComponent.courseSpecification.course',
+                'schedulingDemand.sectionDeliveryGroup.section',
+            ])
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($row): array => [
+                'id' => (int) $row->id,
+                'day' => (int) $row->day_of_week,
+                'time' => substr((string) $row->starts_at, 0, 5).'–'.substr((string) $row->ends_at, 0, 5),
+                'course' => (string) (data_get($row, 'schedulingDemand.courseComponent.courseSpecification.course.code') ?: 'Course unavailable'),
+                'section' => (string) (data_get($row, 'schedulingDemand.sectionDeliveryGroup.section.code') ?: 'Class unavailable'),
+                'faculty' => (string) (data_get($row, 'faculty.name') ?: 'Faculty unavailable'),
+                'place' => (string) (data_get($row, 'room.code') ?: data_get($row, 'schedulingDemand.modality') ?: 'Location unavailable'),
+                'status' => (string) $row->status,
+            ]);
+
+        $days = collect(SectionMeeting::dayOptions())
+            ->mapWithKeys(fn (string $label, int $day): array => [$day => [
+                'label' => $label,
+                'rows' => $rows->where('day', $day)->values()->all(),
+            ]])
+            ->all();
+
+        return ['days' => $days, 'hasRows' => $rows->isNotEmpty()];
+    }
+
     private function canReviewCandidate(): bool
     {
         $actor = auth()->user();
@@ -399,7 +442,11 @@ class ViewScheduleGenerationRun extends ViewRecord
         );
 
         if (! $impact->blocksFullReplacement()) {
-            return $description;
+            $reasonRequirement = $this->publicationReasonRequirement();
+
+            return $reasonRequirement === null
+                ? $description
+                : $description.' Publication reason required: '.$reasonRequirement;
         }
 
         return $description.' '.sprintf(
@@ -409,5 +456,10 @@ class ViewScheduleGenerationRun extends ViewRecord
             $impact->affectedStudents(),
             $impact->affectedStudents() === 1 ? 'student' : 'students',
         );
+    }
+
+    private function publicationReasonRequirement(): ?string
+    {
+        return app(SchedulePublishService::class)->publicationReasonRequirement($this->run());
     }
 }

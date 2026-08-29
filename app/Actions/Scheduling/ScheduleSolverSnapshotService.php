@@ -1019,7 +1019,59 @@ class ScheduleSolverSnapshotService
 
         }
 
-        return [...$packageBlocks, ...$legacy, ...$resourceBlocks];
+        return [...$packageBlocks, ...$this->facultyDeclarationBlocks($term, $package), ...$legacy, ...$resourceBlocks];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function facultyDeclarationBlocks(Term $term, ?TermCalendarPackage $package): array
+    {
+        return FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->orderBy('faculty_user_id')
+            ->orderByDesc('version')
+            ->get()
+            ->unique('faculty_user_id')
+            ->flatMap(function (FacultyAvailabilityDeclaration $declaration) use ($package): array {
+                $storedIntervals = $declaration->getAttribute('hard_unavailability');
+                $intervals = is_array($storedIntervals) ? $storedIntervals : [];
+
+                if ($declaration->declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable
+                    && $intervals === []
+                    && $package instanceof TermCalendarPackage) {
+                    $intervals = $package->teachingGridRows
+                        ->map(fn ($row): array => [
+                            'day_of_week' => (int) $row->day_of_week,
+                            'starts_at' => $this->timeString($row->starts_at),
+                            'ends_at' => $this->timeString($row->ends_at),
+                        ])
+                        ->all();
+                }
+
+                return collect($intervals)
+                    ->filter(fn (mixed $interval): bool => is_array($interval))
+                    ->map(fn (array $interval): array => [
+                        'faculty_availability_declaration_id' => (int) $declaration->id,
+                        'declaration_version' => (int) $declaration->version,
+                        'event_type' => 'FacultyAvailabilityDeclaration',
+                        'scope_type' => 'Faculty',
+                        'room_id' => null,
+                        'faculty_user_id' => (int) $declaration->faculty_user_id,
+                        'authority' => 'Faculty declaration v'.$declaration->version,
+                        'day_of_week' => (int) ($interval['day_of_week'] ?? 0),
+                        'starts_at' => $this->timeString($interval['starts_at'] ?? null),
+                        'ends_at' => $this->timeString($interval['ends_at'] ?? null),
+                    ])
+                    ->all();
+            })
+            ->sortBy(fn (array $block): string => sprintf(
+                '%d|%d|%s|%s',
+                $block['faculty_user_id'],
+                $block['day_of_week'],
+                $block['starts_at'],
+                $block['ends_at'],
+            ))
+            ->values()
+            ->all();
     }
 
     /** @return list<array<string, mixed>> */
