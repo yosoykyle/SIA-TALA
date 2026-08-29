@@ -163,6 +163,8 @@ Legacy OCR keys remain in `.env.example`, but the current application has no act
 
 The coordinator assigns you through the Issue's **Assignees** field. Alerts follow your [GitHub notification settings](https://docs.github.com/en/subscriptions-and-notifications/concepts/about-notifications); they do not start Codex or authorize coding.
 
+Enable [GitHub Actions notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications) on your own GitHub account, preferably with **Only notify for failed workflows**. This personal setting cannot be configured repository-wide; required CI still blocks a failing pull request from merging when notifications are disabled.
+
 Use this once after the repository, dependencies, and assigned Issue are available:
 
 ```text

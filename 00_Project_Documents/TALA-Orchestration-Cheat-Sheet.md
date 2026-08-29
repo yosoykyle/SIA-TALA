@@ -138,6 +138,20 @@ Publish #NN
 
 For approved solo work on `main`, this freshly verifies and pushes the accepted commit range. Keep the Issue `In Progress` until every required CI check for the exact published commit succeeds. Then re-fetch the Issue and Project state, confirm the current ledger is all `Verified`, update only evidence-backed checkboxes, post a compact durable evidence record, and close the Issue last. Any failed gate stops closure; Project automation marks `Done` only after closure. Publishing never authorizes deployment.
 
+If published CI fails, keep the Issue `In Progress` and re-anchor before remediation. Reuse the existing Issue branch and pull request when they exist; do not create replacement tracked work merely because verification failed. Start read-only with:
+
+```text
+Re-anchor and resume Publish #NN.
+
+Inspect the existing Issue, branch, pull request, and failed TALA CI run.
+Diagnose the exact cause and report the smallest correction.
+
+Do not create another Issue, branch, or pull request. Do not merge, close,
+or deploy anything.
+```
+
+After the diagnosis is accepted, authorize the bounded correction explicitly; push it to the same Issue branch so the existing pull request reruns CI.
+
 ## You plus one developer
 
 Before a second implementation Issue becomes active concurrently, verify working pull-request CI and protection of `main`: required successful checks, resolved review conversations, and blocked force-pushes and deletion. Configuring these controls is a separate authorized task.
