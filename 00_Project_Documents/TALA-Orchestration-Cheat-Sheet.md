@@ -150,7 +150,8 @@ Derive the next parallel-safe TALA implementation Issue batch from the
 approved coordination map. Inspect dependency readiness, active ownership,
 open Issues and PRs, shared seams, workspace isolation, CI, and main protection.
 Explain ownership, dependencies, branch boundaries, and why the work will not
-conflict.
+conflict. Return fewer drafts than the stated capacity when no additional safe
+candidate exists; keep every draft independently journey-complete.
 
 Read-only. Do not create Issues, branches, Project changes, or other writes.
 ```
