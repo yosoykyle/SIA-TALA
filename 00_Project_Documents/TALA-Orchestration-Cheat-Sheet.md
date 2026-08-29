@@ -118,6 +118,17 @@ Use Plan mode. This reads the Issue, relevant authority, implementation, and qua
 
 Before presenting the plan, challenge every material choice against authority, current evidence, reasonable alternatives and trade-offs, verification, and cleanup. Correct unsupported assumptions or contradictions, and surface unresolved material decisions instead of guessing. Return the best-supported decision-complete plan with concise rationale.
 
+For architecture, security, migrations, external integrations, parallel boundaries, hard-to-reverse choices, or materially weak evidence, optionally request an independent read-only review before accepting the plan. This is not a fourth command and is unnecessary for routine, reversible work:
+
+```text
+Independently review the proposed derivation or Plan #NN before I accept it.
+
+Re-anchor from its authority and live implementation, Git, and GitHub evidence.
+Challenge the outcome, scope, dependencies, material choices, alternatives,
+trade-offs, verification, preservation, and cleanup. Identify concrete defects
+or state plainly that no material objection remains. Do not change anything.
+```
+
 After accepting the plan, exit Plan mode:
 
 ```text
