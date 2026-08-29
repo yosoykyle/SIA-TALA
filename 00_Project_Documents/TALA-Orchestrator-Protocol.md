@@ -23,7 +23,7 @@ Ownership is simple:
 - A GitHub Issue owns its tracked task's goal, scope, acceptance criteria, and live status, but never overrides product authority.
 - The linked GitHub Project is a view of issues, not a second task database.
 - Code, tests, commits, and pull requests are implementation evidence.
-- `archive/project-progress/TALA-Next-Steps-Retired-2026-08-09.md`, `archive/project-progress/TALA-Linear-History-Tracker-2026-08-09.md`, and Linear are frozen history only.
+- `00_Project_Documents/archive/project-progress/TALA-Next-Steps-Retired-2026-08-09.md`, `00_Project_Documents/archive/project-progress/TALA-Linear-History-Tracker-2026-08-09.md`, and Linear are frozen history only.
 
 When sources materially conflict, stop and present the conflict rather than silently choosing one.
 
@@ -141,7 +141,7 @@ The public `TALA Development` GitHub Project provides an `All Work` table and a 
 
 The approved solo direct-`main` publication path remains valid while only one implementation Issue is active. For solo work, use the existing primary `main` checkout. Do not create a branch, clone, or worktree unless the user explicitly requests isolation or the accepted plan demonstrates that isolation is necessary. Before a second implementation Issue becomes active concurrently, verify that pull-request CI and protection of `main` are configured and working. Parallel work requires pull requests, successful required checks, and resolved review conversations, with force-pushes and branch deletion blocked. Recording this gate does not authorize CI, repository-rule, or GitHub configuration changes.
 
-Concurrent development starts isolated: one accountable owner, one Issue-specific branch from accepted and up-to-date `main`, one pull request, and no unrelated Issues on that branch. Do not share a mutable workspace or database unless isolation is proven. Record dependency order and shared-seam ownership before coding. Dependent work waits until the prerequisite Issue's pull request merges into `main` unless an explicit stacked-branch plan is approved.
+Concurrent development starts isolated: one accountable owner, one Issue-specific branch from accepted and up-to-date `main`, one pull request, and no unrelated Issues on that branch. Under an authorized `Complete #NN`, creating or switching to that local Issue branch is an ordinary setup step; pushing it remains part of `Publish #NN`. Do not share a mutable workspace or database unless isolation is proven. Record dependency order and shared-seam ownership before coding. Dependent work waits until the prerequisite Issue's pull request merges into `main` unless an explicit stacked-branch plan is approved.
 
 After compaction or resumption, re-anchor both tracked and untracked work before editing, committing, publishing, or claiming completion. Treat the compacted summary as navigation rather than the sole authority. Read recent original messages and expand backward only until the outcome, accepted decisions, current step, remaining work, and authorization boundaries are clear.
 
