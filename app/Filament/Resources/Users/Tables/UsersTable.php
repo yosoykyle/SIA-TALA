@@ -122,6 +122,9 @@ class UsersTable
                     Action::make('resendInvitation')
                         ->label('Resend invitation')
                         ->icon('heroicon-o-envelope')
+                        ->requiresConfirmation()
+                        ->modalDescription('System Administration will invalidate the prior activation link and send one successor link to the recorded Staff email. The account, assigned role, and invitation history remain unchanged if sending fails; resend again or contact the account owner after checking the recorded state.')
+                        ->modalSubmitActionLabel('Invalidate and resend invitation')
                         ->visible(fn (User $record): bool => $record->status === User::StatusInvitationPending)
                         ->action(function (User $record): void {
                             $actor = auth()->user();
@@ -133,6 +136,9 @@ class UsersTable
                     Action::make('sendRecoveryLink')
                         ->label('Send password recovery')
                         ->icon('heroicon-o-key')
+                        ->requiresConfirmation()
+                        ->modalDescription('System Administration will request a password-recovery message for the recorded sign-in email. This does not change the password, roles, or account state; the account owner completes recovery from the valid link or requests another link if it expires.')
+                        ->modalSubmitActionLabel('Send recovery link')
                         ->visible(fn (User $record): bool => $record->password !== null)
                         ->action(function (User $record): void {
                             Password::sendResetLink(['email' => $record->email]);
@@ -142,6 +148,9 @@ class UsersTable
                         ->label('Change Staff email')
                         ->icon('heroicon-o-at-symbol')
                         ->visible(fn (User $record): bool => $record->isStaffCapable())
+                        ->requiresConfirmation()
+                        ->modalDescription('System Administration will request verification of the new Staff sign-in email using the supplied authority. The current verified email remains active until the successor address is verified. Cancel or let the request expire to preserve the current address.')
+                        ->modalSubmitActionLabel('Request successor verification')
                         ->schema([
                             TextInput::make('new_email')->label('New sign-in email')->email()->required()->maxLength(255),
                             TextInput::make('current_password')->label('Your current password')->password()->required(),
@@ -169,6 +178,9 @@ class UsersTable
                         ->label('Change Staff access')
                         ->icon('heroicon-o-shield-check')
                         ->visible(fn (User $record): bool => $record->isStaffCapable())
+                        ->requiresConfirmation()
+                        ->modalDescription('The selected roles will replace this account\'s current Staff workspaces using the supplied authority. Learner roles, linked records, and access history remain. System Administration owns this change; cancel to preserve the current Staff access.')
+                        ->modalSubmitActionLabel('Save Staff access change')
                         ->fillForm(fn (User $record): array => [
                             'roles' => $record->roles()->whereIn('name', User::staffRoleNames())->pluck('name')->all(),
                         ])
@@ -195,6 +207,9 @@ class UsersTable
                         ->label('Reset MFA')
                         ->icon('heroicon-o-device-phone-mobile')
                         ->visible(fn (User $record): bool => $record->isStaffCapable() && filled($record->two_factor_secret))
+                        ->requiresConfirmation()
+                        ->modalDescription('System Administration must already have completed the approved external identity check. Resetting ends active sessions, invalidates the current authenticator and recovery codes, and requires Staff MFA re-enrollment at the next sign-in. Cancel to preserve the current factor.')
+                        ->modalSubmitActionLabel('Reset MFA and end sessions')
                         ->schema([
                             TextInput::make('current_password')->label('Your current password')->password()->required(),
                             Textarea::make('reason')->required()->minLength(10),
@@ -227,6 +242,8 @@ class UsersTable
                             TextInput::make('evidence_reference')->label('Evidence reference'),
                         ])
                         ->requiresConfirmation()
+                        ->modalDescription('Disabling immediately ends active sessions and blocks every authorized workspace while preserving roles, linked records, and access history. System Administration owns the action; an authorized reactivation is the recovery path. Cancel to leave the account active.')
+                        ->modalSubmitActionLabel('Disable account and end sessions')
                         ->visible(fn (User $record): bool => $record->status !== User::StatusDisabled)
                         ->action(function (array $data, User $record): void {
                             $actor = auth()->user();
@@ -244,6 +261,8 @@ class UsersTable
                             TextInput::make('evidence_reference')->label('Evidence reference'),
                         ])
                         ->requiresConfirmation()
+                        ->modalDescription('Reactivation restores sign-in through the account\'s preserved roles and linked records; it does not recreate or broaden access. Staff MFA and session rules still apply. System Administration owns the action; disable again through the recorded process if the authority is withdrawn.')
+                        ->modalSubmitActionLabel('Reactivate preserved access')
                         ->visible(fn (User $record): bool => $record->status === User::StatusDisabled)
                         ->action(function (array $data, User $record): void {
                             $actor = auth()->user();

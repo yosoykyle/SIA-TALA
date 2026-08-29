@@ -173,6 +173,19 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString("@include('filament-panels::livewire.sidebar')", $sidebar);
     }
 
+    public function test_panel_skip_link_and_action_modals_restore_keyboard_focus(): void
+    {
+        $skipLink = file_get_contents(resource_path('views/filament/components/skip-link.blade.php'));
+        $this->assertStringContainsString("document.getElementById('tala-main-content')?.focus({ preventScroll: true })", $skipLink);
+        $this->assertStringContainsString('rememberActionGroup(actionGroup)', $skipLink);
+        $this->assertStringContainsString('window.talaActionGroupReturnHref', $skipLink);
+        $this->assertStringContainsString("window.addEventListener('modal-closed'", $skipLink);
+        $this->assertStringContainsString('window.talaFocusRestorePending', $skipLink);
+        $this->assertStringContainsString("window.addEventListener('transitionend'", $skipLink);
+        $this->assertStringContainsString('window.setTimeout(window.talaRestoreActionGroupFocus, 0)', $skipLink);
+        $this->assertStringContainsString('target.focus({ preventScroll: true })', $skipLink);
+    }
+
     public function test_public_content_has_flat_notices_and_faq_tabs(): void
     {
         $this->assertNull(PublicNoticeResource::getNavigationGroup());

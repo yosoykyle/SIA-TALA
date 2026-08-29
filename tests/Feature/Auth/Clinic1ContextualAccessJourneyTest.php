@@ -10,6 +10,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -36,6 +37,26 @@ class Clinic1ContextualAccessJourneyTest extends TestCase
         $this->assertSame(['applicant'], array_keys($resolver->availableContexts($user)));
         $this->assertSame('/applicant', $resolver->destinationFor($user, 'applicant'));
         $this->assertNull($resolver->destinationFor($user, 'student'));
+    }
+
+    #[DataProvider('staffEntryDestinations')]
+    public function test_each_staff_context_enters_its_first_canonical_destination(string $role, string $expected): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $this->assertSame($expected, app(WorkspaceContextResolver::class)->destinationFor($user, $role));
+    }
+
+    public static function staffEntryDestinations(): array
+    {
+        return [
+            'Registrar' => [User::StaffRoleRegistrar, '/admin/admission-applications'],
+            'Accounting' => [User::StaffRoleAccounting, '/admin/fee-plans'],
+            'Faculty' => [User::StaffRoleFaculty, '/admin/calendar-events'],
+            'Academic Head' => [User::StaffRoleAcademicHead, '/admin/academic-approvals'],
+            'System Administrator' => [User::StaffRoleSystemSuperAdmin, '/admin/users'],
+        ];
     }
 
     public function test_multi_role_account_chooses_one_context_without_merging_staff_authority(): void

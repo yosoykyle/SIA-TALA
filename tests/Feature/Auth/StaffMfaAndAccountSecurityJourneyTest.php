@@ -249,6 +249,19 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertSame([], $staff->fresh()->getAppAuthenticationRecoveryCodes());
     }
 
+    public function test_recovery_code_input_keeps_the_native_on_blur_binding(): void
+    {
+        $staff = User::factory()->create();
+        $staff->assignRole(User::StaffRoleFaculty);
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $provider->saveSecret($staff, $provider->generateSecret());
+
+        $recoveryCode = $provider->getChallengeFormComponents($staff)[1];
+
+        $this->assertTrue($recoveryCode->isLiveOnBlur());
+        $this->assertSame(['live', 'blur'], $recoveryCode->getStateBindingModifiers());
+    }
+
     public function test_login_and_mfa_failures_are_limited_to_five_per_normalized_account_and_ip(): void
     {
         $staff = User::factory()->create([

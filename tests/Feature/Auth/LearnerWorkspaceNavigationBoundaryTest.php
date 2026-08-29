@@ -3,11 +3,15 @@
 namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -71,6 +75,38 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit']],
         ];
+    }
+
+    public function test_removed_primary_entries_keep_their_required_contextual_recovery_paths(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $applicantDashboard = file_get_contents(resource_path('views/filament/applicant/pages/dashboard.blade.php'));
+        $this->assertStringContainsString('Pages\\Requirements::getUrl()', $applicantDashboard);
+        $this->assertStringContainsString('Review requirements', $applicantDashboard);
+
+        $registrar = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
+        $this->actingAs($registrar)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleRegistrar]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(ListAdmissionApplications::class)
+            ->assertActionExists('admissionCycles')
+            ->assertActionHasUrl('admissionCycles', AdmissionCycleResource::getUrl());
+
+        $academicHead = $this->userWithRole(User::StaffRoleAcademicHead, User::StatusActive);
+        $this->actingAs($academicHead)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(AcademicApprovals::class)
+            ->assertSee('Catalog & Curricula')
+            ->assertSee('Academic Readiness')
+            ->assertSee('Term Planning')
+            ->assertSee('Grade Review')
+            ->assertSee('Lifecycle Exceptions');
+
+        $provider = file_get_contents(app_path('Providers/Filament/AdminPanelProvider.php'));
+        $this->assertStringContainsString("'My Availability' => CalendarEventResource::class", $provider);
+        $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
+        $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
+        $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);
     }
 
     public function test_applicant_dashboard_does_not_render_staff_workspace_surfaces(): void

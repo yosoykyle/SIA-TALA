@@ -4,6 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const scrollButton = document.querySelector('.btn-scroll-top');
+    const skipLink = document.querySelector('.tala-skip-link');
+
+    skipLink?.addEventListener('click', () => {
+        window.requestAnimationFrame(() => {
+            document.getElementById(skipLink.hash.slice(1))?.focus({ preventScroll: true });
+        });
+    });
 
     if (scrollButton) {
         const updateScrollButton = () => {

@@ -4,13 +4,9 @@ namespace App\Actions\Authentication;
 
 use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
-use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Facades\Filament;
-use Filament\Schemas\Components\Component;
-use Illuminate\Contracts\Auth\Authenticatable;
 
 class TalaAppAuthentication extends AppAuthentication
 {
@@ -50,18 +46,6 @@ class TalaAppAuthentication extends AppAuthentication
         }
 
         return $isValid;
-    }
-
-    /**
-     * @param  Authenticatable&HasAppAuthentication&HasAppAuthenticationRecovery  $user
-     * @return array<Component | Action | ActionGroup>
-     */
-    public function getChallengeFormComponents(Authenticatable $user): array
-    {
-        $components = parent::getChallengeFormComponents($user);
-        $components[1]->live();
-
-        return $components;
     }
 
     /** @return array<Action> */

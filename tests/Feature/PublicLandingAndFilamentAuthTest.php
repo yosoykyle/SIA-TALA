@@ -74,6 +74,10 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $this->assertStringContainsString('pointer-events: auto;', $keyboardFocusedSkipLink);
         $this->assertStringContainsString('transform: translateY(0);', $keyboardFocusedSkipLink);
         $this->assertStringNotContainsString('.tala-skip-link:focus {', $foundationCss);
+
+        $landingJavaScript = file_get_contents(public_path('landing/js/main.js'));
+        $this->assertStringContainsString("document.querySelector('.tala-skip-link')", $landingJavaScript);
+        $this->assertStringContainsString('document.getElementById(skipLink.hash.slice(1))?.focus({ preventScroll: true })', $landingJavaScript);
     }
 
     public function test_public_fortify_auth_view_routes_are_not_exposed(): void

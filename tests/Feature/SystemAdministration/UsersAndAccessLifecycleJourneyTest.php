@@ -2,17 +2,22 @@
 
 namespace Tests\Feature\SystemAdministration;
 
+use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\UserAccessService;
+use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Models\OperationalEvent;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
+use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -229,6 +234,52 @@ class UsersAndAccessLifecycleJourneyTest extends TestCase
             ->assertDontSee('forbidden-mfa-secret')
             ->assertDontSee('forbidden-recovery-codes')
             ->assertDontSee('Password');
+    }
+
+    public function test_consequential_access_actions_name_effect_owner_and_recovery_before_submission(): void
+    {
+        $administrator = $this->administrator();
+        $provider = app(TalaAppAuthentication::class);
+        $provider->saveSecret($administrator, $provider->generateSecret());
+        $administrator->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
+
+        $target = User::factory()->create();
+        $target->assignRole(User::StaffRoleFaculty);
+        $provider->saveSecret($target, $provider->generateSecret());
+
+        $this->actingAs($administrator)
+            ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleSystemSuperAdmin]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $expectations = [
+            'sendRecoveryLink' => ['does not change the password, roles, or account state', 'account owner completes recovery'],
+            'changeStaffEmail' => ['current verified email remains active', 'Cancel or let the request expire'],
+            'changeStaffAccess' => ['current Staff workspaces', 'cancel to preserve the current Staff access'],
+            'resetMfa' => ['ends active sessions', 'Cancel to preserve the current factor'],
+            'disable' => ['blocks every authorized workspace', 'authorized reactivation is the recovery path'],
+        ];
+
+        foreach ($expectations as $action => [$effect, $recovery]) {
+            Livewire::test(ListUsers::class)
+                ->mountAction(TestAction::make($action)->table($target))
+                ->assertMountedActionModalSee($effect)
+                ->assertMountedActionModalSee($recovery);
+        }
+
+        $target->forceFill(['status' => User::StatusDisabled])->save();
+
+        Livewire::test(ListUsers::class)
+            ->mountAction(TestAction::make('reactivate')->table($target))
+            ->assertMountedActionModalSee('preserved roles and linked records')
+            ->assertMountedActionModalSee('disable again through the recorded process');
+
+        $invitee = User::factory()->create(['status' => User::StatusInvitationPending]);
+        $invitee->assignRole(User::StaffRoleFaculty);
+
+        Livewire::test(ListUsers::class)
+            ->mountAction(TestAction::make('resendInvitation')->table($invitee))
+            ->assertMountedActionModalSee('invalidate the prior activation link')
+            ->assertMountedActionModalSee('resend again or contact the account owner');
     }
 
     private function administrator(): User
