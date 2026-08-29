@@ -1,0 +1,168 @@
+@font-face {
+    font-family: Outfit;
+    font-style: normal;
+    font-weight: 600 700;
+    font-display: swap;
+    src: url('/fonts/tala/outfit-latin.woff2') format('woff2');
+}
+
+:root {
+    --tala-brand: #1d4ed8;
+    --tala-brand-strong: #1e3a8a;
+    --tala-on-brand: #ffffff;
+    --tala-link: #1e3a8a;
+    --tala-accent: #facc15;
+    --tala-canvas: #f8fafc;
+    --tala-surface: #ffffff;
+    --tala-text: #0f172a;
+    --tala-muted: #475569;
+    --tala-border: #cbd5e1;
+    --tala-control-border: #64748b;
+    --tala-focus: #a16207;
+    --tala-font-body: 'Inter Variable', Inter, system-ui, sans-serif;
+    --tala-font-heading: Outfit, system-ui, sans-serif;
+}
+
+:root.dark,
+:root[data-bs-theme='dark'] {
+    --tala-canvas: #0f172a;
+    --tala-surface: #111827;
+    --tala-text: #f8fafc;
+    --tala-muted: #cbd5e1;
+    --tala-border: #64748b;
+    --tala-control-border: #94a3b8;
+    --tala-focus: #facc15;
+    --tala-link: #93c5fd;
+}
+
+[data-bs-theme='dark'] :is(.section-kicker, .workspace-audience, .workspace-icon, .text-link, .faq-category, .empty-guidance .tala-public-icon),
+[data-bs-theme='dark'] .navbar .dropdown-item:is(:hover, :focus) {
+    color: var(--tala-link);
+}
+
+.tala-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: start;
+    color: inherit;
+}
+
+.tala-brand__star {
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 22.37%;
+}
+
+.tala-brand__crest {
+    display: none;
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    object-fit: contain;
+}
+
+.tala-brand__name {
+    font-family: var(--tala-font-heading);
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.4;
+    max-width: 15rem;
+    white-space: normal;
+}
+
+.tala-skip-link {
+    align-items: center;
+    background: var(--tala-surface);
+    border: 2px solid currentColor;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.75rem 2rem rgb(15 23 42 / 18%);
+    color: var(--tala-link);
+    display: inline-flex;
+    font-weight: 700;
+    gap: 0.5rem;
+    inset-inline-start: 1rem;
+    max-width: calc(100vw - 2rem);
+    min-height: 2.75rem;
+    opacity: 0;
+    padding: 0.625rem 1rem;
+    pointer-events: none;
+    position: fixed;
+    text-decoration: none;
+    top: max(1rem, env(safe-area-inset-top));
+    transform: translateY(calc(-100% - 2rem - env(safe-area-inset-top)));
+    transition: transform 150ms cubic-bezier(0.2, 0, 0, 1), opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+    z-index: 1100;
+}
+
+.tala-skip-link:focus-visible {
+    opacity: 1;
+    outline: 3px solid var(--tala-focus);
+    outline-offset: 3px;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.tala-skip-link__icon {
+    flex: none;
+    height: 1rem;
+    width: 1rem;
+}
+
+.tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; }
+.tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 36rem; margin-inline: auto; }
+.tala-access-main-wide { max-width: 48rem; }
+.tala-access-card { width: 100%; min-width: 0; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--tala-border); border-radius: 0.75rem; background: var(--tala-surface); overflow-wrap: anywhere; }
+.tala-access-card .tala-brand { margin-bottom: 1.5rem; }
+.tala-access-card .tala-brand__crest { display: block; }
+.tala-access-card .tala-brand__star { width: 3rem; height: 3rem; }
+.tala-access-card h1 { font-family: var(--tala-font-heading); line-height: 1.25; }
+.tala-access-muted { color: var(--tala-muted); }
+.tala-access-input { width: 100%; min-height: 2.75rem; background: var(--tala-surface); color: var(--tala-text); border: 1px solid var(--tala-control-border); padding: 0.5rem 0.75rem; border-radius: 0.375rem; }
+.tala-access-alert { border: 1px solid var(--tala-border); border-radius: 0.375rem; padding: 1rem; }
+.tala-access-primary { display: block; width: 100%; min-height: 2.75rem; background: var(--tala-brand); color: var(--tala-on-brand); padding: 0.625rem 1rem; border-radius: 0.375rem; font-weight: 600; }
+.tala-workspace-choice { width: 100%; min-height: 5rem; border: 1px solid var(--tala-border); background: var(--tala-surface); padding: 1.25rem; border-radius: 0.5rem; text-align: start; }
+.tala-workspace-choice:hover { border-color: var(--tala-link); }
+.tala-access-help { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
+.tala-access-help a, .tala-access-text-button { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
+.tala-access-page :focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
+
+@media (prefers-color-scheme: dark) {
+    :root[data-tala-system-appearance] {
+        color-scheme: dark;
+        --tala-canvas: #0f172a;
+        --tala-surface: #111827;
+        --tala-text: #f8fafc;
+        --tala-muted: #cbd5e1;
+        --tala-border: #64748b;
+        --tala-control-border: #94a3b8;
+        --tala-focus: #facc15;
+        --tala-link: #93c5fd;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+@media (forced-colors: active) {
+    :focus-visible {
+        outline: 3px solid Highlight !important;
+        outline-offset: 3px;
+    }
+
+    button, [role='button'], input, select, textarea {
+        border-color: ButtonText;
+    }
+
+    a[aria-current='page'] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
+}

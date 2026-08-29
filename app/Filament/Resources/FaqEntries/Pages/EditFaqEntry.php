@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\FaqEntries\Pages;
 
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
+use App\Filament\Support\EditsPublicContent;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditFaqEntry extends EditRecord
 {
+    use EditsPublicContent;
+
     protected static string $resource = FaqEntryResource::class;
 
     protected function getCancelFormAction(): Action
@@ -17,12 +19,5 @@ class EditFaqEntry extends EditRecord
             ->label('Cancel')
             ->url($this->getResourceUrl())
             ->color('gray');
-    }
-
-    protected function getHeaderActions(): array
-    {
-        return [
-            DeleteAction::make(),
-        ];
     }
 }

@@ -10,6 +10,7 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Models\AdmissionApplication;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -243,7 +244,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->set('data.multiFactor.app.recoveryCode', 'single-use-recovery')
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect('/admin');
+            ->assertRedirect(CalendarEventResource::getUrl('index', panel: 'admin'));
 
         $this->assertSame([], $staff->fresh()->getAppAuthenticationRecoveryCodes());
     }
@@ -307,7 +308,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->set('data.multiFactor.app.code', $currentCode)
             ->call('authenticate')
             ->assertHasNoErrors()
-            ->assertRedirect('/admin');
+            ->assertRedirect(CalendarEventResource::getUrl('index', panel: 'admin'));
 
         $this->assertSame(0, RateLimiter::attempts($mfaKey));
     }

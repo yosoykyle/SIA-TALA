@@ -19,7 +19,7 @@ final class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
     use DatabaseTransactions;
 
     #[Test]
-    public function system_administrator_has_exactly_the_five_canonical_navigation_destinations(): void
+    public function system_administrator_has_exactly_the_four_canonical_navigation_destinations(): void
     {
         $role = Role::query()->firstOrCreate(['name' => User::StaffRoleSystemSuperAdmin, 'guard_name' => 'web']);
         $role->givePermissionTo(Permission::findOrCreate('manage-faqs', 'web'));
@@ -33,7 +33,6 @@ final class TAL96D5E1DRemainingRoleCapabilityClosureTest extends TestCase
         $labels = $items->map(fn ($item): string => $item->getLabel())->values()->all();
 
         $this->assertSame([
-            'Home',
             'Users & Access',
             'Public Content',
             'System Health',

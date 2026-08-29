@@ -2,6 +2,11 @@
 
 namespace App\Actions\Authentication;
 
+use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\CalendarEvents\CalendarEventResource;
+use App\Filament\Resources\FeePlans\FeePlanResource;
+use App\Filament\Resources\Users\UserResource;
 use App\Models\AdmissionApplication;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
@@ -9,6 +14,18 @@ use Illuminate\Validation\ValidationException;
 class WorkspaceContextResolver
 {
     public const SessionKey = 'tala.workspace_context';
+
+    public const EntryNoticeSessionKey = 'tala.context_entry_notice';
+
+    /** @param array<string, array{label: string, destination: string, panel: string}> $available */
+    public function explainUnavailableEntry(?string $requested, array $available): void
+    {
+        session()->forget(self::EntryNoticeSessionKey);
+
+        if ($requested !== null && ! array_key_exists($requested, $available)) {
+            session()->put(self::EntryNoticeSessionKey, 'You are signed in. The selected entry is unavailable for this account. Use one of your authorized workspaces.');
+        }
+    }
 
     /**
      * @return array<string, array{label: string, destination: string, panel: string}>
@@ -31,7 +48,15 @@ class WorkspaceContextResolver
 
         foreach (User::staffRoleOptions() as $role => $label) {
             if ($user->hasAssignedRole($role)) {
-                $contexts[$role] = $this->definition($label, '/admin', 'admin');
+                $destination = match ($role) {
+                    User::StaffRoleRegistrar => AdmissionApplicationResource::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleAccounting => FeePlanResource::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleFaculty => CalendarEventResource::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleAcademicHead => AcademicApprovals::getUrl(panel: 'admin', isAbsolute: false),
+                    User::StaffRoleSystemSuperAdmin => UserResource::getUrl(panel: 'admin', isAbsolute: false),
+                    default => throw new \LogicException('The Staff context has no canonical destination.'),
+                };
+                $contexts[$role] = $this->definition($label, $destination, 'admin');
             }
         }
 

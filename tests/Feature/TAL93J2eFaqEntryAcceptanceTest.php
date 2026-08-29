@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\PublicContent\ManagePublicContent;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\FaqEntries\Pages\CreateFaqEntry;
 use App\Filament\Resources\FaqEntries\Pages\EditFaqEntry;
@@ -71,15 +72,19 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
         // DatabaseSeeder (setUp) already ran FaqEntrySeeder once.
         $this->assertSame(3, FaqEntry::query()->count());
 
-        $edited = FaqEntry::query()->where('system_key', 'apply-admission')->firstOrFail();
-        $edited->update(['question' => 'Admin curated question?', 'sort_order' => 99]);
+        $original = FaqEntry::query()->where('system_key', 'apply-admission')->firstOrFail();
+        $edited = app(ManagePublicContent::class)->save($original, $this->actingAsSuperAdmin(), [
+            'question' => 'Admin curated question?', 'sort_order' => 99,
+            'answer' => $original->answer, 'category' => $original->category,
+        ], $original->revision);
 
         (new FaqEntrySeeder)->run();
 
         $edited->refresh();
         $this->assertSame('Admin curated question?', $edited->question, 'Re-seeding must not overwrite later admin edits.');
         $this->assertSame(99, $edited->sort_order);
-        $this->assertSame(3, FaqEntry::query()->count(), 'Re-seeding must not create duplicates.');
+        $this->assertSame(4, FaqEntry::query()->count(), 'Re-seeding must preserve the original and successor without duplicates.');
+        $this->assertSame('How do I apply for admission?', $original->fresh()->question);
         $this->assertSame(3, FaqEntry::query()->distinct()->count('system_key'));
     }
 
@@ -93,7 +98,6 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
                 'question' => 'Where do I check my grades?',
                 'answer' => 'Grades appear in Student Hub after finalization.',
                 'category' => FaqEntry::CategoryGradesAcademics,
-                'is_published' => true,
             ])
             ->call('create')
             ->assertHasNoFormErrors()
@@ -103,6 +107,7 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
         $this->assertSame($expectedSortOrder, $created->sort_order);
         $this->assertSame($admin->id, $created->created_by);
         $this->assertSame($admin->id, $created->updated_by);
+        $this->assertFalse($created->is_published, 'Saving a draft must not publish it.');
         $this->assertTrue(Activity::query()->where('log_name', 'faq')->where('subject_id', $created->id)->exists());
 
         $other = User::factory()->create(['status' => User::StatusActive]);
@@ -160,16 +165,16 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
             ]);
     }
 
-    public function test_faq_order_is_managed_by_append_and_native_reordering_instead_of_a_number_field(): void
+    public function test_faq_order_is_explicit_and_does_not_rewrite_published_versions_through_dragging(): void
     {
         $form = file_get_contents(app_path('Filament/Resources/FaqEntries/Schemas/FaqEntryForm.php'));
         $table = file_get_contents(app_path('Filament/Resources/FaqEntries/Tables/FaqEntriesTable.php'));
 
         $this->assertIsString($form);
         $this->assertIsString($table);
-        $this->assertStringNotContainsString("TextInput::make('sort_order')", $form);
-        $this->assertStringContainsString("->reorderable('sort_order')", $table);
-        $this->assertStringNotContainsString("TextColumn::make('sort_order')", $table);
+        $this->assertStringContainsString("TextInput::make('sort_order')", $form);
+        $this->assertStringNotContainsString('->reorderable(', $table);
+        $this->assertStringContainsString("TextColumn::make('sort_order')", $table);
     }
 
     public function test_public_landing_renders_only_published_entries_in_order(): void

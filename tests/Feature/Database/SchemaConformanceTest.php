@@ -37,7 +37,7 @@ final class SchemaConformanceTest extends TestCase
         'payment_attempt_obligations', 'payment_attempts', 'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
         'pending_email_changes',
         'program_authorities', 'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances',
-        'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
+        'public_notices', 'published_timetable_meetings', 'published_timetable_versions', 'resource_unavailabilities',
         'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
@@ -68,9 +68,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(124, self::APPLICATION_TABLES);
+        $this->assertCount(125, self::APPLICATION_TABLES);
         $this->assertCount(18, self::PLATFORM_TABLES);
-        $this->assertCount(142, $actual);
+        $this->assertCount(143, $actual);
         $this->assertSame($expected, $actual);
     }
 
@@ -92,6 +92,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertColumns('accounting_adjustments', ['source_ledger_entry_id', 'ledger_entry_id', 'adjustment_type', 'posted_by']);
         $this->assertColumns('grade_outcome_events', ['grade_roster_row_id', 'previous_value', 'new_value', 'previous_category', 'new_category']);
         $this->assertColumns('holds', ['hold_type', 'reason', 'staff_only_reason', 'student_message', 'resolution_requirement']);
+        $this->assertColumns('public_notices', ['title', 'message', 'state', 'display_order', 'root_id', 'previous_version_id', 'version', 'revision', 'ever_published', 'published_at', 'published_by', 'visible_from', 'visible_until']);
+        $this->assertColumns('faq_entries', ['question', 'answer', 'category', 'sort_order', 'root_id', 'previous_version_id', 'version', 'revision', 'ever_published', 'published_at', 'published_by']);
 
         $this->assertFalse(Schema::hasColumn('student_profiles', 'current_balance'));
         $this->assertFalse(Schema::hasColumn('ledger_entries', 'running_balance'));
@@ -124,6 +126,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertForeignKey('grade_outcome_events', 'grade_roster_row_id', 'grade_roster_rows', 'RESTRICT');
         $this->assertForeignKey('holds', 'student_profile_id', 'student_profiles', 'RESTRICT');
         $this->assertForeignKey('output_access_logs', 'student_profile_id', 'student_profiles', 'RESTRICT');
+        $this->assertForeignKey('public_notices', 'previous_version_id', 'public_notices', 'RESTRICT');
+        $this->assertForeignKey('faq_entries', 'previous_version_id', 'faq_entries', 'RESTRICT');
 
         $cascadingOfficialForeignKeys = DB::select("SELECT kcu.table_name, kcu.column_name FROM information_schema.key_column_usage kcu JOIN information_schema.referential_constraints rc ON rc.constraint_schema = kcu.constraint_schema AND rc.constraint_name = kcu.constraint_name WHERE kcu.constraint_schema = DATABASE() AND rc.delete_rule = 'CASCADE' AND kcu.table_name NOT IN ('model_has_permissions', 'model_has_roles', 'role_has_permissions', 'passkeys', 'room_features')");
         $this->assertSame([], $cascadingOfficialForeignKeys);
@@ -142,6 +146,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertUniqueIndex('payment_attempts', ['active_term_account_id']);
         $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'assessment_obligation_id']);
         $this->assertUniqueIndex('payment_attempt_obligations', ['payment_attempt_id', 'sequence']);
+        $this->assertUniqueIndex('public_notices', ['previous_version_id']);
+        $this->assertUniqueIndex('faq_entries', ['previous_version_id']);
 
         foreach ([
             ['fee_rules', 'rate', 12, 2],
@@ -176,8 +182,8 @@ final class SchemaConformanceTest extends TestCase
         $this->assertSame([
             'academic-head', 'accounting', 'applicant', 'faculty', 'registrar', 'student', 'system-super-admin',
         ], DB::table('roles')->orderBy('name')->pluck('name')->all());
-        $this->assertSame(12, DB::table('permissions')->count());
-        $this->assertSame(12, DB::table('role_has_permissions')->count());
+        $this->assertSame(13, DB::table('permissions')->count());
+        $this->assertSame(13, DB::table('role_has_permissions')->count());
         $this->assertSame(0, DB::table('users')->count());
     }
 

@@ -2,19 +2,74 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Login;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\TextInput;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 
 class ContextualLogin extends Login
 {
+    protected function getEmailFormComponent(): TextInput
+    {
+        $component = parent::getEmailFormComponent();
+        if (! $component instanceof TextInput) {
+            throw new LogicException('The Filament login email component must be a text input.');
+        }
+
+        return $component->autocomplete('username');
+    }
+
+    protected function getPasswordFormComponent(): TextInput
+    {
+        $component = parent::getPasswordFormComponent();
+        if (! $component instanceof TextInput) {
+            throw new LogicException('The Filament login password component must be a text input.');
+        }
+
+        return $component
+            ->hint(Filament::hasPasswordReset() ? view('filament.components.password-recovery-link') : null);
+    }
+
+    protected function getRememberFormComponent(): Checkbox
+    {
+        $component = parent::getRememberFormComponent();
+        if (! $component instanceof Checkbox) {
+            throw new LogicException('The Filament remember-device component must be a checkbox.');
+        }
+
+        return $component->label('Remember device')->default(false)
+            ->visible(fn (): bool => Filament::getCurrentOrDefaultPanel()->getId() !== 'admin');
+    }
+
+    public function getSubheading(): string|Htmlable|null
+    {
+        if (! filled($this->userUndertakingMultiFactorAuthentication) && Filament::getCurrentOrDefaultPanel()->getId() === 'applicant') {
+            try {
+                $registrationAvailable = app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
+            } catch (QueryException $exception) {
+                report($exception);
+                $registrationAvailable = false;
+            }
+            if (! $registrationAvailable) {
+                return new HtmlString(view('filament.components.admission-availability-link')->render());
+            }
+        }
+
+        return parent::getSubheading();
+    }
+
     public const AuthenticatingSessionKey = 'tala.contextual_login_in_progress';
 
     public ?string $requestedContext = null;
@@ -31,6 +86,8 @@ class ContextualLogin extends Login
 
         if ($this->requestedContext !== null) {
             session()->put('tala.requested_context', $this->requestedContext);
+        } else {
+            session()->forget('tala.requested_context');
         }
 
         parent::mount();
@@ -129,7 +186,7 @@ class ContextualLogin extends Login
             User::StaffRoleFaculty => 'Faculty',
             User::StaffRoleAcademicHead => 'Academic Head',
             User::StaffRoleSystemSuperAdmin => 'System Administrator',
-            default => 'TALA',
+            default => Filament::getCurrentOrDefaultPanel()->getId() === 'admin' ? 'Staff' : 'TALA',
         };
 
         return "Sign in to {$label}";

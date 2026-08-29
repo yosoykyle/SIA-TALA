@@ -6,11 +6,14 @@
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $statusCode }} — {{ $pageTitle }} | TALA</title>
     <link rel="icon" href="{{ asset('talalogo.png') }}">
+    <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tala-foundation.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-error.css') }}">
 </head>
 <body>
+    <a class="tala-skip-link" href="#error-content">Skip to main content</a>
     @php
-        $authenticatedUser = auth()->user() instanceof \App\Models\User ? auth()->user() : null;
+        $authenticatedUser = $statusCode === 403 && auth()->user() instanceof \App\Models\User ? auth()->user() : null;
         $workspacePath = $authenticatedUser?->authorizedWorkspacePath();
         $workspaceName = $authenticatedUser?->authorizedWorkspaceName();
         $canSwitchAccount = $statusCode === 403 && $workspacePath !== null && $workspaceName !== null;
@@ -23,7 +26,7 @@
             : $guidance;
     @endphp
 
-    <main class="error-shell" aria-labelledby="error-title">
+    <main id="error-content" class="error-shell" aria-labelledby="error-title" tabindex="-1">
         <article class="error-card">
             <a class="brand" href="{{ url('/') }}" aria-label="TALA home">
                 <img src="{{ asset('talalogo.png') }}" alt="" width="52" height="52">
@@ -50,7 +53,8 @@
                     <a class="primary-action" href="{{ url('/') }}">Return to TALA home</a>
                 @endif
             </div>
-            <p class="support-note">If the problem continues, contact the office responsible for your request.</p>
+            <p class="support-note">Source: TALA HTTP response {{ $statusCode }}. System Administration handles technical access and service recovery; the responsible school office handles your underlying request.</p>
+            <p class="support-note"><a class="secondary-action" href="{{ route('home', ['modal' => 'support']) }}">Contact school support</a></p>
         </article>
     </main>
 

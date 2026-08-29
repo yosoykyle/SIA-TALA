@@ -74,6 +74,7 @@ class DatabaseSeeder extends Seeder
             'evaluate-transferees',
             'manage-admission-setup',
             'manage-faqs',
+            'manage-public-notices',
             'manage-schedules',
             'manage-sections',
             'manage-student-profiles',
@@ -134,10 +135,10 @@ class DatabaseSeeder extends Seeder
                 'view-global-records',
             ],
 
-            // §2.3.7 System Super Admin is scoped to configuration/audit; its operational
-            //         surfaces are role-gated, so the only action permission is FAQ content.
+            // System Administration owns bounded public content, not academic operations.
             'system-super-admin' => [
                 'manage-faqs',
+                'manage-public-notices',
             ],
         ];
     }

@@ -1,7 +1,12 @@
 @extends('layouts.landing-bootstrap', ['title' => 'TALA'])
 
 @section('content')
-    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <a class="tala-skip-link" href="#main-content">
+        <span>Skip to main content</span>
+        <svg class="tala-skip-link__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </a>
 
     <nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-transparent" aria-label="Primary navigation">
         <div class="backdrop-blur" aria-hidden="true">
@@ -15,110 +20,97 @@
 
         <div class="container">
             <a class="navbar-brand fs-5 fw-bold d-flex align-items-center" href="{{ url('/') }}">
+                <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
                 <img src="{{ asset('talalogo.png') }}" alt="" class="landing-brand-logo">
                 <span data-navbar-contrast-target>TALA</span>
             </a>
 
+            <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
+                <ul class="navbar-nav gap-lg-3 pt-3 pt-lg-0">
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#top">Admissions</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#programs">Programs</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#location">Visit</a></li>
+                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="#faq">FAQ</a></li>
+                </ul>
+            </div>
+
+            <div class="dropdown public-sign-in">
+                <button class="nav-link dropdown-toggle" type="button" data-navbar-contrast-target data-bs-toggle="dropdown" aria-expanded="false">
+                    Sign in
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-label="Choose a sign-in workspace">
+                    <li><a class="dropdown-item" href="{{ route('filament.applicant.auth.login') }}">Applicant sign in</a></li>
+                    <li><a class="dropdown-item" href="{{ route('filament.student.auth.login') }}">Student sign in</a></li>
+                    <li><a class="dropdown-item" href="{{ route('filament.admin.auth.login') }}">Staff sign in</a></li>
+                </ul>
+            </div>
+
             <button class="navbar-toggler border-0" type="button" data-navbar-contrast-target data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Open navigation menu">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <ul class="navbar-nav gap-3 pt-3 pt-lg-0">
-                    <li class="nav-item dropdown">
-                        <button class="nav-link dropdown-toggle" type="button" data-navbar-contrast-target data-bs-toggle="dropdown" aria-expanded="false">
-                            LOGIN
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-label="Choose a sign-in workspace">
-                            <li><a class="dropdown-item" href="{{ route('filament.applicant.auth.login') }}">Applicant Login</a></li>
-                            <li><a class="dropdown-item" href="{{ route('filament.student.auth.login') }}">Student Login</a></li>
-                            <li><a class="dropdown-item" href="{{ route('filament.admin.auth.login') }}">Staff Login</a></li>
-                        </ul>
-                    </li>
-                    @if ($applicantEntryReady)
-                        <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ route('filament.applicant.auth.register') }}">CREATE ACCOUNT</a></li>
-                    @endif
-                    <li class="nav-item"><a class="nav-link" data-navbar-contrast-target href="{{ url('/#faq') }}">FAQ</a></li>
-                </ul>
-            </div>
         </div>
     </nav>
 
     <main id="main-content" tabindex="-1">
         <section class="hero-section" id="top" data-navbar-contrast-surface="dark" aria-labelledby="hero-title">
             <div class="container">
-                <div class="row align-items-center gx-3 gx-lg-5 gy-5">
-                    <div class="col-lg-6">
-                        <p class="hero-kicker mb-3">Servitech Institute Asia</p>
-                        <h1 class="display-headline" id="hero-title">Tertiary Academic Lifecycle Administration</h1>
-                        <p class="hero-lead">
-                            Use the appropriate secure workspace to create or access your TALA account and continue an authorized school task.
-                        </p>
-                        @if ($admissionCycle)
-                            <div class="alert {{ $admissionCycle['is_open'] ? 'alert-light' : 'alert-secondary' }} mt-3" role="status">
-                                <strong>{{ $admissionCycle['label'] }} ({{ $admissionCycle['code'] }})</strong><br>
-                                {{ $admissionCycle['term'] ?? 'Target term unavailable' }} · {{ implode(' and ', $admissionCycle['paths']) ?: 'Paths unavailable' }}<br>
-                                @if ($admissionCycle['is_open'])
-                                    Open until {{ $admissionCycle['closes_at'] }}.
-                                @else
-                                    Opens {{ $admissionCycle['opens_at'] }}.
-                                @endif
-                            </div>
+                <div class="row align-items-center gx-lg-5 gy-4">
+                    <div class="col-lg-7">
+                        <p class="hero-kicker mb-3">Admissions and academic services</p>
+                        @if (session('status'))
+                            <div class="alert alert-light" role="status">{{ session('status') }}</div>
                         @endif
-                        <div class="d-flex flex-column flex-sm-row gap-3 mt-4">
+                        <h1 class="display-headline" id="hero-title">A clearer way through every step of your Servitech journey.</h1>
+                        <p class="hero-lead">TALA brings applications, enrollment, schedules, records, and accounts into one guided service.</p>
+                        <div class="hero-actions d-flex flex-wrap gap-3 mt-4">
                             @if ($applicantEntryReady)
                                 <a class="btn btn-primary-custom" href="{{ route('filament.applicant.auth.register') }}">
-                                    Create Applicant Account
-                                    <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i>
+                                    Apply
+                                    <x-filament::icon icon="heroicon-o-arrow-right" class="tala-public-icon ms-2" aria-hidden="true" />
                                 </a>
                             @elseif ($admissionsOpen)
-                                <span class="btn btn-primary-custom disabled" aria-disabled="true">Applicant registration is temporarily unavailable</span>
+                                <span class="hero-entry-state">Applicant registration is temporarily unavailable</span>
+                            @elseif ($admissionState === 'Closed')
+                                <span class="hero-entry-state">Applications are currently closed</span>
                             @else
-                                <span class="btn btn-primary-custom disabled" aria-disabled="true">Applications are currently closed</span>
+                                <span class="hero-entry-state">{{ $admissionState === 'Upcoming' ? 'Applications have not opened yet' : 'Apply is currently unavailable' }}</span>
                             @endif
-                            <a class="btn btn-secondary-custom" href="{{ url('/#login') }}">Choose a workspace</a>
+                            <a class="btn btn-secondary-custom" href="{{ route('filament.applicant.auth.login') }}">Applicant sign in</a>
                         </div>
+                        <p class="hero-availability mt-3 mb-0">Existing accounts can still sign in. Creating an account does not create an application.</p>
                     </div>
 
-                    <div class="col-lg-6">
-                        <div class="portal-overview" data-navbar-contrast-surface="light" aria-labelledby="portal-overview-title">
-                            <div class="portal-overview-header">
-                                <img src="{{ asset('talalogo.png') }}" alt="" class="hero-mockup-logo">
-                                <div>
-                                    <p class="portal-label mb-1">TALA access guide</p>
-                                    <h2 class="h3 mb-0" id="portal-overview-title">One system. Three clear workspaces.</h2>
-                                </div>
-                            </div>
-
-                            <ol class="workspace-summary list-unstyled mb-0">
-                                <li>
-                                    <span class="workspace-number" aria-hidden="true">1</span>
-                                    <div>
-                                        <strong>Applicant Workspace</strong>
-                                        <span>Create and verify your Applicant account.</span>
-                                    </div>
-                                </li>
-                                <li>
-                                    <span class="workspace-number" aria-hidden="true">2</span>
-                                    <div>
-                                        <strong>Student Hub</strong>
-                                        <span>View enrollment, schedules, finance, and academic records.</span>
-                                    </div>
-                                </li>
-                                <li>
-                                    <span class="workspace-number" aria-hidden="true">3</span>
-                                    <div>
-                                        <strong>Staff Workspace</strong>
-                                        <span>Manage verified school operations according to your role.</span>
-                                    </div>
-                                </li>
-                            </ol>
-
-                            <p class="portal-note mb-0">
-                                <i class="bi bi-shield-check" aria-hidden="true"></i>
-                                Each workspace shows only the records and actions permitted for that account.
-                            </p>
-                        </div>
+                    <div class="col-lg-5">
+                        <aside class="admission-status" data-navbar-contrast-surface="theme" aria-labelledby="admission-status-title">
+                            <p class="section-kicker">Current admissions status</p>
+                            <h2 id="admission-status-title">
+                                @if ($admissionsOpen)
+                                    {{ $applicantEntryReady ? 'Applications are open' : 'Registration is temporarily unavailable' }}
+                                @elseif ($admissionState === 'Closed')
+                                    Application intake is closed
+                                @elseif ($admissionState === 'Upcoming')
+                                    Applications have not opened yet
+                                @else
+                                    Admission availability is unconfirmed
+                                @endif
+                            </h2>
+                            @if ($admissionCycle)
+                                <p class="mb-2"><strong>{{ $admissionCycle['label'] }}</strong> ({{ $admissionCycle['code'] }})</p>
+                                <p class="mb-2">{{ $admissionCycle['term'] ?? 'Target term unavailable' }} · {{ implode(' and ', $admissionCycle['paths']) ?: 'Paths unavailable' }}</p>
+                                <p>{{ $admissionCycle['is_open'] ? 'Open until' : 'Opens' }} {{ $admissionCycle['is_open'] ? $admissionCycle['closes_at'] : $admissionCycle['opens_at'] }}.</p>
+                            @endif
+                            @if ($admissionState === 'Unavailable')
+                                <p>Admission availability could not be checked. Apply is unavailable until the Registrar’s source can be read.</p>
+                            @elseif ($admissionState === 'Missing')
+                                <p>No published admission cycle is available. Apply is unavailable; existing accounts can still sign in.</p>
+                            @elseif ($admissionState === 'Closed')
+                                <p>Existing Applicants can continue their permitted application tasks. The next intake will appear when published by the Registrar.</p>
+                            @elseif ($admissionState === 'Upcoming')
+                                <p>This published intake has not opened. Existing accounts can still sign in.</p>
+                            @endif
+                            <p class="admission-source mb-0">Source: Registrar’s Admission Cycle · Checked {{ $asOf }} (Asia/Manila).</p>
+                            <button type="button" class="hero-support-link" data-bs-toggle="modal" data-bs-target="#supportModal">Contact the school for admission guidance</button>
+                        </aside>
                     </div>
                 </div>
             </div>
@@ -126,92 +118,83 @@
 
         <section class="features-section section-block" id="login" data-navbar-contrast-surface="theme" aria-labelledby="login-title">
             <div class="container">
-                <div class="section-heading text-center">
-                    <p class="section-kicker">Secure role-based access</p>
-                    <h2 class="section-title" id="login-title">LOGIN</h2>
-                    <p class="section-lead">
-                        Choose the workspace that matches your current school relationship. Applicants can create an account; student and staff accounts are activated through official school processes.
-                    </p>
+                <div class="section-heading">
+                    <h2 class="section-title" id="login-title">Sign in to your workspace</h2>
+                    <p class="section-lead">Choose the context for your school task. Signing in shows only the workspaces authorized for your account.</p>
                 </div>
-
-                <div class="row g-4">
-                    <div class="col-lg-4">
-                        <article class="workspace-card h-100">
-                            <div class="workspace-icon" aria-hidden="true"><i class="bi bi-person-plus"></i></div>
-                            <p class="workspace-audience">For prospective and returning applicants</p>
-                            <h3>Applicant Workspace</h3>
-                            <p>Create a minimal account, verify your email address, or sign in to your existing Applicant Workspace.</p>
-                            <ul class="workspace-capabilities">
-                                <li>Create one Applicant credential</li>
-                                <li>Verify the registered email address</li>
-                                <li>Open the Applicant Workspace</li>
-                            </ul>
-                            <div class="workspace-actions">
-                                @if ($applicantEntryReady)
-                                    <a class="btn btn-black-action" href="{{ route('filament.applicant.auth.register') }}">Create Applicant Account</a>
-                                @elseif ($admissionsOpen)
-                                    <span class="btn btn-black-action disabled" aria-disabled="true">Registration Temporarily Unavailable</span>
-                                @else
-                                    <span class="btn btn-black-action disabled" aria-disabled="true">Applications Closed</span>
-                                @endif
-                                <a class="text-link" href="{{ route('filament.applicant.auth.login') }}">Applicant Sign In <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                            </div>
-                        </article>
+                <div class="row g-4 context-choices">
+                    <div class="col-md-4">
+                        <h3>Applicant Workspace</h3>
+                        <p>Create and verify your Applicant account. Existing Applicants can continue their application.</p>
+                        <a class="text-link" href="{{ route('filament.applicant.auth.login') }}">Applicant sign in</a>
                     </div>
-
-                    <div class="col-lg-4">
-                        <article class="workspace-card h-100">
-                            <div class="workspace-icon" aria-hidden="true"><i class="bi bi-mortarboard"></i></div>
-                            <p class="workspace-audience">For officially handed-over students</p>
-                            <h3>Student Hub</h3>
-                            <p>Review your current enrollment, published schedule, finance status, holds, grades, and authenticated outputs.</p>
-                            <ul class="workspace-capabilities">
-                                <li>Follow enrollment next steps</li>
-                                <li>Open current COR and schedule</li>
-                                <li>Review balances, payments, and grades</li>
-                            </ul>
-                            <div class="workspace-actions">
-                                <a class="btn btn-black-action" href="{{ route('filament.student.auth.login') }}">Student Sign In</a>
-                            </div>
-                        </article>
+                    <div class="col-md-4">
+                        <h3>Student Hub</h3>
+                        <p>View enrollment, schedules, finance, and academic records.</p>
+                        <a class="text-link" href="{{ route('filament.student.auth.login') }}">Student sign in</a>
                     </div>
+                    <div class="col-md-4">
+                        <h3>Staff Workspace</h3>
+                        <p>Manage verified school operations according to your role.</p>
+                        <a class="text-link" href="{{ route('filament.admin.auth.login') }}">Staff sign in</a>
+                    </div>
+                </div>
+                <div class="journey-heading">
+                    <h2 class="section-title" id="journey-title">One connected learner journey</h2>
+                    <p class="section-lead">Each stage keeps its school decisions and next steps clear.</p>
+                </div>
+                <ol class="learner-journey row g-4 list-unstyled mb-0" aria-labelledby="journey-title">
+                    <li class="col-sm-6 col-lg-3"><h3>Apply</h3><p>Create an account, complete an application, and follow its review.</p></li>
+                    <li class="col-sm-6 col-lg-3"><h3>Enroll</h3><p>Follow registration, account readiness, and official enrollment.</p></li>
+                    <li class="col-sm-6 col-lg-3"><h3>Study</h3><p>Use your published schedule and released academic records.</p></li>
+                    <li class="col-sm-6 col-lg-3"><h3>Complete</h3><p>Follow completion decisions and the school’s records process.</p></li>
+                </ol>
+            </div>
+        </section>
 
+        <section class="section-block" id="programs" data-navbar-contrast-surface="theme" aria-labelledby="programs-title">
+            <div class="container">
+                <div class="row g-4 gx-lg-5">
                     <div class="col-lg-4">
-                        <article class="workspace-card h-100">
-                            <div class="workspace-icon" aria-hidden="true"><i class="bi bi-building-gear"></i></div>
-                            <p class="workspace-audience">For authorized school personnel</p>
-                            <h3>Staff Workspace</h3>
-                            <p>Registrar, Accounting, Faculty, Academic Head, and System Super Admin users work from one role-scoped panel.</p>
-                            <ul class="workspace-capabilities">
-                                <li>Process assigned operational queues</li>
-                                <li>Review authoritative school records</li>
-                                <li>Access only permitted actions and reports</li>
-                            </ul>
-                            <div class="workspace-actions">
-                                <a class="btn btn-black-action" href="{{ route('filament.admin.auth.login') }}">Staff Sign In</a>
-                            </div>
-                        </article>
+                        <p class="section-kicker">Program paths</p>
+                        <h2 class="section-title" id="programs-title">See where your Servitech journey can begin.</h2>
+                        <p class="section-lead">Programs and admission availability come from the school’s published records. An active Program does not automatically accept new applications.</p>
+                    </div>
+                    <div class="col-lg-8">
+                        <ul class="program-list list-unstyled mb-0">
+                            @forelse ($programs as $program)
+                                <li class="program-row">
+                                    <span class="program-code">{{ $program->code }}</span>
+                                    <h3>{{ $program->name }}</h3>
+                                    <p>{{ in_array($program->id, $acceptingProgramIds, true) ? 'Accepting applications in the current intake' : 'No current application intake confirmed' }}</p>
+                                </li>
+                            @empty
+                                <li>{{ in_array('programs', $unavailable, true) ? 'Program records are temporarily unavailable. Contact the Registrar through Support for guidance.' : 'No active Programs are currently listed. Contact the Registrar through Support for guidance.' }}</li>
+                            @endforelse
+                        </ul>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="institution-section section-block" data-navbar-contrast-surface="theme" aria-labelledby="location-title">
+        <section class="section-block" id="notices" data-navbar-contrast-surface="theme" aria-labelledby="notices-title">
             <div class="container">
-                <div class="institution-card">
-                    <div>
-                        <p class="section-kicker">Institution</p>
-                        <h2 class="section-title text-start" id="location-title">SERVITECH INSTITUTE ASIA</h2>
-                        <p class="section-lead text-start mb-0">
-                            TALA is the school information portal of Servitech Institute Asia. Use the external map for campus location guidance.
-                        </p>
-                    </div>
-                    @if ($officialReferences['map'])
-                        <a href="{{ $officialReferences['map'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-black-action flex-shrink-0">
-                            Open in Google Maps
-                            <i class="bi bi-box-arrow-up-right ms-2" aria-hidden="true"></i>
-                        </a>
-                    @endif
+                <h2 class="section-title text-start" id="notices-title">Current notices</h2>
+                <div class="row g-3">
+                    @forelse ($notices as $notice)
+                        <div class="col-md-6">
+                            <article class="public-content-card h-100">
+                                <h3>{{ $notice->title }}</h3>
+                                <p class="public-content-message">{{ $notice->message }}</p>
+                                @if ($notice->link_url)
+                                    <a href="{{ $notice->link_url }}" target="_blank" rel="noopener noreferrer">{{ $notice->link_label }} <span class="visually-hidden">(opens in a new tab)</span></a>
+                                @endif
+                                <p class="public-content-meta">System Administration · Version {{ $notice->version }} · Published {{ $notice->published_at?->timezone('Asia/Manila')->format('M j, Y') }}</p>
+                            </article>
+                        </div>
+                    @empty
+                        <p>{{ in_array('notices', $unavailable, true) ? 'Notices are temporarily unavailable. System Administration owns this content; use Support for assistance. Sign-in remains available.' : 'There are no current public notices. Existing-account sign-in remains available.' }}</p>
+                    @endforelse
                 </div>
             </div>
         </section>
@@ -220,7 +203,7 @@
             <div class="container">
                 <div class="section-heading text-center">
                     <p class="section-kicker">Public guidance</p>
-                    <h2 class="section-title" id="faq-title">FREQUENTLY ASKED QUESTIONS</h2>
+                    <h2 class="section-title" id="faq-title">Frequently asked questions</h2>
                     <p class="section-lead">Published answers explain common access, admission, enrollment, payment, and academic-record questions.</p>
                 </div>
 
@@ -243,15 +226,37 @@
                                 </div>
                             @empty
                                 <div class="empty-guidance" role="status">
-                                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                    <x-filament::icon icon="heroicon-o-information-circle" class="tala-public-icon" aria-hidden="true" />
                                     <div>
-                                        <strong>No public FAQs are available yet.</strong>
+                                        <strong>{{ in_array('faqEntries', $unavailable, true) ? 'FAQs are temporarily unavailable.' : 'No public FAQs are available yet.' }}</strong>
                                         <p class="mb-0">Use the workspace links above or contact the responsible school office for help.</p>
                                     </div>
                                 </div>
                             @endforelse
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+        <section class="institution-section section-block" id="location" data-navbar-contrast-surface="theme" aria-labelledby="location-title">
+            <div class="container">
+                <div class="institution-card">
+                    <div>
+                        <p class="section-kicker">Institution</p>
+                        <h2 class="section-title text-start" id="location-title">Servitech Institute Asia</h2>
+                        <p class="section-lead text-start mb-0">
+                            TALA is the school information portal of Servitech Institute Asia. Use the external map for campus location guidance.
+                        </p>
+                    </div>
+                    @if ($officialReferences['map'])
+                        <a href="{{ $officialReferences['map'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-black-action flex-shrink-0">
+                            Open in Google Maps
+                            <x-filament::icon icon="heroicon-o-arrow-top-right-on-square" class="tala-public-icon ms-2" aria-hidden="true" />
+                            <span class="visually-hidden">(opens in a new tab)</span>
+                        </a>
+                    @else
+                        <a href="{{ route('home', ['modal' => 'support']) }}" class="text-link">Contact the school for location guidance</a>
+                    @endif
                 </div>
             </div>
         </section>
@@ -262,6 +267,7 @@
             <div class="row align-items-start g-4">
                 <div class="col-lg-7">
                     <a class="footer-brand d-inline-flex align-items-center text-decoration-none" href="{{ url('/') }}">
+                        <img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="Servitech Institute Asia" class="landing-crest" width="48" height="48">
                         <img src="{{ asset('talalogo.png') }}" alt="" class="footer-logo">
                         <span>TALA</span>
                     </a>
@@ -269,9 +275,9 @@
                 </div>
                 <div class="col-lg-5">
                     <nav class="d-flex flex-wrap justify-content-lg-end gap-3" aria-label="Footer navigation">
-                        <a class="footer-link" href="{{ url('/#login') }}">Login</a>
+                        <a class="footer-link" href="{{ url('/#login') }}">Sign in</a>
                         @if ($applicantEntryReady)
-                            <a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Create Applicant Account</a>
+                            <a class="footer-link" href="{{ route('filament.applicant.auth.register') }}">Create Applicant account</a>
                         @endif
                         <button class="footer-link footer-link-button" type="button" data-bs-toggle="modal" data-bs-target="#supportModal">Support</button>
                         <button class="footer-link footer-link-button" type="button" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy</button>
@@ -299,7 +305,7 @@
                         @if ($officialReferences['support'])
                             <a class="btn btn-black-action" href="{{ $officialReferences['support'] }}" target="_blank" rel="noopener noreferrer">
                                 Open Servitech Facebook
-                                <i class="bi bi-box-arrow-up-right ms-2" aria-hidden="true"></i>
+                                <x-filament::icon icon="heroicon-o-arrow-top-right-on-square" class="tala-public-icon ms-2" aria-hidden="true" />
                             </a>
                         @endif
                         <a class="text-link" href="{{ $officialReferences['support_phone_uri'] }}">Call {{ $officialReferences['support_phone'] }}</a>
@@ -363,6 +369,6 @@
     </div>
 
     <button class="btn-scroll-top" type="button" aria-label="Scroll to top">
-        <i class="bi bi-arrow-up" aria-hidden="true"></i>
+        <x-filament::icon icon="heroicon-o-arrow-up" class="tala-public-icon" aria-hidden="true" />
     </button>
 @endsection

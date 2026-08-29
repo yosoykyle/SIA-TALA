@@ -1,6 +1,5 @@
 <?php
 
-use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
 use App\Http\Controllers\AdmissionEvidenceDownloadController;
 use App\Http\Controllers\CorPrintController;
@@ -10,6 +9,7 @@ use App\Http\Controllers\FinanceStatementController;
 use App\Http\Controllers\GradeRosterOutputController;
 use App\Http\Controllers\PaymentAcknowledgementController;
 use App\Http\Controllers\PaymentEvidenceDownloadController;
+use App\Http\Controllers\PublicGatewayController;
 use App\Http\Controllers\StaffEmailChangeController;
 use App\Http\Controllers\StaffInvitationActivationController;
 use App\Http\Controllers\StudentSchedulePrintController;
@@ -18,18 +18,9 @@ use App\Http\Controllers\TranscriptPreviewController;
 use App\Http\Controllers\TranscriptSnapshotController;
 use App\Http\Controllers\UnofficialStudentRecordController;
 use App\Http\Controllers\WorkspaceContextController;
-use App\Models\FaqEntry;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function (ApplicantEntryReadinessService $applicantEntryReadinessService) {
-    return view('welcome', [
-        'faqEntries' => FaqEntry::query()->publishedOrdered()->get(),
-        'admissionsOpen' => $applicantEntryReadinessService->admissionsAreOpen(),
-        'applicantEntryReady' => $applicantEntryReadinessService->registrationIsAvailable(),
-        'officialReferences' => $applicantEntryReadinessService->officialReferences(),
-        'admissionCycle' => $applicantEntryReadinessService->cycleProjection(),
-    ]);
-})->name('home');
+Route::get('/', PublicGatewayController::class)->name('home');
 
 Route::get('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'show'])
     ->name('staff-invitations.activate');

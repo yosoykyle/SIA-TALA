@@ -6,7 +6,9 @@
 
 This document records the approved Human-Centered Operations direction, its ethical behavioral-design rules, its production-stack translation, and the complete successor coordination map. It refines presentation without creating business workflows. The canonical PRDs continue to own product behavior, the [UI Surface Blueprint](ui_surface_blueprint.md) owns UI IDs and presentation contracts, and the [Architecture Specification](architecture_specification.md) owns integration and deployment boundaries. If this companion conflicts with those documents, the canonical owner governs and the conflict must be corrected before implementation.
 
-The approved React prototype and its browser captures are visual and interaction evidence only. The curated [Human-Centered Operations design-evidence pack](design-evidence/human-centered-operations/README.md) makes the accepted comparison evidence portable without adding the React source. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
+The approved refined React prototype and its accepted annotations are visual and interaction evidence only. The curated [Human-Centered Operations design-evidence pack](design-evidence/human-centered-operations/README.md) distinguishes the original concept, historical screenshot checkpoints, and current comparison references, with source provenance and decision-to-implementation routing. Later accepted refinements must not be reversed to match an earlier board or a file named `final`; canonical authority and subsequent owner-approved guardrails govern every comparison. Production TALA remains Blade, Bootstrap, Filament, Livewire, Alpine, and print CSS. No React runtime, generic design system product, behavioral engine, or duplicate business logic is introduced.
+
+**Refinement guardrails:** The approved designs and complete seven-slice scope remain unchanged. Improve weak UI through supported native and installed-component capabilities while preserving canonical behavior and compatible plugin responsibilities. Materially bypassing or replacing those responsibilities requires explicit approval and replacement proof. Light reference images do not authorize disabling Filament/Auth Designer's native Light/Dark/System behavior; the UI Surface Blueprint governs both screen appearances and user preference. This clarification does not restart Product Design or the broad product-definition phase.
 
 ## 1. Product and visual direction
 
@@ -51,7 +53,9 @@ Responsive progress uses semantic lists and text labels rather than decorative p
 
 | Family | Current canonical surface | Production owner | Preferred native capability | Bounded customization | Verification evidence |
 |---|---|---|---|---|---|
-| Public arrival and sign-in | `SHR-001–SHR-003`, `SHR-006` | Blade and Bootstrap | Navbar/dropdown, accordion, modal, responsive grid, server-rendered state | Progressive blur, dual-brand lockup, contextual state, tracked approved hero media | 360/390, 768, 1366; keyboard, focus return, reduced motion, forced colors, no horizontal overflow |
+| Public arrival | `SHR-001` | Blade and Bootstrap | Navbar/dropdown, accordion, modal, responsive grid, server-rendered state | Progressive blur, dual-brand lockup, contextual state, tracked approved hero media | Both appearances with system following; 360/390, 768, 1366; keyboard, focus return, reduced motion, forced colors, no horizontal overflow |
+| Authentication and recovery | `SHR-002`, `SHR-003` | Filament, Auth Designer, Fortify, Livewire | Native authentication forms and behavior inside the installed branded layout; Light/Dark/System controls | Context, branding, tracked media, shared theme through supported extension points | Cover/split layout retained; both appearances, System changes and saved choice; recovery/MFA, keyboard, responsive and accessibility checks |
+| Access and service failure | `SHR-006` | Dependency-light Blade | Server-rendered status and safe recovery | Branded fallback usable without Vite or Livewire | Generic non-disclosing response, accessible contrast, recovery with dynamic services unavailable |
 | Authenticated shell | All Applicant, Student, and Staff panels | Filament, Livewire, Alpine | Panel navigation, `sidebarCollapsibleOnDesktop()`, mobile drawer, groups, account menu | Shared TALA theme tokens and role-aware identity only | Role entry, collapse/drawer, 200% zoom, keyboard, screen reader, responsive hierarchy |
 | Forms and guided journeys | Application, enrollment, roster, completion, finance, access actions | Filament Forms/Schemas and Livewire | Sections, Tabs, Action Groups, confirmations, and Wizard only for truly chronological work | Source-backed progress, saved/dirty status, impact comparison, concise recovery copy | Positive, validation, stale/concurrent, correction/recovery, and authorization cases |
 | Dynamic presentation | Loading, saved, failure, filters, disclosure | Livewire and bounded Alpine | Server-backed validation/loading/dirty state; native disclosure and menu behavior | Accessible status announcements and progressive disclosure | No fake client-only completion state; focus and status-message checks |
@@ -71,12 +75,12 @@ Public state comes from authoritative server projections. No CMS, carousel build
 
 ## 6. Current implementation disposition
 
-- **Reuse:** canonical services, policies, projections, Application Wizard, FAQ records, one-page landing foundation, Filament actions/tables/forms, role authorization, and the shared official-output component.
-- **Replace or simplify:** panel theme and shell presentation, oversized or untracked authentication backgrounds, architecture-facing routine copy, inconsistent role navigation, repeated standalone output CSS, and pages that expose all evidence before the user needs it.
+- **Reuse:** canonical services, policies, projections, Application Wizard, FAQ records, one-page landing foundation, Filament actions/tables/forms, compatible installed plugin responsibilities including Auth Designer, role authorization, and the shared official-output component.
+- **Refine or simplify:** panel theme and shell presentation, architecture-facing routine copy, inconsistent role navigation, repeated standalone output CSS, and pages that expose all evidence before the user needs it. Optimize and track existing approved authentication media while retaining its approved plugin layout; missing or unapproved media uses a safe static fallback. The separate public hero-media approval boundary does not justify discarding existing authentication presentation.
 - **Temporarily retain with a removal trigger:** `AcademicReadiness`, `AcademicApprovals`, `ClassPlanning`, and `CompletionAndTor` until their unique canonical behavior is absorbed into the approved workbenches and reference tests prove safe retirement.
 - **Delete after reference proof:** the unreachable Billing Slip controller/view, superseded presentation-only fixtures, unused oversized branding copies, and replaced runtime authentication assets. Migrations, attributable audit/history records, and completed research evidence remain preserved.
 - **Implementation correction:** add the missing canonical `PublicNotice` management and public projection beside the existing FAQ capability.
-- **Prototype disposition:** preserve the React prototype outside the repository, keep only the curated approved direction and QA captures in the [tracked evidence pack](design-evidence/human-centered-operations/README.md), and never copy its React implementation into TALA.
+- **Prototype disposition:** preserve the React prototype outside the repository and retain the original concept and historical captures alongside clearly identified [current comparison references](design-evidence/human-centered-operations/README.md#current-comparison-references). The pack records the accepted checkpoint, source fingerprints, annotation decisions, known prototype limitations, and [#33 comparison map](design-evidence/human-centered-operations/README.md#decision-to-33-comparison-map). These evidence pointers do not change the seven-slice scope or replace current production verification. Never copy the React implementation into TALA.
 
 ## 7. Targeted authority corrections
 
@@ -108,10 +112,12 @@ Every successor implementation Issue must prove:
 - warnings state the real consequence, owner, date/source, and recovery path;
 - alternatives remain visible without decoys or coercive hierarchy;
 - status and progress do not depend on color, motion, or position alone;
+- screen journeys and custom components work in both appearances, with native Light/Dark/System selection, reactive System behavior, and persistent explicit choice in Filament/Auth Designer, plus system following on the public gateway;
+- compatible installed plugin responsibilities remain intact unless their replacement was explicitly approved and proven;
 - role journeys work at 360/390, 768×1024, and 1366×768, at 200% zoom, keyboard-only, forced colors, and reduced motion;
 - screen readers receive meaningful headings, step/status changes, errors, and recovery actions;
 - official outputs satisfy orientation, margins, repeating identity/table headers, automatic page numbering, print preview, and multi-page behavior;
-- fresh production-stack screenshots are compared with the accepted [prototype evidence pack](design-evidence/human-centered-operations/README.md);
+- fresh production-stack screenshots are compared with the applicable [current prototype references and accepted decisions](design-evidence/human-centered-operations/README.md#decision-to-33-comparison-map) at matching states and recorded dimensions, with canonical viewport checks and native-framework guardrails verified separately; historical captures remain provenance rather than the latest target;
 - focused tests and the full PHPUnit suite pass; and
 - every Issue criterion is individually `Verified` before publication.
 

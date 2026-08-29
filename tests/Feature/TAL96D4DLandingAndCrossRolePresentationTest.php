@@ -10,6 +10,7 @@ use App\Providers\Filament\ApplicantPanelProvider;
 use App\Providers\Filament\StudentPanelProvider;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
+use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -25,12 +26,12 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             ->assertOk()
             ->assertSee('href="#main-content"', false)
             ->assertSee('id="main-content"', false)
-            ->assertSee('One system. Three clear workspaces.')
+            ->assertSee('One connected learner journey')
             ->assertSee('Create and verify your Applicant account.')
             ->assertSee('View enrollment, schedules, finance, and academic records.')
             ->assertSee('Manage verified school operations according to your role.')
-            ->assertSee('LOGIN')
-            ->assertSee('FREQUENTLY ASKED QUESTIONS')
+            ->assertSee('Sign in to your workspace')
+            ->assertSee('Frequently asked questions')
             ->assertDontSee('OUR MISSION')
             ->assertDontSee('<iframe', false)
             ->assertSee(route('filament.applicant.auth.register'), false)
@@ -112,11 +113,11 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
             $styles,
             'The navbar blur must not introduce an opaque overlay that changes the approved navigation.',
         );
-        $this->assertStringContainsString('padding-top: 1.5rem !important;', $styles);
-        $this->assertStringContainsString('padding-bottom: 1.5rem !important;', $styles);
+        $this->assertStringContainsString('padding-top: 1rem !important;', $styles);
+        $this->assertStringContainsString('padding-bottom: 1rem !important;', $styles);
         $this->assertGreaterThanOrEqual(5, substr_count($landing, 'data-navbar-contrast-target'));
         $this->assertStringContainsString('data-navbar-contrast-surface="dark"', $landing);
-        $this->assertStringContainsString('data-navbar-contrast-surface="light"', $landing);
+        $this->assertStringContainsString('class="admission-status" data-navbar-contrast-surface="theme"', $landing);
         $this->assertStringContainsString('data-navbar-contrast-surface="theme"', $landing);
         $this->assertStringContainsString('document.elementsFromPoint', $script);
         $this->assertStringContainsString('window.requestAnimationFrame', $script);
@@ -129,7 +130,7 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringNotContainsString('navbar-light-theme', $styles);
     }
 
-    public function test_tala_logo_surfaces_share_the_approved_brand_radius_and_access_numbers_stay_centered(): void
+    public function test_tala_logo_surfaces_share_the_approved_brand_radius_and_journey_does_not_fake_progress(): void
     {
         $landingStyles = file_get_contents(public_path('landing/css/styles.css'));
         $errorStyles = file_get_contents(public_path('css/tala-error.css'));
@@ -140,15 +141,15 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertIsString($errorStyles);
         $this->assertIsString($filamentStyles);
         $this->assertIsString($provider);
-        $this->assertGreaterThanOrEqual(3, substr_count($landingStyles, 'border-radius: 22.37%;'));
-        $this->assertStringNotContainsString('.workspace-summary span {', $landingStyles);
-        $this->assertStringContainsString('.workspace-summary span:not(.workspace-number)', $landingStyles);
-        $this->assertMatchesRegularExpression('/\\.workspace-number\\s*\\{[^}]*width:\\s*2rem;/s', $landingStyles);
-        $this->assertMatchesRegularExpression('/\\.workspace-number\\s*\\{[^}]*display:\\s*flex;/s', $landingStyles);
-        $this->assertMatchesRegularExpression('/\\.workspace-number\\s*\\{[^}]*justify-content:\\s*center;/s', $landingStyles);
+        $this->assertGreaterThanOrEqual(2, substr_count($landingStyles, 'border-radius: 22.37%;'));
+        $landing = file_get_contents(resource_path('views/welcome.blade.php'));
+        $this->assertStringContainsString('class="learner-journey row', $landing);
+        $this->assertStringNotContainsString('aria-current="step"', $landing);
+        $this->assertStringNotContainsString('role="progressbar"', $landing);
         $this->assertStringContainsString('border-radius: 22.37%;', $errorStyles);
         $this->assertStringContainsString('.fi-logo', $filamentStyles);
-        $this->assertStringContainsString('tala-filament.css', $provider);
+        $this->assertStringNotContainsString("Css::make('tala-panel-brand'", $provider);
+        $this->assertStringContainsString('tala-filament.css', file_get_contents(resource_path('css/filament/tala/theme.css')));
     }
 
     public function test_landing_keeps_external_location_guidance_without_an_embedded_map_or_global_button_margins(): void
@@ -172,10 +173,18 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertSame('TALA Staff Workspace', $admin->getBrandName());
         $this->assertSame('TALA Applicant Workspace', $applicant->getBrandName());
         $this->assertSame('TALA Student Hub', $student->getBrandName());
-        $this->assertSame(asset('talalogo.png'), $admin->getBrandLogo());
-        $this->assertSame($admin->getBrandLogo(), $applicant->getBrandLogo());
-        $this->assertSame($admin->getBrandLogo(), $student->getBrandLogo());
-        $this->assertSame(Color::Blue, $admin->getColors()['primary']);
+        foreach ([$admin, $applicant, $student] as $panel) {
+            $logo = $panel->getBrandLogo();
+            $this->assertInstanceOf(View::class, $logo);
+            $markup = $logo->render();
+
+            $this->assertStringContainsString(asset('talalogo.png'), $markup);
+            $this->assertStringContainsString(asset('images/brand/servitech-crest.webp'), $markup);
+            $this->assertStringContainsString($panel->getBrandName(), $markup);
+            $this->assertStringContainsString('alt="Servitech Institute Asia"', $markup);
+        }
+
+        $this->assertSame(array_replace(Color::Blue, [600 => '#1D4ED8', 700 => '#1E3A8A']), $admin->getColors()['primary']);
         $this->assertSame($admin->getColors()['primary'], $applicant->getColors()['primary']);
         $this->assertSame($admin->getColors()['primary'], $student->getColors()['primary']);
     }

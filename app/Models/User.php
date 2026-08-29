@@ -514,7 +514,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
             self::StaffRoleAccounting => 'Accounting',
             self::StaffRoleFaculty => 'Faculty',
             self::StaffRoleAcademicHead => 'Academic Head',
-            self::StaffRoleSystemSuperAdmin => 'System Super Admin',
+            self::StaffRoleSystemSuperAdmin => 'System Administrator',
         ];
     }
 

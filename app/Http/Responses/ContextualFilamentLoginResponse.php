@@ -22,6 +22,7 @@ class ContextualFilamentLoginResponse implements LoginResponse
 
         $requested = session()->pull('tala.requested_context');
         $available = $this->contexts->availableContexts($user);
+        $this->contexts->explainUnavailableEntry(is_string($requested) ? $requested : null, $available);
 
         if (is_string($requested) && array_key_exists($requested, $available)) {
             return redirect()->intended($this->contexts->select($user, $requested));

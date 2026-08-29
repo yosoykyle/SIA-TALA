@@ -7,11 +7,11 @@ use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
-use App\Filament\Applicant\Pages\Requirements;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -23,7 +23,6 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -36,7 +35,7 @@ class ApplicantPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        return TalaPanelTheme::configure($panel)
             ->id('applicant')
             ->path('applicant')
             ->login(ContextualLogin::class)
@@ -44,21 +43,17 @@ class ApplicantPanelProvider extends PanelProvider
             ->passwordReset()
             ->emailVerification(ApplicantEmailVerification::class)
             ->emailChangeVerification()
-            ->profile(AccountSecurity::class)
+            ->profile(AccountSecurity::class, isSimple: false)
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Applicant Workspace')
-            ->brandLogo(asset('talalogo.png'))
-            ->colors([
-                'primary' => Color::Blue,
-            ])
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config
-                        ->media(asset('storage/images/applicant-bg.png'))
+                        ->media(is_file(public_path('images/auth/applicant.webp')) ? asset('images/auth/applicant.webp') : null, alt: '')
                         ->mediaPosition(MediaPosition::Cover)
                         ->blur(6)
                     )
@@ -82,7 +77,6 @@ class ApplicantPanelProvider extends PanelProvider
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder->items([
                 $this->navigationItem(Dashboard::class, 'Home', 'filament.applicant.pages.dashboard'),
                 $this->navigationItem(Application::class, 'Application', 'filament.applicant.pages.application'),
-                $this->navigationItem(Requirements::class, 'Requirements', 'filament.applicant.pages.requirements'),
             ]))
             ->discoverWidgets(in: app_path('Filament/Applicant/Widgets'), for: 'App\Filament\Applicant\Widgets')
             ->widgets([

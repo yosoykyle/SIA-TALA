@@ -2,19 +2,34 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicContentVersions;
 use Database\Factories\FaqEntryFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
+/**
+ * @property int|null $root_id
+ * @property int|null $previous_version_id
+ * @property int $version
+ * @property int $revision
+ * @property bool $ever_published
+ * @property int|null $published_by
+ * @property Carbon|null $visible_from
+ * @property Carbon|null $visible_until
+ * @property Carbon|null $published_at
+ */
 class FaqEntry extends Model
 {
     /** @use HasFactory<FaqEntryFactory> */
-    use HasFactory, LogsActivity;
+    use HasFactory, HasPublicContentVersions, LogsActivity;
+
+    protected $attributes = ['version' => 1, 'revision' => 1, 'ever_published' => false, 'is_published' => false];
 
     public const CategoryGeneral = 'general';
 
@@ -38,6 +53,8 @@ class FaqEntry extends Model
         'sort_order',
         'is_published',
         'system_key',
+        'visible_from',
+        'visible_until',
     ];
 
     protected static function booted(): void
@@ -67,6 +84,12 @@ class FaqEntry extends Model
     {
         return [
             'is_published' => 'boolean',
+            'ever_published' => 'boolean',
+            'visible_from' => 'datetime',
+            'visible_until' => 'datetime',
+            'published_at' => 'datetime',
+            'version' => 'integer',
+            'revision' => 'integer',
         ];
     }
 
@@ -95,7 +118,7 @@ class FaqEntry extends Model
     public function scopePublishedOrdered(Builder $query): Builder
     {
         return $query
-            ->where('is_published', true)
+            ->effective()
             ->orderBy('sort_order')
             ->orderBy('id');
     }
@@ -103,6 +126,16 @@ class FaqEntry extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public static function publicationColumn(): string
+    {
+        return 'is_published';
+    }
+
+    public static function contentFields(): array
+    {
+        return ['question', 'answer', 'category', 'sort_order', 'visible_from', 'visible_until'];
     }
 
     public function updater(): BelongsTo

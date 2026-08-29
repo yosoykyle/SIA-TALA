@@ -82,7 +82,6 @@ class StaffNavigationVisibilityTest extends TestCase
             ->all();
 
         $this->assertSame([
-            'Home',
             'Users & Access',
             'Public Content',
             'System Health',

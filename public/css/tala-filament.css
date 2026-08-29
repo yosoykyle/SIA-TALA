@@ -295,9 +295,7 @@
     border-bottom-color: var(--gray-800);
 }
 
-@media (prefers-color-scheme: dark) {
-    .tala-empty-state__icon-shell {
-        background: color-mix(in srgb, var(--primary-400) 16%, transparent);
-        color: var(--primary-400);
-    }
+.dark .tala-empty-state__icon-shell {
+    background: color-mix(in srgb, var(--primary-400) 16%, transparent);
+    color: var(--primary-400);
 }

@@ -68,9 +68,9 @@ use App\Policies\SectionMeetingPolicy;
 use App\Policies\SectionPolicy;
 use App\Policies\TermPolicy;
 use App\Support\DecimalMoney;
+use App\Support\TalaPanelTheme;
+use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
-use Filament\Support\Assets\Css;
-use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -164,10 +164,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         FilamentTimezone::set((string) config('app.display_timezone', 'Asia/Manila'));
-
-        FilamentAsset::register([
-            Css::make('tala-panel-brand', asset('css/tala-filament.css')),
-        ]);
+        Action::configureUsing(TalaPanelTheme::configureActionModal(...));
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);

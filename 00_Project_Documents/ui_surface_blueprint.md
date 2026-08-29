@@ -33,8 +33,8 @@ MVP decisions:
 4. Authentication UI stays in the Filament panels. Laravel Fortify remains the backend authentication contract for login, registration, verification, password reset, and custom response handling where already integrated.
 5. The public gateway retains one isolated Bootstrap landing page and its established progressive-blur design language, organized around the approved task order in the Clinic 1 blueprint. It may project factual active Programs and admission availability, embed the approved institution map with an external-link fallback, and use a small tracked institution-approved hero-media set. Mission/vision essays, galleries, duplicated marketing records, arbitrary media management, page building, and general CMS behavior remain excluded. Authenticated work remains Filament-first.
 6. Filament resources, pages, tables, forms, infolists, actions, filters, widgets, and notifications are the default authenticated UI toolkit.
-7. Core Filament components are used before custom Blade or a new plugin. A plugin is introduced only when a required PRD behavior cannot be delivered cleanly with installed components.
-8. Auth Designer is retained only when native Filament verification, recovery, profile, email-change, MFA, responsive, and accessibility behavior still works. Applicant registration remains a focused custom page only if needed to enforce the approved minimal account-creation contract.
+7. Core Filament components are used before custom Blade or a new plugin. Reuse compatible installed components in their established responsibilities. Improve weak UI through supported configuration and composition, including substantial layout refinement where the owning slice requires it. Materially bypassing or replacing an installed plugin or an established presentation capability requires explicit approval and replacement proof; leaving its package installed alone does not preserve that responsibility. New dependencies still require separate approval.
+8. Auth Designer remains the branded authentication presentation layer around native Filament/Fortify behavior. Preserve its approved Cover/split layouts, media, and theme controls through supported configuration while verifying recovery, profile, email-change, MFA, responsive, and accessibility behavior. A proven incompatibility is a bounded decision to report before bypass or replacement. Applicant registration remains a focused custom page only if needed to enforce the approved minimal account-creation contract.
 ## Canonical UI Status and Evidence Boundary
 
 **Status:** Canonical UI authority complete and aligned to standalone PRDs 01–06, including explicit component dispositions, brand roles, fixed CSV contracts, complete printable outputs, and the optional Quick-tour boundary.
@@ -156,7 +156,7 @@ Loading, saved, error, and success changes use accessible status messages withou
 └──────────────────────────────────────┘
 ```
 
-Registration, verification, activation, recovery/reset, and MFA use this same single-column shell. They change only the fields and recovery action required by their state.
+Registration, verification, activation, recovery/reset, and MFA use this same single-column form hierarchy. This describes field order, not removal of the surrounding Auth Designer Cover/split presentation. Each state changes only its required fields and recovery action.
 
 #### Workspace Chooser
 
@@ -387,7 +387,7 @@ No onboarding checklist, dashboard, tour editor, database-driven workflow builde
 
 ## Visual Foundation and Implementation Authority
 
-The canonical interface is light-first and follows the approved Human-Centered Operations direction. Institutional navy and blue carry shared structure and primary action hierarchy; yellow remains a restrained accent rather than a navigation stripe or broad selection treatment. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork.
+The canonical interface follows the approved Human-Centered Operations direction. Its accepted light-appearance references remain unchanged; light-first describes those references, not a forced appearance or permission to disable native theme behavior. Institutional navy and blue carry shared structure and primary action hierarchy; yellow remains a restrained accent rather than a navigation stripe or broad selection treatment. The approved yellow TALA star artwork is the product mark; the word **TALA** is rendered as live text rather than a separate raster wordmark. The institution-supplied Servitech/SIA crest is the institution mark. Both marks remain full color on screen. File presence, a legacy screenshot, or an existing template cannot substitute for approval of the underlying artwork.
 
 ### Color tokens
 
@@ -407,7 +407,7 @@ The canonical interface is light-first and follows the approved Human-Centered O
 | Information | `#1E40AF` on `#EFF6FF` | Advisory state with icon and text |
 | Focus ring | `#A16207` | Visible focus with offset and at least 3:1 component contrast |
 
-All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1. Status always combines label, icon, and semantic context. No dark-mode requirement is introduced.
+These values define the accepted light appearance. Filament panels and Auth Designer retain native Light, Dark, and System choices, with System as the default and an explicit user choice respected across visits. The public Bootstrap gateway retains its existing system-theme following. Custom surfaces, text, statuses, and focus treatments must adapt and meet contrast in both appearances through shared semantic tokens or native dark variants; do not build a second theme engine or reset stored user choices. All normal text meets 4.5:1 contrast; large text and non-text controls meet 3:1. Status always combines label, icon, and semantic context. Paper/print output remains governed by its own monochrome-capable contract, independent of screen appearance.
 
 ### Typography tokens
 

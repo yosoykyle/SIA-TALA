@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FaqEntries;
 
+use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\FaqEntries\Pages\CreateFaqEntry;
 use App\Filament\Resources\FaqEntries\Pages\EditFaqEntry;
 use App\Filament\Resources\FaqEntries\Pages\ListFaqEntries;
@@ -13,17 +14,16 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use UnitEnum;
 
 class FaqEntryResource extends Resource
 {
     protected static ?string $model = FaqEntry::class;
 
+    protected static ?string $cluster = PublicContent::class;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|UnitEnum|null $navigationGroup = 'System Administration';
-
-    protected static ?string $navigationLabel = 'FAQ Entries';
+    protected static ?string $navigationLabel = 'FAQ';
 
     protected static ?int $navigationSort = 5;
 

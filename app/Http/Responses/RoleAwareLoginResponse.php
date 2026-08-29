@@ -30,11 +30,13 @@ class RoleAwareLoginResponse implements LoginResponseContract
 
         $available = $this->contexts->availableContexts($user);
         $requested = $request->input('context');
+        $this->contexts->explainUnavailableEntry(is_string($requested) ? $requested : null, $available);
+        $contextCount = count($available);
 
         $workspacePath = match (true) {
             is_string($requested) && array_key_exists($requested, $available) => $this->contexts->select($user, $requested),
-            count($available) === 1 => $this->contexts->select($user, array_key_first($available)),
-            count($available) > 1 => route('workspace-chooser'),
+            $contextCount === 1 => $this->contexts->select($user, array_key_first($available)),
+            $contextCount > 1 => route('workspace-chooser'),
             default => config('fortify.home'),
         };
 

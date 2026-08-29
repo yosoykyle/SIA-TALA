@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Filament\Clusters\PublicContent;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
 use App\Filament\Pages\Auth\AccountSecurity;
@@ -34,6 +35,7 @@ use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ImportBatches\ImportBatchResource;
 use App\Filament\Resources\Programs\ProgramResource;
+use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
@@ -48,7 +50,9 @@ use App\Filament\Resources\Users\UserResource;
 use App\Filament\Widgets\StaffRoleWorkspaceOverviewWidget;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Models\FaqEntry;
 use App\Models\User;
+use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -61,42 +65,48 @@ use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        return TalaPanelTheme::configure($panel)
             ->default()
             ->id('admin')
             ->path('admin')
+            ->homeUrl(function (): string {
+                $user = auth()->user();
+                $contexts = app(WorkspaceContextResolver::class);
+
+                return $user instanceof User
+                    ? ($contexts->destinationFor($user, $contexts->selected($user)) ?? route('workspace-chooser'))
+                    : route('filament.admin.auth.login');
+            })
             ->login(ContextualLogin::class)
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
-            ->profile(AccountSecurity::class)
+            ->profile(AccountSecurity::class, isSimple: false)
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Staff Workspace')
-            ->brandLogo(asset('talalogo.png'))
-            ->colors([
-                'primary' => Color::Blue,
-            ])
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config
-                        ->media(asset('storage/images/admin-bg.png'))
+                        ->media(is_file(public_path('images/auth/admin.webp')) ? asset('images/auth/admin.webp') : null, alt: '')
                         ->mediaPosition(MediaPosition::Left)
                         ->mediaSize('50%')
                     )
@@ -108,6 +118,7 @@ class AdminPanelProvider extends PanelProvider
                     ->themeToggle()
             )
             ->resources([
+                PublicNoticeResource::class,
                 UserResource::class,
                 FaqEntryResource::class,
                 AdmissionApplicationResource::class,
@@ -151,6 +162,26 @@ class AdminPanelProvider extends PanelProvider
                 SystemHealth::class,
                 GovernanceAudit::class,
             ])
+            ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\Filament\Clusters')
+            ->authenticatedRoutes(function (): void {
+                Route::get('faq-entries', function (): RedirectResponse {
+                    Gate::authorize('viewAny', FaqEntry::class);
+
+                    return redirect(FaqEntryResource::getUrl());
+                })->name('legacy-faq.index');
+                Route::get('faq-entries/create', function (): RedirectResponse {
+                    Gate::authorize('create', FaqEntry::class);
+
+                    return redirect(FaqEntryResource::getUrl('create'));
+                })->name('legacy-faq.create');
+                Route::get('faq-entries/{record}/edit', function (string $record): RedirectResponse {
+                    Gate::authorize('viewAny', FaqEntry::class);
+                    $faq = FaqEntry::query()->findOrFail($record);
+                    Gate::authorize('update', $faq);
+
+                    return redirect(FaqEntryResource::getUrl('edit', ['record' => $faq]));
+                })->whereNumber('record')->name('legacy-faq.edit');
+            })
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $this->staffNavigation($builder))
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
@@ -192,35 +223,27 @@ class AdminPanelProvider extends PanelProvider
 
         $components = match ($selectedContext) {
             User::StaffRoleRegistrar => [
-                'Home' => Dashboard::class,
                 'Admissions' => AdmissionApplicationResource::class,
-                'Admission Cycles' => AdmissionCycleResource::class,
                 'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
                 'Term Planning' => TermPlanningWorkbench::class,
                 'Students & Enrollment' => EnrollmentResource::class,
                 'Grades & Completion' => GradesAndCompletion::class,
             ],
             User::StaffRoleAccounting => [
-                'Home' => Dashboard::class,
                 'Fee Plans' => FeePlanResource::class,
                 'Student Accounts' => EnrollmentResource::class,
             ],
             User::StaffRoleFaculty => [
-                'Home' => Dashboard::class,
+                'My Availability' => CalendarEventResource::class,
                 'My Schedule' => FacultySchedule::class,
                 'Grade Rosters' => FacultyGradeRoster::class,
-                'My Unavailable Times' => CalendarEventResource::class,
             ],
             User::StaffRoleAcademicHead => [
-                'Home' => Dashboard::class,
-                'Catalog & Curricula' => CatalogCurriculaWorkbench::class,
-                'Term Planning' => TermPlanningWorkbench::class,
-                'Approvals' => AcademicApprovals::class,
+                'Academic Oversight' => AcademicApprovals::class,
             ],
             User::StaffRoleSystemSuperAdmin => [
-                'Home' => Dashboard::class,
                 'Users & Access' => UserResource::class,
-                'Public Content' => FaqEntryResource::class,
+                'Public Content' => PublicContent::class,
                 'System Health' => SystemHealth::class,
                 'Governance & Audit' => GovernanceAudit::class,
             ],

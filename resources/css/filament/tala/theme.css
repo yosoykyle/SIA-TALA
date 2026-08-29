@@ -1,0 +1,159 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+@import '../../../../public/css/tala-foundation.css';
+@import '../../../../public/css/tala-filament.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+@source '../../../../resources/views/components/**/*';
+
+.fi-body {
+    background: var(--tala-canvas);
+    color: var(--tala-text);
+    font-family: var(--tala-font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.fi-header-heading, .fi-simple-header-heading, .fi-section-header-heading,
+.fi-modal-heading, .fi-ta-empty-state-heading, .tala-section-heading {
+    font-family: var(--tala-font-heading);
+    line-height: 1.25;
+    text-wrap: balance;
+}
+
+.fi-header-heading, .fi-simple-header-heading { font-size: 1.5rem; }
+.fi-section-header-heading, .fi-modal-heading { font-size: 1.125rem; }
+
+.fi-topbar, .fi-sidebar, .fi-sidebar-header {
+    background: var(--tala-brand-strong);
+    color: var(--tala-on-brand);
+}
+
+.fi-body-has-topbar .fi-sidebar-header { background: var(--tala-brand-strong); }
+.fi-sidebar-nav { padding: 1rem 1.25rem; }
+.fi-sidebar-item-label { white-space: normal; line-height: 1.4; }
+.fi-sidebar-item-btn { min-height: 2.75rem; }
+
+.fi-sidebar-item .fi-sidebar-item-btn > .fi-sidebar-item-label,
+.fi-sidebar-item .fi-sidebar-item-btn > .fi-icon,
+.fi-sidebar .fi-logo,
+.fi-topbar :is(.fi-logo, .fi-icon-btn > .fi-icon),
+.tala-drawer-heading .fi-icon {
+    color: var(--tala-on-brand);
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background: var(--tala-brand);
+    outline: 1px solid #93c5fd;
+    outline-offset: -1px;
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    font-weight: 600;
+}
+
+@media (hover: hover) {
+    .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:hover {
+        background: var(--tala-brand);
+    }
+}
+
+.fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:focus-visible {
+    background: var(--tala-brand);
+}
+
+.fi-body :is(a, button, input, textarea, select, [tabindex]):focus-visible {
+    outline: 3px solid var(--tala-focus);
+    outline-offset: 3px;
+}
+
+.fi-sidebar :focus-visible, .fi-topbar :focus-visible {
+    outline-color: var(--tala-accent) !important;
+}
+
+.fi-sidebar-host, .tala-sidebar-host { display: contents; }
+.tala-sidebar-host > div { display: contents; }
+.tala-drawer-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+}
+
+.fi-icon-btn { min-width: 1.5rem; min-height: 1.5rem; }
+.tala-drawer-heading .fi-icon-btn { min-width: 2.75rem; min-height: 2.75rem; }
+.fi-sidebar { transition-property: transform, width; transition-duration: 150ms; }
+.fi-sidebar-nav { overscroll-behavior: contain; }
+.fi-main { min-width: 0; }
+.fi-section, .fi-ta-ctn, .fi-modal-window { border-radius: 0.75rem; }
+.fi-input-wrp, .fi-body :is(input[type='checkbox'], input[type='radio']) { border: 1px solid var(--tala-control-border); }
+.fi-ta-text-item { font-variant-numeric: tabular-nums; }
+.fi-badge { min-height: 1.5rem; }
+
+.fi-simple-layout {
+    background: var(--tala-canvas);
+    min-height: 100dvh;
+}
+
+.fi-simple-main {
+    background: var(--tala-surface);
+    border: 1px solid var(--tala-border);
+    border-radius: 0.75rem;
+    padding: 2rem;
+    width: 100%;
+    max-width: 30rem;
+}
+
+.fi-auth-layout { background: var(--tala-surface); min-height: 100dvh; }
+.tala-auth-main { width: 100%; min-height: 100dvh; }
+.tala-auth-recovery { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem; }
+.tala-auth-recovery a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.fi-auth-layout.no-media { background: var(--tala-brand-strong); }
+.fi-auth-layout.no-media .fi-auth-form-container {
+    background: var(--tala-surface);
+    border-radius: 0.75rem;
+    padding: 2rem;
+}
+.fi-auth-media-section { background: var(--tala-brand-strong); }
+.fi-auth-layout.media-cover .fi-auth-content-section { max-width: 30rem; }
+.fi-auth-layout.media-cover .fi-auth-card { background: var(--tala-surface); }
+.fi-auth-layout .fi-auth-content-section { min-width: 0; }
+.fi-auth-layout .tala-brand, .fi-simple-layout .tala-brand { flex-wrap: wrap; }
+.fi-auth-layout .tala-brand__crest, .fi-simple-layout .tala-brand__crest { display: block; }
+.fi-auth-layout .tala-brand__star, .fi-simple-layout .tala-brand__star { width: 3rem; height: 3rem; }
+.fi-auth-layout .tala-brand__name, .fi-simple-layout .tala-brand__name { max-width: 10rem; }
+.fi-auth-layout .fi-logo, .fi-simple-layout .fi-logo { margin-bottom: 1.5rem; }
+.fi-simple-layout .fi-simple-main { margin-block: 1rem; }
+.fi-auth-layout .fi-btn, .fi-simple-layout .fi-btn { min-height: 2.75rem; }
+
+@media (min-width: 64rem) {
+    .tala-drawer-heading { display: none; }
+
+    .fi-sidebar:not(.fi-sidebar-open) .fi-sidebar-item-label {
+        @apply sr-only;
+        display: block !important;
+    }
+}
+
+@media (max-width: 39.999rem) {
+    .fi-main { padding-inline: 1rem; }
+    .fi-input, .fi-select-input, .fi-fo-field-label-content, .fi-sidebar-item-label { font-size: 1rem; }
+    .fi-auth-layout.no-media .fi-auth-form-container, .fi-simple-main { padding: 1.5rem 1rem; }
+    .fi-auth-layout.media-cover { padding: 1.5rem 1rem; }
+    .fi-topbar .tala-brand__name { max-width: 10rem; font-size: 0.875rem; }
+    .fi-topbar { padding-inline: 1rem; }
+}
+
+@media (forced-colors: active) {
+    .fi-body .fi-auth-layout.has-media .fi-auth-media-section { display: none; }
+    .fi-body .fi-auth-layout.has-media .fi-auth-content-section { width: 100%; }
+    .fi-auth-layout, .fi-auth-layout.no-media { background: Canvas; }
+    .fi-auth-layout .fi-auth-card, .fi-auth-layout.no-media .fi-auth-form-container { border: 1px solid CanvasText; }
+    .fi-body :is(.fi-input-wrp, .fi-section, .fi-ta-ctn, .fi-modal-window, .fi-dropdown-panel) { border: 1px solid CanvasText; }
+    .fi-body :is(.fi-btn, .fi-icon-btn) { border: 1px solid ButtonText; }
+    .fi-body :is(input[type='checkbox'], input[type='radio']) { appearance: auto; border: 1px solid ButtonText; }
+    .fi-sidebar-item.fi-active > .fi-sidebar-item-btn { outline: 2px solid Highlight; }
+    .fi-body :focus-visible { outline-color: Highlight !important; }
+}

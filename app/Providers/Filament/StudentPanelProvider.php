@@ -12,6 +12,7 @@ use App\Filament\Student\Pages\Finance;
 use App\Filament\Student\Pages\Profile;
 use App\Http\Middleware\EnforceCanonicalSessionPolicy;
 use App\Http\Middleware\EnsureStaffMfaIsEnabled;
+use App\Support\TalaPanelTheme;
 use Caresome\FilamentAuthDesigner\AuthDesignerPlugin;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
@@ -23,7 +24,6 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -36,28 +36,24 @@ class StudentPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        return TalaPanelTheme::configure($panel)
             ->id('student')
             ->path('student')
             ->login(ContextualLogin::class)
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
-            ->profile(AccountSecurity::class)
+            ->profile(AccountSecurity::class, isSimple: false)
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->brandName('TALA Student Hub')
-            ->brandLogo(asset('talalogo.png'))
-            ->colors([
-                'primary' => Color::Blue,
-            ])
             ->plugin(
                 AuthDesignerPlugin::make()
                     ->defaults(fn (AuthPageConfig $config) => $config
-                        ->media(asset('storage/images/student-bg.png'))
+                        ->media(is_file(public_path('images/auth/student.webp')) ? asset('images/auth/student.webp') : null, alt: '')
                         ->mediaPosition(MediaPosition::Cover)
                         ->blur(6)
                     )

@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\AdmissionApplications\Pages;
 
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionApplication;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +17,13 @@ class ListAdmissionApplications extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Action::make('admissionCycles')
+                ->label('Manage admission cycles')
+                ->color('gray')
+                ->url(fn (): string => AdmissionCycleResource::getUrl())
+                ->visible(fn (): bool => AdmissionCycleResource::canAccess()),
+        ];
     }
 
     /** @return array<string, Tab> */

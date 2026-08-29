@@ -81,7 +81,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
      * @param  list<string>  $expected
      */
     #[DataProvider('roleNavigationManifest')]
-    public function test_every_role_has_the_expected_registered_navigation(string $role, array $expected): void
+    public function test_every_role_has_the_expected_registered_navigation_candidates(string $role, array $expected): void
     {
         $this->authenticateAs($role);
 
@@ -135,6 +135,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ]],
             'system super admin' => ['role' => User::StaffRoleSystemSuperAdmin, 'allowed' => [
                 'Dashboard', 'EnrollmentResource', 'FaqEntryResource', 'GovernanceAudit',
+                'PublicContent', 'PublicNoticeResource',
                 'StudentLifecycleChangeResource', 'StudentProfileResource',
                 'SystemHealth', 'UserResource',
             ]],
@@ -184,7 +185,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     private static function registeredResources(): array
     {
         return [
-            'UserResource', 'FaqEntryResource',
+            'PublicNoticeResource', 'UserResource', 'FaqEntryResource',
             'AdmissionApplicationResource', 'AdmissionCycleResource',
             'EnrollmentResource', 'FeePlanResource',
             'ProgramResource', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
@@ -213,6 +214,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'CompletionAndTor',
             'SystemHealth',
             'GovernanceAudit',
+            'PublicContent',
         ];
     }
 
@@ -235,7 +237,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             ? Filament::getPanel('admin')->getResources()
             : Filament::getPanel('admin')->getPages();
 
-        return array_map(class_basename(...), $surfaces);
+        return array_values(array_map(class_basename(...), $surfaces));
     }
 
     private function authenticateAs(string $role): void

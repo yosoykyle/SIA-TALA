@@ -35,7 +35,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('Create Applicant Account')
+            ->assertSee('Create Applicant account')
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee('id="privacyModal"', false)
@@ -48,7 +48,7 @@ class ApplicantAccountEntryJourneyTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('Create Applicant Account')
+            ->assertSee('Create Applicant account')
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee('https://www.facebook.com/servitechinstituteasiaph', false)
             ->assertSee('0947 737 9208')
@@ -56,11 +56,11 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee('modal-fullscreen-sm-down', false);
     }
 
-    public function test_closed_entry_keeps_existing_applicant_sign_in_available(): void
+    public function test_missing_admission_cycle_keeps_existing_applicant_sign_in_available(): void
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Applications are currently closed')
+            ->assertSee('No published admission cycle is available')
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertDontSee(route('filament.applicant.auth.register'), false);
     }

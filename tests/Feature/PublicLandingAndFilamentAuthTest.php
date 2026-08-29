@@ -28,19 +28,22 @@ class PublicLandingAndFilamentAuthTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('TALA')
-            ->assertSee('Create Applicant Account')
-            ->assertSee('Applicant Sign In')
-            ->assertSee('Student Sign In')
-            ->assertSee('Staff Sign In')
-            ->assertSee('Applicant Login')
-            ->assertSee('Student Login')
-            ->assertSee('Staff Login')
+            ->assertSee('class="tala-skip-link" href="#main-content"', false)
+            ->assertSee('class="tala-skip-link__icon"', false)
+            ->assertSee('<main id="main-content" tabindex="-1">', false)
+            ->assertSee('Create Applicant account')
+            ->assertSee('Applicant sign in')
+            ->assertSee('Student sign in')
+            ->assertSee('Staff sign in')
             ->assertSee(route('filament.applicant.auth.register'), false)
             ->assertSee(route('filament.applicant.auth.login'), false)
             ->assertSee(route('filament.student.auth.login'), false)
             ->assertSee(route('filament.admin.auth.login'), false)
             ->assertSee(asset('landing/vendor/bootstrap/css/bootstrap.min.css'), false)
             ->assertSee(asset('landing/css/styles.css'), false)
+            ->assertSee('tala-public-icon', false)
+            ->assertDontSee('bootstrap-icons.min.css', false)
+            ->assertDontSee('class="bi ', false)
             ->assertSee('data-bs-toggle="dropdown"', false)
             ->assertSee('data-bs-target="#privacyModal"', false)
             ->assertSee('modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down', false)
@@ -53,6 +56,24 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             ->assertDontSee('student.login')
             ->assertDontSee('applicant.register')
             ->assertDontSee('href="#"', false);
+
+        $landingCss = file_get_contents(public_path('landing/css/styles.css'));
+        $foundationCss = file_get_contents(public_path('css/tala-foundation.css'));
+        $hiddenSkipLink = $this->cssRule($foundationCss, '.tala-skip-link');
+        $keyboardFocusedSkipLink = $this->cssRule($foundationCss, '.tala-skip-link:focus-visible');
+
+        $this->assertStringNotContainsString('.skip-link', $landingCss);
+        $this->assertStringContainsString('background: var(--tala-surface);', $hiddenSkipLink);
+        $this->assertStringContainsString('color: var(--tala-link);', $hiddenSkipLink);
+        $this->assertStringContainsString('inset-inline-start: 1rem;', $hiddenSkipLink);
+        $this->assertStringContainsString('opacity: 0;', $hiddenSkipLink);
+        $this->assertStringContainsString('pointer-events: none;', $hiddenSkipLink);
+        $this->assertStringContainsString('transform: translateY(calc(-100% - 2rem - env(safe-area-inset-top)));', $hiddenSkipLink);
+        $this->assertStringContainsString('z-index: 1100;', $hiddenSkipLink);
+        $this->assertStringContainsString('opacity: 1;', $keyboardFocusedSkipLink);
+        $this->assertStringContainsString('pointer-events: auto;', $keyboardFocusedSkipLink);
+        $this->assertStringContainsString('transform: translateY(0);', $keyboardFocusedSkipLink);
+        $this->assertStringNotContainsString('.tala-skip-link:focus {', $foundationCss);
     }
 
     public function test_public_fortify_auth_view_routes_are_not_exposed(): void
@@ -79,9 +100,11 @@ class PublicLandingAndFilamentAuthTest extends TestCase
 
     public function test_role_filament_panels_share_the_admin_primary_color(): void
     {
-        $this->assertSame(Color::Blue, $this->configuredPrimaryColor(AdminPanelProvider::class));
-        $this->assertSame(Color::Blue, $this->configuredPrimaryColor(ApplicantPanelProvider::class));
-        $this->assertSame(Color::Blue, $this->configuredPrimaryColor(StudentPanelProvider::class));
+        $institutionalBlue = array_replace(Color::Blue, [600 => '#1D4ED8', 700 => '#1E3A8A']);
+
+        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(AdminPanelProvider::class));
+        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(ApplicantPanelProvider::class));
+        $this->assertSame($institutionalBlue, $this->configuredPrimaryColor(StudentPanelProvider::class));
     }
 
     public function test_applicant_filament_registration_assigns_applicant_role(): void
@@ -127,5 +150,14 @@ class PublicLandingAndFilamentAuthTest extends TestCase
             'opens_at' => now()->subDay(),
             'closes_at' => now()->addDay(),
         ]);
+    }
+
+    private function cssRule(string $css, string $selector): string
+    {
+        $matched = preg_match('/'.preg_quote($selector, '/').'\s*\{([^}]+)\}/', $css, $matches);
+
+        $this->assertSame(1, $matched, "Expected CSS rule {$selector} was not found.");
+
+        return $matches[1];
     }
 }

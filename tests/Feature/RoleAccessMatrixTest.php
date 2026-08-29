@@ -8,6 +8,7 @@ use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
 use App\Filament\Resources\Payments\PaymentResource;
+use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\Users\UserResource;
@@ -76,9 +77,9 @@ class RoleAccessMatrixTest extends TestCase
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
         $this->assertSame(
-            12,
+            13,
             Permission::query()->where('guard_name', 'web')->count(),
-            'Exactly the 12 canonical permissions must be seeded.',
+            'Exactly the 13 canonical permissions, including public-notice production, must be seeded.',
         );
 
         $orphans = Permission::query()->whereDoesntHave('roles')->pluck('name')->all();
@@ -136,7 +137,7 @@ class RoleAccessMatrixTest extends TestCase
             ],
             'system super admin is scoped to configuration content' => [
                 'role' => 'system-super-admin',
-                'expected' => ['manage-faqs'],
+                'expected' => ['manage-faqs', 'manage-public-notices'],
             ],
         ];
     }
@@ -146,7 +147,15 @@ class RoleAccessMatrixTest extends TestCase
      */
     public static function resourceAccessMatrix(): array
     {
-        return [
+        $publicNoticeAccess = [];
+        foreach (['applicant', 'student', ...User::staffRoleNames()] as $role) {
+            $publicNoticeAccess[$role.' public-notice boundary'] = [
+                'role' => $role, 'resource' => PublicNoticeResource::class,
+                'expected' => $role === User::StaffRoleSystemSuperAdmin,
+            ];
+        }
+
+        return [...$publicNoticeAccess,
             'registrar reaches section placement' => [
                 'role' => 'registrar', 'resource' => SectionResource::class, 'expected' => true,
             ],

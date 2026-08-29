@@ -115,6 +115,7 @@ final class CatalogCurriculaWorkbench extends Page
                 ['label' => 'Import evidence', 'value' => ImportBatch::query()->count(), 'detail' => 'Preview and findings remain attributable'],
             ],
             'destinations' => [
+                ['label' => 'Academic readiness', 'description' => 'Inspect existing activation checks and their stated blockers.', 'url' => AcademicReadiness::getUrl()],
                 ['label' => 'Programs & authority', 'description' => 'Record external authority and inspect effective history.', 'url' => ProgramResource::getUrl()],
                 ['label' => 'Courses', 'description' => 'Maintain stable course identity.', 'url' => CourseResource::getUrl()],
                 ['label' => 'Course revisions', 'description' => 'Manage units, classifications, modes, and weekly requirements.', 'url' => CourseSpecificationResource::getUrl()],

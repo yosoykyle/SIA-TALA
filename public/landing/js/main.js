@@ -1,8 +1,8 @@
 /* TALA public landing interactions. Requires the locally served Bootstrap 5.3 bundle. */
 
 document.addEventListener('DOMContentLoaded', () => {
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const scrollButton = document.querySelector('.btn-scroll-top');
 
     if (scrollButton) {
@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         scrollButton.addEventListener('click', () => {
+            document.getElementById('main-content')?.focus({ preventScroll: true });
             window.scrollTo({
                 top: 0,
                 behavior: reducedMotion.matches ? 'auto' : 'smooth'
@@ -38,6 +39,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const navbar = document.querySelector('.navbar');
+    const navigation = document.getElementById('navbarNav');
+    const navigationToggle = navbar?.querySelector('.navbar-toggler');
+
+    if (navigation && navigationToggle && window.bootstrap?.Collapse) {
+        const closeNavigation = () => window.bootstrap.Collapse.getOrCreateInstance(navigation, { toggle: false }).hide();
+
+        navigation.addEventListener('shown.bs.collapse', () => {
+            navigationToggle.setAttribute('aria-label', 'Close navigation menu');
+            navigation.querySelector('a[href]')?.focus({ preventScroll: true });
+        });
+        navigation.addEventListener('hidden.bs.collapse', () => {
+            navigationToggle.setAttribute('aria-label', 'Open navigation menu');
+        });
+        navigation.addEventListener('click', (event) => {
+            const link = event.target.closest('a[href^="#"]');
+
+            if (!link || !navigation.classList.contains('show')) {
+                return;
+            }
+
+            const destination = document.getElementById(link.hash.slice(1));
+
+            if (destination) {
+                navigation.addEventListener('hidden.bs.collapse', () => {
+                    destination.setAttribute('tabindex', '-1');
+                    destination.focus({ preventScroll: true });
+                }, { once: true });
+            }
+
+            closeNavigation();
+        });
+        navbar.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && navigation.classList.contains('show') && !navbar.querySelector('.dropdown-menu.show')) {
+                event.preventDefault();
+                closeNavigation();
+                navigationToggle.focus();
+            }
+        });
+    }
+
     const contrastTargets = navbar
         ? navbar.querySelectorAll('[data-navbar-contrast-target]')
         : [];

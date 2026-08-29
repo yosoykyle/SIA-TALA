@@ -1,0 +1,3 @@
+@if ($usesAuthDesigner)
+    </main>
+@endif
