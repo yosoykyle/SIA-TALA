@@ -128,6 +128,8 @@ Do not change anything.
 
 This review is optional and is not a fourth command.
 
+Before accepting a draft or plan, confirm that you understand what will be built, why it is the correct next work, what is excluded, how completion will be proven, and what conditions require stopping. Resolve any material uncertainty before authorizing the next action.
+
 ### 4. Complete
 
 After accepting the plan, exit Plan mode:
