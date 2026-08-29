@@ -43,6 +43,8 @@ Before drafting, perform a bounded operability and feasibility check of the owni
 
 Every derived draft identifies its intended outcome, accountable owner, relevant authority and UI inventory IDs, bounded scope, dependencies, material implementation order, acceptance criteria, verification and applicable browser scenarios, exclusions, and stop conditions. If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
 
+Before presenting a derived draft, self-review it against live evidence and the Issue/Plan boundary. It must be the leanest acceptance-complete contract: reference rather than restate governing authority, preserve proven aligned implementation by default, express required outcomes instead of speculative schema, component, or method choices, and prescribe an implementation choice only when current evidence proves it necessary. Resolve correctable defects before presentation. Revise the same draft when only its quality or precision changes; derive again only when the selected outcome, scope, dependencies, or governing authority materially changes. End by stating the exact next action and Codex mode.
+
 Creating the approved draft is a separate explicit external write. For coordination-derived implementation work, that authorization creates the Issue with the `implementation` label, assigns the approved owner, attaches it as a native sub-Issue of the active coordination Issue, and establishes approved dependency links separately. For standalone tracked work, create the parentless Issue only from its accepted contract and record why no active coordination owns it.
 
 After creating any tracked Issue, re-read its live Issue and Project state and verify the intended parent classification, label, owner, dependency links, and Project status. Project automation adds an open `implementation` Issue to `TALA Development` as `Todo`; the user does not need to request those two Project mutations separately. Missing or incorrect recorded state stops before `Plan #NN` or `Complete #NN` for an explicitly authorized correction. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
@@ -52,6 +54,8 @@ After creating any tracked Issue, re-read its live Issue and Project state and v
 `Plan #NN` reads the named GitHub Issue, relevant Git authority, current implementation, and qualified sources when needed, then returns a decision-complete plan. It makes no local edits, commits, or external writes.
 
 A useful plan states the goal, bounded scope, relevant authorities and surfaces, verification approach, exclusions, and any material decision requiring the user. Add detail only when it can change the decision.
+
+Before presenting the plan, challenge each material implementation decision against governing authority, current implementation evidence, applicable qualified sources, reasonable alternatives and trade-offs, verification, and cleanup. Resolve correctable contradictions, unsupported assumptions, and premature choices; surface any remaining material decision to the user instead of guessing. Present the best-supported decision-complete plan with concise rationale, without claiming universal optimality.
 
 For a UI-bearing vertical slice, the plan and any developer handoff derived from it must explicitly identify:
 

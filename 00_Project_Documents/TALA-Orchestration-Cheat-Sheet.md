@@ -51,8 +51,9 @@ Use the existing primary `main` checkout. Do not create a branch, clone, or work
 Use one active implementation Issue at a time:
 
 ```text
-Derive draft -> Create Todo Issue -> Plan #NN -> Complete #NN
--> Publish #NN -> Done -> Derive the next Issue
+Derive and self-review draft -> Accept or revise the same draft
+-> Create Todo Issue -> Plan #NN -> Complete #NN -> Publish #NN
+-> Done -> Derive the next Issue
 ```
 
 ### 1. Derive the next Issue
@@ -76,6 +77,13 @@ Stop for a targeted authority correction if a substantive gap is proven.
 Draft the outcome, owner, authority and UI IDs, scope, dependencies, material
 implementation order, acceptance criteria, verification and browser scenarios,
 exclusions, and stop conditions.
+
+Before presenting it, self-review the draft as the leanest acceptance-complete
+contract. Reference authority, preserve proven aligned implementation, and
+leave unsupported schema, component, and method choices to Plan #NN. Correct
+problems before presenting. Revise the same draft unless its outcome, scope,
+dependencies, or authority materially changes; only then derive again. State
+the exact next action and Codex mode.
 
 Read-only. Draft the Issue only; do not create it yet.
 ```
@@ -107,6 +115,8 @@ Plan #NN
 ```
 
 Use Plan mode. This reads the Issue, relevant authority, implementation, and qualified sources when needed. It makes no edits or external writes.
+
+Before presenting the plan, challenge every material choice against authority, current evidence, reasonable alternatives and trade-offs, verification, and cleanup. Correct unsupported assumptions or contradictions, and surface unresolved material decisions instead of guessing. Return the best-supported decision-complete plan with concise rationale.
 
 After accepting the plan, exit Plan mode:
 
