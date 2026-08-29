@@ -3,11 +3,13 @@
 namespace Tests\Feature\SystemAdministration;
 
 use App\Actions\PublicContent\ManagePublicContent;
+use App\Models\FaqEntry;
 use App\Models\PublicNotice;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Activitylog\Models\Activity;
@@ -203,5 +205,58 @@ class PublicNoticeLifecycleTest extends TestCase
 
         $this->expectException(AuthorizationException::class);
         $actions->publish($published, $this->administrator, $published->revision);
+    }
+
+    public function test_reordering_uses_one_effective_timestamp_when_the_clock_advances_mid_operation(): void
+    {
+        $this->freezeSecond();
+        $reorderedAt = now();
+        $actions = new class extends ManagePublicContent
+        {
+            private bool $clockAdvanced = false;
+
+            public function save(
+                PublicNotice|FaqEntry $record,
+                User $actor,
+                array $data,
+                int $expectedRevision,
+            ): PublicNotice|FaqEntry {
+                $saved = parent::save($record, $actor, $data, $expectedRevision);
+
+                if (! $this->clockAdvanced && $record->wasPublished()) {
+                    $this->clockAdvanced = true;
+                    Carbon::setTestNow(now()->addSecond());
+                }
+
+                return $saved;
+            }
+
+            public function clockAdvanced(): bool
+            {
+                return $this->clockAdvanced;
+            }
+        };
+        $one = $actions->create(PublicNotice::class, $this->administrator, $this->notice());
+        $one = $actions->publish($one, $this->administrator, $one->revision);
+        $two = $actions->create(PublicNotice::class, $this->administrator, $this->notice([
+            'title' => 'Second notice',
+            'display_order' => 2,
+        ]));
+        $two = $actions->publish($two, $this->administrator, $two->revision);
+        $signature = $actions->orderSignature($two);
+
+        $actions->move($two, $this->administrator, 'up', $two->revision, $signature);
+
+        $successors = PublicNotice::query()
+            ->whereNotNull('previous_version_id')
+            ->orderBy('id')
+            ->get();
+
+        $this->assertTrue($actions->clockAdvanced());
+        $this->assertCount(2, $successors);
+        $this->assertTrue($successors->first()->visible_from->equalTo($successors->last()->visible_from));
+        $this->assertTrue($successors->first()->published_at->equalTo($successors->last()->published_at));
+        $this->assertTrue($successors->first()->visible_from->equalTo($reorderedAt));
+        $this->assertTrue($successors->first()->published_at->equalTo($reorderedAt));
     }
 }

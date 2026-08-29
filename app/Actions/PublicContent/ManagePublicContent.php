@@ -182,17 +182,19 @@ class ManagePublicContent
                 throw ValidationException::withMessages(['revision' => 'This content is already at the edge of its published group. Nothing moved. Edit a successor draft to choose another position.']);
             }
 
+            $reorderedAt = now()->startOfSecond();
+
             $moved = $this->save($current, $actor, array_replace($current->only($current::contentFields()), [
-                $column => $neighbor->{$column}, 'visible_from' => now()->toDateTimeString(),
+                $column => $neighbor->{$column}, 'visible_from' => $reorderedAt->toDateTimeString(),
             ]), $current->revision);
             $swapped = $this->save($neighbor, $actor, array_replace($neighbor->only($neighbor::contentFields()), [
-                $column => $current->{$column}, 'visible_from' => now()->toDateTimeString(),
+                $column => $current->{$column}, 'visible_from' => $reorderedAt->toDateTimeString(),
             ]), $neighbor->revision);
 
             foreach ([$moved, $swapped] as $successor) {
                 $successor->setAttribute($successor::publicationColumn(), $successor instanceof PublicNotice ? 'Published' : true);
                 $successor->ever_published = true;
-                $successor->published_at = now();
+                $successor->published_at = $reorderedAt;
                 $successor->published_by = $actor->id;
                 $successor->revision++;
                 $successor->save();
