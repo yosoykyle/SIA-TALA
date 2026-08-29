@@ -25,17 +25,25 @@ class SubmitAdmissionApplication
     public function __construct(
         private readonly AdmissionNotificationLedger $notifications,
         private readonly DetectAdmissionIdentityWarnings $identityWarnings,
+        private readonly ResolveAdmissionRequirementSet $requirementSets,
     ) {}
 
-    public function execute(AdmissionApplication $application, User $applicant): AdmissionApplication
-    {
+    public function execute(
+        AdmissionApplication $application,
+        User $applicant,
+        ?int $expectedRequirementSetId = null,
+    ): AdmissionApplication {
         if ($application->user_id !== $applicant->id
             || ! $applicant->hasRole('applicant')
             || ! $applicant->canAuthenticate()) {
             throw new AuthorizationException('Applicants may submit only their own application.');
         }
 
-        return DB::transaction(function () use ($application, $applicant): AdmissionApplication {
+        return DB::transaction(function () use (
+            $application,
+            $applicant,
+            $expectedRequirementSetId,
+        ): AdmissionApplication {
             $locked = AdmissionApplication::query()->lockForUpdate()->findOrFail($application->id);
 
             if (! in_array($locked->application_state, [
@@ -54,7 +62,14 @@ class SubmitAdmissionApplication
                 $this->assertFirstSubmissionsOpen($cycle);
             }
 
-            $requirementSet = $this->requirementSet($locked, $firstSubmission);
+            $requirementSet = $this->requirementSets->forApplication($locked, lockForUpdate: true);
+
+            if ($expectedRequirementSetId !== null && $expectedRequirementSetId !== $requirementSet->id) {
+                throw ValidationException::withMessages([
+                    'requirements' => 'The governing Requirement Set changed while this page was open. Review the current requirements before submitting.',
+                ]);
+            }
+
             $this->validateCompleteApplication($locked, $cycle);
             $this->assertRequiredEvidenceExists($locked, $requirementSet);
             $activeCorrection = $locked->correctionRequests()
@@ -74,10 +89,27 @@ class SubmitAdmissionApplication
 
             $version = (int) $locked->submissionVersions()->lockForUpdate()->max('version') + 1;
             $submittedAt = CarbonImmutable::now(config('app.timezone'));
+
+            if ($firstSubmission && blank($locked->application_reference)) {
+                $locked->application_reference = 'APP-'.$submittedAt->year.'-'.Str::upper((string) Str::ulid());
+            }
+
             $snapshot = Arr::only($locked->getAttributes(), $this->snapshotAttributes());
             $snapshot['application_reference'] = $locked->application_reference;
             $snapshot['admission_cycle_id'] = $locked->admission_cycle_id;
             $snapshot['term_id'] = $locked->term_id;
+            $snapshot['admission_cycle'] = Arr::only(
+                $cycle->getAttributes(),
+                ['id', 'code', 'label', 'term_id'],
+            );
+            $snapshot['term'] = Arr::only(
+                $locked->term()->firstOrFail()->getAttributes(),
+                ['id', 'code', 'label'],
+            );
+            $snapshot['program'] = Arr::only(
+                $locked->program()->firstOrFail()->getAttributes(),
+                ['id', 'code', 'name'],
+            );
 
             $submission = $locked->submissionVersions()->create([
                 'admission_requirement_set_id' => $requirementSet->id,
@@ -146,36 +178,6 @@ class SubmitAdmissionApplication
                 'admission_cycle_id' => 'The Admission Cycle closed before submission. Your draft remains saved.',
             ]);
         }
-    }
-
-    private function requirementSet(
-        AdmissionApplication $application,
-        bool $firstSubmission,
-    ): AdmissionRequirementSet {
-        if (! $firstSubmission) {
-            return $application->currentSubmissionVersion()
-                ->lockForUpdate()
-                ->firstOrFail()
-                ->requirementSet()
-                ->firstOrFail();
-        }
-
-        $set = AdmissionRequirementSet::query()
-            ->where('admission_cycle_id', $application->admission_cycle_id)
-            ->where('application_path', $application->application_path)
-            ->where('state', AdmissionRequirementSet::StatePublished)
-            ->where('effective_at', '<=', now(config('app.timezone')))
-            ->latest('version')
-            ->lockForUpdate()
-            ->first();
-
-        if (! $set instanceof AdmissionRequirementSet) {
-            throw ValidationException::withMessages([
-                'requirements' => 'No effective published requirement version applies to this application.',
-            ]);
-        }
-
-        return $set;
     }
 
     private function validateCompleteApplication(

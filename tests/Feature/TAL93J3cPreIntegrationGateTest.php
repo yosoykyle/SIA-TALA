@@ -107,7 +107,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         return [
             'registrar' => ['role' => User::StaffRoleRegistrar, 'allowed' => [
                 'AcademicCalendarWindowResource', 'AcademicReadiness', 'AcademicYearResource',
-                'AdmissionApplicationResource', 'AdmissionCycleResource', 'CalendarEventResource',
+                'AdmissionApplicationResource', 'AdmissionCycleResource', 'AssistedAdmissionApplication', 'CalendarEventResource',
                 'CatalogCurriculaWorkbench', 'ClassPlanning', 'CompletionAndTor', 'CourseResource', 'CourseSpecificationResource', 'CurriculumVersionResource',
                 'Dashboard', 'DuplicateProfileResolutionResource', 'EnrollmentResource',
                 'FacultyQualificationResource', 'FacultyTermLoadOverrideResource', 'GradeRosterResource',
@@ -151,7 +151,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         $manifest['faculty']['allowed'] = array_values(array_diff($manifest['faculty']['allowed'], ['GradeRosterResource']));
         $manifest['registrar']['allowed'] = array_values(array_diff(
             $manifest['registrar']['allowed'],
-            ['CalendarEventResource', 'DuplicateProfileResolutionResource'],
+            ['AssistedAdmissionApplication', 'CalendarEventResource', 'DuplicateProfileResolutionResource'],
         ));
         $manifest['academic head']['allowed'] = array_values(array_diff(
             $manifest['academic head']['allowed'],
@@ -203,6 +203,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
     {
         return [
             'Dashboard',
+            'AssistedAdmissionApplication',
             'CatalogCurriculaWorkbench',
             'TermPlanningWorkbench',
             'AcademicApprovals',

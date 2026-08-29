@@ -45,7 +45,7 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         );
 
         $this->assertSame(AdmissionApplication::StateDraft, $draft->application_state);
-        $this->assertStringStartsWith('APP-', $draft->application_reference);
+        $this->assertNull($draft->application_reference);
         $this->assertSame($cycle->term_id, $draft->term_id);
         $this->assertSame($applicant->email, $draft->email);
 
@@ -105,6 +105,7 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
 
         $this->assertSame(AdmissionApplication::StateSubmitted, $submitted->application_state);
+        $this->assertStringStartsWith('APP-', $submitted->application_reference);
         $this->assertSame(1, $submitted->submissionVersions()->count());
         $this->assertSame($requirementSet->id, $submitted->currentSubmissionVersion->admission_requirement_set_id);
         $this->assertSame($submitted->application_reference, $submitted->currentSubmissionVersion->snapshot['application_reference']);

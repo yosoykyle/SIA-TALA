@@ -216,7 +216,11 @@ class AdmissionEvidenceService
                 ->whereHas('items', function ($query) use ($requirement): void {
                     $query->where('scope_type', ApplicationCorrectionItem::ScopeEvidence)
                         ->where('admission_requirement_id', $requirement->id)
-                        ->where('scope_key', $requirement->code);
+                        ->where(function ($scopeQuery) use ($requirement): void {
+                            $scopeQuery
+                                ->where('scope_key', $requirement->code)
+                                ->orWhere('scope_key', 'requirement:'.$requirement->id);
+                        });
                 })
                 ->exists();
 

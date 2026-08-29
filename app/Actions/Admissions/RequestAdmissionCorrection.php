@@ -94,7 +94,7 @@ class RequestAdmissionCorrection
             }
 
             $currentSet = $locked->currentSubmissionVersion()->firstOrFail()->requirementSet()->firstOrFail();
-            $this->assertScopesApply($validated['scopes'], $currentSet->id);
+            $scopes = $this->normalizedScopes($validated['scopes'], $currentSet->id);
             $sequence = (int) $locked->correctionRequests()->lockForUpdate()->max('sequence') + 1;
             $request = $locked->correctionRequests()->create([
                 'sequence' => $sequence,
@@ -108,7 +108,7 @@ class RequestAdmissionCorrection
                 'supersedes_correction_request_id' => null,
             ]);
 
-            foreach ($validated['scopes'] as $scope) {
+            foreach ($scopes as $scope) {
                 $request->items()->create([
                     'scope_type' => $scope['type'],
                     'scope_key' => $scope['key'],
@@ -126,7 +126,7 @@ class RequestAdmissionCorrection
                 'payload' => [
                     'sequence' => $sequence,
                     'due_at' => $dueAt->toIso8601String(),
-                    'scope_count' => count($validated['scopes']),
+                    'scope_count' => count($scopes),
                 ],
                 'occurred_at' => now(config('app.timezone')),
             ]);
@@ -137,7 +137,7 @@ class RequestAdmissionCorrection
                 sourceKey: 'correction-request:'.$request->id,
                 safePayload: [
                     'application_reference' => $locked->application_reference,
-                    'affected_items' => collect($validated['scopes'])
+                    'affected_items' => collect($scopes)
                         ->map(function (array $scope): string {
                             if ($scope['type'] === ApplicationCorrectionItem::ScopeEvidence
                                 && filled($scope['admission_requirement_id'] ?? null)) {
@@ -168,8 +168,11 @@ class RequestAdmissionCorrection
         }
     }
 
-    /** @param list<array{type: string, key: string, admission_requirement_id: int|null}> $scopes */
-    private function assertScopesApply(array $scopes, int $requirementSetId): void
+    /**
+     * @param  list<array{type: string, key: string, admission_requirement_id: int|null}>  $scopes
+     * @return list<array{type: string, key: string, admission_requirement_id: int|null}>
+     */
+    private function normalizedScopes(array $scopes, int $requirementSetId): array
     {
         $fieldKeys = [
             'program_id', 'application_path', 'credential_basis', 'first_name', 'middle_name',
@@ -179,21 +182,34 @@ class RequestAdmissionCorrection
             'prior_college_identifier', 'guardian_full_name', 'guardian_relationship',
             'guardian_mobile', 'privacy_acknowledged', 'accuracy_declared',
         ];
+        $normalized = [];
 
         foreach ($scopes as $scope) {
-            $valid = $scope['type'] === ApplicationCorrectionItem::ScopeField
-                ? in_array($scope['key'], $fieldKeys, true)
-                : filled($scope['admission_requirement_id'])
-                    && AdmissionRequirement::query()
+            if ($scope['type'] === ApplicationCorrectionItem::ScopeField) {
+                $valid = in_array($scope['key'], $fieldKeys, true);
+            } else {
+                $requirement = filled($scope['admission_requirement_id'])
+                    ? AdmissionRequirement::query()
                         ->where('id', $scope['admission_requirement_id'])
                         ->where('admission_requirement_set_id', $requirementSetId)
-                        ->exists();
+                        ->first()
+                    : null;
+                $valid = $requirement instanceof AdmissionRequirement;
+
+                if ($valid) {
+                    $scope['key'] = $requirement->code;
+                }
+            }
 
             if (! $valid) {
                 throw ValidationException::withMessages([
                     'scopes' => 'Every correction item must name an applicable field or evidence requirement.',
                 ]);
             }
+
+            $normalized[] = $scope;
         }
+
+        return $normalized;
     }
 }

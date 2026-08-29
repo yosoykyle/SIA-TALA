@@ -59,7 +59,10 @@ class Requirements extends Page
                 ->sortByDesc('uploaded_at')
                 ->first();
             $review = $evidence instanceof DocumentEvidence
-                ? $evidence->preliminaryReviews->sortByDesc('reviewed_at')->first()
+                ? $evidence->preliminaryReviews->first(
+                    fn (PreliminaryEvidenceReview $candidate): bool => ! $evidence->preliminaryReviews
+                        ->contains('supersedes_preliminary_evidence_review_id', $candidate->id),
+                )
                 : null;
             $result = $review instanceof PreliminaryEvidenceReview
                 ? $review->result
@@ -89,10 +92,12 @@ class Requirements extends Page
             ?->sortBy(fn (AdmissionRequirement $requirement): string => $requirement->due_stage.sprintf('%05d', $requirement->display_order)) ?? collect();
 
         return $requirements->map(function (AdmissionRequirement $requirement) use ($application): array {
-            $credentialResult = $application->credentialResults
-                ->where('admission_requirement_id', $requirement->id)
-                ->sortByDesc('recorded_at')
-                ->first();
+            $results = $application->credentialResults
+                ->where('admission_requirement_id', $requirement->id);
+            $credentialResult = $results->first(
+                fn (OfficialCredentialResult $candidate): bool => ! $results
+                    ->contains('supersedes_official_credential_result_id', $candidate->id),
+            );
 
             return [
                 'requirement' => $requirement,

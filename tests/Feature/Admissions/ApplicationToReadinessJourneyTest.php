@@ -23,6 +23,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\View;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -191,12 +192,23 @@ class ApplicationToReadinessJourneyTest extends TestCase
             'admission_requirement_set_id' => $set->id,
             'submitted_by' => $applicant->id,
             'snapshot' => [
+                'application_reference' => 'APP-2026-0001',
                 'first_name' => 'Alma',
                 'last_name' => 'Adult',
+                'admission_cycle_id' => $application->admission_cycle_id,
+                'admission_cycle' => ['label' => 'Captured Cycle', 'code' => 'CAPTURED-2026'],
+                'term_id' => $application->term_id,
+                'term' => ['label' => 'Captured Term'],
+                'program_id' => $application->program_id,
+                'program' => ['name' => 'Captured Program'],
+                'application_path' => AdmissionApplication::PathFirstYear,
                 'prior_school_name' => 'Synthetic Senior High School',
             ],
         ]);
-        $application->update(['current_submission_version_id' => $version->id]);
+        $application->update([
+            'current_submission_version_id' => $version->id,
+            'application_path' => AdmissionApplication::PathTransferee,
+        ]);
 
         $this->actingAs($applicant)
             ->get(route('admissions.application.acknowledgment', [
@@ -206,10 +218,19 @@ class ApplicationToReadinessJourneyTest extends TestCase
             ->assertOk()
             ->assertSee('APPLICATION ACKNOWLEDGMENT')
             ->assertSee('APP-2026-0001')
-            ->assertSee('@page { size: A4 portrait', false)
-            ->assertSee('color-scheme: light', false)
+            ->assertSee('Captured Cycle')
+            ->assertSee('Captured Program')
+            ->assertSee('First Year')
+            ->assertSee(asset('css/tala-application-acknowledgment.css'), false)
             ->assertSee('href="'.route('filament.applicant.pages.dashboard').'"', false)
             ->assertSee('not an admission certificate');
+
+        $printCss = file_get_contents(public_path('css/tala-application-acknowledgment.css'));
+        $this->assertIsString($printCss);
+        $this->assertStringContainsString('size: A4 portrait', $printCss);
+        $this->assertStringContainsString('margin: 12mm', $printCss);
+        $this->assertStringContainsString('counter(page)', $printCss);
+        $this->assertStringContainsString('table-header-group', $printCss);
 
         $this->assertDatabaseHas(OutputAccessLog::class, [
             'output_type' => 'application.acknowledgment',
@@ -255,5 +276,41 @@ class ApplicationToReadinessJourneyTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Back to Applicant Record');
+    }
+
+    public function test_acknowledgment_render_failure_does_not_record_false_success(): void
+    {
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
+        $applicant->syncRoles(['applicant']);
+        $application = AdmissionApplication::factory()->submitted()->create([
+            'user_id' => $applicant->id,
+        ]);
+        $requirementSet = AdmissionRequirementSet::factory()->published()->create([
+            'admission_cycle_id' => $application->admission_cycle_id,
+            'application_path' => $application->application_path,
+        ]);
+        $version = ApplicationSubmissionVersion::factory()->create([
+            'admission_application_id' => $application->id,
+            'admission_requirement_set_id' => $requirementSet->id,
+            'submitted_by' => $applicant->id,
+        ]);
+        $application->update(['current_submission_version_id' => $version->id]);
+
+        View::composer('admissions.application-acknowledgment', static function (): never {
+            throw new \RuntimeException('Synthetic acknowledgment render failure.');
+        });
+
+        $this->actingAs($applicant)
+            ->get(route('admissions.application.acknowledgment', [
+                'application' => $application,
+                'version' => $version,
+            ]))
+            ->assertServerError();
+
+        $this->assertDatabaseMissing(OutputAccessLog::class, [
+            'output_type' => 'application.acknowledgment',
+            'source_record_id' => $application->id,
+            'status' => 'generated',
+        ]);
     }
 }

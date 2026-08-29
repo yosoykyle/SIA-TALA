@@ -118,7 +118,14 @@ class AdmissionNotificationLedger
     {
         return DB::transaction(function () use ($event, $actor): OperationalEvent {
             $locked = OperationalEvent::query()->lockForUpdate()->findOrFail($event->id);
+            $this->assertSupportedEvent($locked);
             $application = AdmissionApplication::query()->findOrFail($locked->related_record_id);
+
+            if ($locked->user_id !== $application->user_id) {
+                throw ValidationException::withMessages([
+                    'event' => 'The admissions notification recipient no longer matches the bound Application.',
+                ]);
+            }
             $authorized = ($application->user_id === $actor->id
                     && $actor->hasRole('applicant')
                     && $actor->canAuthenticate())
@@ -304,7 +311,14 @@ class AdmissionNotificationLedger
 
     private function authorizeActor(OperationalEvent $event, User $actor): void
     {
+        $this->assertSupportedEvent($event);
         $application = AdmissionApplication::query()->findOrFail($event->related_record_id);
+
+        if ($event->user_id !== $application->user_id) {
+            throw ValidationException::withMessages([
+                'event' => 'The admissions notification recipient no longer matches the bound Application.',
+            ]);
+        }
         $authorized = ($application->user_id === $actor->id
                 && $actor->hasRole('applicant')
                 && $actor->canAuthenticate())
@@ -314,6 +328,20 @@ class AdmissionNotificationLedger
 
         if (! $authorized) {
             throw new AuthorizationException('You are not authorized to retry this admissions notification.');
+        }
+    }
+
+    private function assertSupportedEvent(OperationalEvent $event): void
+    {
+        if ($event->event_domain !== OperationalEvent::DomainNotifications
+            || $event->integration !== OperationalEvent::IntegrationMail
+            || $event->channel !== OperationalEvent::ChannelEmail
+            || $event->related_record_type !== AdmissionApplication::class
+            || blank($event->related_record_id)
+            || ! in_array($event->event_type, $this->admissionsEventTypes(), true)) {
+            throw ValidationException::withMessages([
+                'event' => 'Only a supported Application-bound admissions notification can be retried.',
+            ]);
         }
     }
 

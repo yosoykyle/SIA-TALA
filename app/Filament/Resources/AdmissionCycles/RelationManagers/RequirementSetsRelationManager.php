@@ -48,7 +48,16 @@ class RequirementSetsRelationManager extends RelationManager
                         DateTimePicker::make('effective_at')->native(false)->required(),
                         Select::make('replaces_requirement_set_id')
                             ->label('Replaces version')
-                            ->relationship('replacedRequirementSet', 'version')
+                            ->options(fn (Get $get): array => AdmissionRequirementSet::query()
+                                ->where('admission_cycle_id', $this->getOwnerRecord()->getKey())
+                                ->where('application_path', (string) $get('application_path'))
+                                ->where('state', AdmissionRequirementSet::StatePublished)
+                                ->orderByDesc('version')
+                                ->get()
+                                ->mapWithKeys(fn (AdmissionRequirementSet $set): array => [
+                                    $set->id => 'Version '.$set->version.' — '.($set->effective_at?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'effective time unavailable'),
+                                ])
+                                ->all())
                             ->searchable()
                             ->preload()
                             ->nullable(),
@@ -163,6 +172,7 @@ class RequirementSetsRelationManager extends RelationManager
                                 $record,
                                 $actor,
                                 (string) $data['authority_reference'],
+                                $record->replacedRequirementSet,
                             );
                             Notification::make()->title('Requirement Set published')->success()->send();
                         } catch (ValidationException $exception) {

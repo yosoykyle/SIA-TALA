@@ -4,6 +4,7 @@ namespace App\Filament\Applicant\Pages;
 
 use App\Actions\Admissions\AdmissionEvidenceService;
 use App\Actions\Admissions\DiscardAdmissionApplication;
+use App\Actions\Admissions\ResolveAdmissionRequirementSet;
 use App\Actions\Admissions\SaveAdmissionApplication;
 use App\Actions\Admissions\SubmitAdmissionApplication;
 use App\Models\AdmissionApplication;
@@ -21,6 +22,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -28,6 +30,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Concerns\RestrictsFileUploadsToSchemaComponents;
@@ -37,6 +40,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /** @property Schema $form */
 class Application extends Page
@@ -56,6 +60,10 @@ class Application extends Page
 
     public bool $savingDraft = false;
 
+    public string $saveStatus = 'saved';
+
+    public string $saveStatusMessage = 'Your persisted Application is up to date.';
+
     private bool $applicationResolved = false;
 
     private ?AdmissionApplication $resolvedApplication = null;
@@ -63,6 +71,10 @@ class Application extends Page
     public function mount(): void
     {
         $application = $this->currentApplication();
+        $this->saveStatus = $application instanceof AdmissionApplication ? 'saved' : 'not-saved';
+        $this->saveStatusMessage = $application instanceof AdmissionApplication
+            ? 'Your persisted Application is up to date.'
+            : 'This Application has not been saved yet.';
         $this->form->fill($application instanceof AdmissionApplication
             ? $this->applicationState($application)
             : $this->initialState());
@@ -93,12 +105,15 @@ class Application extends Page
                 })
                 ->action(function (): void {
                     $application = $this->currentApplication();
-                    $applicant = Auth::user();
-                    abort_unless($application instanceof AdmissionApplication && $applicant instanceof User, 404);
+                    $applicant = $this->applicationOwner();
+                    $actor = $this->actingUser();
+                    abort_unless($application instanceof AdmissionApplication
+                        && $applicant instanceof User
+                        && $actor instanceof User, 404);
 
-                    app(DiscardAdmissionApplication::class)->execute($application, $applicant);
+                    app(DiscardAdmissionApplication::class)->execute($application, $applicant, $actor);
                     Notification::make()->title('Draft discarded')->success()->send();
-                    $this->redirect(Dashboard::getUrl());
+                    $this->redirect($this->afterDiscardUrl());
                 }),
         ];
     }
@@ -107,8 +122,11 @@ class Application extends Page
     {
         return $schema
             ->components([
+                ...$this->assistanceComponents(),
+                Hidden::make('requirement_set_id'),
                 Wizard::make([
                     Step::make('Application choice')
+                        ->description('Step 1 of 5')
                         ->icon(Heroicon::OutlinedAcademicCap)
                         ->schema([
                             Section::make('Choose the current admission scope')
@@ -117,6 +135,13 @@ class Application extends Page
                                         ->label('Admission Cycle')
                                         ->options(fn (): array => $this->cycleOptions())
                                         ->live()
+                                        ->afterStateUpdated(function (Set $set, Get $get): void {
+                                            $this->refreshRequirementState(
+                                                $set,
+                                                (int) $get('admission_cycle_id'),
+                                                (string) $get('application_path'),
+                                            );
+                                        })
                                         ->searchable()
                                         ->disabled(fn (): bool => $this->isCorrectionMode())
                                         ->required(fn (): bool => ! $this->savingDraft),
@@ -127,6 +152,13 @@ class Application extends Page
                                             AdmissionApplication::PathTransferee => 'Transferee',
                                         ])
                                         ->live()
+                                        ->afterStateUpdated(function (Set $set, Get $get): void {
+                                            $this->refreshRequirementState(
+                                                $set,
+                                                (int) $get('admission_cycle_id'),
+                                                (string) $get('application_path'),
+                                            );
+                                        })
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('application_path'))
                                         ->required(fn (): bool => ! $this->savingDraft),
                                     Select::make('program_id')
@@ -144,6 +176,7 @@ class Application extends Page
                                 ->columnSpanFull(),
                         ]),
                     Step::make('Identity and contact')
+                        ->description('Step 2 of 5')
                         ->icon(Heroicon::OutlinedIdentification)
                         ->schema([
                             Section::make('Minimum legal identity')
@@ -161,8 +194,11 @@ class Application extends Page
                                         ->required(fn (): bool => ! $this->savingDraft),
                                     Select::make('citizenship_country_code')
                                         ->label('Citizenship')
-                                        ->options(['PH' => 'Philippines'])
-                                        ->helperText('Foreign-student processing is outside this application path.')
+                                        ->options([
+                                            'PH' => 'Philippines',
+                                            'ZZ' => 'Outside the supported Philippine Applicant path',
+                                        ])
+                                        ->helperText('Foreign or other unsupported cases must contact the Registrar at '.config('institution.public.support_phone').'; this form will not create an invalid Application.')
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('citizenship_country_code'))
                                         ->required(fn (): bool => ! $this->savingDraft),
                                     TextInput::make('email')
@@ -215,6 +251,7 @@ class Application extends Page
                                 ->columnSpanFull(),
                         ]),
                     Step::make('Prior education')
+                        ->description('Step 3 of 5')
                         ->icon(Heroicon::OutlinedBuildingLibrary)
                         ->schema([
                             Section::make('Prior-school credential')
@@ -226,7 +263,11 @@ class Application extends Page
                                         ->maxLength(160),
                                     Select::make('prior_school_country_code')
                                         ->label('Prior-school country')
-                                        ->options(['PH' => 'Philippines'])
+                                        ->options([
+                                            'PH' => 'Philippines',
+                                            'ZZ' => 'Outside the supported Philippine Applicant path',
+                                        ])
+                                        ->helperText('For an unsupported prior-school case, contact the Registrar at '.config('institution.public.support_phone').'.')
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('prior_school_country_code'))
                                         ->required(fn (): bool => ! $this->savingDraft),
                                     Select::make('credential_basis')
@@ -257,6 +298,7 @@ class Application extends Page
                                 ->columnSpanFull(),
                         ]),
                     Step::make('Preliminary evidence')
+                        ->description('Step 4 of 5')
                         ->icon(Heroicon::OutlinedPaperClip)
                         ->schema(fn (Get $get): array => [
                             Section::make('Private preliminary evidence')
@@ -269,6 +311,7 @@ class Application extends Page
                                 ->columnSpanFull(),
                         ]),
                     Step::make('Review and submit')
+                        ->description('Step 5 of 5')
                         ->icon(Heroicon::OutlinedCheckCircle)
                         ->schema([
                             Section::make('Review the exact submission')
@@ -289,7 +332,10 @@ class Application extends Page
                                 ->columnSpanFull(),
                         ]),
                 ])
-                    ->submitAction(view('filament.applicant.components.application-submit-action'))
+                    ->startOnStep(fn (): int => $this->resumeStep())
+                    ->submitAction($this->submissionIsAvailable()
+                        ? view('filament.applicant.components.application-submit-action')
+                        : null)
                     ->columnSpanFull(),
             ])
             ->statePath('data');
@@ -298,17 +344,32 @@ class Application extends Page
     public function saveDraft(): void
     {
         $this->savingDraft = true;
+        $this->saveStatus = 'saving';
+        $this->saveStatusMessage = 'Saving your Application to TALA.';
 
         try {
             $state = $this->form->getState();
             $application = $this->saveApplication($state);
             $this->persistEvidence($application, (array) ($state['evidence'] ?? []));
+            $this->saveStatus = 'saved';
+            $this->saveStatusMessage = 'Saved to TALA at '.now(config('app.display_timezone'))->format('g:i A').'.';
             Notification::make()->title('Draft saved')->success()->send();
-            $this->redirect(self::getUrl());
+            $this->redirect(static::getUrl($this->continuationUrlParameters()));
         } catch (ValidationException $exception) {
+            $this->saveStatus = 'failed';
+            $this->saveStatusMessage = 'Save failed. Your last persisted Draft remains available; correct the identified item and try again.';
             Notification::make()
                 ->title('Draft could not be saved')
                 ->body($exception->validator->errors()->first())
+                ->danger()
+                ->send();
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->saveStatus = 'failed';
+            $this->saveStatusMessage = 'Save failed because TALA could not complete the request. Your last persisted Draft remains available; try again or contact the Registrar.';
+            Notification::make()
+                ->title('Draft could not be saved')
+                ->body($this->saveStatusMessage)
                 ->danger()
                 ->send();
         } finally {
@@ -325,8 +386,14 @@ class Application extends Page
             $application = $this->saveApplication($state);
             $this->persistEvidence($application, (array) ($state['evidence'] ?? []));
             $applicant = Auth::user();
-            abort_unless($applicant instanceof User, 403);
-            app(SubmitAdmissionApplication::class)->execute($application, $applicant);
+            abort_unless($applicant instanceof User && $this->submissionIsAvailable(), 403);
+            app(SubmitAdmissionApplication::class)->execute(
+                $application,
+                $applicant,
+                filled($state['requirement_set_id'] ?? null)
+                    ? (int) $state['requirement_set_id']
+                    : null,
+            );
             Notification::make()
                 ->title('Application submitted')
                 ->body('Your stable Application reference and version-bound acknowledgment are now available.')
@@ -339,6 +406,13 @@ class Application extends Page
                 ->body($exception->validator->errors()->first())
                 ->danger()
                 ->send();
+        } catch (Throwable $exception) {
+            report($exception);
+            Notification::make()
+                ->title('Application could not be submitted')
+                ->body('TALA did not create a submitted version. Your last persisted Draft and evidence remain available; try again or contact the Registrar.')
+                ->danger()
+                ->send();
         }
     }
 
@@ -348,7 +422,7 @@ class Application extends Page
             return $this->resolvedApplication;
         }
 
-        $applicant = Auth::user();
+        $applicant = $this->applicationOwner();
 
         if (! $applicant instanceof User) {
             return null;
@@ -383,28 +457,41 @@ class Application extends Page
         return $this->currentApplication() instanceof AdmissionApplication;
     }
 
-    private function saveApplication(array $state): AdmissionApplication
+    protected function saveApplication(array $state): AdmissionApplication
     {
-        $applicant = Auth::user();
-        abort_unless($applicant instanceof User, 403);
+        $applicant = $this->applicationOwner();
+        $actor = $this->actingUser();
+        abort_unless($applicant instanceof User && $actor instanceof User, 403);
         $cycle = AdmissionCycle::query()->findOrFail((int) $state['admission_cycle_id']);
         $payload = collect($state)
-            ->except(['evidence', 'email'])
+            ->except([
+                'evidence',
+                'email',
+                'requirement_set_id',
+                'assistance_reason',
+                'assistance_authority_reference',
+                'assistance_evidence_reference',
+            ])
             ->all();
+        $assistance = $this->assistanceData();
 
         return app(SaveAdmissionApplication::class)->execute(
             $applicant,
             $cycle,
             $payload,
             $this->currentApplication(),
+            $actor->id === $applicant->id ? null : $actor,
+            $assistance['reason'],
+            $assistance['authority_reference'],
+            $assistance['evidence_reference'],
         );
     }
 
     /** @param array<int|string, mixed> $evidence */
-    private function persistEvidence(AdmissionApplication $application, array $evidence): void
+    protected function persistEvidence(AdmissionApplication $application, array $evidence): void
     {
-        $applicant = Auth::user();
-        abort_unless($applicant instanceof User, 403);
+        $actor = $this->actingUser();
+        abort_unless($actor instanceof User, 403);
 
         foreach ($evidence as $requirementId => $file) {
             if (! $file instanceof UploadedFile) {
@@ -418,15 +505,15 @@ class Application extends Page
                 ->first();
 
             if ($existing) {
-                app(AdmissionEvidenceService::class)->replace($existing, $applicant, $file);
+                app(AdmissionEvidenceService::class)->replace($existing, $actor, $file);
             } else {
-                app(AdmissionEvidenceService::class)->store($application, $requirement, $applicant, $file);
+                app(AdmissionEvidenceService::class)->store($application, $requirement, $actor, $file);
             }
         }
     }
 
     /** @return list<FileUpload|Placeholder> */
-    private function evidenceFields(int $cycleId, string $path): array
+    protected function evidenceFields(int $cycleId, string $path): array
     {
         if ($cycleId < 1 || ! in_array($path, [AdmissionApplication::PathFirstYear, AdmissionApplication::PathTransferee], true)) {
             return [
@@ -435,13 +522,12 @@ class Application extends Page
             ];
         }
 
-        $set = AdmissionRequirementSet::query()
-            ->where('admission_cycle_id', $cycleId)
-            ->where('application_path', $path)
-            ->where('state', AdmissionRequirementSet::StatePublished)
-            ->with('requirements')
-            ->latest('version')
-            ->first();
+        try {
+            $set = $this->requirementSetForFormScope($cycleId, $path);
+            $set->loadMissing('requirements');
+        } catch (ValidationException) {
+            $set = null;
+        }
 
         if (! $set instanceof AdmissionRequirementSet) {
             return [
@@ -527,7 +613,7 @@ class Application extends Page
     }
 
     /** @return array<int, string> */
-    private function cycleOptions(): array
+    protected function cycleOptions(): array
     {
         $availableCycleIds = AdmissionCycle::query()
             ->where('state', AdmissionCycle::StatePublished)
@@ -536,7 +622,7 @@ class Application extends Page
             ->whereDoesntHave('applications', fn (Builder $applicationQuery): Builder => $applicationQuery
                 ->whereNotNull('admission_cycle_id')
                 ->whereNotNull('application_state')
-                ->where('user_id', Auth::id()))
+                ->where('user_id', $this->applicationOwner()?->id))
             ->pluck('id');
 
         $currentCycleId = $this->currentApplication()?->admission_cycle_id;
@@ -552,7 +638,7 @@ class Application extends Page
     }
 
     /** @return array<int, string> */
-    private function programOptions(int $cycleId, string $path): array
+    protected function programOptions(int $cycleId, string $path): array
     {
         if ($cycleId < 1) {
             return [];
@@ -591,25 +677,12 @@ class Application extends Page
     }
 
     /** @return array<string, mixed> */
-    private function initialState(): array
+    protected function initialState(): array
     {
-        $cycle = AdmissionCycle::query()
-            ->where('state', AdmissionCycle::StatePublished)
-            ->where('opens_at', '<=', now())
-            ->where('closes_at', '>', now())
-            ->whereDoesntHave('applications', fn (Builder $applicationQuery): Builder => $applicationQuery
-                ->whereNotNull('admission_cycle_id')
-                ->whereNotNull('application_state')
-                ->where('user_id', Auth::id()))
-            ->orderBy('closes_at')
-            ->first();
-
         return [
-            'admission_cycle_id' => $cycle?->id,
-            'application_path' => AdmissionApplication::PathFirstYear,
-            'citizenship_country_code' => 'PH',
-            'prior_school_country_code' => 'PH',
-            'email' => Auth::user()?->email,
+            'email' => $this->applicationOwner()?->email,
+            'evidence' => [],
+            'requirement_set_id' => null,
         ];
     }
 
@@ -640,8 +713,200 @@ class Application extends Page
             'lrn',
             'prior_college_identifier',
         ]))->merge([
+            'evidence' => $this->emptyEvidenceState(
+                (int) $application->admission_cycle_id,
+                (string) $application->application_path,
+            ),
             'privacy_acknowledged' => $application->privacy_acknowledged_at !== null,
             'accuracy_declared' => false,
+            'requirement_set_id' => $this->requirementSetId(
+                (int) $application->admission_cycle_id,
+                (string) $application->application_path,
+            ),
         ])->all();
+    }
+
+    protected function applicationOwner(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
+    }
+
+    protected function actingUser(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
+    }
+
+    /** @return array<int, mixed> */
+    protected function assistanceComponents(): array
+    {
+        return [];
+    }
+
+    /** @return array{reason: string|null, authority_reference: string|null, evidence_reference: string|null} */
+    protected function assistanceData(): array
+    {
+        return [
+            'reason' => null,
+            'authority_reference' => null,
+            'evidence_reference' => null,
+        ];
+    }
+
+    public function submissionIsAvailable(): bool
+    {
+        return true;
+    }
+
+    /** @return array<string, mixed> */
+    protected function continuationUrlParameters(): array
+    {
+        return [];
+    }
+
+    protected function afterDiscardUrl(): string
+    {
+        return Dashboard::getUrl();
+    }
+
+    protected function requirementSetId(int $cycleId, string $path): ?int
+    {
+        if ($cycleId < 1 || ! in_array($path, [
+            AdmissionApplication::PathFirstYear,
+            AdmissionApplication::PathTransferee,
+        ], true)) {
+            return null;
+        }
+
+        try {
+            return $this->requirementSetForFormScope($cycleId, $path)->id;
+        } catch (ValidationException) {
+            return null;
+        }
+    }
+
+    protected function refreshRequirementState(Set $set, int $cycleId, string $path): void
+    {
+        $set('requirement_set_id', $this->requirementSetId($cycleId, $path));
+        $set('evidence', $this->emptyEvidenceState($cycleId, $path));
+    }
+
+    protected function requirementSetForFormScope(int $cycleId, string $path): AdmissionRequirementSet
+    {
+        $application = $this->currentApplication();
+
+        if ($application instanceof AdmissionApplication
+            && $application->application_state === AdmissionApplication::StateActionNeeded) {
+            return app(ResolveAdmissionRequirementSet::class)->forApplication($application);
+        }
+
+        return app(ResolveAdmissionRequirementSet::class)->forScope($cycleId, $path);
+    }
+
+    /** @return array<int, null> */
+    protected function emptyEvidenceState(int $cycleId, string $path): array
+    {
+        try {
+            return $this->requirementSetForFormScope($cycleId, $path)
+                ->requirements()
+                ->where('requires_preliminary_evidence', true)
+                ->pluck('id')
+                ->mapWithKeys(fn (mixed $id): array => [(int) $id => null])
+                ->all();
+        } catch (ValidationException) {
+            return [];
+        }
+    }
+
+    protected function resumeStep(): int
+    {
+        $application = $this->currentApplication();
+
+        if (! $application instanceof AdmissionApplication) {
+            return 1;
+        }
+
+        if ($this->isCorrectionMode()) {
+            $request = $this->activeCorrectionRequest();
+            $scopes = $request instanceof ApplicationCorrectionRequest
+                ? $request->items
+                : collect();
+
+            if ($scopes->contains('scope_type', ApplicationCorrectionItem::ScopeEvidence)) {
+                return 4;
+            }
+
+            $keys = $scopes->pluck('scope_key');
+
+            if ($keys->intersect(['application_path', 'program_id'])->isNotEmpty()) {
+                return 1;
+            }
+
+            if ($keys->intersect([
+                'first_name', 'middle_name', 'last_name', 'extension_name', 'birth_date',
+                'citizenship_country_code', 'phone', 'current_city_municipality', 'current_province',
+                'guardian_full_name', 'guardian_relationship', 'guardian_mobile',
+            ])->isNotEmpty()) {
+                return 2;
+            }
+
+            if ($keys->intersect([
+                'prior_school_name', 'prior_school_country_code', 'prior_school_completion_year',
+                'credential_basis', 'lrn', 'prior_college_identifier',
+            ])->isNotEmpty()) {
+                return 3;
+            }
+
+            return 5;
+        }
+
+        if (blank($application->admission_cycle_id)
+            || blank($application->application_path)
+            || blank($application->program_id)) {
+            return 1;
+        }
+
+        if (collect([
+            $application->first_name,
+            $application->last_name,
+            $application->birth_date,
+            $application->citizenship_country_code,
+            $application->phone,
+            $application->current_city_municipality,
+            $application->current_province,
+        ])->contains(fn (mixed $value): bool => blank($value))) {
+            return 2;
+        }
+
+        if (collect([
+            $application->prior_school_name,
+            $application->prior_school_country_code,
+            $application->credential_basis,
+            $application->prior_school_completion_year,
+        ])->contains(fn (mixed $value): bool => blank($value))) {
+            return 3;
+        }
+
+        try {
+            $requirementSet = app(ResolveAdmissionRequirementSet::class)->forApplication($application);
+            $requiredEvidenceIds = $requirementSet->requirements()
+                ->where('requires_preliminary_evidence', true)
+                ->pluck('id');
+            $presentEvidenceIds = $application->evidenceVersions()
+                ->whereIn('admission_requirement_id', $requiredEvidenceIds)
+                ->pluck('admission_requirement_id')
+                ->unique();
+
+            if ($requiredEvidenceIds->diff($presentEvidenceIds)->isNotEmpty()) {
+                return 4;
+            }
+        } catch (ValidationException) {
+            return 4;
+        }
+
+        return 5;
     }
 }

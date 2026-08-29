@@ -81,6 +81,39 @@
                 </p>
             </x-filament::section>
 
+            @php($currentDecision = $application->decisions->first(
+                fn ($decision) => ! $application->decisions->contains(
+                    'supersedes_admission_decision_id',
+                    $decision->id,
+                ),
+            ))
+            @if ($currentDecision)
+                <x-filament::section>
+                    <x-slot name="heading">Current admission outcome</x-slot>
+                    <x-slot name="description">The current attributable result is shown first; superseded outcomes remain labelled in history.</x-slot>
+
+                    <dl class="tala-status-grid">
+                        <div class="tala-status-grid__item"><dt>Result</dt><dd>{{ str($currentDecision->decision)->headline() }}</dd></div>
+                        <div class="tala-status-grid__item"><dt>Responsible office</dt><dd>Registrar</dd></div>
+                        <div class="tala-status-grid__item"><dt>Decision date</dt><dd>{{ $currentDecision->decided_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') ?? 'Unavailable' }}</dd></div>
+                        <div class="tala-status-grid__item"><dt>Consequence and next action</dt><dd>{{ $this->nextAction($application) }}</dd></div>
+                    </dl>
+                    <x-filament::callout :color="$currentDecision->decision === \App\Models\AdmissionDecision::DecisionAdmitted ? 'success' : 'info'" icon="heroicon-m-information-circle">
+                        <x-slot name="heading">Registrar explanation</x-slot>
+                        <x-slot name="description">{{ $currentDecision->applicant_explanation }}</x-slot>
+                    </x-filament::callout>
+
+                    @if ($application->decisions->count() > 1)
+                        <details class="mt-4">
+                            <summary>Show superseded admission outcomes</summary>
+                            @foreach ($application->decisions->where('id', '!=', $currentDecision->id)->sortByDesc('decided_at') as $decision)
+                                <p><strong>Superseded {{ str($decision->decision)->headline() }}</strong> — {{ $decision->decided_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} — {{ $decision->applicant_explanation }}</p>
+                            @endforeach
+                        </details>
+                    @endif
+                </x-filament::section>
+            @endif
+
             <x-filament::section>
                 <x-slot name="heading">Official credential readiness</x-slot>
                 @if (($projection['ready'] ?? false) === true)
@@ -98,18 +131,31 @@
                 <p>The Registrar reviews preliminary evidence, resolves any private identity warning, records an immutable admission decision, and then records official credential outcomes. Readiness appears automatically only when all current authoritative conditions pass.</p>
             </x-filament::section>
 
-            @if ($application->currentSubmissionVersion)
+            @if ($application->submissionVersions->isNotEmpty())
                 <x-filament::section>
-                    <x-slot name="heading">Application acknowledgment</x-slot>
-                    <x-slot name="description">Bound to Application version {{ $application->currentSubmissionVersion->version }} and Requirement Set version {{ $application->currentSubmissionVersion->requirementSet?->version }}.</x-slot>
-                    <x-filament::button
-                        :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $application->currentSubmissionVersion])"
-                        tag="a"
-                        target="_blank"
-                        icon="heroicon-m-printer"
-                    >
-                        Open acknowledgment
-                    </x-filament::button>
+                    <x-slot name="heading">Application acknowledgment history</x-slot>
+                    <x-slot name="description">Each printable acknowledgment remains bound to its immutable Application and Requirement Set versions.</x-slot>
+
+                    <div class="space-y-3">
+                        @foreach ($application->submissionVersions->sortByDesc('version') as $submissionVersion)
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                                <p>
+                                    <strong>Application version {{ $submissionVersion->version }}</strong> ·
+                                    Requirement Set version {{ $submissionVersion->requirementSet?->version }} ·
+                                    {{ $application->current_submission_version_id === $submissionVersion->id ? 'Current' : 'Historical and superseded' }}
+                                </p>
+                                <x-filament::button
+                                    :href="route('admissions.application.acknowledgment', ['application' => $application, 'version' => $submissionVersion])"
+                                    tag="a"
+                                    target="_blank"
+                                    size="sm"
+                                    icon="heroicon-m-printer"
+                                >
+                                    Open version {{ $submissionVersion->version }}
+                                </x-filament::button>
+                            </div>
+                        @endforeach
+                    </div>
                 </x-filament::section>
             @endif
 

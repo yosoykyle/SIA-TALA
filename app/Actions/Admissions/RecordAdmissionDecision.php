@@ -157,7 +157,7 @@ class RecordAdmissionDecision
                         $locked,
                         $locked->user()->firstOrFail(),
                         eventType: OperationalEvent::TypeAdmissionReadyForEnrollment,
-                        sourceKey: 'readiness-event:'.$readinessEvent->id,
+                        sourceKey: 'application:'.$locked->id.':first-ready',
                         safePayload: [
                             'application_reference' => $locked->application_reference,
                             'ready' => true,

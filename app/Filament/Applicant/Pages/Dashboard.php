@@ -368,6 +368,7 @@ class Dashboard extends BaseDashboard implements HasTable
                 'admissionCycle',
                 'program',
                 'currentSubmissionVersion.requirementSet.requirements',
+                'submissionVersions.requirementSet',
                 'evidenceVersions.preliminaryReviews',
                 'credentialResults.requirement',
                 'correctionRequests.items',

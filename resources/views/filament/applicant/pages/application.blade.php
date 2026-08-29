@@ -43,6 +43,17 @@
             </x-filament::callout>
         @endif
 
+        <div
+            class="rounded-lg border border-gray-200 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-white/10 dark:bg-white/5"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+        >
+            <span wire:dirty wire:target="data">Unsaved changes — save this Draft before leaving.</span>
+            <span wire:loading wire:target="saveDraft">Saving your Application to TALA.</span>
+            <span wire:loading.remove wire:target="saveDraft">{{ $this->saveStatusMessage }}</span>
+        </div>
+
         <form wire:submit="submitApplication" class="space-y-6" novalidate>
             {{ $this->form }}
 

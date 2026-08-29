@@ -7,6 +7,7 @@ use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AcademicReadiness;
+use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
@@ -150,6 +151,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Dashboard::class,
+                AssistedAdmissionApplication::class,
                 CatalogCurriculaWorkbench::class,
                 TermPlanningWorkbench::class,
                 AcademicApprovals::class,

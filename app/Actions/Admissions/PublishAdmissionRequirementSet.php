@@ -4,6 +4,7 @@ namespace App\Actions\Admissions;
 
 use App\Models\AdmissionRequirementSet;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -76,12 +77,19 @@ class PublishAdmissionRequirementSet
                 ]);
             }
 
+            if ($locked->effective_at === null) {
+                throw ValidationException::withMessages([
+                    'effective_at' => 'Set the effective date and time before publication.',
+                ]);
+            }
+
+            $publishedAt = CarbonImmutable::now(config('app.timezone'));
+
             $locked->forceFill([
                 'state' => AdmissionRequirementSet::StatePublished,
                 'authority_reference' => $authorityReference,
-                'effective_at' => now(config('app.timezone')),
                 'published_by' => $actor->id,
-                'published_at' => now(config('app.timezone')),
+                'published_at' => $publishedAt,
             ])->save();
 
             return $locked->refresh();

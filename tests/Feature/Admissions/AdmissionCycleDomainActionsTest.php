@@ -138,7 +138,11 @@ class AdmissionCycleDomainActionsTest extends TestCase
     {
         $actor = $this->registrar();
         $cycle = AdmissionCycle::factory()->create();
-        $first = AdmissionRequirementSet::factory()->for($cycle)->create(['version' => 1]);
+        $firstEffectiveAt = now()->addHour()->startOfSecond();
+        $first = AdmissionRequirementSet::factory()->for($cycle)->create([
+            'version' => 1,
+            'effective_at' => $firstEffectiveAt,
+        ]);
         AdmissionRequirement::factory()->for($first, 'requirementSet')->create([
             'credential_classification' => 'CoreFirstYearCompletionCredential',
         ]);
@@ -149,10 +153,12 @@ class AdmissionCycleDomainActionsTest extends TestCase
             'Synthetic requirement authority v1',
         );
         $this->assertSame(AdmissionRequirementSet::StatePublished, $published->state);
+        $this->assertTrue($published->effective_at->equalTo($firstEffectiveAt));
 
         $replacement = AdmissionRequirementSet::factory()->for($cycle)->create([
             'application_path' => $published->application_path,
             'version' => 2,
+            'effective_at' => now()->addDay(),
         ]);
         AdmissionRequirement::factory()->for($replacement, 'requirementSet')->create([
             'credential_classification' => 'CoreFirstYearCompletionCredential',
@@ -220,6 +226,7 @@ class AdmissionCycleDomainActionsTest extends TestCase
         $complete = AdmissionRequirementSet::factory()->for($cycle)->create([
             'application_path' => AdmissionCycle::PathFirstYear,
             'version' => 3,
+            'effective_at' => now()->subMinute(),
         ]);
         AdmissionRequirement::factory()->for($complete, 'requirementSet')->create([
             'credential_classification' => 'CoreFirstYearCompletionCredential',
@@ -263,6 +270,7 @@ class AdmissionCycleDomainActionsTest extends TestCase
         $completeTransferee = AdmissionRequirementSet::factory()->for($cycle)->create([
             'application_path' => AdmissionCycle::PathTransferee,
             'version' => 2,
+            'effective_at' => now()->subMinute(),
         ]);
         AdmissionRequirement::factory()->for($completeTransferee, 'requirementSet')->create([
             'credential_classification' => 'CoreTransferCredential',

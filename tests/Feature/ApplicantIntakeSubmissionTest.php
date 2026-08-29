@@ -43,7 +43,7 @@ class ApplicantIntakeSubmissionTest extends TestCase
         $this->assertSame(AdmissionApplication::StateDraft, $draft->application_state);
         $this->assertNull($draft->program_id);
         $this->assertNull($draft->application_path);
-        $this->assertStringStartsWith('APP-', $draft->application_reference);
+        $this->assertNull($draft->application_reference);
 
         $this->expectException(ValidationException::class);
         app(SubmitAdmissionApplication::class)->execute($draft, $applicant);

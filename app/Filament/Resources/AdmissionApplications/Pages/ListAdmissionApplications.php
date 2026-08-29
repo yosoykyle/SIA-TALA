@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\AdmissionApplications\Pages;
 
+use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionApplication;
+use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,9 +18,33 @@ class ListAdmissionApplications extends ListRecords
 {
     protected static string $resource = AdmissionApplicationResource::class;
 
+    /** @var list<int>|null */
+    private ?array $readyApplicationIdCache = null;
+
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('prepareAssistedDraft')
+                ->label('Prepare assisted Draft')
+                ->icon('heroicon-o-user-plus')
+                ->modalDescription('Select an existing active Applicant account. The Registrar may prepare an unsubmitted Draft only; the Applicant remains the owner and must submit it.')
+                ->schema([
+                    Select::make('applicant_id')
+                        ->label('Applicant account')
+                        ->options(fn (): array => User::query()
+                            ->where('status', User::StatusActive)
+                            ->whereNotNull('email_verified_at')
+                            ->whereHas('roles', fn (Builder $query): Builder => $query->where('name', 'applicant'))
+                            ->orderBy('email')
+                            ->pluck('email', 'id')
+                            ->all())
+                        ->searchable()
+                        ->required(),
+                ])
+                ->visible(fn (): bool => AssistedAdmissionApplication::canAccess())
+                ->action(fn (array $data): mixed => $this->redirect(AssistedAdmissionApplication::getUrl([
+                    'applicant' => (int) $data['applicant_id'],
+                ]))),
             Action::make('admissionCycles')
                 ->label('Manage admission cycles')
                 ->color('gray')
@@ -55,6 +82,8 @@ class ListAdmissionApplications extends ListRecords
     /** @return list<int> */
     private function readyApplicationIds(): array
     {
-        return app(ReadyApplicantProjectionQuery::class)->readyApplicationIds()->all();
+        return $this->readyApplicationIdCache ??= app(ReadyApplicantProjectionQuery::class)
+            ->readyApplicationIds()
+            ->all();
     }
 }

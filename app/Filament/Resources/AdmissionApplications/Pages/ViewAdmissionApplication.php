@@ -44,6 +44,7 @@ class ViewAdmissionApplication extends ViewRecord
                 ->label('Request scoped correction')
                 ->icon('heroicon-o-pencil-square')
                 ->color('warning')
+                ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' is Submitted. Proposed: reopen only the named items for the Applicant. Immediate consequence: state becomes Action Needed; readiness remains unavailable. The submitted version and complete history remain retained.')
                 ->schema([
                     Repeater::make('scopes')
                         ->label('Only these fields or evidence items reopen')
@@ -163,6 +164,7 @@ class ViewAdmissionApplication extends ViewRecord
                 Action::make('resolveIdentity')
                     ->label('Resolve identity warning')
                     ->icon('heroicon-o-identification')
+                    ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' has a private identity warning. Proposed: append the selected attributable resolution. Immediate consequence: decision eligibility is recalculated; no Student identity or prior warning is deleted.')
                     ->schema([
                         Select::make('identity_match_review_id')
                             ->label('Private warning')
@@ -196,6 +198,7 @@ class ViewAdmissionApplication extends ViewRecord
                 Action::make('recordDecision')
                     ->label('Record or supersede decision')
                     ->icon('heroicon-o-scale')
+                    ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' is '.str($this->application()->application_state)->headline().'. Proposed: append the selected admission decision. Immediate consequence: current outcome and readiness are recalculated; every prior decision remains labelled in history.')
                     ->schema([
                         Select::make('decision')
                             ->options([
@@ -226,6 +229,7 @@ class ViewAdmissionApplication extends ViewRecord
                 Action::make('recordCredential')
                     ->label('Record official credential result')
                     ->icon('heroicon-o-check-badge')
+                    ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' is Admitted. Proposed: append one official credential result. Immediate consequence: readiness is recalculated from all current sources; prior results and evidence remain retained.')
                     ->schema([
                         Select::make('admission_requirement_id')
                             ->label('Requirement')
@@ -277,6 +281,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->icon('heroicon-o-archive-box-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
+                    ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' is '.str($this->application()->application_state)->headline().'. Proposed: record withdrawal. Immediate consequence: readiness is removed; the same reference, submissions, decisions, credentials, and history remain retained. Registrar authority is required to reopen it.')
                     ->schema([
                         Textarea::make('reason')->required()->maxLength(1000),
                         TextInput::make('authority_reference')->required()->maxLength(255),
@@ -297,6 +302,7 @@ class ViewAdmissionApplication extends ViewRecord
                 Action::make('reopen')
                     ->label('Reopen withdrawn application')
                     ->icon('heroicon-o-arrow-path')
+                    ->modalDescription(fn (): string => 'Current: '.$this->application()->application_reference.' is Withdrawn. Proposed: reopen the same submitted Application. Immediate consequence: current decision and credential sources are re-evaluated for readiness; withdrawal and all prior history remain retained.')
                     ->schema([
                         Textarea::make('reason')->required()->maxLength(1000),
                         TextInput::make('authority_reference')->required()->maxLength(255),
