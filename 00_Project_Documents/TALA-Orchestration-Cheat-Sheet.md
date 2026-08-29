@@ -84,11 +84,18 @@ Read-only. Draft the Issue only; do not create it yet.
 
 After accepting the draft, switch to Default mode:
 
+Before creation, classify the accepted contract. Coordination-derived implementation work must be a native sub-Issue of its active coordination Issue; dependency links are separate. A standalone tracked Issue may remain parentless only when its accepted body explains why no active coordination owns it. If the classification is uncertain, stop.
+
 ```text
-Create the approved implementation Issue exactly from the accepted draft.
-Apply the implementation label, assign the approved owner, and establish the
-approved dependency or sub-Issue links. Project automation adds it to TALA
-Development as Todo.
+Create the approved tracked Issue exactly from the accepted draft and its
+recorded classification. For coordination-derived implementation work, attach
+the active coordination Issue as its native parent. Apply the approved label,
+owner, and separate dependency links. Project automation adds an open
+implementation Issue to TALA Development as Todo.
+
+After creation, re-read the live Issue and Project state. Verify the intended
+parent classification, label, owner, dependency links, and Project status.
+Stop before Plan or Complete if any recorded state is missing or incorrect.
 
 Do not plan, implement, create a branch, commit, publish, merge, or deploy.
 ```
@@ -119,9 +126,7 @@ When the result and outgoing scope are accepted:
 Publish #NN
 ```
 
-For approved solo work on `main`, this freshly verifies and pushes the accepted commit range, then closes the Issue. Project automation marks it `Done`. It never authorizes deployment.
-
-Immediately before authorized closure or merge, revalidate the ledger, update only evidence-backed Issue checkboxes, and leave a compact durable evidence record.
+For approved solo work on `main`, this freshly verifies and pushes the accepted commit range. Keep the Issue `In Progress` until every required CI check for the exact published commit succeeds. Then re-fetch the Issue and Project state, confirm the current ledger is all `Verified`, update only evidence-backed checkboxes, post a compact durable evidence record, and close the Issue last. Any failed gate stops closure; Project automation marks `Done` only after closure. Publishing never authorizes deployment.
 
 ## You plus one developer
 
@@ -177,7 +182,7 @@ the verified bounded local commit.
 
 Each Issue still follows `Plan #NN` and `Complete #NN`. `Publish #NN` pushes its Issue branch and opens one PR containing `Closes #NN`; open PR review remains `In Progress`.
 
-`Publish #NN` never authorizes merge. Merge only after separate explicit authorization and fresh evidence for acceptance criteria, required automated and browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main`. After merge, the Issue becomes `Done`, and dependent branches refresh from `main`.
+`Publish #NN` never authorizes merge. Before a separately authorized merge, the same required-CI, all-`Verified` ledger, evidence-backed checkbox, and durable-record preflight above must pass together with resolved review, bounded diff, integrated dependencies, applicable browser verification, and sufficient currency with `main`. Merge happens last; afterward, the Issue becomes `Done`, and dependent branches refresh from `main`.
 
 ## Work without an Issue
 

@@ -31,7 +31,9 @@ When sources materially conflict, stop and present the conflict rather than sile
 
 ### Issue derivation
 
-Issue derivation is read-only. It drafts work but never creates an Issue, changes the Project, or mutates GitHub. Start from the approved coordination Issue that owns the accepted delivery order, then inspect current Issues and Project statuses, open pull requests, live Git state, and the minimum relevant canonical authority and implementation evidence.
+Issue derivation is read-only. It drafts work but never creates an Issue, changes the Project, or mutates GitHub. For coordination-derived work, start from the approved coordination Issue that owns the accepted delivery order, then inspect current Issues and Project statuses, open pull requests, live Git state, and the minimum relevant canonical authority and implementation evidence.
+
+Before drafting any tracked Issue, classify it as coordination-derived or standalone. Coordination-derived implementation work requires its active coordination Issue as a native parent. A genuinely standalone tracked Issue may remain parentless only when no active coordination owns its intended outcome, and its body states that reason. If the work belongs to or materially changes an active coordination map, or the classification is uncertain, stop for the appropriate derivation or authorized map correction instead of treating it as standalone. Clear work without an Issue remains valid under the normal boundaries and has no Project status.
 
 Exclude work that is completed, canceled, already active, duplicated, or blocked by an unmet dependency. From the remaining dependency frontier, recommend the smallest journey-complete vertical slice that best unlocks the critical path. If materially different slices are equally eligible, present the alternatives and recommend one with rationale instead of silently choosing.
 
@@ -41,7 +43,9 @@ Before drafting, perform a bounded operability and feasibility check of the owni
 
 Every derived draft identifies its intended outcome, accountable owner, relevant authority and UI inventory IDs, bounded scope, dependencies, material implementation order, acceptance criteria, verification and applicable browser scenarios, exclusions, and stop conditions. If the coordination Issue is missing, stale, or materially conflicts with current authority or delivery state, stop at a read-only recommendation rather than inventing the order.
 
-Creating the approved draft is a separate explicit external write. That authorization may create the Issue with the `implementation` label, assign the approved owner, and establish native dependency or sub-Issue links. Project automation then adds the Issue to `TALA Development` and sets it to `Todo`; the user does not need to request those two Project mutations separately. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
+Creating the approved draft is a separate explicit external write. For coordination-derived implementation work, that authorization creates the Issue with the `implementation` label, assigns the approved owner, attaches it as a native sub-Issue of the active coordination Issue, and establishes approved dependency links separately. For standalone tracked work, create the parentless Issue only from its accepted contract and record why no active coordination owns it.
+
+After creating any tracked Issue, re-read its live Issue and Project state and verify the intended parent classification, label, owner, dependency links, and Project status. Project automation adds an open `implementation` Issue to `TALA Development` as `Todo`; the user does not need to request those two Project mutations separately. Missing or incorrect recorded state stops before `Plan #NN` or `Complete #NN` for an explicitly authorized correction. Issue creation does not authorize planning, coding, a branch, a commit, publication, or merge.
 
 ### Plan
 
@@ -91,9 +95,9 @@ A clear task without an issue number remains valid. A request to implement, fix,
 
 `Publish #NN` is a separate external-write boundary. It first requires current verification, intended-diff evidence, and an all-`Verified` acceptance ledger.
 
-Immediately before an authorized solo closure or separately authorized concurrent merge, revalidate the ledger, update only evidence-backed acceptance checkboxes in the owning Issue, and leave a compact durable evidence record. Never tick a semantic criterion merely because tests passed.
+After the source is on GitHub, every required CI check for the exact published commit or pull-request head must succeed. Immediately before an authorized solo closure or separately authorized concurrent merge, re-fetch the owning Issue and Project state, revalidate that every criterion remains `Verified`, update only evidence-backed acceptance checkboxes, and post a compact durable evidence record. Closure or merge happens last. Any failed gate keeps the Issue `In Progress`; never tick a semantic criterion merely because tests passed.
 
-- For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then close the issue; the configured Project workflow sets its item to `Done`.
+- For approved solo work on `main`, inspect every commit ahead of `origin/main`, push only when the entire range is explicitly accepted, then complete the required CI and closure preflight above before closing the Issue; the configured Project workflow sets its item to `Done`.
 - For concurrent work, push the Issue-specific branch and open one pull request containing `Closes #NN`. Open pull-request review remains `In Progress`.
 - `Publish #NN` may open that pull request but never authorizes merge. Merge requires separate explicit authorization and fresh evidence that acceptance criteria, automated and applicable browser verification, resolved review, bounded diff, integrated dependencies, and sufficient currency with `main` are satisfied.
 - After an authorized merge, the linked issue closes and the configured Project workflow sets its item to `Done`; the merged branch may be deleted, and dependent branches refresh from `main` before continuing.
