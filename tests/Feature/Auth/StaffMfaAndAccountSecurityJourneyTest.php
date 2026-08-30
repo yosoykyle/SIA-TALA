@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use PragmaRX\Google2FAQRCode\Google2FA;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -69,7 +70,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         ]);
     }
 
-    public function test_mfa_setup_qr_code_is_a_single_valid_svg_data_uri(): void
+    public function test_mfa_setup_qr_code_is_a_single_valid_image_data_uri(): void
     {
         $staff = User::factory()->create(['email' => 'mfa-qr-fixture@example.test']);
         $staff->assignRole(User::StaffRoleFaculty);
@@ -78,15 +79,43 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
 
         $provider = app(TalaAppAuthentication::class)->recoverable();
         $dataUri = $provider->generateQrCodeDataUri($provider->generateSecret());
-        $prefix = 'data:image/svg+xml;base64,';
+        $svgPrefix = 'data:image/svg+xml;base64,';
+        $pngPrefix = 'data:image/png;base64,';
 
-        $this->assertStringStartsWith($prefix, $dataUri);
+        $this->assertTrue(
+            str_starts_with($dataUri, $svgPrefix) || str_starts_with($dataUri, $pngPrefix),
+            'The generated MFA QR code must be a supported inline image.',
+        );
 
-        $svg = base64_decode(substr($dataUri, strlen($prefix)), strict: true);
+        $prefix = str_starts_with($dataUri, $svgPrefix) ? $svgPrefix : $pngPrefix;
+        $image = base64_decode(substr($dataUri, strlen($prefix)), strict: true);
 
-        $this->assertIsString($svg);
-        $this->assertStringContainsString('<svg', $svg);
-        $this->assertStringNotContainsString('data:image/', $svg);
+        $this->assertIsString($image);
+        $this->assertStringNotContainsString('data:image/', $image);
+
+        if ($prefix === $svgPrefix) {
+            $this->assertStringContainsString('<svg', $image);
+        } else {
+            $this->assertStringStartsWith("\x89PNG\r\n\x1a\n", $image);
+        }
+    }
+
+    public function test_mfa_qr_code_normalization_removes_only_a_duplicate_svg_data_uri_layer(): void
+    {
+        $provider = new class(app(Google2FA::class)) extends TalaAppAuthentication
+        {
+            public function normalizeForTest(#[\SensitiveParameter] string $dataUri): string
+            {
+                return $this->normalizeQrCodeDataUri($dataUri);
+            }
+        };
+        $svgDataUri = 'data:image/svg+xml;base64,'.base64_encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+        $duplicateSvgDataUri = 'data:image/svg+xml;base64,'.base64_encode($svgDataUri);
+        $pngDataUri = 'data:image/png;base64,'.base64_encode("\x89PNG\r\n\x1a\n");
+
+        $this->assertSame($svgDataUri, $provider->normalizeForTest($duplicateSvgDataUri));
+        $this->assertSame($svgDataUri, $provider->normalizeForTest($svgDataUri));
+        $this->assertSame($pngDataUri, $provider->normalizeForTest($pngDataUri));
     }
 
     public function test_authorized_reset_removes_factor_codes_and_sessions_then_requires_reenrollment(): void

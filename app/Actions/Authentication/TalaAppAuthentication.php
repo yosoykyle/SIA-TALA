@@ -12,7 +12,11 @@ class TalaAppAuthentication extends AppAuthentication
 {
     public function generateQrCodeDataUri(#[\SensitiveParameter] string $secret): string
     {
-        $dataUri = parent::generateQrCodeDataUri($secret);
+        return $this->normalizeQrCodeDataUri(parent::generateQrCodeDataUri($secret));
+    }
+
+    protected function normalizeQrCodeDataUri(#[\SensitiveParameter] string $dataUri): string
+    {
         $svgPrefix = 'data:image/svg+xml;base64,';
 
         if (! str_starts_with($dataUri, $svgPrefix)) {
