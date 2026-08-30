@@ -165,27 +165,29 @@ The coordinator assigns you through the Issue's **Assignees** field. Alerts foll
 
 Enable [GitHub Actions notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications) on your own GitHub account, preferably with **Only notify for failed workflows**. This personal setting cannot be configured repository-wide; required CI still blocks a failing pull request from merging when notifications are disabled.
 
-Use this once after the repository, dependencies, and assigned Issue are available:
+A fresh Codex task is recommended when the implementation owner or Issue changes, but it is not mandatory. Use this once in the new or existing Issue-scoped task after the repository, dependencies, and assigned Issue are available:
 
 ```text
-Re-anchor this fresh TALA clone for assigned Issue #NN as its implementation owner.
+Re-anchor this TALA clone for assigned Issue #NN as its implementation owner.
 
 Read AGENTS.md, CONTRIBUTING.md, the TALA Orchestrator Protocol, the owning
-Issue, any existing accepted plan or execution handoff, and the minimum relevant
-canonical documents and implementation surfaces. Verify the current branch,
-HEAD relationship to origin/main, clean or attributable working state,
-assignment, dependencies, workspace and database isolation, actual development
-and test database targets, migration status and any observed schema mismatch
-for each, GitHub access, Laravel Boost, applicable project skills, and the
-browser-verification route required by the Issue. Treat Serena and other plugins
-as conditional unless the Issue or accepted plan requires them.
+Issue body and relevant durable comments, any existing accepted plan or execution
+handoff, and the minimum relevant canonical documents and implementation
+surfaces. Verify the current branch, HEAD relationship to origin/main, clean or
+attributable working state, assignment, dependencies, workspace and database
+isolation, actual development and test database targets, migration status and
+any observed schema mismatch for each, GitHub access, Laravel Boost, applicable
+project skills, the browser-verification route required by the Issue, and any
+material task-specific environment or tool prerequisite named by the handoff.
+Treat Serena and other plugins as conditional unless the Issue or accepted plan
+requires them.
 
 Report what is ready, what is missing, the exact safe remedy, and whether
 implementation may begin. Read-only: do not edit files, mutate GitHub, create a
 branch, commit, publish, merge, deploy, or change credentials yet.
 ```
 
-Follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md): use `Plan #NN` to plan read-only when no accepted plan exists. Coding needs readiness, an accepted plan/handoff, and authorized `Complete #NN`; that command implements, verifies, and commits locally. `Publish #NN` publishes separately. Setup alone authorizes none of these actions.
+Follow the [cheat sheet](00_Project_Documents/TALA-Orchestration-Cheat-Sheet.md): use `Plan #NN` to plan read-only when no accepted plan exists. Coding needs readiness, an accepted plan/handoff, and authorized `Complete #NN`; for concurrent work, that command creates or switches to the Issue-specific branch, then implements, verifies, and commits locally. `Publish #NN` publishes separately. Setup alone authorizes none of these actions.
 
 ## 5. Troubleshooting
 

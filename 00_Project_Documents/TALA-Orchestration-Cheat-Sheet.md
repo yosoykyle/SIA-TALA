@@ -192,16 +192,20 @@ cannot be proven; keep each draft journey-complete.
 Read-only. Do not create Issues, branches, Project changes, or other writes.
 ```
 
-When planner and implementer differ, put the accepted plan or concise execution handoff in or durably link it from the owning Issue. In the assigned developer's Codex task, use Default mode:
+When planner and implementer differ, put the accepted plan or concise execution handoff in or durably link it from the owning Issue. Include only material task-specific environment, skill, or tool prerequisites; generic project guidance stays in `AGENTS.md` and `CONTRIBUTING.md`.
+
+A fresh Codex task is recommended when the owner or Issue changes, but it is optional. Whether the task is new or existing, anchor it to one assigned Issue. The Issue branch, isolated workspace/database, and PR provide parallel isolation. In the assigned developer's Codex task, use Default mode:
 
 ```text
 Complete #NN as the assigned implementation owner.
 
 You are the implementer for this Issue, not the primary TALA orchestrator.
-Read AGENTS.md, the protocol, owning Issue, and accepted plan or handoff. Re-anchor
-from live Git and GitHub state. Verify assignment, dependencies, and workspace
-isolation, then create or switch to the Issue branch from accepted, up-to-date
-main. Remain within this Issue's scope.
+Read AGENTS.md, the protocol, the owning Issue's body and relevant durable
+comments, and the accepted plan or handoff. Re-anchor from live Git and GitHub
+state. Verify assignment, dependencies, workspace isolation, and any material
+task-specific environment, skill, or tool prerequisite. Then create or switch
+to the Issue branch from accepted, up-to-date main. Remain within this Issue's
+scope; stop and report if a required prerequisite is unavailable.
 
 Use applicable project skills and tools. Do not derive or reorder other work,
 modify coordination, work directly on main, publish, merge, or deploy. Finish
@@ -236,10 +240,11 @@ Active boundary: [Plan #NN, Complete #NN, Publish #NN, or untracked task]
 Previous task: [task ID if available]
 
 Determine what completed, what is running, what remains, and the current
-authorization from recent original messages and durable live evidence. Continue
-from the last proven checkpoint. Do not repeat completed mutations, broaden
-scope, publish, merge, deploy, or begin another Issue. Stop if material state
-cannot be proven safely.
+authorization from recent original messages and durable live evidence. For a
+named Issue, include its relevant durable comments and linked plan or handoff.
+Continue from the last proven checkpoint. Do not repeat completed mutations,
+broaden scope, publish, merge, deploy, or begin another Issue. Stop if material
+state cannot be proven safely.
 ```
 
 Compaction never expands authority.
