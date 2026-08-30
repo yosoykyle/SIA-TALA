@@ -153,6 +153,7 @@ Memory may help recall prior reasoning but never replaces live Git authority or 
 
 ## 6. Product and implementation judgment
 
+- `Plan` and `Complete` actively evaluate the owned implementation rather than treat the accepted plan or listed changes as a minimum checklist. Judge domain logic and state transitions and, for UI-bearing work, hierarchy, usability, and accessibility against current authority and evidence. Preserve aligned screens, plugins, components, and logic; remediate proven in-scope conformance or quality gaps even when the plan did not predict their exact code location. Do not substitute a different product or design preference, broaden the Issue, replace an established plugin or dependency, or make a material decision silently. Use proportionate rendered or browser inspection of representative states and viewports; an identified owned defect cannot be `Verified` merely because automated tests pass. The final integrated audit is a cross-slice backstop, not the first time obvious owned defects are considered.
 - Keep aligned implementation and preserve unrelated work. Patch proven gaps instead of restarting or rewriting broad areas.
 - Clarify the real office owner, manual step, TALA responsibility, and editable or read-only boundary only when a task introduces or changes that workflow.
 - Research official or institutional sources when existing authority is missing, conflicting, time-sensitive, security-critical, or likely wrong; the user does not need to repeat that instruction.

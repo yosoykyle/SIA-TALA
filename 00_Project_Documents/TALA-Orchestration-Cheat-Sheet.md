@@ -140,6 +140,8 @@ Complete #NN
 
 This marks the Issue `In Progress`, implements the bounded plan, verifies and remediates in-scope failures, cleans the intended diff, and creates one local commit. It never pushes, merges, or deploys.
 
+Treat the accepted plan as a decision boundary, not a minimum checklist: actively evaluate owned logic and representative UI states, preserve aligned work, and remediate proven in-scope gaps. Automated tests cannot make an identified owned defect `Verified`.
+
 Near the start, map every acceptance criterion to its governing authority, required behavior and actions, reachable UI or output, and proportionate evidence. Maintain that map as findings change.
 
 Before success, classify every criterion as `Verified`, `Partial`, or `Unverified` with current evidence. Anything not `Verified` keeps the Issue `In Progress` and blocks publication, merge, closure, and `Done`.
