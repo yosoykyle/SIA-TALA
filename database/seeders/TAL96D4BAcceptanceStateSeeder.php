@@ -102,10 +102,7 @@ final class TAL96D4BAcceptanceStateSeeder extends Seeder
             GradeRosterRow::query()->updateOrCreate(
                 ['grade_roster_id' => $roster->id, 'course_enrollment_id' => $courseEnrollment->id],
                 [
-                    'prelim_equivalent' => $state === GradeRoster::StateDraft ? null : 88,
-                    'midterm_equivalent' => $state === GradeRoster::StateDraft ? null : 90,
-                    'final_equivalent' => $state === GradeRoster::StateDraft ? null : 91,
-                    'computed_average' => $state === GradeRoster::StateDraft ? null : 89.8,
+                    'final_result' => $state === GradeRoster::StateDraft ? null : '1.75',
                     'current_outcome_code' => $state === GradeRoster::StateReleased ? '1.75' : null,
                     'current_outcome_category' => $state === GradeRoster::StateReleased ? GradeRosterRow::CategoryPassing : null,
                     'released_at' => $state === GradeRoster::StateReleased ? now() : null,

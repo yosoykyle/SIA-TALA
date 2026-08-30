@@ -912,10 +912,7 @@ final class TAL96D5E1ExplorationPersonaSeeder extends Seeder
             ['course_enrollment_id' => $courseEnrollment->id],
             [
                 'grade_roster_id' => $roster->id,
-                'prelim_equivalent' => $equivalent,
-                'midterm_equivalent' => $equivalent,
-                'final_equivalent' => $equivalent,
-                'computed_average' => $equivalent,
+                'final_result' => $outcomeCode,
                 'current_outcome_code' => $outcomeCode,
                 'current_outcome_category' => $category,
                 'released_at' => $isPending ? null : $timestamp,

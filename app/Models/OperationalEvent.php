@@ -37,6 +37,8 @@ class OperationalEvent extends Model
 
     public const IntegrationRestore = 'RESTORE';
 
+    public const IntegrationAcademicRecords = 'academic_records';
+
     public const ChannelEmail = 'email';
 
     public const ChannelWebhook = 'webhook';
@@ -106,6 +108,40 @@ class OperationalEvent extends Model
     }
 
     public const TypeAcademicRecordUpdatedEmail = 'academic_record_updated_email';
+
+    public const TypeGradeSubmissionRequiredEmail = 'grade_submission_required_email';
+
+    public const TypeGradeRosterReturnedEmail = 'grade_roster_returned_email';
+
+    public const TypeGradeRosterReleasedEmail = 'grade_roster_released_email';
+
+    public const TypeIncReleasedEmail = 'inc_released_email';
+
+    public const TypeIncDeadlineAmendedEmail = 'inc_deadline_amended_email';
+
+    public const TypeIncResolvedEmail = 'inc_resolved_email';
+
+    public const TypeGradeCorrectionReleasedEmail = 'grade_correction_released_email';
+
+    public const TypeAcademicProgressLifecycleEmail = 'academic_progress_lifecycle_email';
+
+    public const TypeLifecycleAccountingReview = 'lifecycle_accounting_review';
+
+    /** @return list<string> */
+    public static function academicNotificationTypes(): array
+    {
+        return [
+            self::TypeAcademicRecordUpdatedEmail,
+            self::TypeGradeSubmissionRequiredEmail,
+            self::TypeGradeRosterReturnedEmail,
+            self::TypeGradeRosterReleasedEmail,
+            self::TypeIncReleasedEmail,
+            self::TypeIncDeadlineAmendedEmail,
+            self::TypeIncResolvedEmail,
+            self::TypeGradeCorrectionReleasedEmail,
+            self::TypeAcademicProgressLifecycleEmail,
+        ];
+    }
 
     public const StatusPending = 'PENDING';
 

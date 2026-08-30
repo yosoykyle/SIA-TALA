@@ -5,11 +5,13 @@ namespace App\Filament\Student\Pages;
 use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Completion\SubmitGraduationApplication;
 use App\Actions\Completion\WithdrawGraduationApplication;
+use App\Models\Enrollment;
 use App\Models\ExternalCompetencyResult;
 use App\Models\GraduationApplication;
 use App\Models\StudentProfile;
@@ -90,6 +92,12 @@ class Academics extends Page
 
         $results = app(OfficialCourseResultProjection::class)->forStudent($student);
         $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on')->values();
+        $currentTerm = Enrollment::query()
+            ->where('student_profile_id', $student->id)
+            ->with('term')
+            ->latest('id')
+            ->first()?->term;
+        $examinationTerm = $currentTerm ?? $terms->first();
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
             $term->id => app(TermWeightedAverageProjection::class)->forStudentAndTerm($student, $term),
         ]);
@@ -101,6 +109,7 @@ class Academics extends Page
             'results' => $results,
             'terms' => $terms,
             'termAverages' => $termAverages,
+            'examinationPeriod' => app(ExaminationPeriodProjection::class)->forTerm($examinationTerm),
             'cumulative' => app(CumulativeGwaProjection::class)->forStudent($student),
             'curriculum' => app(CurriculumEvaluation::class)->forStudent($student),
             'effect' => app(AcademicEnrollmentEffect::class)->forStudent($student),

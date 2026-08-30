@@ -6,6 +6,7 @@ use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\IncCompletionSubmission;
+use App\Models\IncDeadlineAmendment;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,7 @@ class ReleaseIncCompletion
 {
     public function __construct(
         private readonly FinalResultPolicy $policy,
+        private readonly IncDeadlineService $deadlines,
         private readonly OpenRegistrationImpactReviewsForGradeOutcome $impactReviews,
         private readonly AcademicRecordNotificationService $notifications,
     ) {}
@@ -38,6 +40,26 @@ class ReleaseIncCompletion
 
             $incomplete = $submission->incompleteEvent;
             $row = GradeRosterRow::query()->lockForUpdate()->findOrFail($incomplete->grade_roster_row_id);
+            $controllingResult = GradeOutcomeEvent::query()
+                ->where('grade_roster_row_id', $row->id)
+                ->latest('id')
+                ->lockForUpdate()
+                ->firstOrFail();
+            $controllingAmendment = IncDeadlineAmendment::query()
+                ->where('grade_outcome_event_id', $incomplete->id)
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            $currentDeadline = $this->deadlines->currentDeadline($incomplete);
+
+            if ($submission->controlling_result_event_id === null
+                || (int) $submission->controlling_result_event_id !== (int) $controllingResult->id
+                || (int) ($submission->controlling_deadline_amendment_id ?? 0) !== ($controllingAmendment instanceof IncDeadlineAmendment ? (int) $controllingAmendment->id : 0)
+                || $submission->controlling_deadline?->toDateString() !== $currentDeadline->toDateString()
+                || $this->deadlines->state($incomplete) !== IncDeadlineService::StateCompletionOpen) {
+                throw new RuntimeException('INC completion is stale because the result or deadline authority changed. Submit a new completion for review.');
+            }
+
             $code = $this->policy->normalize($submission->proposed_result);
             $sourceKey = "inc-completion:{$submission->id}";
             $event = GradeOutcomeEvent::query()->firstOrCreate(['source_key' => $sourceKey], [

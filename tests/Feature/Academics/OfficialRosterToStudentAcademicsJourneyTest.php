@@ -7,6 +7,7 @@ use App\Actions\Academics\AcademicEnrollmentEffect;
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Academics\RecordAcademicDecision;
 use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Academics\TermWeightedAverageProjection;
@@ -22,6 +23,10 @@ use App\Actions\Grades\SaveFinalGradeResult;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SubmitIncCompletion;
 use App\Actions\Grades\SynchronizeOfficialGradeRoster;
+use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\FacultyGradeRoster;
+use App\Filament\Pages\GradesAndCompletion;
+use App\Filament\Student\Pages\Academics as StudentAcademics;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
 use App\Models\CalendarEvent;
@@ -44,12 +49,16 @@ use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
@@ -66,7 +75,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
 
-        foreach (['student', User::StaffRoleRegistrar, User::StaffRoleFaculty] as $role) {
+        foreach (['student', User::StaffRoleRegistrar, User::StaffRoleFaculty, User::StaffRoleAcademicHead] as $role) {
             Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
     }
@@ -115,6 +124,9 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         app(PostAndReleaseGradeRoster::class)->execute($released, $fixture['registrar'], 'REG-G02-RELEASE-001');
         $this->assertSame(1, GradeOutcomeEvent::query()->where('grade_roster_row_id', $event->grade_roster_row_id)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeGradeSubmissionRequiredEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeGradeRosterReleasedEmail)->count());
+        $this->assertSame(2, OperationalEvent::query()->where('event_type', OperationalEvent::TypeIncReleasedEmail)->count());
     }
 
     #[Test]
@@ -130,6 +142,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         $this->assertNotNull($row->fresh()->returned_at);
         $this->assertSame(GradeRosterVersion::StateReturned, $submitted->versions()->sole()->state);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeGradeRosterReturnedEmail)->count());
         app(SaveFinalGradeResult::class)->execute($row, '2.25', null, $fixture['faculty']);
         $resubmitted = app(SubmitGradeRoster::class)->execute($submitted->fresh(), $fixture['faculty']);
         $this->assertSame(2, $resubmitted->current_version_number);
@@ -202,11 +215,13 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame('2.25', $corrected->current_outcome_code);
         $this->assertSame(3, $corrected->outcomeEvents()->count());
         $this->assertImpactReviewCount($nextCase, 3);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeIncResolvedEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeGradeCorrectionReleasedEmail)->count());
 
         Mail::fake();
         $overdueFixture = $this->fixture(termEndsOn: today()->subYears(2)->toDateString());
         $overdue = $this->releaseResult($overdueFixture, 'INC', 'Complete approved outstanding work.');
-        Mail::assertQueuedCount(1);
+        Mail::assertQueuedCount(4);
         $this->assertSame(IncDeadlineService::StateCompletionOverdue, app(IncDeadlineService::class)->state($overdue));
         app(AmendIncDeadline::class)->execute(
             $overdue, today()->addMonth(), 'INC-EXTENSION-001', today(),
@@ -214,7 +229,8 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         );
         $this->assertSame(IncDeadlineService::StateCompletionOpen, app(IncDeadlineService::class)->state($overdue));
         $this->assertSame('INC', $overdue->row->fresh()->current_outcome_code);
-        Mail::assertQueuedCount(1);
+        Mail::assertQueuedCount(6);
+        $this->assertSame(2, OperationalEvent::query()->where('event_type', OperationalEvent::TypeIncDeadlineAmendedEmail)->count());
     }
 
     #[Test]
@@ -239,16 +255,52 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
             'state' => 'ACTIVE',
         ]);
-        $first = app(RecordExternalCompetencyResult::class)->execute(
+        $action = app(RecordExternalCompetencyResult::class);
+        $first = $action->execute(
             $requirement, $fixture['student'], ExternalCompetencyResult::OutcomeNotYetCompetent,
-            'ASSESSOR-001', 'REG-G06-001', today(), $fixture['registrar'],
+            'PRIVATE-ASSESSOR-001', 'REG-G06-001', today(), $fixture['registrar'],
+            assessmentDate: today()->subDay(),
+            externalSource: 'TESDA-accredited assessment center',
+            credentialType: 'NC',
+            credentialReference: 'NC-2026-001',
+            credentialValidUntil: today()->addYears(5),
+            safeRemarks: 'Assessment evidence verified by the Registrar.',
+            commandKey: 'external-result-first',
         );
-        $second = app(RecordExternalCompetencyResult::class)->execute(
+        $retry = $action->execute(
+            $requirement, $fixture['student'], ExternalCompetencyResult::OutcomeNotYetCompetent,
+            'PRIVATE-ASSESSOR-001', 'REG-G06-001', today(), $fixture['registrar'],
+            assessmentDate: today()->subDay(),
+            externalSource: 'TESDA-accredited assessment center',
+            credentialType: 'NC',
+            credentialReference: 'NC-2026-001',
+            credentialValidUntil: today()->addYears(5),
+            safeRemarks: 'Assessment evidence verified by the Registrar.',
+            commandKey: 'external-result-first',
+        );
+        $this->assertSame($first->id, $retry->id);
+        $second = $action->execute(
             $requirement, $fixture['student'], ExternalCompetencyResult::OutcomeCompetent,
-            'ASSESSOR-002', 'REG-G06-002', today(), $fixture['registrar'],
+            'PRIVATE-ASSESSOR-002', 'REG-G06-002', today(), $fixture['registrar'],
+            expectedPredecessorId: $first->id,
+            commandKey: 'external-result-second',
         );
         $this->assertFalse($first->fresh()->is_current);
         $this->assertSame($first->id, $second->supersedes_result_id);
+        $this->assertSame('NC', $first->credential_type);
+        $this->assertSame('NC-2026-001', $first->credential_reference);
+
+        try {
+            $action->execute(
+                $requirement, $fixture['student'], ExternalCompetencyResult::OutcomeNotYetCompetent,
+                'PRIVATE-ASSESSOR-003', 'REG-G06-003', today(), $fixture['registrar'],
+                expectedPredecessorId: $first->id,
+                commandKey: 'external-result-stale',
+            );
+            $this->fail('A stale external competency predecessor must be rejected.');
+        } catch (RuntimeException) {
+            $this->assertSame($second->id, ExternalCompetencyResult::query()->where('is_current', true)->where('student_profile_id', $fixture['student']->id)->sole()->id);
+        }
         $this->assertSame('2.25', $ordinary->row->fresh()->current_outcome_code);
 
         $creditFixture = $this->fixture();
@@ -347,6 +399,60 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
     }
 
     #[Test]
+    public function all_owning_roles_receive_the_same_exact_term_examination_period_projection(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->user?->assignRole('student');
+        $academicHead = $this->staff(User::StaffRoleAcademicHead);
+        $package = TermCalendarPackage::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'version' => 3,
+            'state' => TermCalendarPackage::StateActive,
+            'authority_reference' => 'BOARD-CALENDAR-2026-03',
+            'authority_date' => today(),
+        ]);
+        TermCalendarWindow::factory()->create([
+            'term_calendar_package_id' => $package->id,
+            'window_type' => TermCalendarWindow::TypeExaminationPeriod,
+            'opens_on' => '2027-05-10',
+            'closes_on' => '2027-05-15',
+        ]);
+        app(ManageTeachingAssignment::class)->designate(
+            $fixture['section'], $fixture['faculty'], $fixture['registrar'], 'ASSIGN-EXAM-001',
+        );
+        app(SynchronizeOfficialGradeRoster::class)->execute($fixture['section'], $fixture['registrar']);
+
+        $projection = app(ExaminationPeriodProjection::class)->forTerm($fixture['term']);
+        $this->assertSame('Available', $projection['status']);
+        $this->assertSame('BOARD-CALENDAR-2026-03', $projection['authority_reference']);
+        $this->assertSame('2027-05-10', $projection['opens_on']->toDateString());
+        $this->assertSame('2027-05-15', $projection['closes_on']->toDateString());
+        $this->assertSame($projection['authority_reference'], app(ExaminationPeriodProjection::class)->latest()['authority_reference']);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        foreach ([
+            [$fixture['faculty'], FacultyGradeRoster::class],
+            [$fixture['registrar'], GradesAndCompletion::class],
+            [$academicHead, AcademicApprovals::class],
+        ] as [$actor, $page]) {
+            Livewire::actingAs($actor)->test($page)
+                ->assertSee('Examination Period')
+                ->assertSee('May 10, 2027')
+                ->assertSee('May 15, 2027')
+                ->assertSee('BOARD-CALENDAR-2026-03')
+                ->assertSee('Class-level examination arrangements are not inferred.');
+        }
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
+            ->assertSee('Examination Period')
+            ->assertSee('May 10, 2027')
+            ->assertSee('May 15, 2027')
+            ->assertSee('BOARD-CALENDAR-2026-03')
+            ->assertSee('Class-level examination arrangements are not inferred.');
+    }
+
+    #[Test]
     public function roster_and_unofficial_outputs_are_current_private_logged_and_formula_safe(): void
     {
         $fixture = $this->fixture();
@@ -365,13 +471,24 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
 
         $csv = $this->actingAs($fixture['faculty'])->get(route('grade-rosters.csv', $roster));
         $csv->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/attachment; filename=tala-class-roster-[a-z0-9-]+-\d{8}-\d{6}-PHT\.csv/',
+            (string) $csv->headers->get('content-disposition'),
+        );
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv->streamedContent());
+        $this->assertStringContainsString('Term,"Class Reference","Course Code","Course Title","Program or Cohort","Student Number","Legal Name","Official Enrollment State","As of (Asia/Manila)"', $csv->streamedContent());
+        $this->assertMatchesRegularExpression('/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} PHT/', $csv->streamedContent());
         $this->assertStringContainsString("'=HYPERLINK", $csv->streamedContent());
         $this->assertStringContainsString("\r\n", $csv->streamedContent());
 
         $unrelatedFaculty = $this->staff(User::StaffRoleFaculty);
+        $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $this->actingAs($unrelatedFaculty)->get(route('grade-rosters.print', $roster))->assertForbidden();
+        $this->actingAs($academicHead)->get(route('grade-rosters.print', $roster))->assertForbidden();
         $this->assertSame(2, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
+
+        $this->actingAs($fixture['registrar'])->get(route('grade-rosters.print', $roster))->assertOk();
+        $this->assertSame(3, OutputAccessLog::query()->where('source_record_type', GradeRoster::class)->where('source_record_id', $roster->id)->count());
 
         app(SaveFinalGradeResult::class)->execute($roster->rows->sole(), '2.00', null, $fixture['faculty']);
         app(PostAndReleaseGradeRoster::class)->execute(
@@ -390,6 +507,37 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->actingAs($otherStudent->user)
             ->get(route('student-academics.unofficial-record', $fixture['student']))
             ->assertForbidden();
+        $this->actingAs($fixture['registrar'])
+            ->get(route('student-academics.unofficial-record', $fixture['student']))
+            ->assertForbidden();
+        $this->actingAs($academicHead)
+            ->get(route('student-academics.unofficial-record', $fixture['student']))
+            ->assertForbidden();
+        $this->assertSame(1, OutputAccessLog::query()
+            ->where('output_type', 'Unofficial Student Record')
+            ->where('source_record_id', $fixture['student']->id)
+            ->where('status', 'generated')
+            ->count());
+    }
+
+    #[Test]
+    public function successful_academic_mail_records_transport_and_attempt_evidence(): void
+    {
+        $fixture = $this->fixture();
+        $fixture['student']->user?->assignRole('student');
+        $event = $this->releaseResult($fixture, '2.75');
+        $notification = OperationalEvent::query()
+            ->where('related_record_type', GradeOutcomeEvent::class)
+            ->where('related_record_id', $event->id)
+            ->where('event_type', OperationalEvent::TypeGradeRosterReleasedEmail)
+            ->sole()
+            ->fresh();
+
+        $this->assertSame(OperationalEvent::StatusProcessed, $notification->status);
+        $this->assertNotNull($notification->sent_at);
+        $this->assertNotEmpty(data_get($notification->payload, 'delivery.transport_message_id'));
+        $this->assertSame(OperationalEvent::StatusProcessed, data_get($notification->payload, 'delivery_attempts.0.status'));
+        $this->assertNotEmpty(data_get($notification->payload, 'delivery_attempts.0.attempt_id'));
     }
 
     #[Test]
@@ -411,12 +559,14 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
                 && ! str_contains($mail->changeLabel, '2.75')
                 && ! str_contains($mail->changeLabel, 'grade value');
         });
+        $this->assertCount(2, $notification->fresh()->payload['delivery_attempts']);
 
         $fixture['student']->user?->update(['email' => 'invalid-recipient']);
         $notification->refresh()->update(['status' => OperationalEvent::StatusFailed]);
         app(AcademicRecordNotificationService::class)->resend($notification->fresh(), $fixture['student']->user->fresh());
 
         $this->assertSame(OperationalEvent::StatusFailed, $notification->fresh()->status);
+        $this->assertSame(OperationalEvent::StatusFailed, data_get($notification->fresh()->payload, 'delivery_attempts.2.status'));
         $this->assertSame('2.75', $event->row->fresh()->current_outcome_code);
         $this->assertSame(GradeRoster::StateReleased, $event->row->roster->fresh()->state);
     }

@@ -9,6 +9,7 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Throwable;
 
 class CompletionNotificationService
@@ -38,7 +39,7 @@ class CompletionNotificationService
                 'occurred_at' => now(),
                 'related_record_type' => GraduationApplication::class,
                 'related_record_id' => $application->id,
-                'payload' => ['change_label' => $changeLabel],
+                'payload' => ['change_label' => $changeLabel, 'action_path' => '/student/academics', 'delivery_attempts' => []],
             ],
         );
 
@@ -53,20 +54,37 @@ class CompletionNotificationService
     {
         $event = OperationalEvent::query()->findOrFail($eventId);
         $recipient = User::query()->findOrFail($event->user_id);
+        $attemptId = (string) Str::uuid();
+        $payload = is_array($event->payload) ? $event->payload : [];
+        $payload['delivery_attempts'] = [...($payload['delivery_attempts'] ?? []), [
+            'attempt_id' => $attemptId,
+            'status' => OperationalEvent::StatusPending,
+            'queued_at' => now()->toIso8601String(),
+        ]];
+        $event->update(['payload' => $payload]);
 
         try {
             Mail::to($recipient)->queue(new AcademicRecordChangedMail(
                 operationalEventId: $event->id,
+                operationalEventType: $event->event_type,
+                deliveryAttemptId: $attemptId,
                 recipientName: $recipient->getFilamentName(),
                 changeLabel: (string) data_get($event->payload, 'change_label', 'A completion action'),
                 actionUrl: url('/student/academics'),
             ));
         } catch (Throwable $exception) {
+            $payload = is_array($event->fresh()->payload) ? $event->fresh()->payload : [];
+            $payload['delivery_attempts'] = collect($payload['delivery_attempts'] ?? [])->map(function (array $attempt) use ($attemptId): array {
+                return ($attempt['attempt_id'] ?? null) === $attemptId
+                    ? [...$attempt, 'status' => OperationalEvent::StatusFailed, 'failed_at' => now()->toIso8601String()]
+                    : $attempt;
+            })->all();
             $event->update([
                 'status' => OperationalEvent::StatusFailed,
                 'processed_at' => now(),
                 'failed_at' => now(),
                 'diagnostics' => ['reason' => 'Mail could not be queued.', 'exception_type' => class_basename($exception)],
+                'payload' => $payload,
             ]);
         }
     }

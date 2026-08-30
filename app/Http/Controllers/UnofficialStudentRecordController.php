@@ -27,8 +27,7 @@ class UnofficialStudentRecordController extends Controller
         $user = auth()->user();
         abort_unless($user instanceof User, 403);
         abort_unless(
-            $user->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleAcademicHead])
-            || ($user->hasRole('student') && (int) $user->studentProfile?->id === (int) $student->id),
+            $user->hasRole('student') && (int) $user->studentProfile?->id === (int) $student->id,
             403,
         );
 
@@ -39,6 +38,16 @@ class UnofficialStudentRecordController extends Controller
             $term->id => $this->termAverages->forStudentAndTerm($student, $term),
         ]);
         $asOf = now('Asia/Manila');
+        $html = view('outputs.unofficial-student-record', [
+            'student' => $student,
+            'results' => $results,
+            'terms' => $terms,
+            'termAverages' => $termAverages,
+            'cumulative' => $this->cumulativeGwa->forStudent($student),
+            'curriculum' => $this->curriculumEvaluation->forStudent($student),
+            'academicEffect' => $this->academicEnrollmentEffect->forStudent($student),
+            'asOf' => $asOf,
+        ])->render();
 
         OutputAccessLog::query()->create([
             'output_type' => 'Unofficial Student Record',
@@ -56,15 +65,6 @@ class UnofficialStudentRecordController extends Controller
             'occurred_at' => $asOf,
         ]);
 
-        return response()->view('outputs.unofficial-student-record', [
-            'student' => $student,
-            'results' => $results,
-            'terms' => $terms,
-            'termAverages' => $termAverages,
-            'cumulative' => $this->cumulativeGwa->forStudent($student),
-            'curriculum' => $this->curriculumEvaluation->forStudent($student),
-            'academicEffect' => $this->academicEnrollmentEffect->forStudent($student),
-            'asOf' => $asOf,
-        ]);
+        return response($html);
     }
 }

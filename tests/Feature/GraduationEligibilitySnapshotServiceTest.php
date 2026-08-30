@@ -91,7 +91,7 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
         $withdrawn = $this->entry($profile, 'DROP-105', 5);
         $current = $this->entry($profile, 'CUR-106', 6);
         $this->releasedGrade($profile, $failed, '5.00', GradeRosterRow::CategoryFailed);
-        $this->releasedGrade($profile, $pending, 'P', GradeRosterRow::CategoryPending);
+        $this->releasedGrade($profile, $pending, null, null, released: false);
         $this->releasedGrade($profile, $inc, 'INC', GradeRosterRow::CategoryIncomplete);
         $this->releasedGrade($profile, $withdrawn, 'W', GradeRosterRow::CategoryWithdrawn);
         $this->currentEnrollment($profile, $current);
@@ -220,7 +220,7 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
         ])->load('courseSpecification.course');
     }
 
-    private function releasedGrade(StudentProfile $profile, CurriculumEntry $entry, string $code, string $category): GradeRosterRow
+    private function releasedGrade(StudentProfile $profile, CurriculumEntry $entry, ?string $code, ?string $category, bool $released = true): GradeRosterRow
     {
         $courseEnrollment = $this->currentEnrollment($profile, $entry);
         $section = Section::factory()->create(['term_offering_id' => $courseEnrollment->term_offering_id]);
@@ -228,8 +228,8 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
             'term_offering_id' => $courseEnrollment->term_offering_id,
             'section_id' => $section->id,
             'faculty_user_id' => User::factory()->create(['status' => User::StatusActive])->id,
-            'state' => GradeRoster::StateReleased,
-            'released_at' => now(),
+            'state' => $released ? GradeRoster::StateReleased : GradeRoster::StateSubmitted,
+            'released_at' => $released ? now() : null,
         ]);
 
         return GradeRosterRow::factory()->create([
@@ -237,7 +237,7 @@ final class GraduationEligibilitySnapshotServiceTest extends TestCase
             'course_enrollment_id' => $courseEnrollment->id,
             'current_outcome_code' => $code,
             'current_outcome_category' => $category,
-            'released_at' => now(),
+            'released_at' => $released ? now() : null,
         ]);
     }
 

@@ -144,7 +144,7 @@ final class AcademicProgressionServiceTest extends TestCase
         $incomplete = $this->entry($profile, 'INCOMPLETE', 3);
         $withdrawn = $this->entry($profile, 'WITHDRAWN', 4);
         $this->grade($profile, $failed, '5.00', GradeRosterRow::CategoryFailed);
-        $this->grade($profile, $pending, 'P', GradeRosterRow::CategoryPending);
+        $this->grade($profile, $pending, null, null, released: false);
         $this->grade($profile, $incomplete, 'INC', GradeRosterRow::CategoryIncomplete);
         $this->grade($profile, $withdrawn, 'W', GradeRosterRow::CategoryWithdrawn);
 
@@ -277,7 +277,7 @@ final class AcademicProgressionServiceTest extends TestCase
         ]);
     }
 
-    private function grade(StudentProfile $profile, CurriculumEntry $entry, string $code, string $category): GradeRosterRow
+    private function grade(StudentProfile $profile, CurriculumEntry $entry, ?string $code, ?string $category, bool $released = true): GradeRosterRow
     {
         $term = Term::factory()->create();
         $offering = TermOffering::factory()->create(['term_id' => $term->id, 'curriculum_entry_id' => $entry->id]);
@@ -285,14 +285,20 @@ final class AcademicProgressionServiceTest extends TestCase
         $enrollment = Enrollment::factory()->create(['student_profile_id' => $profile->id, 'term_id' => $term->id]);
         $courseEnrollment = CourseEnrollment::query()->create(['enrollment_id' => $enrollment->id, 'term_offering_id' => $offering->id, 'status' => CourseEnrollment::StatusActive]);
         $faculty = User::factory()->create(['status' => User::StatusActive]);
-        $roster = GradeRoster::factory()->create(['term_offering_id' => $offering->id, 'section_id' => $section->id, 'faculty_user_id' => $faculty->id, 'state' => GradeRoster::StateReleased, 'released_at' => now()]);
+        $roster = GradeRoster::factory()->create([
+            'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'state' => $released ? GradeRoster::StateReleased : GradeRoster::StateSubmitted,
+            'released_at' => $released ? now() : null,
+        ]);
 
         return GradeRosterRow::factory()->create([
             'grade_roster_id' => $roster->id,
             'course_enrollment_id' => $courseEnrollment->id,
             'current_outcome_code' => $code,
             'current_outcome_category' => $category,
-            'released_at' => now(),
+            'released_at' => $released ? now() : null,
         ]);
     }
 }

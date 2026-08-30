@@ -2,6 +2,7 @@
 
 namespace App\Actions\Grades;
 
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\GradeOutcomeEvent;
 use App\Models\IncDeadlineAmendment;
 use App\Models\User;
@@ -12,7 +13,10 @@ use RuntimeException;
 
 class AmendIncDeadline
 {
-    public function __construct(private readonly IncDeadlineService $deadlines) {}
+    public function __construct(
+        private readonly IncDeadlineService $deadlines,
+        private readonly AcademicRecordNotificationService $notifications,
+    ) {}
 
     public function execute(
         GradeOutcomeEvent $incomplete,
@@ -43,7 +47,7 @@ class AmendIncDeadline
                 throw new RuntimeException('The amended deadline must change the current deadline.');
             }
 
-            return IncDeadlineAmendment::query()->create([
+            $amendment = IncDeadlineAmendment::query()->create([
                 'grade_outcome_event_id' => $incomplete->id,
                 'previous_deadline' => $current,
                 'new_deadline' => $newDeadline,
@@ -53,6 +57,10 @@ class AmendIncDeadline
                 'recorded_by' => $registrar->id,
                 'recorded_at' => now(),
             ]);
+
+            $this->notifications->recordIncDeadlineAmendedAfterCommit($amendment);
+
+            return $amendment;
         }, attempts: 3);
     }
 }

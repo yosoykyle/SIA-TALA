@@ -20,6 +20,7 @@ use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
+use App\Models\OperationalEvent;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\ScheduleGenerationRun;
@@ -63,12 +64,11 @@ final class StudentLifecycleChangeTest extends TestCase
         $fixture = $this->enrollmentFixture(2);
         $this->window($fixture['term'], 'subject_drop');
         $target = $fixture['courses'][0];
-        $row = $this->gradeRow($target, $fixture, 'P', GradeRosterRow::CategoryPending, released: false);
+        $row = $this->gradeRow($target, $fixture, null, GradeRosterRow::CategoryPending, released: false);
         $meetingCount = SectionMeeting::query()->count();
         $registrar = $this->registrar();
         $data = $this->baseData($fixture, StudentLifecycleChange::TypeSubjectDrop) + [
             'course_enrollment_id' => $target->id,
-            'finance_adjustment' => -500,
         ];
 
         $change = app(StudentLifecycleService::class)->record($data, $registrar);
@@ -81,7 +81,18 @@ final class StudentLifecycleChangeTest extends TestCase
         $this->assertSame('DRP', $row->fresh()->current_outcome_code);
         $this->assertDatabaseHas('grade_outcome_events', ['grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypeLifecycleOutcome]);
         $this->assertSame($meetingCount, SectionMeeting::query()->count());
-        $this->assertSame(1, LedgerEntry::query()->where('source_type', StudentLifecycleChange::class)->where('source_id', $change->id)->count());
+        $this->assertSame(0, LedgerEntry::query()->where('source_type', StudentLifecycleChange::class)->where('source_id', $change->id)->count());
+        $this->assertDatabaseHas('operational_events', [
+            'event_type' => OperationalEvent::TypeLifecycleAccountingReview,
+            'related_record_type' => StudentLifecycleChange::class,
+            'related_record_id' => $change->id,
+            'status' => OperationalEvent::StatusReviewRequired,
+        ]);
+        $this->assertDatabaseHas('operational_events', [
+            'event_type' => OperationalEvent::TypeAcademicProgressLifecycleEmail,
+            'related_record_type' => StudentLifecycleChange::class,
+            'related_record_id' => $change->id,
+        ]);
         $this->assertSame('officially_enrolled', $fixture['enrollment']->fresh()->status);
 
         $this->expectException(RuntimeException::class);
@@ -559,13 +570,17 @@ final class StudentLifecycleChangeTest extends TestCase
 
         $change = app(StudentLifecycleService::class)->record($this->baseData($fixture, StudentLifecycleChange::TypeSubjectDrop) + [
             'course_enrollment_id' => $fixture['courses'][0]->id,
-            'finance_adjustment' => -50,
         ], $this->registrar());
 
-        $this->assertSame(1, $assessment->lines()->count());
-        $this->assertSame('50.00', $assessment->fresh()->subtotal);
-        $this->assertSame('50.00', $assessment->fresh()->total);
+        $this->assertSame(2, $assessment->lines()->count());
+        $this->assertSame('100.00', $assessment->fresh()->subtotal);
+        $this->assertSame('100.00', $assessment->fresh()->total);
         $this->assertSame(0, LedgerEntry::query()->where('source_type', StudentLifecycleChange::class)->where('source_id', $change->id)->count());
+        $this->assertDatabaseHas('operational_events', [
+            'event_type' => OperationalEvent::TypeLifecycleAccountingReview,
+            'related_record_id' => $change->id,
+            'status' => OperationalEvent::StatusReviewRequired,
+        ]);
     }
 
     /** @return array{profile:StudentProfile,term:Term,enrollment:Enrollment,courses:list<CourseEnrollment>} */
@@ -636,7 +651,7 @@ final class StudentLifecycleChangeTest extends TestCase
         return compact('profile', 'term', 'enrollment', 'courses');
     }
 
-    private function gradeRow(CourseEnrollment $course, array $fixture, string $code, string $category, bool $released): GradeRosterRow
+    private function gradeRow(CourseEnrollment $course, array $fixture, ?string $code, string $category, bool $released): GradeRosterRow
     {
         $section = Section::query()->where('term_offering_id', $course->term_offering_id)->firstOrFail();
         $roster = GradeRoster::factory()->create([

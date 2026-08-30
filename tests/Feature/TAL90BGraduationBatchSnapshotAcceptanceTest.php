@@ -171,7 +171,7 @@ final class TAL90BGraduationBatchSnapshotAcceptanceTest extends TestCase
         $profile = $member->studentProfile;
 
         $entry = $this->entry($profile, 'RES-101', 1);
-        $pendingRow = $this->releasedGrade($profile, $entry, 'P', GradeRosterRow::CategoryPending);
+        $pendingRow = $this->releasedGrade($profile, $entry, null, null, released: false);
 
         $first = app(GraduationEligibilitySnapshotService::class)->generate($member, $registrar);
         $this->assertSame(1, $first->version);
@@ -184,6 +184,7 @@ final class TAL90BGraduationBatchSnapshotAcceptanceTest extends TestCase
         $pendingRow->update([
             'current_outcome_code' => '2.00',
             'current_outcome_category' => GradeRosterRow::CategoryPassing,
+            'released_at' => now(),
         ]);
 
         $second = app(GraduationEligibilitySnapshotService::class)->generate($member->fresh(), $registrar);
@@ -266,7 +267,7 @@ final class TAL90BGraduationBatchSnapshotAcceptanceTest extends TestCase
         ])->load('courseSpecification.course');
     }
 
-    private function releasedGrade(StudentProfile $profile, CurriculumEntry $entry, string $code, string $category): GradeRosterRow
+    private function releasedGrade(StudentProfile $profile, CurriculumEntry $entry, ?string $code, ?string $category, bool $released = true): GradeRosterRow
     {
         $courseEnrollment = $this->currentEnrollment($profile, $entry, finalized: true);
         $section = Section::factory()->create(['term_offering_id' => $courseEnrollment->term_offering_id]);
@@ -274,8 +275,8 @@ final class TAL90BGraduationBatchSnapshotAcceptanceTest extends TestCase
             'term_offering_id' => $courseEnrollment->term_offering_id,
             'section_id' => $section->id,
             'faculty_user_id' => User::factory()->create(['status' => User::StatusActive])->id,
-            'state' => GradeRoster::StateReleased,
-            'released_at' => now(),
+            'state' => $released ? GradeRoster::StateReleased : GradeRoster::StateSubmitted,
+            'released_at' => $released ? now() : null,
         ]);
 
         return GradeRosterRow::factory()->create([
@@ -283,7 +284,7 @@ final class TAL90BGraduationBatchSnapshotAcceptanceTest extends TestCase
             'course_enrollment_id' => $courseEnrollment->id,
             'current_outcome_code' => $code,
             'current_outcome_category' => $category,
-            'released_at' => now(),
+            'released_at' => $released ? now() : null,
         ]);
     }
 

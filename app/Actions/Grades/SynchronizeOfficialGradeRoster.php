@@ -2,6 +2,7 @@
 
 namespace App\Actions\Grades;
 
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
 use App\Models\GradeRoster;
@@ -14,6 +15,8 @@ use RuntimeException;
 
 class SynchronizeOfficialGradeRoster
 {
+    public function __construct(private readonly AcademicRecordNotificationService $notifications) {}
+
     public function execute(Section $section, ?User $actor = null): GradeRoster
     {
         return DB::transaction(function () use ($section, $actor): GradeRoster {
@@ -85,6 +88,8 @@ class SynchronizeOfficialGradeRoster
                     : $roster->invalidation_reason,
                 'lock_version' => $changed ? $roster->lock_version + 1 : $roster->lock_version,
             ]);
+
+            $this->notifications->recordSubmissionRequiredAfterCommit($roster->fresh('teachingAssignment'));
 
             return $roster->fresh(['rows.courseEnrollment', 'teachingAssignment']);
         }, attempts: 3);

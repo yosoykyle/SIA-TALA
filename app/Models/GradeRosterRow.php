@@ -39,10 +39,6 @@ class GradeRosterRow extends Model
         'inc_completion_note',
         'is_current_membership',
         'row_revision',
-        'prelim_equivalent',
-        'midterm_equivalent',
-        'final_equivalent',
-        'computed_average',
         'current_outcome_code',
         'current_outcome_category',
         'released_at',
@@ -57,10 +53,6 @@ class GradeRosterRow extends Model
     protected function casts(): array
     {
         return [
-            'prelim_equivalent' => 'decimal:4',
-            'midterm_equivalent' => 'decimal:4',
-            'final_equivalent' => 'decimal:4',
-            'computed_average' => 'decimal:4',
             'is_current_membership' => 'boolean',
             'row_revision' => 'integer',
             'released_at' => 'datetime',

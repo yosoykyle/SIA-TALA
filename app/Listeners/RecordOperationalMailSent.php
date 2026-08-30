@@ -29,6 +29,7 @@ class RecordOperationalMailSent
                 OperationalEvent::TypeAdmissionReadyForEnrollment,
                 OperationalEvent::TypeAdmissionApplicationWithdrawn,
                 ...OperationalEvent::registrationNotificationTypes(),
+                ...OperationalEvent::academicNotificationTypes(),
             ], true)) {
             return;
         }
@@ -50,6 +51,14 @@ class RecordOperationalMailSent
             'transport_message_id' => $event->sent->getMessageId(),
             'accepted_at' => $timestamp->toIso8601String(),
         ];
+        $attemptId = $event->data['deliveryAttemptId'] ?? null;
+        $payload['delivery_attempts'] = collect($payload['delivery_attempts'] ?? [])->map(function (array $attempt) use ($attemptId, $timestamp, $event): array {
+            if (($attempt['attempt_id'] ?? null) !== $attemptId) {
+                return $attempt;
+            }
+
+            return [...$attempt, 'status' => OperationalEvent::StatusProcessed, 'accepted_at' => $timestamp->toIso8601String(), 'transport_message_id' => $event->sent->getMessageId()];
+        })->all();
 
         $deliveryEvent->forceFill([
             'status' => OperationalEvent::StatusProcessed,

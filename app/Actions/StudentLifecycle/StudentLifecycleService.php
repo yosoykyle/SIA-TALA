@@ -4,7 +4,6 @@ namespace App\Actions\StudentLifecycle;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
-use App\Models\Assessment;
 use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
@@ -64,7 +63,6 @@ class StudentLifecycleService
             ])
             ->values()
             ->all();
-        $financeAdjustment = (float) ($data['finance_adjustment'] ?? 0);
 
         return [
             'student_profile_id' => (int) $student->id,
@@ -91,8 +89,7 @@ class StudentLifecycleService
             'curriculum_version_after' => ['id' => $targetCurriculum->id, 'name' => $targetCurriculum->name],
             'active_holds' => $activeHolds,
             'active_hold_count' => count($activeHolds),
-            'finance_adjustment' => $financeAdjustment,
-            'finance_effect' => $this->financeEffect($enrollment, $financeAdjustment),
+            'finance_effect' => $this->financeEffect($enrollment, $type),
             'cor_available_after' => $this->corAvailableAfter($type, $data),
         ];
     }
@@ -152,7 +149,7 @@ class StudentLifecycleService
                 $this->recordShiftCredits($change, $data['credit_entries'] ?? []);
             } else {
                 $this->applyImmediateEffects($change, $student, $enrollment, $actor);
-                $this->finance->execute($change, (float) ($data['finance_adjustment'] ?? 0), $actor);
+                $this->finance->execute($change, $actor);
             }
 
             $this->recordAudit($change, $actor, 'student_lifecycle_change_recorded');
@@ -404,7 +401,7 @@ class StudentLifecycleService
     private function assertNoFinalReleasedOutcome(CourseEnrollment $course): void
     {
         $row = GradeRosterRow::query()->where('course_enrollment_id', $course->id)->lockForUpdate()->first();
-        if ($row instanceof GradeRosterRow && $row->released_at !== null && ! in_array($row->current_outcome_code, [null, 'P', 'INC'], true)) {
+        if ($row instanceof GradeRosterRow && $row->released_at !== null && ! in_array($row->current_outcome_code, [null, 'INC'], true)) {
             throw new StudentLifecycleRuleViolation('Subject Drop is unavailable after a final released Grade Outcome.');
         }
     }
@@ -437,30 +434,18 @@ class StudentLifecycleService
     }
 
     /** @return array{mode: string, message: string} */
-    private function financeEffect(?Enrollment $enrollment, float $financeAdjustment): array
+    private function financeEffect(?Enrollment $enrollment, string $type): array
     {
-        if (! $enrollment instanceof Enrollment || $financeAdjustment === 0.0) {
+        if (! $enrollment instanceof Enrollment || $type === StudentLifecycleChange::TypeProgramShift) {
             return [
                 'mode' => 'none',
-                'message' => 'No automatic assessment or ledger adjustment will be recorded.',
-            ];
-        }
-
-        $hasDraftAssessment = Assessment::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('state', Assessment::StateDraft)
-            ->exists();
-
-        if ($hasDraftAssessment) {
-            return [
-                'mode' => 'draft_assessment_recalculation',
-                'message' => 'The draft assessment will be recalculated from the remaining active subjects; no ledger adjustment entry will be created.',
+                'message' => 'No enrollment-linked Accounting review is required.',
             ];
         }
 
         return [
-            'mode' => 'ledger_adjustment',
-            'message' => 'A posted lifecycle-adjustment ledger entry will be recorded for PHP '.number_format($financeAdjustment, 2).'.',
+            'mode' => 'accounting_review_required',
+            'message' => 'Accounting review will be opened. No amount, refund, credit, penalty, forfeiture, balance change, or hold is inferred.',
         ];
     }
 

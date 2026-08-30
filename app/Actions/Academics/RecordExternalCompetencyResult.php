@@ -21,6 +21,14 @@ class RecordExternalCompetencyResult
         string $authorityReference,
         Carbon $authorityDate,
         User $registrar,
+        ?Carbon $assessmentDate = null,
+        ?string $externalSource = null,
+        ?string $credentialType = null,
+        ?string $credentialReference = null,
+        ?Carbon $credentialValidUntil = null,
+        ?string $safeRemarks = null,
+        ?int $expectedPredecessorId = null,
+        ?string $commandKey = null,
     ): ExternalCompetencyResult {
         if (! $registrar->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can record external competency evidence.');
@@ -30,11 +38,58 @@ class RecordExternalCompetencyResult
             throw new RuntimeException('External competency outcome must be Not Yet Competent or Competent.');
         }
 
-        if ($requirement->state !== 'ACTIVE' || blank(trim($evidenceReference)) || blank(trim($authorityReference))) {
-            throw new RuntimeException('Active requirement, evidence, and authority are required.');
+        $assessmentDate ??= $authorityDate;
+        $externalSource = trim($externalSource ?? $authorityReference);
+        $credentialType = filled($credentialType) ? strtoupper(trim((string) $credentialType)) : null;
+        $credentialReference = filled($credentialReference) ? trim((string) $credentialReference) : null;
+        $safeRemarks = filled($safeRemarks) ? trim((string) $safeRemarks) : null;
+
+        if (blank(trim($evidenceReference)) || blank(trim($authorityReference)) || $externalSource === '') {
+            throw new RuntimeException('Evidence, external source, and authority are required.');
         }
 
-        return DB::transaction(function () use ($requirement, $student, $outcome, $evidenceReference, $authorityReference, $authorityDate, $registrar): ExternalCompetencyResult {
+        if ($credentialType !== null && ! in_array($credentialType, ['NC', 'COC'], true)) {
+            throw new RuntimeException('Credential type must be NC or COC.');
+        }
+
+        if (($credentialType === null) !== ($credentialReference === null)) {
+            throw new RuntimeException('Credential type and reference must be recorded together.');
+        }
+
+        $sourceKey = hash('sha256', $commandKey ?? implode('|', [
+            $requirement->id,
+            $student->id,
+            $outcome,
+            trim($evidenceReference),
+            trim($authorityReference),
+            $authorityDate->toDateString(),
+            $assessmentDate->toDateString(),
+            $externalSource,
+            $credentialType,
+            $credentialReference,
+            $credentialValidUntil?->toDateString(),
+            $safeRemarks,
+        ]));
+
+        return DB::transaction(function () use ($requirement, $student, $outcome, $evidenceReference, $authorityReference, $authorityDate, $registrar, $assessmentDate, $externalSource, $credentialType, $credentialReference, $credentialValidUntil, $safeRemarks, $expectedPredecessorId, $sourceKey): ExternalCompetencyResult {
+            $student = StudentProfile::query()->lockForUpdate()->findOrFail($student->id);
+            $requirement = ExternalCompetencyRequirement::query()
+                ->with('curriculumVersion')
+                ->lockForUpdate()
+                ->findOrFail($requirement->id);
+
+            $existing = ExternalCompetencyResult::query()->where('source_key', $sourceKey)->first();
+
+            if ($existing instanceof ExternalCompetencyResult) {
+                return $existing;
+            }
+
+            if ($requirement->state !== 'ACTIVE'
+                || $requirement->curriculumVersion?->state !== 'ACTIVE'
+                || (int) $requirement->curriculum_version_id !== (int) $student->curriculum_version_id) {
+                throw new RuntimeException('The external competency requirement is not active for the Student current curriculum.');
+            }
+
             $current = ExternalCompetencyResult::query()
                 ->where('external_competency_requirement_id', $requirement->id)
                 ->where('student_profile_id', $student->id)
@@ -42,10 +97,23 @@ class RecordExternalCompetencyResult
                 ->lockForUpdate()
                 ->first();
 
+            $currentId = $current instanceof ExternalCompetencyResult ? (int) $current->id : 0;
+
+            if ($expectedPredecessorId !== null && $currentId !== $expectedPredecessorId) {
+                throw new RuntimeException('External competency evidence changed while this action was open. Review the current result and try again.');
+            }
+
             $result = ExternalCompetencyResult::query()->create([
                 'external_competency_requirement_id' => $requirement->id,
                 'student_profile_id' => $student->id,
                 'outcome' => $outcome,
+                'assessment_date' => $assessmentDate,
+                'external_source' => $externalSource,
+                'credential_type' => $credentialType,
+                'credential_reference' => $credentialReference,
+                'credential_valid_until' => $credentialValidUntil,
+                'safe_remarks' => $safeRemarks,
+                'source_key' => $sourceKey,
                 'evidence_reference' => trim($evidenceReference),
                 'authority_reference' => trim($authorityReference),
                 'authority_date' => $authorityDate,

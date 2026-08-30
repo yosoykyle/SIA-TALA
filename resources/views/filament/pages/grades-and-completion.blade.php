@@ -8,7 +8,23 @@
             </x-slot>
         </x-filament::section>
 
-        @foreach ($this->workAreas() as $area)
+        <x-examination-period-summary :projection="$this->examinationPeriod()" />
+
+        <x-filament::tabs aria-label="Grades and Completion sections">
+            @foreach ($this->tabs() as $key => $label)
+                <x-filament::tabs.item
+                    :active="$this->viewTab === $key"
+                    :aria-current="$this->viewTab === $key ? 'page' : null"
+                    type="button"
+                    wire:click="showTab('{{ $key }}')"
+                >
+                    {{ $label }}
+                </x-filament::tabs.item>
+            @endforeach
+        </x-filament::tabs>
+
+        @php($area = $this->activeWorkArea())
+        <section aria-live="polite">
             <x-filament::section :icon="$area['icon']">
                 <x-slot name="heading">{{ $area['title'] }}</x-slot>
                 <x-slot name="description">{{ $area['description'] }}</x-slot>
@@ -24,6 +40,6 @@
                     </x-filament::button>
                 </div>
             </x-filament::section>
-        @endforeach
+        </section>
     </div>
 </x-filament-panels::page>

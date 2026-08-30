@@ -2,6 +2,7 @@
 
 namespace App\Actions\Grades;
 
+use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterReturnedRow;
 use App\Models\GradeRosterVersion;
@@ -12,6 +13,8 @@ use RuntimeException;
 
 class ReturnGradeRoster
 {
+    public function __construct(private readonly AcademicRecordNotificationService $notifications) {}
+
     /** @param list<int> $rowIds */
     public function execute(GradeRoster $roster, User $actor, string $reason, array $rowIds = []): GradeRoster
     {
@@ -21,8 +24,8 @@ class ReturnGradeRoster
 
         $reason = trim($reason);
 
-        if ($reason === '') {
-            throw new RuntimeException('A consolidated return explanation is required.');
+        if (mb_strlen($reason) < 10 || mb_strlen($reason) > 1000) {
+            throw new RuntimeException('A consolidated return explanation between 10 and 1000 characters is required.');
         }
 
         return DB::transaction(function () use ($roster, $actor, $reason, $rowIds): GradeRoster {
@@ -63,6 +66,7 @@ class ReturnGradeRoster
                 'reviewed_at' => now(),
                 'return_reason' => $reason,
             ]);
+            $this->notifications->recordRosterReturnedAfterCommit($locked->fresh('teachingAssignment'));
 
             return $locked->fresh(['rows', 'versions.returnedRows']);
         }, attempts: 3);

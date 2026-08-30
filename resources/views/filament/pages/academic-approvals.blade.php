@@ -8,6 +8,8 @@
             </x-slot>
         </x-filament::section>
 
+        <x-examination-period-summary :projection="$this->examinationPeriod()" />
+
         @forelse ($this->approvalAreas() as $area)
             <x-filament::section :icon="$area['icon']">
                 <x-slot name="heading">{{ $area['title'] }}</x-slot>

@@ -12,7 +12,7 @@ use RuntimeException;
 
 class GenerateGradeRoster
 {
-    public function __construct(private readonly GradePolicyService $policy) {}
+    public function __construct(private readonly FinalResultPolicy $policy) {}
 
     public function execute(TermOffering $termOffering, Section $section, User $faculty): GradeRoster
     {
@@ -33,7 +33,7 @@ class GenerateGradeRoster
                     'section_id' => $section->id,
                     'faculty_user_id' => $faculty->id,
                     'state' => GradeRoster::StateDraft,
-                    'grading_profile_snapshot' => $this->policy->snapshot($termOffering->courseSpecification()->grading_profile_key ?? 'servitech_v1'),
+                    'grading_profile_snapshot' => $this->policy->snapshot(),
                 ]);
             } elseif (! $roster->isReleased()) {
                 $roster->update([

@@ -56,10 +56,11 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         $this->actingAs($faculty);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $facultyPage = Livewire::test(FacultyGradeRoster::class)->instance();
-        $this->assertInstanceOf(FacultyGradeRoster::class, $facultyPage);
-        $facultyTable = $facultyPage->getTable();
-        $this->assertTrue($facultyTable->isStackedOnMobile());
+        Livewire::test(FacultyGradeRoster::class)->assertSee('No assigned roster');
+        $facultySource = file_get_contents((new \ReflectionClass(FacultyGradeRoster::class))->getFileName());
+        $this->assertStringContainsString("Repeater::make('rows')", $facultySource);
+        $this->assertStringContainsString('->table([', $facultySource);
+        $this->assertStringContainsString('SaveGradeRosterDraft', $facultySource);
 
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $this->actingAs($registrar);
@@ -206,7 +207,7 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
             ->whereIn('grade_roster_id', $seededRosterIds)
             ->whereNotNull('released_at')
             ->sole();
-        $this->assertSame('89.8000', $releasedRow->computed_average);
+        $this->assertSame('1.75', $releasedRow->final_result);
         $this->assertSame('1.75', $releasedRow->current_outcome_code);
         $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'LIFECYCLE-WITHDRAWAL-001')->count());
         $this->assertSame(1, StudentLifecycleChange::query()->where('private_source_reference', 'LIFECYCLE-PROGRAM-SHIFT-001')->count());

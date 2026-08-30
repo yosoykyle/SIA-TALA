@@ -14,6 +14,7 @@ use App\Models\IncCompletionSubmission;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -23,6 +24,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class RowsRelationManager extends RelationManager
 {
@@ -107,6 +109,7 @@ class RowsRelationManager extends RelationManager
                     ->label('Record authorized correction')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $record->released_at !== null)
                     ->schema([
+                        Hidden::make('command_key')->default(fn (): string => (string) Str::uuid()),
                         Select::make('corrected_code')->label('Corrected final result')->options(fn (): array => app(FinalResultPolicy::class)->options())->required(),
                         TextInput::make('authority')->label('Approving authority')->required()->maxLength(255),
                         Textarea::make('reason')->required()->maxLength(2000),
@@ -123,6 +126,7 @@ class RowsRelationManager extends RelationManager
                                 (string) $data['reason'],
                                 filled($data['evidence_reference'] ?? null) ? (string) $data['evidence_reference'] : null,
                                 $actor,
+                                (string) $data['command_key'],
                             );
                             Notification::make()->title('Authorized correction recorded')->success()->send();
                         }

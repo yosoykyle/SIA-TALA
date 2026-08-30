@@ -163,7 +163,6 @@ final class SchemaConformanceTest extends TestCase
             ['accounting_adjustments', 'amount', 12, 2],
             ['course_specifications', 'credit_units', 5, 2],
             ['course_components', 'weekly_contact_hours', 5, 2],
-            ['grade_roster_rows', 'computed_average', 7, 4],
         ] as [$table, $column, $precision, $scale]) {
             $definition = DB::selectOne('SELECT numeric_precision, numeric_scale FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', [$table, $column]);
             $this->assertNotNull($definition, "$table.$column is missing");
@@ -172,9 +171,10 @@ final class SchemaConformanceTest extends TestCase
         }
 
         $checks = collect(DB::select("SELECT constraint_name FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND constraint_type = 'CHECK'"))->pluck('CONSTRAINT_NAME');
-        foreach (['checklist_items_owner_check', 'payment_schedule_owner_check', 'payment_allocations_target_check', 'payment_attempt_obligations_amount_check', 'payment_attempts_status_check', 'grade_rows_range_check'] as $check) {
+        foreach (['checklist_items_owner_check', 'payment_schedule_owner_check', 'payment_allocations_target_check', 'payment_attempt_obligations_amount_check', 'payment_attempts_status_check'] as $check) {
             $this->assertTrue($checks->contains($check), "Missing check constraint $check");
         }
+        $this->assertFalse($checks->contains('grade_rows_range_check'));
     }
 
     public function test_foundation_seeder_creates_the_canonical_roles_and_permissions(): void

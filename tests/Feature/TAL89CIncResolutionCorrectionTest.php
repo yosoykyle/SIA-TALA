@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Grades\AmendIncDeadline;
 use App\Actions\Grades\RecordApprovedGradeCorrection;
 use App\Actions\Grades\ReleaseIncCompletion;
 use App\Actions\Grades\SubmitIncCompletion;
@@ -116,6 +117,65 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
     }
 
     #[Test]
+    public function submitted_inc_completion_becomes_stale_when_deadline_authority_changes(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
+        $row = $roster->rows()->sole();
+        $incomplete = $row->outcomeEvents()->sole();
+        $submission = app(SubmitIncCompletion::class)->execute($incomplete, '3.00', 'Completed work.', $faculty);
+
+        app(AmendIncDeadline::class)->execute(
+            $incomplete,
+            today()->addYears(2),
+            'BOARD-INC-2026-01',
+            today(),
+            'Authorized extension after the submitted completion.',
+            $registrar,
+        );
+
+        try {
+            app(ReleaseIncCompletion::class)->execute($submission, $registrar, 'INC-STALE-DEADLINE');
+            $this->fail('A deadline amendment must invalidate an earlier completion submission.');
+        } catch (RuntimeException) {
+            $this->assertSame(IncCompletionSubmission::StateSubmitted, $submission->fresh()->state);
+            $this->assertSame('INC', $row->fresh()->current_outcome_code);
+            $this->assertSame(1, $row->outcomeEvents()->count());
+        }
+    }
+
+    #[Test]
+    public function submitted_inc_completion_becomes_stale_when_a_correction_supersedes_the_inc(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $roster = $this->releasedRosterWithRow($faculty, 'INC', GradeRosterRow::CategoryIncomplete);
+        $row = $roster->rows()->sole();
+        $incomplete = $row->outcomeEvents()->sole();
+        $submission = app(SubmitIncCompletion::class)->execute($incomplete, '3.00', 'Completed work.', $faculty);
+
+        app(RecordApprovedGradeCorrection::class)->execute(
+            $row,
+            '2.75',
+            'BOARD-CORR-2026-02',
+            'Registrar corrected the controlling released result.',
+            'PRIVATE-CORR-02',
+            $registrar,
+            'corr-inc-supersession',
+        );
+
+        try {
+            app(ReleaseIncCompletion::class)->execute($submission, $registrar, 'INC-STALE-RESULT');
+            $this->fail('A successor result must invalidate an earlier INC completion submission.');
+        } catch (RuntimeException) {
+            $this->assertSame(IncCompletionSubmission::StateSubmitted, $submission->fresh()->state);
+            $this->assertSame('2.75', $row->fresh()->current_outcome_code);
+            $this->assertSame(2, $row->outcomeEvents()->count());
+        }
+    }
+
+    #[Test]
     public function inc_completion_on_non_inc_row_is_rejected(): void
     {
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -163,6 +223,26 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'event_type' => 'AcademicResultImpactReviewOpened',
             'actor_id' => $registrar->id,
         ]);
+    }
+
+    #[Test]
+    public function correction_a_to_b_to_a_preserves_both_successors_and_exact_retry_is_idempotent(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $row = $this->releasedRosterWithRow($faculty, '1.75', GradeRosterRow::CategoryPassing)->rows()->sole();
+        $action = app(RecordApprovedGradeCorrection::class);
+
+        $action->execute($row, '2.75', 'AUTH-B', 'Corrected to B.', 'EVIDENCE-B', $registrar, 'command-b');
+        $action->execute($row->fresh(), '1.75', 'AUTH-A2', 'Corrected back to A.', 'EVIDENCE-A2', $registrar, 'command-a2');
+        $action->execute($row->fresh(), '1.75', 'AUTH-A2', 'Corrected back to A.', 'EVIDENCE-A2', $registrar, 'command-a2');
+
+        $events = $row->outcomeEvents()->orderBy('id')->get();
+        $this->assertCount(3, $events);
+        $this->assertSame(['1.75', '2.75', '1.75'], $events->pluck('result_code')->all());
+        $this->assertSame($events[0]->id, $events[1]->predecessor_event_id);
+        $this->assertSame($events[1]->id, $events[2]->predecessor_event_id);
+        $this->assertSame('1.75', $row->fresh()->current_outcome_code);
     }
 
     #[Test]
@@ -406,10 +486,6 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         GradeRosterRow::query()->create([
             'grade_roster_id' => $roster->id,
             'course_enrollment_id' => $courseEnrollment->id,
-            'prelim_equivalent' => 90,
-            'midterm_equivalent' => 91,
-            'final_equivalent' => 94,
-            'computed_average' => 91.9,
         ]);
 
         return $roster;

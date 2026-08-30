@@ -156,13 +156,6 @@ class StudentLifecycleChangeForm
                             })
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift),
-                        TextInput::make('finance_adjustment')
-                            ->label('Finance adjustment (PHP)')
-                            ->helperText('Use 0 when the approved action has no financial adjustment.')
-                            ->numeric()
-                            ->default(0)
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Set $set) => $set('impact_confirmed', false)),
                         Repeater::make('credit_entries')
                             ->visible(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
                             ->required(fn (Get $get): bool => $get('type') === StudentLifecycleChange::TypeProgramShift)
@@ -290,7 +283,6 @@ class StudentLifecycleChangeForm
             'expected_return_term_id' => $get('expected_return_term_id'),
             'target_program_id' => $get('target_program_id'),
             'target_curriculum_version_id' => $get('target_curriculum_version_id'),
-            'finance_adjustment' => $get('finance_adjustment') ?? 0,
             'late_exception_authority' => $get('late_exception_authority'),
             'late_exception_reason' => $get('late_exception_reason'),
             'credit_entries' => $get('credit_entries') ?? [],

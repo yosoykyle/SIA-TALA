@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\User;
@@ -20,6 +21,12 @@ class AcademicApprovals extends Page
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false;
+    }
+
+    /** @return array<string, mixed> */
+    public function examinationPeriod(): array
+    {
+        return app(ExaminationPeriodProjection::class)->latest();
     }
 
     /**

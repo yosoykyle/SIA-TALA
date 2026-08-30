@@ -2,9 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Grades\FinalResultPolicy;
 use App\Actions\Grades\GradeWindowService;
-use App\Actions\Grades\SaveFinalGradeResult;
+use App\Actions\Grades\SaveGradeRosterDraft;
 use App\Actions\Grades\SubmitGradeRoster;
 use App\Actions\Grades\SubmitIncCompletion;
 use App\Models\ClassOfferingTeachingAssignment;
@@ -13,24 +14,26 @@ use App\Models\GradeRosterRow;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Table;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use RuntimeException;
 
-class FacultyGradeRoster extends Page implements HasTable
+/** @property Schema $form */
+class FacultyGradeRoster extends Page
 {
-    use InteractsWithTable;
-
     private const EditableStates = [
         GradeRoster::StateDraft,
         GradeRoster::StateReturned,
@@ -45,9 +48,17 @@ class FacultyGradeRoster extends Page implements HasTable
 
     protected static ?string $title = 'Grade Rosters';
 
-    protected string $view = 'filament.student.pages.generic-table';
+    protected string $view = 'filament.pages.faculty-grade-roster';
 
     public ?int $rosterId = null;
+
+    public bool $rosterEditable = false;
+
+    /** @var list<int> */
+    public array $editableRowIds = [];
+
+    /** @var array<string, mixed>|null */
+    public ?array $data = [];
 
     public static function canAccess(): bool
     {
@@ -57,151 +68,125 @@ class FacultyGradeRoster extends Page implements HasTable
     public function mount(): void
     {
         $this->rosterId = $this->accessibleRosters()->orderByDesc('grade_rosters.id')->value('grade_rosters.id');
+        $this->fillRosterForm();
     }
 
-    public function table(Table $table): Table
+    public function form(Schema $schema): Schema
     {
-        return $table
-            ->query($this->rowsQuery())
-            ->heading(fn (): string => $this->selectedRosterHeading())
-            ->description(fn (): string => $this->selectedRosterDescription())
-            ->columns([
-                TextColumn::make('student_identity')
-                    ->label('Student')
-                    ->state(fn (GradeRosterRow $record): string => collect([
-                        $record->courseEnrollment?->enrollment?->studentProfile?->student_number,
-                        $record->courseEnrollment?->enrollment?->studentProfile?->last_name,
-                        $record->courseEnrollment?->enrollment?->studentProfile?->first_name,
-                    ])->filter()->implode(' · '))
-                    ->description(fn (GradeRosterRow $record): string => $record->return_reason ?? 'Current official roster membership')
-                    ->wrap(),
-                TextColumn::make('final_result')
-                    ->label('Final result')
-                    ->placeholder('Not recorded')
-                    ->badge()
-                    ->description(fn (GradeRosterRow $record): ?string => $record->final_result === 'INC'
-                        ? $record->inc_completion_note
-                        : null),
-                TextColumn::make('row_status')
-                    ->label('Status')
-                    ->state(fn (GradeRosterRow $record): string => match (true) {
-                        ! $record->is_current_membership => 'No longer current',
-                        $record->released_at !== null => 'Released',
-                        $record->returned_at !== null => 'Returned for correction',
-                        $record->final_result !== null => 'Ready',
-                        default => 'Final result required',
-                    })
-                    ->badge()
-                    ->wrap(),
-            ])
-            ->headerActions([
-                Action::make('selectRoster')
-                    ->label('Select roster')
+        return $schema
+            ->components([
+                Section::make(fn (): string => $this->selectedRosterHeading())
+                    ->description(fn (): string => $this->selectedRosterDescription())
                     ->schema([
-                        Select::make('rosterId')->label('Roster')->options(fn (): array => $this->rosterOptions())->required(),
-                    ])
-                    ->fillForm(fn (): array => ['rosterId' => $this->rosterId])
-                    ->visible(fn (): bool => count($this->rosterOptions()) > 1)
-                    ->action(function (array $data): void {
-                        $rosterId = (int) $data['rosterId'];
+                        Hidden::make('lock_version'),
+                        Hidden::make('membership_signature'),
+                        Repeater::make('rows')
+                            ->label('Current official roster')
+                            ->table([
+                                TableColumn::make('Student number'),
+                                TableColumn::make('Legal name'),
+                                TableColumn::make('Enrollment'),
+                                TableColumn::make('Final result'),
+                                TableColumn::make('INC completion note')->wrapHeader(),
+                            ])
+                            ->schema([
+                                Hidden::make('id'),
+                                TextInput::make('student_number')->hiddenLabel()->disabled()->dehydrated(),
+                                TextInput::make('legal_name')->hiddenLabel()->disabled()->dehydrated(),
+                                TextInput::make('enrollment_state')->hiddenLabel()->disabled()->dehydrated(),
+                                Select::make('final_result')
+                                    ->hiddenLabel()
+                                    ->placeholder('Not recorded')
+                                    ->options(fn (): array => app(FinalResultPolicy::class)->options())
+                                    ->disabled(fn (Get $get): bool => ! in_array((int) $get('id'), $this->editableRowIds, true))
+                                    ->live(),
+                                Textarea::make('inc_completion_note')
+                                    ->hiddenLabel()
+                                    ->placeholder('Required only for INC')
+                                    ->rows(2)
+                                    ->maxLength(1000)
+                                    ->required(fn (Get $get): bool => $get('final_result') === 'INC')
+                                    ->visible(fn (Get $get): bool => $get('final_result') === 'INC')
+                                    ->disabled(fn (Get $get): bool => ! in_array((int) $get('id'), $this->editableRowIds, true)),
+                            ])
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->columnSpanFull(),
+                    ]),
+            ])
+            ->statePath('data');
+    }
 
-                        if (array_key_exists($rosterId, $this->rosterOptions())) {
-                            $this->rosterId = $rosterId;
-                            $this->resetTable();
-                        }
-                    }),
-                Action::make('printRoster')
-                    ->label('Print class roster')
-                    ->icon(Heroicon::OutlinedPrinter)
-                    ->visible(fn (): bool => $this->rosterId !== null)
-                    ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.print', $this->rosterId))
-                    ->openUrlInNewTab(),
-                Action::make('downloadRoster')
-                    ->label('Download CSV')
-                    ->icon(Heroicon::OutlinedArrowDownTray)
-                    ->visible(fn (): bool => $this->rosterId !== null)
-                    ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.csv', $this->rosterId)),
-                Action::make('submit')
-                    ->label('Submit complete roster')
-                    ->modalHeading('Submit this immutable roster version?')
-                    ->modalDescription(fn (): string => $this->submissionSummary())
-                    ->requiresConfirmation()
-                    ->visible(fn (): bool => $this->canEditSelectedRoster())
-                    ->disabled(fn (): bool => ! $this->selectedRosterIsReady())
-                    ->action(function (): void {
-                        app(SubmitGradeRoster::class)->execute($this->selectedRosterOrFail(), $this->authenticatedUser());
-                        Notification::make()->title('Roster submitted for Registrar review')->success()->send();
-                    }),
-            ])
-            ->recordActions([
-                Action::make('recordFinalResult')
-                    ->label(fn (GradeRosterRow $record): string => $record->final_result === null ? 'Record final result' : 'Edit returned result')
-                    ->icon(Heroicon::OutlinedPencilSquare)
-                    ->schema([
-                        Select::make('final_result')
-                            ->label('Final result')
-                            ->options(fn (): array => app(FinalResultPolicy::class)->options())
-                            ->required()
-                            ->live(),
-                        Textarea::make('inc_completion_note')
-                            ->label('INC completion note')
-                            ->helperText('Required only for INC. State the work still needed without entering sensitive details.')
-                            ->required(fn ($get): bool => $get('final_result') === 'INC')
-                            ->visible(fn ($get): bool => $get('final_result') === 'INC')
-                            ->rows(3),
-                    ])
-                    ->fillForm(fn (GradeRosterRow $record): array => [
-                        'final_result' => $record->final_result,
-                        'inc_completion_note' => $record->inc_completion_note,
-                    ])
-                    ->visible(fn (GradeRosterRow $record): bool => $this->canEditRow($record))
-                    ->action(function (GradeRosterRow $record, array $data): void {
-                        try {
-                            app(SaveFinalGradeResult::class)->execute(
-                                $record,
-                                (string) $data['final_result'],
-                                $data['inc_completion_note'] ?? null,
-                                $this->authenticatedUser(),
-                            );
-                            Notification::make()->title('Final result saved')->success()->send();
-                        } catch (RuntimeException $exception) {
-                            Notification::make()->title('Final result was not saved')->body($exception->getMessage())->danger()->send();
-                        }
-                    }),
-                Action::make('submitIncCompletion')
-                    ->label('Submit INC completion')
-                    ->icon(Heroicon::OutlinedCheckCircle)
-                    ->visible(fn (GradeRosterRow $record): bool => $record->current_outcome_code === 'INC'
-                        && (int) $record->roster->teachingAssignment?->faculty_user_id === (int) Auth::id())
-                    ->schema([
-                        Select::make('proposed_result')
-                            ->label('Completed final result')
-                            ->options(fn (): array => collect(app(FinalResultPolicy::class)->options())->except('INC')->all())
-                            ->required(),
-                        Textarea::make('completion_note')
-                            ->label('Completion evidence note')
-                            ->helperText('Describe the completed requirement without entering sensitive details.')
-                            ->required()->rows(3),
-                    ])
-                    ->action(function (GradeRosterRow $record, array $data): void {
-                        $inc = $record->outcomeEvents()->where('result_code', 'INC')->latest('id')->firstOrFail();
+    /** @return list<Action> */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('selectRoster')
+                ->label('Select roster')
+                ->schema([
+                    Select::make('rosterId')->label('Roster')->options(fn (): array => $this->rosterOptions())->required(),
+                ])
+                ->fillForm(fn (): array => ['rosterId' => $this->rosterId])
+                ->visible(fn (): bool => count($this->rosterOptions()) > 1)
+                ->action(function (array $data): void {
+                    $rosterId = (int) $data['rosterId'];
 
-                        try {
-                            app(SubmitIncCompletion::class)->execute(
-                                $inc,
-                                (string) $data['proposed_result'],
-                                (string) $data['completion_note'],
-                                $this->authenticatedUser(),
-                            );
-                            Notification::make()->title('INC completion submitted for Registrar review')->success()->send();
-                        } catch (RuntimeException $exception) {
-                            Notification::make()->title('INC completion was not submitted')->body($exception->getMessage())->danger()->send();
-                        }
-                    }),
-            ])
-            ->stackedOnMobile()
-            ->emptyStateHeading('No assigned roster')
-            ->emptyStateDescription('Current designated and co-Faculty assignments appear here after the Registrar records them.');
+                    if (array_key_exists($rosterId, $this->rosterOptions())) {
+                        $this->rosterId = $rosterId;
+                        $this->fillRosterForm();
+                    }
+                }),
+            Action::make('printRoster')
+                ->label('Print class roster')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->visible(fn (): bool => $this->rosterId !== null)
+                ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.print', $this->rosterId))
+                ->openUrlInNewTab(),
+            Action::make('downloadRoster')
+                ->label('Download CSV')
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->visible(fn (): bool => $this->rosterId !== null)
+                ->url(fn (): ?string => $this->rosterId === null ? null : route('grade-rosters.csv', $this->rosterId)),
+            Action::make('submitIncCompletion')
+                ->label('Submit INC completion')
+                ->icon(Heroicon::OutlinedCheckCircle)
+                ->visible(fn (): bool => $this->incCompletionOptions() !== [])
+                ->schema([
+                    Select::make('row_id')->label('Student and course')->options(fn (): array => $this->incCompletionOptions())->required(),
+                    Select::make('proposed_result')->label('Completed final result')->options(fn (): array => collect(app(FinalResultPolicy::class)->options())->except('INC')->all())->required(),
+                    Textarea::make('completion_note')->label('Completion evidence note')->helperText('Describe the completed requirement without entering sensitive details.')->required()->rows(3)->maxLength(1000),
+                ])
+                ->action(function (array $data): void {
+                    $row = GradeRosterRow::query()->whereKey((int) $data['row_id'])->where('grade_roster_id', $this->rosterId)->firstOrFail();
+                    $inc = $row->outcomeEvents()->where('result_code', 'INC')->latest('id')->firstOrFail();
+                    app(SubmitIncCompletion::class)->execute($inc, (string) $data['proposed_result'], (string) $data['completion_note'], $this->authenticatedUser());
+                    Notification::make()->title('INC completion submitted for Registrar review')->success()->send();
+                }),
+            Action::make('submit')
+                ->label('Submit complete roster')
+                ->modalHeading('Submit this immutable roster version?')
+                ->modalDescription(fn (): string => $this->submissionSummary())
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->canEditSelectedRoster())
+                ->action(function (): void {
+                    $saved = $this->persistDraft();
+                    app(SubmitGradeRoster::class)->execute($saved, $this->authenticatedUser());
+                    $this->fillRosterForm();
+                    Notification::make()->title('Roster submitted for Registrar review')->success()->send();
+                }),
+        ];
+    }
+
+    public function saveDraft(): void
+    {
+        try {
+            $this->persistDraft();
+            $this->fillRosterForm();
+            Notification::make()->title('Roster draft saved')->success()->send();
+        } catch (RuntimeException $exception) {
+            Notification::make()->title('Roster draft was not saved')->body($exception->getMessage())->danger()->send();
+        }
     }
 
     /** @return Builder<GradeRoster> */
@@ -217,16 +202,6 @@ class FacultyGradeRoster extends Page implements HasTable
                         ->where('role', ClassOfferingTeachingAssignment::RoleCoFaculty)
                         ->where('state', ClassOfferingTeachingAssignment::StateActive)));
         });
-    }
-
-    /** @return Builder<GradeRosterRow> */
-    private function rowsQuery(): Builder
-    {
-        return GradeRosterRow::query()
-            ->with(['courseEnrollment.enrollment.studentProfile', 'roster.teachingAssignment'])
-            ->where('is_current_membership', true)
-            ->when($this->rosterId, fn (Builder $query) => $query->where('grade_roster_id', $this->rosterId))
-            ->whereHas('roster', fn (Builder $query) => $query->whereIn('id', $this->accessibleRosters()->select('grade_rosters.id')));
     }
 
     /** @return array<int, string> */
@@ -246,7 +221,7 @@ class FacultyGradeRoster extends Page implements HasTable
     private function selectedRoster(): ?GradeRoster
     {
         return $this->rosterId === null ? null : $this->accessibleRosters()
-            ->with(['termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment'])
+            ->with(['rows.courseEnrollment.enrollment.studentProfile', 'termOffering.term', 'termOffering.curriculumEntry.courseSpecification.course', 'section', 'teachingAssignment'])
             ->find($this->rosterId);
     }
 
@@ -255,30 +230,80 @@ class FacultyGradeRoster extends Page implements HasTable
         return $this->selectedRoster() ?? throw new RuntimeException('Select an accessible roster first.');
     }
 
-    private function canEditSelectedRoster(): bool
+    public function canEditSelectedRoster(): bool
+    {
+        return $this->rosterEditable;
+    }
+
+    /** @return array<string, mixed> */
+    public function examinationPeriod(): array
+    {
+        return app(ExaminationPeriodProjection::class)->forTerm($this->selectedRoster()?->termOffering?->term);
+    }
+
+    private function fillRosterForm(): void
     {
         $roster = $this->selectedRoster();
 
-        return $roster instanceof GradeRoster
+        $this->rosterEditable = $roster instanceof GradeRoster
             && (int) $roster->teachingAssignment?->faculty_user_id === (int) Auth::id()
-            && in_array($roster->state, self::EditableStates, true);
+            && in_array($roster->state, self::EditableStates, true)
+            && app(GradeWindowService::class)->isOpen($roster, 'final');
+        $this->editableRowIds = $roster instanceof GradeRoster && $this->rosterEditable
+            ? $roster->rows->filter(fn (GradeRosterRow $row): bool => (bool) $row->is_current_membership
+                && ($roster->state !== GradeRoster::StateReturned || $row->returned_at !== null))->modelKeys()
+            : [];
+
+        $this->form->fill($roster instanceof GradeRoster ? [
+            'lock_version' => $roster->lock_version,
+            'membership_signature' => $roster->membership_signature,
+            'rows' => $roster->rows->where('is_current_membership', true)->sortBy(fn (GradeRosterRow $row): string => collect([
+                $row->courseEnrollment?->enrollment?->studentProfile?->last_name,
+                $row->courseEnrollment?->enrollment?->studentProfile?->first_name,
+                $row->courseEnrollment?->enrollment?->studentProfile?->student_number,
+            ])->filter()->implode('|'))->map(function (GradeRosterRow $row): array {
+                $student = $row->courseEnrollment?->enrollment?->studentProfile;
+
+                return [
+                    'id' => $row->id,
+                    'student_number' => $student?->student_number,
+                    'legal_name' => collect([$student?->last_name, $student?->first_name, $student?->middle_name])->filter()->implode(', '),
+                    'enrollment_state' => str($row->courseEnrollment?->enrollment->canonical_outcome ?? $row->courseEnrollment?->enrollment->status)->headline()->toString(),
+                    'final_result' => $row->final_result,
+                    'inc_completion_note' => $row->inc_completion_note,
+                ];
+            })->values()->all(),
+        ] : ['rows' => []]);
     }
 
-    private function canEditRow(GradeRosterRow $row): bool
+    private function persistDraft(): GradeRoster
     {
-        return $this->canEditSelectedRoster()
-            && (bool) $row->is_current_membership
-            && ($row->roster->state !== GradeRoster::StateReturned || $row->returned_at !== null)
-            && app(GradeWindowService::class)->isOpen($row->roster, 'final');
+        $state = $this->form->getState();
+
+        return app(SaveGradeRosterDraft::class)->execute(
+            $this->selectedRosterOrFail(),
+            array_values($state['rows'] ?? []),
+            (int) ($state['lock_version'] ?? -1),
+            filled($state['membership_signature'] ?? null) ? (string) $state['membership_signature'] : null,
+            $this->authenticatedUser(),
+        );
     }
 
-    private function selectedRosterIsReady(): bool
+    /** @return array<int, string> */
+    private function incCompletionOptions(): array
     {
         $roster = $this->selectedRoster();
 
-        return $roster instanceof GradeRoster
-            && $roster->rows()->where('is_current_membership', true)->exists()
-            && ! $roster->rows()->where('is_current_membership', true)->whereNull('final_result')->exists();
+        if (! $roster instanceof GradeRoster || (int) $roster->teachingAssignment?->faculty_user_id !== (int) Auth::id()) {
+            return [];
+        }
+
+        return $roster->rows->filter(fn (GradeRosterRow $row): bool => $row->current_outcome_code === 'INC')
+            ->mapWithKeys(function (GradeRosterRow $row): array {
+                $student = $row->courseEnrollment?->enrollment?->studentProfile;
+
+                return [$row->id => collect([$student?->student_number, $student?->last_name, $student?->first_name])->filter()->implode(' · ')];
+            })->all();
     }
 
     private function selectedRosterHeading(): string
@@ -286,10 +311,7 @@ class FacultyGradeRoster extends Page implements HasTable
         $roster = $this->selectedRoster();
 
         return $roster instanceof GradeRoster
-            ? collect([
-                $roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
-                $roster->section?->code,
-            ])->filter()->implode(' — ')
+            ? collect([$roster->termOffering?->curriculumEntry?->courseSpecification?->course?->code, $roster->section?->code])->filter()->implode(' — ')
             : 'Official grade roster';
     }
 
@@ -298,33 +320,29 @@ class FacultyGradeRoster extends Page implements HasTable
         $roster = $this->selectedRoster();
 
         if (! $roster instanceof GradeRoster) {
-            return 'Select a roster assigned by the Registrar.';
+            return 'No current roster is assigned. Registrar-recorded assignments will appear here.';
         }
 
-        $role = (int) $roster->teachingAssignment?->faculty_user_id === (int) Auth::id()
-            ? 'Designated submitter'
-            : 'View-only co-Faculty';
+        $role = (int) $roster->teachingAssignment?->faculty_user_id === (int) Auth::id() ? 'Designated submitter' : 'View-only co-Faculty';
         $window = app(GradeWindowService::class)->isOpen($roster, 'final') ? 'Grade Entry open' : 'Grade Entry closed';
+        $completed = $roster->rows->where('is_current_membership', true)->whereNotNull('final_result')->count();
+        $total = $roster->rows->where('is_current_membership', true)->count();
 
-        return collect([$roster->termOffering?->term?->label, $role, str($roster->state)->headline(), $window])
-            ->filter()->implode(' · ');
+        return collect([$roster->termOffering?->term?->label, $role, str($roster->state)->headline(), $window, "{$completed} of {$total} rows complete"])->filter()->implode(' · ');
     }
 
     private function submissionSummary(): string
     {
-        $roster = $this->selectedRosterOrFail();
-        $total = $roster->rows()->where('is_current_membership', true)->count();
-        $missing = $roster->rows()->where('is_current_membership', true)->whereNull('final_result')->count();
+        $rows = collect($this->form->getRawState()['rows'] ?? []);
+        $missing = $rows->where(fn (array $row): bool => blank($row['final_result'] ?? null))->count();
 
         return $missing === 0
-            ? "All {$total} current rows will be frozen as a new attributable version for Registrar review."
-            : "Complete {$missing} of {$total} current rows before submission.";
+            ? "All {$rows->count()} current rows will be saved and frozen as a new attributable version for Registrar review."
+            : "Complete {$missing} of {$rows->count()} current rows before submission.";
     }
 
     private function authenticatedUser(): User
     {
-        return Auth::user() instanceof User
-            ? Auth::user()
-            : throw new AuthorizationException('Authentication is required.');
+        return Auth::user() instanceof User ? Auth::user() : throw new AuthorizationException('Authentication is required.');
     }
 }

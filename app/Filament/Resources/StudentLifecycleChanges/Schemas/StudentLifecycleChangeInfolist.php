@@ -63,7 +63,7 @@ class StudentLifecycleChangeInfolist
                     TextEntry::make('targetProgram.name')->label('Target Program')->placeholder('Not recorded'),
                     TextEntry::make('targetCurriculumVersion.name')->label('Target Curriculum')->placeholder('Not recorded'),
                     TextEntry::make('state')->label('Evaluation State')->badge(),
-                    TextEntry::make('impact_snapshot.finance_adjustment')->label('Recorded Fee Impact')->placeholder('0'),
+                    TextEntry::make('impact_snapshot.finance_effect.message')->label('Accounting boundary')->placeholder('No enrollment-linked Accounting review is required.'),
                 ])->columns(3)->visible(fn ($record): bool => $record?->type === StudentLifecycleChange::TypeProgramShift),
                 Section::make('Recorded Operational Impact')
                     ->description('This is the immutable result calculated when the approved action was recorded.')
@@ -109,7 +109,7 @@ class StudentLifecycleChangeInfolist
                             ->label('Active holds retained')
                             ->formatStateUsing(fn (mixed $state): string => ((int) $state).' hold(s)'),
                         TextEntry::make('impact_snapshot.finance_effect.message')
-                            ->label('Assessment / ledger effect')
+                            ->label('Accounting review')
                             ->placeholder('No automatic finance effect was recorded.'),
                         TextEntry::make('impact_snapshot.cor_available_after')
                             ->label('COR availability after action')

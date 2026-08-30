@@ -6,6 +6,8 @@
         </x-filament::section>
     @else
         <div class="space-y-6">
+            <x-examination-period-summary :projection="$examinationPeriod" />
+
             <x-filament::section>
                 <x-slot name="heading">Your released academic record</x-slot>
                 <x-slot name="description">

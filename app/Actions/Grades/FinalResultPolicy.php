@@ -7,6 +7,17 @@ use RuntimeException;
 
 class FinalResultPolicy
 {
+    /** @return array{key:string,version:int,accepted_codes:list<string>,passing_through:string} */
+    public function snapshot(): array
+    {
+        return [
+            'key' => 'tala_final_result_v1',
+            'version' => 1,
+            'accepted_codes' => $this->acceptedCodes(),
+            'passing_through' => '4.00',
+        ];
+    }
+
     /** @return array<string, string> */
     public function options(): array
     {

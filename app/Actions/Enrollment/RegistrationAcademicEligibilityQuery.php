@@ -2,7 +2,6 @@
 
 namespace App\Actions\Enrollment;
 
-use App\Actions\Grades\GradePolicyService;
 use App\Models\CourseRequirement;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
@@ -16,8 +15,6 @@ use Illuminate\Validation\ValidationException;
 
 class RegistrationAcademicEligibilityQuery
 {
-    public function __construct(private readonly GradePolicyService $gradePolicy) {}
-
     /**
      * @param  Collection<int, TermOffering>  $offerings
      */
@@ -177,13 +174,6 @@ class RegistrationAcademicEligibilityQuery
             return true;
         }
 
-        $codes = collect($this->gradePolicy->snapshot()['scale'])
-            ->pluck('code')
-            ->map(fn (mixed $code): string => (string) $code)
-            ->values();
-        $actual = $codes->search(fn (string $code): bool => (float) $code === (float) $grade);
-        $minimum = $codes->search(fn (string $code): bool => (float) $code === (float) $minimumGrade);
-
-        return $actual !== false && $minimum !== false && $actual <= $minimum;
+        return (float) $grade <= (float) $minimumGrade;
     }
 }

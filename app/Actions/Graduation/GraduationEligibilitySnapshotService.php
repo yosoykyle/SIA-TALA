@@ -99,7 +99,7 @@ class GraduationEligibilitySnapshotService
     {
         $profile = $member->studentProfile;
         $entries = $this->curriculumEntries($profile);
-        $releasedRows = $this->releasedRows($profile);
+        $academicRows = $this->academicRows($profile);
         $currentEnrollments = $this->currentEnrollments($profile);
         $credits = $this->acceptedShiftCredits($profile);
         $exceptions = $this->activeGraduationExceptions($profile);
@@ -124,7 +124,7 @@ class GraduationEligibilitySnapshotService
         foreach ($entries as $entry) {
             $sourceReferences[] = $this->reference('curriculum_entry', (int) $entry->id, $entry->courseSpecification?->course?->code);
             $courseId = (int) $entry->courseSpecification->course_id;
-            $row = $releasedRows->get($courseId);
+            $row = $academicRows->get($courseId);
             $credit = $credits->get((int) $entry->id);
             $exception = $exceptions->first(fn (EnrollmentException $item): bool => $item->original_rule === 'GRADUATION:'.$entry->id
                 || $item->scope_key === 'graduation:'.$entry->id
@@ -171,6 +171,12 @@ class GraduationEligibilitySnapshotService
 
             if ($row instanceof GradeRosterRow) {
                 $sourceReferences[] = $this->reference('grade_roster_row', (int) $row->id, $entry->courseSpecification->course->code);
+
+                if ($row->released_at === null) {
+                    $pending[] = [...$fact, 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]];
+
+                    continue;
+                }
 
                 if ($row->current_outcome_category === GradeRosterRow::CategoryPassing && is_numeric($row->current_outcome_code)) {
                     $completed[] = [...$fact, 'status' => 'completed', 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]];
@@ -271,13 +277,11 @@ class GraduationEligibilitySnapshotService
     }
 
     /** @return Collection<int, GradeRosterRow> */
-    private function releasedRows(StudentProfile $profile): Collection
+    private function academicRows(StudentProfile $profile): Collection
     {
         return GradeRosterRow::query()
             ->with('courseEnrollment.termOffering.curriculumEntry.courseSpecification.course')
-            ->whereNotNull('released_at')
             ->whereHas('courseEnrollment.enrollment', fn ($query) => $query->where('student_profile_id', $profile->id))
-            ->latest('released_at')
             ->latest('id')
             ->get()
             ->toBase()

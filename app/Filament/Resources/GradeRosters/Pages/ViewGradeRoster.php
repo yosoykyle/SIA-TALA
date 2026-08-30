@@ -25,7 +25,7 @@ class ViewGradeRoster extends ViewRecord
         return [
             Action::make('return')
                 ->schema([
-                    Textarea::make('reason')->required()->maxLength(2000),
+                    Textarea::make('reason')->required()->minLength(10)->maxLength(1000),
                 ])
                 ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->gradeRoster()->state === GradeRoster::StateSubmitted)
                 ->action(function (array $data): void {

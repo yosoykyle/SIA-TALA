@@ -13,13 +13,21 @@ class ExternalCompetencyResult extends Model
 
     protected $fillable = [
         'external_competency_requirement_id', 'student_profile_id', 'outcome',
+        'assessment_date', 'external_source', 'credential_type', 'credential_reference',
+        'credential_valid_until', 'safe_remarks', 'source_key',
         'evidence_reference', 'authority_reference', 'authority_date', 'recorded_by',
         'recorded_at', 'supersedes_result_id', 'is_current',
     ];
 
     protected function casts(): array
     {
-        return ['authority_date' => 'date', 'recorded_at' => 'datetime', 'is_current' => 'boolean'];
+        return [
+            'assessment_date' => 'date',
+            'credential_valid_until' => 'date',
+            'authority_date' => 'date',
+            'recorded_at' => 'datetime',
+            'is_current' => 'boolean',
+        ];
     }
 
     public function requirement(): BelongsTo

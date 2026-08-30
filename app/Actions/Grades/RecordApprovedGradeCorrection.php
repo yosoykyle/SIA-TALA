@@ -21,13 +21,13 @@ class RecordApprovedGradeCorrection
         private readonly SupersedeTranscriptSnapshots $transcriptSupersession,
     ) {}
 
-    public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor): GradeRosterRow
+    public function execute(GradeRosterRow $row, string $correctedCode, string $authority, string $reason, ?string $evidenceReference, User $actor, ?string $commandKey = null): GradeRosterRow
     {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can record posted grade corrections.');
         }
 
-        return DB::transaction(function () use ($row, $correctedCode, $authority, $reason, $evidenceReference, $actor): GradeRosterRow {
+        return DB::transaction(function () use ($row, $correctedCode, $authority, $reason, $evidenceReference, $actor, $commandKey): GradeRosterRow {
             $locked = GradeRosterRow::query()->lockForUpdate()->findOrFail($row->id);
 
             if ($locked->released_at === null) {
@@ -37,11 +37,18 @@ class RecordApprovedGradeCorrection
             $code = $this->policy->normalize($correctedCode);
             $predecessor = $locked->outcomeEvents()->latest('id')->firstOrFail();
             $termEndsOn = $predecessor->source_term_ends_on ?? $locked->roster->termOffering->term->ends_on;
-            $sourceKey = 'grade-correction:'.hash('sha256', implode('|', [
+            $sourceKey = 'grade-correction:'.hash('sha256', $commandKey ?? implode('|', [
                 $locked->id, $code, trim($authority), trim($reason), (string) $evidenceReference,
             ]));
 
-            $event = $locked->outcomeEvents()->firstOrCreate(['source_key' => $sourceKey], [
+            $existing = $locked->outcomeEvents()->where('source_key', $sourceKey)->first();
+
+            if ($existing instanceof GradeOutcomeEvent) {
+                return $locked->fresh('outcomeEvents');
+            }
+
+            $event = $locked->outcomeEvents()->create([
+                'source_key' => $sourceKey,
                 'event_type' => GradeOutcomeEvent::TypePostedCorrection,
                 'result_code' => $code,
                 'source_term_ends_on' => $termEndsOn,

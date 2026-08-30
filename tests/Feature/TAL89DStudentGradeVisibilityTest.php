@@ -55,7 +55,6 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
 
         $numeric = $this->gradeRowForStudent($profile, 'MATH-101', 'College Algebra', '1.75', GradeRosterRow::CategoryPassing, released: true);
         $incomplete = $this->gradeRowForStudent($profile, 'ENG-102', 'English Communication', 'INC', GradeRosterRow::CategoryIncomplete, released: true);
-        $pending = $this->gradeRowForStudent($profile, 'HIST-103', 'Philippine History', 'P', GradeRosterRow::CategoryPending, released: true);
         $dropped = $this->gradeRowForStudent($profile, 'CHEM-104', 'Chemistry Fundamentals', 'DRP', GradeRosterRow::CategoryWithdrawn, released: true);
         $withdrawn = $this->gradeRowForStudent($profile, 'BIO-105', 'General Biology', 'W', GradeRosterRow::CategoryWithdrawn, released: true);
         $transferCredit = $this->gradeRowForStudent($profile, 'PE-106', 'Physical Education', 'TC', GradeRosterRow::CategoryTransferCredit, released: true);
@@ -82,11 +81,10 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
         $component->assertSuccessful();
 
         $component
-            ->assertCanSeeTableRecords([$numeric, $incomplete, $pending, $dropped, $withdrawn, $transferCredit])
+            ->assertCanSeeTableRecords([$numeric, $incomplete, $dropped, $withdrawn, $transferCredit])
             ->assertCanNotSeeTableRecords([$hiddenDraft, $otherStudentReleased])
             ->assertTableColumnFormattedStateSet('current_outcome_code', '1.75', record: $numeric)
             ->assertTableColumnFormattedStateSet('current_outcome_code', 'Incomplete', record: $incomplete)
-            ->assertTableColumnFormattedStateSet('current_outcome_code', 'Pending Grade', record: $pending)
             ->assertTableColumnFormattedStateSet('current_outcome_code', 'Withdrawn', record: $dropped)
             ->assertTableColumnFormattedStateSet('current_outcome_code', 'Withdrawn', record: $withdrawn)
             ->assertTableColumnFormattedStateSet('current_outcome_code', 'Transfer Credit', record: $transferCredit)
@@ -102,7 +100,6 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
 
         $this->gradeRowForStudent($profile, 'NUM-201', 'Numerical Grade', '2.00', GradeRosterRow::CategoryPassing, released: true);
         $this->gradeRowForStudent($profile, 'INC-202', 'Incomplete Grade', 'INC', GradeRosterRow::CategoryIncomplete, released: true);
-        $this->gradeRowForStudent($profile, 'PEN-203', 'Pending Grade', 'P', GradeRosterRow::CategoryPending, released: true);
         $this->gradeRowForStudent($profile, 'WDR-204', 'Withdrawn Grade', 'W', GradeRosterRow::CategoryWithdrawn, released: true);
         $this->gradeRowForStudent($profile, 'TRC-205', 'Transfer Credit Grade', 'TC', GradeRosterRow::CategoryTransferCredit, released: true);
         $this->gradeRowForStudent($profile, 'DRF-206', 'Draft Grade', '1.25', GradeRosterRow::CategoryPassing, released: false);
@@ -119,7 +116,6 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
 
         $this->assertSame('2.00', $grades['NUM-201']['display_grade']);
         $this->assertSame('Incomplete', $grades['INC-202']['display_grade']);
-        $this->assertSame('Pending Grade', $grades['PEN-203']['display_grade']);
         $this->assertSame('Withdrawn', $grades['WDR-204']['display_grade']);
         $this->assertSame('Transfer Credit', $grades['TRC-205']['display_grade']);
         $this->assertFalse($grades->has('DRF-206'));
@@ -226,10 +222,7 @@ class TAL89DStudentGradeVisibilityTest extends TestCase
         return GradeRosterRow::query()->create([
             'grade_roster_id' => $roster->id,
             'course_enrollment_id' => $courseEnrollment->id,
-            'prelim_equivalent' => 90,
-            'midterm_equivalent' => 91,
-            'final_equivalent' => 92,
-            'computed_average' => 91.0000,
+            'final_result' => $outcomeCode,
             'current_outcome_code' => $outcomeCode,
             'current_outcome_category' => $outcomeCategory,
             'released_at' => $released ? now() : null,

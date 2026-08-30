@@ -2,7 +2,6 @@
 
 namespace App\Actions\Enrollment;
 
-use App\Actions\Grades\GradePolicyService;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
@@ -23,8 +22,6 @@ use RuntimeException;
 
 class AcademicProgressionService
 {
-    public function __construct(private readonly GradePolicyService $gradePolicy) {}
-
     /**
      * @return array<string, mixed>
      */
@@ -42,7 +39,7 @@ class AcademicProgressionService
             return $this->missingBaselineResult($studentProfile);
         }
 
-        $releasedRows = $this->releasedRows($studentProfile);
+        $academicRows = $this->academicRows($studentProfile);
         $currentCourseIds = $this->currentCourseIds($studentProfile, $targetTerm);
         $shiftCredits = $this->acceptedShiftCredits($studentProfile);
         $exceptions = $this->activeExceptions($studentProfile, $targetTerm);
@@ -61,10 +58,12 @@ class AcademicProgressionService
                 continue;
             }
 
-            $row = $releasedRows->get((int) $course->id);
+            $row = $academicRows->get((int) $course->id);
             $credit = $shiftCredits->get((int) $entry->id);
             $numericGrade = $credit instanceof ProgramShiftCreditEntry ? $credit->numeric_grade : null;
-            $numericGrade ??= $row instanceof GradeRosterRow && is_numeric($row->current_outcome_code) ? $row->current_outcome_code : null;
+            $numericGrade ??= $row instanceof GradeRosterRow && $row->released_at !== null && is_numeric($row->current_outcome_code)
+                ? $row->current_outcome_code
+                : null;
 
             if ($numericGrade !== null) {
                 $units = (float) $entry->courseSpecification->credit_units;
@@ -100,7 +99,7 @@ class AcademicProgressionService
             $requirementResult = $this->requirementsPass(
                 $entry,
                 $offering,
-                $releasedRows,
+                $academicRows,
                 $shiftCredits,
                 $currentCourseIds,
                 $exceptions,
@@ -232,13 +231,11 @@ class AcademicProgressionService
     }
 
     /** @return Collection<int, GradeRosterRow> */
-    private function releasedRows(StudentProfile $studentProfile): Collection
+    private function academicRows(StudentProfile $studentProfile): Collection
     {
         return GradeRosterRow::query()
             ->with('courseEnrollment.termOffering.curriculumEntry.courseSpecification.course')
-            ->whereNotNull('released_at')
             ->whereHas('courseEnrollment.enrollment', fn ($query) => $query->where('student_profile_id', $studentProfile->id))
-            ->latest('released_at')
             ->latest('id')
             ->get()
             ->toBase()
@@ -355,6 +352,10 @@ class AcademicProgressionService
         $row = $rows->get((int) $requirement->related_course_id);
 
         if ($row instanceof GradeRosterRow) {
+            if ($row->released_at === null) {
+                return false;
+            }
+
             if ($row->current_outcome_code === 'TC') {
                 return $requirement->accepts_transfer_credit;
             }
@@ -374,9 +375,12 @@ class AcademicProgressionService
             return 'missing_history';
         }
 
+        if ($row->released_at === null) {
+            return 'pending_grade';
+        }
+
         return match ($row->current_outcome_code) {
             'INC' => 'active_inc',
-            'P' => 'pending_grade',
             default => 'failed',
         };
     }
@@ -397,7 +401,8 @@ class AcademicProgressionService
 
     private function numericOutcomeMeets(GradeRosterRow $row, mixed $minimumGrade): bool
     {
-        return $row->current_outcome_category === GradeRosterRow::CategoryPassing
+        return $row->released_at !== null
+            && $row->current_outcome_category === GradeRosterRow::CategoryPassing
             && is_numeric($row->current_outcome_code)
             && $this->numericGradeMeets((string) $row->current_outcome_code, $minimumGrade);
     }
@@ -408,11 +413,7 @@ class AcademicProgressionService
             return true;
         }
 
-        $orderedCodes = collect($this->gradePolicy->snapshot()['scale'])->pluck('code')->map(fn ($code): string => (string) $code)->values();
-        $actualIndex = $orderedCodes->search(fn (string $code): bool => (float) $code === (float) $grade);
-        $minimumIndex = $orderedCodes->search(fn (string $code): bool => (float) $code === (float) $minimumGrade);
-
-        return $actualIndex !== false && $minimumIndex !== false && $actualIndex <= $minimumIndex;
+        return (float) $grade <= (float) $minimumGrade;
     }
 
     private function completionSource(?GradeRosterRow $row, ?ProgramShiftCreditEntry $credit): ?array
@@ -425,7 +426,7 @@ class AcademicProgressionService
             return null;
         }
 
-        if ($row->current_outcome_code === 'TC') {
+        if ($row->released_at !== null && $row->current_outcome_code === 'TC') {
             return ['type' => 'external_transfer_credit', 'id' => (int) $row->id];
         }
 
@@ -434,7 +435,7 @@ class AcademicProgressionService
 
     private function isBackSubject(?GradeRosterRow $row, StudentProfile $studentProfile, int $courseId): bool
     {
-        if ($row instanceof GradeRosterRow) {
+        if ($row instanceof GradeRosterRow && $row->released_at !== null) {
             return in_array($row->current_outcome_category, [GradeRosterRow::CategoryFailed, GradeRosterRow::CategoryWithdrawn], true)
                 || in_array($row->current_outcome_code, ['DRP', 'W'], true);
         }
@@ -474,16 +475,16 @@ class AcademicProgressionService
     /** @return array<string,mixed>|null */
     private function outcomeBlocker(CurriculumEntry $entry, ?GradeRosterRow $row): ?array
     {
-        if (! $row instanceof GradeRosterRow || ! in_array($row->current_outcome_code, ['P', 'INC'], true)) {
+        if (! $row instanceof GradeRosterRow || ($row->released_at !== null && $row->current_outcome_code !== 'INC')) {
             return null;
         }
 
         return [
-            'key' => 'outcome:'.$entry->id.':'.$row->current_outcome_code,
+            'key' => 'outcome:'.$entry->id.':'.($row->released_at === null ? 'unreleased' : $row->current_outcome_code),
             'kind' => 'outcome',
             'course_id' => (int) $entry->courseSpecification->course_id,
             'course_code' => $entry->courseSpecification->course->code,
-            'reason' => $row->current_outcome_code === 'INC' ? 'active_inc' : 'pending_grade',
+            'reason' => $row->released_at === null ? 'pending_grade' : 'active_inc',
             'source' => $this->rowSource($row),
         ];
     }
